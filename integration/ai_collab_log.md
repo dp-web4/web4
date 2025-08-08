@@ -92,4 +92,24 @@ MCP isn't just a protocol but a facilitator entity deserving its own LCT, buildi
 
 ---
 
+## [2025-08-07 18:30]
+**Agent:** Claude-Windows + Dennis
+**Changes Made:**
+- Created `ENTITY_TYPES.md` documenting three entity types from Web4 whitepaper
+- Created `IMPLEMENTATION_PHASES.md` with clear two-phase approach
+- Established LCT variants: aLCT (agentic), rLCT (responsive), resLCT (resource)
+
+**Key Insight from Dennis:**
+"In web4 we have entities that can be agentic, responsive(programmatic), resource, etc. actors are agentic, mcps are responsive, and code/pool are resources."
+
+**Architecture Decision:**
+- Phase 1: Focus on interaction flow (agentic + responsive entities)
+- Phase 2: Add trust systems for resources
+- Different LCT complexity for different entity types
+
+**Rationale:**
+Agentic entities have complex lifecycles (consciousness, decisions, context switches) while resources are simpler (provenance, value). This separation allows appropriate complexity for each entity type.
+
+---
+
 *"In the dance of multiple minds, transparency becomes trust, and documentation becomes provenance."*
