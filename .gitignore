@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# LCT and sensitive data
+lcts/private/
+*.private.lct
+*.key
+*.pem
+
+# Energy ledger (machine-specific)
+energy_ledger.json
+atp_balances.json
+
+# Local cache
+.cache/
+*.cache
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test data
+test_pool/
+test_lcts/
+
+# Machine-specific
+.machine_config.json
+.local_settings.json
