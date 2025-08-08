@@ -243,6 +243,28 @@ async def find_resonance(lct_id: str, min_overlap: float) -> List[LCT]
 3. **External Entities**: Open federation
 4. **Web4 Network**: Broader ecosystem
 
+## Attention Economics Layer
+
+### Universal Pattern
+The system implements **attention economics** - the same pattern found in vision systems:
+
+```python
+# Whether vision or trust, the pattern is identical
+while True:
+    field = monitor_peripheral()  # Continuous awareness
+    if detect_spike(field):        # Threshold trigger
+        allocate_resources(spike)   # Focus attention
+        adapt_thresholds(outcome)   # Learn and calibrate
+```
+
+### Implementation
+- **Trust Fields**: Continuous functions like visual motion fields
+- **Attention Routing**: Resources flow to high-trust areas like cameras pan to motion
+- **Multi-Entity Resonance**: Like binocular vision creating depth
+- **Adaptive Calibration**: Trust baselines adapt like vision autocalibration
+
+See `ATTENTION_ECONOMICS.md` for detailed parallels with Jetson vision system.
+
 ## Success Metrics
 
 ### Technical Metrics
@@ -262,6 +284,12 @@ async def find_resonance(lct_id: str, min_overlap: float) -> List[LCT]
 - Messages per day
 - Value certifications per day
 - Cross-entity collaborations
+
+### Attention Metrics
+- Focus efficiency (resources allocated to high-value areas)
+- Peripheral coverage (no blind spots in monitoring)
+- Adaptation rate (how quickly system learns patterns)
+- Resonance frequency (successful collaboration rate)
 
 ## Governance Model
 
