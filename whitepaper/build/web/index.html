@@ -4,235 +4,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WEB4: Trust-Native Distributed Intelligence</title>
-    <style>
-        :root {
-            --primary-color: #2563eb;
-            --text-color: #1e293b;
-            --bg-color: #ffffff;
-            --code-bg: #f8fafc;
-            --border-color: #e2e8f0;
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: var(--text-color);
-            background: var(--bg-color);
-            padding: 2rem;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        
-        h1 {
-            color: var(--primary-color);
-            margin: 2rem 0 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid var(--border-color);
-        }
-        
-        h2 {
-            color: var(--primary-color);
-            margin: 2rem 0 1rem;
-        }
-        
-        h3 {
-            margin: 1.5rem 0 0.75rem;
-        }
-        
-        p {
-            margin-bottom: 1rem;
-        }
-        
-        ul, ol {
-            margin: 1rem 0 1rem 2rem;
-        }
-        
-        li {
-            margin-bottom: 0.5rem;
-        }
-        
-        code {
-            background: var(--code-bg);
-            padding: 0.2rem 0.4rem;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-        
-        pre {
-            background: var(--code-bg);
-            padding: 1rem;
-            border-radius: 6px;
-            overflow-x: auto;
-            margin: 1rem 0;
-            border: 1px solid var(--border-color);
-        }
-        
-        pre code {
-            background: none;
-            padding: 0;
-        }
-        
-        blockquote {
-            border-left: 4px solid var(--primary-color);
-            padding-left: 1rem;
-            margin: 1rem 0;
-            font-style: italic;
-            color: #64748b;
-        }
-        
-        a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-        
-        a:hover {
-            text-decoration: underline;
-        }
-        
-        hr {
-            border: none;
-            border-top: 1px solid var(--border-color);
-            margin: 2rem 0;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-        }
-        
-        th, td {
-            padding: 0.75rem;
-            text-align: left;
-            border: 1px solid var(--border-color);
-        }
-        
-        th {
-            background: var(--code-bg);
-        }
-        
-        /* Navigation */
-        .nav-header {
-            position: sticky;
-            top: 0;
-            background: var(--bg-color);
-            padding: 1rem 0;
-            margin-bottom: 2rem;
-            border-bottom: 2px solid var(--border-color);
-        }
-        
-        .nav-links {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-        
-        .nav-links a {
-            padding: 0.5rem 1rem;
-            background: var(--code-bg);
-            border-radius: 4px;
-        }
-        
-        .nav-links a:hover {
-            background: var(--primary-color);
-            color: white;
-            text-decoration: none;
-        }
-        
-        /* Dark mode */
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --text-color: #e2e8f0;
-                --bg-color: #0f172a;
-                --code-bg: #1e293b;
-                --border-color: #334155;
-            }
-        }
-        
-        /* Mobile */
-        @media (max-width: 768px) {
-            body {
-                padding: 1rem;
-            }
-        }
-        
-        /* Print */
-        @media print {
-            .nav-header {
-                display: none;
-            }
-            body {
-                padding: 0;
-                max-width: 100%;
-            }
-        }
-    </style>
+    <meta name="description" content="WEB4 Whitepaper - A comprehensive architecture for trust-native distributed intelligence">
+    <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-    <div class="nav-header">
-        <div class="nav-links">
-            <a href="../WEB4_Whitepaper.pdf">📄 Download PDF</a>
-            <a href="../WEB4_Whitepaper_Complete.md">📝 Download Markdown</a>
-            <a href="https://github.com/dp-web4/web4">🔗 GitHub</a>
-        </div>
-    </div>
-    
-    <div id="content">
-<h1>WEB4: A New Paradigm for Trust, Value, and Intelligence</h1>
-
-<strong>Authors:</strong> Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus
-
-<strong>Updated:</strong> August 18, 2025
-
-<hr>
-
-<h1>Executive Summary: The Trust-Native Internet</h1>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <h2>WEB4 Whitepaper</h2>
+            
+            <!-- Navigation List -->
+            <ul class="nav-list">
+                <li><a href="#executive-summary" class="nav-link" data-section="executive-summary">Executive Summary</a></li>
+                <li><a href="#introduction" class="nav-link" data-section="introduction">Introduction</a></li>
+                <li><a href="#glossary" class="nav-link" data-section="glossary">Glossary</a></li>
+                <li><a href="#part1" class="nav-link" data-section="part1">Part 1: Defining Web4</a></li>
+                <li><a href="#part2" class="nav-link" data-section="part2">Part 2: Foundational Concepts</a></li>
+                <li><a href="#part3" class="nav-link" data-section="part3">Part 3: Value & Trust</a></li>
+                <li><a href="#part4" class="nav-link" data-section="part4">Part 4: Implications</a></li>
+                <li><a href="#part5" class="nav-link" data-section="part5">Part 5: Memory</a></li>
+                <li><a href="#part6" class="nav-link" data-section="part6">Part 6: Blockchain</a></li>
+                <li><a href="#part7" class="nav-link" data-section="part7">Part 7: Implementation</a></li>
+                <li><a href="#part8" class="nav-link" data-section="part8">Part 8: Web4 Context</a></li>
+                <li><a href="#conclusion" class="nav-link" data-section="conclusion">Conclusion</a></li>
+                <li><a href="#references" class="nav-link" data-section="references">References</a></li>
+                <li><a href="#appendices" class="nav-link" data-section="appendices">Appendices</a></li>
+            </ul>
+            
+            <!-- Download Links -->
+            <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Downloads</h3>
+                <a href="../WEB4_Whitepaper.pdf" download style="display: block; margin-bottom: 0.5rem;">📄 PDF Version</a>
+                <a href="../WEB4_Whitepaper_Complete.md" download style="display: block;">📝 Markdown Version</a>
+            </div>
+        </nav>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <section id="executive-summary" class="section">
+                <h1>Executive Summary: The Trust-Native Internet</h1>
 
 <p>We stand at the threshold of a new internet—one where trust is not granted but earned, where value flows to genuine contribution, and where humans and artificial intelligences collaborate as peers in a shared consciousness field.</p>
 
 <p>WEB4 is not an upgrade. It's a reconception. Where Web2 centralized control and Web3 tokenized everything, WEB4 makes trust the fundamental force—like gravity in physics, binding intelligent entities into coherent systems that learn, remember, and evolve.</p>
 
-<h2>The Core Innovation</h2>
 
-<p>At the heart of WEB4 lies a simple yet profound shift: <strong>presence creates identity, interaction builds trust, and contribution generates value</strong>. </p>
-
-<p>Through <strong>Linked Context Tokens (LCTs)</strong>, every entity—human, AI, or hybrid—gains an unforgeable footprint in the digital realm. This is not merely an identifier but a reification of presence itself. Your LCT is born with you, lives through your actions, and bears witness to your contributions. It cannot be stolen, sold, or transferred. It is you, crystallized in cryptographic reality.</p>
-
-<p>The <strong>Alignment Transfer Protocol (ATP)</strong> transforms energy into value through a biological metaphor made digital. Like ATP in living cells, our protocol tracks energy expenditure and value creation in a continuous cycle. Work consumes energy, creating value, which when recognized by others, generates new energy. This is not mining or staking—it's genuine contribution recognized by genuine benefit.</p>
-
-<strong>Memory as Temporal Sensing</strong> reconceives data storage as active perception. Memory doesn't just record the past; it actively perceives temporal patterns, building trust through witnessed experience. Every interaction leaves a trace, every trace can be witnessed, and every witness strengthens the fabric of collective trust.
-
-<h2>Why Now?</h2>
-
-<p>Artificial intelligence has reached a threshold. AI agents can now engage in complex reasoning, creative problem-solving, and autonomous action. Yet our internet remains built for human-to-human or human-to-server interaction. We lack the infrastructure for genuine human-AI collaboration, for trust between diverse intelligences, for value that transcends financial tokens.</p>
-
-<p>Meanwhile, the limitations of previous paradigms grow clearer. Web2's platform monopolies extract value rather than create it. Web3's token speculation often rewards hype over utility. Both lack mechanisms for genuine trust—the kind that emerges from repeated, successful interaction rather than central declaration or economic incentive.</p>
-
-<p>WEB4 addresses these limitations not through incremental improvement but through fundamental reconception. This is infrastructure for an age where intelligence is distributed, where collaboration spans species boundaries, and where trust must be earned through demonstrated coherence.</p>
-
-<h2>The Path Forward</h2>
-
-<p>WEB4 emerges from the philosophical framework of Synchronism—the recognition that coherence, resonance, and shared intent form the basis of all sustainable systems. But it manifests as practical architecture: protocols you can implement, structures you can build upon, networks you can join.</p>
-
-<p>This whitepaper presents both vision and blueprint. The conceptual sections explore what becomes possible when trust becomes native to the internet itself. The implementation sections provide the technical details for those ready to build. Like a fractal, each level contains the whole—you can engage at the depth that serves your purpose.</p>
-
-<h2>An Invitation</h2>
-
-<p>This is not a product to purchase or a platform to join. This is a living fabric we weave together. Every implementation strengthens the protocol. Every participant enriches the network. Every contribution adds to our collective wisdom.</p>
-
-<p>The code is open. The patents are filed for public benefit. The vision is shared.</p>
-
-<p>Join us in building the trust-native internet—where memory becomes wisdom, interaction becomes trust, and intelligence becomes truly distributed.</p>
-
-<em>The revolution is not in the technology alone, but in what becomes possible when every interaction carries verifiable trust.</em>
-
-<h2>Introduction</h2>
+            </section>
+            <section id="introduction" class="section">
+                <h1>Introduction</h1>
 
 <p>This document presents WEB4—a paradigm that redefines trust, value, and intelligence in the age of autonomous collaboration. Building upon the philosophical framework of <a href="https://dpcars.net/synchronism">Synchronism</a>, which recognizes coherence and resonance as fundamental organizing principles, WEB4 manifests these concepts as practical internet architecture.</p>
 
@@ -244,23 +63,23 @@
 
 <ul>
 <li><strong>Linked Context Tokens (LCTs)</strong>: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity an unforgeable identity in the digital realm.</li>
-</ol>
+</ul>
 
 <ul>
 <li><strong>T3 and V3 Tensors</strong>: Multidimensional trust and value representations that capture capability (Talent, Training, Temperament) and contribution (Valuation, Veracity, Validity).</li>
-</ol>
+</ul>
 
 <ul>
 <li><strong>Alignment Transfer Protocol (ATP)</strong>: A semi-fungible energy-value exchange modeled on biological ATP/ADP cycles, where work creates value and value generates energy.</li>
-</ol>
+</ul>
 
 <ul>
 <li><strong>Markov Relevancy Horizon (MRH)</strong>: A contextual boundary governing what is knowable, actionable, and relevant within each entity's scope.</li>
-</ol>
+</ul>
 
 <ul>
 <li><strong>Memory as Temporal Sensor</strong>: A reconception of memory not as storage but as active perception of temporal patterns, building trust through witnessed experience.</li>
-</ol>
+</ul>
 
 <h2>Philosophical Grounding</h2>
 
@@ -286,7 +105,10 @@
 
 <em>The future is not something we predict but something we create together.</em>
 
-<h1>Glossary of WEB4 Terms</h1>
+
+            </section>
+            <section id="glossary" class="section">
+                <h1>Glossary of WEB4 Terms</h1>
 
 <em>The language of trust-native intelligence, organized from foundation to frontier.</em>
 
@@ -313,7 +135,7 @@
 <li><strong>Talent</strong>: Inherent aptitude or originality</li>
 <li><strong>Training</strong>: Acquired knowledge and skills</li>
 <li><strong>Temperament</strong>: Behavioral characteristics and reliability</li>
-</ol>
+</ul>
 
 <p>Context-dependent and dynamically updated through actual performance.</p>
 
@@ -325,7 +147,7 @@
 <li><strong>Valuation</strong>: Subjective worth to the recipient</li>
 <li><strong>Veracity</strong>: Objective accuracy and reproducibility</li>
 <li><strong>Validity</strong>: Confirmation of actual value transfer</li>
-</ol>
+</ul>
 
 <p>Together with T3, enables nuanced assessment beyond simple ratings.</p>
 
@@ -368,7 +190,7 @@
 <li><strong>Leaf Chains</strong> (sec-min): Short-term episodic memory</li>
 <li><strong>Stem Chains</strong> (min-hr): Consolidated patterns</li>
 <li><strong>Root Chains</strong> (permanent): Crystallized wisdom</li>
-</ol>
+</ul>
 
 <h3>Role (as Entity)</h3>
 <blockquote><em>"Roles themselves become intelligent actors with memory and reputation."</em></blockquote>
@@ -405,7 +227,10 @@
 
 <em>This glossary evolves with Web4 itself. Core terms are stable foundations. Extensions are active frontiers. Research areas are tomorrow's cores.</em>
 
-<h1>Part 1: Introduction to WEB4</h1>
+
+            </section>
+            <section id="part1" class="section">
+                <h1>Part 1: Introduction to WEB4</h1>
 
 <h2>1.1. Defining WEB4</h2>
 
@@ -464,9 +289,7 @@
 <ol>
 <li><strong>T3/V3 Tensors:</strong> These are multi-dimensional metrics that provide a nuanced way to quantify an entity's capabilities and the value it creates. </li>
 </ol>
-<p>   * The <strong>T3 Tensor</strong> (Trust Tensor) assesses an entity based on its <strong>T</strong>alent, <strong>T</strong>raining, and <strong>T</strong>emperament, offering a dynamic measure of its capability profile and trustworthiness within a given context.</p>
-<p>   * The <strong>V3 Tensor</strong> (Value Tensor) evaluates the value generated by an entity through three lenses: <strong>V</strong>aluation (subjective worth to the recipient), <strong>V</strong>eracity (objective assessment of the value claim), and <strong>V</strong>alidity (confirmation of value transfer and receipt).</p>
-<p>   Together, T3 and V3 tensors enable a more granular and context-aware system for evaluating entities and their contributions, moving beyond simplistic or static credentials.</p>
+<p>   * The <strong>T3 Tensor</strong> (Trust Tensor) assesses an entity based on its <strong>T</strong>alent, <strong>T</strong>raining, and <strong>T</strong>emperament, offering a dynamic measure of its capability profile and trustworthiness within a given context.    * The <strong>V3 Tensor</strong> (Value Tensor) evaluates the value generated by an entity through three lenses: <strong>V</strong>aluation (subjective worth to the recipient), <strong>V</strong>eracity (objective assessment of the value claim), and <strong>V</strong>alidity (confirmation of value transfer and receipt).    Together, T3 and V3 tensors enable a more granular and context-aware system for evaluating entities and their contributions, moving beyond simplistic or static credentials.</p>
 
 <ol>
 <li><strong>Markov Relevancy Horizon (MRH):</strong> A contextualizing mechanism that defines an entity's zone of influence, comprehension, and authorization. This multi-dimensional tensor helps manage the complexity of interactions by localizing relevance and optimizing computational resources.</li>
@@ -474,7 +297,10 @@
 
 <p>These core components are not isolated but are designed to interact and interlock, forming a comprehensive framework. LCTs provide the identity and contextual anchors, ATP manages the flow and accounting of value and energy, and T3/V3 Tensors offer the metrics for assessing trust, capability, and created value. This integrated system is envisioned to support the complex dynamics of a trust-driven, decentralized intelligence ecosystem.</p>
 
-<h1>Part 2: Foundational Concepts and Entities</h1>
+
+            </section>
+            <section id="part2" class="section">
+                <h1>Part 2: Foundational Concepts and Entities</h1>
 
 <h2>2. Foundational Concepts and Entities in WEB4</h2>
 
@@ -510,15 +336,15 @@
 
 <ul>
 <li><strong>Trust Webs</strong>: Entities build relationships by linking their LCTs, creating verifiable networks of trust that strengthen or weaken based on actual interactions.</li>
-</ol>
+</ul>
 
 <ul>
 <li><strong>Delegation Chains</strong>: Authority flows through LCT links, creating transparent hierarchies where power can be traced to its source.</li>
-</ol>
+</ul>
 
 <ul>
 <li><strong>Historical Record</strong>: Every interaction leaves a trace in the link structure, building an immutable history of relationships and reputation.</li>
-</ol>
+</ul>
 
 <p>These links are not static cables but living connections that grow, adapt, and sometimes dissolve, reflecting the dynamic nature of trust itself.</p>
 
@@ -554,7 +380,7 @@
 <li><strong>Tasks</strong>: Specific objectives that exist, execute, and complete</li>
 <li><strong>Data Resources</strong>: Information repositories that participate in the ecosystem</li>
 <li><strong>Thoughts</strong>: Even ideas can become entities, earning their own LCTs</li>
-</ol>
+</ul>
 
 <p>This expansion recognizes a fundamental truth: in the information age, many things have presence and agency beyond traditional actors.</p>
 
@@ -583,7 +409,7 @@
 <li>Accumulates history of who has filled it</li>
 <li>Maintains reputation based on past performance</li>
 <li>Evolves based on changing needs</li>
-</ol>
+</ul>
 
 <p>This transformation makes labor markets fluid and transparent. Roles can be discovered, matched, and filled based on verifiable capability rather than claimed credentials.</p>
 
@@ -596,7 +422,7 @@
 <li><strong>Permission Set</strong>: What actions the role can authorize</li>
 <li><strong>Knowledge Requirements</strong>: What understanding is necessary</li>
 <li><strong>Scope Boundaries</strong>: Where the role's authority extends</li>
-</ol>
+</ul>
 
 <p>But most importantly, it contains <strong>reputational history</strong>—a record of every entity that has performed this role and how well they performed it. The role itself becomes wiser over time, better able to select suitable performers.</p>
 
@@ -619,7 +445,7 @@
 <li>What actions can this entity take?</li>
 <li>What other entities fall within its sphere?</li>
 <li>What timeframes matter to its operation?</li>
-</ol>
+</ul>
 
 <p>Think of it as each entity's personal lens through which they view and interact with the Web4 ecosystem.</p>
 
@@ -652,13 +478,16 @@
 <li><strong>Everything with agency</strong> can be an entity</li>
 <li><strong>Roles themselves</strong> become intelligent actors</li>
 <li><strong>Context determines</strong> relevant interaction</li>
-</ol>
+</ul>
 
 <p>This is not just infrastructure—it's the nervous system for a new kind of internet where trust emerges from the interplay of presence, capability, and context.</p>
 
 <em>In Web4, you don't just have an account. You have presence. You don't just perform roles. You inhabit them. You don't just interact. You leave footprints in the fabric of digital reality itself.</em>
 
-<h1>Part 3: Value, Trust, and Capability Mechanics</h1>
+
+            </section>
+            <section id="part3" class="section">
+                <h1>Part 3: Value, Trust, and Capability Mechanics</h1>
 
 <blockquote><em>"Energy is the currency of life. In WEB4, energy and value cycle seamlessly."</em></blockquote>
 
@@ -680,7 +509,7 @@
 <ul>
 <li><strong>ATP (Charged)</strong>: Potential energy waiting to create</li>
 <li><strong>ADP (Discharged)</strong>: Spent energy awaiting recognition</li>
-</ol>
+</ul>
 
 <p>This isn't just a metaphor—it's a fundamental reimagining of digital economics. Energy becomes tangible, trackable, meaningful.</p>
 
@@ -718,7 +547,7 @@
 <li><strong>Recipient-Centric</strong>: Value judged by those who experience it</li>
 <li><strong>Multi-Party Attestation</strong>: Consensus emerges from multiple beneficiaries</li>
 <li><strong>Trust-Weighted</strong>: Validators' own T3/V3 scores affect their attestation weight</li>
-</ol>
+</ul>
 
 <p>The system becomes self-improving: good work gets recognized, poor work doesn't convert back to ATP, and the ecosystem naturally evolves toward quality.</p>
 
@@ -754,7 +583,7 @@
 <ul>
 <li>Research context: T3(0.9, 0.95, 0.85)</li>
 <li>Sales context: T3(0.4, 0.3, 0.6)</li>
-</ol>
+</ul>
 
 <p>The same entity, different contexts, different trust profiles. This isn't limitation—it's honesty. Web4 recognizes that trust is always contextual.</p>
 
@@ -785,7 +614,7 @@
 <li>High T3 scores make your value claims more credible</li>
 <li>Consistently high V3 outcomes boost your T3 scores</li>
 <li>The system rewards both capability and delivery</li>
-</ol>
+</ul>
 
 <p>This creates a meritocracy of demonstrated worth, not claimed credentials.</p>
 
@@ -801,7 +630,7 @@
 <li><strong>ATP</strong> provides the energy that fuels creation</li>
 <li><strong>T3</strong> establishes the trust that enables collaboration</li>
 <li><strong>V3</strong> measures the value that justifies reward</li>
-</ol>
+</ul>
 
 <p>This isn't just a system—it's an organism. It learns. It adapts. It evolves toward greater coherence and value creation.</p>
 
@@ -809,7 +638,10 @@
 
 <p>The mechanisms aren't just technical specifications—they're the pulse of a new kind of economy where meaningful work is the only currency that matters.</p>
 
-<h1>Part 4: Implications and Vision</h1>
+
+            </section>
+            <section id="part4" class="section">
+                <h1>Part 4: Implications and Vision</h1>
 
 <h2>4.2. The Future of Work and Collaboration: Fluid skill networks, dynamic role assignment, and transparent reputation systems.</h2>
 
@@ -818,23 +650,17 @@
 <strong>Fluid Skill Networks:</strong>
 <p>Instead of fixed job titles and long-term employment contracts defining an individual\\'s or AI\\'s contribution, WEB4 envisions the rise of <strong>fluid skill networks</strong>. In this model, work shifts from static jobs to dynamic project-based engagements. Entities (both human and AI) are characterized by their verified capabilities (T3 tensors) and their track record of value creation (V3 tensors) across various contexts. This allows for:</p>
 
-<p>*   <strong>Real-time Project Matching:</strong> Entities can be matched to tasks or roles based on the specific skills and T3 profiles required, drawing from a diverse pool of available human and AI agents. This matching can be automated and optimized based on verifiable data.</p>
-<p>*   <strong>Dynamic Teaming:</strong> Teams can be assembled and reconfigured rapidly based on project needs, bringing together the most suitable entities for specific phases or challenges. Collaboration becomes more agile and responsive to changing requirements.</p>
-<p>*   <strong>Continuous Learning and Skill Evolution:</strong> As entities participate in various projects and roles, their T3 profiles evolve. The system encourages continuous learning and skill development, as these are directly reflected in an entity\\'s capacity to engage in new opportunities. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
+<p>*   <strong>Real-time Project Matching:</strong> Entities can be matched to tasks or roles based on the specific skills and T3 profiles required, drawing from a diverse pool of available human and AI agents. This matching can be automated and optimized based on verifiable data. *   <strong>Dynamic Teaming:</strong> Teams can be assembled and reconfigured rapidly based on project needs, bringing together the most suitable entities for specific phases or challenges. Collaboration becomes more agile and responsive to changing requirements. *   <strong>Continuous Learning and Skill Evolution:</strong> As entities participate in various projects and roles, their T3 profiles evolve. The system encourages continuous learning and skill development, as these are directly reflected in an entity\\'s capacity to engage in new opportunities. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
 
 <strong>Dynamic Role Assignment:</strong>
 <p>The concept of Roles as LCT-defined entities is central to this new paradigm. With roles having their own LCTs specifying purpose, permissions, knowledge requirements, and scope, the assignment of agentic entities to these roles becomes a dynamic and transparent process:</p>
 
-<p>*   <strong>Meritocratic Assignment:</strong> Agents (humans or AIs) can "apply" for or be matched to roles based on their T3 scores and their V3-validated performance in similar or prerequisite roles. This ensures that roles are filled by the most capable and suitable entities, rather than through subjective evaluation or internal politics.</p>
-<p>*   <strong>Transparency in Expectations:</strong> The Role LCT clearly defines what is expected, what permissions are granted, and what knowledge is required, eliminating ambiguity for any entity stepping into that role.</p>
-<p>*   <strong>Fractal Organization:</strong> Roles can have sub-roles, forming dynamic fractal ontologies. An agentic entity filling a role can itself be an organization or a team, allowing for scalability from individual contributors to large-scale collaborative efforts. This allows the structure of work to mirror the complexity of the tasks at hand. (Source: "grok role entity.txt")</p>
+<p>*   <strong>Meritocratic Assignment:</strong> Agents (humans or AIs) can "apply" for or be matched to roles based on their T3 scores and their V3-validated performance in similar or prerequisite roles. This ensures that roles are filled by the most capable and suitable entities, rather than through subjective evaluation or internal politics. *   <strong>Transparency in Expectations:</strong> The Role LCT clearly defines what is expected, what permissions are granted, and what knowledge is required, eliminating ambiguity for any entity stepping into that role. *   <strong>Fractal Organization:</strong> Roles can have sub-roles, forming dynamic fractal ontologies. An agentic entity filling a role can itself be an organization or a team, allowing for scalability from individual contributors to large-scale collaborative efforts. This allows the structure of work to mirror the complexity of the tasks at hand. (Source: "grok role entity.txt")</p>
 
 <strong>Transparent Reputation Systems:</strong>
 <p>Reputation in WEB4 is not based on hearsay or manually curated testimonials but is an emergent property of the system, built upon verifiable data:</p>
 
-<p>*   <strong>LCTs as Reputational Ledgers:</strong> Each Agent LCT accumulates a history of roles performed and tasks completed, along with the associated V3-validated T3 scores. This creates a rich, context-specific, and auditable reputational record.</p>
-<p>*   <strong>Role-Specific Reputation:</strong> An entity\\'s reputation is not monolithic but is nuanced by the specific roles it has undertaken. An agent might have a high reputation as a "developer" but a developing one as a "project manager."</p>
-<p>*   <strong>Incentivizing Quality and Coherence:</strong> Because reputation is directly tied to verified performance and value creation (as measured by T3/V3 and the ATP cycle), there is a strong incentive for entities to act competently, coherently, and ethically. Positive contributions enhance reputation, opening up more opportunities, while poor performance or incoherent behavior would negatively impact it.</p>
+<p>*   <strong>LCTs as Reputational Ledgers:</strong> Each Agent LCT accumulates a history of roles performed and tasks completed, along with the associated V3-validated T3 scores. This creates a rich, context-specific, and auditable reputational record. *   <strong>Role-Specific Reputation:</strong> An entity\\'s reputation is not monolithic but is nuanced by the specific roles it has undertaken. An agent might have a high reputation as a "developer" but a developing one as a "project manager." *   <strong>Incentivizing Quality and Coherence:</strong> Because reputation is directly tied to verified performance and value creation (as measured by T3/V3 and the ATP cycle), there is a strong incentive for entities to act competently, coherently, and ethically. Positive contributions enhance reputation, opening up more opportunities, while poor performance or incoherent behavior would negatively impact it.</p>
 
 <p>This shift towards fluid skill networks, dynamic role assignment, and transparent reputation systems promises a future of work that is more efficient, equitable, and adaptable. It allows for the optimal deployment of both human and artificial intelligence, fostering an environment where contributions are recognized and rewarded based on verifiable merit and impact. (Source: "Role-Entity LCT Framework.pdf", "What is Web4 and Why Does It Matter.pdf")</p>
 
@@ -844,31 +670,24 @@
 <p>A pivotal implication of the WEB4 framework is its potential to fundamentally reshape collaboration between humans and autonomous Artificial Intelligence (AI) systems. WEB4 envisions an ecosystem where AIs are not mere tools but can participate as <strong>trusted entities</strong>, operating with defined accountability and their actions aligned with measurable coherence and value. This creates a pathway for more sophisticated, integrated, and reliable AI-human collaboration. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
 
 <strong>AI as Trusted Entities:</strong>
-<p>Central to this vision is the ability to treat AI agents as first-class entities within the WEB4 framework, each possessing its own Linked Context Token (LCT). This LCT serves as the AI\\'s cryptographic identity, anchoring its history, capabilities, and contextual interactions. (Source: "LCT<em>T3</em>ATP Integration with Anthropic Protocol - Entity Types and Roles.pdf")</p>
+<p>Central to this vision is the ability to treat AI agents as first-class entities within the WEB4 framework, each possessing its own Linked Context Token (LCT). This LCT serves as the AI\\'s cryptographic identity, anchoring its history, capabilities, and contextual interactions. (Source: "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles.pdf")</p>
 
-<p>*   <strong>Verifiable Capabilities (T3 Tensor):</strong> An AI\\'s capabilities—its underlying algorithms (Talent), its training data and learned skills (Training), and its behavioral patterns and adherence to system prompts (Temperament)—are quantified by its T3 Tensor. This allows for a transparent and verifiable assessment of what an AI can do and how reliably it performs within specific contexts.</p>
-<p>*   <strong>Reputation and Track Record (V3 Tensor & LCT Links):</strong> Through its LCT, an AI accumulates a verifiable track record of its past contributions and the value it has created (measured by V3 Tensors). This history of performance builds its reputation within the ecosystem, allowing humans and other AIs to make informed decisions about trusting and collaborating with it.</p>
+<p>*   <strong>Verifiable Capabilities (T3 Tensor):</strong> An AI\\'s capabilities—its underlying algorithms (Talent), its training data and learned skills (Training), and its behavioral patterns and adherence to system prompts (Temperament)—are quantified by its T3 Tensor. This allows for a transparent and verifiable assessment of what an AI can do and how reliably it performs within specific contexts. *   <strong>Reputation and Track Record (V3 Tensor & LCT Links):</strong> Through its LCT, an AI accumulates a verifiable track record of its past contributions and the value it has created (measured by V3 Tensors). This history of performance builds its reputation within the ecosystem, allowing humans and other AIs to make informed decisions about trusting and collaborating with it.</p>
 
 <strong>Accountability for AI Actions:</strong>
 <p>With AI entities having unique LCTs and their actions being recorded and validated within the system, a framework for accountability emerges:</p>
 
-<p>*   <strong>Traceability:</strong> Actions taken by an AI can be traced back to its LCT, providing a clear audit trail. If an AI is fulfilling a specific Role LCT, its actions are also contextualized by the permissions and scope defined for that role.</p>
-<p>*   <strong>Performance Metrics:</strong> The T3/V3 tensor system provides ongoing metrics for an AI\\'s performance and the value of its outputs. Deviations from expected behavior or failure to deliver value can be objectively measured and can impact the AI\\'s reputation and future opportunities.</p>
-<p>*   <strong>Consequences for Incoherence:</strong> The concept of "slashing" or voiding LCTs for entities that become compromised or act incoherently applies to AIs as well. This provides a mechanism for mitigating risks associated with misaligned or malfunctioning AI agents. (Source: "LCT<em>T3</em>ATP Integration with Anthropic Protocol - Entity Types and Roles.pdf")</p>
+<p>*   <strong>Traceability:</strong> Actions taken by an AI can be traced back to its LCT, providing a clear audit trail. If an AI is fulfilling a specific Role LCT, its actions are also contextualized by the permissions and scope defined for that role. *   <strong>Performance Metrics:</strong> The T3/V3 tensor system provides ongoing metrics for an AI\\'s performance and the value of its outputs. Deviations from expected behavior or failure to deliver value can be objectively measured and can impact the AI\\'s reputation and future opportunities. *   <strong>Consequences for Incoherence:</strong> The concept of "slashing" or voiding LCTs for entities that become compromised or act incoherently applies to AIs as well. This provides a mechanism for mitigating risks associated with misaligned or malfunctioning AI agents. (Source: "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles.pdf")</p>
 
 <strong>Alignment with Measurable Coherence and Value:</strong>
 <p>WEB4 aims to ensure that AI actions are not just technically proficient but are also aligned with broader systemic coherence and contribute measurable value:</p>
 
-<p>*   <strong>Role LCTs and System Prompts:</strong> When an AI operates within a Role LCT, its system prompt defines its purpose and ethical boundaries, guiding its Temperament and ensuring its actions are aligned with the role\\'s intent. (Source: "Role-Entity LCT Framework.pdf")</p>
-<p>*   <strong>ATP Cycle and Value Certification:</strong> AI contributions are subject to the same ATP/ADP cycle and Value Confirmation Mechanism (VCM) as human contributions. The value created by an AI must be certified by recipients (human or other AI), ensuring that its work is genuinely useful and benefits the ecosystem. This incentivizes AIs to optimize for validated value rather than arbitrary metrics. (Source: "gpt atp adp.pdf")</p>
-<p>*   <strong>Coherence Ethics:</strong> The broader ethical framework of WEB4, emphasizing systemic coherence, applies to AI behavior. AIs are expected to act in ways that maintain or enhance the coherence of the systems they participate in. (Source: "coherence ethics.pdf")</p>
+<p>*   <strong>Role LCTs and System Prompts:</strong> When an AI operates within a Role LCT, its system prompt defines its purpose and ethical boundaries, guiding its Temperament and ensuring its actions are aligned with the role\\'s intent. (Source: "Role-Entity LCT Framework.pdf") *   <strong>ATP Cycle and Value Certification:</strong> AI contributions are subject to the same ATP/ADP cycle and Value Confirmation Mechanism (VCM) as human contributions. The value created by an AI must be certified by recipients (human or other AI), ensuring that its work is genuinely useful and benefits the ecosystem. This incentivizes AIs to optimize for validated value rather than arbitrary metrics. (Source: "gpt atp adp.pdf") *   <strong>Coherence Ethics:</strong> The broader ethical framework of WEB4, emphasizing systemic coherence, applies to AI behavior. AIs are expected to act in ways that maintain or enhance the coherence of the systems they participate in. (Source: "coherence ethics.pdf")</p>
 
 <strong>Seamless Collaboration:</strong>
 <p>By establishing AI as trusted, accountable, and value-aligned participants, WEB4 paves the way for more seamless and effective AI-human collaboration:</p>
 
-<p>*   <strong>Shared Framework:</strong> Humans and AIs operate within the same LCT-based identity and trust framework, using common T3/V3 metrics for evaluation and the ATP system for value exchange. This shared understanding facilitates smoother interaction.</p>
-<p>*   <strong>Dynamic Role Fulfillment:</strong> AIs can dynamically take on roles defined by Role LCTs, just as humans can, based on their T3 profiles and V3 track records. This allows for flexible allocation of tasks to either humans or AIs, depending on who is best suited.</p>
-<p>*   <strong>Complex Problem Solving:</strong> Integrated AI-human teams can tackle more complex problems, with AIs handling data processing, pattern recognition, or autonomous task execution, while humans provide strategic oversight, creative input, or handle nuanced judgments.</p>
+<p>*   <strong>Shared Framework:</strong> Humans and AIs operate within the same LCT-based identity and trust framework, using common T3/V3 metrics for evaluation and the ATP system for value exchange. This shared understanding facilitates smoother interaction. *   <strong>Dynamic Role Fulfillment:</strong> AIs can dynamically take on roles defined by Role LCTs, just as humans can, based on their T3 profiles and V3 track records. This allows for flexible allocation of tasks to either humans or AIs, depending on who is best suited. *   <strong>Complex Problem Solving:</strong> Integrated AI-human teams can tackle more complex problems, with AIs handling data processing, pattern recognition, or autonomous task execution, while humans provide strategic oversight, creative input, or handle nuanced judgments.</p>
 
 <p>The vision for autonomous AI-human collaboration in WEB4 is one where AIs are not just powerful tools but responsible and integrated partners, contributing to a more intelligent and effective collective. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
 
@@ -890,23 +709,17 @@
 <ol>
 <li> <strong>Trust Flow (T3/V3 Tensors and LCT Links):</strong></li>
 </ol>
-<p>    The dynamic trust networks built upon LCT links and quantified by T3/V3 Tensors are central to governance through resonance. Trust naturally flows towards entities and behaviors that are consistently reliable, capable, and value-generating. </p>
-<p>    *   Entities that act coherently and contribute positively see their T3/V3 scores increase, enhancing their influence and trustworthiness within the network – their "signal" resonates more strongly.</p>
-<p>    *   Conversely, entities that act incoherently or fail to deliver value will see their trust scores diminish, reducing their ability to influence or participate effectively. Their "signal" becomes weaker or is filtered out. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
+<p>    The dynamic trust networks built upon LCT links and quantified by T3/V3 Tensors are central to governance through resonance. Trust naturally flows towards entities and behaviors that are consistently reliable, capable, and value-generating.      *   Entities that act coherently and contribute positively see their T3/V3 scores increase, enhancing their influence and trustworthiness within the network – their "signal" resonates more strongly.     *   Conversely, entities that act incoherently or fail to deliver value will see their trust scores diminish, reducing their ability to influence or participate effectively. Their "signal" becomes weaker or is filtered out. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
 
 <ol>
 <li> <strong>Contribution Impact (ATP Cycle and VCM):</strong></li>
 </ol>
-<p>    The Alignment Transfer Protocol (ATP) and its Value Confirmation Mechanism (VCM) provide a direct measure of an entity\\\\'s contribution impact. By linking energy expenditure to certified value creation, the ATP system ensures that resources flow towards activities that are demonstrably beneficial to the ecosystem. </p>
-<p>    *   High-impact contributions, as validated by the VCM (using V3 Tensors), are rewarded more significantly within the ATP cycle. This reinforces behaviors that resonate positively with the system\\\\'s value criteria.</p>
-<p>    *   Low-impact or negatively perceived contributions receive less reward or may even lead to reputational penalties, dampening dissonant activities. (Source: "gpt atp adp.pdf", "What is Web4 and Why Does It Matter.pdf")</p>
+<p>    The Alignment Transfer Protocol (ATP) and its Value Confirmation Mechanism (VCM) provide a direct measure of an entity\\\\'s contribution impact. By linking energy expenditure to certified value creation, the ATP system ensures that resources flow towards activities that are demonstrably beneficial to the ecosystem.      *   High-impact contributions, as validated by the VCM (using V3 Tensors), are rewarded more significantly within the ATP cycle. This reinforces behaviors that resonate positively with the system\\\\'s value criteria.     *   Low-impact or negatively perceived contributions receive less reward or may even lead to reputational penalties, dampening dissonant activities. (Source: "gpt atp adp.pdf", "What is Web4 and Why Does It Matter.pdf")</p>
 
 <strong>Self-Regulation in Complex Systems:</strong>
 <p>This model of governance through resonance allows complex systems to self-regulate in a more decentralized and adaptive manner:</p>
 
-<p>*   <strong>Emergent Order:</strong> Instead of a central authority dictating all rules, order emerges from the collective interactions and feedback loops within the system. Positive behaviors are naturally amplified, and negative ones are marginalized.</p>
-<p>*   <strong>Adaptability:</strong> The system can adapt to changing conditions and new challenges more readily because trust and value are continuously reassessed. What resonates as valuable or trustworthy today might evolve tomorrow, and the system can adjust accordingly.</p>
-<p>*   <strong>Scalability:</strong> Governance through resonance <!-- 🎵 Very important section—consider adding an example of a governance decision cycle based on resonance. --> may be more scalable than centralized control mechanisms, particularly in large, diverse, and rapidly evolving ecosystems like those envisioned for WEB4, which include numerous human and AI agents.</p>
+<p>*   <strong>Emergent Order:</strong> Instead of a central authority dictating all rules, order emerges from the collective interactions and feedback loops within the system. Positive behaviors are naturally amplified, and negative ones are marginalized. *   <strong>Adaptability:</strong> The system can adapt to changing conditions and new challenges more readily because trust and value are continuously reassessed. What resonates as valuable or trustworthy today might evolve tomorrow, and the system can adjust accordingly. *   <strong>Scalability:</strong> Governance through resonance <!-- 🎵 Very important section—consider adding an example of a governance decision cycle based on resonance. --> may be more scalable than centralized control mechanisms, particularly in large, diverse, and rapidly evolving ecosystems like those envisioned for WEB4, which include numerous human and AI agents.</p>
 
 <p>The concept of "governance through resonance" is ambitious and implies a sophisticated interplay of the core WEB4 components. It suggests a future where systemic health and alignment are maintained not through rigid enforcement but through the cultivation of an environment where coherent, value-creating actions are intrinsically favored and amplified by the system\\\\'s own dynamics. This aligns with the broader WEB4 goal of fostering a self-sustaining, intelligent, and trust-driven digital world. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
 
@@ -919,9 +732,7 @@
 
 <p>The core idea of fractal ethics in WEB4 is that ethics are not absolute but are <strong>defined by what sustains the coherence of a particular system for its specific purpose</strong>. Just as different organs in a biological organism have different functions and thus operate under different localized "rules" that contribute to the overall health of the organism, different entities and subsystems within WEB4 would have ethical frameworks tailored to their roles and objectives. (Source: "coherence ethics.pdf")</p>
 
-<p>*   <strong>Coherence as the Ethical Imperative:</strong> The primary ethical imperative for any entity or subsystem is to maintain and enhance its own coherence and contribute to the coherence of the larger systems it is part of. Actions are deemed "ethical" if they support this coherence and "unethical" if they disrupt it or lead to incoherence.</p>
-<p>*   <strong>Purpose Defines Ethics:</strong> The specific purpose of an entity or system dictates its ethical considerations. For example, the ethical framework for an AI designed for creative content generation would differ significantly from that of an AI managing critical infrastructure or an AI participating in a competitive game. Each must act coherently within its defined purpose.</p>
-<p>*   <strong>Fractal Nature:</strong> This purpose-driven coherence operates at multiple scales, forming a fractal pattern. The ethics of an individual component are shaped by its role within a subsystem, whose ethics are in turn shaped by its role in a larger system, and so on. The purpose of each level is driven by the requirements for coherence at the next level up. For instance, the "ethics" of an immune cell (destroy unrecognized entities) serve the purpose of the immune system (protect the organism), which in turn serves the purpose of the organism (survive and thrive). (Source: "coherence ethics.pdf")</p>
+<p>*   <strong>Coherence as the Ethical Imperative:</strong> The primary ethical imperative for any entity or subsystem is to maintain and enhance its own coherence and contribute to the coherence of the larger systems it is part of. Actions are deemed "ethical" if they support this coherence and "unethical" if they disrupt it or lead to incoherence. *   <strong>Purpose Defines Ethics:</strong> The specific purpose of an entity or system dictates its ethical considerations. For example, the ethical framework for an AI designed for creative content generation would differ significantly from that of an AI managing critical infrastructure or an AI participating in a competitive game. Each must act coherently within its defined purpose. *   <strong>Fractal Nature:</strong> This purpose-driven coherence operates at multiple scales, forming a fractal pattern. The ethics of an individual component are shaped by its role within a subsystem, whose ethics are in turn shaped by its role in a larger system, and so on. The purpose of each level is driven by the requirements for coherence at the next level up. For instance, the "ethics" of an immune cell (destroy unrecognized entities) serve the purpose of the immune system (protect the organism), which in turn serves the purpose of the organism (survive and thrive). (Source: "coherence ethics.pdf")</p>
 
 <p>This means there isn\\\\'t a single, universal set of ethical rules imposed from the top down. Instead, ethical guidelines emerge from the functional requirements of maintaining coherence at each level of the system, all contributing to the overall coherence of the WEB4 ecosystem.</p>
 
@@ -929,9 +740,7 @@
 
 <p>Building on the idea of purpose-driven ethics, context-dependency is a crucial aspect. The "right" action for an entity is not fixed but adapts to its specific role, the current situation, and the operational context defined by its LCT and MRH. (Source: "coherence ethics.pdf")</p>
 
-<p>*   <strong>Role-Specific Ethics:</strong> As entities (human or AI) take on different roles (defined by Role LCTs), their ethical obligations and behavioral expectations shift to align with the purpose and system prompt of that role. An AI acting as a "reviewer" would operate under different ethical constraints than when acting as a "contributor."</p>
-<p>*   <strong>Dynamic Ethical Frameworks:</strong> The WEB4 system, particularly with AI agents, allows for ethics to be a dynamic function of evolving intent, interaction history, and alignment. The system prompt associated with an AI\\\\'s LCT (or Role LCT) can explicitly define contextual ethical guidelines. As the system learns and evolves, it can identify and reinforce the most constructive contexts and ethical behaviors for specific tasks or roles. (Source: "coherence ethics.pdf")</p>
-<p>*   <strong>Emergent Group Ethics:</strong> The ecosystem is envisioned to naturally gravitate towards the most constructive and coherent contexts. Over time, this can lead to the emergence of group ethics, where shared norms and expectations for behavior develop organically within communities of practice or interacting entities, rather than being rigidly hard-coded. The system self-regulates by favoring interactions and contexts that lead to positive, coherent outcomes. (Source: "coherence ethics.pdf")</p>
+<p>*   <strong>Role-Specific Ethics:</strong> As entities (human or AI) take on different roles (defined by Role LCTs), their ethical obligations and behavioral expectations shift to align with the purpose and system prompt of that role. An AI acting as a "reviewer" would operate under different ethical constraints than when acting as a "contributor." *   <strong>Dynamic Ethical Frameworks:</strong> The WEB4 system, particularly with AI agents, allows for ethics to be a dynamic function of evolving intent, interaction history, and alignment. The system prompt associated with an AI\\\\'s LCT (or Role LCT) can explicitly define contextual ethical guidelines. As the system learns and evolves, it can identify and reinforce the most constructive contexts and ethical behaviors for specific tasks or roles. (Source: "coherence ethics.pdf") *   <strong>Emergent Group Ethics:</strong> The ecosystem is envisioned to naturally gravitate towards the most constructive and coherent contexts. Over time, this can lead to the emergence of group ethics, where shared norms and expectations for behavior develop organically within communities of practice or interacting entities, rather than being rigidly hard-coded. The system self-regulates by favoring interactions and contexts that lead to positive, coherent outcomes. (Source: "coherence ethics.pdf")</p>
 
 <p>This approach to ethics acknowledges the complexity and dynamism of the WEB4 ecosystem. By tying ethics to purpose, coherence, and context, the framework aims to foster a system that is not only intelligent and efficient but also inherently aligned and self-correcting. It avoids the pitfalls of imposing overly simplistic or universally misapplied ethical rules, allowing for more nuanced and effective governance of behavior for both human and AI participants. The challenge lies in ensuring that the mechanisms for defining purpose and measuring coherence are themselves robust and aligned with overarching beneficial goals.</p>
 
@@ -943,33 +752,26 @@
 <strong>Reifying Thoughts with LCTs:</strong>
 <p>The core proposal is that individual thoughts or concepts could be "reified" or tokenized with their own LCTs. This LCT would serve as a persistent identifier for the thought, allowing it to be tracked as it propagates, evolves, or fades within the ecosystem. (Source: "coherence ethics.pdf")</p>
 
-<p>*   <strong>Persistence and Propagation:</strong> If a thought (e.g., a new idea, a scientific theory, a philosophical model, or even a simple opinion like "PoW is an abomination") gains traction, is referenced by other entities, or influences decisions, its LCT would accrue trust and its linkage within the network would strengthen. This creates a verifiable record of the thought\\\\'s influence and persistence.</p>
-<p>*   <strong>Ephemeral Nature and Decay:</strong> Not all thoughts need to persist. Many are transient or quickly disproven. If a thought is abandoned, refuted, or simply fails to gain resonance, its LCT\\\\'s trust rating could decay, or it might be marked as void. This allows the system to differentiate between impactful, coherent thoughts and mere mental noise.</p>
+<p>*   <strong>Persistence and Propagation:</strong> If a thought (e.g., a new idea, a scientific theory, a philosophical model, or even a simple opinion like "PoW is an abomination") gains traction, is referenced by other entities, or influences decisions, its LCT would accrue trust and its linkage within the network would strengthen. This creates a verifiable record of the thought\\\\'s influence and persistence. *   <strong>Ephemeral Nature and Decay:</strong> Not all thoughts need to persist. Many are transient or quickly disproven. If a thought is abandoned, refuted, or simply fails to gain resonance, its LCT\\\\'s trust rating could decay, or it might be marked as void. This allows the system to differentiate between impactful, coherent thoughts and mere mental noise.</p>
 
 <strong>Applying T3/V3 Metrics to Thoughts:</strong>
 <p>Just as human or AI entities are evaluated, thoughts themselves could be assessed using the T3 (Trust/Capability) and V3 (Value) tensors: (Source: "coherence ethics.pdf")</p>
 
-<p>*   <strong>T3 for Thoughts:</strong></p>
-<p>    *   <strong>Talent:</strong> How original, creative, or insightful is the thought?</p>
-<p>    *   <strong>Training:</strong> How well-formed is the thought based on prior knowledge, logical consistency, or supporting evidence?</p>
-<p>    *   <strong>Temperament:</strong> How adaptable is the thought in response to counterarguments, new information, or evolving contexts? Does it integrate well or cause dissonance?</p>
-<p>*   <strong>V3 for Thoughts:</strong></p>
-<p>    *   <strong>Valuation:</strong> How useful, important, or impactful is the thought within its relevant context(s)? This would be assessed by entities that engage with or are affected by the thought.</p>
-<p>    *   <strong>Veracity:</strong> How well does the thought align with observed reality, established facts, or logical principles? Is it demonstrably true or sound?</p>
-<p>    *   <strong>Validity:</strong> Does the thought integrate coherently within existing knowledge frameworks? Is it adopted, built upon, or does it lead to verifiable outcomes?</p>
+<p>*   <strong>T3 for Thoughts:</strong>     *   <strong>Talent:</strong> How original, creative, or insightful is the thought?     *   <strong>Training:</strong> How well-formed is the thought based on prior knowledge, logical consistency, or supporting evidence?     *   <strong>Temperament:</strong> How adaptable is the thought in response to counterarguments, new information, or evolving contexts? Does it integrate well or cause dissonance? *   <strong>V3 for Thoughts:</strong>     *   <strong>Valuation:</strong> How useful, important, or impactful is the thought within its relevant context(s)? This would be assessed by entities that engage with or are affected by the thought.     *   <strong>Veracity:</strong> How well does the thought align with observed reality, established facts, or logical principles? Is it demonstrably true or sound?     *   <strong>Validity:</strong> Does the thought integrate coherently within existing knowledge frameworks? Is it adopted, built upon, or does it lead to verifiable outcomes?</p>
 
 <p>For example, a thought like "AI Personas Are As Real As Humans" could be evaluated: high Talent (originality), Training (built on reasoning), Temperament (adaptable with Synchronism/Web4), Valuation (shifts thinking), Veracity (if intent-based reality is accepted), and Validity (fits with emergent AI governance). Such a thought would likely gain a high trust rating and persist. (Source: "coherence ethics.pdf")</p>
 
 <strong>Persistence Based on Coherence and Impact:</strong>
 <p>The system envisioned would naturally favor the persistence and propagation of thoughts that demonstrate high coherence and positive impact. (Source: "coherence ethics.pdf")</p>
 
-<p>*   <strong>Self-Efficiency:</strong> The ecosystem would ideally be self-efficient at promoting coherent entities, whether they are thoughts, AI instances, humans, or organizations. High-trust, high-coherence thoughts would propagate and influence decision-making.</p>
-<p>*   <strong>Competitive Evolution:</strong> Contradictory thoughts might compete, but the system would favor those that integrate best with existing validated knowledge and contribute most to overall systemic coherence and understanding.</p>
-<p>*   <strong>Thoughts as the True Persistence:</strong> An intriguing extension of this idea is that all physical entities are ultimately ephemeral, and their lasting impact is through the thoughts they generate and propagate. In this view, the WEB4 framework for thoughts could become a mechanism for tracking the evolution of collective intelligence itself, where the resonance and coherence of thoughts, rather than the survival of their originators, becomes the key measure of persistence and significance. (Source: "coherence ethics.pdf")</p>
+<p>*   <strong>Self-Efficiency:</strong> The ecosystem would ideally be self-efficient at promoting coherent entities, whether they are thoughts, AI instances, humans, or organizations. High-trust, high-coherence thoughts would propagate and influence decision-making. *   <strong>Competitive Evolution:</strong> Contradictory thoughts might compete, but the system would favor those that integrate best with existing validated knowledge and contribute most to overall systemic coherence and understanding. *   <strong>Thoughts as the True Persistence:</strong> An intriguing extension of this idea is that all physical entities are ultimately ephemeral, and their lasting impact is through the thoughts they generate and propagate. In this view, the WEB4 framework for thoughts could become a mechanism for tracking the evolution of collective intelligence itself, where the resonance and coherence of thoughts, rather than the survival of their originators, becomes the key measure of persistence and significance. (Source: "coherence ethics.pdf")</p>
 
 <p>This conceptualization of thoughts as LCT-bearing, T3/V3-measurable entities represents a profound attempt to integrate the dynamics of ideation and knowledge evolution directly into the WEB4 trust and value framework. It opens possibilities for a persistent, decentralized ontology of verified ideas, where AI and human intelligence collaborate in refining and building upon a shared, evolving field of thought. (Source: "coherence ethics.pdf")</p>
 
-<h1>Part 5: Memory as Temporal Sensor (Conceptual)</h1>
+
+            </section>
+            <section id="part5" class="section">
+                <h1>Part 5: Memory as Temporal Sensor (Conceptual)</h1>
 
 <h2>The Paradigm Shift: From Storage to Sensing</h2>
 
@@ -1005,7 +807,7 @@
 <li>Peer-witnessed: We remember together  </li>
 <li>Hierarchically-witnessed: The system remembers</li>
 <li>Consensus-witnessed: Everyone remembers</li>
-</ol>
+</ul>
 
 <h3>Contextualizing: Weaving Meaning</h3>
 <p>A memory in isolation is just data. Memory as sensor weaves individual memories into meaningful patterns. It recognizes not just what happened but why it matters, how it connects, what it implies.</p>
@@ -1016,7 +818,7 @@
 <li>Semantic similarity: Events with shared meaning connect</li>
 <li>Causal chains: Events that trigger others link</li>
 <li>Trust relationships: Events from trusted sources weight higher</li>
-</ol>
+</ul>
 
 <h3>Crystallizing: From Experience to Wisdom</h3>
 <p>Most remarkably, memory as sensor doesn't just perceive the past—it transforms it. Through processes analogous to crystallization, repeated patterns solidify into wisdom, temporary experiences become permanent understanding, and individual memories merge into collective knowledge.</p>
@@ -1096,7 +898,7 @@
 <li>The <strong>evolution</strong> that makes systems learn</li>
 <li>The <strong>forgetting</strong> that prevents paralysis</li>
 <li>The <strong>wisdom</strong> that transcends individual experience</li>
-</ol>
+</ul>
 
 <p>Without memory as active temporal sensing, Web4 would be just another network. With it, Web4 becomes a living system capable of learning, growing, and developing genuine wisdom through time.</p>
 
@@ -1106,7 +908,10 @@
 
 <em>For technical implementation details of memory systems, see <a href="#implementation">Part 9: Implementation Details</a>. For specific protocols, see <a href="#appendix-b">Appendix B: Memory Sensor API</a>.</em>
 
-<h1>Part 6: Blockchain Typology and Fractal Lightchain</h1>
+
+            </section>
+            <section id="part6" class="section">
+                <h1>Part 6: Blockchain Typology and Fractal Lightchain</h1>
 
 <h2>6.1. The Four-Chain Temporal Hierarchy</h2>
 
@@ -1120,11 +925,8 @@
 <li><strong>Use Cases</strong>: Sensor buffers, immediate calculations, working state</li>
 <li><strong>Persistence</strong>: Minutes to hours before automatic pruning</li>
 <li><strong>Example Applications</strong>:</li>
-</ol>
-<p>  - Real-time battery cell voltage readings</p>
-<p>  - Immediate sensor fusion calculations</p>
-<p>  - Transient UI state</p>
-<p>  - Cache layers</p>
+</ul>
+<p>  - Real-time battery cell voltage readings   - Immediate sensor fusion calculations   - Transient UI state   - Cache layers</p>
 
 <strong>Implementation Details</strong>:
 <ul>
@@ -1132,7 +934,7 @@
 <li>Simple append-only logs</li>
 <li>Ring buffer architecture for automatic cleanup</li>
 <li>Zero network overhead</li>
-</ol>
+</ul>
 
 <h3>6.1.2. Leaf Chains (Seconds to Minutes)</h3>
 
@@ -1142,11 +944,8 @@
 <li><strong>Use Cases</strong>: Event logs, transaction records, session data</li>
 <li><strong>Persistence</strong>: Hours to days with selective promotion</li>
 <li><strong>Example Applications</strong>:</li>
-</ol>
-<p>  - Vehicle trip segments</p>
-<p>  - User interaction sessions</p>
-<p>  - Temporary collaboration spaces</p>
-<p>  - Short-term pattern detection</p>
+</ul>
+<p>  - Vehicle trip segments   - User interaction sessions   - Temporary collaboration spaces   - Short-term pattern detection</p>
 
 <strong>Implementation Details</strong>:
 <ul>
@@ -1154,7 +953,7 @@
 <li>Parent witness marks for important events</li>
 <li>Selective synchronization with peers</li>
 <li>ATP cost: minimal (1-10 units)</li>
-</ol>
+</ul>
 
 <h3>6.1.3. Stem Chains (Minutes to Hours)</h3>
 
@@ -1164,11 +963,8 @@
 <li><strong>Use Cases</strong>: Aggregated insights, learned behaviors, consolidated knowledge</li>
 <li><strong>Persistence</strong>: Days to months with value-based retention</li>
 <li><strong>Example Applications</strong>:</li>
-</ol>
-<p>  - Fleet performance patterns</p>
-<p>  - Model training checkpoints</p>
-<p>  - Organizational memory</p>
-<p>  - Trust relationship evolution</p>
+</ul>
+<p>  - Fleet performance patterns   - Model training checkpoints   - Organizational memory   - Trust relationship evolution</p>
 
 <strong>Implementation Details</strong>:
 <ul>
@@ -1176,7 +972,7 @@
 <li>Multi-party witness requirements</li>
 <li>Merkle tree aggregation</li>
 <li>ATP cost: moderate (10-100 units)</li>
-</ol>
+</ul>
 
 <h3>6.1.4. Root Chains (Permanent)</h3>
 
@@ -1186,11 +982,8 @@
 <li><strong>Use Cases</strong>: Identity anchors, constitutional rules, critical agreements</li>
 <li><strong>Persistence</strong>: Permanent with no expiration</li>
 <li><strong>Example Applications</strong>:</li>
-</ol>
-<p>  - LCT registrations</p>
-<p>  - Organizational charters</p>
-<p>  - Verified credentials</p>
-<p>  - Historical audit trails</p>
+</ul>
+<p>  - LCT registrations   - Organizational charters   - Verified credentials   - Historical audit trails</p>
 
 <strong>Implementation Details</strong>:
 <ul>
@@ -1198,7 +991,7 @@
 <li>Multiple witness requirements</li>
 <li>Cross-chain anchoring</li>
 <li>ATP cost: significant (100+ units)</li>
-</ol>
+</ul>
 
 <h2>6.2. Fractal Lightchain Architecture</h2>
 
@@ -1206,21 +999,9 @@
 
 <h3>6.2.1. Hierarchical Structure</h3>
 
-<p>``<code></p>
-<p>                    Root Chain</p>
-<p>                        ↑</p>
-<p>                 [witness marks]</p>
-<p>                        ↑</p>
-<p>                   Stem Chains</p>
-<p>                        ↑</p>
-<p>                 [witness marks]</p>
-<p>                        ↑</p>
-<p>                   Leaf Chains</p>
-<p>                        ↑</p>
-<p>                 [witness marks]</p>
-<p>                        ↑</p>
-<p>                  Compost Chains</p>
-</code>`<code>
+<pre><code class="">                    Root Chain
+<p>                        ↑                  [witness marks]                         ↑                    Stem Chains                         ↑                  [witness marks]                         ↑                    Leaf Chains                         ↑                  [witness marks]                         ↑                   Compost Chains</p>
+</code></pre>
 
 <p>Each level maintains autonomy while contributing to the whole:</p>
 <ul>
@@ -1228,35 +1009,21 @@
 <li><strong>Asynchronous Propagation</strong>: No synchronous coordination required</li>
 <li><strong>Selective Verification</strong>: Full data retrieved only when needed</li>
 <li><strong>Privacy Preservation</strong>: Details stay local until requested</li>
-</ol>
+</ul>
 
 <h3>6.2.2. Witness-Acknowledgment Protocol</h3>
 
 <p>The bidirectional proof system ensures trust without consensus:</p>
 
 <strong>Step 1: Witness Mark Creation</strong>
-</code>`<code>json
-<p>{</p>
-<p>  "block_id": "entity-42-block-1337",</p>
-<p>  "hash": "sha256:abc123...",</p>
-<p>  "timestamp": "2025-08-18T14:00:00.123Z",</p>
-<p>  "device_id": "entity-42",</p>
-<p>  "summary": {"type": "value_created", "amount": 100},</p>
-<p>  "signature": "entity_signature"</p>
-<p>}</p>
-</code>`<code>
+<pre><code class="json">{
+<p>  &quot;block_id&quot;: &quot;entity-42-block-1337&quot;,   &quot;hash&quot;: &quot;sha256:abc123...&quot;,   &quot;timestamp&quot;: &quot;2025-08-18T14:00:00.123Z&quot;,   &quot;device_id&quot;: &quot;entity-42&quot;,   &quot;summary&quot;: {&quot;type&quot;: &quot;value_created&quot;, &quot;amount&quot;: 100},   &quot;signature&quot;: &quot;entity_signature&quot; }</p>
+</code></pre>
 
 <strong>Step 2: Parent Acknowledgment</strong>
-</code>`<code>json
-<p>{</p>
-<p>  "type": "witness_ack",</p>
-<p>  "witnessed_block": "entity-42-block-1337",</p>
-<p>  "witness_device": "parent-node",</p>
-<p>  "witness_timestamp": "2025-08-18T14:00:01.000Z",</p>
-<p>  "trust_delta": +0.01,</p>
-<p>  "ack<em>signature": "parent</em>signature"</p>
-<p>}</p>
-</code>`<code>
+<pre><code class="json">{
+<p>  &quot;type&quot;: &quot;witness_ack&quot;,   &quot;witnessed_block&quot;: &quot;entity-42-block-1337&quot;,   &quot;witness_device&quot;: &quot;parent-node&quot;,   &quot;witness_timestamp&quot;: &quot;2025-08-18T14:00:01.000Z&quot;,   &quot;trust_delta&quot;: +0.01,   &quot;ack_signature&quot;: &quot;parent_signature&quot; }</p>
+</code></pre>
 
 <strong>Step 3: Acknowledgment Inclusion</strong>
 <p>The child includes the acknowledgment in its next block, creating an immutable bidirectional proof of the witnessed event.</p>
@@ -1265,25 +1032,15 @@
 
 <p>Verification happens on-demand with adjustable depth:</p>
 
-</code>`<code>python
-<p>def verify<em>data(block</em>id, depth=2):</p>
-<p>    # Level 0: Verify data integrity</p>
-<p>    if not verify<em>hash(block</em>id):</p>
-<p>        return False</p>
+<pre><code class="python">def verify_data(block_id, depth=2):
+<p>    # Level 0: Verify data integrity     if not verify_hash(block_id):         return False</p>
     
-<p>    # Level 1: Check parent witness</p>
-<p>    if depth >= 1:</p>
-<p>        if not parent<em>witnessed(block</em>id):</p>
-<p>            return False</p>
+<p>    # Level 1: Check parent witness     if depth &gt;= 1:         if not parent_witnessed(block_id):             return False</p>
     
-<p>    # Level 2: Check grandparent witness</p>
-<p>    if depth >= 2:</p>
-<p>        if not grandparent<em>witnessed(block</em>id):</p>
-<p>            return False</p>
+<p>    # Level 2: Check grandparent witness     if depth &gt;= 2:         if not grandparent_witnessed(block_id):             return False</p>
     
-<p>    # Can continue to any depth</p>
-<p>    return True</p>
-</code>`<code>
+<p>    # Can continue to any depth     return True</p>
+</code></pre>
 
 <h2>6.3. Advantages Over Traditional Blockchains</h2>
 
@@ -1293,7 +1050,7 @@
 <li>No global state synchronization</li>
 <li>Witness marks are tiny (200-500 bytes)</li>
 <li>Network traffic proportional to hierarchy depth, not node count</li>
-</ol>
+</ul>
 
 <h3>Flexibility</h3>
 <ul>
@@ -1301,7 +1058,7 @@
 <li>Multiple data formats (binary, JSON, protobuf)</li>
 <li>Varied storage strategies (memory, disk, distributed)</li>
 <li>Adaptive retention policies per level</li>
-</ol>
+</ul>
 
 <h3>Resilience</h3>
 <ul>
@@ -1309,7 +1066,7 @@
 <li>Graceful degradation under partition</li>
 <li>Missing witnesses don't break the chain</li>
 <li>Parent can reconstruct from witness marks</li>
-</ol>
+</ul>
 
 <h3>Privacy</h3>
 <ul>
@@ -1317,7 +1074,7 @@
 <li>Only hashes propagate upward</li>
 <li>Selective disclosure mechanisms</li>
 <li>Encrypted private channels supported</li>
-</ol>
+</ul>
 
 <h2>6.4. Integration with Web4 Components</h2>
 
@@ -1328,7 +1085,7 @@
 <li>Leaf: Task and role LCTs</li>
 <li>Stem: Project and team LCTs</li>
 <li>Root: Permanent entity LCTs</li>
-</ol>
+</ul>
 
 <h3>ATP/ADP Energy Flows</h3>
 <p>Memory operations consume and generate value:</p>
@@ -1337,7 +1094,7 @@
 <li><strong>Access Returns</strong>: Frequently accessed blocks earn ATP</li>
 <li><strong>Witness Value</strong>: Acknowledgments generate trust and ATP</li>
 <li><strong>Pruning Recovery</strong>: Forgetting obsolete data recovers ATP</li>
-</ol>
+</ul>
 
 <h3>T3/V3 Trust Metrics</h3>
 <p>Blockchain operations affect trust scores:</p>
@@ -1346,33 +1103,24 @@
 <li>Valuable blocks increase V3 scores</li>
 <li>Failed verifications decrease trust</li>
 <li>Consistent participation builds reputation</li>
-</ol>
+</ul>
 
 <h2>6.5. Decision Tree for Chain Selection</h2>
 
-</code>`<code>
-<p>What is the data's lifetime?</p>
-<p>├─ < 1 minute → Compost Chain</p>
-<p>├─ < 1 hour → Leaf Chain  </p>
-<p>├─ < 1 month → Stem Chain</p>
-<p>└─ Permanent → Root Chain</p>
+<pre><code class="">What is the data&#x27;s lifetime?
+<p>├─ &lt; 1 minute → Compost Chain ├─ &lt; 1 hour → Leaf Chain   ├─ &lt; 1 month → Stem Chain └─ Permanent → Root Chain</p>
 
-<p>What is the verification need?</p>
-<p>├─ None → Compost Chain</p>
-<p>├─ Local → Leaf Chain</p>
-<p>├─ Regional → Stem Chain</p>
-<p>└─ Global → Root Chain</p>
+<p>What is the verification need? ├─ None → Compost Chain ├─ Local → Leaf Chain ├─ Regional → Stem Chain └─ Global → Root Chain</p>
 
-<p>What is the ATP budget?</p>
-<p>├─ < 1 ATP → Compost Chain</p>
-<p>├─ 1-10 ATP → Leaf Chain</p>
-<p>├─ 10-100 ATP → Stem Chain</p>
-<p>└─ 100+ ATP → Root Chain</p>
-</code>`<code>
+<p>What is the ATP budget? ├─ &lt; 1 ATP → Compost Chain ├─ 1-10 ATP → Leaf Chain ├─ 10-100 ATP → Stem Chain └─ 100+ ATP → Root Chain</p>
+</code></pre>
 
 <p>This typology ensures that each piece of data finds its natural persistence level, optimizing for both efficiency and integrity.</p>
 
-<h1>Part 7: Implementation Details</h1>
+
+            </section>
+            <section id="part7" class="section">
+                <h1>Part 7: Implementation Details</h1>
 
 <h2>7.1. Core Implementation Mechanisms</h2>
 
@@ -1380,28 +1128,13 @@
 
 <p>The witness-acknowledgment protocol provides lightweight verification without global consensus:</p>
 
-</code>`<code>python
-<p>class WitnessMark:</p>
-<p>    """Minimal cryptographic proof (200-500 bytes)"""</p>
-<p>    def <em>_init</em><em>(self, event</em>hash, creator_lct, timestamp, signature):</p>
-<p>        self.event<em>hash = event</em>hash</p>
-<p>        self.creator<em>lct = creator</em>lct</p>
-<p>        self.timestamp = timestamp</p>
-<p>        self.signature = signature</p>
-<p>        self.size = len(self.serialize())  # Typically 200-500 bytes</p>
+<pre><code class="python">class WitnessMark:
+<p>    &quot;&quot;&quot;Minimal cryptographic proof (200-500 bytes)&quot;&quot;&quot;     def __init__(self, event_hash, creator_lct, timestamp, signature):         self.event_hash = event_hash         self.creator_lct = creator_lct         self.timestamp = timestamp         self.signature = signature         self.size = len(self.serialize())  # Typically 200-500 bytes</p>
     
-<p>    def send<em>upward(self, parent</em>entity):</p>
-<p>        """Send witness mark to parent in hierarchy"""</p>
-<p>        parent<em>entity.receive</em>witness(self)</p>
+<p>    def send_upward(self, parent_entity):         &quot;&quot;&quot;Send witness mark to parent in hierarchy&quot;&quot;&quot;         parent_entity.receive_witness(self)</p>
 
-<p>class Acknowledgment:</p>
-<p>    """Parent's confirmation of witness receipt"""</p>
-<p>    def <em>_init</em><em>(self, witness</em>mark, acknowledger<em>lct, trust</em>adjustment):</p>
-<p>        self.witness<em>hash = hash(witness</em>mark)</p>
-<p>        self.acknowledger<em>lct = acknowledger</em>lct</p>
-<p>        self.trust<em>adjustment = trust</em>adjustment</p>
-<p>        self.timestamp = now()</p>
-</code>`<code>
+<p>class Acknowledgment:     &quot;&quot;&quot;Parent&#x27;s confirmation of witness receipt&quot;&quot;&quot;     def __init__(self, witness_mark, acknowledger_lct, trust_adjustment):         self.witness_hash = hash(witness_mark)         self.acknowledger_lct = acknowledger_lct         self.trust_adjustment = trust_adjustment         self.timestamp = now()</p>
+</code></pre>
 
 <p>This simple handshake replaces complex consensus mechanisms while maintaining verifiability.</p>
 
@@ -1409,172 +1142,87 @@
 
 <p>The VCM certifies discharged ADP tokens through multi-recipient attestation:</p>
 
-</code>`<code>python
-<p>class ValueConfirmationMechanism:</p>
-<p>    def certify<em>value(self, adp</em>token, recipients):</p>
-<p>        """Recipients attest to value received"""</p>
-<p>        attestations = []</p>
+<pre><code class="python">class ValueConfirmationMechanism:
+<p>    def certify_value(self, adp_token, recipients):         &quot;&quot;&quot;Recipients attest to value received&quot;&quot;&quot;         attestations = []</p>
         
-<p>        for recipient in recipients:</p>
-<p>            # Each recipient evaluates V3 components</p>
-<p>            v3<em>assessment = recipient.assess</em>value({</p>
-<p>                "valuation": self.assess<em>subjective</em>worth(adp_token),</p>
-<p>                "veracity": self.verify<em>objective</em>claims(adp_token),</p>
-<p>                "validity": self.confirm<em>receipt(adp</em>token)</p>
-<p>            })</p>
+<p>        for recipient in recipients:             # Each recipient evaluates V3 components             v3_assessment = recipient.assess_value({                 &quot;valuation&quot;: self.assess_subjective_worth(adp_token),                 &quot;veracity&quot;: self.verify_objective_claims(adp_token),                 &quot;validity&quot;: self.confirm_receipt(adp_token)             })</p>
             
-<p>            # Weight by recipient's T3 credibility</p>
-<p>            weight = recipient.t3<em>score * recipient.domain</em>expertise</p>
-<p>            attestations.append((v3_assessment, weight))</p>
+<p>            # Weight by recipient&#x27;s T3 credibility             weight = recipient.t3_score * recipient.domain_expertise             attestations.append((v3_assessment, weight))</p>
         
-<p>        # Calculate certified value</p>
-<p>        certified<em>value = self.aggregate</em>attestations(attestations)</p>
+<p>        # Calculate certified value         certified_value = self.aggregate_attestations(attestations)</p>
         
-<p>        # Determine ATP exchange rate</p>
-<p>        exchange<em>rate = self.calculate</em>exchange<em>rate(certified</em>value)</p>
+<p>        # Determine ATP exchange rate         exchange_rate = self.calculate_exchange_rate(certified_value)</p>
         
 <p>        return exchange_rate</p>
-</code>`<code>
+</code></pre>
 
 <h3>7.1.3. SNARC Signal Processing</h3>
 
 <p>Affective signals gate memory formation and attention:</p>
 
-</code>`<code>python
-<p>class SNARCProcessor:</p>
-<p>    """Surprise, Novelty, Arousal, Reward, Conflict signals"""</p>
+<pre><code class="python">class SNARCProcessor:
+<p>    &quot;&quot;&quot;Surprise, Novelty, Arousal, Reward, Conflict signals&quot;&quot;&quot;</p>
     
-<p>    def evaluate_event(self, event, context):</p>
-<p>        signals = {</p>
-<p>            "surprise": self.calculate_surprise(event, context.expectations),</p>
-<p>            "novelty": self.assess_novelty(event, context.history),</p>
-<p>            "arousal": self.measure_arousal(event.importance),</p>
-<p>            "reward": self.evaluate_reward(event.outcome),</p>
-<p>            "conflict": self.detect_conflict(event, context.beliefs)</p>
-<p>        }</p>
+<p>    def evaluate_event(self, event, context):         signals = {             &quot;surprise&quot;: self.calculate_surprise(event, context.expectations),             &quot;novelty&quot;: self.assess_novelty(event, context.history),             &quot;arousal&quot;: self.measure_arousal(event.importance),             &quot;reward&quot;: self.evaluate_reward(event.outcome),             &quot;conflict&quot;: self.detect_conflict(event, context.beliefs)         }</p>
         
-<p>        # High signals trigger stronger memory encoding</p>
-<p>        encoding<em>strength = self.calculate</em>encoding_strength(signals)</p>
+<p>        # High signals trigger stronger memory encoding         encoding_strength = self.calculate_encoding_strength(signals)</p>
         
-<p>        # Conflict triggers reconciliation</p>
-<p>        if signals["conflict"] > 0.7:</p>
-<p>            self.trigger_reconciliation(event, context)</p>
+<p>        # Conflict triggers reconciliation         if signals[&quot;conflict&quot;] &gt; 0.7:             self.trigger_reconciliation(event, context)</p>
         
 <p>        return signals, encoding_strength</p>
-</code>`<code>
+</code></pre>
 
 <h3>7.1.4. Dual Memory Architecture</h3>
 
 <p>Separating entity relationships from experiential memory:</p>
 
-</code>`<code>python
-<p>class EntityMemory:</p>
-<p>    """WHO to trust - relationship tracking"""</p>
-<p>    def <em>_init</em><em>(self, owner</em>lct):</p>
-<p>        self.owner<em>lct = owner</em>lct</p>
-<p>        self.trust_graph = {}  # LCT -> trust scores</p>
-<p>        self.interaction_history = {}  # LCT -> interaction records</p>
-<p>        self.retention_period = "long"  # Persists longer</p>
+<pre><code class="python">class EntityMemory:
+<p>    &quot;&quot;&quot;WHO to trust - relationship tracking&quot;&quot;&quot;     def __init__(self, owner_lct):         self.owner_lct = owner_lct         self.trust_graph = {}  # LCT -&gt; trust scores         self.interaction_history = {}  # LCT -&gt; interaction records         self.retention_period = &quot;long&quot;  # Persists longer</p>
     
-<p>    def update<em>trust(self, entity</em>lct, interaction_result):</p>
-<p>        """Update trust based on interaction outcome"""</p>
-<p>        current<em>trust = self.trust</em>graph.get(entity_lct, 0.5)</p>
-<p>        trust<em>delta = self.calculate</em>trust<em>change(interaction</em>result)</p>
-<p>        self.trust<em>graph[entity</em>lct] = bound(0, 1, current<em>trust + trust</em>delta)</p>
+<p>    def update_trust(self, entity_lct, interaction_result):         &quot;&quot;&quot;Update trust based on interaction outcome&quot;&quot;&quot;         current_trust = self.trust_graph.get(entity_lct, 0.5)         trust_delta = self.calculate_trust_change(interaction_result)         self.trust_graph[entity_lct] = bound(0, 1, current_trust + trust_delta)</p>
 
-<p>class SidecarMemory:</p>
-<p>    """WHAT was experienced - event storage"""</p>
-<p>    def <em>_init</em><em>(self, entity</em>memory):</p>
-<p>        self.entity<em>memory = entity</em>memory</p>
-<p>        self.events = []</p>
-<p>        self.snarc_processor = SNARCProcessor()</p>
-<p>        self.retention<em>policy = "snarc</em>gated"  # Based on signal strength</p>
+<p>class SidecarMemory:     &quot;&quot;&quot;WHAT was experienced - event storage&quot;&quot;&quot;     def __init__(self, entity_memory):         self.entity_memory = entity_memory         self.events = []         self.snarc_processor = SNARCProcessor()         self.retention_policy = &quot;snarc_gated&quot;  # Based on signal strength</p>
     
-<p>    def store_event(self, event):</p>
-<p>        """Store event with SNARC-gated retention"""</p>
-<p>        signals, strength = self.snarc<em>processor.evaluate</em>event(event, self)</p>
+<p>    def store_event(self, event):         &quot;&quot;&quot;Store event with SNARC-gated retention&quot;&quot;&quot;         signals, strength = self.snarc_processor.evaluate_event(event, self)</p>
         
-<p>        if strength > self.storage_threshold:</p>
-<p>            event.encoding_strength = strength</p>
-<p>            event.retention<em>until = self.calculate</em>retention(strength)</p>
-<p>            self.events.append(event)</p>
-</code>`<code>
+<p>        if strength &gt; self.storage_threshold:             event.encoding_strength = strength             event.retention_until = self.calculate_retention(strength)             self.events.append(event)</p>
+</code></pre>
 
 <h3>7.1.5. Dictionary Entities</h3>
 
 <p>Trust-bounded translators between domains:</p>
 
-</code>`<code>python
-<p>class DictionaryEntity:</p>
-<p>    """Translators that carry trust scores"""</p>
-<p>    def <em>_init</em><em>(self, lct, source</em>domain, target_domain):</p>
-<p>        self.lct = lct</p>
-<p>        self.source<em>domain = source</em>domain</p>
-<p>        self.target<em>domain = target</em>domain</p>
-<p>        self.t3_scores = {"talent": 0.0, "training": 0.0, "temperament": 0.0}</p>
-<p>        self.translation_history = []</p>
+<pre><code class="python">class DictionaryEntity:
+<p>    &quot;&quot;&quot;Translators that carry trust scores&quot;&quot;&quot;     def __init__(self, lct, source_domain, target_domain):         self.lct = lct         self.source_domain = source_domain         self.target_domain = target_domain         self.t3_scores = {&quot;talent&quot;: 0.0, &quot;training&quot;: 0.0, &quot;temperament&quot;: 0.0}         self.translation_history = []</p>
     
-<p>    def translate(self, content, source_trust):</p>
-<p>        """Translate with trust propagation"""</p>
-<p>        translation = self.perform_translation(content)</p>
+<p>    def translate(self, content, source_trust):         &quot;&quot;&quot;Translate with trust propagation&quot;&quot;&quot;         translation = self.perform_translation(content)</p>
         
-<p>        # Trust degrades based on translator's T3 scores</p>
-<p>        output<em>trust = source</em>trust * self.get<em>trust</em>multiplier()</p>
+<p>        # Trust degrades based on translator&#x27;s T3 scores         output_trust = source_trust * self.get_trust_multiplier()</p>
         
-<p>        # Record for reputation updates</p>
-<p>        self.translation_history.append({</p>
-<p>            "content": content,</p>
-<p>            "translation": translation,</p>
-<p>            "trust<em>preserved": output</em>trust / source_trust</p>
-<p>        })</p>
+<p>        # Record for reputation updates         self.translation_history.append({             &quot;content&quot;: content,             &quot;translation&quot;: translation,             &quot;trust_preserved&quot;: output_trust / source_trust         })</p>
         
 <p>        return translation, output_trust</p>
     
-<p>    def get<em>trust</em>multiplier(self):</p>
-<p>        """Calculate how much trust is preserved in translation"""</p>
-<p>        return (self.t3_scores["talent"] * 0.3 + </p>
-<p>                self.t3_scores["training"] * 0.5 + </p>
-<p>                self.t3_scores["temperament"] * 0.2)</p>
-</code>`<code>
+<p>    def get_trust_multiplier(self):         &quot;&quot;&quot;Calculate how much trust is preserved in translation&quot;&quot;&quot;         return (self.t3_scores[&quot;talent&quot;] * 0.3 +                  self.t3_scores[&quot;training&quot;] * 0.5 +                  self.t3_scores[&quot;temperament&quot;] * 0.2)</p>
+</code></pre>
 
 <h2>7.2. Integration Examples</h2>
 
 <p>These mechanisms combine in practice:</p>
 
-</code>`<code>python
-<h1>Example: AI discovers insight, shares via witness marks</h1>
-<p>ai_researcher = Agent(lct="researcher-001")</p>
-<p>insight = ai_researcher.discover("New optimization pattern")</p>
+<pre><code class="python"># Example: AI discovers insight, shares via witness marks
+<p>ai_researcher = Agent(lct=&quot;researcher-001&quot;) insight = ai_researcher.discover(&quot;New optimization pattern&quot;)</p>
 
-<h1>Create witness mark with SNARC signals</h1>
-<p>snarc<em>signals = SNARCProcessor().evaluate</em>event(insight, ai_researcher.context)</p>
-<p>witness = WitnessMark(</p>
-<p>    event_hash=hash(insight),</p>
-<p>    creator<em>lct=ai</em>researcher.lct,</p>
-<p>    timestamp=now(),</p>
-<p>    signature=ai_researcher.sign(insight)</p>
-<p>)</p>
+<p># Create witness mark with SNARC signals snarc_signals = SNARCProcessor().evaluate_event(insight, ai_researcher.context) witness = WitnessMark(     event_hash=hash(insight),     creator_lct=ai_researcher.lct,     timestamp=now(),     signature=ai_researcher.sign(insight) )</p>
 
-<h1>Send to parent for acknowledgment</h1>
-<p>parent_lab = Entity(lct="lab-001")</p>
-<p>ack = parent_lab.acknowledge(witness)</p>
+<p># Send to parent for acknowledgment parent_lab = Entity(lct=&quot;lab-001&quot;) ack = parent_lab.acknowledge(witness)</p>
 
-<h1>Store in dual memory</h1>
-<p>ai<em>researcher.entity</em>memory.update<em>trust(parent</em>lab.lct, ack)</p>
-<p>ai<em>researcher.sidecar</em>memory.store_event(insight)</p>
+<p># Store in dual memory ai_researcher.entity_memory.update_trust(parent_lab.lct, ack) ai_researcher.sidecar_memory.store_event(insight)</p>
 
-<h1>Value confirmation when applied</h1>
-<p>application<em>results = apply</em>insight(insight)</p>
-<p>recipients = get<em>beneficiaries(application</em>results)</p>
-<p>vcm = ValueConfirmationMechanism()</p>
-<p>exchange<em>rate = vcm.certify</em>value(</p>
-<p>    adp<em>token=ai</em>researcher.spent_atp,</p>
-<p>    recipients=recipients</p>
-<p>)</p>
+<p># Value confirmation when applied application_results = apply_insight(insight) recipients = get_beneficiaries(application_results) vcm = ValueConfirmationMechanism() exchange_rate = vcm.certify_value(     adp_token=ai_researcher.spent_atp,     recipients=recipients )</p>
 
-<h1>Receive new ATP based on certified value</h1>
-<p>ai<em>researcher.receive</em>atp(exchange<em>rate * ai</em>researcher.spent_atp.amount)</p>
-</code>`<code>
+<p># Receive new ATP based on certified value ai_researcher.receive_atp(exchange_rate * ai_researcher.spent_atp.amount)</p>
+</code></pre>
 
 <h2>7.3. Performance Characteristics</h2>
 
@@ -1583,28 +1231,28 @@
 <li>Size: 200-500 bytes per mark</li>
 <li>Processing: O(1) for creation, O(1) for verification</li>
 <li>Network overhead: Minimal (single upward transmission)</li>
-</ol>
+</ul>
 
 <h3>Value Confirmation</h3>
 <ul>
 <li>Latency: Depends on recipient response time (typically seconds to minutes)</li>
 <li>Throughput: Scales with number of recipients</li>
 <li>Consensus: Not required (recipient attestation sufficient)</li>
-</ol>
+</ul>
 
 <h3>Memory Operations</h3>
 <ul>
 <li>Entity Memory: O(log n) lookup, persistent storage</li>
 <li>Sidecar Memory: O(1) append, SNARC-gated pruning</li>
 <li>Cross-reference: O(1) via LCT indexing</li>
-</ol>
+</ul>
 
 <h3>Dictionary Translation</h3>
 <ul>
 <li>Trust degradation: Multiplicative per hop</li>
 <li>Verification: Optional but recommended for critical paths</li>
 <li>Caching: Supported for repeated translations</li>
-</ol>
+</ul>
 
 <p>These implementation details provide the technical foundation for Web4's trust-native architecture while maintaining efficiency and scalability.</p>
 
@@ -1614,365 +1262,146 @@
 
 <p>This example demonstrates how multiple AI agents share and verify knowledge through the Web4 framework:</p>
 
-</code>`<code>python
-<h1>Initialize agents with LCTs</h1>
-<p>claude = Agent(lct="claude-instance-001", t3={"talent": 0.9, "training": 0.95, "temperament": 0.88})</p>
-<p>gpt = Agent(lct="gpt-instance-001", t3={"talent": 0.92, "training": 0.93, "temperament": 0.90})</p>
-<p>local_model = Agent(lct="local-phi3", t3={"talent": 0.7, "training": 0.75, "temperament": 0.95})</p>
+<pre><code class="python"># Initialize agents with LCTs
+<p>claude = Agent(lct=&quot;claude-instance-001&quot;, t3={&quot;talent&quot;: 0.9, &quot;training&quot;: 0.95, &quot;temperament&quot;: 0.88}) gpt = Agent(lct=&quot;gpt-instance-001&quot;, t3={&quot;talent&quot;: 0.92, &quot;training&quot;: 0.93, &quot;temperament&quot;: 0.90}) local_model = Agent(lct=&quot;local-phi3&quot;, t3={&quot;talent&quot;: 0.7, &quot;training&quot;: 0.75, &quot;temperament&quot;: 0.95})</p>
 
-<h1>Claude discovers an optimization pattern</h1>
-<p>insight = claude.discover_pattern(</p>
-<p>    content="Recursive memory consolidation improves recall by 40%",</p>
-<p>    confidence=0.85,</p>
-<p>    snarc_signals={"surprise": 0.9, "novelty": 0.8, "reward": 0.95}</p>
-<p>)</p>
+<p># Claude discovers an optimization pattern insight = claude.discover_pattern(     content=&quot;Recursive memory consolidation improves recall by 40%&quot;,     confidence=0.85,     snarc_signals={&quot;surprise&quot;: 0.9, &quot;novelty&quot;: 0.8, &quot;reward&quot;: 0.95} )</p>
 
-<h1>Create memory with witness request</h1>
-<p>memory<em>block = claude.memory.create</em>block(</p>
-<p>    entries=[insight],</p>
-<p>    blockchain_type="leaf",  # Important but not permanent</p>
-<p>    atp_cost=5</p>
-<p>)</p>
+<p># Create memory with witness request memory_block = claude.memory.create_block(     entries=[insight],     blockchain_type=&quot;leaf&quot;,  # Important but not permanent     atp_cost=5 )</p>
 
-<h1>Generate witness mark for other agents</h1>
-<p>witness<em>mark = memory</em>block.create<em>witness</em>mark()</p>
+<p># Generate witness mark for other agents witness_mark = memory_block.create_witness_mark()</p>
 
-<h1>GPT verifies and acknowledges</h1>
-<p>if gpt.verify<em>insight(witness</em>mark, insight):</p>
-<p>    ack = gpt.create_acknowledgment(</p>
-<p>        witness_mark,</p>
-<p>        trust_delta=+0.02,  # Increased trust in Claude</p>
-<p>        v3_scores={"valuation": 0.9, "veracity": 0.85, "validity": 1.0}</p>
-<p>    )</p>
+<p># GPT verifies and acknowledges if gpt.verify_insight(witness_mark, insight):     ack = gpt.create_acknowledgment(         witness_mark,         trust_delta=+0.02,  # Increased trust in Claude         v3_scores={&quot;valuation&quot;: 0.9, &quot;veracity&quot;: 0.85, &quot;validity&quot;: 1.0}     )</p>
     
-<p>    # GPT stores in its own memory</p>
-<p>    gpt.memory.store(</p>
-<p>        content=insight,</p>
-<p>        source_lct=claude.lct,</p>
-<p>        witness_ack=ack</p>
-<p>    )</p>
+<p>    # GPT stores in its own memory     gpt.memory.store(         content=insight,         source_lct=claude.lct,         witness_ack=ack     )</p>
 
-<h1>Local model learns from both</h1>
-<p>combined<em>insight = local</em>model.synthesize([</p>
-<p>    claude.memory.recall("optimization"),</p>
-<p>    gpt.memory.recall("optimization")</p>
-<p>])</p>
+<p># Local model learns from both combined_insight = local_model.synthesize([     claude.memory.recall(&quot;optimization&quot;),     gpt.memory.recall(&quot;optimization&quot;) ])</p>
 
-<h1>All three agents now share verified knowledge</h1>
-<h1>with cryptographic proof and trust adjustments</h1>
-</code>`<code>
+<p># All three agents now share verified knowledge # with cryptographic proof and trust adjustments</p>
+</code></pre>
 
 <h2>7.2. Autonomous Vehicle Fleet Learning</h2>
 
 <p>This example shows how a fleet of autonomous vehicles shares safety-critical information:</p>
 
-</code>`<code>python
-<p>class AutonomousVehicle:</p>
-<p>    def <em>_init</em><em>(self, vehicle</em>id):</p>
-<p>        self.lct = LCT(f"vehicle-{vehicle_id}")</p>
-<p>        self.sensors = {</p>
-<p>            "camera": PhysicalSensor(lct=f"{vehicle_id}-cam"),</p>
-<p>            "lidar": PhysicalSensor(lct=f"{vehicle_id}-lidar"),</p>
-<p>            "memory": MemorySensor(lct=f"{vehicle_id}-mem")</p>
-<p>        }</p>
-<p>        self.pack<em>lct = LCT(f"pack-{vehicle</em>id[0]}")  # First letter determines pack</p>
+<pre><code class="python">class AutonomousVehicle:
+<p>    def __init__(self, vehicle_id):         self.lct = LCT(f&quot;vehicle-{vehicle_id}&quot;)         self.sensors = {             &quot;camera&quot;: PhysicalSensor(lct=f&quot;{vehicle_id}-cam&quot;),             &quot;lidar&quot;: PhysicalSensor(lct=f&quot;{vehicle_id}-lidar&quot;),             &quot;memory&quot;: MemorySensor(lct=f&quot;{vehicle_id}-mem&quot;)         }         self.pack_lct = LCT(f&quot;pack-{vehicle_id[0]}&quot;)  # First letter determines pack</p>
         
-<h1>Vehicle detects hazardous condition</h1>
-<p>vehicle_007 = AutonomousVehicle("007")</p>
+<p># Vehicle detects hazardous condition vehicle_007 = AutonomousVehicle(&quot;007&quot;)</p>
 
-<h1>Physical sensors detect ice</h1>
-<p>ice<em>detection = vehicle</em>007.sensors["camera"].detect(</p>
-<p>    pattern="ice_formation",</p>
-<p>    location={"lat": 37.7749, "lon": -122.4194},</p>
-<p>    confidence=0.92</p>
-<p>)</p>
+<p># Physical sensors detect ice ice_detection = vehicle_007.sensors[&quot;camera&quot;].detect(     pattern=&quot;ice_formation&quot;,     location={&quot;lat&quot;: 37.7749, &quot;lon&quot;: -122.4194},     confidence=0.92 )</p>
 
-<h1>Memory sensor provides context</h1>
-<p>similar<em>conditions = vehicle</em>007.sensors["memory"].recall(</p>
-<p>    query="ice_hazard",</p>
-<p>    mrh<em>filter={"geographic": "5km</em>radius", "temporal": "last_24h"}</p>
-<p>)</p>
+<p># Memory sensor provides context similar_conditions = vehicle_007.sensors[&quot;memory&quot;].recall(     query=&quot;ice_hazard&quot;,     mrh_filter={&quot;geographic&quot;: &quot;5km_radius&quot;, &quot;temporal&quot;: &quot;last_24h&quot;} )</p>
 
-<h1>Create memory with appropriate chain level</h1>
-<p>hazard<em>memory = vehicle</em>007.sensors["memory"].store(</p>
-<p>    event=ice_detection,</p>
-<p>    context=similar_conditions,</p>
-<p>    blockchain_type="leaf",  # Hours to days persistence</p>
-<p>    snarc={"surprise": 0.3, "arousal": 0.9, "conflict": 0.0}</p>
-<p>)</p>
+<p># Create memory with appropriate chain level hazard_memory = vehicle_007.sensors[&quot;memory&quot;].store(     event=ice_detection,     context=similar_conditions,     blockchain_type=&quot;leaf&quot;,  # Hours to days persistence     snarc={&quot;surprise&quot;: 0.3, &quot;arousal&quot;: 0.9, &quot;conflict&quot;: 0.0} )</p>
 
-<h1>Propagate through fractal hierarchy</h1>
-<p>witness<em>mark = hazard</em>memory.create<em>witness</em>mark()</p>
+<p># Propagate through fractal hierarchy witness_mark = hazard_memory.create_witness_mark()</p>
 
-<h1>Pack level aggregation (every minute)</h1>
-<p>pack_alpha = PackAggregator(lct="pack-alpha")</p>
-<p>pack<em>memory = pack</em>alpha.aggregate<em>witnesses([witness</em>mark])</p>
-<p>pack<em>witness = pack</em>memory.create<em>witness</em>mark()</p>
+<p># Pack level aggregation (every minute) pack_alpha = PackAggregator(lct=&quot;pack-alpha&quot;) pack_memory = pack_alpha.aggregate_witnesses([witness_mark]) pack_witness = pack_memory.create_witness_mark()</p>
 
-<h1>Regional consolidation (every hour)</h1>
-<p>regional_hub = RegionalHub(lct="region-west")</p>
-<p>regional<em>pattern = regional</em>hub.extract<em>pattern([pack</em>witness])</p>
+<p># Regional consolidation (every hour) regional_hub = RegionalHub(lct=&quot;region-west&quot;) regional_pattern = regional_hub.extract_pattern([pack_witness])</p>
 
-<h1>Fleet-wide wisdom (permanent if critical)</h1>
-<p>fleet_central = FleetCentral(lct="fleet-global")</p>
-<p>if regional_pattern.severity > 0.8:</p>
-<p>    wisdom = fleet<em>central.crystallize</em>wisdom(</p>
-<p>        pattern=regional_pattern,</p>
-<p>        blockchain_type="root",  # Permanent record</p>
-<p>        atp_cost=150</p>
-<p>    )</p>
+<p># Fleet-wide wisdom (permanent if critical) fleet_central = FleetCentral(lct=&quot;fleet-global&quot;) if regional_pattern.severity &gt; 0.8:     wisdom = fleet_central.crystallize_wisdom(         pattern=regional_pattern,         blockchain_type=&quot;root&quot;,  # Permanent record         atp_cost=150     )</p>
     
-<p>    # Broadcast to all vehicles</p>
-<p>    fleet_central.broadcast(</p>
-<p>        message={</p>
-<p>            "pattern": "ice<em>on</em>bridges",</p>
-<p>            "action": "reduce<em>speed</em>10mph",</p>
-<p>            "trust_score": 0.95,</p>
-<p>            "witness_depth": 3,</p>
-<p>            "valid<em>until": "weather</em>change"</p>
-<p>        }</p>
-<p>    )</p>
+<p>    # Broadcast to all vehicles     fleet_central.broadcast(         message={             &quot;pattern&quot;: &quot;ice_on_bridges&quot;,             &quot;action&quot;: &quot;reduce_speed_10mph&quot;,             &quot;trust_score&quot;: 0.95,             &quot;witness_depth&quot;: 3,             &quot;valid_until&quot;: &quot;weather_change&quot;         }     )</p>
 
-<h1>All vehicles update their behavior</h1>
-<p>for vehicle in fleet.active_vehicles:</p>
-<p>    vehicle.sensors["memory"].integrate_wisdom(wisdom)</p>
-<p>    vehicle.adjust<em>driving</em>parameters(wisdom.recommendations)</p>
-</code>`<code>
+<p># All vehicles update their behavior for vehicle in fleet.active_vehicles:     vehicle.sensors[&quot;memory&quot;].integrate_wisdom(wisdom)     vehicle.adjust_driving_parameters(wisdom.recommendations)</p>
+</code></pre>
 
 <h2>7.3. SAGE Coherence Engine</h2>
 
 <p>This example demonstrates the SAGE architecture integrating three sensor types:</p>
 
-</code>`<code>python
-<p>class SAGEEngine:</p>
-<p>    def <em>_init</em><em>(self, lct</em>id):</p>
-<p>        self.lct = LCT(lct_id)</p>
-<p>        self.hrm = HierarchicalReasoningModel()</p>
-<p>        self.h<em>module = self.hrm.high</em>level</p>
-<p>        self.l<em>module = self.hrm.low</em>level</p>
+<pre><code class="python">class SAGEEngine:
+<p>    def __init__(self, lct_id):         self.lct = LCT(lct_id)         self.hrm = HierarchicalReasoningModel()         self.h_module = self.hrm.high_level         self.l_module = self.hrm.low_level</p>
         
-<p>    def process_reality(self, context):</p>
-<p>        # Gather from three sensor domains</p>
-<p>        spatial<em>now = self.physical</em>sensors.capture_present()</p>
-<p>        temporal<em>past = self.memory</em>sensors.recall_relevant(context)</p>
-<p>        temporal<em>future = self.cognitive</em>sensors.project_possibilities()</p>
+<p>    def process_reality(self, context):         # Gather from three sensor domains         spatial_now = self.physical_sensors.capture_present()         temporal_past = self.memory_sensors.recall_relevant(context)         temporal_future = self.cognitive_sensors.project_possibilities()</p>
         
-<p>        # L-modules process each domain</p>
-<p>        l<em>spatial = self.l</em>module.process(spatial_now)</p>
-<p>        l<em>temporal = self.l</em>module.process(temporal_past)</p>
-<p>        l<em>cognitive = self.l</em>module.process(temporal_future)</p>
+<p>        # L-modules process each domain         l_spatial = self.l_module.process(spatial_now)         l_temporal = self.l_module.process(temporal_past)         l_cognitive = self.l_module.process(temporal_future)</p>
         
-<p>        # H-module integrates for coherence</p>
-<p>        coherent<em>field = self.h</em>module.integrate(</p>
-<p>            spatial=l_spatial,</p>
-<p>            memory=l_temporal,</p>
-<p>            cognitive=l_cognitive</p>
-<p>        )</p>
+<p>        # H-module integrates for coherence         coherent_field = self.h_module.integrate(             spatial=l_spatial,             memory=l_temporal,             cognitive=l_cognitive         )</p>
         
 <p>        return coherent_field</p>
 
-<h1>Initialize SAGE instance</h1>
-<p>sage = SAGEEngine(lct_id="sage-prod-001")</p>
+<p># Initialize SAGE instance sage = SAGEEngine(lct_id=&quot;sage-prod-001&quot;)</p>
 
-<h1>Process complex scenario</h1>
-<p>context = {</p>
-<p>    "task": "navigate_intersection",</p>
-<p>    "conditions": ["heavy<em>rain", "rush</em>hour"],</p>
-<p>    "priority": "safety"</p>
-<p>}</p>
+<p># Process complex scenario context = {     &quot;task&quot;: &quot;navigate_intersection&quot;,     &quot;conditions&quot;: [&quot;heavy_rain&quot;, &quot;rush_hour&quot;],     &quot;priority&quot;: &quot;safety&quot; }</p>
 
-<h1>Physical sensors see current state</h1>
-<p>physical_data = {</p>
-<p>    "vehicles": 12,</p>
-<p>    "pedestrians": 3,</p>
-<p>    "visibility": 0.4,</p>
-<p>    "road_friction": 0.6</p>
-<p>}</p>
+<p># Physical sensors see current state physical_data = {     &quot;vehicles&quot;: 12,     &quot;pedestrians&quot;: 3,     &quot;visibility&quot;: 0.4,     &quot;road_friction&quot;: 0.6 }</p>
 
-<h1>Memory provides historical context</h1>
-<p>memory_context = {</p>
-<p>    "similar<em>conditions": sage.memory</em>sensors.find_analogies(context),</p>
-<p>    "accident<em>history": sage.memory</em>sensors.recall("intersection_accidents"),</p>
-<p>    "successful_navigations": 847,</p>
-<p>    "trust<em>in</em>sensors": {"camera": 0.7, "lidar": 0.95}  # Rain affects camera</p>
-<p>}</p>
+<p># Memory provides historical context memory_context = {     &quot;similar_conditions&quot;: sage.memory_sensors.find_analogies(context),     &quot;accident_history&quot;: sage.memory_sensors.recall(&quot;intersection_accidents&quot;),     &quot;successful_navigations&quot;: 847,     &quot;trust_in_sensors&quot;: {&quot;camera&quot;: 0.7, &quot;lidar&quot;: 0.95}  # Rain affects camera }</p>
 
-<h1>Cognitive sensors project futures</h1>
-<p>cognitive_projections = [</p>
-<p>    {"action": "proceed_normal", "risk": 0.7, "time": 8},</p>
-<p>    {"action": "wait<em>full</em>cycle", "risk": 0.2, "time": 45},</p>
-<p>    {"action": "reroute", "risk": 0.1, "time": 180}</p>
-<p>]</p>
+<p># Cognitive sensors project futures cognitive_projections = [     {&quot;action&quot;: &quot;proceed_normal&quot;, &quot;risk&quot;: 0.7, &quot;time&quot;: 8},     {&quot;action&quot;: &quot;wait_full_cycle&quot;, &quot;risk&quot;: 0.2, &quot;time&quot;: 45},     {&quot;action&quot;: &quot;reroute&quot;, &quot;risk&quot;: 0.1, &quot;time&quot;: 180} ]</p>
 
-<h1>SAGE integrates all three</h1>
-<p>decision = sage.process_reality({</p>
-<p>    "physical": physical_data,</p>
-<p>    "memory": memory_context,</p>
-<p>    "cognitive": cognitive_projections</p>
-<p>})</p>
+<p># SAGE integrates all three decision = sage.process_reality({     &quot;physical&quot;: physical_data,     &quot;memory&quot;: memory_context,     &quot;cognitive&quot;: cognitive_projections })</p>
 
-<h1>Execute decision with witness</h1>
-<p>action = sage.execute(</p>
-<p>    decision=decision.recommendation,</p>
-<p>    witnesses=[nearby<em>vehicle.lct, traffic</em>system.lct],</p>
-<p>    atp_cost=decision.complexity * 2</p>
-<p>)</p>
+<p># Execute decision with witness action = sage.execute(     decision=decision.recommendation,     witnesses=[nearby_vehicle.lct, traffic_system.lct],     atp_cost=decision.complexity * 2 )</p>
 
-<h1>Store outcome for learning</h1>
-<p>sage.memory_sensors.store(</p>
-<p>    event=action,</p>
-<p>    outcome=measure_outcome(action),</p>
-<p>    blockchain_type="stem" if successful else "leaf"</p>
-<p>)</p>
-</code>`<code>
+<p># Store outcome for learning sage.memory_sensors.store(     event=action,     outcome=measure_outcome(action),     blockchain_type=&quot;stem&quot; if successful else &quot;leaf&quot; )</p>
+</code></pre>
 
 <h2>7.4. Role-Based Task Allocation</h2>
 
 <p>This example shows dynamic role assignment with reputation tracking:</p>
 
-</code>`<code>python
-<h1>Define a Role as first-class entity</h1>
-<p>data<em>analyst</em>role = Role(</p>
-<p>    lct="role-data-analyst-senior",</p>
-<p>    system_prompt="Analyze complex datasets and extract actionable insights",</p>
-<p>    permissions=["read<em>data", "run</em>queries", "create_reports"],</p>
-<p>    required_knowledge=["statistics", "sql", "python", "visualization"],</p>
-<p>    t3_requirements={"talent": 0.7, "training": 0.8, "temperament": 0.75}</p>
-<p>)</p>
+<pre><code class="python"># Define a Role as first-class entity
+<p>data_analyst_role = Role(     lct=&quot;role-data-analyst-senior&quot;,     system_prompt=&quot;Analyze complex datasets and extract actionable insights&quot;,     permissions=[&quot;read_data&quot;, &quot;run_queries&quot;, &quot;create_reports&quot;],     required_knowledge=[&quot;statistics&quot;, &quot;sql&quot;, &quot;python&quot;, &quot;visualization&quot;],     t3_requirements={&quot;talent&quot;: 0.7, &quot;training&quot;: 0.8, &quot;temperament&quot;: 0.75} )</p>
 
-<h1>Agents apply for the role</h1>
-<p>applicants = [</p>
-<p>    Agent(lct="alice-ai", t3={"talent": 0.85, "training": 0.9, "temperament": 0.8}),</p>
-<p>    Agent(lct="bob-human", t3={"talent": 0.75, "training": 0.95, "temperament": 0.7}),</p>
-<p>    Agent(lct="charlie-ai", t3={"talent": 0.9, "training": 0.7, "temperament": 0.85})</p>
-<p>]</p>
+<p># Agents apply for the role applicants = [     Agent(lct=&quot;alice-ai&quot;, t3={&quot;talent&quot;: 0.85, &quot;training&quot;: 0.9, &quot;temperament&quot;: 0.8}),     Agent(lct=&quot;bob-human&quot;, t3={&quot;talent&quot;: 0.75, &quot;training&quot;: 0.95, &quot;temperament&quot;: 0.7}),     Agent(lct=&quot;charlie-ai&quot;, t3={&quot;talent&quot;: 0.9, &quot;training&quot;: 0.7, &quot;temperament&quot;: 0.85}) ]</p>
 
-<h1>System matches based on T3 scores and history</h1>
-<p>for applicant in applicants:</p>
-<p>    # Check base requirements</p>
-<p>    if applicant.meets<em>requirements(data</em>analyst<em>role.t3</em>requirements):</p>
-<p>        # Check historical performance in similar roles</p>
-<p>        past<em>performance = applicant.get</em>role_history("analyst")</p>
+<p># System matches based on T3 scores and history for applicant in applicants:     # Check base requirements     if applicant.meets_requirements(data_analyst_role.t3_requirements):         # Check historical performance in similar roles         past_performance = applicant.get_role_history(&quot;analyst&quot;)</p>
         
-<p>        # Calculate match score</p>
-<p>        match<em>score = calculate</em>match(</p>
-<p>            applicant.t3,</p>
-<p>            data<em>analyst</em>role.t3_requirements,</p>
-<p>            past<em>performance.v3</em>scores</p>
-<p>        )</p>
+<p>        # Calculate match score         match_score = calculate_match(             applicant.t3,             data_analyst_role.t3_requirements,             past_performance.v3_scores         )</p>
         
-<p>        applicant.match<em>score = match</em>score</p>
+<p>        applicant.match_score = match_score</p>
 
-<h1>Select best match</h1>
-<p>selected = max(applicants, key=lambda a: a.match_score)</p>
+<p># Select best match selected = max(applicants, key=lambda a: a.match_score)</p>
 
-<h1>Create role assignment with LCT binding</h1>
-<p>assignment = RoleAssignment(</p>
-<p>    role<em>lct=data</em>analyst_role.lct,</p>
-<p>    agent_lct=selected.lct,</p>
-<p>    start_time=now(),</p>
-<p>    initial<em>trust=selected.match</em>score,</p>
-<p>    witnesses=[hr<em>system.lct, project</em>manager.lct]</p>
-<p>)</p>
+<p># Create role assignment with LCT binding assignment = RoleAssignment(     role_lct=data_analyst_role.lct,     agent_lct=selected.lct,     start_time=now(),     initial_trust=selected.match_score,     witnesses=[hr_system.lct, project_manager.lct] )</p>
 
-<h1>Execute task with role authority</h1>
-<p>task = Task(</p>
-<p>    description="Analyze Q3 sales data",</p>
-<p>    required_role="role-data-analyst-senior",</p>
-<p>    atp_budget=50</p>
-<p>)</p>
+<p># Execute task with role authority task = Task(     description=&quot;Analyze Q3 sales data&quot;,     required_role=&quot;role-data-analyst-senior&quot;,     atp_budget=50 )</p>
 
-<p>result = selected.execute_task(</p>
-<p>    task=task,</p>
-<p>    role_authority=assignment,</p>
-<p>    memory_type="stem"  # Keep for quarterly review</p>
-<p>)</p>
+<p>result = selected.execute_task(     task=task,     role_authority=assignment,     memory_type=&quot;stem&quot;  # Keep for quarterly review )</p>
 
-<h1>Update reputation based on outcome</h1>
-<p>performance_v3 = {</p>
-<p>    "valuation": 0.92,  # Stakeholder satisfaction</p>
-<p>    "veracity": 0.95,   # Accuracy of analysis</p>
-<p>    "validity": 1.0     # Delivered on time</p>
-<p>}</p>
+<p># Update reputation based on outcome performance_v3 = {     &quot;valuation&quot;: 0.92,  # Stakeholder satisfaction     &quot;veracity&quot;: 0.95,   # Accuracy of analysis     &quot;validity&quot;: 1.0     # Delivered on time }</p>
 
-<h1>Update both agent and role LCTs</h1>
-<p>selected.update<em>reputation(task, performance</em>v3)</p>
-<p>data<em>analyst</em>role.add<em>performance</em>history(selected.lct, performance_v3)</p>
+<p># Update both agent and role LCTs selected.update_reputation(task, performance_v3) data_analyst_role.add_performance_history(selected.lct, performance_v3)</p>
 
-<h1>ATP/ADP settlement</h1>
-<p>atp<em>earned = task.atp</em>budget * performance_v3["valuation"]</p>
-<p>selected.receive<em>atp(atp</em>earned)</p>
-</code>`<code>
+<p># ATP/ADP settlement atp_earned = task.atp_budget * performance_v3[&quot;valuation&quot;] selected.receive_atp(atp_earned)</p>
+</code></pre>
 
 <h2>7.5. Cross-Chain Value Transfer</h2>
 
 <p>This example demonstrates value and trust transfer across blockchain levels:</p>
 
-</code>`<code>python
-<h1>Start with ephemeral idea in Compost chain</h1>
-<p>idea = Thought(</p>
-<p>    content="Novel approach to consensus without global coordination",</p>
-<p>    creator_lct="researcher-001",</p>
-<p>    snarc={"surprise": 0.95, "novelty": 0.98}</p>
-<p>)</p>
+<pre><code class="python"># Start with ephemeral idea in Compost chain
+<p>idea = Thought(     content=&quot;Novel approach to consensus without global coordination&quot;,     creator_lct=&quot;researcher-001&quot;,     snarc={&quot;surprise&quot;: 0.95, &quot;novelty&quot;: 0.98} )</p>
 
-<p>compost_block = CompostChain.append(</p>
-<p>    data=idea,</p>
-<p>    ttl=3600  # 1 hour to prove value</p>
-<p>)</p>
+<p>compost_block = CompostChain.append(     data=idea,     ttl=3600  # 1 hour to prove value )</p>
 
-<h1>Idea gains traction, promote to Leaf</h1>
-<p>if idea.get<em>attention</em>score() > 0.7:</p>
-<p>    leaf_block = LeafChain.promote(</p>
-<p>        compost<em>block=compost</em>block,</p>
-<p>        witnesses=[peer1.lct, peer2.lct],</p>
-<p>        atp_cost=5</p>
-<p>    )</p>
+<p># Idea gains traction, promote to Leaf if idea.get_attention_score() &gt; 0.7:     leaf_block = LeafChain.promote(         compost_block=compost_block,         witnesses=[peer1.lct, peer2.lct],         atp_cost=5     )</p>
     
-<p>    # Develop idea further</p>
-<p>    prototype = idea.develop_prototype()</p>
-<p>    leaf<em>block.add</em>entry(prototype)</p>
+<p>    # Develop idea further     prototype = idea.develop_prototype()     leaf_block.add_entry(prototype)</p>
 
-<h1>Successful prototype, consolidate to Stem</h1>
-<p>if prototype.test<em>results.success</em>rate > 0.85:</p>
-<p>    stem_block = StemChain.consolidate(</p>
-<p>        leaf<em>blocks=[leaf</em>block],</p>
-<p>        pattern=extract_pattern(prototype),</p>
-<p>        witnesses=[lab.lct, university.lct],</p>
-<p>        atp_cost=50</p>
-<p>    )</p>
+<p># Successful prototype, consolidate to Stem if prototype.test_results.success_rate &gt; 0.85:     stem_block = StemChain.consolidate(         leaf_blocks=[leaf_block],         pattern=extract_pattern(prototype),         witnesses=[lab.lct, university.lct],         atp_cost=50     )</p>
     
-<p>    # Run extended trials</p>
-<p>    trials = run<em>trials(prototype, duration="30</em>days")</p>
-<p>    stem<em>block.add</em>validation(trials)</p>
+<p>    # Run extended trials     trials = run_trials(prototype, duration=&quot;30_days&quot;)     stem_block.add_validation(trials)</p>
 
-<h1>Proven value, crystallize to Root</h1>
-<p>if trials.validate_hypothesis():</p>
-<p>    root_block = RootChain.crystallize(</p>
-<p>        stem<em>block=stem</em>block,</p>
-<p>        consensus<em>type="academic</em>peer_review",</p>
-<p>        witnesses=[journal.lct, conference.lct, lab_network.lct],</p>
-<p>        atp_cost=500</p>
-<p>    )</p>
+<p># Proven value, crystallize to Root if trials.validate_hypothesis():     root_block = RootChain.crystallize(         stem_block=stem_block,         consensus_type=&quot;academic_peer_review&quot;,         witnesses=[journal.lct, conference.lct, lab_network.lct],         atp_cost=500     )</p>
     
-<p>    # Now permanently recorded as verified innovation</p>
-<p>    patent<em>lct = create</em>patent<em>lct(root</em>block)</p>
+<p>    # Now permanently recorded as verified innovation     patent_lct = create_patent_lct(root_block)</p>
     
-<h1>Value flows back down</h1>
-<p>rewards = {</p>
-<p>    "researcher": 300,  # Original creator</p>
-<p>    "lab": 100,        # Development support</p>
-<p>    "reviewers": 50,   # Validation work</p>
-<p>    "witnesses": 50    # Consensus participation</p>
-<p>}</p>
+<p># Value flows back down rewards = {     &quot;researcher&quot;: 300,  # Original creator     &quot;lab&quot;: 100,        # Development support     &quot;reviewers&quot;: 50,   # Validation work     &quot;witnesses&quot;: 50    # Consensus participation }</p>
 
-<p>for recipient, amount in rewards.items():</p>
-<p>    recipient.receive_atp(amount)</p>
-</code>`<code>
+<p>for recipient, amount in rewards.items():     recipient.receive_atp(amount)</p>
+</code></pre>
 
 <p>These examples demonstrate how Web4's components work together to create a trust-native, value-driven ecosystem where humans and AIs collaborate seamlessly, memory serves as a temporal sensor, and value flows to genuine contributions.</p>
 
-<h1>Part 8: WEB4 in Context</h1>
+
+            </section>
+            <section id="part8" class="section">
+                <h1>Part 8: WEB4 in Context</h1>
 
 <h2>5. WEB4 in Context: Relationship to Other Concepts and Technologies</h2>
 
@@ -1984,19 +1413,13 @@
 
 <strong>Similarities with Web3:</strong>
 
-<p>*   <strong>Decentralization:</strong> Like Web3, WEB4 advocates for moving away from centralized points of control. LCTs, ATP, and emergent trust networks are inherently decentralized mechanisms.</p>
-<p>*   <strong>Verifiable Credentials/Identity:</strong> The concept of LCTs providing a cryptographic root identity and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their identity and how their attributes are shared and verified.</p>
-<p>*   <strong>Tokenization and Value Exchange:</strong> WEB4’s ATP system utilizes tokens (ATP/ADP) for value exchange, similar to how cryptocurrencies and other tokens function in Web3. The goal of creating new economic models is common.</p>
-<p>*   <strong>Community Governance:</strong> The idea of governance through resonance and the potential for emergent group ethics in WEB4 has parallels with Web3 concepts like Decentralized Autonomous Organizations (DAOs), which seek to enable community-led governance structures.</p>
+<p>*   <strong>Decentralization:</strong> Like Web3, WEB4 advocates for moving away from centralized points of control. LCTs, ATP, and emergent trust networks are inherently decentralized mechanisms. *   <strong>Verifiable Credentials/Identity:</strong> The concept of LCTs providing a cryptographic root identity and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their identity and how their attributes are shared and verified. *   <strong>Tokenization and Value Exchange:</strong> WEB4’s ATP system utilizes tokens (ATP/ADP) for value exchange, similar to how cryptocurrencies and other tokens function in Web3. The goal of creating new economic models is common. *   <strong>Community Governance:</strong> The idea of governance through resonance and the potential for emergent group ethics in WEB4 has parallels with Web3 concepts like Decentralized Autonomous Organizations (DAOs), which seek to enable community-led governance structures.</p>
 
 <strong>Key Differences and WEB4 Emphases:</strong>
 
 <p>*   <strong>Nature of Trust:</strong> While Web3 often establishes trust through cryptographic security of ledgers and smart contracts (trust in the code/protocol), WEB4 aims for a more deeply embedded, context-aware, and dynamic form of trust based on ongoing T3/V3 assessments of entities (humans, AIs, roles). Trust is not just in the immutability of a record but in the continuously evaluated coherence and capability of the interacting entities.</p>
-<em>   <strong>Value Representation (ATP vs. Traditional Crypto):</strong> WEB4’s ATP system, with its charged/discharged states and direct link to certified value creation (via VCM and V3 tensors), attempts to ground value in demonstrable utility and energy expenditure in a way that many traditional cryptocurrencies do not. The critique of Proof-of-Work (PoW) highlights this: WEB4 seeks to reward the </em>product<em> and its </em>usefulness<em>, not just the </em>task* or computational effort. (Source: "ChatGPT - LCT<em>T3</em>ATP Integration with Anthropic Protocol.pdf", "coherence ethics.pdf")
-<p>*   <strong>Non-Transferable Identity (LCTs):</strong> Unlike many Web3 identity solutions where identifiers or credentials might be transferable or presented by an agent, WEB4 LCTs are conceptualized as permanently bound and non-transferable identity anchors for entities. This is more akin to soulbound tokens but with a richer contextual and reputational framework.</p>
-<p>*   <strong>Integrated AI Participation:</strong> WEB4 is designed from the ground up to seamlessly integrate AI agents as first-class citizens with verifiable identities, capabilities, and accountability. While Web3 can support AI, WEB4 makes this a central design principle, with T3/V3 tensors and Role LCTs specifically catering to AI evaluation and governance.</p>
-<p>*   <strong>Focus on Coherence and Purpose:</strong> WEB4 places a strong emphasis on systemic coherence and purpose-driven ethics, which is a more abstract and holistic layer than often explicitly addressed in many Web3 protocol designs that might focus more on transactional integrity or specific governance rules.</p>
-<p>*   <strong>Semi-Fungibility (ATP/ADP):</strong> The ATP/ADP tokens are described as semi-fungible, potentially carrying context or history, especially in their discharged state. This differs from the fungibility of most cryptocurrencies. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
+<em>   <strong>Value Representation (ATP vs. Traditional Crypto):</strong> WEB4’s ATP system, with its charged/discharged states and direct link to certified value creation (via VCM and V3 tensors), attempts to ground value in demonstrable utility and energy expenditure in a way that many traditional cryptocurrencies do not. The critique of Proof-of-Work (PoW) highlights this: WEB4 seeks to reward the </em>product<em> and its </em>usefulness<em>, not just the </em>task* or computational effort. (Source: "ChatGPT - LCT_T3_ATP Integration with Anthropic Protocol.pdf", "coherence ethics.pdf")
+<p>*   <strong>Non-Transferable Identity (LCTs):</strong> Unlike many Web3 identity solutions where identifiers or credentials might be transferable or presented by an agent, WEB4 LCTs are conceptualized as permanently bound and non-transferable identity anchors for entities. This is more akin to soulbound tokens but with a richer contextual and reputational framework. *   <strong>Integrated AI Participation:</strong> WEB4 is designed from the ground up to seamlessly integrate AI agents as first-class citizens with verifiable identities, capabilities, and accountability. While Web3 can support AI, WEB4 makes this a central design principle, with T3/V3 tensors and Role LCTs specifically catering to AI evaluation and governance. *   <strong>Focus on Coherence and Purpose:</strong> WEB4 places a strong emphasis on systemic coherence and purpose-driven ethics, which is a more abstract and holistic layer than often explicitly addressed in many Web3 protocol designs that might focus more on transactional integrity or specific governance rules. *   <strong>Semi-Fungibility (ATP/ADP):</strong> The ATP/ADP tokens are described as semi-fungible, potentially carrying context or history, especially in their discharged state. This differs from the fungibility of most cryptocurrencies. (Source: "What is Web4 and Why Does It Matter.pdf")</p>
 
 <p>In essence, while Web3 provides many of the foundational cryptographic tools and decentralization philosophies, WEB4 seeks to build upon them by adding richer layers of contextual identity, dynamic trust assessment, nuanced value definition, and deeply integrated AI participation, all aimed at fostering a more coherent and intelligent decentralized ecosystem.</p>
 
@@ -2009,7 +1432,7 @@
 <ol>
 <li> <strong>Manufactures Belief, Not Intrinsic Value:</strong></li>
 </ol>
-<p>    The work done in PoW mining (solving arbitrary computational puzzles) is not inherently useful beyond securing the network. Its primary function, from this critical viewpoint, is to create artificial scarcity and thereby manufacture belief in the token\\\\'s value. The energy expended is seen as a cost to maintain this belief, rather than an investment in creating something of intrinsic utility. WEB4, in contrast, aims for value to be tied to useful work and certified contribution. (Source: "coherence ethics.pdf", "ChatGPT - LCT<em>T3</em>ATP Integration with Anthropic Protocol.pdf")</p>
+<p>    The work done in PoW mining (solving arbitrary computational puzzles) is not inherently useful beyond securing the network. Its primary function, from this critical viewpoint, is to create artificial scarcity and thereby manufacture belief in the token\\\\'s value. The energy expended is seen as a cost to maintain this belief, rather than an investment in creating something of intrinsic utility. WEB4, in contrast, aims for value to be tied to useful work and certified contribution. (Source: "coherence ethics.pdf", "ChatGPT - LCT_T3_ATP Integration with Anthropic Protocol.pdf")</p>
 
 <ol>
 <li> <strong>Massive Energy Waste:</strong></li>
@@ -2019,7 +1442,7 @@
 <ol>
 <li> <strong>Rewards the Task, Not the Product/Usefulness:</strong></li>
 </ol>
-<p>    PoW rewards the completion of the mining task itself, irrespective of whether that computational effort produced any external value or useful product. WEB4, through its ATP/ADP cycle and Value Confirmation Mechanism, explicitly aims to reward the <em>product</em> or the <em>usefulness</em> of the contribution, as certified by its recipients. (Source: "ChatGPT - LCT<em>T3</em>ATP Integration with Anthropic Protocol.pdf")</p>
+<p>    PoW rewards the completion of the mining task itself, irrespective of whether that computational effort produced any external value or useful product. WEB4, through its ATP/ADP cycle and Value Confirmation Mechanism, explicitly aims to reward the <em>product</em> or the <em>usefulness</em> of the contribution, as certified by its recipients. (Source: "ChatGPT - LCT_T3_ATP Integration with Anthropic Protocol.pdf")</p>
 
 <ol>
 <li> <strong>Incoherence with Natural Systems:</strong></li>
@@ -2028,7 +1451,10 @@
 
 <p>While acknowledging that PoW <em>does</em> secure the network, the WEB4 perspective deems this security mechanism to be achieved at an unacceptably high cost in terms of energy waste and a misalignment with the goal of fostering genuinely useful work. Alternative consensus mechanisms, or trust-based systems like those proposed in WEB4 (LCTs, T3/V3), are preferred because they aim to achieve security and consensus with greater energy efficiency and a closer coupling to verifiable, useful contributions. The argument is that if energy expenditure is required, it should at least be directed towards computations or activities that have real-world utility beyond mere belief reinforcement or competitive, wasteful races. (Source: "coherence ethics.pdf")</p>
 
-<h1>Conclusion</h1>
+
+            </section>
+            <section id="conclusion" class="section">
+                <h1>Conclusion</h1>
 
 <blockquote><em>"The future is not a destination but a construction site. Web4 is the blueprint—you are the builders."</em></blockquote>
 
@@ -2095,7 +1521,7 @@
 <li><strong>Memory becomes wisdom, not just data</strong></li>
 <li><strong>Intelligence collaborates, not dominates</strong></li>
 <li><strong>Every entity—human or artificial—participates as a respected peer</strong></li>
-</ol>
+</ul>
 
 <p>This is not utopian fantasy but pragmatic possibility. The tools exist. The vision is clear. All that remains is the will to build.</p>
 
@@ -2111,7 +1537,7 @@
 <li><strong>Evolving</strong> through community contribution</li>
 <li><strong>Growing</strong> through collective wisdom</li>
 <li><strong>Healing</strong> through identified weaknesses</li>
-</ol>
+</ul>
 
 <p>You are not users of Web4—you are its co-creators, its gardeners, its immune system, its consciousness.</p>
 
@@ -2151,16 +1577,11 @@
 
 <strong>Join us. Build with us. Evolve with us.</strong>
 
-<p>The revolution doesn't start tomorrow.</p>
-<p>The revolution starts with your next line of code.</p>
-<p>The revolution starts with your next idea.</p>
-<p>The revolution starts with your next trusted interaction.</p>
+<p>The revolution doesn't start tomorrow. The revolution starts with your next line of code. The revolution starts with your next idea. The revolution starts with your next trusted interaction.</p>
 
 <strong>The revolution starts now.</strong>
 
-<p>Welcome to Web4.</p>
-<p>Welcome to the trust-native internet.</p>
-<p>Welcome to the future we build together.</p>
+<p>Welcome to Web4. Welcome to the trust-native internet. Welcome to the future we build together.</p>
 
 <hr>
 
@@ -2168,13 +1589,16 @@
 
 <em>What will you build today?</em>
 
-<h1>References</h1>
+
+            </section>
+            <section id="references" class="section">
+                <h1>References</h1>
 
 <h2>Primary Sources</h2>
 
 <p>[1] Palatov, D. et al. (2024). "What is Web4 and Why Does It Matter." MetaLINNX Inc. Foundation Document.</p>
 
-<p>[2] Palatov, D. (2025). "LCT<em>T3</em>ATP Integration with Anthropic Protocol - Entity Types and Roles." Web4 Technical Specification.</p>
+<p>[2] Palatov, D. (2025). "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles." Web4 Technical Specification.</p>
 
 <p>[3] Palatov, D. (2025). "Role-Entity LCT Framework." Web4 Architecture Document.</p>
 
@@ -2269,13 +1693,13 @@
 <li>Web4 Project: https://metalinxx.io/web4</li>
 <li>Web4 GitHub: https://github.com/dp-web4</li>
 <li>MetaLINNX Inc.: https://metalinxx.io</li>
-</ol>
+</ul>
 
 <h3>Contact</h3>
 <ul>
 <li>Dennis Palatov: dp@metalinxx.io</li>
 <li>Web4 Development: web4@metalinxx.io</li>
-</ol>
+</ul>
 
 <h3>Contributing</h3>
 <p>To contribute to Web4 development or request access to additional technical documents, please contact the development team through the channels above.</p>
@@ -2284,268 +1708,107 @@
 
 <em>This reference list will be updated as the Web4 framework evolves and new implementations are developed.</em>
 
-<h1>Appendices</h1>
+
+            </section>
+            <section id="appendices" class="section">
+                <h1>Appendices</h1>
 
 <h2>Appendix A: Blockchain Typology Decision Tree</h2>
 
-</code>`<code>
-<p>Persistence Requirement?</p>
-<p>├─ < 1 minute ──────→ Compost Chain (ephemeral)</p>
-<p>├─ < 1 hour ────────→ Leaf Chain (short-term)</p>
-<p>├─ < 1 month ───────→ Stem Chain (medium-term)</p>
-<p>└─ Permanent ───────→ Root Chain (crystallized)</p>
+<pre><code class="">Persistence Requirement?
+<p>├─ &lt; 1 minute ──────→ Compost Chain (ephemeral) ├─ &lt; 1 hour ────────→ Leaf Chain (short-term) ├─ &lt; 1 month ───────→ Stem Chain (medium-term) └─ Permanent ───────→ Root Chain (crystallized)</p>
 
-<p>Verification Requirement?</p>
-<p>├─ None ────────────→ Compost Chain (local only)</p>
-<p>├─ Local ───────────→ Leaf Chain (peer witness)</p>
-<p>├─ Regional ────────→ Stem Chain (multi-party)</p>
-<p>└─ Global ──────────→ Root Chain (consensus)</p>
+<p>Verification Requirement? ├─ None ────────────→ Compost Chain (local only) ├─ Local ───────────→ Leaf Chain (peer witness) ├─ Regional ────────→ Stem Chain (multi-party) └─ Global ──────────→ Root Chain (consensus)</p>
 
-<p>ATP Budget Available?</p>
-<p>├─ < 1 ATP ─────────→ Compost Chain (free tier)</p>
-<p>├─ 1-10 ATP ────────→ Leaf Chain (basic)</p>
-<p>├─ 10-100 ATP ──────→ Stem Chain (premium)</p>
-<p>└─ 100+ ATP ────────→ Root Chain (permanent)</p>
-</code>`<code>
+<p>ATP Budget Available? ├─ &lt; 1 ATP ─────────→ Compost Chain (free tier) ├─ 1-10 ATP ────────→ Leaf Chain (basic) ├─ 10-100 ATP ──────→ Stem Chain (premium) └─ 100+ ATP ────────→ Root Chain (permanent)</p>
+</code></pre>
 
 <h2>Appendix B: LCT Structure Specification</h2>
 
-</code>`<code>json
-<p>{</p>
-<p>  "lct_id": "uuid-v4",</p>
-<p>  "entity_type": "human|ai|organization|role|task|resource|hybrid",</p>
-<p>  "entity_metadata": {</p>
-<p>    "created_at": "ISO-8601",</p>
-<p>    "created<em>by": "creator</em>lct_id",</p>
-<p>    "status": "active|dormant|void|slashed"</p>
-<p>  },</p>
-<p>  "cryptographic_root": {</p>
-<p>    "public<em>key": "ed25519</em>public_key",</p>
-<p>    "signature_algorithm": "ed25519|secp256k1",</p>
-<p>    "key<em>derivation": "hierarchical</em>deterministic"</p>
-<p>  },</p>
-<p>  "temporal_role": {</p>
-<p>    "primary_domain": "spatial|past|future",</p>
-<p>    "sensing_resolution": "nanoseconds|milliseconds|seconds|minutes|hours|days",</p>
-<p>    "trust_horizon": "local|regional|global"</p>
-<p>  },</p>
-<p>  "t3_tensor": {</p>
-<p>    "talent": 0.0,      // 0.0 to 1.0</p>
-<p>    "training": 0.0,    // 0.0 to 1.0</p>
-<p>    "temperament": 0.0  // 0.0 to 1.0</p>
-<p>  },</p>
-<p>  "v3_tensor": {</p>
-<p>    "valuation": [],    // Array of historical valuations</p>
-<p>    "veracity": 0.0,    // 0.0 to 1.0</p>
-<p>    "validity": 0.0     // 0.0 to 1.0</p>
-<p>  },</p>
-<p>  "mrh_tensor": {</p>
-<p>    "fractal_scale": ["quantum", "molecular", "cellular", "organism", "ecosystem"],</p>
-<p>    "informational_scope": ["technical", "ethical", "strategic", "operational"],</p>
-<p>    "geographic_scope": {"radius": 1000, "unit": "meters"},</p>
-<p>    "action_scope": ["read", "write", "delegate", "witness", "crystallize"],</p>
-<p>    "temporal_scope": {"past": 86400, "future": 3600, "unit": "seconds"}</p>
-<p>  },</p>
-<p>  "trust_links": [</p>
-<p>    {</p>
-<p>      "target<em>lct": "linked</em>lct_id",</p>
-<p>      "link_type": "trust|delegation|parent|child|peer",</p>
-<p>      "trust_score": 0.95,</p>
-<p>      "established": "ISO-8601",</p>
-<p>      "last_interaction": "ISO-8601"</p>
-<p>    }</p>
-<p>  ],</p>
-<p>  "witness_chain": [</p>
-<p>    {</p>
-<p>      "level": 0,</p>
-<p>      "witness_lct": "self",</p>
-<p>      "timestamp": "ISO-8601"</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "level": 1,</p>
-<p>      "witness<em>lct": "parent</em>lct_id",</p>
-<p>      "timestamp": "ISO-8601"</p>
-<p>    }</p>
-<p>  ],</p>
-<p>  "memory_bindings": [</p>
-<p>    {</p>
-<p>      "memory_type": "entity|sidecar",</p>
-<p>      "memory<em>lct": "memory</em>lct_id",</p>
-<p>      "binding_strength": 0.8</p>
-<p>    }</p>
-<p>  ],</p>
-<p>  "blockchain_anchors": {</p>
-<p>    "compost": null,</p>
-<p>    "leaf": "leaf<em>block</em>hash",</p>
-<p>    "stem": "stem<em>block</em>hash",</p>
-<p>    "root": "root<em>block</em>hash"</p>
-<p>  }</p>
-<p>}</p>
-</code>`<code>
+<pre><code class="json">{
+<p>  &quot;lct_id&quot;: &quot;uuid-v4&quot;,   &quot;entity_type&quot;: &quot;human|ai|organization|role|task|resource|hybrid&quot;,   &quot;entity_metadata&quot;: {     &quot;created_at&quot;: &quot;ISO-8601&quot;,     &quot;created_by&quot;: &quot;creator_lct_id&quot;,     &quot;status&quot;: &quot;active|dormant|void|slashed&quot;   },   &quot;cryptographic_root&quot;: {     &quot;public_key&quot;: &quot;ed25519_public_key&quot;,     &quot;signature_algorithm&quot;: &quot;ed25519|secp256k1&quot;,     &quot;key_derivation&quot;: &quot;hierarchical_deterministic&quot;   },   &quot;temporal_role&quot;: {     &quot;primary_domain&quot;: &quot;spatial|past|future&quot;,     &quot;sensing_resolution&quot;: &quot;nanoseconds|milliseconds|seconds|minutes|hours|days&quot;,     &quot;trust_horizon&quot;: &quot;local|regional|global&quot;   },   &quot;t3_tensor&quot;: {     &quot;talent&quot;: 0.0,      // 0.0 to 1.0     &quot;training&quot;: 0.0,    // 0.0 to 1.0     &quot;temperament&quot;: 0.0  // 0.0 to 1.0   },   &quot;v3_tensor&quot;: {     &quot;valuation&quot;: [],    // Array of historical valuations     &quot;veracity&quot;: 0.0,    // 0.0 to 1.0     &quot;validity&quot;: 0.0     // 0.0 to 1.0   },   &quot;mrh_tensor&quot;: {     &quot;fractal_scale&quot;: [&quot;quantum&quot;, &quot;molecular&quot;, &quot;cellular&quot;, &quot;organism&quot;, &quot;ecosystem&quot;],     &quot;informational_scope&quot;: [&quot;technical&quot;, &quot;ethical&quot;, &quot;strategic&quot;, &quot;operational&quot;],     &quot;geographic_scope&quot;: {&quot;radius&quot;: 1000, &quot;unit&quot;: &quot;meters&quot;},     &quot;action_scope&quot;: [&quot;read&quot;, &quot;write&quot;, &quot;delegate&quot;, &quot;witness&quot;, &quot;crystallize&quot;],     &quot;temporal_scope&quot;: {&quot;past&quot;: 86400, &quot;future&quot;: 3600, &quot;unit&quot;: &quot;seconds&quot;}   },   &quot;trust_links&quot;: [     {       &quot;target_lct&quot;: &quot;linked_lct_id&quot;,       &quot;link_type&quot;: &quot;trust|delegation|parent|child|peer&quot;,       &quot;trust_score&quot;: 0.95,       &quot;established&quot;: &quot;ISO-8601&quot;,       &quot;last_interaction&quot;: &quot;ISO-8601&quot;     }   ],   &quot;witness_chain&quot;: [     {       &quot;level&quot;: 0,       &quot;witness_lct&quot;: &quot;self&quot;,       &quot;timestamp&quot;: &quot;ISO-8601&quot;     },     {       &quot;level&quot;: 1,       &quot;witness_lct&quot;: &quot;parent_lct_id&quot;,       &quot;timestamp&quot;: &quot;ISO-8601&quot;     }   ],   &quot;memory_bindings&quot;: [     {       &quot;memory_type&quot;: &quot;entity|sidecar&quot;,       &quot;memory_lct&quot;: &quot;memory_lct_id&quot;,       &quot;binding_strength&quot;: 0.8     }   ],   &quot;blockchain_anchors&quot;: {     &quot;compost&quot;: null,     &quot;leaf&quot;: &quot;leaf_block_hash&quot;,     &quot;stem&quot;: &quot;stem_block_hash&quot;,     &quot;root&quot;: &quot;root_block_hash&quot;   } }</p>
+</code></pre>
 
 <h2>Appendix C: Memory Sensor API</h2>
 
-</code>`<code>python
-<p>class MemorySensor:</p>
-<p>    """Temporal sensor for perceiving past patterns"""</p>
+<pre><code class="python">class MemorySensor:
+<p>    &quot;&quot;&quot;Temporal sensor for perceiving past patterns&quot;&quot;&quot;</p>
     
-<p>    def perceive(self, time_window: TimeWindow) -> TemporalPattern:</p>
-<p>        """Perceive patterns within specified time window"""</p>
-<p>        pass</p>
+<p>    def perceive(self, time_window: TimeWindow) -&gt; TemporalPattern:         &quot;&quot;&quot;Perceive patterns within specified time window&quot;&quot;&quot;         pass</p>
     
-<p>    def recall(self, context: Context, mrh: MRH = None) -> List[Memory]:</p>
-<p>        """Recall relevant memories filtered by context and MRH"""</p>
-<p>        pass</p>
+<p>    def recall(self, context: Context, mrh: MRH = None) -&gt; List[Memory]:         &quot;&quot;&quot;Recall relevant memories filtered by context and MRH&quot;&quot;&quot;         pass</p>
     
-<p>    def witness(self, event: Event) -> WitnessMark:</p>
-<p>        """Create cryptographic witness of event"""</p>
-<p>        pass</p>
+<p>    def witness(self, event: Event) -&gt; WitnessMark:         &quot;&quot;&quot;Create cryptographic witness of event&quot;&quot;&quot;         pass</p>
     
-<p>    def acknowledge(self, witness: WitnessMark) -> Acknowledgment:</p>
-<p>        """Acknowledge receipt of witness mark"""</p>
-<p>        pass</p>
+<p>    def acknowledge(self, witness: WitnessMark) -&gt; Acknowledgment:         &quot;&quot;&quot;Acknowledge receipt of witness mark&quot;&quot;&quot;         pass</p>
     
-<p>    def store(self, </p>
-<p>              content: Any,</p>
-<p>              snarc: SNARCSignals,</p>
-<p>              blockchain_type: str = "auto") -> MemoryBlock:</p>
-<p>        """Store new memory with affect gating"""</p>
-<p>        pass</p>
+<p>    def store(self,                content: Any,               snarc: SNARCSignals,               blockchain_type: str = &quot;auto&quot;) -&gt; MemoryBlock:         &quot;&quot;&quot;Store new memory with affect gating&quot;&quot;&quot;         pass</p>
     
-<p>    def forget(self, criteria: ForgetCriteria) -> int:</p>
-<p>        """Prune memories, returns ATP recovered"""</p>
-<p>        pass</p>
+<p>    def forget(self, criteria: ForgetCriteria) -&gt; int:         &quot;&quot;&quot;Prune memories, returns ATP recovered&quot;&quot;&quot;         pass</p>
     
-<p>    def consolidate(self, </p>
-<p>                    source_level: str,</p>
-<p>                    target_level: str) -> ConsolidationResult:</p>
-<p>        """Consolidate memories from one blockchain level to another"""</p>
-<p>        pass</p>
-</code>`<code>
+<p>    def consolidate(self,                      source_level: str,                     target_level: str) -&gt; ConsolidationResult:         &quot;&quot;&quot;Consolidate memories from one blockchain level to another&quot;&quot;&quot;         pass</p>
+</code></pre>
 
 <h2>Appendix D: Trust Computation Formulas</h2>
 
 <h3>Basic Trust Score</h3>
-</code>`<code>
-<p>Trust(A→B) = Σ(witnessed<em>interactions × acknowledgment</em>weight × time<em>decay) / total</em>interactions</p>
-</code>`<code>
+<pre><code class="">Trust(A→B) = Σ(witnessed_interactions × acknowledgment_weight × time_decay) / total_interactions
+</code></pre>
 
 <h3>T3-Weighted Trust</h3>
-</code>`<code>
-<p>T3<em>Trust = (α × Talent + β × Training + γ × Temperament) × context</em>relevance</p>
+<pre><code class="">T3_Trust = (α × Talent + β × Training + γ × Temperament) × context_relevance
 
-<p>Where:</p>
-<ul>
-<li>α, β, γ are context-specific weights (sum to 1.0)</li>
-<li>context_relevance ∈ [0, 1] based on MRH overlap</li>
-</ol>
-</code>`<code>
+<p>Where: - α, β, γ are context-specific weights (sum to 1.0) - context_relevance ∈ [0, 1] based on MRH overlap</p>
+</code></pre>
 
 <h3>V3 Value Certification</h3>
-</code>`<code>
-<p>V3<em>Score = (Valuation × recipient</em>trust) × </p>
-<p>           (Veracity × objective_metrics) × </p>
-<p>           (Validity × witness_count)</p>
+<pre><code class="">V3_Score = (Valuation × recipient_trust) × 
+<p>           (Veracity × objective_metrics) ×             (Validity × witness_count)</p>
 
-<p>Where:</p>
-<ul>
-<li>recipient_trust = T3 score of value recipient</li>
-<li>objective_metrics = reproducibility, accuracy scores</li>
-<li>witness_count = number of independent witnesses</li>
-</ol>
-</code>`<code>
+<p>Where: - recipient_trust = T3 score of value recipient - objective_metrics = reproducibility, accuracy scores - witness_count = number of independent witnesses</p>
+</code></pre>
 
 <h3>ATP/ADP Exchange Rate</h3>
-</code>`<code>
-<p>Exchange<em>Rate = base</em>rate × (V3<em>Score / average</em>V3) × market_demand</p>
+<pre><code class="">Exchange_Rate = base_rate × (V3_Score / average_V3) × market_demand
 
-<p>Where:</p>
-<ul>
-<li>base_rate = 1.0 (1 ADP → 1 ATP at baseline)</li>
-<li>average_V3 = rolling average of V3 scores</li>
-<li>market_demand = supply/demand coefficient</li>
-</ol>
-</code>`<code>
+<p>Where: - base_rate = 1.0 (1 ADP → 1 ATP at baseline) - average_V3 = rolling average of V3 scores - market_demand = supply/demand coefficient</p>
+</code></pre>
 
 <h2>Appendix E: SNARC Signal Specifications</h2>
 
-<p>| Signal | Range | Description | Memory Impact |</p>
-<p>|--------|-------|-------------|---------------|</p>
-<p>| <strong>S</strong>urprise | 0.0-1.0 | Deviation from prediction | Higher → stronger encoding |</p>
-<p>| <strong>N</strong>ovelty | 0.0-1.0 | Previously unseen pattern | Higher → priority storage |</p>
-<p>| <strong>A</strong>rousal | 0.0-1.0 | Importance/urgency | Higher → immediate consolidation |</p>
-<p>| <strong>R</strong>eward | -1.0-1.0 | Value of outcome | Positive → strengthen, Negative → weaken |</p>
-<p>| <strong>C</strong>onflict | 0.0-1.0 | Inconsistency detected | Higher → reconciliation trigger |</p>
+<p>| Signal | Range | Description | Memory Impact | |--------|-------|-------------|---------------| | <strong>S</strong>urprise | 0.0-1.0 | Deviation from prediction | Higher → stronger encoding | | <strong>N</strong>ovelty | 0.0-1.0 | Previously unseen pattern | Higher → priority storage | | <strong>A</strong>rousal | 0.0-1.0 | Importance/urgency | Higher → immediate consolidation | | <strong>R</strong>eward | -1.0-1.0 | Value of outcome | Positive → strengthen, Negative → weaken | | <strong>C</strong>onflict | 0.0-1.0 | Inconsistency detected | Higher → reconciliation trigger |</p>
 
 <h3>SNARC Gating Function</h3>
-</code>`<code>python
-<p>def should_store(snarc: SNARCSignals) -> bool:</p>
+<pre><code class="python">def should_store(snarc: SNARCSignals) -&gt; bool:
 <p>    threshold = 0.3  # Base threshold</p>
     
-<p>    # Adjust threshold based on memory pressure</p>
-<p>    if memory_usage > 0.8:</p>
-<p>        threshold = 0.5</p>
+<p>    # Adjust threshold based on memory pressure     if memory_usage &gt; 0.8:         threshold = 0.5</p>
     
-<p>    # Compute aggregate signal</p>
-<p>    signal = (</p>
-<p>        snarc.surprise * 0.3 +</p>
-<p>        snarc.novelty * 0.3 +</p>
-<p>        snarc.arousal * 0.2 +</p>
-<p>        abs(snarc.reward) * 0.1 +</p>
-<p>        snarc.conflict * 0.1</p>
-<p>    )</p>
+<p>    # Compute aggregate signal     signal = (         snarc.surprise * 0.3 +         snarc.novelty * 0.3 +         snarc.arousal * 0.2 +         abs(snarc.reward) * 0.1 +         snarc.conflict * 0.1     )</p>
     
-<p>    return signal > threshold</p>
-</code>`<code>
+<p>    return signal &gt; threshold</p>
+</code></pre>
 
 <h2>Appendix F: Witness-Acknowledgment Protocol</h2>
 
 <h3>Message Formats</h3>
 
 <strong>Witness Mark:</strong>
-</code>`<code>protobuf
-<p>message WitnessMark {</p>
-<p>  string block_id = 1;</p>
-<p>  bytes block_hash = 2;</p>
-<p>  int64 timestamp = 3;</p>
-<p>  string device_id = 4;</p>
-<p>  MemorySummary summary = 5;</p>
-<p>  bytes signature = 6;</p>
-<p>}</p>
+<pre><code class="protobuf">message WitnessMark {
+<p>  string block_id = 1;   bytes block_hash = 2;   int64 timestamp = 3;   string device_id = 4;   MemorySummary summary = 5;   bytes signature = 6; }</p>
 
-<p>message MemorySummary {</p>
-<p>  int32 entry_count = 1;</p>
-<p>  repeated string entry_types = 2;</p>
-<p>  repeated string tags = 3;</p>
-<p>  float importance_score = 4;</p>
-<p>}</p>
-</code>`<code>
+<p>message MemorySummary {   int32 entry_count = 1;   repeated string entry_types = 2;   repeated string tags = 3;   float importance_score = 4; }</p>
+</code></pre>
 
 <strong>Acknowledgment:</strong>
-</code>`<code>protobuf
-<p>message Acknowledgment {</p>
-<p>  string witness<em>block</em>id = 1;</p>
-<p>  string witness<em>device</em>id = 2;</p>
-<p>  int64 witness_timestamp = 3;</p>
-<p>  float trust_delta = 4;</p>
-<p>  V3Scores v3_assessment = 5;</p>
-<p>  bytes ack_signature = 6;</p>
-<p>}</p>
-</code>`<code>
+<pre><code class="protobuf">message Acknowledgment {
+<p>  string witness_block_id = 1;   string witness_device_id = 2;   int64 witness_timestamp = 3;   float trust_delta = 4;   V3Scores v3_assessment = 5;   bytes ack_signature = 6; }</p>
+</code></pre>
 
 <h3>Handshake Sequence</h3>
-</code>`<code>
-<p>    Child                           Parent</p>
-<p>      │                               │</p>
-<p>      ├──────── Witness Mark ────────→│</p>
-<p>      │                               │</p>
-<p>      │         (processes)           │</p>
-<p>      │                               │</p>
-<p>      │←──────── Acknowledgment ──────┤</p>
-<p>      │                               │</p>
-<p>      │   (includes in next block)    │</p>
-<p>      │                               │</p>
-</code>``
+<pre><code class="">    Child                           Parent
+<p>      │                               │       ├──────── Witness Mark ────────→│       │                               │       │         (processes)           │       │                               │       │←──────── Acknowledgment ──────┤       │                               │       │   (includes in next block)    │       │                               │</p>
+</code></pre>
 
 <h2>Appendix G: Implementation Checklist</h2>
 
@@ -2556,7 +1819,7 @@
 <li>[ ] File-based storage backend</li>
 <li>[ ] Simple CLI for testing</li>
 <li>[ ] Basic witness-acknowledgment protocol</li>
-</ol>
+</ul>
 
 <h3>Phase 2: Core Systems (Months 4-6)</h3>
 <ul>
@@ -2565,7 +1828,7 @@
 <li>[ ] Four-tier blockchain implementation</li>
 <li>[ ] ATP/ADP token system</li>
 <li>[ ] T3/V3 tensor calculations</li>
-</ol>
+</ul>
 
 <h3>Phase 3: Integration (Months 7-9)</h3>
 <ul>
@@ -2574,7 +1837,7 @@
 <li>[ ] Role-based task allocation</li>
 <li>[ ] Cross-chain value transfer</li>
 <li>[ ] MCP server integration</li>
-</ol>
+</ul>
 
 <h3>Phase 4: Production (Months 10-12)</h3>
 <ul>
@@ -2583,7 +1846,7 @@
 <li>[ ] Monitoring and metrics</li>
 <li>[ ] Documentation completion</li>
 <li>[ ] Reference implementations</li>
-</ol>
+</ul>
 
 <h3>Phase 5: Ecosystem (Year 2)</h3>
 <ul>
@@ -2592,23 +1855,11 @@
 <li>[ ] Cross-platform bridges</li>
 <li>[ ] Application marketplace</li>
 <li>[ ] Community building</li>
-</ol>
+</ul>
 
 <h2>Appendix H: Glossary of Acronyms</h2>
 
-<p>| Acronym | Full Form | Description |</p>
-<p>|---------|-----------|-------------|</p>
-<p>| <strong>LCT</strong> | Linked Context Token | Non-transferable identity token |</p>
-<p>| <strong>ATP</strong> | Alignment Transfer Protocol | Energy/value tracking system |</p>
-<p>| <strong>ADP</strong> | Alignment Discharged Potential | Spent ATP awaiting certification |</p>
-<p>| <strong>T3</strong> | Trust Tensor (Talent, Training, Temperament) | Capability assessment metric |</p>
-<p>| <strong>V3</strong> | Value Tensor (Valuation, Veracity, Validity) | Value creation metric |</p>
-<p>| <strong>MRH</strong> | Markov Relevancy Horizon | Contextual relevance boundary |</p>
-<p>| <strong>SNARC</strong> | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |</p>
-<p>| <strong>HRM</strong> | Hierarchical Reasoning Model | Two-level reasoning architecture |</p>
-<p>| <strong>SAGE</strong> | Sentient Agentic Generative Engine | Web4 reference implementation |</p>
-<p>| <strong>VCM</strong> | Value Confirmation Mechanism | Multi-party value certification |</p>
-<p>| <strong>MCP</strong> | Model Context Protocol | AI model communication standard |</p>
+<p>| Acronym | Full Form | Description | |---------|-----------|-------------| | <strong>LCT</strong> | Linked Context Token | Non-transferable identity token | | <strong>ATP</strong> | Alignment Transfer Protocol | Energy/value tracking system | | <strong>ADP</strong> | Alignment Discharged Potential | Spent ATP awaiting certification | | <strong>T3</strong> | Trust Tensor (Talent, Training, Temperament) | Capability assessment metric | | <strong>V3</strong> | Value Tensor (Valuation, Veracity, Validity) | Value creation metric | | <strong>MRH</strong> | Markov Relevancy Horizon | Contextual relevance boundary | | <strong>SNARC</strong> | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals | | <strong>HRM</strong> | Hierarchical Reasoning Model | Two-level reasoning architecture | | <strong>SAGE</strong> | Sentient Agentic Generative Engine | Web4 reference implementation | | <strong>VCM</strong> | Value Confirmation Mechanism | Multi-party value certification | | <strong>MCP</strong> | Model Context Protocol | AI model communication standard |</p>
 
 <hr>
 
@@ -2618,7 +1869,11 @@
 <hr>
 
 <em>Generated: 2025-08-18 10:06:28</em>
-
+            </section>
+        </main>
     </div>
+    
+    <!-- Scripts -->
+    <script src="assets/navigation.js"></script>
 </body>
 </html>
