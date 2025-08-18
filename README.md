@@ -20,8 +20,9 @@ Complete technical document for reading in any markdown viewer or text editor
 ### **[📕 PDF Version](whitepaper/build/WEB4_Whitepaper.pdf)**
 Professional formatting for offline reading, printing, or sharing
 
-### **[🌐 Web Version](whitepaper/build/web/index.html)**
-Interactive HTML with navigation, search, and responsive design
+### **[🌐 Web Version](https://dp-web4.github.io/web4/)**
+Interactive HTML with navigation, search, and responsive design  
+*Also available locally at: [whitepaper/build/web/index.html](whitepaper/build/web/index.html)*
 
 ---
 
