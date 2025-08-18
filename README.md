@@ -14,10 +14,10 @@ At its core, WEB4 makes trust the fundamental force of digital interaction, like
 
 The comprehensive Web4 whitepaper is available in three formats (always current):
 
-### **[📄 Markdown Version](whitepaper/build/WEB4_Whitepaper_Complete.md)**
+### **[📄 Markdown Version](https://dp-web4.github.io/web4/whitepaper-web/WEB4_Whitepaper_Complete.md)**
 Complete technical document for reading in any markdown viewer or text editor
 
-### **[📕 PDF Version](whitepaper/build/WEB4_Whitepaper.pdf)**
+### **[📕 PDF Version](https://dp-web4.github.io/web4/whitepaper-web/WEB4_Whitepaper.pdf)**
 Professional formatting for offline reading, printing, or sharing
 
 ### **[🌐 Web Version](https://dp-web4.github.io/web4/whitepaper-web/)**
@@ -163,7 +163,7 @@ The revolution is not in the technology alone, but in what becomes possible when
 
 ---
 
-**[📄 Read Whitepaper (Markdown)](whitepaper/build/WEB4_Whitepaper_Complete.md)** | **[📕 Download PDF](whitepaper/build/WEB4_Whitepaper.pdf)** | **[🌐 View Interactive Version](https://dp-web4.github.io/web4/whitepaper-web/)**
+**[📄 Read Whitepaper (Markdown)](https://dp-web4.github.io/web4/whitepaper-web/WEB4_Whitepaper_Complete.md)** | **[📕 Download PDF](https://dp-web4.github.io/web4/whitepaper-web/WEB4_Whitepaper.pdf)** | **[🌐 View Interactive Version](https://dp-web4.github.io/web4/whitepaper-web/)**
 
 ---
 
