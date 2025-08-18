@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# make-pdf.sh - Convert whitepaper to PDF with proper formatting
-# Usage: ./make-pdf.sh
+# make-pdf-better.sh - Generate PDF with TOC after Executive Summary
+# Usage: ./make-pdf-better.sh
 
-echo "Building Web4 whitepaper PDF..."
+echo "Building Web4 whitepaper PDF with improved layout..."
 
 OUTPUT_DIR="build"
 MD_FILE="$OUTPUT_DIR/WEB4_Whitepaper_Complete.md"
 PDF_FILE="$OUTPUT_DIR/WEB4_Whitepaper.pdf"
-TEMP_TEX="$OUTPUT_DIR/temp_whitepaper.tex"
+TEMP_MD="$OUTPUT_DIR/WEB4_Whitepaper_Reordered.md"
 
 # Create build directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
@@ -19,202 +19,121 @@ if [ ! -f "$MD_FILE" ]; then
     ./make-md.sh
 fi
 
-# Check for required tools
-check_tool() {
-    if ! command -v $1 &> /dev/null; then
-        echo "⚠ Warning: $1 is not installed. Trying alternative method..."
-        return 1
-    fi
-    return 0
-}
+# Check for pandoc
+if ! command -v pandoc &> /dev/null; then
+    echo "Error: pandoc is required for PDF generation"
+    echo "Install with: sudo apt-get install pandoc texlive-xetex"
+    exit 1
+fi
 
-# Method 1: Using pandoc with LaTeX (best quality)
-if check_tool pandoc; then
-    echo "Using pandoc for PDF generation..."
+# Reorder the document to put TOC after Executive Summary
+echo "Reordering document structure..."
+python3 << 'PYTHON_SCRIPT'
+import re
+
+# Read the complete markdown
+with open('build/WEB4_Whitepaper_Complete.md', 'r') as f:
+    content = f.read()
+
+# Split into sections
+lines = content.split('\n')
+sections = []
+current_section = []
+current_title = ""
+
+for line in lines:
+    if line.startswith('# '):
+        if current_section:
+            sections.append((current_title, '\n'.join(current_section)))
+        current_title = line
+        current_section = [line]
+    else:
+        current_section.append(line)
+
+# Add the last section
+if current_section:
+    sections.append((current_title, '\n'.join(current_section)))
+
+# Find Executive Summary
+exec_summary = None
+other_sections = []
+
+for title, content in sections:
+    if 'Executive Summary' in title:
+        exec_summary = (title, content)
+    else:
+        other_sections.append((title, content))
+
+# Rebuild document with custom order
+with open('build/WEB4_Whitepaper_Reordered.md', 'w') as f:
+    # Title and authors (if exists)
+    for title, content in other_sections:
+        if 'WEB4:' in title or 'Trust-Native' in title:
+            f.write(content + '\n\n')
+            other_sections.remove((title, content))
+            break
     
-    # Create custom LaTeX template for better formatting
-    cat > "$OUTPUT_DIR/template.tex" << 'EOF'
-\documentclass[11pt,a4paper]{article}
-\usepackage[margin=1in]{geometry}
-\usepackage{hyperref}
-\usepackage{graphicx}
-\usepackage{listings}
-\usepackage{color}
-\usepackage{fancyhdr}
-\usepackage{titlesec}
+    # Executive Summary
+    if exec_summary:
+        f.write(exec_summary[1] + '\n\n')
+    
+    # Add TOC marker for pandoc
+    f.write('\\newpage\n\n')
+    f.write('\\tableofcontents\n\n')
+    f.write('\\newpage\n\n')
+    
+    # All other sections
+    for title, content in other_sections:
+        f.write(content + '\n\n')
 
-% Code highlighting
-\definecolor{codegreen}{rgb}{0,0.6,0}
-\definecolor{codegray}{rgb}{0.5,0.5,0.5}
-\definecolor{codepurple}{rgb}{0.58,0,0.82}
-\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+print("✓ Document reordered")
+PYTHON_SCRIPT
 
-\lstdefinestyle{mystyle}{
-    backgroundcolor=\color{backcolour},
-    commentstyle=\color{codegreen},
-    keywordstyle=\color{magenta},
-    numberstyle=\tiny\color{codegray},
-    stringstyle=\color{codepurple},
-    basicstyle=\ttfamily\footnotesize,
-    breakatwhitespace=false,
-    breaklines=true,
-    captionpos=b,
-    keepspaces=true,
-    numbers=left,
-    numbersep=5pt,
-    showspaces=false,
-    showstringspaces=false,
-    showtabs=false,
-    tabsize=2
-}
+# Generate PDF with pandoc
+echo "Generating PDF..."
+pandoc "$TEMP_MD" -o "$PDF_FILE" \
+    --from markdown+raw_tex \
+    --to pdf \
+    --pdf-engine=xelatex \
+    --toc-depth=3 \
+    --highlight-style=tango \
+    -V documentclass=report \
+    -V geometry:margin=1in \
+    -V fontsize=11pt \
+    -V linkcolor=blue \
+    -V urlcolor=blue \
+    -V toccolor=black \
+    -V colorlinks=true \
+    --metadata title="WEB4: Trust-Native Distributed Intelligence" \
+    --metadata author="Dennis Palatov et al." \
+    --metadata date="August 2025" \
+    2>/dev/null
 
-\lstset{style=mystyle}
-
-% Headers and footers
-\pagestyle{fancy}
-\fancyhf{}
-\rhead{WEB4 Whitepaper}
-\lhead{\leftmark}
-\cfoot{\thepage}
-
-% Section formatting
-\titleformat{\section}
-  {\normalfont\Large\bfseries}{\thesection}{1em}{}
-\titleformat{\subsection}
-  {\normalfont\large\bfseries}{\thesubsection}{1em}{}
-
-\title{WEB4: A Comprehensive Architecture for Trust-Native Distributed Intelligence}
-\author{Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus}
-\date{\today}
-
-\begin{document}
-\maketitle
-\tableofcontents
-\newpage
-
-$body$
-
-\end{document}
-EOF
-
-    # Generate PDF with pandoc
-    pandoc "$MD_FILE" \
+if [ -f "$PDF_FILE" ]; then
+    echo "✅ PDF created with TOC after Executive Summary: $PDF_FILE"
+    echo ""
+    echo "📊 PDF Statistics:"
+    echo "   Size: $(du -h $PDF_FILE | cut -f1)"
+    echo "   Location: $PDF_FILE"
+    
+    # Clean up temp file
+    rm -f "$TEMP_MD"
+else
+    echo "❌ PDF generation failed"
+    echo "Falling back to standard generation..."
+    
+    # Fallback to original method
+    pandoc "$MD_FILE" -o "$PDF_FILE" \
         --from markdown \
         --to pdf \
         --pdf-engine=xelatex \
-        --highlight-style=tango \
         --toc \
         --toc-depth=3 \
-        --number-sections \
+        --highlight-style=tango \
         -V geometry:margin=1in \
-        -V fontsize=11pt \
-        -V documentclass=article \
-        -V colorlinks=true \
-        -V linkcolor=blue \
-        -V urlcolor=blue \
-        -V toccolor=black \
-        -o "$PDF_FILE" 2>/dev/null
-
-    if [ $? -eq 0 ]; then
-        echo "✅ PDF created with pandoc: $PDF_FILE"
-    else
-        echo "Pandoc failed. Trying alternative method..."
-        
-        # Method 2: Using wkhtmltopdf (fallback)
-        if check_tool wkhtmltopdf; then
-            echo "Using wkhtmltopdf for PDF generation..."
-            
-            # First convert markdown to HTML
-            if check_tool markdown; then
-                markdown "$MD_FILE" > "$OUTPUT_DIR/temp.html"
-            elif check_tool python3; then
-                python3 -c "
-import markdown
-with open('$MD_FILE', 'r') as f:
-    html = markdown.markdown(f.read(), extensions=['extra', 'codehilite', 'toc'])
-with open('$OUTPUT_DIR/temp.html', 'w') as f:
-    f.write('''
-<html>
-<head>
-<style>
-body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-h1, h2, h3 { color: #333; }
-code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
-pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-th { background-color: #f2f2f2; }
-</style>
-</head>
-<body>
-''' + html + '''
-</body>
-</html>
-''')
-"
-            fi
-            
-            wkhtmltopdf "$OUTPUT_DIR/temp.html" "$PDF_FILE"
-            rm -f "$OUTPUT_DIR/temp.html"
-            echo "✅ PDF created with wkhtmltopdf: $PDF_FILE"
-        else
-            # Method 3: Using Python libraries (last resort)
-            echo "Trying Python method..."
-            python3 << 'PYTHON_SCRIPT'
-import os
-import sys
-
-try:
-    from markdown2pdf import convert
-    convert(f"{os.environ.get('OUTPUT_DIR')}/WEB4_Whitepaper_Complete.md",
-            f"{os.environ.get('OUTPUT_DIR')}/WEB4_Whitepaper.pdf")
-    print("✅ PDF created with Python markdown2pdf")
-except ImportError:
-    try:
-        import markdown
-        import pdfkit
-        
-        with open(f"{os.environ.get('OUTPUT_DIR')}/WEB4_Whitepaper_Complete.md", 'r') as f:
-            html = markdown.markdown(f.read())
-        
-        options = {
-            'page-size': 'A4',
-            'margin-top': '0.75in',
-            'margin-right': '0.75in',
-            'margin-bottom': '0.75in',
-            'margin-left': '0.75in',
-            'encoding': "UTF-8",
-            'no-outline': None
-        }
-        
-        pdfkit.from_string(html, f"{os.environ.get('OUTPUT_DIR')}/WEB4_Whitepaper.pdf", options=options)
-        print("✅ PDF created with Python pdfkit")
-    except ImportError:
-        print("⚠ No PDF generation tools available.")
-        print("Please install one of the following:")
-        print("  - pandoc (recommended): apt-get install pandoc texlive-xetex")
-        print("  - wkhtmltopdf: apt-get install wkhtmltopdf")
-        print("  - Python libraries: pip install markdown2pdf pdfkit")
-        sys.exit(1)
-PYTHON_SCRIPT
-        fi
+        -V fontsize=11pt
+    
+    if [ -f "$PDF_FILE" ]; then
+        echo "✅ PDF created (standard layout): $PDF_FILE"
     fi
-else
-    echo "⚠ pandoc not found. Please install pandoc for best PDF quality:"
-    echo "  Ubuntu/Debian: sudo apt-get install pandoc texlive-xetex"
-    echo "  macOS: brew install pandoc basictex"
-    echo ""
-    echo "Alternatively, install wkhtmltopdf or Python libraries."
-fi
-
-# Clean up temporary files
-rm -f "$OUTPUT_DIR/template.tex" "$OUTPUT_DIR/temp_whitepaper.tex"
-
-# Show file info
-if [ -f "$PDF_FILE" ]; then
-    size=$(du -h "$PDF_FILE" | cut -f1)
-    echo ""
-    echo "📊 PDF Statistics:"
-    echo "   Size: $size"
-    echo "   Location: $PDF_FILE"
 fi
