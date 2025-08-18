@@ -1,0 +1,15 @@
+# Ignore build output
+build/
+*.pdf
+*.html
+
+# Keep source sections
+!sections/*.md
+
+# Temporary files
+*.tmp
+*.tex
+*.aux
+*.log
+*.out
+*.toc
