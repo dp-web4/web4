@@ -1,7 +1,7 @@
-# Ignore build output
-build/
-*.pdf
-*.html
+# Build output - we WANT to commit these for easy access
+# build/
+# *.pdf
+# *.html
 
 # Keep source sections
 !sections/*.md
