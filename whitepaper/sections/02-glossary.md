@@ -1,95 +1,113 @@
 # Glossary of WEB4 Terms
 
-This glossary defines key terms and concepts related to WEB4 as presented in the provided documents.
+*The language of trust-native intelligence, organized from foundation to frontier.*
 
-## W
+---
 
-**WEB4:** A proposed next stage of the internet, shifting from centralized control (Web2) and token-driven decentralization (Web3) to a trust-driven, decentralized intelligence model. It aims to redefine trust, value, and collaboration in an AI-driven, potentially post-scarcity world. Key components include Linked Context Tokens (LCTs), Alignment Transfer Protocol (ATP), and T3/V3 Tensors.
+## Core Terms
+*The fundamental building blocks of Web4—master these to understand everything else.*
 
-## L
+### Linked Context Tokens (LCTs)
+> *"Every entity is born with and dies with its LCT—the unforgeable footprint of digital presence."*
 
-**Linked Control Tokens (LCTs):** Initially defined as decentralized trust chains that verify reputation, intent, and coherence across entities, replacing fragile credentials with cryptographically enforceable trust.
+The reification of presence itself. LCTs are permanently and immutably bound to a single entity (human, AI, organization, role, task, or resource) and are non-transferable. They serve as a cryptographic root identity that cannot be stolen, sold, or faked. If the entity ceases to exist, its LCT is marked void or slashed. LCTs form malleable links to create trust webs, delegation chains, and historical records—the nervous system of Web4.
 
-**Linked Context Tokens (LCTs):** An evolution of "Linked Control Tokens." LCTs are permanently and immutably bound to a single entity (which can be a task, data resource, AI, human, organization, or role) and are non-transferable. They serve as a cryptographic root identity for that entity within a specific context. If the entity ceases to exist, its LCT is marked void or slashed. LCTs can have malleable links to other LCTs to form trust webs, delegation chains, or historical logs. They are fundamental to establishing identity, context, trust, and provenance within the WEB4 framework.
+### Alignment Transfer Protocol (ATP/ADP)
+> *"Energy is the blood of the system; value is its heartbeat."*
 
-**Lightchain:** A lightweight blockchain alternative that provides cryptographic verification without full blockchain overhead. Uses fractal witness-acknowledgment protocols for hierarchical trust without global consensus.
+A biological metaphor made digital. ATP tokens exist in "charged" (potential energy) or "discharged" (ADP - expended energy) states, mirroring cellular energy cycles. Work consumes ATP creating ADP, which when certified as valuable by recipients, converts back to ATP. This creates an auditable trail where genuine contribution generates genuine value—not mining, not staking, but real work recognized.
 
-## A
+### T3 Tensor (Trust Tensor)
+> *"Trust emerges from capability demonstrated over time."*
 
-**Alignment Transfer Protocol (ATP):** A mechanism for tracking energy and value flow within the WEB4 ecosystem. ATP tokens are envisioned as semi-fungible digital assets that can exist in a "charged" (ATP) or "discharged" (ADP) state, mirroring biological ATP/ADP cycles. Energy expenditure leads to a token becoming discharged, and value creation (certified by recipients) allows a discharged token to be exchanged for one or more charged tokens. This creates an auditable trail of energy flow and value generation, incentivizing meaningful contributions.
+A three-dimensional metric capturing an entity's capabilities:
+- **Talent**: Inherent aptitude or originality
+- **Training**: Acquired knowledge and skills
+- **Temperament**: Behavioral characteristics and reliability
 
-**ADP (Alignment Discharged Potential):** The "discharged" state of an ATP token. An ATP token transitions to ADP after its associated energy/resources are utilized. A discharged ADP token can be certified by value recipients and then exchanged for new, charged ATP tokens, with the exchange rate potentially varying based on the certified value of the work done.
+Context-dependent and dynamically updated through actual performance.
 
-**Agentic Entity:** An entity capable of initiating action based on its own decision-making processes. Examples include humans and sufficiently autonomous AI systems.
+### V3 Tensor (Value Tensor)
+> *"Value is not declared but demonstrated, not claimed but confirmed."*
 
-## T
+A three-dimensional metric quantifying created value:
+- **Valuation**: Subjective worth to the recipient
+- **Veracity**: Objective accuracy and reproducibility
+- **Validity**: Confirmation of actual value transfer
 
-**T3 Tensor (Trust Tensor):** A context-enabled multi-dimensional metric designed to quantify an entity's capability profile in terms of **T**alent, **T**raining, and **T**emperament. It is used to assess the trustworthiness and suitability of an entity for a particular role or task.
+Together with T3, enables nuanced assessment beyond simple ratings.
 
-*   **Talent:** An entity's inherent aptitude or originality.
-*   **Training:** An entity's acquired knowledge, skills, and experience relevant to a context.
-*   **Temperament:** An entity's behavioral characteristics, adaptability, and coherence in interactions, often context-dependent (e.g., influenced by system prompts for AI).
+### Markov Relevancy Horizon (MRH)
+> *"The MRH is how an entity knows where it belongs in the universe of relevance."*
 
-**Temporal Sensor:** A reconceptualization of memory as an active sensor that perceives past temporal patterns, complementing physical sensors (spatial perception) and cognitive sensors (future projection).
+Each entity's contextual lens defining what is knowable, actionable, and relevant within their scope. Not a wall but a gradient—a fuzzy boundary ensuring entities engage where they're most effective. Dimensions include fractal scale, informational scope, geographic scope, action scope, and temporal scope.
 
-## V
+### Entity
+> *"Anything with presence can be an entity—anything that can leave a footprint."*
 
-**V3 Tensor (Value Tensor):** A context-enabled multi-dimensional metric designed to quantify the value created by an entity. It incorporates sub-tensors for **V**aluation, **V**eracity, and **V**alidity.
+Broadly defined as anything that can be paired with an LCT. This revolutionary expansion includes humans, AIs, organizations, roles, tasks, data resources, even thoughts. Entities can be agentic (self-directed), responsive (reactive), or delegative (authorizing).
 
-*   **Valuation:** The subjective assessment of worth or utility by the recipient of the value.
-*   **Veracity:** An objective assessment of the nature and claims of the value created (e.g., reproducibility, alignment with standards).
-*   **Validity:** Confirmation that the value was actually transferred and received, often tied to the T3 score (credibility) of the recipient or validator.
+### WEB4
+> *"From platform-controlled to token-speculated to trust-native."*
 
-**Value Confirmation Mechanism (VCM):** The process by which discharged ADP tokens are certified for the value they represent. This often involves multi-recipient attestation to ensure decentralized consensus around value creation. Validators might use their LCTs and T3/V3 scores in this process.
+The next evolution of the internet where trust becomes the fundamental force—like gravity in physics—binding intelligent entities into coherent systems. Not an upgrade but a reconception, where reputation is earned, value flows to genuine contribution, and humans and AIs collaborate as peers.
 
-## E
+---
 
-**Entity (in WEB4 context):** Broadly defined as anything that can be paired with a Linked Context Token (LCT). This includes tasks, data resources, AI agents, humans, organizations, and roles. Entities can be classified as agentic, responsive, or delegative.
+## Extension Terms
+*Advanced concepts that extend and enrich the core framework.*
 
-**Entity Memory:** A specialized memory type that tracks WHO to trust based on historical interactions, maintaining T3/V3 scores over time.
+### Memory as Temporal Sensor
+> *"Memory doesn't store the past—it senses it."*
 
-## R
+A paradigm shift from passive storage to active perception. Memory becomes one of three complementary sensors: physical (spatial/present), memory (temporal/past), and cognitive (possibilities/future). Together they create the complete reality field for intelligence.
 
-**Responsive Entity:** An entity that produces a single output for a single input, reacting deterministically or probabilistically without self-initiated actions. Examples include sensors, APIs, or pre-programmed functions.
+### Lightchain
+> *"Trust without global consensus: coherence without weight."*
 
-**Role (as an Entity):** A job description or function within the WEB4 ecosystem that is treated as an entity with its own LCT. A Role LCT can define its system prompt (purpose), permissions (linked to authority LCTs), required domain knowledge (linked to informational LCTs), scope of action, and a history of agent entities that have performed the role, along with their reputational scores (V3 validated T3).
+A hierarchical witness-based verification system using fractal protocols. Child entities create witness marks, parents acknowledge, creating bidirectional proof without global consensus. Scales from nanosecond operations to permanent anchors.
 
-## D
+### Blockchain Typology
+> *"Time itself becomes the organizing principle."*
 
-**Delegative Entity:** An entity that does not act directly but can authorize other (typically agentic) entities to act on its behalf. It carries authority, rights, or responsibility. Examples include organizations or governance mechanisms.
+Four-tier temporal hierarchy:
+- **Compost Chains** (ms-sec): Ephemeral working memory
+- **Leaf Chains** (sec-min): Short-term episodic memory
+- **Stem Chains** (min-hr): Consolidated patterns
+- **Root Chains** (permanent): Crystallized wisdom
 
-**Dictionary Entity:** Trust-bounded translator entities that bridge between different domains or modalities (e.g., ASR, TTS, tokenizers, cross-model bridges).
+### Role (as Entity)
+> *"Roles themselves become intelligent actors with memory and reputation."*
 
-## M
+Revolutionary treatment of roles as first-class entities with their own LCTs. Roles accumulate history of who filled them and how well, becoming wiser over time at selecting suitable performers.
 
-**Markov Relevancy Horizon (MRH):** A tensor representing an entity's contextual zone of influence, comprehension, and authorization. It defines what is currently relevant and locally operative to that entity. Dimensions include Fractal Scale, Informational Scope, Geographic Scope, Action Scope, and Temporal Scope. The MRH can be cached within an LCT for efficient querying, though it can also be computed from T3/V3 scores and LCT links.
+---
 
-*   **Fractal Scale (MRH Dimension):** The hierarchical level at which an entity primarily exists or acts (e.g., quantum, molecular, biospheric, planetary, galactic).
-*   **Informational Scope (MRH Dimension):** The types of information most relevant or accessible to the entity (e.g., legal, biophysical, technical, ethical, strategic).
-*   **Geographic Scope (MRH Dimension):** The physical or virtual location relevance for an entity (e.g., local, regional, global, specific virtual zones).
-*   **Action Scope (MRH Dimension):** The classes of action an entity is capable of or authorized to perform (e.g., authoring, signing, delegating, reacting, observing).
-*   **Temporal Scope (MRH Dimension):** The time horizon within which an entity tends to operate or predict (e.g., milliseconds, hours, decades).
+## Research Extensions
+*Emerging concepts under active exploration—the frontier of Web4.*
 
-**Memory Sensor:** Memory reconceptualized as an active temporal sensor that perceives past patterns, maintains witness marks, and provides contextualized recall.
 
-## S
+### Synchronism
+The philosophical framework underlying Web4—recognizing coherence, resonance, and shared intent as fundamental organizing principles. See [https://dpcars.net/synchronism](https://dpcars.net/synchronism) for deeper exploration.
 
-**Synchronism:** A broader philosophical or systemic framework referenced in the chats, emphasizing coherence, intent flow, and emergent properties. WEB4 concepts like LCTs, ATP, and fractal ethics are often discussed in relation to Synchronism's principles.
+### Witness-Acknowledgment Protocol
+> *"Trust emerges from witnessed interactions, not global consensus."*
 
-**Sidecar Memory:** A memory type that stores WHAT was experienced and learned, with SNARC-gated selective retention.
+The lightweight verification backbone of Web4. Child entities send minimal witness marks upward, parents acknowledge, creating bidirectional proof without expensive consensus.
 
-**SNARC Signals:** Surprise, Novelty, Arousal, Reward, Conflict - affective signals that gate memory formation and retention.
+### Fractal Organization
+The principle that patterns repeat at every scale—from individual memories to global trust networks. What works at cell level scales to planetary level through the same fundamental mechanisms.
 
-## B
+### Responsive & Delegative Entities
+Beyond agentic entities, Web4 recognizes responsive entities (sensors, APIs) that react predictably, and delegative entities (organizations, governance) that authorize others to act.
 
-**Blockchain Typology:** A four-tier temporal hierarchy in Web4:
-- **Compost Chains:** Ephemeral working memory (milliseconds to seconds)
-- **Leaf Chains:** Short-term episodic memory (seconds to minutes)  
-- **Stem Chains:** Medium-term consolidated memory (minutes to hours)
-- **Root Chains:** Long-term crystallized wisdom (permanent)
+---
 
-## W (Additional)
+## Deprecated Terms
 
-**Witness Mark:** Minimal cryptographic proof sent upward in fractal hierarchy to verify events without transmitting full data.
+### Linked Control Tokens
+Original name for LCTs—evolved to "Context" to better capture their role in establishing operational context rather than control.
 
-**Witness Acknowledgment:** Parent's confirmation of receiving a witness mark, creating bidirectional proof of event occurrence.
+---
+
+*This glossary evolves with Web4 itself. Core terms are stable foundations. Extensions are active frontiers. Research areas are tomorrow's cores.*

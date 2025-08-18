@@ -45,7 +45,13 @@ else
     add_section "04-part2-foundational-concepts.md"
 fi
 
-add_section "05-part3-value-trust-mechanics.md"
+# Use enhanced Part 3 if it exists
+if [ -f "$SECTIONS_DIR/05-part3-value-trust-mechanics-enhanced.md" ]; then
+    add_section "05-part3-value-trust-mechanics-enhanced.md"
+    echo "    (Using enhanced version with manifesto flourishes)"
+else
+    add_section "05-part3-value-trust-mechanics.md"
+fi
 add_section "06-part4-implications-vision.md"
 
 # Use conceptual version for memory if it exists
@@ -57,9 +63,23 @@ else
 fi
 
 add_section "08-part6-blockchain-typology.md"
+
+# Add implementation details before examples
+if [ -f "$SECTIONS_DIR/09-part7-implementation-details.md" ]; then
+    add_section "09-part7-implementation-details.md"
+    echo "    (Including implementation mechanisms)"
+fi
+
 add_section "09-part7-implementation-examples.md"
 add_section "10-part8-web4-context.md"
-add_section "11-conclusion.md"
+
+# Use enhanced conclusion if it exists
+if [ -f "$SECTIONS_DIR/11-conclusion-enhanced.md" ]; then
+    add_section "11-conclusion-enhanced.md"
+    echo "    (Using enhanced conclusion with call to action)"
+else
+    add_section "11-conclusion.md"
+fi
 add_section "12-references.md"
 add_section "13-appendices.md"
 

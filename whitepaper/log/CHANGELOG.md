@@ -124,3 +124,22 @@ Entries are added chronologically, never modified or deleted.
 ---
 
 *Note: This changelog is append-only. New entries should be added at the top of the appropriate date section, never modifying existing entries.*
+
+---
+
+## 2025-08-18 (v1.3.0) - Manifesto Flourishes
+
+### Added
+- Created enhanced Part 3 (05-part3-value-trust-mechanics-enhanced.md) with manifesto energy and biological metaphors
+- Created enhanced Conclusion (11-conclusion-enhanced.md) with direct call to action addressing builders, thinkers, dreamers, and skeptics
+- Added "The Living Economy" synthesis section to Part 3
+- Integrated manifesto quotes throughout technical sections
+
+### Changed
+- Reorganized glossary into Core Terms, Extension Terms, and Research Extensions for better navigation
+- Added manifesto quotes to each glossary term
+- Updated make-md.sh to use enhanced versions when available
+- Strengthened call to action with specific invitations to different audiences
+
+### Contributors
+- Dennis Palatov, Claude (Opus 4.1)
