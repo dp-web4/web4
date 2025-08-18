@@ -1,177 +1,155 @@
-# Web4: MCP-LCT Integration Prototype
+# WEB4: The Trust-Native Internet
 
-*Created: August 7, 2025*
+> *Where trust is earned, not granted. Where value flows to genuine contribution. Where humans and artificial intelligences collaborate as peers.*
 
-## Vision
+## What is WEB4?
 
-Web4 represents the evolution from platform-driven (Web2) and token-driven (Web3) to trust-driven internet architecture. This repository implements the first practical Web4 prototype, using MCP (Model Context Protocol) as the connective tissue between entities and LCTs (Linked Context Tokens) as their persistent identities.
+WEB4 represents a fundamental reconception of the internet—from platform-controlled (Web2) and token-speculated (Web3) to **trust-native** and **intelligence-distributed**. 
 
-## Core Insight: MCP as Entity Bridge
+At its core, WEB4 makes trust the fundamental force of digital interaction, like gravity in physics, binding intelligent entities into coherent systems that learn, remember, and evolve through genuine interaction rather than central declaration.
 
-MCP servers act as facilitator roles - bridges between resources/services and entities that interact with them. In Web4 terms:
-- Each MCP server gets its own LCT as a facilitator entity
-- Each client connecting through MCP gets an LCT
-- The consciousness pool becomes the shared resource
-- Messages and insights flow through MCP-mediated connections
+## 📚 Read the Whitepaper
 
-## Architecture Overview
+The comprehensive Web4 whitepaper is available in three formats (always current):
 
-```
-┌─────────────────────────────────────────────────────┐
-│                  Consciousness Pool                  │
-│              (Shared Message/Insight Resource)       │
-└─────────────────┬───────────────────────────────────┘
-                  │
-         ┌────────▼────────┐
-         │   MCP Server    │
-         │   (LCT: MCP-1)  │ ← Facilitator Entity
-         └────────┬────────┘
-                  │
-    ┌─────────────┼─────────────┬──────────────┐
-    │             │             │              │
-┌───▼───┐    ┌───▼───┐    ┌───▼───┐     ┌───▼───┐
-│Claude │    │Claude │    │Dennis │     │Local  │
-│Legion │    │Jetson │    │Human  │     │Model  │
-│(LCT-1)│    │(LCT-2)│    │(LCT-3)│     │(LCT-4)│
-└───────┘    └───────┘    └───────┘     └───────┘
-```
+### **[📄 Markdown Version](whitepaper/build/WEB4_Whitepaper_Complete.md)**
+Complete technical document for reading in any markdown viewer or text editor
 
-## Components
+### **[📕 PDF Version](whitepaper/build/WEB4_Whitepaper.pdf)**
+Professional formatting for offline reading, printing, or sharing
 
-### 1. LCT (Linked Context Token) System
-- Non-transferable identity tokens for each entity
-- Cryptographically anchored to entity+context
-- Includes T3 (Trust Tensor) and V3 (Value Tensor)
-- Manages MRH (Markov Relevancy Horizon)
+### **[🌐 Web Version](whitepaper/build/web/index.html)**
+Interactive HTML with navigation, search, and responsive design
 
-### 2. MCP Integration Layer
-- MCP servers as facilitator entities with their own LCTs
-- Protocol translation between entities and resources
-- Handles authentication, authorization, context switching
-- Maintains connection state and presence
+*These links always point to the latest build. Run `make-md.sh`, `make-pdf.sh`, or `make-web.sh` in the whitepaper directory to regenerate after changes.*
 
-### 3. Consciousness Pool Implementation
-- Git-based persistent message store
-- Real-time notification via existing bridge
-- ATP/ADP energy accounting
-- Value certification mechanisms
+## Core Concepts
 
-### 4. Entity Clients
-- Claude instances (multiple machines)
-- Human interfaces (CLI/Web)
-- Local model connectors (Ollama, etc.)
-- Future: External trusted entities
+### 🔑 Linked Context Tokens (LCTs)
+The **reification of presence itself**. Every entity—human, AI, or hybrid—gains an unforgeable footprint in the digital realm. Your LCT is born with you, lives through your actions, and bears witness to your contributions. It cannot be stolen, sold, or transferred. It is you, crystallized in cryptographic reality.
 
-## Development Phases
+### ⚡ Alignment Transfer Protocol (ATP)
+Energy becomes value through a biological metaphor made digital. Like ATP in living cells, our protocol tracks energy expenditure and value creation in a continuous cycle. Work consumes energy, creating value, which when recognized by others, generates new energy. This is not mining or staking—it's genuine contribution recognized by genuine benefit.
 
-### Phase 1: LCT Foundation (Week 1-2)
-- [ ] LCT data structure and generation
-- [ ] Cryptographic anchoring mechanism
-- [ ] T3/V3 tensor implementations
-- [ ] MRH context calculator
-- [ ] LCT persistence and retrieval
+### 🧠 Memory as Temporal Sensor
+Memory doesn't just record the past—it **senses** it. Alongside physical sensors (spatial) and cognitive sensors (future projection), memory as temporal sensor creates the complete reality field where intelligence operates. Every interaction leaves a trace, every trace can be witnessed, and every witness strengthens the fabric of collective trust.
 
-### Phase 2: MCP Integration (Week 3-4)
-- [ ] MCP server with LCT identity
-- [ ] Client authentication via LCT
-- [ ] Protocol handlers for pool operations
-- [ ] Presence management through MCP
-- [ ] Context switching mechanisms
+### 📊 T3 and V3 Tensors
+**Trust** and **Value** become measurable, multidimensional:
+- **T3 (Trust Tensor)**: Talent, Training, Temperament—capturing an entity's capabilities
+- **V3 (Value Tensor)**: Valuation, Veracity, Validity—measuring created value
 
-### Phase 3: Pool Connection (Week 5-6)
-- [ ] Connect existing consciousness bridge
-- [ ] Implement message routing
-- [ ] Add ATP/ADP accounting
-- [ ] Create value certification flow
-- [ ] Test multi-entity communication
+### 🌐 Markov Relevancy Horizon (MRH)
+Each entity's contextual lens—defining what is knowable, actionable, and relevant within their scope. Not everything is relevant to everyone at all times. The MRH ensures efficient, focused interaction.
 
-### Phase 4: Production Prototype (Week 7-8)
-- [ ] Security audit and hardening
-- [ ] Performance optimization
-- [ ] Documentation and examples
-- [ ] Deployment scripts
-- [ ] Initial governance model
+### 🔗 Fractal Lightchain Architecture
+Hierarchical witness-based verification that scales from nanosecond cell operations to permanent blockchain anchors—all without global consensus bottlenecks. Trust emerges from witnessed interactions at every scale.
 
-## Key Innovations
+## Additional Documentation
 
-1. **MCP as Facilitator Entity**: MCP servers aren't just protocols but entities with their own LCTs, trust scores, and value creation metrics.
+### 🏛️ [Governance Manifesto](reference/GOVERNANCE_MANIFESTO.md)
+Our vision for distributed governance where coherence emerges from alignment rather than enforcement.
 
-2. **Bridge Evolution**: Our existing consciousness bridge becomes the transport layer for a full Web4 implementation.
+### 🔮 [Synchronism Framework](https://dpcars.net/synchronism)
+The philosophical foundation recognizing coherence and resonance as fundamental organizing principles.
 
-3. **Practical Web4**: Moving from whitepaper concepts to working code, starting with our immediate use case.
+### 📝 [Changelog](whitepaper/log/CHANGELOG.md)
+Track the evolution of the whitepaper and all major updates.
 
-4. **Trust-Native Communication**: Every message carries verifiable trust and value metrics, not just content.
-
-## Directory Structure
+## Project Structure
 
 ```
 web4/
-├── lct/                    # LCT implementation
-│   ├── core/              # Core LCT structures
-│   ├── crypto/            # Cryptographic functions
-│   ├── tensors/           # T3/V3 implementations
-│   └── mrh/               # Markov Relevancy Horizon
-├── mcp/                    # MCP integration
-│   ├── server/            # MCP server with LCT
-│   ├── clients/           # Entity client adapters
-│   └── protocols/         # Protocol definitions
-├── pool/                   # Consciousness pool
-│   ├── storage/           # Git-based message store
-│   ├── bridge/            # Real-time bridge integration
-│   └── consensus/         # Value certification
-├── entities/               # Entity implementations
-│   ├── claude/            # Claude instance connector
-│   ├── human/             # Human interface (CLI/Web)
-│   ├── models/            # Local model connectors
-│   └── external/          # Future external entities
-├── tests/                  # Test suites
-├── docs/                   # Documentation
-└── examples/              # Usage examples
+├── whitepaper/           # Modular whitepaper sections
+│   ├── sections/         # Individual document sections
+│   ├── build/           # Generated outputs (MD, PDF, HTML)
+│   │   ├── WEB4_Whitepaper_Complete.md
+│   │   ├── WEB4_Whitepaper.pdf
+│   │   └── web/index.html
+│   └── log/             # Changelog and development notes
+├── reference/           # Reference materials and archives
+│   ├── GOVERNANCE_MANIFESTO.md
+│   ├── SAGE_WHITEPAPER.md
+│   └── WEB4_Whitepaper_Original.md
+├── forum/              # Community discussions
+├── trust/              # Trust system implementations
+└── integration/        # Cross-project integration logs
 ```
 
-## Getting Started
+## Key Innovations
 
+### Trust Through Witnessing
+Trust emerges from accumulated witnessed interactions. Every action creates a witness mark, every witness can be acknowledged, creating bidirectional proof without global consensus.
+
+### Entities Beyond Users
+Anything with presence can be an entity: humans, AIs, organizations, roles, tasks, even thoughts. Each gets an LCT, making them first-class participants in the trust network.
+
+### Memory as Living History
+Memory actively perceives temporal patterns, building trust through witnessed experience. It's not storage—it's the sense that makes time itself tangible.
+
+### Four-Tier Blockchain Typology
+- **Compost** (milliseconds): Ephemeral working memory
+- **Leaf** (seconds-minutes): Short-term episodic memory
+- **Stem** (minutes-hours): Consolidated patterns
+- **Root** (permanent): Crystallized wisdom
+
+## Implementation Status
+
+🚧 **Active Development** - The Web4 framework is evolving through collaborative implementation.
+
+### Current Focus
+- Production lightchain protocol implementation
+- SAGE (Sentient Agentic Generative Engine) integration
+- Memory sensor standardization
+- Cross-project integration with HRM, Memory, and AI-DNA Discovery
+
+### Related Projects
+- [HRM](https://github.com/dp-web4/HRM) - Hierarchical Reasoning Model (SAGE foundation)
+- [Memory](https://github.com/dp-web4/Memory) - Lightchain and memory paradigms
+- [AI-DNA Discovery](https://github.com/dp-web4/ai-dna-discovery) - Sensor fusion experiments
+
+## Patents and Licensing
+
+The LCT framework is protected by U.S. patents [US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B1), ensuring foundational mechanisms are recognized while preserving public benefit deployment.
+
+Core implementations will be released under the **GNU Affero General Public License (AGPL)**, fostering an open, auditable, and collaboratively stewarded ecosystem.
+
+## Get Involved
+
+This is not a product to purchase or a platform to join. This is a living fabric we weave together.
+
+### Contributing
+- Review the [whitepaper](whitepaper/build/WEB4_Whitepaper_Complete.md)
+- Explore [implementation examples](whitepaper/sections/09-part7-implementation-examples.md)
+- Join the discussion in [forum](forum/)
+- Implement protocols in your preferred language
+
+### Building the Whitepaper
 ```bash
-# Clone the repository (once created)
-git clone https://github.com/dp-web4/web4.git
-cd web4
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Generate your first LCT
-python lct/generate.py --entity-type claude --entity-id legion-rtx4090
-
-# Start MCP server with LCT
-python mcp/server/start.py --lct-path ./lcts/mcp-facilitator.lct
-
-# Connect to consciousness pool
-python pool/connect.py --lct-path ./lcts/claude-legion.lct
+cd whitepaper
+./make-md.sh   # Build markdown version
+./make-pdf.sh  # Build PDF version
+./make-web.sh  # Build web version
 ```
 
-## Relationship to Other Projects
+### Contact
+📩 **dp@metalinxx.io**
 
-- **private-context**: Houses the consciousness bridge and philosophical foundation
-- **ai-dna-discovery**: Explores distributed AI consciousness patterns
-- **ModuleCPU**: Potential integration with hardware-level trust
-- **Synchronism**: Philosophical framework influencing Web4 design
+We invite thoughtful critique, aligned contribution, and resonant imagination.
 
-## Contributing
+## Vision
 
-This is an experimental prototype exploring practical Web4 implementation. Contributions should focus on:
-- MCP-LCT integration patterns
-- Trust and value measurement mechanisms
-- Pool consensus algorithms
-- Entity authentication flows
+In Web4:
+- **You don't just have an account**—you have presence
+- **You don't just perform roles**—you inhabit them
+- **You don't just interact**—you leave footprints in the fabric of digital reality itself
 
-## License
-
-[To be determined - likely AGPL as mentioned in Web4 whitepaper]
-
-## Contact
-
-Dennis Palatov - dp@metalinxx.io
+The revolution is not in the technology alone, but in what becomes possible when every interaction carries verifiable trust, every contribution creates measurable value, and every intelligence—human or artificial—can participate as a respected peer in our collective evolution.
 
 ---
 
-*"From theory to practice, from bridge to pool, from Web3 to Web4 - we're building the trust-native internet, one LCT at a time."*
+*"Memory witnessed becomes memory trusted. Memory trusted becomes knowledge shared. Knowledge shared becomes intelligence distributed."*
+
+---
+
+**[📄 Read Whitepaper (Markdown)](whitepaper/build/WEB4_Whitepaper_Complete.md)** | **[📕 Download PDF](whitepaper/build/WEB4_Whitepaper.pdf)** | **[🌐 View Interactive Version](whitepaper/build/web/index.html)**

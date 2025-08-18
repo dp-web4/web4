@@ -32,13 +32,30 @@ echo "Combining sections..."
 
 # Add sections in proper order
 add_section "01-title-authors.md"
+add_section "00-executive-summary.md"  # New executive summary
 add_section "00-introduction.md"
 add_section "02-glossary.md"
 add_section "03-part1-defining-web4.md"
-add_section "04-part2-foundational-concepts.md"
+
+# Use revised version if it exists, otherwise use original
+if [ -f "$SECTIONS_DIR/04-part2-foundational-concepts-revised.md" ]; then
+    add_section "04-part2-foundational-concepts-revised.md"
+    echo "    (Using revised version with manifesto energy)"
+else
+    add_section "04-part2-foundational-concepts.md"
+fi
+
 add_section "05-part3-value-trust-mechanics.md"
 add_section "06-part4-implications-vision.md"
-add_section "07-part5-memory-temporal-sensing.md"
+
+# Use conceptual version for memory if it exists
+if [ -f "$SECTIONS_DIR/07-part5-memory-conceptual.md" ]; then
+    add_section "07-part5-memory-conceptual.md"
+    echo "    (Using conceptual version)"
+else
+    add_section "07-part5-memory-temporal-sensing.md"
+fi
+
 add_section "08-part6-blockchain-typology.md"
 add_section "09-part7-implementation-examples.md"
 add_section "10-part8-web4-context.md"
