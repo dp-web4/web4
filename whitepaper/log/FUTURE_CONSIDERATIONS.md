@@ -7,19 +7,27 @@
 
 ## High Priority (Consider for Next Revision)
 
-### Worked Examples
-- [ ] Add human/AI co-authoring scenario to Executive Summary
-- [ ] Include MRH example: "City governance AI with planetary scope"
-- [ ] Add numeric T3/V3 example showing actual scores in action
+### Worked Examples (from GPT v3)
+- [ ] Add distributed team example to Executive Summary (researcher/validator/mediator roles)
+- [ ] Include MRH example: "Governance AI with planetary scope vs local weather sensor"
+- [ ] Add MRH manifesto line: "The MRH is how an entity knows where it belongs in the universe of relevance"
+- [ ] Add human-AI collaborative ATP/ADP cycle example
+- [ ] Add numeric T3/V3 example showing AI reviewer scores in context
 - [ ] Create "Day in the Life of Web4" walkthrough scenario
 
 ### Visual Elements
-- [ ] ATP/ADP cycle diagram
-- [ ] T3/V3 tensor triangle visualization
+- [ ] ATP/ADP cycle diagram (with placeholders in text)
+- [ ] T3/V3 tensor triangle or cube visualization
 - [ ] LCT lifecycle flowchart
 - [ ] Three-sensor integration diagram
 - [ ] Fractal witness hierarchy illustration
 - [ ] MRH dimensional radar chart
+
+### Presentation Improvements (from GPT v3)
+- [ ] Tighten closing rhythm - trim 1-2 sentences for punch
+- [ ] Add sidebars or pull quotes with manifesto lines
+- [ ] Guard against academic/manual tone drift
+- [ ] Consider lightening density in technical sections
 
 ---
 
@@ -33,7 +41,7 @@
 - [ ] Create developer quickstart guide
 
 ### Structural Improvements
-- [ ] Consider two-version approach (Manifesto vs Spec editions)
+- [ ] Consider two-version approach (Manifesto Edition vs Complete Edition)
 - [ ] Add sidebars with Synchronism quotes
 - [ ] Create executive briefing (1-page summary)
 - [ ] Develop interactive web demos

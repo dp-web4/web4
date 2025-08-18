@@ -81,19 +81,18 @@ Four-tier temporal hierarchy:
 
 Revolutionary treatment of roles as first-class entities with their own LCTs. Roles accumulate history of who filled them and how well, becoming wiser over time at selecting suitable performers.
 
+### Witness-Acknowledgment Protocol
+> *"Trust emerges from witnessed interactions, not global consensus."*
+
+The lightweight verification backbone of Web4. Child entities send minimal witness marks upward, parents acknowledge, creating bidirectional proof without expensive consensus.
+
 ---
 
 ## Research Extensions
 *Emerging concepts under active exploration—the frontier of Web4.*
 
-
 ### Synchronism
 The philosophical framework underlying Web4—recognizing coherence, resonance, and shared intent as fundamental organizing principles. See [https://dpcars.net/synchronism](https://dpcars.net/synchronism) for deeper exploration.
-
-### Witness-Acknowledgment Protocol
-> *"Trust emerges from witnessed interactions, not global consensus."*
-
-The lightweight verification backbone of Web4. Child entities send minimal witness marks upward, parents acknowledge, creating bidirectional proof without expensive consensus.
 
 ### Fractal Organization
 The principle that patterns repeat at every scale—from individual memories to global trust networks. What works at cell level scales to planetary level through the same fundamental mechanisms.
