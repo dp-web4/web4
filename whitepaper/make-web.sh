@@ -497,15 +497,18 @@ cat > "$OUTPUT_DIR/index.html" << 'HTML'
             
             <!-- Navigation List -->
             <ul class="nav-list">
-                <li><a href="#executive-summary" class="nav-link" data-section="executive-summary">Executive Summary</a></li>
+                <li><a href="#executive-summary" class="nav-link active" data-section="executive-summary">Executive Summary</a></li>
+                <li><a href="#introduction" class="nav-link" data-section="introduction">Introduction</a></li>
+                <li><a href="#glossary" class="nav-link" data-section="glossary">Glossary</a></li>
+                <li><a href="#defining-web4" class="nav-link" data-section="defining-web4">Defining Web4</a></li>
                 <li><a href="#foundational-concepts" class="nav-link" data-section="foundational-concepts">Foundational Concepts</a></li>
-                <li><a href="#blockchain-typology" class="nav-link" data-section="blockchain-typology">Blockchain Typology</a></li>
-                <li><a href="#entity-architecture" class="nav-link" data-section="entity-architecture">Entity Architecture</a></li>
-                <li><a href="#implementation" class="nav-link" data-section="implementation">Implementation Examples</a></li>
-                <li><a href="#security" class="nav-link" data-section="security">Security & Privacy</a></li>
-                <li><a href="#performance" class="nav-link" data-section="performance">Performance</a></li>
-                <li><a href="#future" class="nav-link" data-section="future">Future Directions</a></li>
-                <li><a href="#philosophy" class="nav-link" data-section="philosophy">Philosophical Implications</a></li>
+                <li><a href="#value-trust" class="nav-link" data-section="value-trust">Value & Trust Mechanics</a></li>
+                <li><a href="#implications" class="nav-link" data-section="implications">Implications & Vision</a></li>
+                <li><a href="#memory" class="nav-link" data-section="memory">Memory as Temporal Sensor</a></li>
+                <li><a href="#blockchain" class="nav-link" data-section="blockchain">Blockchain Typology</a></li>
+                <li><a href="#implementation-details" class="nav-link" data-section="implementation-details">Implementation Details</a></li>
+                <li><a href="#implementation-examples" class="nav-link" data-section="implementation-examples">Implementation Examples</a></li>
+                <li><a href="#context" class="nav-link" data-section="context">Web4 Context</a></li>
                 <li><a href="#conclusion" class="nav-link" data-section="conclusion">Conclusion</a></li>
                 <li><a href="#references" class="nav-link" data-section="references">References</a></li>
                 <li><a href="#appendices" class="nav-link" data-section="appendices">Appendices</a></li>
@@ -536,27 +539,36 @@ HTML
 # Convert each section to HTML and add to index
 echo "Converting sections to HTML..."
 
-# Section mapping
-declare -A section_map=(
-    ["01-executive-summary.md"]="executive-summary"
-    ["02-foundational-concepts.md"]="foundational-concepts"
-    ["03-blockchain-typology.md"]="blockchain-typology"
-    ["04-entity-architecture.md"]="entity-architecture"
-    ["05-implementation-examples.md"]="implementation"
-    ["06-security-privacy.md"]="security"
-    ["07-performance.md"]="performance"
-    ["08-future-directions.md"]="future"
-    ["09-philosophical-implications.md"]="philosophy"
-    ["10-conclusion.md"]="conclusion"
-    ["11-references.md"]="references"
-    ["12-appendices.md"]="appendices"
+# Process sections in order
+sections=(
+    "00-executive-summary.md:executive-summary"
+    "00-introduction.md:introduction"
+    "02-glossary.md:glossary"
+    "03-part1-defining-web4.md:defining-web4"
+    "04-part2-foundational-concepts-revised.md:foundational-concepts"
+    "05-part3-value-trust-mechanics-enhanced.md:value-trust"
+    "06-part4-implications-vision.md:implications"
+    "07-part5-memory-conceptual.md:memory"
+    "08-part6-blockchain-typology.md:blockchain"
+    "09-part7-implementation-details.md:implementation-details"
+    "09-part7-implementation-examples.md:implementation-examples"
+    "10-part8-web4-context.md:context"
+    "11-conclusion-enhanced.md:conclusion"
+    "12-references.md:references"
+    "13-appendices.md:appendices"
 )
 
-# Process each section
-for file in "${!section_map[@]}"; do
-    section_id="${section_map[$file]}"
+# Process each section in order
+for entry in "${sections[@]}"; do
+    IFS=':' read -r file section_id <<< "$entry"
+    
     if [ -f "$SECTIONS_DIR/$file" ]; then
-        echo "            <section id=\"$section_id\" class=\"section\">" >> "$OUTPUT_DIR/index.html"
+        # Add appropriate class for first section (executive summary)
+        if [ "$section_id" = "executive-summary" ]; then
+            echo "            <section id=\"$section_id\" class=\"section active\">" >> "$OUTPUT_DIR/index.html"
+        else
+            echo "            <section id=\"$section_id\" class=\"section\">" >> "$OUTPUT_DIR/index.html"
+        fi
         
         # Convert markdown to HTML and append
         md_to_html "$SECTIONS_DIR/$file" "$OUTPUT_DIR/temp_section.html"
