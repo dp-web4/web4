@@ -66,25 +66,27 @@ for title, content in sections:
 
 # Rebuild document with custom order
 with open('build/WEB4_Whitepaper_Reordered.md', 'w') as f:
-    # Title and authors (if exists)
-    for title, content in other_sections:
-        if 'WEB4:' in title or 'Trust-Native' in title:
-            f.write(content + '\n\n')
-            other_sections.remove((title, content))
-            break
+    # Start with title and Executive Summary on same page
+    f.write('# WEB4: A Comprehensive Architecture for Trust-Native Distributed Intelligence\n\n')
+    f.write('*Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus*\n\n')
+    f.write('*August 2025*\n\n')
+    f.write('---\n\n')
     
-    # Executive Summary
+    # Executive Summary (without its own title since we have main title)
     if exec_summary:
-        f.write(exec_summary[1] + '\n\n')
+        # Remove the "# Executive Summary" line from content
+        exec_content = exec_summary[1].replace('# Executive Summary', '## Executive Summary')
+        f.write(exec_content + '\n\n')
     
-    # Add TOC marker for pandoc
+    # Add TOC on new page
     f.write('\\newpage\n\n')
     f.write('\\tableofcontents\n\n')
     f.write('\\newpage\n\n')
     
-    # All other sections
+    # All other sections (skip any title sections we already handled)
     for title, content in other_sections:
-        f.write(content + '\n\n')
+        if 'WEB4:' not in title and 'Trust-Native' not in title:
+            f.write(content + '\n\n')
 
 print("✓ Document reordered")
 PYTHON_SCRIPT
@@ -97,16 +99,13 @@ pandoc "$TEMP_MD" -o "$PDF_FILE" \
     --pdf-engine=xelatex \
     --toc-depth=3 \
     --highlight-style=tango \
-    -V documentclass=report \
+    -V documentclass=article \
     -V geometry:margin=1in \
     -V fontsize=11pt \
     -V linkcolor=blue \
     -V urlcolor=blue \
     -V toccolor=black \
     -V colorlinks=true \
-    --metadata title="WEB4: Trust-Native Distributed Intelligence" \
-    --metadata author="Dennis Palatov et al." \
-    --metadata date="August 2025" \
     2>/dev/null
 
 if [ -f "$PDF_FILE" ]; then
