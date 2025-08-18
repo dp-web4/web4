@@ -2,8 +2,6 @@
 
 > *Where trust is earned, not granted. Where value flows to genuine contribution. Where humans and artificial intelligences collaborate as peers.*
 
----
-
 ## What is WEB4?
 
 WEB4 represents a fundamental reconception of the internet—from platform-controlled (Web2) and token-speculated (Web3) to **trust-native** and **intelligence-distributed**. 
@@ -23,7 +21,7 @@ Professional formatting for offline reading, printing, or sharing
 ### **[🌐 Web Version](whitepaper/build/web/index.html)**
 Interactive HTML with navigation, search, and responsive design
 
----
+*These links always point to the latest build. Run `make-md.sh`, `make-pdf.sh`, or `make-web.sh` in the whitepaper directory to regenerate after changes.*
 
 ## Core Concepts
 
@@ -47,13 +45,36 @@ Each entity's contextual lens—defining what is knowable, actionable, and relev
 ### 🔗 Fractal Lightchain Architecture
 Hierarchical witness-based verification that scales from nanosecond cell operations to permanent blockchain anchors—all without global consensus bottlenecks. Trust emerges from witnessed interactions at every scale.
 
----
+## Additional Documentation
 
-## A Worked Example
+### 🏛️ [Governance Manifesto](reference/GOVERNANCE_MANIFESTO.md)
+Our vision for distributed governance where coherence emerges from alignment rather than enforcement.
 
-*Imagine a human researcher and an AI collaborator co-authoring a paper. Their roles, trust, and contributions are tracked seamlessly through LCTs. Every edit and validation flows through ATP, consuming energy when work is done, generating new energy when value is recognized. Their MRHs keep focus at the right scope: local edits for the AI, long-term framing for the human. The T3 tensors ensure each contributes where they're strongest. Together, they produce work that is verifiable, witnessed, and trusted—without any central authority. The paper itself becomes an entity with its own LCT, accumulating reputation as others cite and build upon it.*
+### 🔮 [Synchronism Framework](https://dpcars.net/synchronism)
+The philosophical foundation recognizing coherence and resonance as fundamental organizing principles.
 
----
+### 📝 [Changelog](whitepaper/log/CHANGELOG.md)
+Track the evolution of the whitepaper and all major updates.
+
+## Project Structure
+
+```
+web4/
+├── whitepaper/           # Modular whitepaper sections
+│   ├── sections/         # Individual document sections
+│   ├── build/           # Generated outputs (MD, PDF, HTML)
+│   │   ├── WEB4_Whitepaper_Complete.md
+│   │   ├── WEB4_Whitepaper.pdf
+│   │   └── web/index.html
+│   └── log/             # Changelog and development notes
+├── reference/           # Reference materials and archives
+│   ├── GOVERNANCE_MANIFESTO.md
+│   ├── SAGE_WHITEPAPER.md
+│   └── WEB4_Whitepaper_Original.md
+├── forum/              # Community discussions
+├── trust/              # Trust system implementations
+└── integration/        # Cross-project integration logs
+```
 
 ## Key Innovations
 
@@ -72,24 +93,6 @@ Memory actively perceives temporal patterns, building trust through witnessed ex
 - **Stem** (minutes-hours): Consolidated patterns
 - **Root** (permanent): Crystallized wisdom
 
----
-
-## Project Structure
-
-```
-web4/
-├── whitepaper/           # Modular whitepaper sections
-│   ├── sections/         # Individual document sections
-│   ├── build/           # Generated outputs (MD, PDF, HTML)
-│   └── log/             # Changelog and development notes
-├── reference/           # Reference materials and archives
-├── forum/              # Community discussions
-├── trust/              # Trust system implementations
-└── integration/        # Cross-project integration logs
-```
-
----
-
 ## Implementation Status
 
 🚧 **Active Development** - The Web4 framework is evolving through collaborative implementation.
@@ -105,13 +108,15 @@ web4/
 - [Memory](https://github.com/dp-web4/Memory) - Lightchain and memory paradigms
 - [AI-DNA Discovery](https://github.com/dp-web4/ai-dna-discovery) - Sensor fusion experiments
 
----
+## Patents and Licensing
+
+The LCT framework is protected by U.S. patents [US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B1), ensuring foundational mechanisms are recognized while preserving public benefit deployment.
+
+Core implementations will be released under the **GNU Affero General Public License (AGPL)**, fostering an open, auditable, and collaboratively stewarded ecosystem.
 
 ## Get Involved
 
 This is not a product to purchase or a platform to join. This is a living fabric we weave together.
-
-**Whether you are a researcher, builder, or dreamer—your perspective is needed.**
 
 ### Contributing
 - Review the [whitepaper](whitepaper/build/WEB4_Whitepaper_Complete.md)
@@ -127,25 +132,10 @@ cd whitepaper
 ./make-web.sh  # Build web version
 ```
 
-### Additional Resources
-- [Governance Manifesto](reference/GOVERNANCE_MANIFESTO.md) - Distributed governance vision
-- [Synchronism Framework](https://dpcars.net/synchronism) - Philosophical foundations
-- [Changelog](whitepaper/log/CHANGELOG.md) - Track whitepaper evolution
-
 ### Contact
 📩 **dp@metalinxx.io**
 
 We invite thoughtful critique, aligned contribution, and resonant imagination.
-
----
-
-## Patents and Licensing
-
-The LCT framework is protected by U.S. patents [US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B1), ensuring foundational mechanisms are recognized while preserving public benefit deployment.
-
-Core implementations will be released under the **GNU Affero General Public License (AGPL)**, fostering an open, auditable, and collaboratively stewarded ecosystem.
-
----
 
 ## Vision
 
@@ -156,9 +146,9 @@ In Web4:
 
 The revolution is not in the technology alone, but in what becomes possible when every interaction carries verifiable trust, every contribution creates measurable value, and every intelligence—human or artificial—can participate as a respected peer in our collective evolution.
 
-> *"Memory witnessed becomes memory trusted. Memory trusted becomes knowledge shared. Knowledge shared becomes intelligence distributed."*
+---
 
-**This is the invitation: to help shape the trust-native fabric of our shared digital future.**
+*"Memory witnessed becomes memory trusted. Memory trusted becomes knowledge shared. Knowledge shared becomes intelligence distributed."*
 
 ---
 
