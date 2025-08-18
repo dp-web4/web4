@@ -136,3 +136,15 @@ else
         echo "✅ PDF created (standard layout): $PDF_FILE"
     fi
 fi
+
+# Copy to docs/whitepaper-web for GitHub Pages access
+if [ -f "$PDF_FILE" ]; then
+    DOCS_DIR="../docs/whitepaper-web"
+    if [ ! -d "$DOCS_DIR" ]; then
+        mkdir -p "$DOCS_DIR"
+        echo "📁 Created docs/whitepaper-web directory"
+    fi
+    
+    cp "$PDF_FILE" "$DOCS_DIR/"
+    echo "📄 Copied PDF to GitHub Pages location: $DOCS_DIR/WEB4_Whitepaper.pdf"
+fi

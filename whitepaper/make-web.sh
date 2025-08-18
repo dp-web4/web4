@@ -636,3 +636,30 @@ echo "🚀 To deploy:"
 echo "   1. Test locally: open $OUTPUT_DIR/index.html in a browser"
 echo "   2. Upload entire 'web' directory to metalinxx.io"
 echo "   3. Ensure proper permissions and paths"
+
+# Copy to docs/whitepaper-web for GitHub Pages access
+echo ""
+echo "📋 Copying to GitHub Pages location..."
+DOCS_DIR="../docs/whitepaper-web"
+if [ ! -d "$DOCS_DIR" ]; then
+    mkdir -p "$DOCS_DIR"
+    echo "📁 Created docs/whitepaper-web directory"
+fi
+
+# Copy all web files
+cp -r "$OUTPUT_DIR/"* "$DOCS_DIR/"
+echo "🌐 Copied web files to: $DOCS_DIR/"
+
+# Also ensure PDF and MD versions are there
+if [ -f "../build/WEB4_Whitepaper.pdf" ]; then
+    cp "../build/WEB4_Whitepaper.pdf" "$DOCS_DIR/"
+    echo "📕 Copied PDF to GitHub Pages location"
+fi
+
+if [ -f "../build/WEB4_Whitepaper_Complete.md" ]; then
+    cp "../build/WEB4_Whitepaper_Complete.md" "$DOCS_DIR/"
+    echo "📄 Copied markdown to GitHub Pages location"
+fi
+
+echo ""
+echo "✅ GitHub Pages deployment ready at: https://dp-web4.github.io/web4/whitepaper-web/"

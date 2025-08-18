@@ -100,4 +100,14 @@ if [ -f "$OUTPUT_FILE" ]; then
     echo "📊 Statistics:"
     echo "   Lines: $lines"
     echo "   Size: $size"
+    
+    # Copy to docs/whitepaper-web for GitHub Pages access
+    DOCS_DIR="../docs/whitepaper-web"
+    if [ ! -d "$DOCS_DIR" ]; then
+        mkdir -p "$DOCS_DIR"
+        echo "📁 Created docs/whitepaper-web directory"
+    fi
+    
+    cp "$OUTPUT_FILE" "$DOCS_DIR/"
+    echo "📄 Copied markdown to GitHub Pages location: $DOCS_DIR/WEB4_Whitepaper_Complete.md"
 fi

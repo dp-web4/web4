@@ -1,6 +1,6 @@
 /* Web4 Whitepaper Styles */
 :root {
-    --primary-color: #374151;
+    --primary-color: #2563eb;
     --secondary-color: #64748b;
     --background: #ffffff;
     --text-color: #1e293b;
@@ -16,7 +16,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     line-height: 1.6;
     color: var(--text-color);
     background: var(--background);
@@ -60,7 +60,6 @@ body {
     display: block;
     border-radius: 4px;
     transition: all 0.2s;
-    font-size: 0.9rem;
 }
 
 .nav-list a:hover {
@@ -195,7 +194,6 @@ a {
 
 a:hover {
     text-decoration: underline;
-    color: #1f2937;
 }
 
 /* Mobile Responsive */
