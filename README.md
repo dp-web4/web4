@@ -20,7 +20,7 @@ Complete technical document for reading in any markdown viewer or text editor
 ### **[📕 PDF Version](whitepaper/build/WEB4_Whitepaper.pdf)**
 Professional formatting for offline reading, printing, or sharing
 
-### **[🌐 Web Version](https://dp-web4.github.io/web4/)**
+### **[🌐 Web Version](https://dp-web4.github.io/web4/whitepaper-web/)**
 Interactive HTML with navigation, search, and responsive design  
 *Also available locally at: [whitepaper/build/web/index.html](whitepaper/build/web/index.html)*
 
@@ -163,4 +163,27 @@ The revolution is not in the technology alone, but in what becomes possible when
 
 ---
 
-**[📄 Read Whitepaper (Markdown)](whitepaper/build/WEB4_Whitepaper_Complete.md)** | **[📕 Download PDF](whitepaper/build/WEB4_Whitepaper.pdf)** | **[🌐 View Interactive Version](whitepaper/build/web/index.html)**
+**[📄 Read Whitepaper (Markdown)](whitepaper/build/WEB4_Whitepaper_Complete.md)** | **[📕 Download PDF](whitepaper/build/WEB4_Whitepaper.pdf)** | **[🌐 View Interactive Version](https://dp-web4.github.io/web4/whitepaper-web/)**
+
+---
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+### Key Points:
+- ✅ **Open Source**: Source code is freely available
+- ✅ **Network Copyleft**: If you run a modified version as a network service, you must provide source code
+- ✅ **Patent Protection**: Includes patent grant and termination clauses
+- ✅ **Commercial Use**: Allowed, but modifications must remain open source
+
+See [LICENSE](LICENSE) file for full terms.
+
+### Why AGPL?
+Web4's trust-native architecture requires transparency. The AGPL ensures that:
+- Trust mechanisms remain verifiable
+- Improvements benefit the entire ecosystem
+- Network effects strengthen rather than fragment the protocol
+- No entity can create closed, proprietary versions of core trust infrastructure
+
+For commercial implementations that require different licensing, please contact the maintainers.
