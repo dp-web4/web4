@@ -23,7 +23,7 @@ fi
 cat > "$ASSETS_DIR/style.css" << 'CSS'
 /* Web4 Whitepaper Styles */
 :root {
-    --primary-color: #2563eb;
+    --primary-color: #374151;
     --secondary-color: #64748b;
     --background: #ffffff;
     --text-color: #1e293b;
@@ -218,6 +218,7 @@ a {
 
 a:hover {
     text-decoration: underline;
+    color: #1f2937;
 }
 
 /* Mobile Responsive */
