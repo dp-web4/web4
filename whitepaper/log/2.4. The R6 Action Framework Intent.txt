@@ -1,0 +1,87 @@
+  2.4. The R6 Action Framework: Intent-Driven Contextual Execution
+
+  A fundamental operational principle in WEB4 is that all actions are purposeful compositions of intent and
+  context. The R6 Action Framework formalizes this principle through the equation:
+
+  Rules + Role + Request + Reference + Resource → Result
+
+  This framework ensures that every action within the WEB4 ecosystem—from simple data queries to complex governance
+   decisions—emerges from a clear intent operating within well-defined constraints and context.
+
+  2.4.1. Components of R6 Actions
+
+  Each R6 action consists of six essential components:
+
+  - Rules: The governance protocols, smart contracts, and systemic constraints that bound the action space. Rules
+  define what is permissible, required, or forbidden within the current context. They are often encoded in or
+  linked to governance LCTs and are immutable during action execution.
+  - Role: The entity's current operational identity as defined by its Role LCT. The role determines the entity's
+  permissions, responsibilities, and expected behaviors within the action context. An entity may inhabit different
+  roles at different times, but within any R6 action, exactly one role applies.
+  - Request: The desired outcome or intent that motivates the action. This includes both the "what" (the goal
+  state) and often the "why" (the purpose or value proposition). The Request provides the target against which the
+  actual Result will be evaluated. It may include acceptance criteria, quality thresholds, and priority indicators.
+  - Reference: The temporal and informational context drawn from memory, prior interactions, and witnessed events.
+  Reference encompasses both the entity's individual history (via its LCT interaction records) and the collective
+  memory accessible through its Markov Relevancy Horizon. This component embodies the principle of "memory as
+  temporal sensor."
+  - Resource: The consumable elements required for action execution, primarily tracked through the ATP/ADP energy
+  mechanics. Resources include computational capacity, data access rights, attention allocation, and any other
+  finite elements that must be expended to produce the result. Resource availability acts as a natural rate limiter
+   and priority mechanism.
+  - Result: The actual outcome produced when the five inputs interact. The Result may align perfectly with the
+  Request, partially satisfy it, or fail to meet it entirely. This alignment (or misalignment) becomes part of the
+  entity's performance record and influences trust scores.
+
+  2.4.2. Confidence Thresholds and Action Initiation
+
+  An R6 action is initiated only when the executing entity has sufficient confidence that the actual Result will
+  align with the Request:
+
+  - Confidence Calculation: Based on the Role's capabilities (T3 scores), Reference patterns (historical success
+  rates), and Resource availability
+  - Threshold Setting: Different Requests may require different confidence levels—critical actions need higher
+  thresholds
+  - Risk Assessment: The potential gap between Request and Result is evaluated against the cost of Resources to be
+  consumed
+  - Abort Conditions: If confidence drops below threshold during execution, the action may be gracefully terminated
+
+  This confidence mechanism prevents wasteful Resource consumption and builds trust through reliable execution.
+
+  2.4.3. Request-Result Alignment and Trust Impact
+
+  The relationship between Request and Result directly impacts trust metrics:
+
+  - Perfect Alignment: Result fully satisfies Request → positive impact on all T3 dimensions
+  - Partial Alignment: Result partially meets Request → contextual trust adjustments based on which aspects
+  succeeded
+  - Misalignment: Result fails to meet Request → negative trust impact, particularly on relevant T3 dimensions
+  - Exceeded Expectations: Result surpasses Request → amplified positive trust impact and potential Role expansion
+
+  This feedback loop ensures that entities learn to make accurate confidence assessments and improve their
+  Request-Result alignment over time.
+
+  2.4.4. R6 Actions and LCT Integration
+
+  Every R6 action creates an immutable record linked to the participating entities' LCTs:
+
+  - The executing entity's LCT records the complete R6 tuple, including the original Request
+  - Resource consumption updates the entity's ATP balance and ADP accumulation
+  - The Result generates witness marks that other entities can acknowledge
+  - Request-Result alignment updates T3 scores based on execution quality
+  - Both Request and Result become part of Reference for future actions
+
+  This comprehensive recording enables learning, accountability, and trust building through witnessed performance.
+
+  2.4.5. Governance Through R6 Constraints
+
+  The R6 framework provides natural governance mechanisms:
+
+  - Request Validation: Requests must be valid within current Rules and Role permissions
+  - Resource Budgeting: Requests must be achievable within available Resources
+  - Confidence Requirements: Actions only proceed when Request-Result alignment is probable
+  - Result Accountability: Clear attribution of actual Results against intended Requests
+  - Learning Integration: Request-Result patterns inform future confidence calculations
+
+  By making intent explicit through Requests and tracking alignment with Results, R6 actions create a
+  self-improving system where governance emerges from performance rather than decree.
