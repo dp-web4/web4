@@ -3,6 +3,31 @@
 # make-pdf-better.sh - Generate PDF with TOC after Executive Summary
 # Usage: ./make-pdf-better.sh
 
+# Pull latest changes before building to avoid conflicts
+echo "Checking for updates..."
+git fetch
+
+# Check if we're behind the remote
+LOCAL=$(git rev-parse @)
+REMOTE=$(git rev-parse @{u})
+BASE=$(git merge-base @ @{u})
+
+if [ $LOCAL = $REMOTE ]; then
+    echo "Already up to date."
+elif [ $LOCAL = $BASE ]; then
+    echo "Pulling latest changes..."
+    git pull
+else
+    echo "❌ Error: Your branch has diverged from the remote branch."
+    echo "Please resolve conflicts manually before building:"
+    echo "  1. Review changes with: git status"
+    echo "  2. Either stash your changes: git stash"
+    echo "  3. Or commit them: git add . && git commit -m 'your message'"
+    echo "  4. Then pull: git pull"
+    echo "  5. Run this script again"
+    exit 1
+fi
+
 echo "Building Web4 whitepaper PDF with improved layout..."
 
 OUTPUT_DIR="build"
