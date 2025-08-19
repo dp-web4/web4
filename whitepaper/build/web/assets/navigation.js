@@ -47,9 +47,32 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle direct URL access with hash
     function handleHashChange() {
         const hash = window.location.hash.slice(1);
-        if (hash) {
+        
+        // Check if hash corresponds to a section ID
+        const validSectionIds = Array.from(navLinks).map(link => link.getAttribute('data-section'));
+        
+        if (hash && validSectionIds.includes(hash)) {
+            // This is a section navigation
             showSection(hash);
-        } else {
+        } else if (hash && document.getElementById(hash)) {
+            // This is a header within a section - just scroll to it
+            const targetHeader = document.getElementById(hash);
+            const parentSection = targetHeader.closest('.section');
+            
+            if (parentSection && !parentSection.classList.contains('active')) {
+                // First show the section containing this header
+                const sectionId = parentSection.id;
+                showSection(sectionId);
+                
+                // Then scroll to the header after a brief delay
+                setTimeout(() => {
+                    targetHeader.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+            } else {
+                // Section is already active, just scroll
+                targetHeader.scrollIntoView({ behavior: 'smooth' });
+            }
+        } else if (!hash) {
             // Show first section by default
             showSection('executive-summary');
         }
@@ -94,11 +117,25 @@ document.addEventListener('DOMContentLoaded', function() {
             toc.className = 'section-toc';
             toc.innerHTML = '<h4>In this section:</h4><ul></ul>';
             
-            headers.forEach(header => {
+            headers.forEach((header, index) => {
+                // Generate ID if header doesn't have one
+                if (!header.id) {
+                    header.id = header.textContent
+                        .toLowerCase()
+                        .replace(/[^\w\s-]/g, '') // Remove special characters
+                        .replace(/\s+/g, '-')     // Replace spaces with dashes
+                        .replace(/--+/g, '-')     // Replace multiple dashes with single
+                        .trim();
+                    
+                    // Ensure unique IDs by adding section prefix
+                    header.id = section.id + '-' + header.id;
+                }
+                
                 const li = document.createElement('li');
                 const a = document.createElement('a');
                 a.href = '#' + header.id;
                 a.textContent = header.textContent;
+                a.className = 'toc-link'; // Add class to distinguish from nav links
                 li.appendChild(a);
                 toc.querySelector('ul').appendChild(li);
             });
