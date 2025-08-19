@@ -539,23 +539,23 @@ HTML
 # Convert each section to HTML and add to index
 echo "Converting sections to HTML..."
 
-# Process sections in order
+# Process sections in order using fractal structure
 sections=(
-    "00-executive-summary.md:executive-summary"
-    "00-introduction.md:introduction"
-    "02-glossary.md:glossary"
-    "03-part1-defining-web4.md:defining-web4"
-    "04-part2-foundational-concepts-revised.md:foundational-concepts"
-    "05-part3-value-trust-mechanics-enhanced.md:value-trust"
-    "06-part4-implications-vision.md:implications"
-    "07-part5-memory-conceptual.md:memory"
-    "08-part6-blockchain-typology.md:blockchain"
-    "09-part7-implementation-details.md:implementation-details"
-    "09-part7-implementation-examples.md:implementation-examples"
-    "10-part8-web4-context.md:context"
-    "11-conclusion-enhanced.md:conclusion"
-    "12-references.md:references"
-    "13-appendices.md:appendices"
+    "00-executive-summary/index.md:executive-summary"
+    "00-introduction/index.md:introduction"
+    "02-glossary/index.md:glossary"
+    "03-part1-defining-web4/index.md:defining-web4"
+    "04-part2-foundational-concepts/index.md:foundational-concepts"
+    "05-part3-value-trust-mechanics/index.md:value-trust"
+    "06-part4-implications-vision/index.md:implications"
+    "07-part5-memory/index.md:memory"
+    "08-part6-blockchain-typology/index.md:blockchain"
+    "09-part7-implementation-details/index.md:implementation-details"
+    "09-part7-implementation-examples/index.md:implementation-examples"
+    "10-part8-web4-context/index.md:context"
+    "11-conclusion/index.md:conclusion"
+    "12-references/index.md:references"
+    "13-appendices/index.md:appendices"
 )
 
 # Process each section in order
