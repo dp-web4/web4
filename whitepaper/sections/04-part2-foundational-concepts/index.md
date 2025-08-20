@@ -409,6 +409,22 @@ But the concept transcends any particular implementation. Whether expressed in P
 
 They are the semantic nervous system of the trust-native internet, carrying meaning across the vast spaces between minds, machines, and contexts. Without them, Web4 would be a Tower of Babel. With them, it becomes a space where all entities—human, AI, and hybrid—can genuinely understand each other.
 
+## 2.7. Trust as Gravity: The Force That Shapes Everything
+
+> *"In Web4, trust isn't just measured—it exerts force, drawing attention and resources like gravity draws matter."*
+
+While Part 3 explores the detailed mechanics of trust and value, one foundational concept deserves mention here: **trust operates as a fundamental force** in Web4, analogous to gravity in physical space.
+
+High-trust entities naturally attract:
+- **Attention**: Others orient toward trustworthy sources
+- **Resources**: ATP flows preferentially to proven performers  
+- **Opportunities**: Better roles and requests gravitate to those with strong reputation
+- **Connections**: Other high-trust entities seek collaborative links
+
+This gravitational metaphor isn't mere poetry—it's architectural reality. The T3 tensor scores create actual force fields that shape how information, value, and opportunity flow through the system. Just as massive objects bend spacetime, high-trust entities bend the Web4 interaction space around them.
+
+The beauty is that this gravity is earned, not declared. Every successful action increases mass. Every failure reduces it. The system becomes self-organizing, with trust clusters forming naturally around genuine capability and reliable performance.
+
 ---
 
 *"In Web4, every dictionary is a bridge between worlds, every translation an act of trust, every definition a living commitment to shared understanding."*

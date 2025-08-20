@@ -776,6 +776,7 @@ cat > "$OUTPUT_DIR/index.html" << 'HTML'
                         <li><a href="#r6" class="sub-nav-link" data-section="foundational-concepts" data-target="r6">R6 Action Framework</a></li>
                         <li><a href="#mrh" class="sub-nav-link" data-section="foundational-concepts" data-target="mrh">Markov Relevancy Horizon</a></li>
                         <li><a href="#dictionaries" class="sub-nav-link" data-section="foundational-concepts" data-target="dictionaries">Dictionaries</a></li>
+                        <li><a href="#trust-gravity" class="sub-nav-link" data-section="foundational-concepts" data-target="trust-gravity">Trust as Gravity</a></li>
                     </ul>
                 </li>
                 <li><a href="#value-trust" class="nav-link" data-section="value-trust">Value & Trust Mechanics</a></li>
@@ -858,6 +859,7 @@ for entry in "${sections[@]}"; do
             sed -i 's|<p><h2>2\.4\. The R6 Action Framework: Where Intent Becomes Reality</h2></p>|<h2 id="r6">2.4. The R6 Action Framework: Where Intent Becomes Reality</h2>|g' "$OUTPUT_DIR/temp_section.html"
             sed -i 's|<p><h2>2\.5\. Markov Relevancy Horizon (MRH): The Lens of Context</h2></p>|<h2 id="mrh">2.5. Markov Relevancy Horizon (MRH): The Lens of Context</h2>|g' "$OUTPUT_DIR/temp_section.html"
             sed -i 's|<p><h2>2\.6\. Dictionaries: The Living Keepers of Meaning</h2></p>|<h2 id="dictionaries">2.6. Dictionaries: The Living Keepers of Meaning</h2>|g' "$OUTPUT_DIR/temp_section.html"
+            sed -i 's|<p><h2>2\.7\. Trust as Gravity: The Force That Shapes Everything</h2></p>|<h2 id="trust-gravity">2.7. Trust as Gravity: The Force That Shapes Everything</h2>|g' "$OUTPUT_DIR/temp_section.html"
         fi
         
         cat "$OUTPUT_DIR/temp_section.html" >> "$OUTPUT_DIR/index.html"
