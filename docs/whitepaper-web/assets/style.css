@@ -80,8 +80,10 @@ body {
 .expand-icon {
     display: inline-block;
     transition: transform 0.3s ease;
-    margin-right: 0.25rem;
+    margin-left: 0.5rem;
     font-size: 0.8rem;
+    float: right;
+    margin-top: 0.2rem;
 }
 
 .expandable.expanded .expand-icon {

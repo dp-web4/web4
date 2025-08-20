@@ -8,17 +8,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const expandableToggles = document.querySelectorAll('.expandable-toggle');
     expandableToggles.forEach(toggle => {
         toggle.addEventListener('click', function(e) {
-            const isSubNavClick = e.target.closest('.expandable');
-            if (isSubNavClick) {
-                e.preventDefault();
-                const expandable = isSubNavClick;
+            // Check if we clicked on the main link, not a sub-link
+            if (!e.target.closest('.sub-nav')) {
+                const expandable = this.closest('.expandable');
                 const subNav = expandable.querySelector('.sub-nav');
                 
+                // Toggle expanded state
                 expandable.classList.toggle('expanded');
                 if (expandable.classList.contains('expanded')) {
                     subNav.style.display = 'block';
                 } else {
                     subNav.style.display = 'none';
+                }
+                
+                // Still navigate to the section
+                const sectionId = this.getAttribute('data-section');
+                if (sectionId) {
+                    showSection(sectionId);
                 }
             }
         });
@@ -34,16 +40,24 @@ document.addEventListener('DOMContentLoaded', function() {
             const sectionId = this.getAttribute('data-section');
             const targetId = this.getAttribute('data-target');
             
-            // Show the section
+            // Show the section first
             showSection(sectionId);
             
-            // Scroll to the specific subsection
+            // Then scroll to the specific subsection after a brief delay
             setTimeout(() => {
-                const targetElement = document.querySelector(`#${targetId}`);
+                const targetElement = document.getElementById(targetId);
                 if (targetElement) {
                     targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    // If no element with that ID, try to find a header containing the text
+                    const headers = document.querySelectorAll('h2, h3');
+                    headers.forEach(h => {
+                        if (h.id === targetId || h.textContent.toLowerCase().includes(targetId.replace('-', ' '))) {
+                            h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    });
                 }
-            }, 100);
+            }, 200);
             
             // Update active states
             document.querySelectorAll('.sub-nav-link').forEach(l => l.classList.remove('active'));
