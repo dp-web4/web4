@@ -72,6 +72,47 @@ body {
     color: white;
 }
 
+/* Expandable Navigation */
+.expandable {
+    position: relative;
+}
+
+.expand-icon {
+    display: inline-block;
+    transition: transform 0.3s ease;
+    margin-right: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.expandable.expanded .expand-icon {
+    transform: rotate(90deg);
+}
+
+.sub-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0 1.5rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.sub-nav-link {
+    font-size: 0.9rem !important;
+    padding: 0.4rem 0.75rem !important;
+    opacity: 0.9;
+}
+
+.sub-nav-link:hover {
+    opacity: 1;
+    background: white !important;
+}
+
+.sub-nav-link.active {
+    background: var(--secondary-color) !important;
+    color: white !important;
+    opacity: 1;
+}
+
 /* Main Content */
 .main-content {
     margin-left: var(--sidebar-width);

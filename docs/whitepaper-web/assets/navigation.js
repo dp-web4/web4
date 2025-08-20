@@ -4,6 +4,53 @@ document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-link');
     const sections = document.querySelectorAll('.section');
     
+    // Handle expandable navigation
+    const expandableToggles = document.querySelectorAll('.expandable-toggle');
+    expandableToggles.forEach(toggle => {
+        toggle.addEventListener('click', function(e) {
+            const isSubNavClick = e.target.closest('.expandable');
+            if (isSubNavClick) {
+                e.preventDefault();
+                const expandable = isSubNavClick;
+                const subNav = expandable.querySelector('.sub-nav');
+                
+                expandable.classList.toggle('expanded');
+                if (expandable.classList.contains('expanded')) {
+                    subNav.style.display = 'block';
+                } else {
+                    subNav.style.display = 'none';
+                }
+            }
+        });
+    });
+    
+    // Handle sub-navigation clicks
+    const subNavLinks = document.querySelectorAll('.sub-nav-link');
+    subNavLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const sectionId = this.getAttribute('data-section');
+            const targetId = this.getAttribute('data-target');
+            
+            // Show the section
+            showSection(sectionId);
+            
+            // Scroll to the specific subsection
+            setTimeout(() => {
+                const targetElement = document.querySelector(`#${targetId}`);
+                if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
+            
+            // Update active states
+            document.querySelectorAll('.sub-nav-link').forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+    
     // Function to show a specific section
     function showSection(sectionId) {
         // Hide all sections

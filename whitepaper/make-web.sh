@@ -51,13 +51,22 @@ import json
 def convert_md_to_html(md_file, html_file):
     try:
         import markdown
-        extensions = ['extra', 'codehilite', 'toc', 'tables', 'fenced_code']
+        extensions = ['extra', 'codehilite', 'toc', 'tables', 'fenced_code', 'attr_list']
     except ImportError:
         # Fallback to basic conversion
         extensions = []
     
     with open(md_file, 'r') as f:
         content = f.read()
+    
+    # Add IDs to specific headers for foundational concepts navigation
+    if '## 2.1. Linked Context Tokens' in content:
+        content = content.replace('## 2.1. Linked Context Tokens', '## 2.1. Linked Context Tokens {#lcts}')
+        content = content.replace('## 2.2. Entities', '## 2.2. Entities {#entities}')
+        content = content.replace('## 2.3. Roles as First-Class Entities', '## 2.3. Roles as First-Class Entities {#roles}')
+        content = content.replace('## 2.4. The R6 Action Framework', '## 2.4. The R6 Action Framework {#r6}')
+        content = content.replace('## 2.5. Markov Relevancy Horizon', '## 2.5. Markov Relevancy Horizon {#mrh}')
+        content = content.replace('## 2.6. Dictionaries', '## 2.6. Dictionaries {#dictionaries}')
     
     if extensions:
         html = markdown.markdown(content, extensions=extensions)
@@ -168,6 +177,47 @@ body {
 .nav-list a.active {
     background: var(--primary-color);
     color: white;
+}
+
+/* Expandable Navigation */
+.expandable {
+    position: relative;
+}
+
+.expand-icon {
+    display: inline-block;
+    transition: transform 0.3s ease;
+    margin-right: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.expandable.expanded .expand-icon {
+    transform: rotate(90deg);
+}
+
+.sub-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0 1.5rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.sub-nav-link {
+    font-size: 0.9rem !important;
+    padding: 0.4rem 0.75rem !important;
+    opacity: 0.9;
+}
+
+.sub-nav-link:hover {
+    opacity: 1;
+    background: white !important;
+}
+
+.sub-nav-link.active {
+    background: var(--secondary-color) !important;
+    color: white !important;
+    opacity: 1;
 }
 
 /* Main Content */
@@ -409,6 +459,53 @@ document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-link');
     const sections = document.querySelectorAll('.section');
     
+    // Handle expandable navigation
+    const expandableToggles = document.querySelectorAll('.expandable-toggle');
+    expandableToggles.forEach(toggle => {
+        toggle.addEventListener('click', function(e) {
+            const isSubNavClick = e.target.closest('.expandable');
+            if (isSubNavClick) {
+                e.preventDefault();
+                const expandable = isSubNavClick;
+                const subNav = expandable.querySelector('.sub-nav');
+                
+                expandable.classList.toggle('expanded');
+                if (expandable.classList.contains('expanded')) {
+                    subNav.style.display = 'block';
+                } else {
+                    subNav.style.display = 'none';
+                }
+            }
+        });
+    });
+    
+    // Handle sub-navigation clicks
+    const subNavLinks = document.querySelectorAll('.sub-nav-link');
+    subNavLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const sectionId = this.getAttribute('data-section');
+            const targetId = this.getAttribute('data-target');
+            
+            // Show the section
+            showSection(sectionId);
+            
+            // Scroll to the specific subsection
+            setTimeout(() => {
+                const targetElement = document.querySelector(`#${targetId}`);
+                if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
+            
+            // Update active states
+            document.querySelectorAll('.sub-nav-link').forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+    
     // Function to show a specific section
     function showSection(sectionId) {
         // Hide all sections
@@ -607,7 +704,19 @@ cat > "$OUTPUT_DIR/index.html" << 'HTML'
                 <li><a href="#introduction" class="nav-link" data-section="introduction">Introduction</a></li>
                 <li><a href="#glossary" class="nav-link" data-section="glossary">Glossary</a></li>
                 <li><a href="#defining-web4" class="nav-link" data-section="defining-web4">Defining Web4</a></li>
-                <li><a href="#foundational-concepts" class="nav-link" data-section="foundational-concepts">Foundational Concepts</a></li>
+                <li class="expandable">
+                    <a href="#foundational-concepts" class="nav-link expandable-toggle" data-section="foundational-concepts">
+                        <span class="expand-icon">▶</span> Foundational Concepts
+                    </a>
+                    <ul class="sub-nav" style="display: none;">
+                        <li><a href="#lcts" class="nav-link sub-nav-link" data-section="foundational-concepts" data-target="lcts">Linked Context Tokens</a></li>
+                        <li><a href="#entities" class="nav-link sub-nav-link" data-section="foundational-concepts" data-target="entities">Entities</a></li>
+                        <li><a href="#roles" class="nav-link sub-nav-link" data-section="foundational-concepts" data-target="roles">Roles as First-Class Entities</a></li>
+                        <li><a href="#r6-framework" class="nav-link sub-nav-link" data-section="foundational-concepts" data-target="r6">R6 Action Framework</a></li>
+                        <li><a href="#mrh" class="nav-link sub-nav-link" data-section="foundational-concepts" data-target="mrh">Markov Relevancy Horizon</a></li>
+                        <li><a href="#dictionaries" class="nav-link sub-nav-link" data-section="foundational-concepts" data-target="dictionaries">Dictionaries</a></li>
+                    </ul>
+                </li>
                 <li><a href="#value-trust" class="nav-link" data-section="value-trust">Value & Trust Mechanics</a></li>
                 <li><a href="#implications" class="nav-link" data-section="implications">Implications & Vision</a></li>
                 <li><a href="#memory" class="nav-link" data-section="memory">Memory as Temporal Sensor</a></li>
