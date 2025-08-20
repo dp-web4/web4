@@ -74,20 +74,44 @@ def convert_md_to_html(md_file, html_file):
         md = markdown.Markdown(extensions=extensions)
         html = md.convert(content)
         
-        # Fix headers that got wrapped in paragraph tags FIRST
+        # Add specific IDs for foundational concepts
+        # Match exact patterns from the HTML output
+        html = html.replace(
+            '<p><h2>2.1. Linked Context Tokens (LCTs): The Reification of Presence</h2></p>',
+            '<h2 id="lcts">2.1. Linked Context Tokens (LCTs): The Reification of Presence</h2>'
+        )
+        
+        html = html.replace(
+            '<p><h2>2.2. Entities in the WEB4 Framework</h2></p>',
+            '<h2 id="entities">2.2. Entities in the WEB4 Framework</h2>'
+        )
+        
+        html = html.replace(
+            '<p><h2>2.3. Roles as First-Class Entities</h2></p>',
+            '<h2 id="roles">2.3. Roles as First-Class Entities</h2>'
+        )
+        
+        html = html.replace(
+            '<p><h2>2.4. The R6 Action Framework: Where Intent Becomes Reality</h2></p>',
+            '<h2 id="r6">2.4. The R6 Action Framework: Where Intent Becomes Reality</h2>'
+        )
+        
+        html = html.replace(
+            '<p><h2>2.5. Markov Relevancy Horizon (MRH): The Lens of Context</h2></p>',
+            '<h2 id="mrh">2.5. Markov Relevancy Horizon (MRH): The Lens of Context</h2>'
+        )
+        
+        html = html.replace(
+            '<p><h2>2.6. Dictionaries: The Living Keepers of Meaning</h2></p>',
+            '<h2 id="dictionaries">2.6. Dictionaries: The Living Keepers of Meaning</h2>'
+        )
+        
+        # Fix headers that got wrapped in paragraph tags AFTER replacements
         html = re.sub(r'<p>(<h[123])', r'\1', html)
         html = re.sub(r'(</h[123]>)</p>', r'\1', html)
         
         # Also handle case where entire header is inside paragraph
         html = re.sub(r'<p><h([123])>(.*?)</h\1></p>', r'<h\1>\2</h\1>', html)
-        
-        # Now add specific IDs for foundational concepts
-        html = re.sub(r'<h2>2\.1\.\s*Linked Context Tokens', r'<h2 id="lcts">2.1. Linked Context Tokens', html)
-        html = re.sub(r'<h2>2\.2\.\s*Entities', r'<h2 id="entities">2.2. Entities', html)
-        html = re.sub(r'<h2>2\.3\.\s*Roles as First-Class Entities', r'<h2 id="roles">2.3. Roles as First-Class Entities', html)
-        html = re.sub(r'<h2>2\.4\.\s*The R6 Action Framework', r'<h2 id="r6">2.4. The R6 Action Framework', html)
-        html = re.sub(r'<h2>2\.5\.\s*Markov Relevancy Horizon', r'<h2 id="mrh">2.5. Markov Relevancy Horizon', html)
-        html = re.sub(r'<h2>2\.6\.\s*Dictionaries', r'<h2 id="dictionaries">2.6. Dictionaries', html)
         
         # Remove any {#id} artifacts that got through
         html = re.sub(r'\s*\{#\w+\}', '', html)
@@ -824,6 +848,18 @@ for entry in "${sections[@]}"; do
         
         # Convert markdown to HTML and append
         md_to_html "$SECTIONS_DIR/$file" "$OUTPUT_DIR/temp_section.html"
+        
+        # Special handling for foundational concepts to ensure IDs are added
+        if [ "$section_id" = "foundational-concepts" ]; then
+            # Add IDs to the foundational concepts headers
+            sed -i 's|<p><h2>2\.1\. Linked Context Tokens (LCTs): The Reification of Presence</h2></p>|<h2 id="lcts">2.1. Linked Context Tokens (LCTs): The Reification of Presence</h2>|g' "$OUTPUT_DIR/temp_section.html"
+            sed -i 's|<p><h2>2\.2\. Entities in the WEB4 Framework</h2></p>|<h2 id="entities">2.2. Entities in the WEB4 Framework</h2>|g' "$OUTPUT_DIR/temp_section.html"
+            sed -i 's|<p><h2>2\.3\. Roles as First-Class Entities</h2></p>|<h2 id="roles">2.3. Roles as First-Class Entities</h2>|g' "$OUTPUT_DIR/temp_section.html"
+            sed -i 's|<p><h2>2\.4\. The R6 Action Framework: Where Intent Becomes Reality</h2></p>|<h2 id="r6">2.4. The R6 Action Framework: Where Intent Becomes Reality</h2>|g' "$OUTPUT_DIR/temp_section.html"
+            sed -i 's|<p><h2>2\.5\. Markov Relevancy Horizon (MRH): The Lens of Context</h2></p>|<h2 id="mrh">2.5. Markov Relevancy Horizon (MRH): The Lens of Context</h2>|g' "$OUTPUT_DIR/temp_section.html"
+            sed -i 's|<p><h2>2\.6\. Dictionaries: The Living Keepers of Meaning</h2></p>|<h2 id="dictionaries">2.6. Dictionaries: The Living Keepers of Meaning</h2>|g' "$OUTPUT_DIR/temp_section.html"
+        fi
+        
         cat "$OUTPUT_DIR/temp_section.html" >> "$OUTPUT_DIR/index.html"
         rm "$OUTPUT_DIR/temp_section.html"
         
