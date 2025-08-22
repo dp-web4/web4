@@ -1,0 +1,152 @@
+name: governance-drift
+on:
+  schedule:
+    - cron: "0 9 * * 1"   # Mondays 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      REPOS_JSON: '["owner/synchronism", "owner/sage", "owner/web4"]'  # EDIT: org/repo names
+      COEFF_TOL: "0.0"
+      LCR_TOL: "0.05"
+      READ_TOKEN: ${{ secrets.ORG_READ_TOKEN }}   # PAT with read access to listed repos
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone peer repos
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p repos
+          python - <<'PY'
+          import os, json, subprocess
+          token = os.environ.get("READ_TOKEN","")
+          repos = json.loads(os.environ["REPOS_JSON"])
+          for r in repos:
+            name = r.replace("/", "_")
+            url = f"https://{token}:x-oauth-basic@github.com/{r}.git" if token else f"https://github.com/{r}.git"
+            subprocess.run(["git","clone","--depth","1", url, f"repos/{name}"], check=True)
+          PY
+
+      - name: Write drift script
+        shell: bash
+        run: |
+          mkdir -p .github/scripts
+          cat > .github/scripts/drift.py <<'PY'
+          import os, json, math, yaml
+
+          def load_map(path):
+            with open(path, "r", encoding="utf-8") as f:
+              return yaml.safe_load(f)
+
+          def compute_controls(sec, coeff):
+            a,b,c = coeff["a"], coeff["b"], coeff["c"]
+            eps = coeff.get("epsilon", 1e-6)
+            out = {}
+            for name, v in sec.items():
+              L,C,R = float(v["L"]), float(v["C"]), float(v["R"])
+              delta = (a*L + b*R) / (1 + c*C)
+              w0 = 1.0 / math.sqrt(eps + L*C)
+              change_threshold = max(0.50, min(0.95, 0.50 + 0.35*L + 0.15*R - 0.10*C))
+              review_days = round(3 + 10*L + 4*delta)
+              quorum = max(1, int(math.ceil(1 + 2*L + 1*R)))
+              token_cost = round(50 * (0.5 + 0.7*L + 0.3*R))
+              reject_penalty = max(0.10, min(0.95, 0.10 + 0.70*R))
+              fast_track_drop = 0.20 * (1 - L)
+              out[name] = {
+                "L":L,"C":C,"R":R,"delta":round(delta,4),"omega0":round(w0,4),
+                "change_threshold":round(change_threshold,3),"review_days":int(review_days),
+                "quorum":int(quorum),"token_cost":int(token_cost),
+                "reject_penalty":round(reject_penalty,2),"fast_track_drop":round(fast_track_drop,2)
+              }
+            return out
+
+          def main():
+            import glob
+            coeff_tol = float(os.environ.get("COEFF_TOL","0.0"))
+            lcr_tol = float(os.environ.get("LCR_TOL","0.05"))
+
+            roots = [(".", "self")]
+            for d in os.listdir("repos"):
+              p = os.path.join("repos", d)
+              if os.path.isdir(p): roots.append((p, d))
+
+            reports = {}
+            for path, name in roots:
+              gm = os.path.join(path, "integrations", "governance_map.yaml")
+              if not os.path.exists(gm):
+                reports[name] = {"error": f"missing {gm}"}
+                continue
+              data = load_map(gm)
+              coeff = data.get("coefficients",{})
+              sec = data.get("sections",{})
+              controls = compute_controls(sec, coeff)
+              reports[name] = {"coeff":coeff,"sections":sec,"controls":controls}
+
+            names = [n for _,n in roots]
+            anchor = names[0]
+            base = reports[anchor]
+            lines = ["# Governance Drift Report", ""]
+
+            fail = False
+            if "error" in base:
+              lines += [f"- ERROR in {anchor}: {base['error']}"]
+              fail = True
+            else:
+              a0,b0,c0 = base["coeff"]["a"], base["coeff"]["b"], base["coeff"]["c"]
+              lines += [f"Anchor repo: **{anchor}** coefficients a={a0}, b={b0}, c={c0}"]
+              for n in names[1:]:
+                r = reports[n]
+                if "error" in r:
+                  lines += [f"- ERROR in {n}: {r['error']}"]; fail = True; continue
+                diffs = {k: abs(r["coeff"][k] - base["coeff"][k]) for k in ("a","b","c")}
+                ok = all(d <= coeff_tol for d in diffs.values())
+                status = "OK" if ok else "DRIFT"
+                lines += [f"- {n}: Δa={diffs['a']:.3g}, Δb={diffs['b']:.3g}, Δc={diffs['c']:.3g} → **{status}**"]
+                if not ok: fail = True
+
+              lines += ["", "## Section L/C/R (intersection by name)"]
+              for n in names[1:]:
+                r = reports[n]
+                if "error" in r: continue
+                inter = sorted(set(base["sections"].keys()) & set(r["sections"].keys()))
+                missing_self = sorted(set(base["sections"].keys()) - set(r["sections"].keys()))
+                missing_other = sorted(set(r["sections"].keys()) - set(base["sections"].keys()))
+                if missing_self: lines += [f"- {n}: missing sections present in anchor: {', '.join(missing_self)}"]
+                if missing_other: lines += [f"- {n}: has extra sections not in anchor: {', '.join(missing_other)}"]
+                for s in inter:
+                  bs = base["sections"][s]; os_ = r["sections"][s]
+                  dl = abs(bs["L"] - os_["L"]); dc = abs(bs["C"] - os_["C"]); dr = abs(bs["R"] - os_["R"])
+                  ok = (dl <= lcr_tol and dc <= lcr_tol and dr <= lcr_tol)
+                  status = "OK" if ok else "DRIFT"
+                  lines += [f"  - {s}: ΔL={dl:.3f}, ΔC={dc:.3f}, ΔR={dr:.3f} → **{status}**"]
+                  if not ok: fail = True
+
+            with open("drift-report.md","w",encoding="utf-8") as f:
+              f.write("\n".join(lines)+"\n")
+            print("\n".join(lines))
+            if fail:
+              raise SystemExit(2)
+
+          if __name__ == "__main__":
+            main()
+          PY
+
+      - name: Run drift check
+        shell: bash
+        run: |
+          python .github/scripts/drift.py
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: governance-drift-report
+          path: drift-report.md
