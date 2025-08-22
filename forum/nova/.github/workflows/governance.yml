@@ -1,0 +1,20 @@
+name: governance-check
+on:
+  pull_request:
+  push:
+    branches: [ main, master ]
+jobs:
+  compute-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pyyaml
+      - run: python integrations/govsim.py integrations/governance_map.yaml docs/collab/governance_controls.csv docs/collab/governance_controls.md
+      - run: python integrations/integrate_governance.py --config integrations/governance_map.yaml --repo-root .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: governance-controls
+          path: docs/collab/governance_controls.*

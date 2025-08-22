@@ -1,0 +1,28 @@
+# CONTRIBUTION.meta.yaml — Schema (template)
+
+# Copy this block to the top of any artifact as front-matter (YAML)
+# ---
+artifact_type: doc|spec|code|diagram|dataset
+scale_mrh: local|project|ecosystem|planetary
+intent: discovery|design|implementation|governance|reflection
+status: draft|active|stable|deprecated
+lct_id: "LCT-<id-or-uri>"        # Linked Context Token pointer (optional)
+t3:
+  talent: null                   # optional tensor/score
+  training: null
+  temperament: null
+v3:
+  value: null
+  veracity: null
+  variance: null
+provenance:
+  created_by: Dennis|NOVA|Claude|hybrid
+  created_at: ISO8601
+  sources: []                    # cite repos/links/commits
+witnesses: [Dennis, NOVA]        # others as needed
+tags: [resonance, coherence, synchronism]
+references:
+  - path: docs/collab/INDEX.md
+  - url: https://dpcars.net/Synchronism_0.pdf
+coherence_score: null            # optional 0–1 estimate
+# ---

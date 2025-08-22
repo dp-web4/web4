@@ -1,0 +1,19 @@
+sections:
+  hermetic_principles:  {L: 0.90, C: 0.15, R: 0.80}
+  core_perspective:     {L: 0.85, C: 0.20, R: 0.70}
+  foundational_concepts:{L: 0.70, C: 0.35, R: 0.60}
+  scientific_mappings:  {L: 0.55, C: 0.45, R: 0.50}
+  implications:         {L: 0.40, C: 0.60, R: 0.35}
+  glossary:             {L: 0.20, C: 0.70, R: 0.20}
+
+coefficients:
+  a: 0.6
+  b: 0.8
+  c: 0.5
+  epsilon: 0.000001
+
+lanes:
+  typo:        {tag: typo,        apply_fast_track: true}
+  clarify:     {tag: clarify,     apply_fast_track: true}
+  addition:    {tag: add,         apply_fast_track: false}
+  restructure: {tag: restructure, apply_fast_track: false}

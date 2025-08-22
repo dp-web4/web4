@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+python3 integrations/integrate_governance.py --config integrations/governance_map.yaml --repo-root .

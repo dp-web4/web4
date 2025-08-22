@@ -1,0 +1,23 @@
+# CONTINUITY.yml — Replication & Verification
+
+checksum:
+  algorithm: blake3
+  scope:
+    - docs/collab/*
+    - assets/*
+canonical_paths:
+  - repo_root/docs/collab
+  - repo_root/assets
+replication:
+  machines:
+    - id: dennis-laptop
+    - id: workstation-a
+    - id: workstation-b
+    - id: lab-jetson
+    - id: secure-notebook
+  schedule: "hourly"             # or cron: "*/30 * * * *"
+  conflict_resolution: "prefer-newer-with-witness"   # tie→manual
+  tombstones: true               # track deletes explicitly
+  audit_log: true
+notes: |
+  Treat this file as the living root pointer for multi-machine coherence.

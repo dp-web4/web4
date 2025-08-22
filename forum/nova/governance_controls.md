@@ -1,0 +1,10 @@
+# Governance Controls (computed)
+
+| section | L | C | R | delta | omega0 | change_threshold | review_days | quorum | token_cost | reject_penalty | fast_track_drop |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| hermetic_principles | 0.9 | 0.15 | 0.8 | 1.0977 | 2.7216 | 0.92 | 16 | 4 | 68 | 0.66 | 0.02 |
+| core_perspective | 0.85 | 0.2 | 0.7 | 0.9727 | 2.4253 | 0.882 | 15 | 4 | 65 | 0.59 | 0.03 |
+| foundational_concepts | 0.7 | 0.35 | 0.6 | 0.766 | 2.0203 | 0.8 | 13 | 3 | 58 | 0.52 | 0.06 |
+| scientific_mappings | 0.55 | 0.45 | 0.5 | 0.5959 | 2.0101 | 0.722 | 11 | 3 | 52 | 0.45 | 0.09 |
+| implications | 0.4 | 0.6 | 0.35 | 0.4 | 2.0412 | 0.633 | 9 | 3 | 44 | 0.34 | 0.12 |
+| glossary | 0.2 | 0.7 | 0.2 | 0.2074 | 2.6726 | 0.53 | 6 | 2 | 35 | 0.24 | 0.16 |

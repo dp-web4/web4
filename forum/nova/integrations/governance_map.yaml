@@ -1,0 +1,45 @@
+# governance_map.yaml — section mapping + L/C/R settings
+# Adjust `paths` globs to match your repo.
+sections:
+  hermetic_principles:
+    L: 0.90
+    C: 0.15
+    R: 0.80
+    paths:
+      - docs/synchronism/01_hermetic_principles.md
+  core_perspective:
+    L: 0.85
+    C: 0.20
+    R: 0.70
+    paths:
+      - docs/synchronism/02_core_perspective.md
+  foundational_concepts:
+    L: 0.70
+    C: 0.35
+    R: 0.60
+    paths:
+      - docs/synchronism/04_foundational_concepts.md
+  scientific_mappings:
+    L: 0.55
+    C: 0.45
+    R: 0.50
+    paths:
+      - docs/synchronism/05_scientific_mappings.md
+  implications:
+    L: 0.40
+    C: 0.60
+    R: 0.35
+    paths:
+      - docs/synchronism/06_implications.md
+  glossary:
+    L: 0.20
+    C: 0.70
+    R: 0.20
+    paths:
+      - docs/synchronism/99_glossary.md
+
+coefficients:
+  a: 0.6
+  b: 0.8
+  c: 0.5
+  epsilon: 0.000001
