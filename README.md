@@ -48,6 +48,9 @@ Each entity's contextual lens—defining what is knowable, actionable, and relev
 ### 🔗 Fractal Lightchain Architecture
 Hierarchical witness-based verification that scales from nanosecond cell operations to permanent blockchain anchors—all without global consensus bottlenecks. Trust emerges from witnessed interactions at every scale.
 
+### ⚡ LRC Governance Model
+A physics-inspired governance system where change resistance emerges from natural dynamics. Components have inductance (change resistance), capacitance (experimentation potential), and resistance (quality filtering), creating self-balancing systems. [Learn more →](LRC_GOVERNANCE.md)
+
 ---
 
 ## A Worked Example
@@ -129,6 +132,7 @@ cd whitepaper
 ```
 
 ### Additional Resources
+- [LRC Governance Model](LRC_GOVERNANCE.md) - Physics-inspired governance framework
 - [Governance Manifesto](reference/GOVERNANCE_MANIFESTO.md) - Distributed governance vision
 - [Synchronism Framework](https://dpcars.net/synchronism) - Philosophical foundations
 - [Changelog](whitepaper/log/CHANGELOG.md) - Track whitepaper evolution
