@@ -49,7 +49,7 @@ Each entity's contextual lens—defining what is knowable, actionable, and relev
 Hierarchical witness-based verification that scales from nanosecond cell operations to permanent blockchain anchors—all without global consensus bottlenecks. Trust emerges from witnessed interactions at every scale.
 
 ### ⚡ LRC Governance Model
-A physics-inspired governance system where change resistance emerges from natural dynamics. Components have inductance (change resistance), capacitance (experimentation potential), and resistance (quality filtering), creating self-balancing systems. [Learn more →](LRC_GOVERNANCE.md)
+A physics-inspired governance system where change resistance emerges from natural dynamics. Components have inductance (change resistance), capacitance (experimentation potential), and resistance (quality filtering), creating self-balancing systems. This README describes the Web4 instantiation while LRC provides the stack-agnostic transfer layer. [Learn more →](LRC_GOVERNANCE.md)
 
 ---
 
@@ -132,7 +132,7 @@ cd whitepaper
 ```
 
 ### Additional Resources
-- [LRC Governance Model](LRC_GOVERNANCE.md) - Physics-inspired governance framework
+- [LRC Governance (Derived Principles layer)](LRC_GOVERNANCE.md) - Stack-agnostic governance transfer layer
 - [Governance Manifesto](reference/GOVERNANCE_MANIFESTO.md) - Distributed governance vision
 - [Synchronism Framework](https://dpcars.net/synchronism) - Philosophical foundations
 - [Changelog](whitepaper/log/CHANGELOG.md) - Track whitepaper evolution

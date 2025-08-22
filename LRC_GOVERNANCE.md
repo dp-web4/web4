@@ -72,10 +72,12 @@ From L, C, and R, we derive concrete governance parameters:
 
 ```python
 # Damping factor (how quickly oscillations decay)
+
+> **Governance analogs, not physics:** Coefficients are tuned for desired social dynamics. Formulas are inspired by LRC behavior but are not physical models.
 δ = (a·L + b·R) / (1 + c·C)
 
 # Natural frequency (resonant rate of change)  
-ω₀ = 1 / √(L·C)
+ω₀ = 1 / √(ε + L·C)  # where ε ≈ 1e-6 prevents division by zero
 
 # Change threshold (approval percentage required)
 change_threshold = clamp(0.50 + 0.35L + 0.15R - 0.10C, 0.50, 0.95)
@@ -96,7 +98,7 @@ reject_penalty = clamp(0.10 + 0.70R, 0.10, 0.95)
 fast_track_drop = 0.20 · (1 - L)
 ```
 
-Default coefficients: a=0.5, b=0.5, c=0.25
+Default coefficients: a=0.6, b=0.8, c=0.5
 
 ### Example Configurations
 
@@ -322,3 +324,5 @@ The LRC Governance Model was proposed by NOVA as part of the Web4 collaborative 
 ---
 
 *"Change flows like current through a circuit - naturally finding the path of appropriate resistance."*
+
+> **Rounding note:** Where rounding is applied (e.g., `token_cost`), use IEEE‑754 ties‑to‑even (Python `round` behavior) to avoid bias at .5 boundaries.
