@@ -1,0 +1,94 @@
+# Web4 Governance Map - Section L/C/R Configuration
+# Generated: 2025-08-22
+# Based on Nova's LRC governance model
+
+sections:
+  # Core Protocol Specifications
+  core_protocol:
+    L: 0.85
+    C: 0.20
+    R: 0.75
+    description: "Core LCT mechanics and protocol specifications"
+    paths:
+      - whitepaper/sections/05-part3-value-creation-distribution/linked-context-tokens.md
+      - whitepaper/sections/04-part2-foundational-concepts/lcts.md
+  
+  # Trust and Value Tensors
+  trust_tensors:
+    L: 0.75
+    C: 0.30
+    R: 0.65
+    description: "T3 and V3 tensor definitions and calculations"
+    paths:
+      - whitepaper/sections/05-part3-value-creation-distribution/trust-value-tensors.md
+      - trust/
+  
+  # ATP Energy Model
+  atp_model:
+    L: 0.70
+    C: 0.35
+    R: 0.60
+    description: "ATP/ADP energy flow and value creation"
+    paths:
+      - whitepaper/sections/05-part3-value-creation-distribution/atp-adp.md
+  
+  # Dictionary Entities
+  dictionary_entities:
+    L: 0.65
+    C: 0.40
+    R: 0.55
+    description: "Dictionary entities and translation trust"
+    paths:
+      - whitepaper/sections/04-part2-foundational-concepts/dictionaries.md
+  
+  # Implementation Examples
+  implementations:
+    L: 0.40
+    C: 0.65
+    R: 0.35
+    description: "Code examples and reference implementations"
+    paths:
+      - whitepaper/sections/09-part7-implementation-examples/
+      - implementations/
+  
+  # Governance Framework
+  governance:
+    L: 0.80
+    C: 0.25
+    R: 0.70
+    description: "LRC governance model and framework"
+    paths:
+      - LRC_GOVERNANCE.md
+      - whitepaper/sections/07-part5-governance-evolution/
+  
+  # Forum and Proposals
+  forum:
+    L: 0.30
+    C: 0.70
+    R: 0.30
+    description: "Community discussions and proposals"
+    paths:
+      - forum/
+  
+  # Documentation
+  documentation:
+    L: 0.25
+    C: 0.75
+    R: 0.25
+    description: "READMEs, guides, and explanatory content"
+    paths:
+      - README.md
+      - docs/
+      - reference/
+
+coefficients:
+  a: 0.6     # Weight for L in damping calculation
+  b: 0.8     # Weight for R in damping calculation  
+  c: 0.5     # Weight for C in damping calculation
+  epsilon: 0.000001  # Prevents division by zero in omega calculation
+
+metadata:
+  version: 1.0.0
+  last_updated: "2025-08-22"
+  description: "Web4 project governance configuration using LRC model"
+  note: "These values can be adjusted as the project evolves"

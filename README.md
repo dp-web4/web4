@@ -133,9 +133,24 @@ cd whitepaper
 
 ### Additional Resources
 - [LRC Governance (Derived Principles layer)](LRC_GOVERNANCE.md) - Stack-agnostic governance transfer layer
+- [Governance Dashboard](governance/dashboard.md) - Visual overview of section protection levels
 - [Governance Manifesto](reference/GOVERNANCE_MANIFESTO.md) - Distributed governance vision
 - [Synchronism Framework](https://dpcars.net/synchronism) - Philosophical foundations
 - [Changelog](whitepaper/log/CHANGELOG.md) - Track whitepaper evolution
+
+### Governance Evolution
+
+The Web4 project uses the LRC governance model to manage change resistance across different components. View the [Governance Dashboard](governance/dashboard.md) to see current protection levels.
+
+#### Future Governance Considerations
+As the project grows, we may adopt additional governance infrastructure from Nova's proposals:
+- **Cross-repository alignment** - Ensuring consistency across Synchronism, Web4, SAGE, and other implementations
+- **Drift detection** - Automated CI/CD checks for governance parameter divergence
+- **Coupling rules** - Formal propagation requirements for high-L changes across related projects
+- **Witness marks** - Standardized approval signatures across all repos
+- **PR automation** - Bot-computed governance controls for touched sections
+
+See `forum/nova/governance-extras/` for detailed proposals that may be adopted as needed.
 
 ### Contact
 📩 **dp@metalinxx.io**
