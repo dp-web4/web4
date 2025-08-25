@@ -94,6 +94,49 @@ web4/
 
 ---
 
+## Compression Trust: The Foundation of Meaning
+
+### Core Principle
+**All meaningful communication is compression plus trust across shared or sufficiently aligned latent fields.**
+
+Compression trust unifies several critical concepts:
+- **Compression**: Reducing rich input to compact representations (tokens, latents, IDs)
+- **Trust**: Belief that sender and receiver's latent fields overlap enough to reconstruct intended meaning
+- **Shared Latent Fields**: The common embedding spaces that enable understanding
+
+This principle underlies:
+- Human language (words as compressed symbols)
+- Neural networks (token IDs pointing to embeddings)
+- VAE/VQ-VAE systems (continuous vs discrete latent spaces)
+- Web4 dictionary entities (shared codebooks with LCT metadata)
+
+### The Triadic Framework
+Compression trust bridges three layers:
+1. **Synchronism (Theory)** - WHY compression trust is necessary for resonance between witnesses
+2. **Web4 (Infrastructure)** - HOW to manage, align, and audit compression trust
+3. **SAGE (Operation)** - WHAT compression trust looks like in practice (IRPs, SNARCs, pipelines)
+
+### Key Documents
+- [Compression Trust Unification](compression_trust_unification.md) - Foundational theory
+- [Compression Trust Triads](compression_trust_triads.md) - The three-layer framework
+- [Unification Diagram](compression_trust_unification_diagram.md) - Visual representation
+- [Visual Tokenizer Path](visual_tokenizer_path_diagram.md) - VAE/VQ-VAE implementation
+- [Calibration Diagram](compression_trust_calibration_diagram.md) - Cross-entity alignment
+
+### Open Questions for Exploration
+
+1. **How do we bootstrap trust?** When two entities first meet, how do they establish initial compression alignment?
+
+2. **Trust degradation over time?** As models/entities evolve, how do we detect and correct drift in latent spaces?
+
+3. **Hierarchical compression?** Can we have multiple levels of compression trust (high trust = more compression)?
+
+4. **Meta-dictionaries?** Dictionary entities that translate between other dictionary entities?
+
+> *"Compression without trust is noise. Trust without compression is inefficiency. Compression trust is meaning."*
+
+---
+
 ## Implementation Status
 
 🚧 **Active Development** - The Web4 framework is evolving through collaborative implementation.
