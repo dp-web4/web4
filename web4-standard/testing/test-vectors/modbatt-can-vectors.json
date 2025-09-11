@@ -1,0 +1,49 @@
+{
+  "test_vectors": [
+    {
+      "description": "Pack controller binding to a new LCT",
+      "protocol": "BINDING",
+      "inputs": {
+        "entity_type": "DEVICE",
+        "public_key": "...",
+        "hardware_id": "..."
+      },
+      "outputs": {
+        "lct_id": "...",
+        "binding_proof": "..."
+      }
+    },
+    {
+      "description": "CAN message broadcast from pack controller",
+      "protocol": "BROADCAST",
+      "inputs": {
+        "sender_id": "DEVICE:pack-controller-01",
+        "message_type": "HEARTBEAT",
+        "payload": {
+          "voltage": 48.2,
+          "current": 12.5,
+          "temperature": 25.1
+        }
+      },
+      "outputs": {}
+    },
+    {
+      "description": "Witnessing of a pairing sequence between two devices",
+      "protocol": "WITNESSING",
+      "inputs": {
+        "observer_lct": "...",
+        "observed_lct": "...",
+        "evidence_type": "ACTION",
+        "evidence_data": {
+          "action": "PAIRING",
+          "peer_lct": "..."
+        }
+      },
+      "outputs": {
+        "witness_assertion": "..."
+      }
+    }
+  ]
+}
+
+

@@ -35,12 +35,27 @@ Web4 messages and credentials MAY be represented in JSON format. When JSON is us
 
 ## 4. URI Scheme
 
-The Web4 URI scheme is defined as follows:
+Web4 supports two URI schemes for identifying and locating resources:
 
-`web4-uri = "web4://" authority path-abempty [ "?" query ] [ "#" fragment ]`
+### 4.1. `web4://` Scheme
 
-- **authority:** The Web4 entity identifier.
-- **path-abempty, query, fragment:** As defined in RFC 3986 [4].
+This scheme is used for clean, human-readable URIs.
+
+```abnf
+web4-URI = "web4://" w4-authority path-abempty [ "?" query ] [ "#" fragment ]
+w4-authority = w4id-label / hostname
+w4id-label = "w4-" base32nopad   ; base32 encoding of pairwise W4ID
+```
+
+### 4.2. `did:web4` Scheme (RECOMMENDED)
+
+This scheme is based on the W3C DID specification and is the recommended way to identify Web4 entities.
+
+```abnf
+web4-did-url = did-url
+did-url = "did:web4:" method-specific-id [ path ] [ "?" query ] [ "#" fragment ]
+method-specific-id = base32nopad
+```
 
 ## References
 

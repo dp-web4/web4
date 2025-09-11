@@ -5,27 +5,50 @@ This document provides the detailed specification for the Web4 core protocol, in
 
 
 
-## 1. Handshake and Pairing Protocol
+## 1. Cryptographic Suites
 
-The Web4 handshake and pairing protocol is the process by which two Web4 entities establish a secure communication channel and create a persistent, trusted relationship. This protocol is designed to be secure, efficient, and flexible, allowing for a variety of pairing methods.
+Web4 defines a set of cryptographic suites to ensure interoperability and to provide options for different security and performance requirements. All implementations MUST support the `W4-BASE-1` suite.
 
-### 1.1. Protocol Overview
+| Suite ID          | KEM      | Sig       | AEAD              | Hash    | KDF     | Profile |
+|-------------------|----------|-----------|-------------------|---------|---------|---------|
+| W4-BASE-1 (MUST)  | X25519   | Ed25519   | ChaCha20-Poly1305 | SHA-256 | HKDF    | COSE    |
+| W4-FIPS-1 (SHOULD)| P-256ECDH| ECDSA-P256| AES-128-GCM       | SHA-256 | HKDF    | JOSE    |
+| W4-IOT-1 (MAY)    | X25519   | Ed25519   | AES-CCM           | SHA-256 | HKDF    | CBOR    |
 
-The pairing process consists of the following phases:
+## 2. Handshake Protocol (HPKE-based)
 
-1.  **Discovery:** One entity discovers the other, either through a direct connection, a discovery service, or by scanning a QR code.
-2.  **Handshake:** The two entities perform a cryptographic handshake to establish a secure channel and exchange their public keys.
-3.  **Pairing:** The entities exchange and store their respective Web4 identifiers and public keys, creating a persistent pairing.
-4.  **Witnessing (Optional):** A third-party witness may be involved to notarize the pairing, adding an extra layer of trust.
+The Web4 handshake protocol is based on the Hybrid Public Key Encryption (HPKE) standard [RFC9180]. It is used to establish a secure, authenticated channel between two entities.
 
-### 1.2. Handshake Messages
+```
+Client                                                   Server
+------                                                   ------
+ClientHello
+  + supported_suites
+  + supported_extensions
+  + client_public_key
+  + client_w4id_ephemeral
+  + nonce[32]
+  + GREASE_extensions[]
+                           -------->
+                                                    ServerHello
+                                                      + selected_suite
+                                                      + selected_extensions
+                                                      + server_public_key
+                                                      + server_w4id_ephemeral
+                                                      + nonce[32]
+                                                      + encrypted_credentials
+                           <--------
+ClientFinished
+  + encrypted{client_credentials}
+  + MAC(transcript)
+                           -------->
+                                                    ServerFinished
+                                                      + MAC(transcript)
+                                                      + session_id
+                           <--------
 
-The handshake process involves the exchange of the following messages:
-
--   **ClientHello:** The initiating entity (client) sends a `ClientHello` message to the responding entity (server). This message includes the client's public key and a list of supported cryptographic algorithms.
--   **ServerHello:** The server responds with a `ServerHello` message, which includes its public key and the selected cryptographic algorithm.
--   **ClientFinished:** The client sends a `ClientFinished` message, which is encrypted with the server's public key and contains a signature of the handshake messages.
--   **ServerFinished:** The server responds with a `ServerFinished` message, which is encrypted with the client's public key and contains a signature of the handshake messages.
+[Application Data]         <------->         [Application Data]
+```
 
 ### 1.3. Pairing Methods
 

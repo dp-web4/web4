@@ -1,0 +1,34 @@
+{
+  "flow": [
+    {
+      "type": "ClientHello",
+      "suite_proposals": [
+        "W4-BASE-1",
+        "W4-FIPS-1"
+      ],
+      "ext": [
+        "w4_ext_sdjwt_vp@1",
+        "w4_ext_93f07f2a@0"
+      ]
+    },
+    {
+      "type": "ServerHello",
+      "suite_selected": "W4-BASE-1",
+      "ext_ack": [
+        "w4_ext_sdjwt_vp@1"
+      ]
+    },
+    {
+      "type": "HandshakeAuth",
+      "dir": "I->R"
+    },
+    {
+      "type": "HandshakeAuth",
+      "dir": "R->I"
+    },
+    {
+      "type": "SessionKeyUpdate",
+      "reason": "periodic"
+    }
+  ]
+}

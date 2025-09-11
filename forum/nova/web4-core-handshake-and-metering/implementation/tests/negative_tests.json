@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {
+      "name": "Replay Hello",
+      "input": {
+        "nonce": "001122"
+      },
+      "expected_error": "W4_ERR_REPLAY"
+    },
+    {
+      "name": "Downgrade Attempt",
+      "input": {
+        "suite": "legacy-NULL"
+      },
+      "expected_error": "W4_ERR_DOWNGRADE_DETECTED"
+    }
+  ]
+}

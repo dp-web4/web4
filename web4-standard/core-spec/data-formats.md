@@ -61,3 +61,77 @@ Every Web4 message and credential that uses JSON-LD MUST include a `@context` pr
 [4] Guha, R.V., Brickley, D., and S. Macbeth, "Schema.org", <https://schema.org/>.
 
 
+
+_
+
+
+
+## 4. Pairwise W4ID Derivation
+
+To enhance privacy, Web4 supports the derivation of pairwise, pseudonymous W4IDs. This allows an entity to use a different identifier for each of its relationships, preventing correlation and tracking.
+
+### 4.1. Derivation Function
+
+The following Python code demonstrates the derivation of a pairwise W4ID:
+
+```python
+def derive_pairwise_w4id(master_secret: bytes, peer_identifier: str) -> str:
+    """Derive a pairwise pseudonymous W4ID for privacy"""
+    salt = sha256(peer_identifier.encode()).digest()
+    pairwise_key = hkdf(
+        master_secret,
+        salt=salt,
+        info=b"web4-pairwise-id",
+        length=32
+    )
+    return f"w4id:pair:{base32_encode(pairwise_key[:16])}"
+```
+
+### 4.2. Derivation Process
+
+1.  **`master_secret`**: A secret key known only to the entity.
+2.  **`peer_identifier`**: The unique identifier of the peer entity.
+3.  **`salt`**: The salt is derived from the peer's identifier to ensure that a different key is generated for each peer.
+4.  **`hkdf`**: The HMAC-based Key Derivation Function (HKDF) is used to derive a new key from the master secret and the salt.
+5.  **`pairwise_key`**: The derived key is used to generate the pairwise W4ID.
+6.  **`base32_encode`**: The resulting key is encoded using Base32 to create a URL-safe identifier.
+
+
+
+
+## 5. Message Canonicalization
+
+To ensure that digital signatures are consistent and verifiable, Web4 messages MUST be canonicalized before signing. Web4 supports two canonicalization schemes:
+
+### 5.1. JSON Canonicalization Scheme (JCS)
+
+When using JSON, messages MUST be canonicalized using the JSON Canonicalization Scheme (JCS) as specified in RFC 8785. The following JavaScript code demonstrates JCS:
+
+```javascript
+// JSON Canonicalization Scheme (JCS) - RFC 8785
+function canonicalizeJSON(obj) {
+  return JSON.stringify(obj, Object.keys(obj).sort());
+}
+```
+
+### 5.2. CBOR Deterministic Encoding
+
+When using CBOR, messages MUST be encoded using the deterministic encoding rules specified in RFC 7049. The following rules MUST be followed:
+
+1.  Integers use the smallest possible encoding.
+2.  Maps are sorted by key encoding.
+3.  Indefinite-length items use definite-length.
+4.  No duplicate keys in maps.
+
+```javascript
+// CBOR Deterministic Encoding
+function canonicalizeCBOR(obj) {
+  // 1. Integers use smallest possible encoding
+  // 2. Maps sorted by key encoding
+  // 3. Indefinite-length items use definite-length
+  // 4. No duplicate keys in maps
+  return cbor.encode(obj, {canonical: true});
+}
+```
+
+

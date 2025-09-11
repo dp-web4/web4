@@ -1,0 +1,11 @@
+stateDiagram-v2
+    [*] --> Start
+    Start --> SendClientHello
+    SendClientHello --> WaitServerHello
+    WaitServerHello --> DeriveHPKE : valid ServerHello
+    DeriveHPKE --> SendAuth
+    SendAuth --> WaitAuth
+    WaitAuth --> Established : auth ok
+    WaitAuth --> Error : auth fail
+    Established --> Rekey : SessionKeyUpdate
+    Rekey --> Established

@@ -21,7 +21,49 @@ import uuid
 from datetime import datetime, timezone
 
 
-class Web4Client:
+import nacl.utils
+import nacl.secret
+import nacl.signing
+import nacl.encoding
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+class Web4Entity:
+    def __init__(self, entity_type: str, hardware_id: Optional[str] = None):
+        # Separate keys for different purposes
+        self.binding_key = nacl.signing.SigningKey.generate()  # Long-term identity
+        self.pairing_keys = {}  # Ephemeral session keys per peer
+        self.witness_log = []    # Accumulated witness evidence
+        self.mrh_tensor = {}     # Bidirectional relationship links
+        
+        # Generate pairwise identifiers for privacy
+        self.master_secret = nacl.utils.random(32)
+        self.pairwise_ids = {}
+        
+        # Binding to hardware if applicable
+        self.hardware_id = hardware_id
+        self.lct = self.create_binding(entity_type)
+    
+    def create_binding(self, entity_type: str) -> LCT:
+        """Create permanent binding between entity and LCT"""
+        # Implementation following formal spec above
+        pass
+    
+    def initiate_pairing(self, peer_lct: str, context: str) -> PairingSession:
+        """Establish authorized operational relationship"""
+        # Implement pairing protocol with key halves
+        pass
+    
+    def witness_entity(self, observed_lct: str, evidence: Evidence) -> WitnessRecord:
+        """Build trust through observation"""
+        # Create bidirectional MRH tensor links
+        pass
+    
+    def broadcast_presence(self, message_type: str, payload: dict) -> None:
+        """Unidirectional announcement without relationship"""
+        # Simple broadcast, no acknowledgment expected
+        pass
+
+class Web4Client(Web4Entity):
     """
     A reference implementation of a Web4 client.
     
