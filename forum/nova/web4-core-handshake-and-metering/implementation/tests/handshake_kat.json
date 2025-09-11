@@ -1,0 +1,16 @@
+{
+  "description": "Minimal illustrative KAT vectors (non-cryptographic; do not deploy).",
+  "suite": "W4-BASE-1",
+  "clienthello": {
+    "nonce": "00112233445566778899aabb",
+    "kex_epk": "X25519:ephemeral-pub-ABCD"
+  },
+  "serverhello": {
+    "nonce": "bbaa99887766554433221100",
+    "kex_epk": "X25519:ephemeral-pub-DCBA"
+  },
+  "transcript_hash": "sha256:deadbeef...",
+  "exporter_secret": "hpke_exporter_dummy",
+  "k_send": "0011...",
+  "k_recv": "aabb..."
+}

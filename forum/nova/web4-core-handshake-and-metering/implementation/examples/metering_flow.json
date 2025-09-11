@@ -1,0 +1,31 @@
+{
+  "flow": [
+    {
+      "type": "CreditGrant",
+      "grant_id": "atp-AAA...",
+      "ceil": {
+        "total": 100000,
+        "unit": "joule-equivalent"
+      }
+    },
+    {
+      "type": "UsageReport",
+      "seq": 1,
+      "usage": [
+        {
+          "scope": "compute:infer",
+          "amount": 420,
+          "unit": "joule-equivalent"
+        }
+      ]
+    },
+    {
+      "type": "Settle",
+      "up_to_seq": 1,
+      "balance": {
+        "remaining": 99580,
+        "unit": "joule-equivalent"
+      }
+    }
+  ]
+}

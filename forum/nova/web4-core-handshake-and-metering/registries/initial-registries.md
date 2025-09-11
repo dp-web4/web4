@@ -1,0 +1,24 @@
+# Initial Registries
+Status: Draft • Last-Updated: 2025-09-11T22:47:56.408268Z
+
+## Suite IDs
+- W4-BASE-1 : X25519 / Ed25519 / ChaCha20-Poly1305 / SHA-256 (COSE)
+- W4-FIPS-1 : P-256 ECDH / ECDSA-P256 / AES-128-GCM / SHA-256 (JOSE)
+
+## Extension IDs (provisional)
+- w4_ext_sdjwt_vp@1
+- w4_ext_noise_xx@1
+- w4_ext_93f07f2a@0 (GREASE placeholder)
+
+## Error Codes
+- W4_ERR_UNSUPPORTED_SUITE
+- W4_ERR_DOWNGRADE_DETECTED
+- W4_ERR_AUTHZ_DENIED
+- W4_ERR_REPLAY
+- W4_ERR_BAD_TIMESTAMP
+- W4_ERR_GRANT_EXPIRED
+- W4_ERR_RATE_LIMIT
+- W4_ERR_SCOPE_DENIED
+- W4_ERR_BAD_SEQUENCE
+- W4_ERR_WITNESS_REQUIRED
+- W4_ERR_FORMAT
