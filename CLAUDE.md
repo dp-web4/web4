@@ -32,14 +32,33 @@ The Web4 whitepaper is actively evolving with:
 
 ## Recent Developments
 
-### Dictionary Entities (August 20, 2025)
+### Entity Relationship Mechanisms (January 2025)
+- **Binding**: Permanent identity attachment (hardware to LCT)
+- **Pairing**: Authorized operational relationships with symmetric keys
+- **Witnessing**: Trust building through observation with bidirectional MRH links
+- **Broadcast**: Unidirectional public announcement for discovery
+- Documented with concrete implementation examples from modbatt-CAN project
+
+### Web4 Internet Standard Development (January 2025)
+- Created comprehensive instructions for formal standard development
+- 21-day structured plan for IETF RFC and W3C specification
+- Includes reference implementations, conformance tests, and governance framework
+- Target: Transform Web4 from concept to legitimate internet standard
+
+### Entity Binding Hierarchy Implementation (January 2025)
+- Documented multi-level binding from API-Bridge → App → Pack Controller → Battery Module
+- Each level witnesses the level below, creating unforgeable presence chain
+- Public key exchange creates bidirectional MRH tensor links
+- Physical hardware achieves digital presence through hierarchical witnessing
+
+### Dictionary Entities (August 20, 2024)
 - Elevated from implementation detail to foundational concept
 - Section 2.6 in Foundational Concepts
 - Living entities with their own LCTs
 - Manage trust degradation in translation
 - Embody compression-trust relationship
 
-### Trust as Gravity (August 20, 2025)
+### Trust as Gravity (August 20, 2024)
 - Added Section 2.7 to Foundational Concepts
 - Trust operates as fundamental force
 - High-trust entities attract attention, resources, opportunities
@@ -68,6 +87,14 @@ cd whitepaper
 
 ## Key Insights
 
+### LCT Unforgeability Through Witnessed Presence
+- **Presence exists only through witnessing** - An entity's presence is real to the extent it is observed and recorded
+- **Hierarchical witness chains** - LCTs link to other LCTs, creating trees of contextual witnessing
+- **Cross-domain validation** - LCT trees span blockchains, domains, and fractal boundaries
+- **Presence accumulation** - The more an entity is witnessed, the more present it becomes
+- **Historical immutability** - Accumulated witnessing makes falsifying presence history exponentially harder
+- **Reification through observation** - LCTs transform abstract presence into concrete, verifiable reality
+
 ### Compression-Trust Unity
 - Compression requires trust in shared decompression artifacts
 - What appears "lossy" is missing context in receiver
@@ -80,6 +107,12 @@ cd whitepaper
 - Zero trust = Raw data transmission
 
 ## Related Projects
+
+### Modbatt-CAN
+- Concrete implementation of Web4 entity binding hierarchy
+- Demonstrates binding, pairing, witnessing, and broadcast in real hardware
+- CAN bus protocol integration with blockchain identity
+- Reference implementation for IoT Web4 adoption
 
 ### Portal
 - Entity connection protocols
