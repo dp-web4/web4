@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="US-ASCII"?>
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd">
+<?rfc toc="yes"?>
+<?rfc tocompact="yes"?>
+<?rfc tocdepth="3"?>
+<?rfc tocindent="yes"?>
+<?rfc symrefs="yes"?>
+<?rfc sortrefs="yes"?>
+<?rfc comments="yes"?>
+<?rfc inline="yes"?>
+<?rfc compact="yes"?>
+<?rfc subcompact="no"?>
+
+<rfc category="std" docName="draft-web4-core-00" ipr="trust200902">
+  <front>
+    <title abbrev="Web4">Web4: The Witnessed Internet Protocol Suite</title>
+
+    <author fullname="Web4 Working Group" initials="W4WG" surname="Working Group">
+      <organization>Web4 Community</organization>
+      <address>
+        <email>standards@web4.dev</email>
+        <uri>https://github.com/dp-web4/web4</uri>
+      </address>
+    </author>
+
+    <date year="2025" month="January" day="11"/>
+
+    <area>Internet</area>
+    <workgroup>Independent Submission</workgroup>
+    <keyword>trust</keyword>
+    <keyword>identity</keyword>
+    <keyword>witnessing</keyword>
+    <keyword>LCT</keyword>
+
+    <abstract>
+      <t>
+        This document defines Web4, a protocol suite that introduces witnessed
+        presence as a fundamental internet primitive. Web4 enables unforgeable
+        digital identity through four core mechanisms: binding (permanent identity
+        attachment), pairing (authorized relationships), witnessing (trust through
+        observation), and broadcast (discovery). The protocol uses modern
+        cryptographic primitives including HPKE for handshakes and provides
+        privacy through pairwise pseudonymous identifiers.
+      </t>
+    </abstract>
+  </front>
+
+  <middle>
+    <section title="Introduction">
+      <t>
+        The current internet lacks a fundamental primitive for establishing
+        unforgeable digital presence. While we have cryptographic identity (PKI)
+        and distributed systems (blockchain), we lack a systematic way to make
+        digital entities as real and trustworthy as physical ones. Web4 addresses
+        this gap by introducing witnessed presence as a core internet service.
+      </t>
+
+      <section title="Motivation">
+        <t>
+          Existing identity systems suffer from several fundamental problems:
+        </t>
+        <t>
+          <list style="symbols">
+            <t>Digital identities can be stolen, spoofed, or impersonated</t>
+            <t>No systematic way to build and verify trust through observation</t>
+            <t>No accounting for actual value exchange between entities</t>
+            <t>Privacy and identity are often inextricably linked</t>
+          </list>
+        </t>
+        <t>
+          Web4 solves these problems through a novel approach: making presence
+          real through witnessing, and trust measurable through accumulated
+          observation.
+        </t>
+      </section>
+
+      <section title="Scope">
+        <t>
+          This specification defines:
+        </t>
+        <t>
+          <list style="symbols">
+            <t>The four core entity relationship mechanisms</t>
+            <t>Cryptographic protocols for secure communication</t>
+            <t>Data formats and message structures</t>
+            <t>Trust accumulation and metering protocols</t>
+            <t>Privacy-preserving identity mechanisms</t>
+          </list>
+        </t>
+      </section>
+
+      <section title="Requirements Language">
+        <t>
+          The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+          "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+          "OPTIONAL" in this document are to be interpreted as described in
+          BCP 14 <xref target="RFC2119"/> <xref target="RFC8174"/> when, and
+          only when, they appear in all capitals, as shown here.
+        </t>
+      </section>
+    </section>
+
+    <section title="Terminology">
+      <t>
+        This section defines key terms used throughout the specification.
+      </t>
+      
+      <t>
+        <list style="hanging">
+          <t hangText="LCT:">
+            Linked Context Token - A permanent, non-transferable digital
+            identity token bound to an entity.
+          </t>
+          <t hangText="MRH:">
+            Markov Relevancy Horizon - The contextual boundary defining
+            what is relevant to an entity.
+          </t>
+          <t hangText="Binding:">
+            The permanent attachment of an LCT to a digital or physical entity.
+          </t>
+          <t hangText="Pairing:">
+            An authorized operational relationship between two bound entities.
+          </t>
+          <t hangText="Witnessing:">
+            The act of observing and recording another entity's existence or actions.
+          </t>
+          <t hangText="W4ID:">
+            Web4 Identifier - A globally unique identifier for a Web4 entity.
+          </t>
+          <t hangText="W4IDp:">
+            Pairwise W4ID - A pseudonymous identifier derived per relationship.
+          </t>
+        </list>
+      </t>
+    </section>
+
+    <section title="Architecture Overview">
+      <t>
+        Web4 consists of multiple protocol layers:
+      </t>
+      
+      <figure>
+        <artwork><![CDATA[
++--------------------------------------------------+
+|            APPLICATION LAYER                      |
+|             (Web4 Entity Logic)                   |
++--------------------------------------------------+
+|             METERING LAYER                        |
+|          (ATP/ADP Resource Exchange)              |
++--------------------------------------------------+
+|          RELATIONSHIP LAYER                       |
+|    (Binding | Pairing | Witnessing | Broadcast)   |
++--------------------------------------------------+
+|             SESSION LAYER                         |
+|          (HPKE Handshake Protocol)                |
++--------------------------------------------------+
+|            TRANSPORT LAYER                        |
+|      (TLS/QUIC | WebSocket | CAN | BLE)          |
++--------------------------------------------------+
+        ]]></artwork>
+      </figure>
+    </section>
+
+    <section title="Entity Relationship Mechanisms">
+      <section title="Binding">
+        <t>
+          Binding creates a permanent, non-transferable connection between
+          a digital identity (LCT) and an entity. This is the foundational
+          act of creating digital presence.
+        </t>
+        
+        <figure>
+          <artwork><![CDATA[
+binding-request = binding-version SP entity-type SP 
+                  public-key SP hardware-id
+binding-response = binding-version SP lct-id SP binding-proof
+binding-version = "BIND/1.0"
+entity-type = "DEVICE" / "SERVICE" / "USER" / "ORACLE"
+          ]]></artwork>
+        </figure>
+      </section>
+
+      <section title="Pairing">
+        <t>
+          Pairing establishes authorized communication channels between
+          already-bound entities for specific operational contexts.
+        </t>
+        
+        <figure>
+          <artwork><![CDATA[
+pairing-request = pairing-version SP lct-a SP lct-b SP 
+                  context SP rules
+pairing-response = pairing-version SP session-id SP 
+                   key-half-a SP key-half-b
+pairing-version = "PAIR/1.0"
+          ]]></artwork>
+        </figure>
+      </section>
+
+      <section title="Witnessing">
+        <t>
+          Witnessing is the act of observing and recording another entity's
+          existence or actions, creating bidirectional trust links.
+        </t>
+        
+        <figure>
+          <artwork><![CDATA[
+witness-assertion = witness-version SP observer-lct SP 
+                    observed-lct SP evidence
+witness-version = "WTNS/1.0"
+evidence = evidence-type SP evidence-data SP signature
+evidence-type = "EXISTENCE" / "ACTION" / "STATE" / "TRANSITION"
+          ]]></artwork>
+        </figure>
+      </section>
+
+      <section title="Broadcast">
+        <t>
+          Broadcast enables unidirectional announcement of presence or
+          capabilities without requiring acknowledgment or relationship.
+        </t>
+        
+        <figure>
+          <artwork><![CDATA[
+broadcast-message = broadcast-version SP sender-id SP 
+                    message-type SP payload
+broadcast-version = "CAST/1.0"
+message-type = "ANNOUNCE" / "HEARTBEAT" / "CAPABILITY"
+          ]]></artwork>
+        </figure>
+      </section>
+    </section>
+
+    <section title="Cryptographic Framework">
+      <section title="Algorithm Suites">
+        <t>
+          Web4 defines the following cryptographic suites:
+        </t>
+        
+        <texttable>
+          <ttcol>Suite ID</ttcol>
+          <ttcol>KEM</ttcol>
+          <ttcol>Sig</ttcol>
+          <ttcol>AEAD</ttcol>
+          <ttcol>Hash</ttcol>
+          <ttcol>Status</ttcol>
+          
+          <c>W4-BASE-1</c>
+          <c>X25519</c>
+          <c>Ed25519</c>
+          <c>ChaCha20-Poly1305</c>
+          <c>SHA-256</c>
+          <c>MUST</c>
+          
+          <c>W4-FIPS-1</c>
+          <c>P-256</c>
+          <c>ECDSA-P256</c>
+          <c>AES-128-GCM</c>
+          <c>SHA-256</c>
+          <c>SHOULD</c>
+        </texttable>
+      </section>
+
+      <section title="Handshake Protocol">
+        <t>
+          The Web4 handshake is based on HPKE <xref target="RFC9180"/>
+          and establishes authenticated, forward-secret sessions.
+        </t>
+      </section>
+    </section>
+
+    <section title="Privacy Considerations">
+      <t>
+        Web4 provides privacy through pairwise pseudonymous identifiers.
+        Each entity derives a unique W4IDp for each relationship:
+      </t>
+      
+      <figure>
+        <artwork><![CDATA[
+w4idp = MB32(HKDF-Extract-Then-Expand(
+          salt=peer_salt,
+          IKM=sk_master,
+          info="W4IDp:v1"))
+        ]]></artwork>
+      </figure>
+      
+      <t>
+        This ensures that entities cannot be correlated across different
+        relationships without their consent.
+      </t>
+    </section>
+
+    <section title="Security Considerations">
+      <t>
+        Web4's security relies on:
+      </t>
+      <t>
+        <list style="symbols">
+          <t>Forward secrecy through HPKE ephemeral keys</t>
+          <t>Binding permanence preventing identity theft</t>
+          <t>Witnessed presence making impersonation detectable</t>
+          <t>Pairwise identifiers preventing correlation attacks</t>
+        </list>
+      </t>
+      
+      <t>
+        Implementations MUST use cryptographically secure random number
+        generators and MUST protect private keys using hardware security
+        modules when available.
+      </t>
+    </section>
+
+    <section title="IANA Considerations">
+      <t>
+        This document requests IANA to create the following registries:
+      </t>
+      <t>
+        <list style="symbols">
+          <t>Web4 Suite Identifiers</t>
+          <t>Web4 Extension Types</t>
+          <t>Web4 Error Codes</t>
+          <t>Web4 Evidence Types</t>
+        </list>
+      </t>
+    </section>
+  </middle>
+
+  <back>
+    <references title="Normative References">
+      <reference anchor="RFC2119">
+        <front>
+          <title>Key words for use in RFCs to Indicate Requirement Levels</title>
+          <author initials="S." surname="Bradner" fullname="S. Bradner">
+            <organization/>
+          </author>
+          <date year="1997" month="March"/>
+        </front>
+        <seriesInfo name="BCP" value="14"/>
+        <seriesInfo name="RFC" value="2119"/>
+      </reference>
+
+      <reference anchor="RFC8174">
+        <front>
+          <title>Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words</title>
+          <author initials="B." surname="Leiba" fullname="B. Leiba">
+            <organization/>
+          </author>
+          <date year="2017" month="May"/>
+        </front>
+        <seriesInfo name="BCP" value="14"/>
+        <seriesInfo name="RFC" value="8174"/>
+      </reference>
+
+      <reference anchor="RFC9180">
+        <front>
+          <title>Hybrid Public Key Encryption</title>
+          <author initials="R." surname="Barnes" fullname="R. Barnes">
+            <organization/>
+          </author>
+          <author initials="K." surname="Bhargavan" fullname="K. Bhargavan">
+            <organization/>
+          </author>
+          <author initials="B." surname="Lipp" fullname="B. Lipp">
+            <organization/>
+          </author>
+          <author initials="C." surname="Wood" fullname="C. Wood">
+            <organization/>
+          </author>
+          <date year="2022" month="February"/>
+        </front>
+        <seriesInfo name="RFC" value="9180"/>
+      </reference>
+    </references>
+
+    <section title="Acknowledgments">
+      <t>
+        This specification was created through unprecedented collaboration
+        between AI systems (Manus, Nova, Claude), demonstrating Web4's core
+        principle of witnessed presence strengthening truth through multiple
+        perspectives.
+      </t>
+    </section>
+  </back>
+</rfc>
