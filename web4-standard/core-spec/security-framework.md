@@ -5,29 +5,50 @@ This document defines the security framework for the Web4 standard. It covers th
 
 
 
-## 1. Cryptographic Primitives
+## 1. Cryptographic Suites
 
-The security of the Web4 protocol relies on a set of well-established and secure cryptographic primitives. This section specifies the required and recommended algorithms for digital signatures, key exchange, and encryption.
+Web4 defines standardized cryptographic suites to ensure interoperability and security. All implementations MUST support the mandatory suite.
 
-### 1.1. Digital Signatures
+### 1.1. Suite Definitions
 
-Digital signatures are used to ensure the authenticity and integrity of messages and credentials. Web4 implementations MUST support the following digital signature algorithm:
+| Suite ID          | KEM     | Sig       | AEAD                | Hash    | Profile | Status |
+|-------------------|---------|-----------|---------------------|---------|---------|--------|
+| W4-BASE-1         | X25519  | Ed25519   | ChaCha20-Poly1305   | SHA-256 | COSE    | MUST   |
+| W4-FIPS-1         | P-256   | ECDSA-P256| AES-128-GCM         | SHA-256 | JOSE    | SHOULD |
 
--   **ECDSA with P-256 and SHA-256:** Elliptic Curve Digital Signature Algorithm with the P-256 curve and the SHA-256 hash function.
+**Implementation Requirements:**
+- Implementations MUST support W4-BASE-1
+- FIPS-bound environments SHOULD support W4-FIPS-1
+- Other suites MAY be offered but MUST NOT be negotiated as MTI
 
-Implementations MAY support other signature algorithms, such as RSA, but ECDSA with P-256 and SHA-256 is the baseline for interoperability.
+### 1.2. Algorithm Specifications
 
-### 1.2. Key Exchange
+#### W4-BASE-1 (Mandatory to Implement)
+- **Key Exchange**: X25519 (RFC 7748)
+- **Signatures**: Ed25519 (RFC 8032)
+- **AEAD**: ChaCha20-Poly1305 (RFC 8439)
+- **Hash**: SHA-256 (FIPS 180-4)
+- **KDF**: HKDF-SHA256 (RFC 5869)
+- **Encoding**: COSE (RFC 8152)
 
-Key exchange is used to establish a shared secret between two entities. Web4 implementations MUST support the following key exchange algorithm:
+#### W4-FIPS-1 (FIPS Compliance)
+- **Key Exchange**: ECDH with P-256 (FIPS 186-4)
+- **Signatures**: ECDSA with P-256 (FIPS 186-4)
+- **AEAD**: AES-128-GCM (NIST SP 800-38D)
+- **Hash**: SHA-256 (FIPS 180-4)
+- **KDF**: HKDF-SHA256 (RFC 5869)
+- **Encoding**: JOSE (RFC 7515/7516)
 
--   **ECDH with P-256:** Elliptic Curve Diffie-Hellman with the P-256 curve.
+### 1.3. Canonicalization and Signatures
 
-### 1.3. Symmetric Encryption
+#### COSE/CBOR (MUST)
+- Deterministic CBOR encoding per CTAP2
+- Ed25519 with `crv: Ed25519` and `alg: EdDSA`
+- Payload is the canonical CBOR map
 
-Symmetric encryption is used to encrypt messages and data. Web4 implementations MUST support the following symmetric encryption algorithm:
-
--   **AES-256-GCM:** Advanced Encryption Standard with a 256-bit key in Galois/Counter Mode.
+#### JOSE/JSON (SHOULD)
+- JCS canonical JSON (RFC 8785)
+- ES256 with compact serialization or JWS JSON serialization
 
 
 

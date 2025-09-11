@@ -26,6 +26,8 @@ HPKE KDF is HKDF-SHA-256. Implementations MAY offer additional suites but MUST a
 GREASE (random unknown suite IDs) during negotiation.
 
 ## 4. Identifiers
+
+### 4.1 Pairwise W4IDp Derivation
 Each party holds a *master secret* `sk_master` (32 bytes). A pairwise identifier for
 peer P is derived:
 ```
@@ -33,13 +35,44 @@ w4idp = MB32(HKDF-Extract-Then-Expand(salt=peer_salt,
                                       IKM=sk_master,
                                       info="W4IDp:v1"))
 ```
-Where MB32 is multibase base32 without padding. `peer_salt` MUST be unique per peer and
-MUST NOT reveal the peer’s stable identity.
+Where MB32 is multibase base32 without padding.
+
+### 4.2 Pairwise W4IDp Lifecycle
+
+**Salt Requirements:**
+- `peer_salt` MUST be 128-bit random, unique per counterparty relationship
+- `peer_salt` MUST NOT be derived from stable identifiers
+- `peer_salt` MUST be exchanged during initial handshake
+
+**Lifetime and Rotation:**
+- A W4IDp MUST be re-derived when either party rotates its master key
+- W4IDp MUST NOT be reused across counterparties or exported into logs/URIs visible to unrelated parties
+- Implementations SHOULD support at least 4 concurrently valid W4IDp values per peer to cover overlapping rotations
+
+**Privacy Requirements:**
+- W4IDp values MUST NOT contain or derive from personally identifiable information
+- W4IDp MUST NOT be used as correlation handles across different relationships
+- Implementations MUST generate new W4IDp for each relationship even with the same peer in different contexts
 
 
 ## 5. Capability & Suite Negotiation
 The Initiator sends a `ClientHello` including supported suites, media profiles, and
 extensions. Unknown extensions MUST be ignored. At least one GREASE extension MUST be sent.
+
+### 5.0 GREASE Procedure
+
+GREASE (Generate Random Extensions And Sustain Extensibility) prevents ossification:
+
+**Extension ID Format:**
+- GREASE extension IDs use format: `w4_ext_[8-hex-digits]@0`
+- Reserved hex patterns: `*a*a*a*a` where `*` is any hex digit
+- Example: `w4_ext_1a2a3a4a@0`, `w4_ext_fafbfcfd@0`
+
+**Requirements:**
+- Implementations MUST include at least one GREASE extension in ClientHello
+- Implementations MUST ignore unrecognized extensions (including GREASE)
+- GREASE values MUST be randomly generated for each handshake
+- Suite IDs follow similar pattern: `W4-GREASE-[8-hex-digits]`
 
 ### 5.1 ClientHello (plaintext JSON, over TLS/QUIC or out-of-band)
 ```json
@@ -77,6 +110,19 @@ The transcript hash `TH` is the running hash (SHA-256) over canonical encodings 
 ## 6. Authentication & Key Confirmation
 After Hello messages and HPKE context establishment, parties authenticate and bind
 their identities and capabilities to the transcript using signatures.
+
+### 6.0 Canonicalization and Signatures
+
+Web4 defines two canonicalization and signature profiles:
+
+#### COSE/CBOR (MUST)
+- Deterministic CBOR encoding per CTAP2
+- Ed25519 with `crv: Ed25519` and `alg: EdDSA`
+- Payload is the canonical CBOR map
+
+#### JOSE/JSON (SHOULD)
+- JCS canonical JSON (RFC 8785)
+- ES256 with compact serialization or JWS JSON serialization
 
 ### 6.1 HandshakeAuth (I → R, then R → I)
 ```
