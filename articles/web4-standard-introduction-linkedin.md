@@ -82,6 +82,6 @@ This isn't just an upgrade to the internet. It's the foundation for a digital wo
 
 *To review the technical specification, contribute to development, or implement Web4 in your platform, visit [github.com/dp-web4/web4](https://github.com/dp-web4/web4)*
 
-*For partnership inquiries and enterprise implementation, contact: standards@web4.dev*
+*For partnership inquiries and enterprise implementation, contact: *dp@metalinxx.io*
 
 #Web4 #DigitalIdentity #InternetStandards #Cybersecurity #DigitalTransformation #TechInnovation #FutureOfInternet #IdentityManagement #DistributedSystems #TrustTechnology

@@ -115,14 +115,49 @@ their identities and capabilities to the transcript using signatures.
 
 Web4 defines two canonicalization and signature profiles:
 
-#### COSE/CBOR (MUST)
-- Deterministic CBOR encoding per CTAP2
-- Ed25519 with `crv: Ed25519` and `alg: EdDSA`
-- Payload is the canonical CBOR map
+#### 6.0.1 Profile Selection & Negotiation (MUST)
 
-#### JOSE/JSON (SHOULD)
-- JCS canonical JSON (RFC 8785)
-- ES256 with compact serialization or JWS JSON serialization
+- Each session **MUST** select exactly one signature/canonicalization profile
+- Negotiation is performed via `media` and `ext` in ClientHello/ServerHello:
+  - `application/web4+cbor` → `w4_sig_cose@1` (COSE/CBOR profile)
+  - `application/web4+json` → `w4_sig_jose@1` (JOSE/JSON profile)
+- The **selected media type and signature extension ID MUST be included in TH** (the transcript hash) to prevent downgrade
+
+#### 6.0.2 Mandatory-to-Implement (MTI) (MUST)
+
+All Web4 endpoints **MUST** implement **COSE/CBOR** with Ed25519/EdDSA.
+Endpoints **SHOULD** implement **JOSE/JSON** with ES256 for ecosystem bridging.
+All signed Web4 payloads (HandshakeAuth, LCT binding, Metering messages) **MUST** be valid under the selected session profile.
+
+#### 6.0.3 COSE/CBOR Profile (MUST)
+
+- **Canonicalization:** Deterministic CBOR per CTAP2 (deterministic maps, integers shortest form)
+- **Signature envelope:** `COSE_Sign1` with protected headers:
+  - `alg = -8` (EdDSA)
+  - `kid = <bstr>` (key identifier)
+  - `content-type = "application/web4+cbor"`
+- **Sig structure:** Sign the canonical CBOR map of the payload **excluding** any `sig`/envelope fields
+- **Key curve:** Ed25519 (`crv = 6`)
+- **Verification:** Receivers **MUST** decode deterministic CBOR and verify `COSE_Sign1` against `kid`. Unknown protected headers **MUST** be ignored unless listed in `crit`
+
+#### 6.0.4 JOSE/JSON Profile (SHOULD)
+
+- **Canonicalization:** JCS (RFC 8785)
+- **Signature:** JWS (compact or JSON serialization) with `alg = "ES256"`, `kid` present
+- **Signing input:** JWS Protected Header (base64url) `.` JCS-canonical payload (base64url)
+- **Verification:** Receivers **MUST** JCS-canonicalize before verification and honor `crit`
+
+#### 6.0.5 Binding to Session (MUST)
+
+`HandshakeAuth` signatures **MUST** cover `Hash(TH || channel_binding)` so the chosen `media`, `ext`, and suite list are cryptographically bound to the session. The same key material (`kid`) used in `HandshakeAuth` **MUST** be authorized for subsequent signed messages unless superseded by LCT policy/rotation.
+
+#### 6.0.6 Kid Format (SHOULD)
+
+`kid` SHOULD be a multibase, multicodec COSE Key thumbprint (or JWK thumbprint for JOSE) to avoid collisions.
+
+#### 6.0.7 Failure Handling
+
+If the received signature profile doesn't match the negotiated `media`/`ext`, endpoints **MUST** abort with `W4_ERR_PROTO_FORMAT` (Problem Details).
 
 ### 6.1 HandshakeAuth (I → R, then R → I)
 ```

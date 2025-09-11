@@ -113,11 +113,64 @@ Web4 uses JSON-LD (JSON for Linked Data) to represent data in a structured and i
 
 
 
-## 4. URI Scheme
+## 4. Transport and Discovery
+
+### 4.1 Transport Matrix
+
+Web4 operates over multiple transport protocols with the following requirements:
+
+| Transport | Status | Use Cases | Handshake | Metering |
+|-----------|--------|-----------|-----------|----------|
+| TLS 1.3 | MUST | Web, Cloud | Standard | Full |
+| QUIC | MUST | Low-latency, Mobile | Standard | Full |
+| WebTransport | SHOULD | Browser P2P | Standard | Full |
+| WebRTC DataChannel | SHOULD | P2P, NAT traversal | Adapted | Full |
+| WebSocket | MAY | Legacy browser | Standard | Full |
+| BLE GATT | MAY | IoT, Proximity | Compressed | Limited |
+| CAN Bus | MAY | Automotive | Compressed | Limited |
+| TCP/TLS | MAY | Direct socket | Standard | Full |
+
+**Requirements:**
+- All transports MUST support the HPKE handshake (possibly adapted for constrained environments)
+- All transports MUST provide confidentiality and integrity
+- Constrained transports MAY use compressed message formats
+
+### 4.2 Discovery Mechanisms
+
+Web4 entities discover each other through multiple mechanisms:
+
+| Method | Status | Description | Privacy |
+|--------|--------|-------------|---------|
+| DNS-SD/mDNS | SHOULD | Local network discovery | Low - broadcasts presence |
+| QR Code OOB | SHOULD | Out-of-band pairing | High - requires proximity |
+| Witness Relay | MUST | Bootstrap via known witnesses | Medium - witness knows query |
+| DNS Bootstrap | MAY | DNS TXT records for services | Low - DNS queries visible |
+| DHT Lookup | MAY | Distributed hash table | Low - DHT participation visible |
+| Broadcast | MAY | Unidirectional announcement | Low - public broadcast |
+
+**Discovery Protocol:**
+1. Entity generates discovery request with:
+   - Desired capabilities
+   - Acceptable witness list
+   - Nonce for replay protection
+2. Discovery service returns:
+   - List of matching entities
+   - Their current witness attestations
+   - Connection endpoints
+3. Entity validates witness signatures before connecting
+
+### 4.3 Transport Selection
+
+Endpoints negotiate transport during discovery:
+- Advertise supported transports in priority order
+- Select highest mutual priority
+- Fall back to TLS 1.3 as universal baseline
+
+## 5. URI Scheme
 
 The Web4 URI scheme provides a way to identify and locate Web4 resources. The scheme is based on the standard URI syntax defined in RFC 3986 and is designed to be flexible and extensible.
 
-### 4.1. Syntax
+### 5.1. Syntax
 
 The Web4 URI scheme has the following syntax:
 
@@ -129,7 +182,7 @@ The Web4 URI scheme has the following syntax:
 -   **`[?query]`:** An optional query string.
 -   **`[#fragment]`:** An optional fragment identifier.
 
-### 4.2. Resolution
+### 5.2. Resolution
 
 To resolve a Web4 URI, the client first resolves the W4ID to obtain the entity's service endpoint. The client then sends a request to the service endpoint, including the path, query, and fragment from the URI.
 

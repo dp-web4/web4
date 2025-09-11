@@ -41,14 +41,18 @@ Web4 defines standardized cryptographic suites to ensure interoperability and se
 
 ### 1.3. Canonicalization and Signatures
 
+All Web4 signed payloads **MUST** implement COSE/CBOR (Ed25519/EdDSA) as mandatory-to-implement (MTI). JOSE/JSON (ES256) is OPTIONAL/SHOULD for bridge scenarios.
+
 #### COSE/CBOR (MUST)
 - Deterministic CBOR encoding per CTAP2
-- Ed25519 with `crv: Ed25519` and `alg: EdDSA`
+- Ed25519 with `crv: Ed25519` and `alg: EdDSA` 
 - Payload is the canonical CBOR map
+- See web4-handshake.md Section 6.0.3 for complete profile
 
 #### JOSE/JSON (SHOULD)
 - JCS canonical JSON (RFC 8785)
 - ES256 with compact serialization or JWS JSON serialization
+- See web4-handshake.md Section 6.0.4 for complete profile
 
 
 
