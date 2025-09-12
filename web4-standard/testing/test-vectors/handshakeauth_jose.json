@@ -1,0 +1,26 @@
+{
+  "protected_header": {
+    "alg": "ES256",
+    "kid": "kid-demo-1",
+    "typ": "JWT"
+  },
+  "payload": {
+    "type": "HandshakeAuth",
+    "suite": "W4-BASE-1",
+    "kid": "kid-demo-1",
+    "alg": "EdDSA",
+    "cap": {
+      "scopes": [
+        "read:lct",
+        "write:lct"
+      ]
+    },
+    "th": "deadbeefcafebabe",
+    "ts": "2025-09-11T15:00:02Z"
+  },
+  "protected_b64": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImtpZC1kZW1vLTEiLCJ0eXAiOiJKV1QifQ",
+  "payload_b64": "eyJhbGciOiJFZERTQSIsImNhcCI6eyJzY29wZXMiOlsicmVhZDpsY3QiLCJ3cml0ZTpsY3QiXX0sImtpZCI6ImtpZC1kZW1vLTEiLCJzdWl0ZSI6Ilc0LUJBU0UtMSIsInRoIjoiZGVhZGJlZWZjYWZlYmFiZSIsInRzIjoiMjAyNS0wOS0xMVQxNTowMDowMloiLCJ0eXBlIjoiSGFuZHNoYWtlQXV0aCJ9",
+  "signing_input": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImtpZC1kZW1vLTEiLCJ0eXAiOiJKV1QifQ.eyJhbGciOiJFZERTQSIsImNhcCI6eyJzY29wZXMiOlsicmVhZDpsY3QiLCJ3cml0ZTpsY3QiXX0sImtpZCI6ImtpZC1kZW1vLTEiLCJzdWl0ZSI6Ilc0LUJBU0UtMSIsInRoIjoiZGVhZGJlZWZjYWZlYmFiZSIsInRzIjoiMjAyNS0wOS0xMVQxNTowMDowMloiLCJ0eXBlIjoiSGFuZHNoYWtlQXV0aCJ9",
+  "signing_input_sha256": "38d83cfd7dcf3f5335374c5bdaf89bda2dd3b4f211468d9fca830d859ac2681d",
+  "note": "Sign signing_input with ES256 over SHA-256; place signature as third segment."
+}

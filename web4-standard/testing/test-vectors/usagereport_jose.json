@@ -1,0 +1,26 @@
+{
+  "protected_header": {
+    "alg": "ES256",
+    "kid": "kid-demo-1",
+    "typ": "JWT"
+  },
+  "payload": {
+    "type": "UsageReport",
+    "ver": "w4/1",
+    "grant_id": "atp-DEMO-123",
+    "seq": 1,
+    "window": "2025-09-11T15:00:00Z/2025-09-11T15:01:00Z",
+    "usage": [
+      {
+        "scope": "compute:infer",
+        "amount": 420,
+        "unit": "joule-equivalent"
+      }
+    ]
+  },
+  "protected_b64": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImtpZC1kZW1vLTEiLCJ0eXAiOiJKV1QifQ",
+  "payload_b64": "eyJncmFudF9pZCI6ImF0cC1ERU1PLTEyMyIsInNlcSI6MSwidHlwZSI6IlVzYWdlUmVwb3J0IiwidXNhZ2UiOlt7ImFtb3VudCI6NDIwLCJzY29wZSI6ImNvbXB1dGU6aW5mZXIiLCJ1bml0Ijoiam91bGUtZXF1aXZhbGVudCJ9XSwidmVyIjoidzQvMSIsIndpbmRvdyI6IjIwMjUtMDktMTFUMTU6MDA6MDBaLzIwMjUtMDktMTFUMTU6MDE6MDBaIn0",
+  "signing_input": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImtpZC1kZW1vLTEiLCJ0eXAiOiJKV1QifQ.eyJncmFudF9pZCI6ImF0cC1ERU1PLTEyMyIsInNlcSI6MSwidHlwZSI6IlVzYWdlUmVwb3J0IiwidXNhZ2UiOlt7ImFtb3VudCI6NDIwLCJzY29wZSI6ImNvbXB1dGU6aW5mZXIiLCJ1bml0Ijoiam91bGUtZXF1aXZhbGVudCJ9XSwidmVyIjoidzQvMSIsIndpbmRvdyI6IjIwMjUtMDktMTFUMTU6MDA6MDBaLzIwMjUtMDktMTFUMTU6MDE6MDBaIn0",
+  "signing_input_sha256": "e6c50781bc6c5f1a553841995c322e2345fbee63d3d39b3ab63d2b26b9cdca0e",
+  "note": "Sign signing_input with ES256 over SHA-256; place signature as third segment."
+}
