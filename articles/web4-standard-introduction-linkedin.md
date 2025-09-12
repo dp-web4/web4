@@ -17,13 +17,13 @@ Web4 brings this same principle to the digital world.
 ## How Web4 Works: Four Simple Mechanisms
 
 ### 1. **Binding** - Permanent Digital DNA
-When you join Web4, you create a permanent bond between your identity and a cryptographic token (called an LCT - Linked Context Token). Like DNA, this binding is unique and unforgeable. But unlike biological DNA, you can rotate or revoke your LCT if it's ever compromised—maintaining security without being locked in forever. Once bound, your digital presence becomes as real as your physical one.
+When you join Web4, you create a permanent bond between your identity and a cryptographic token (called an LCT - Linked Context Token). Like DNA, this binding is unique and unforgeable. But unlike biological DNA, you can rotate or revoke your LCT if it's ever compromised—maintaining security without being locked in forever. Once bound, your digital presence becomes as real as your physical one - your root LCT can now be bound to other LCTs, create pairings, participate in roles, and accumulate reputation that is witnessed and verified by those you interact with.
 
 ### 2. **Pairing** - Authorized Relationships  
-When two Web4 entities need to work together, they establish a "pairing"—a secure, authorized relationship. Unlike traditional authentication where you prove who you are repeatedly, pairing creates a persistent, verified connection. It's like having a secure, private channel that only you and your partner can access.
+When two Web4 entities need to work together, they establish a "pairing" through their LCTs—a secure, authorized relationship. Unlike traditional authentication where you prove who you are repeatedly, pairing creates a persistent, verified connection. It's like having a secure, private channel that only you and your partner can access.
 
 ### 3. **Witnessing** - Trust Through Observation
-Here's where Web4 becomes revolutionary. Every interaction you have can be witnessed by other entities in the network. But this isn't surveillance—it's decentralized, context-specific, and pairwise, so no single actor sees everything. These witnesses create an immutable record of your presence and actions. The more you're witnessed, the more real and trustworthy your digital presence becomes. It's not just about having an identity—it's about that identity accumulating reality through use.
+Here's where Web4 becomes revolutionary. Every interaction you have through your LCT can be witnessed by other entities in the network. But this isn't surveillance—it's decentralized, context-specific, and pairwise, so no single actor sees everything. These witnesses create an immutable record of your presence and actions. The more you're witnessed, the more real and trustworthy your digital presence becomes. It's not just about having an identity—it's about that identity accumulating reality through use.
 
 ### 4. **Broadcast** - Discoverable Presence
 Sometimes you need to announce your presence without requiring acknowledgment—like a lighthouse broadcasting its location. Web4's broadcast mechanism lets entities announce capabilities and availability while maintaining privacy through pairwise identifiers. It's rate-limited and privacy-preserving—no spam floods, no mass scraping—just controlled visibility when you choose to be found.

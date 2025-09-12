@@ -17,6 +17,19 @@ The canonical LCT object MUST be represented as follows:
     "created_at": "2025-09-11T15:00:00Z",
     "binding_proof": "cose:Sig_structure"   // COSE Sig over canonical LCT fields
   },
+  "mrh": {
+    "bound": [
+      {"lct_id": "lct:web4:...", "type": "parent|child|sibling", "ts": "..."}
+    ],
+    "paired": [
+      {"lct_id": "lct:web4:...", "context": "energy-mgmt", "session_id": "...", "ts": "..."}
+    ],
+    "witnessing": [
+      {"lct_id": "lct:web4:...", "role": "time|audit|oracle", "last_attestation": "..."}
+    ],
+    "horizon_depth": 3,
+    "last_updated": "2025-09-11T15:00:00Z"
+  },
   "policy": {
     "capabilities": ["pairing:initiate","metering:grant","write:lct"],
     "constraints": {"region":["us-west"], "max_rate": 5000}
@@ -26,7 +39,6 @@ The canonical LCT object MUST be represented as follows:
   ],
   "lineage": [{"parent":"lct:web4:...","reason":"rotate","ts":"..."}],
   "revocation": {"status":"active|revoked","ts":"...", "reason":"compromise|superseded"}
-}
 ```
 
 ## 2. Field Definitions
@@ -46,12 +58,32 @@ The binding establishes the permanent, unforgeable link between the LCT and its 
 - **created_at** (REQUIRED): ISO 8601 timestamp of binding creation
 - **binding_proof** (REQUIRED): COSE signature over the canonical binding fields
 
-### 2.3 Policy Fields
+### 2.3 MRH (Markov Relevancy Horizon) Fields
+
+The MRH dynamically tracks all entities within this LCT's relevancy horizon:
+
+- **bound** (REQUIRED): Array of binding relationships
+  - **lct_id**: LCT identifier of bound entity
+  - **type**: Relationship type (`"parent"`, `"child"`, `"sibling"`)
+  - **ts**: Timestamp of binding establishment
+- **paired** (REQUIRED): Array of active pairings
+  - **lct_id**: LCT identifier of paired entity
+  - **context**: Pairing context (e.g., `"energy-mgmt"`, `"data-exchange"`)
+  - **session_id**: Active session identifier
+  - **ts**: Timestamp of pairing establishment
+- **witnessing** (OPTIONAL): Array of witness relationships
+  - **lct_id**: LCT identifier of witness
+  - **role**: Witness role (`"time"`, `"audit"`, `"oracle"`)
+  - **last_attestation**: Timestamp of most recent attestation
+- **horizon_depth** (OPTIONAL): Maximum relationship depth to track (default: 3)
+- **last_updated** (REQUIRED): ISO 8601 timestamp of last MRH update
+
+### 2.4 Policy Fields
 
 - **capabilities** (REQUIRED): Array of capability strings the entity is authorized for
 - **constraints** (OPTIONAL): Object containing operational constraints
 
-### 2.4 Attestation Fields
+### 2.5 Attestation Fields
 
 Each attestation represents a witnessing event:
 
@@ -60,7 +92,7 @@ Each attestation represents a witnessing event:
 - **sig** (REQUIRED): COSE signature from the witness
 - **ts** (REQUIRED): ISO 8601 timestamp of witnessing
 
-### 2.5 Lineage Fields
+### 2.6 Lineage Fields
 
 Tracks the evolution of the LCT:
 
@@ -68,7 +100,7 @@ Tracks the evolution of the LCT:
 - **reason** (REQUIRED): One of `"genesis"`, `"rotation"`, `"fork"`, `"upgrade"`
 - **ts** (REQUIRED): ISO 8601 timestamp of transition
 
-### 2.6 Revocation Fields
+### 2.7 Revocation Fields
 
 When present, indicates the LCT is no longer active:
 
@@ -96,11 +128,54 @@ To create a binding between an entity and an LCT:
 7. Submit to witness for attestation
 ```
 
-## 4. Rotation Rules
+## 4. MRH Dynamics
+
+The Markov Relevancy Horizon (MRH) is the dynamic context that emerges from an LCT's relationships. It represents the "neighborhood" of entities that are relevant to this LCT's operations and trust calculations.
+
+### 4.1 MRH Updates
+
+The MRH MUST be updated when:
+
+1. **New Binding**: When establishing a binding relationship
+   - Add entry to `mrh.bound` array
+   - Set relationship type (parent/child/sibling)
+   - Update `mrh.last_updated`
+
+2. **New Pairing**: When establishing a pairing
+   - Add entry to `mrh.paired` array
+   - Include context and session_id
+   - Update `mrh.last_updated`
+
+3. **Witness Interaction**: When witnessed or witnessing
+   - Add/update entry in `mrh.witnessing` array
+   - Update `last_attestation` timestamp
+   - Update `mrh.last_updated`
+
+4. **Revocation**: When any relationship is revoked
+   - Remove entry from appropriate array
+   - Update `mrh.last_updated`
+
+### 4.2 Context Emergence
+
+The MRH creates emergent context through:
+
+- **Trust Propagation**: Trust flows through bound and paired relationships
+- **Capability Inheritance**: Capabilities may be delegated through bindings
+- **Witness Accumulation**: More witnesses strengthen presence reality
+- **Horizon Limiting**: Relationships beyond `horizon_depth` are not tracked
+
+### 4.3 MRH Query
+
+To determine if an entity is within the MRH:
+1. Check direct relationships (depth 1): bound, paired, witnessing
+2. Recursively check relationships up to `horizon_depth`
+3. Apply relevancy filters based on relationship age and type
+
+## 5. Rotation Rules
 
 LCT rotation allows key updates while maintaining identity continuity:
 
-### 4.1 Rotation Procedure
+### 5.1 Rotation Procedure
 
 1. **Create new LCT** with updated keys
 2. **Set lineage** pointing to parent LCT
@@ -108,7 +183,7 @@ LCT rotation allows key updates while maintaining identity continuity:
 4. **Grace period end**: Only new LCT accepted
 5. **Archive parent**: Mark as superseded
 
-### 4.2 Split-Brain Resolution
+### 5.2 Split-Brain Resolution
 
 If multiple successors claim the same parent:
 
@@ -116,11 +191,11 @@ If multiple successors claim the same parent:
 2. **Timestamp priority**: Earlier rotation wins if witness count equal
 3. **Explicit revocation**: Parent can designate preferred successor
 
-## 5. Witness Attestation
+## 6. Witness Attestation
 
 Witnesses strengthen LCT validity through observation:
 
-### 5.1 Witness Classes
+### 6.1 Witness Classes
 
 | Class | Purpose | Required Claims |
 |-------|---------|-----------------|
@@ -132,7 +207,7 @@ Witnesses strengthen LCT validity through observation:
 | state | Status attestation | `state`, `measurement` |
 | quality | Performance metric | `metric`, `value` |
 
-### 5.2 Attestation Format
+### 6.2 Attestation Format
 
 ```json
 {
@@ -147,33 +222,33 @@ Witnesses strengthen LCT validity through observation:
 }
 ```
 
-## 6. Security Considerations
+## 7. Security Considerations
 
-### 6.1 Binding Security
+### 7.1 Binding Security
 
 - Private keys MUST never be included in LCT
 - Hardware anchors SHOULD use secure elements when available
 - Binding proofs MUST use approved signature algorithms
 
-### 6.2 Rotation Security
+### 7.2 Rotation Security
 
 - Overlap windows MUST NOT exceed 48 hours
 - Parent LCT MUST NOT be reactivated after rotation
 - Split-brain scenarios MUST be resolved within 72 hours
 
-### 6.3 Witness Security
+### 7.3 Witness Security
 
 - Witnesses MUST NOT sign attestations for future timestamps
 - Witness signatures MUST be verifiable against witness LCT
 - Compromised witnesses SHOULD be excluded from quorum calculations
 
-## 7. Privacy Considerations
+## 8. Privacy Considerations
 
 - LCT IDs SHOULD NOT contain personally identifiable information
 - Attestation history MAY be pruned after relevance window
 - Capabilities SHOULD use least-privilege principle
 
-## 8. IANA Considerations
+## 9. IANA Considerations
 
 This specification requests registration of:
 

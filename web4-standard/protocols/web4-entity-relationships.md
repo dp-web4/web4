@@ -26,10 +26,18 @@ binding-proof = signature over (entity-type / public-key / hardware-id / timesta
 stateDiagram-v2
     [*] --> Unbound
     Unbound --> Binding: initiate_binding
-    Binding --> Bound: binding_confirmed
-    Bound --> Revoked: binding_revoked
+    Binding --> Bound: binding_confirmed + update_MRH
+    Bound --> Revoked: binding_revoked + remove_from_MRH
     Revoked --> [*]
 ```
+
+### 1.3. MRH Impact
+
+When a BINDING is established:
+1. Parent LCT adds child to its `mrh.bound` array with type="child"
+2. Child LCT adds parent to its `mrh.bound` array with type="parent"
+3. Both LCTs update `mrh.last_updated` timestamp
+4. Trust context begins flowing between bound entities
 
 
 
@@ -56,12 +64,20 @@ key-half-b = base64(32-bytes)
 stateDiagram-v2
     [*] --> Unpaired
     Unpaired --> Pairing: initiate_pairing
-    Pairing --> Paired: pairing_complete
+    Pairing --> Paired: pairing_complete + add_to_MRH
     Paired --> Active: session_established
     Active --> Active: exchange_messages
     Active --> Paired: session_closed
-    Paired --> Unpaired: pairing_revoked
+    Paired --> Unpaired: pairing_revoked + remove_from_MRH
 ```
+
+### 2.3. MRH Impact
+
+When a PAIRING is established:
+1. Both LCTs add each other to their `mrh.paired` arrays
+2. Include pairing context (e.g., "energy-mgmt") and session_id
+3. Update `mrh.last_updated` on both LCTs
+4. Entities enter each other's relevancy horizons for the pairing context
 
 
 
@@ -86,8 +102,17 @@ evidence-type = "EXISTENCE" / "ACTION" / "STATE" / "TRANSITION"
 stateDiagram-v2
     [*] --> Unwitnessed
     Unwitnessed --> Witnessing: observe_entity
-    Witnessing --> Witnessed: evidence_recorded
+    Witnessing --> Witnessed: evidence_recorded + update_both_MRHs
 ```
+
+### 3.3. MRH Impact
+
+When WITNESSING occurs:
+1. Witnessed LCT adds witness to its `mrh.witnessing` array
+2. Witness LCT may optionally track witnessed entities
+3. Both update `mrh.last_updated`
+4. Creates bidirectional awareness in relevancy horizons
+5. Trust accumulates through repeated witnessing interactions
 
 
 
@@ -113,5 +138,13 @@ stateDiagram-v2
     [*] --> Broadcasting
     Broadcasting --> Broadcasting: send_broadcast
 ```
+
+### 4.3. MRH Impact
+
+BROADCAST is unique - it does NOT update MRH:
+1. Broadcasting entity announces without creating relationships
+2. Receiving entities MAY choose to initiate pairing based on broadcast
+3. No MRH entries created until explicit relationship established
+4. Enables discovery without commitment to relevancy horizon
 
 
