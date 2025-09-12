@@ -27,7 +27,7 @@ BINDING is the process of creating a permanent, unforgeable link between a Web4 
 binding-request = binding-version SP entity-type SP public-key SP hardware-id
 binding-response = binding-version SP lct-id SP binding-proof
 binding-version = "BIND/1.0"
-entity-type = "HUMAN" / "AI" / "ORGANIZATION" / "ROLE" / "TASK" / "RESOURCE" / "DEVICE" / "SERVICE" / "ORACLE" / "HYBRID"
+entity-type = "HUMAN" / "AI" / "ORGANIZATION" / "ROLE" / "TASK" / "RESOURCE" / "DEVICE" / "SERVICE" / "ORACLE" / "ACCUMULATOR" / "DICTIONARY" / "HYBRID"
 hardware-id = 64*64HEXDIG  ; SHA-256 of hardware characteristics
 binding-proof = signature over (entity-type / public-key / hardware-id / timestamp)
 ```

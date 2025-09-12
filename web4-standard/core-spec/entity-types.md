@@ -24,6 +24,7 @@ The following entity types are recognized in Web4:
 | **Service** | Software services and applications | Web services, microservices | Responsive |
 | **Oracle** | External data providers | Price feeds, weather data, event confirmers | Responsive |
 | **Accumulator** | Broadcast listeners and recorders | Presence validators, history indexers | Responsive |
+| **Dictionary** | Semantic bridges between domains | Medical-legal translator, tech-common interpreter | Responsive |
 | **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Mixed |
 
 ### 2.2 Entity Behavioral Modes
