@@ -23,6 +23,7 @@ The following entity types are recognized in Web4:
 | **Device** | Physical or virtual hardware | IoT sensors, servers, vehicles | Responsive/Agentic |
 | **Service** | Software services and applications | Web services, microservices | Responsive |
 | **Oracle** | External data providers | Price feeds, weather data, event confirmers | Responsive |
+| **Accumulator** | Broadcast listeners and recorders | Presence validators, history indexers | Responsive |
 | **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Mixed |
 
 ### 2.2 Entity Behavioral Modes
@@ -220,7 +221,44 @@ Role permissions MUST be:
 - Performance histories may be selectively disclosed
 - Agent-role pairings visible only to relevant parties
 
-## 9. Future Extensions
+## 9. Specialized Entity: Accumulators
+
+### 9.1 Accumulator Role
+Accumulators are specialized responsive entities that provide passive witnessing services:
+
+- **Listen** to public broadcasts without acknowledgment
+- **Record** broadcast events with cryptographic integrity
+- **Index** by broadcaster, type, timestamp
+- **Query** interface for presence validation
+
+### 9.2 Accumulator LCT Structure
+```json
+{
+  "entity_type": "accumulator",
+  "accumulator_config": {
+    "listen_scope": ["ANNOUNCE", "HEARTBEAT", "CAPABILITY"],
+    "retention_period": 2592000,  // 30 days in seconds
+    "index_strategy": "entity_time_type",
+    "query_interface": "web4://accumulator/query",
+    "storage_commitment": "10GB"
+  },
+  "statistics": {
+    "broadcasts_recorded": 1547823,
+    "unique_entities": 4521,
+    "queries_served": 89234,
+    "uptime_percentage": 99.97
+  }
+}
+```
+
+### 9.3 Accumulator Trust
+Accumulator reliability measured by:
+- Uptime and availability
+- Query response accuracy
+- Storage commitment honoring
+- Non-selective recording (no censorship)
+
+## 10. Future Extensions
 
 Potential entity types under consideration:
 - **Contract**: Smart contracts as entities

@@ -161,9 +161,9 @@ Witnesses play a crucial role in R6 actions:
 
 
 
-## 4. BROADCAST (Unidirectional Discovery)
+## 4. BROADCAST (Unidirectional Discovery and Passive Witnessing)
 
-BROADCAST is a simple, unidirectional mechanism for an entity to announce its presence, capabilities, or status without requiring any prior relationship or acknowledgment. This is used for discovery and general network awareness.
+BROADCAST is a unidirectional mechanism for an entity to announce its presence, capabilities, or status without requiring any prior relationship or acknowledgment. This is used for discovery, general network awareness, and enables a one-sided form of witnessing through accumulators.
 
 ### 4.1. ABNF Specification
 
@@ -190,5 +190,37 @@ BROADCAST is unique - it does NOT update MRH:
 2. Receiving entities MAY choose to initiate pairing based on broadcast
 3. No MRH entries created until explicit relationship established
 4. Enables discovery without commitment to relevancy horizon
+
+### 4.4. Broadcast Accumulators
+
+BROADCAST enables a one-sided form of witnessing through accumulators:
+
+#### Accumulator Function
+Accumulators are specialized entities that:
+1. **Listen** for broadcasts without acknowledgment
+2. **Record** broadcast history with timestamps and cryptographic proofs
+3. **Index** broadcasts by entity, type, and time
+4. **Respond** to queries about broadcast history
+
+#### Lightweight Presence Validation
+```abnf
+accumulator-query = query-version SP entity-lct SP time-range
+accumulator-response = query-version SP broadcast-count SP broadcast-history
+broadcast-history = 1*(timestamp SP broadcast-hash SP signature)
+```
+
+#### Use Cases
+- **Presence Proof**: Entity can query accumulators to prove consistent broadcasting
+- **Liveness Validation**: Third parties can verify entity has been active
+- **Historical Audit**: Broadcast patterns reveal operational consistency
+- **Reputation Building**: Regular broadcasts accumulate as soft trust signal
+
+#### Privacy Considerations
+- Accumulators record public broadcasts only
+- Broadcasters cannot control which accumulators listen
+- Accumulator queries may be anonymous
+- Broadcast content may be hashed rather than stored in full
+
+This creates a lightweight, privacy-preserving mechanism for building presence reputation over time without requiring explicit relationships or mutual witnessing.
 
 
