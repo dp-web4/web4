@@ -2,6 +2,18 @@
 
 This document provides the formal specifications for the four core entity relationship mechanisms in Web4: BINDING, PAIRING, WITNESSING, and BROADCAST. These mechanisms are the foundation of Web4's unique approach to building trust and enabling secure, decentralized interactions.
 
+## Interaction Framework: R6 Actions
+
+While these four mechanisms establish relationships, actual interactions between entities are structured through the R6 Action Framework. Every meaningful interaction can be expressed as an R6 action that:
+- Tracks intent through Request
+- Validates permissions through Role
+- Consumes Resources (ATP)
+- Produces measurable Results
+- Updates T3/V3 tensors based on performance
+- Creates References for future learning
+
+See `web4-r6-framework.md` for complete R6 specification.
+
 
 
 
@@ -93,6 +105,15 @@ For Role-Agent pairings specifically:
 3. Role's permission set becomes available to agent
 4. Performance tracking begins for reputation calculation
 
+### 2.4. R6 Integration with Pairing
+
+Once paired, entities interact through R6 actions:
+- The pairing context defines available Rules
+- The Role from pairing determines permissions
+- Shared Resources become accessible
+- Results affect both entities' T3/V3 tensors
+- Failed actions may trigger pairing review
+
 
 
 
@@ -127,6 +148,15 @@ When WITNESSING occurs:
 3. Both update `mrh.last_updated`
 4. Creates bidirectional awareness in relevancy horizons
 5. Trust accumulates through repeated witnessing interactions
+
+### 3.4. R6 Integration with Witnessing
+
+Witnesses play a crucial role in R6 actions:
+- Witnesses validate Result accuracy (affecting Veracity in V3)
+- Quality witnesses assess output value (affecting Valuation)
+- Time witnesses provide temporal ordering
+- Failed witness validation can void Results
+- Witness attestations become permanent References
 
 
 
