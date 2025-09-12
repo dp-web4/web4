@@ -15,7 +15,7 @@ BINDING is the process of creating a permanent, unforgeable link between a Web4 
 binding-request = binding-version SP entity-type SP public-key SP hardware-id
 binding-response = binding-version SP lct-id SP binding-proof
 binding-version = "BIND/1.0"
-entity-type = "DEVICE" / "SERVICE" / "USER" / "ORACLE"
+entity-type = "HUMAN" / "AI" / "ORGANIZATION" / "ROLE" / "TASK" / "RESOURCE" / "DEVICE" / "SERVICE" / "ORACLE" / "HYBRID"
 hardware-id = 64*64HEXDIG  ; SHA-256 of hardware characteristics
 binding-proof = signature over (entity-type / public-key / hardware-id / timestamp)
 ```
@@ -46,6 +46,14 @@ When a BINDING is established:
 
 PAIRING is the process of establishing an authorized, operational relationship between two already-bound Web4 entities. This allows them to communicate securely and perform actions based on a mutually agreed-upon context and set of rules.
 
+### Special Case: Role-Agent Pairing
+
+When an agentic entity (human or AI) pairs with a role entity, the pairing creates a delegation relationship where:
+- The agent temporarily assumes the role's permissions and responsibilities
+- Actions taken by the agent are contextualized by the role's scope
+- Performance metrics accumulate to both the agent's and role's reputation
+- The role maintains a history of all agents who have performed it
+
 ### 2.1. ABNF Specification
 
 ```abnf
@@ -75,9 +83,15 @@ stateDiagram-v2
 
 When a PAIRING is established:
 1. Both LCTs add each other to their `mrh.paired` arrays
-2. Include pairing context (e.g., "energy-mgmt") and session_id
+2. Include pairing context (e.g., "energy-mgmt", "role-performance") and session_id
 3. Update `mrh.last_updated` on both LCTs
 4. Entities enter each other's relevancy horizons for the pairing context
+
+For Role-Agent pairings specifically:
+1. Role LCT adds agent to its current performers list
+2. Agent LCT adds role to its active roles
+3. Role's permission set becomes available to agent
+4. Performance tracking begins for reputation calculation
 
 
 

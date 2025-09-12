@@ -11,7 +11,7 @@ The canonical LCT object MUST be represented as follows:
   "lct_id": "lct:web4:mb32...",
   "subject": "did:web4:key:z6Mk...",
   "binding": {
-    "entity_type": "device|service|user|oracle",
+    "entity_type": "human|ai|organization|role|task|resource|device|service|oracle|hybrid",
     "public_key": "mb64:coseKey",
     "hardware_anchor": "eat:mb64",         // optional EAT attestation
     "created_at": "2025-09-11T15:00:00Z",
@@ -52,7 +52,7 @@ The canonical LCT object MUST be represented as follows:
 
 The binding establishes the permanent, unforgeable link between the LCT and its entity:
 
-- **entity_type** (REQUIRED): One of `"device"`, `"service"`, `"user"`, or `"oracle"`
+- **entity_type** (REQUIRED): One of `"human"`, `"ai"`, `"organization"`, `"role"`, `"task"`, `"resource"`, `"device"`, `"service"`, `"oracle"`, `"hybrid"`
 - **public_key** (REQUIRED): The entity's public key in COSE key format, multibase-encoded
 - **hardware_anchor** (OPTIONAL): Entity Attestation Token (EAT) per RFC 9334 for hardware-backed identity
 - **created_at** (REQUIRED): ISO 8601 timestamp of binding creation
