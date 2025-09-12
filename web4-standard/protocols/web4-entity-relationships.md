@@ -58,6 +58,32 @@ When a BINDING is established:
 
 PAIRING is the process of establishing an authorized, operational relationship between two already-bound Web4 entities. This allows them to communicate securely and perform actions based on a mutually agreed-upon context and set of rules.
 
+### Pairing Modes
+
+Web4 supports three distinct pairing modes to accommodate different trust and operational requirements:
+
+#### 2.0.1 Direct Pairing (Peer-to-Peer)
+- Entities negotiate pairing directly
+- Each entity generates half of the session key
+- No third-party involvement
+- Lowest latency, highest privacy
+- Trust based solely on entity reputations
+
+#### 2.0.2 Witnessed Pairing (Notarized)
+- Third entity observes and attests to pairing
+- Witness validates both entities' identities
+- Creates permanent record of pairing establishment
+- Similar to notary public in legal contexts
+- Adds trust through external validation
+
+#### 2.0.3 Authorized Pairing (Mediated)
+- Third entity (authority) handles entire pairing process
+- Authority validates both entities' authorization
+- Authority generates complete key set
+- Authority delivers key halves to respective entities
+- Authority maintains pairing record
+- Highest trust, enables policy enforcement
+
 ### Special Case: Role-Agent Pairing
 
 When an agentic entity (human or AI) pairs with a role entity, the pairing creates a delegation relationship where:
@@ -69,50 +95,198 @@ When an agentic entity (human or AI) pairs with a role entity, the pairing creat
 ### 2.1. ABNF Specification
 
 ```abnf
-pairing-request = pairing-version SP lct-a SP lct-b SP context SP rules
-pairing-response = pairing-version SP session-id SP key-half-a SP key-half-b
+; Common elements
 pairing-version = "PAIR/1.0"
 context = quoted-string  ; "energy-management", "data-exchange", etc.
 rules = "{" rule-list "}"
+
+; Direct pairing (peer-to-peer)
+direct-pairing-request = pairing-version SP "DIRECT" SP lct-a SP lct-b SP context SP rules
+direct-pairing-response = pairing-version SP session-id SP key-half-a SP key-half-b
+
+; Witnessed pairing (with notary)
+witnessed-pairing-request = pairing-version SP "WITNESSED" SP lct-a SP lct-b SP witness-lct SP context SP rules
+witnessed-pairing-response = pairing-version SP session-id SP key-half-a SP key-half-b SP witness-attestation
+
+; Authorized pairing (mediated by authority)
+authorized-pairing-request = pairing-version SP "AUTHORIZED" SP lct-a SP lct-b SP authority-lct SP context SP rules
+authorized-pairing-response = pairing-version SP session-id SP encrypted-key-a SP encrypted-key-b SP authority-record
+
+; Key material
 key-half-a = base64(32-bytes)  ; For symmetric key derivation
 key-half-b = base64(32-bytes)
+encrypted-key-a = base64(encrypted(full-key))  ; Encrypted for entity A
+encrypted-key-b = base64(encrypted(full-key))  ; Encrypted for entity B
+witness-attestation = signature over (lct-a / lct-b / session-id / timestamp)
+authority-record = signature over (pairing-details / authorization-proof)
 ```
 
-### 2.2. State Machine
+### 2.2. State Machines by Mode
 
+#### Direct Pairing State Machine
 ```mermaid
 stateDiagram-v2
     [*] --> Unpaired
-    Unpaired --> Pairing: initiate_pairing
-    Pairing --> Paired: pairing_complete + add_to_MRH
+    Unpaired --> Negotiating: initiate_direct
+    Negotiating --> KeyExchange: agree_on_terms
+    KeyExchange --> Paired: keys_exchanged + add_to_MRH
     Paired --> Active: session_established
     Active --> Active: exchange_messages
     Active --> Paired: session_closed
     Paired --> Unpaired: pairing_revoked + remove_from_MRH
 ```
 
-### 2.3. MRH Impact
+#### Witnessed Pairing State Machine
+```mermaid
+stateDiagram-v2
+    [*] --> Unpaired
+    Unpaired --> RequestingWitness: initiate_witnessed
+    RequestingWitness --> WitnessValidating: witness_accepts
+    WitnessValidating --> KeyExchange: entities_validated
+    KeyExchange --> Paired: keys_exchanged + witness_attests + add_to_MRH
+    Paired --> Active: session_established
+    Active --> Paired: session_closed
+    Paired --> Unpaired: pairing_revoked + remove_from_MRH
+```
 
-When a PAIRING is established:
+#### Authorized Pairing State Machine
+```mermaid
+stateDiagram-v2
+    [*] --> Unpaired
+    Unpaired --> RequestingAuth: initiate_authorized
+    RequestingAuth --> AuthValidating: authority_accepts
+    AuthValidating --> AuthGenerating: both_authorized
+    AuthGenerating --> KeyDistribution: keys_generated
+    KeyDistribution --> Paired: keys_delivered + auth_records + add_to_MRH
+    Paired --> Active: session_established
+    Active --> Paired: session_closed
+    Paired --> Unpaired: pairing_revoked + remove_from_MRH
+```
+
+### 2.3. MRH Impact by Pairing Mode
+
+#### Direct Pairing MRH Updates
+When a DIRECT PAIRING is established:
 1. Both LCTs add each other to their `mrh.paired` arrays
-2. Include pairing context (e.g., "energy-mgmt", "role-performance") and session_id
-3. Update `mrh.last_updated` on both LCTs
-4. Entities enter each other's relevancy horizons for the pairing context
+2. Include pairing context and session_id
+3. Mark pairing_mode as "direct"
+4. Update `mrh.last_updated` on both LCTs
 
-For Role-Agent pairings specifically:
+#### Witnessed Pairing MRH Updates
+When a WITNESSED PAIRING is established:
+1. Both LCTs add each other to their `mrh.paired` arrays
+2. Both LCTs add witness to their `mrh.witnessing` arrays
+3. Witness LCT records pairing attestation
+4. Include pairing context, session_id, and witness_lct
+5. Mark pairing_mode as "witnessed"
+6. Update `mrh.last_updated` on all three LCTs
+
+#### Authorized Pairing MRH Updates
+When an AUTHORIZED PAIRING is established:
+1. Both LCTs add each other to their `mrh.paired` arrays
+2. Both LCTs add authority to their `mrh.witnessing` arrays
+3. Authority LCT maintains pairing record in its state
+4. Include pairing context, session_id, and authority_lct
+5. Mark pairing_mode as "authorized"
+6. Update `mrh.last_updated` on all three LCTs
+
+#### Role-Agent Pairing Specifics
+For Role-Agent pairings (any mode):
 1. Role LCT adds agent to its current performers list
 2. Agent LCT adds role to its active roles
 3. Role's permission set becomes available to agent
 4. Performance tracking begins for reputation calculation
+5. Authority mode recommended for high-stakes roles
 
-### 2.4. R6 Integration with Pairing
+### 2.4. Pairing Mode Selection Criteria
 
-Once paired, entities interact through R6 actions:
+#### When to Use Direct Pairing
+- Both entities have established reputations
+- Low-risk interactions
+- Privacy is paramount
+- Latency must be minimized
+- No regulatory requirements
+
+#### When to Use Witnessed Pairing
+- Moderate-risk interactions
+- Legal or compliance requirements
+- Need for dispute resolution
+- Building trust history
+- Cross-domain operations
+
+#### When to Use Authorized Pairing
+- High-risk or high-value interactions
+- Regulatory compliance mandatory
+- Policy enforcement required
+- Complex authorization rules
+- Enterprise or institutional contexts
+- Role assignments with significant permissions
+
+### 2.5. Implementation Examples
+
+#### Direct Pairing Example
+```json
+{
+  "pairing_request": {
+    "version": "PAIR/1.0",
+    "mode": "DIRECT",
+    "entity_a": "lct:web4:human:alice",
+    "entity_b": "lct:web4:ai:assistant",
+    "context": "collaborative_writing",
+    "rules": {
+      "duration": 3600,
+      "permissions": ["read", "suggest"]
+    }
+  }
+}
+```
+
+#### Witnessed Pairing Example
+```json
+{
+  "pairing_request": {
+    "version": "PAIR/1.0",
+    "mode": "WITNESSED",
+    "entity_a": "lct:web4:org:company",
+    "entity_b": "lct:web4:service:provider",
+    "witness": "lct:web4:oracle:notary",
+    "context": "service_agreement",
+    "rules": {
+      "sla": "99.9% uptime",
+      "term": "annual"
+    }
+  }
+}
+```
+
+#### Authorized Pairing Example
+```json
+{
+  "pairing_request": {
+    "version": "PAIR/1.0",
+    "mode": "AUTHORIZED",
+    "entity_a": "lct:web4:human:employee",
+    "entity_b": "lct:web4:role:financial_officer",
+    "authority": "lct:web4:org:hr_department",
+    "context": "role_assignment",
+    "rules": {
+      "clearance_level": "executive",
+      "permissions": ["approve:budgets", "sign:contracts"],
+      "audit_required": true
+    }
+  }
+}
+```
+
+### 2.6. R6 Integration with Pairing
+
+Once paired (regardless of mode), entities interact through R6 actions:
 - The pairing context defines available Rules
 - The Role from pairing determines permissions
 - Shared Resources become accessible
 - Results affect both entities' T3/V3 tensors
 - Failed actions may trigger pairing review
+- Witnessed/Authorized pairings provide stronger confidence scores
 
 
 

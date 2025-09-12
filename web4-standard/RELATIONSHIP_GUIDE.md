@@ -60,8 +60,28 @@ Organization creates Role:
 
 **Purpose**: Establish temporary, context-specific operational relationships between peers.
 
+**Three Pairing Modes:**
+
+#### Direct Pairing (Peer-to-Peer)
+- Entities negotiate directly without intermediary
+- Each generates half of session key
+- Lowest latency, highest privacy
+- Best for: Low-risk, trusted entities
+
+#### Witnessed Pairing (Notarized)
+- Third entity observes and attests
+- Creates permanent pairing record
+- Adds external validation
+- Best for: Legal compliance, dispute resolution
+
+#### Authorized Pairing (Mediated)
+- Authority handles entire process
+- Authority generates and distributes keys
+- Enables policy enforcement
+- Best for: High-risk, enterprise, role assignments
+
 **Key Characteristics:**
-- Bidirectional authorization required
+- Bidirectional authorization required (except in authorized mode)
 - Context-specific (e.g., "energy-mgmt", "data-exchange")
 - Symmetric key derivation for secure communication
 - Session-based with explicit lifecycle
@@ -89,29 +109,49 @@ Human pairs with Developer Role:
 5. Performance tracking begins
 ```
 
-**Implementation:**
+**Implementation Examples:**
+
 ```json
-// Pairing Request
+// Direct Pairing Request
 {
   "version": "PAIR/1.0",
+  "mode": "DIRECT",
   "lct_a": "lct:web4:human:...",
-  "lct_b": "lct:web4:role:developer:...",
-  "context": "software_development",
+  "lct_b": "lct:web4:ai:...",
+  "context": "collaboration",
   "rules": {
-    "permissions": ["code:write", "review:submit"],
-    "duration": 86400,
-    "performance_tracking": true
+    "permissions": ["read", "write"],
+    "duration": 86400
   }
 }
 
-// Session Establishment
+// Witnessed Pairing Request
 {
-  "session_id": "sess:web4:...",
-  "key_material": {
-    "key_half_a": "base64:...",
-    "key_half_b": "base64:..."
-  },
-  "derived_key": "X25519_shared_secret"
+  "version": "PAIR/1.0",
+  "mode": "WITNESSED",
+  "lct_a": "lct:web4:org:...",
+  "lct_b": "lct:web4:service:...",
+  "witness": "lct:web4:oracle:notary",
+  "context": "service_agreement",
+  "rules": {
+    "sla": "99.9%",
+    "audit_trail": true
+  }
+}
+
+// Authorized Pairing Request
+{
+  "version": "PAIR/1.0",
+  "mode": "AUTHORIZED",
+  "lct_a": "lct:web4:human:...",
+  "lct_b": "lct:web4:role:cfo",
+  "authority": "lct:web4:org:hr",
+  "context": "role_assignment",
+  "rules": {
+    "clearance": "executive",
+    "permissions": ["approve:budgets"],
+    "audit_required": true
+  }
 }
 ```
 
@@ -342,6 +382,19 @@ Peer → Peer (reputation)
 - Use accumulators for lightweight validation
 - Implement relationship timeouts
 
+## Pairing Mode Decision Tree
+
+```
+Need to establish pairing?
+├── High risk/value transaction?
+│   └── YES → Use AUTHORIZED pairing
+├── Legal/compliance requirements?
+│   └── YES → Use WITNESSED pairing
+├── Both entities well-trusted?
+│   └── YES → Use DIRECT pairing
+└── DEFAULT → Use WITNESSED pairing
+```
+
 ## Common Patterns
 
 ### Pattern 1: Organization Onboarding
@@ -349,7 +402,7 @@ Peer → Peer (reputation)
 1. Create Organization LCT
 2. BIND departments to organization
 3. BIND roles to departments
-4. Agents PAIR with roles
+4. Agents PAIR with roles (AUTHORIZED mode for executive roles)
 5. WITNESS key operations
 ```
 
@@ -412,6 +465,8 @@ Peer → Peer (reputation)
 - Verify both entities' policies
 - Ensure context alignment
 - Validate signatures
+- For witnessed: Check witness availability
+- For authorized: Verify authority permissions
 
 ### Issue: Low Trust Score
 - Increase witness diversity

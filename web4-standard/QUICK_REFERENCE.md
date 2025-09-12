@@ -36,11 +36,19 @@ binding-request = "BIND/1.0" SP entity-type SP public-key SP hardware-id
 - Updates both entities' MRH
 
 ### PAIRING (Operational Relationships)
+
+**Three Modes:**
+1. **Direct**: P2P, entities negotiate directly
+2. **Witnessed**: P2P with third-party attestation
+3. **Authorized**: Mediated by authority entity
+
 ```abnf
-pairing-request = "PAIR/1.0" SP lct-a SP lct-b SP context SP rules
+direct-pairing = "PAIR/1.0" SP "DIRECT" SP lct-a SP lct-b SP context SP rules
+witnessed-pairing = "PAIR/1.0" SP "WITNESSED" SP lct-a SP lct-b SP witness SP context SP rules
+authorized-pairing = "PAIR/1.0" SP "AUTHORIZED" SP lct-a SP lct-b SP authority SP context SP rules
 ```
-- Peer-to-peer authorized operations
-- Context-specific (e.g., "energy-mgmt")
+- Context-specific operations
+- Session-based with keys
 - Enables R6 actions between entities
 
 ### WITNESSING (Trust Building)
