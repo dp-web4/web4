@@ -17,16 +17,16 @@ Web4 brings this same principle to the digital world.
 ## How Web4 Works: Four Simple Mechanisms
 
 ### 1. **Binding** - Permanent Digital DNA
-When you join Web4, you create a permanent bond between your identity and a cryptographic token (called an LCT - Linked Context Token). Like DNA, this binding is unique, permanent, and unforgeable. Once bound, your digital presence becomes as real as your physical one.
+When you join Web4, you create a permanent bond between your identity and a cryptographic token (called an LCT - Linked Context Token). Like DNA, this binding is unique and unforgeable. But unlike biological DNA, you can rotate or revoke your LCT if it's ever compromised—maintaining security without being locked in forever. Once bound, your digital presence becomes as real as your physical one.
 
 ### 2. **Pairing** - Authorized Relationships  
 When two Web4 entities need to work together, they establish a "pairing"—a secure, authorized relationship. Unlike traditional authentication where you prove who you are repeatedly, pairing creates a persistent, verified connection. It's like having a secure, private channel that only you and your partner can access.
 
 ### 3. **Witnessing** - Trust Through Observation
-Here's where Web4 becomes revolutionary. Every interaction you have is witnessed by other entities in the network. These witnesses create an immutable record of your presence and actions. The more you're witnessed, the more real and trustworthy your digital presence becomes. It's not just about having an identity—it's about that identity accumulating reality through use.
+Here's where Web4 becomes revolutionary. Every interaction you have can be witnessed by other entities in the network. But this isn't surveillance—it's decentralized, context-specific, and pairwise, so no single actor sees everything. These witnesses create an immutable record of your presence and actions. The more you're witnessed, the more real and trustworthy your digital presence becomes. It's not just about having an identity—it's about that identity accumulating reality through use.
 
 ### 4. **Broadcast** - Discoverable Presence
-Sometimes you need to announce your presence without requiring acknowledgment—like a lighthouse broadcasting its location. Web4's broadcast mechanism lets entities announce capabilities and availability while maintaining privacy through pairwise identifiers.
+Sometimes you need to announce your presence without requiring acknowledgment—like a lighthouse broadcasting its location. Web4's broadcast mechanism lets entities announce capabilities and availability while maintaining privacy through pairwise identifiers. It's rate-limited and privacy-preserving—no spam floods, no mass scraping—just controlled visibility when you choose to be found.
 
 ## Real-World Applications
 
@@ -44,13 +44,13 @@ Your Web4 identity isn't locked to any platform. It's yours, permanently. Change
 
 ## Technical Foundation Without the Complexity
 
-For the technically curious, Web4 builds on proven standards:
-- Modern cryptography (HPKE for secure channels)
-- Decentralized identifiers (DIDs for portable identity)  
-- Hardware security modules (for unbreakable binding)
-- Verifiable credentials (for portable trust)
+For the technically curious, Web4 builds on proven standards that map directly to our four mechanisms:
+- **Binding** → Decentralized identifiers (DIDs) + Hardware security modules (HSMs)
+- **Pairing** → Modern cryptography (HPKE for secure channels)
+- **Witnessing** → Verifiable credentials + distributed attestation
+- **Broadcast** → Privacy-preserving discovery protocols
 
-But you don't need to understand the cryptography any more than you need to understand TCP/IP to use the web.
+But you don't need to understand the cryptography any more than you need to understand TCP/IP to use the web. The beauty is that complex tech becomes simple, intuitive interactions.
 
 ## Who's Behind This?
 
@@ -64,7 +64,7 @@ The draft standard is now available for review at [github.com/dp-web4/web4](http
 
 ## Join the Revolution
 
-The internet gave us global connectivity. The web gave us information sharing. Web 2.0 gave us user-generated content. Web3 promised decentralization but delivered speculation.
+The internet gave us global connectivity. The web gave us information sharing. Web 2.0 gave us user-generated content. Web3 promised decentralization but too often delivered speculation instead of utility.
 
 **Web4 delivers what we've always needed: real digital presence.**
 
