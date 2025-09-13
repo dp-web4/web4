@@ -4,21 +4,30 @@
 
 ---
 
-## 🚀 Web4 Standard Now Available
+## 🚀 Web4 Standard - Alpha Ready for Implementation
 
-**The Web4 Internet Standard specification is complete and ready for implementation.** Created through unprecedented collaboration between AI systems (Manus, Nova, Claude), the standard demonstrates Web4's core principle: witnessed presence strengthening truth.
+**The Web4 Internet Standard specification is substantively complete and technically coherent.** Created through unprecedented collaboration between AI systems (Manus, Nova, Claude), the standard demonstrates Web4's core principle: witnessed presence strengthening truth.
+
+### Current Status (January 2025)
+- ✅ **Alpha-ready** for independent implementations
+- ✅ **Beta-ready** for submission to standards bodies (IETF/ISO)
+- ✅ Complete protocol specifications with test vectors
+- ✅ Reference implementations in Python
+- ✅ Comprehensive witness specification (JOSE/COSE formats)
+- ✅ MRH as RDF graphs with SPARQL queries
+- ✅ MCP entity integration completing the Web4 equation
 
 ### [📋 Executive Summary](EXECUTIVE_SUMMARY.md)
 High-level overview for decision makers
 
 ### [📚 Full Standard Specification](web4-standard/)
-Complete technical specification ready for IETF submission
+Complete technical specification with all protocols, registries, and profiles
 
 ### [🔧 Reference Implementation](web4-standard/implementation/reference/)
 Working code demonstrating all protocols
 
-### [🧪 Test Suite](web4-standard/implementation/tests/)
-Comprehensive tests and vectors
+### [🧪 Test Suite](web4-standard/testing/)
+Comprehensive test vectors, validators, and witness attestation formats
 
 ---
 
@@ -51,6 +60,17 @@ Interactive HTML with navigation, search, and responsive design
 
 ---
 
+## The Web4 Equation
+
+```
+Web4 = LCTs + MRH + Trust + MCP
+```
+
+- **LCTs** (Linked Context Tokens): Provide unforgeable identity and context preservation
+- **MRH** (Markov Relevancy Horizon): Maintain relevance across fractal scales  
+- **Trust**: Enable decentralized coordination without central authority
+- **MCP** (Model Context Protocol): Bridge AI models to external resources
+
 ## Core Concepts
 
 ### 🔑 Linked Context Tokens (LCTs)
@@ -68,7 +88,7 @@ Memory doesn't just record the past—it **senses** it. Alongside physical senso
 - **V3 (Value Tensor)**: Valuation, Veracity, Validity—measuring created value
 
 ### 🌐 Markov Relevancy Horizon (MRH)
-Each entity's contextual lens—defining what is knowable, actionable, and relevant within their scope. Not everything is relevant to everyone at all times. The MRH ensures efficient, focused interaction.
+Each entity's contextual lens—defining what is knowable, actionable, and relevant within their scope. Created by Dennis Palatov to extend Markov blankets to fractal scales, MRH enables systems to maintain context across multiple levels of organization. Now implemented as RDF graphs with SPARQL queries for semantic relationships.
 
 ### 🔗 Fractal Lightchain Architecture
 Hierarchical witness-based verification that scales from nanosecond cell operations to permanent blockchain anchors—all without global consensus bottlenecks. Trust emerges from witnessed interactions at every scale.
@@ -108,17 +128,20 @@ Memory actively perceives temporal patterns, building trust through witnessed ex
 ```
 web4/
 ├── web4-standard/       # 🆕 Complete Internet Standard Specification
-│   ├── protocols/       # Core protocol specifications
-│   ├── core-spec/       # Technical specifications
-│   ├── implementation/  # Reference code and tests
-│   └── submission/      # RFC submission documents
+│   ├── protocols/       # Core protocol specifications (LCT, handshake, metering, witness)
+│   ├── core-spec/       # Technical specifications (tensors, security, data formats)
+│   ├── implementation/  # Reference code and working demos
+│   ├── testing/        # Test vectors, validators, witness attestations
+│   ├── profiles/       # Conformance profiles (edge, P2P, cloud, blockchain)
+│   ├── registries/     # IANA registries (cipher suites, error codes, extensions)
+│   └── submission/     # RFC submission documents
 ├── whitepaper/          # Philosophical foundation
 │   ├── sections/        # Individual document sections
 │   ├── build/          # Generated outputs (MD, PDF, HTML)
 │   └── log/            # Changelog and development notes
 ├── docs/               # Documentation and guides
 ├── forum/              # Community discussions
-│   └── nova/           # Nova's contributions
+│   └── nova/           # Nova's contributions and reviews
 ├── reference/          # Reference materials
 └── integration/        # Cross-project integration logs
 ```
@@ -127,12 +150,14 @@ web4/
 
 ## Implementation Status
 
-### ✅ Standard Complete
+### ✅ Standard Complete (January 2025)
 - Full protocol specifications (binding, pairing, witnessing, broadcast)
 - Cryptographic suites defined (X25519, Ed25519, ChaCha20-Poly1305)
-- Reference implementation in Python
-- Test vectors and conformance profiles
-- Ready for IETF submission
+- Reference implementation in Python with complete test coverage
+- JOSE/COSE witness vectors with validator
+- MRH as RDF graphs with trust propagation algorithms
+- MCP servers defined as responsive + delegative entities
+- Ready for IETF/ISO submission
 
 ### 🔨 Reference Implementation: modbatt-CAN
 The [modbatt-CAN project](https://github.com/dp-web4/modbatt-CAN) demonstrates Web4 in production:
@@ -141,10 +166,10 @@ The [modbatt-CAN project](https://github.com/dp-web4/modbatt-CAN) demonstrates W
 - Complete trust chain from blockchain to CAN bus
 
 ### 🚧 Next Steps
-1. IETF Internet-Draft submission
+1. IETF Internet-Draft submission (Q1 2025)
 2. W3C Community Group formation
-3. Production implementations
-4. Ecosystem development
+3. Production implementations across languages
+4. Ecosystem development and tool support
 
 ---
 
@@ -166,8 +191,9 @@ python -m pytest
 
 ### For Standards Bodies
 - Review the [full specification](web4-standard/)
-- See [INTEGRATION_STATUS.md](web4-standard/INTEGRATION_STATUS.md) for development history
-- Contact for IETF sponsorship
+- See [INTEGRATION_STATUS.md](web4-standard/INTEGRATION_STATUS.md) for development phases
+- Read [NOVA_REVIEW_SUMMARY.md](web4-standard/NOVA_REVIEW_SUMMARY.md) for technical assessment
+- Contact for IETF/ISO sponsorship
 
 ### For Contributors
 - Read the [governance framework](web4-standard/community/governance.md)
