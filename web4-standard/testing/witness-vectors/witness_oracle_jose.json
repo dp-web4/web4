@@ -1,0 +1,21 @@
+{
+  "role": "oracle",
+  "protected_header": {
+    "alg": "ES256",
+    "kid": "kid-witness-1",
+    "typ": "JWT"
+  },
+  "payload": {
+    "role": "oracle",
+    "ts": "2025-09-11T15:00:02Z",
+    "subject": "w4idp:ABCD-EXAMPLE",
+    "event_hash": "deadbeefcafebabe1122334455667788",
+    "policy": "oracle://energy-meter-v2",
+    "nonce": "AQIDBAU="
+  },
+  "protected_b64": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImtpZC13aXRuZXNzLTEiLCJ0eXAiOiJKV1QifQ",
+  "payload_b64": "eyJldmVudF9oYXNoIjoiZGVhZGJlZWZjYWZlYmFiZTExMjIzMzQ0NTU2Njc3ODgiLCJub25jZSI6IkFRSURCQVU9IiwicG9saWN5Ijoib3JhY2xlOi8vZW5lcmd5LW1ldGVyLXYyIiwicm9sZSI6Im9yYWNsZSIsInN1YmplY3QiOiJ3NGlkcDpBQkNELUVYQU1QTEUiLCJ0cyI6IjIwMjUtMDktMTFUMTU6MDA6MDJaIn0",
+  "signing_input": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImtpZC13aXRuZXNzLTEiLCJ0eXAiOiJKV1QifQ.eyJldmVudF9oYXNoIjoiZGVhZGJlZWZjYWZlYmFiZTExMjIzMzQ0NTU2Njc3ODgiLCJub25jZSI6IkFRSURCQVU9IiwicG9saWN5Ijoib3JhY2xlOi8vZW5lcmd5LW1ldGVyLXYyIiwicm9sZSI6Im9yYWNsZSIsInN1YmplY3QiOiJ3NGlkcDpBQkNELUVYQU1QTEUiLCJ0cyI6IjIwMjUtMDktMTFUMTU6MDA6MDJaIn0",
+  "signing_input_sha256": "3c46168efd15963d803afba5bc6faa51c9f1fd29d4dcf2275aaf150ee0787cda",
+  "note": "Sign signing_input with ES256; third segment is signature. Payload is JCS canonical JSON."
+}
