@@ -8,7 +8,7 @@
 
 **The Web4 Internet Standard specification is substantively complete and technically coherent.** Created through unprecedented collaboration between AI systems (Manus, Nova, Claude), the standard demonstrates Web4's core principle: witnessed presence strengthening truth.
 
-### Current Status (January 2025)
+### Current Status (September 2025)
 - ✅ **Alpha-ready** for independent implementations
 - ✅ **Beta-ready** for submission to standards bodies (IETF/ISO)
 - ✅ Complete protocol specifications with test vectors
@@ -150,7 +150,7 @@ web4/
 
 ## Implementation Status
 
-### ✅ Standard Complete (January 2025)
+### ✅ Standard Complete (September 2025)
 - Full protocol specifications (binding, pairing, witnessing, broadcast)
 - Cryptographic suites defined (X25519, Ed25519, ChaCha20-Poly1305)
 - Reference implementation in Python with complete test coverage
@@ -166,7 +166,7 @@ The [modbatt-CAN project](https://github.com/dp-web4/modbatt-CAN) demonstrates W
 - Complete trust chain from blockchain to CAN bus
 
 ### 🚧 Next Steps
-1. IETF Internet-Draft submission (Q1 2025)
+1. IETF Internet-Draft submission (Q4 2025)
 2. W3C Community Group formation
 3. Production implementations across languages
 4. Ecosystem development and tool support
