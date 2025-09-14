@@ -17,7 +17,7 @@ The following entity types are recognized in Web4:
 | **Human** | Individual persons participating in Web4 | End users, developers, administrators | Agentic |
 | **AI** | Artificial intelligence agents with autonomous capabilities | Chatbots, analysis engines, autonomous agents | Agentic |
 | **Organization** | Collective entities representing groups | Companies, DAOs, communities | Delegative |
-| **Role** | First-class entities representing functions or positions | Developer, Auditor, Energy Provider | Delegative |
+| **Role** | First-class entities representing functions or positions | Citizen, Developer, Auditor, Energy Provider | Delegative |
 | **Task** | Specific work units or objectives | Data processing job, verification task | Responsive |
 | **Resource** | Data, services, or assets | Databases, APIs, compute resources | Responsive |
 | **Device** | Physical or virtual hardware | IoT sensors, servers, vehicles | Responsive/Agentic |
@@ -53,7 +53,35 @@ Entities exhibit three primary modes of existence:
 
 One of Web4's most radical innovations is treating roles not as labels but as entities with their own presence and LCTs.
 
-### 3.1 The Role Revolution
+### 3.1 The Citizen Role: Universal Birth Certificate
+
+#### Fundamental Principle
+**Every entity begins with the "citizen" role** - a broad role representing participation in its general context. This first citizen role pairing, made at LCT creation, serves as the entity's **birth certificate** in Web4.
+
+#### Citizen Role Characteristics
+- **Universal**: Every entity has citizen role in some context
+- **Contextual**: Human citizen of nation, AI citizen of platform, device citizen of network
+- **Foundational**: Provides base rights and responsibilities
+- **Immutable**: Birth certificate pairing cannot be revoked
+- **Inherited**: Carries context from creating/binding entity
+
+#### Birth Certificate Structure
+```json
+{
+  "birth_certificate": {
+    "entity_lct": "lct:web4:entity:...",
+    "citizen_role": "lct:web4:role:citizen:...",
+    "context": "web4://context/nation|platform|network",
+    "birth_timestamp": "2025-09-14T12:00:00Z",
+    "parent_entity": "lct:web4:parent:...",
+    "birth_witness": ["lct:web4:witness1", "lct:web4:witness2"],
+    "initial_rights": ["exist", "interact", "accumulate_reputation"],
+    "genesis_block": "block:12345"
+  }
+}
+```
+
+### 3.2 The Role Revolution
 
 Traditional roles are static job descriptions. In Web4, a role becomes a living entity that:
 
@@ -106,15 +134,29 @@ Each Role LCT contains:
 }
 ```
 
-### 3.3 Role-Agent Pairing
+### 3.3 Role Hierarchy: From Citizen to Specialist
 
-When an agent (human or AI) takes on a role:
+#### Role Evolution Path
+Entities typically progress through role hierarchies:
 
-1. **Pairing Established**: Agent's LCT pairs with Role's LCT
-2. **Context Transfer**: Role's permissions and scope transfer to agent
-3. **Performance Tracking**: Actions tracked against both LCTs
-4. **Reputation Impact**: Performance affects both reputations
-5. **Pairing Termination**: Clean handoff when role assignment ends
+1. **Citizen** (birth) → Base participation rights
+2. **Participant** → Active engagement in specific domain
+3. **Contributor** → Proven value creation
+4. **Specialist** → Domain expertise roles (surgeon, engineer, analyst)
+5. **Authority** → Governance and oversight roles
+
+#### Role-Agent Pairing
+
+When an agent takes on a role beyond citizen:
+
+1. **Prerequisite Check**: Verify citizen role exists (birth certificate)
+2. **Pairing Established**: Agent's LCT pairs with new Role's LCT
+3. **Context Transfer**: Role's permissions and scope transfer to agent
+4. **Performance Tracking**: Actions tracked against both LCTs
+5. **Reputation Impact**: Performance affects both reputations
+6. **Pairing Termination**: Clean handoff when role assignment ends
+
+Note: Citizen role pairing is permanent and cannot be terminated.
 
 This creates a transparent, reputation-based labor market where:
 - Roles with strong reputations attract capable agents
@@ -123,14 +165,49 @@ This creates a transparent, reputation-based labor market where:
 
 ## 4. Entity Lifecycle
 
-### 4.1 Entity Creation
+### 4.1 Entity Creation and Birth Certificate
 
 When an entity enters Web4:
 
 1. **LCT Generation**: Unique LCT created and cryptographically bound
 2. **Entity Type Declaration**: Immutable type assignment
-3. **Initial Binding**: For delegative entities, binding to parent/creator
-4. **MRH Initialization**: Empty relationship arrays ready for population
+3. **Citizen Role Pairing**: Automatic pairing with contextual citizen role
+4. **Birth Certificate Recording**: Immutable record of creation context
+5. **Initial Binding**: For delegative entities, binding to parent/creator
+6. **MRH Initialization**: Citizen role pre-populated in paired array
+
+#### Birth Certificate Process
+```python
+def create_entity_with_birth_certificate(entity_type, context, parent=None):
+    # Generate entity LCT
+    entity_lct = generate_lct(entity_type)
+    
+    # Determine citizen role for context
+    citizen_role = get_citizen_role_for_context(context)
+    
+    # Create birth certificate pairing
+    birth_cert = {
+        "entity_lct": entity_lct.id,
+        "citizen_role": citizen_role.id,
+        "context": context,
+        "birth_timestamp": now(),
+        "parent_entity": parent.id if parent else None,
+        "birth_witness": collect_witnesses()
+    }
+    
+    # Establish permanent citizen pairing
+    entity_lct.mrh.paired.append({
+        "lct_id": citizen_role.id,
+        "pairing_type": "birth_certificate",
+        "permanent": True,
+        "timestamp": birth_cert["birth_timestamp"]
+    })
+    
+    # Record in blockchain
+    record_birth_certificate(birth_cert)
+    
+    return entity_lct, birth_cert
+```
 
 ### 4.2 Entity Evolution
 
@@ -167,11 +244,19 @@ Not all entity types can interact in all ways:
 
 Roles have unique interaction patterns:
 
+#### Citizen Role (Special Case)
+- **Automatically pairs**: With every new entity at creation
+- **Cannot be revoked**: Permanent birth certificate pairing
+- **Provides base rights**: Exist, interact, accumulate reputation
+- **Context-specific**: Nation-citizen, platform-citizen, network-citizen
+
+#### Other Roles
 - **Can be bound to**: Organizations, parent roles
 - **Can bind**: Sub-roles, specific tasks
 - **Can pair with**: Agents (human or AI) to perform the role
 - **Can witness**: Performance of paired agents
 - **Cannot**: Act autonomously without a paired agent
+- **Require**: Citizen role as prerequisite
 
 ## 6. Implementation Requirements
 
@@ -186,9 +271,12 @@ Implementations MUST:
 
 Implementations MUST:
 - Support role LCTs as first-class entities
+- Automatically create citizen role pairing at entity birth
+- Maintain immutable birth certificate records
 - Track performance history within role LCTs
 - Enable role-agent pairing with proper permission transfer
 - Calculate reputation impacts for both role and agent
+- Verify citizen role exists before other role assignments
 
 ### 6.3 Entity Discovery
 
@@ -259,10 +347,34 @@ Accumulator reliability measured by:
 - Storage commitment honoring
 - Non-selective recording (no censorship)
 
-## 10. Future Extensions
+## 10. Citizen Role Examples
+
+### 10.1 Context-Specific Citizens
+
+Different contexts define different citizen roles:
+
+| Context | Citizen Role | Base Rights | Base Responsibilities |
+|---------|--------------|-------------|----------------------|
+| Nation | National Citizen | Vote, access services | Pay taxes, follow laws |
+| Platform | Platform Citizen | Create content, interact | Follow ToS, respect others |
+| Network | Network Citizen | Send/receive data | Maintain node, relay traffic |
+| Organization | Member Citizen | Participate, propose | Contribute, uphold values |
+| Ecosystem | Ecosystem Citizen | Use resources | Sustain balance |
+
+### 10.2 Birth Certificate as Proof of Origin
+
+The birth certificate provides:
+- **Provenance**: Where and when entity originated
+- **Legitimacy**: Proper creation process followed
+- **Context**: Initial environment and constraints
+- **Inheritance**: Rights/responsibilities from parent
+- **Witnesses**: Who validated the birth
+
+## 11. Future Extensions
 
 Potential entity types under consideration:
 - **Contract**: Smart contracts as entities
 - **Content**: Documents/media with their own LCTs
 - **Workflow**: Process definitions as entities
 - **Community**: Collective intelligence entities
+- **Citizen Subtypes**: Specialized citizen roles for different contexts

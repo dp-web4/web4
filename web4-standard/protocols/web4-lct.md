@@ -17,11 +17,19 @@ The canonical LCT object MUST be represented as follows:
     "created_at": "2025-09-11T15:00:00Z",
     "binding_proof": "cose:Sig_structure"   // COSE Sig over canonical LCT fields
   },
+  "birth_certificate": {
+    "citizen_role": "lct:web4:role:citizen:...",
+    "context": "nation|platform|network",
+    "birth_timestamp": "2025-09-11T15:00:00Z",
+    "parent_entity": "lct:web4:...",
+    "birth_witnesses": ["lct:web4:...", "lct:web4:..."]
+  },
   "mrh": {
     "bound": [
       {"lct_id": "lct:web4:...", "type": "parent|child|sibling", "ts": "..."}
     ],
     "paired": [
+      {"lct_id": "lct:web4:role:citizen:...", "pairing_type": "birth_certificate", "permanent": true, "ts": "..."},
       {"lct_id": "lct:web4:...", "context": "energy-mgmt", "session_id": "...", "ts": "..."}
     ],
     "witnessing": [
@@ -58,7 +66,17 @@ The binding establishes the permanent, unforgeable link between the LCT and its 
 - **created_at** (REQUIRED): ISO 8601 timestamp of binding creation
 - **binding_proof** (REQUIRED): COSE signature over the canonical binding fields
 
-### 2.3 MRH (Markov Relevancy Horizon) Fields
+### 2.3 Birth Certificate Fields
+
+The birth certificate establishes the entity's foundational identity and context:
+
+- **citizen_role** (REQUIRED): LCT ID of the citizen role for this entity's context
+- **context** (REQUIRED): Birth context (`"nation"`, `"platform"`, `"network"`, `"organization"`, `"ecosystem"`)
+- **birth_timestamp** (REQUIRED): ISO 8601 timestamp of entity creation
+- **parent_entity** (OPTIONAL): LCT ID of creating/parent entity
+- **birth_witnesses** (REQUIRED): Array of witness LCT IDs present at creation
+
+### 2.4 MRH (Markov Relevancy Horizon) Fields
 
 The MRH dynamically tracks all entities within this LCT's relevancy horizon:
 
@@ -67,9 +85,12 @@ The MRH dynamically tracks all entities within this LCT's relevancy horizon:
   - **type**: Relationship type (`"parent"`, `"child"`, `"sibling"`)
   - **ts**: Timestamp of binding establishment
 - **paired** (REQUIRED): Array of active pairings
+  - First entry MUST be citizen role pairing (birth certificate)
   - **lct_id**: LCT identifier of paired entity
-  - **context**: Pairing context (e.g., `"energy-mgmt"`, `"data-exchange"`)
-  - **session_id**: Active session identifier
+  - **pairing_type**: Type of pairing (`"birth_certificate"`, `"role"`, `"operational"`)
+  - **permanent**: Boolean indicating if pairing can be revoked
+  - **context**: Pairing context (for non-birth pairings)
+  - **session_id**: Active session identifier (for operational pairings)
   - **ts**: Timestamp of pairing establishment
 - **witnessing** (OPTIONAL): Array of witness relationships
   - **lct_id**: LCT identifier of witness
@@ -78,12 +99,12 @@ The MRH dynamically tracks all entities within this LCT's relevancy horizon:
 - **horizon_depth** (OPTIONAL): Maximum relationship depth to track (default: 3)
 - **last_updated** (REQUIRED): ISO 8601 timestamp of last MRH update
 
-### 2.4 Policy Fields
+### 2.5 Policy Fields
 
 - **capabilities** (REQUIRED): Array of capability strings the entity is authorized for
 - **constraints** (OPTIONAL): Object containing operational constraints
 
-### 2.5 Attestation Fields
+### 2.6 Attestation Fields
 
 Each attestation represents a witnessing event:
 
@@ -92,7 +113,7 @@ Each attestation represents a witnessing event:
 - **sig** (REQUIRED): COSE signature from the witness
 - **ts** (REQUIRED): ISO 8601 timestamp of witnessing
 
-### 2.6 Lineage Fields
+### 2.7 Lineage Fields
 
 Tracks the evolution of the LCT:
 
@@ -100,7 +121,7 @@ Tracks the evolution of the LCT:
 - **reason** (REQUIRED): One of `"genesis"`, `"rotation"`, `"fork"`, `"upgrade"`
 - **ts** (REQUIRED): ISO 8601 timestamp of transition
 
-### 2.7 Revocation Fields
+### 2.8 Revocation Fields
 
 When present, indicates the LCT is no longer active:
 
