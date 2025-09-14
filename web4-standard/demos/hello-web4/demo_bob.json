@@ -1,0 +1,64 @@
+{
+  "name": "Bob",
+  "lct_id": "lct:web4:2kQIHCMQ983TKex9V85WSA",
+  "w4id": "did:web4:key:IWnEnd9JwS7yb6-xu5M7mdrV0_gqMWdJYuAorQESoKQ",
+  "entity_type": "ai",
+  "binding": {
+    "entity_type": "ai",
+    "public_key": "IWnEnd9JwS7yb6-xu5M7mdrV0_gqMWdJYuAorQESoKQ",
+    "created_at": "2025-09-14T17:20:47Z"
+  },
+  "birth_certificate": {
+    "citizen_role": "lct:web4:role:citizen:platform",
+    "context": "platform",
+    "birth_timestamp": "2025-09-14T17:20:47Z",
+    "parent_entity": "lct:web4:platform:genesis",
+    "birth_witnesses": [
+      "lct:web4:witness:time",
+      "lct:web4:witness:platform"
+    ],
+    "initial_rights": [
+      "exist",
+      "interact",
+      "accumulate_reputation"
+    ]
+  },
+  "mrh": {
+    "bound": [],
+    "paired": [
+      {
+        "lct_id": "lct:web4:role:citizen:platform",
+        "pairing_type": "birth_certificate",
+        "permanent": true,
+        "ts": "2025-09-14T17:20:47Z"
+      },
+      {
+        "lct_id": "lct:web4:MFU-oSh_b217a7xYByUfTQ",
+        "w4id": "did:web4:key:zrPh4sZKyoY04zRm8W6ZkYFVmJSwdoHomrI-bCcHZBY",
+        "relationship_type": "pairing",
+        "role": "data-provider",
+        "context": {
+          "purpose": "demo-hello-web4",
+          "scope": "data-exchange",
+          "claim": "greeting-protocol"
+        },
+        "t3_scores": {
+          "role": "data-provider",
+          "talent": 0.75,
+          "training": 0.8,
+          "temperament": 0.85
+        },
+        "witnessed_at": "2025-09-14T17:20:47Z"
+      }
+    ],
+    "witnessing": [
+      {
+        "lct_id": "lct:web4:MFU-oSh_b217a7xYByUfTQ",
+        "role": "peer",
+        "last_attestation": "2025-09-14T17:20:47Z"
+      }
+    ],
+    "horizon_depth": 3
+  },
+  "public_key": "IWnEnd9JwS7yb6-xu5M7mdrV0_gqMWdJYuAorQESoKQ"
+}

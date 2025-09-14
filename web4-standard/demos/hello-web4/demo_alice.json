@@ -1,0 +1,40 @@
+{
+  "name": "Alice",
+  "lct_id": "lct:web4:MFU-oSh_b217a7xYByUfTQ",
+  "w4id": "did:web4:key:zrPh4sZKyoY04zRm8W6ZkYFVmJSwdoHomrI-bCcHZBY",
+  "entity_type": "human",
+  "binding": {
+    "entity_type": "human",
+    "public_key": "zrPh4sZKyoY04zRm8W6ZkYFVmJSwdoHomrI-bCcHZBY",
+    "created_at": "2025-09-14T17:20:47Z"
+  },
+  "birth_certificate": {
+    "citizen_role": "lct:web4:role:citizen:platform",
+    "context": "platform",
+    "birth_timestamp": "2025-09-14T17:20:47Z",
+    "parent_entity": "lct:web4:platform:genesis",
+    "birth_witnesses": [
+      "lct:web4:witness:time",
+      "lct:web4:witness:platform"
+    ],
+    "initial_rights": [
+      "exist",
+      "interact",
+      "accumulate_reputation"
+    ]
+  },
+  "mrh": {
+    "bound": [],
+    "paired": [
+      {
+        "lct_id": "lct:web4:role:citizen:platform",
+        "pairing_type": "birth_certificate",
+        "permanent": true,
+        "ts": "2025-09-14T17:20:47Z"
+      }
+    ],
+    "witnessing": [],
+    "horizon_depth": 3
+  },
+  "public_key": "zrPh4sZKyoY04zRm8W6ZkYFVmJSwdoHomrI-bCcHZBY"
+}

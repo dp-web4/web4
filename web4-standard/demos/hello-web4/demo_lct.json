@@ -1,0 +1,33 @@
+{
+  "protected": {
+    "alg": "MockEd25519",
+    "typ": "LCT-JSON",
+    "kid": "did:web4:key:zrPh4sZKyoY04zRm8W6ZkYFVmJSwdoHomrI-bCcHZBY"
+  },
+  "payload": {
+    "iss": "did:web4:key:zrPh4sZKyoY04zRm8W6ZkYFVmJSwdoHomrI-bCcHZBY",
+    "iss_lct": "lct:web4:MFU-oSh_b217a7xYByUfTQ",
+    "sub": "did:web4:key:IWnEnd9JwS7yb6-xu5M7mdrV0_gqMWdJYuAorQESoKQ",
+    "sub_lct": "lct:web4:2kQIHCMQ983TKex9V85WSA",
+    "context": {
+      "purpose": "demo-hello-web4",
+      "scope": "data-exchange",
+      "claim": "greeting-protocol"
+    },
+    "role": "data-provider",
+    "t3_in_role": {
+      "role": "data-provider",
+      "talent": 0.75,
+      "training": 0.8,
+      "temperament": 0.85
+    },
+    "mrh": {
+      "horizon": 2,
+      "depth": 1,
+      "relationship_type": "pairing"
+    },
+    "iat": 1757870447,
+    "exp": 1757874047
+  },
+  "sig": "d_d9KdhLTxsu2SbUyAx0lavmUAlDSthaNVDbw1RK6uo"
+}
