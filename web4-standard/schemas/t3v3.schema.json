@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/t3v3.schema.json",
+  "title": "T3/V3 Tensor Updates",
+  "description": "Role-contextual trust and value tensor updates",
+  "type": "object",
+  "required": ["entity", "role", "tensor_type", "timestamp"],
+  "properties": {
+    "entity": {
+      "type": "string",
+      "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+      "description": "Entity LCT ID"
+    },
+    "role": {
+      "type": "string",
+      "pattern": "^web4:[A-Za-z]+$",
+      "description": "Role context for tensor (e.g., web4:Surgeon)"
+    },
+    "tensor_type": {
+      "type": "string",
+      "enum": ["t3", "v3"],
+      "description": "Trust (T3) or Value (V3) tensor"
+    },
+    "t3": {
+      "type": "object",
+      "properties": {
+        "talent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Role-specific capability"
+        },
+        "training": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Role-specific expertise"
+        },
+        "temperament": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Role-specific reliability"
+        }
+      },
+      "required": ["talent", "training", "temperament"],
+      "additionalProperties": false
+    },
+    "v3": {
+      "type": "object",
+      "properties": {
+        "valuation": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Value created in role"
+        },
+        "veracity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Accuracy of value claims"
+        },
+        "validity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Successful value transfers"
+        }
+      },
+      "required": ["valuation", "veracity", "validity"],
+      "additionalProperties": false
+    },
+    "update": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "pattern": "^r6:web4:[A-Za-z0-9_-]+$",
+          "description": "R6 action that triggered update"
+        },
+        "deltas": {
+          "type": "object",
+          "properties": {
+            "talent": {"type": "number"},
+            "training": {"type": "number"},
+            "temperament": {"type": "number"},
+            "valuation": {"type": "number"},
+            "veracity": {"type": "number"},
+            "validity": {"type": "number"}
+          }
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable update reason"
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "witness": {
+      "type": "string",
+      "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+      "description": "Entity that witnessed/validated the update"
+    }
+  },
+  "oneOf": [
+    {"required": ["t3"]},
+    {"required": ["v3"]}
+  ],
+  "additionalProperties": false
+}

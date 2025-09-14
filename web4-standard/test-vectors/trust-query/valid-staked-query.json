@@ -1,0 +1,42 @@
+{
+  "description": "Valid trust query with ATP stake",
+  "input": {
+    "query": {
+      "querier": "lct:web4:alice",
+      "target_entity": "lct:web4:bob",
+      "requested_role": "web4:Surgeon",
+      "intended_interaction": "surgical-procedure",
+      "atp_stake": 100,
+      "validity_period": 3600,
+      "query_justification": "Patient requiring surgery",
+      "disclosure_level": "precise"
+    },
+    "querier_atp_balance": 500,
+    "timestamp": "2025-09-14T12:00:00Z"
+  },
+  "expected_output": {
+    "status": "APPROVED",
+    "response": {
+      "entity": "lct:web4:bob",
+      "role": "web4:Surgeon",
+      "t3_in_role": {
+        "talent": 0.95,
+        "training": 0.92,
+        "temperament": 0.88
+      },
+      "validity_until": "2025-09-14T13:00:00Z",
+      "stake_locked": 100,
+      "commitment": "Must engage within 3600 seconds or forfeit stake"
+    },
+    "audit_log": {
+      "query_id": "query:web4:unique_id",
+      "querier": "lct:web4:alice",
+      "target": "lct:web4:bob",
+      "role": "web4:Surgeon",
+      "stake": 100,
+      "timestamp": "2025-09-14T12:00:00Z"
+    }
+  },
+  "should_succeed": true,
+  "notes": "Sufficient stake and legitimate need established"
+}

@@ -1,0 +1,27 @@
+{
+  "description": "Invalid trust query without ATP stake",
+  "input": {
+    "query": {
+      "querier": "lct:web4:alice",
+      "target_entity": "lct:web4:bob",
+      "requested_role": "web4:Surgeon",
+      "intended_interaction": "just-curious",
+      "atp_stake": 0,
+      "validity_period": 3600,
+      "query_justification": "Want to know trust score"
+    },
+    "querier_atp_balance": 500,
+    "timestamp": "2025-09-14T12:00:00Z"
+  },
+  "expected_output": {
+    "status": "REJECTED",
+    "error": {
+      "code": "INSUFFICIENT_STAKE",
+      "message": "Trust queries require minimum ATP stake",
+      "minimum_required": 10,
+      "provided": 0
+    }
+  },
+  "should_succeed": false,
+  "notes": "No free trust queries - ATP stake required"
+}

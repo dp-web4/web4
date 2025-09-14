@@ -1,0 +1,50 @@
+{
+  "description": "Valid LCT with birth certificate and citizen role",
+  "input": {
+    "entity_type": "human",
+    "name": "Alice",
+    "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+    "context": "platform",
+    "timestamp": "2025-09-14T12:00:00Z"
+  },
+  "expected_output": {
+    "lct_id": "lct:web4:mb32_hashed_value",
+    "subject": "did:web4:key:11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+    "binding": {
+      "entity_type": "human",
+      "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "created_at": "2025-09-14T12:00:00Z",
+      "binding_proof": "cose:signature_placeholder"
+    },
+    "birth_certificate": {
+      "citizen_role": "lct:web4:role:citizen:platform",
+      "context": "platform",
+      "birth_timestamp": "2025-09-14T12:00:00Z",
+      "parent_entity": "lct:web4:platform:genesis",
+      "birth_witnesses": [
+        "lct:web4:witness:time",
+        "lct:web4:witness:platform"
+      ]
+    },
+    "mrh": {
+      "bound": [],
+      "paired": [
+        {
+          "lct_id": "lct:web4:role:citizen:platform",
+          "pairing_type": "birth_certificate",
+          "permanent": true,
+          "ts": "2025-09-14T12:00:00Z"
+        }
+      ],
+      "witnessing": [],
+      "horizon_depth": 3,
+      "last_updated": "2025-09-14T12:00:00Z"
+    },
+    "policy": {
+      "capabilities": ["exist", "interact", "accumulate_reputation"],
+      "constraints": {}
+    }
+  },
+  "should_succeed": true,
+  "notes": "First pairing MUST be citizen role (birth certificate)"
+}
