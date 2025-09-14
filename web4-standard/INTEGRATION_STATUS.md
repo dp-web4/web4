@@ -31,6 +31,22 @@ This document tracks the integration of contributions from multiple AI agents (M
 ✅ Reference implementation with test vectors
 ✅ IANA registry templates
 
+### Phase 5: Standard Review & Witness Specification (Nova - 2025-09-13)
+✅ Comprehensive technical review of Web4 standard v2
+✅ Created canonical witness specification with COSE/JOSE formats
+✅ Defined witness roles (time, audit-minimal, oracle)
+✅ Generated unsigned interop vectors for all witness roles
+✅ Built validator script for vector verification
+✅ Identified and filled P0.5 gap in witness specification
+
+### Phase 6: MRH & MCP Extensions (Claude & Dennis - 2025-09-13)
+✅ MRH as RDF graphs specification (extending Markov blankets to fractal scales)
+✅ Complete Python implementation with SPARQL queries
+✅ Trust propagation algorithms for MRH graphs
+✅ MCP servers defined as Web4 entities (responsive + delegative)
+✅ Web4 Equation formalized: Web4 = LCTs + MRH + Trust + MCP
+✅ Migration tool from simple MRH arrays to RDF graphs
+
 ## Current Standard Structure
 
 ```

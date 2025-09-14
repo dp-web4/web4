@@ -1,0 +1,21 @@
+{
+  "role": "time",
+  "protected_header": {
+    "alg": "ES256",
+    "kid": "kid-witness-1",
+    "typ": "JWT"
+  },
+  "payload": {
+    "role": "time",
+    "ts": "2025-09-11T15:00:02Z",
+    "subject": "w4idp:ABCD-EXAMPLE",
+    "event_hash": "deadbeefcafebabe1122334455667788",
+    "policy": "policy://baseline-v1",
+    "nonce": "AQIDBAU="
+  },
+  "protected_b64": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImtpZC13aXRuZXNzLTEiLCJ0eXAiOiJKV1QifQ",
+  "payload_b64": "eyJldmVudF9oYXNoIjoiZGVhZGJlZWZjYWZlYmFiZTExMjIzMzQ0NTU2Njc3ODgiLCJub25jZSI6IkFRSURCQVU9IiwicG9saWN5IjoicG9saWN5Oi8vYmFzZWxpbmUtdjEiLCJyb2xlIjoidGltZSIsInN1YmplY3QiOiJ3NGlkcDpBQkNELUVYQU1QTEUiLCJ0cyI6IjIwMjUtMDktMTFUMTU6MDA6MDJaIn0",
+  "signing_input": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImtpZC13aXRuZXNzLTEiLCJ0eXAiOiJKV1QifQ.eyJldmVudF9oYXNoIjoiZGVhZGJlZWZjYWZlYmFiZTExMjIzMzQ0NTU2Njc3ODgiLCJub25jZSI6IkFRSURCQVU9IiwicG9saWN5IjoicG9saWN5Oi8vYmFzZWxpbmUtdjEiLCJyb2xlIjoidGltZSIsInN1YmplY3QiOiJ3NGlkcDpBQkNELUVYQU1QTEUiLCJ0cyI6IjIwMjUtMDktMTFUMTU6MDA6MDJaIn0",
+  "signing_input_sha256": "36830e351849c73fdf5c55d29c882816eb29b3d58b8b978ab3dea6a745abbfbb",
+  "note": "Sign signing_input with ES256; third segment is signature. Payload is JCS canonical JSON."
+}
