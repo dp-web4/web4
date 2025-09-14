@@ -6,39 +6,56 @@ This document defines the Trust (T3) and Value (V3) tensor systems that provide 
 
 Traditional reputation systems reduce complex behaviors to simple scores. Web4's tensor approach captures the multi-dimensional nature of trust and value, enabling context-aware assessment that evolves through actual performance.
 
+### 1.1 Critical Design Principle: Role-Contextual Trust
+
+**T3/V3 tensors are not absolute properties - they exist only within role contexts.** An entity trusted as a surgeon has no inherent trust as a mechanic. Trust and value are always qualified by the role being performed. RDF triples in the MRH explicitly bind tensors to entity-role pairs, ensuring trust assessments remain contextually appropriate.
+
 ## 2. T3 Tensor: Trust Through Capability
 
 The T3 Tensor measures an entity's trustworthiness through three capability dimensions:
 
 ### 2.1 Dimensions
 
-#### Talent (Inherent Capability)
+#### Talent (Role-Specific Capability)
 - **Range**: 0.0 to 1.0
-- **Measures**: Natural aptitude, creativity, problem-solving ability
-- **Updates**: Increases with novel solutions, decreases with repeated failures
-- **Context**: Domain-specific (e.g., high talent in analysis, low in design)
+- **Measures**: Natural aptitude for specific role, creativity within domain
+- **Updates**: Increases with novel solutions in role, decreases with role-specific failures
+- **Context**: Always role-qualified (e.g., talent as analyst, not general talent)
 
-#### Training (Acquired Expertise)
+#### Training (Role-Specific Expertise)
 - **Range**: 0.0 to 1.0
-- **Measures**: Learned skills, domain knowledge, experience
-- **Updates**: Grows with successful repetitions, domain exposure
-- **Context**: Skill-specific and measurable through certifications
+- **Measures**: Learned skills for role, role-specific knowledge, relevant experience
+- **Updates**: Grows with successful role performance, role-relevant training
+- **Context**: Qualified by role certifications and demonstrated role competence
 
-#### Temperament (Behavioral Reliability)
+#### Temperament (Role-Contextual Reliability)
 - **Range**: 0.0 to 1.0
-- **Measures**: Consistency, reliability, ethical behavior
-- **Updates**: Improves with consistent performance, degrades with violations
-- **Context**: Universal but weighted by role requirements
+- **Measures**: Consistency in role, role-appropriate behavior, role ethics
+- **Updates**: Improves with consistent role performance, degrades with role violations
+- **Context**: Role-dependent (surgeon needs steady hands, trader needs risk tolerance)
 
-### 2.2 T3 Tensor Structure
+### 2.2 T3 Tensor Structure with Role Binding
 
 ```json
 {
   "t3_tensor": {
-    "global": {
-      "talent": 0.75,
-      "training": 0.82,
-      "temperament": 0.91
+    "entity": "lct:alice",
+    "role_tensors": {
+      "web4:DataAnalyst": {
+        "talent": 0.85,
+        "training": 0.90,
+        "temperament": 0.95
+      },
+      "web4:ProjectManager": {
+        "talent": 0.65,
+        "training": 0.70,
+        "temperament": 0.91
+      },
+      "web4:Mechanic": {
+        "talent": 0.20,
+        "training": 0.15,
+        "temperament": 0.50
+      }
     },
     "contextual": {
       "data_analysis": {
@@ -180,35 +197,76 @@ V3 outcomes influence T3 evolution:
 - Verified **Veracity** → Training validation
 - Perfect **Validity** → Temperament reinforcement
 
-## 5. Contextual Application
+## 5. Role-Based Tensor Application
 
-### 5.1 Role Matching
+### 5.1 Role-Specific Trust Matching
 
-Roles specify required T3 thresholds:
+Roles specify required T3 thresholds, and entities are matched based on role-specific tensors:
 
 ```json
 {
+  "role": "web4:Surgeon",
   "role_requirements": {
     "minimum_t3": {
-      "talent": 0.6,
-      "training": 0.7,
-      "temperament": 0.8
-    },
-    "preferred_t3": {
-      "talent": 0.8,
-      "training": 0.85,
-      "temperament": 0.9
+      "talent": 0.7,      // High precision required
+      "training": 0.9,    // Extensive medical training
+      "temperament": 0.85 // Steady under pressure
+    }
+  },
+  "candidate_evaluation": {
+    "lct:alice": {
+      "role_tensor": {
+        "talent": 0.95,
+        "training": 0.92,
+        "temperament": 0.88
+      },
+      "qualified": true,
+      "trust_score": 0.92  // Computed for THIS role
     }
   }
 }
 ```
 
-### 5.2 Value Pricing
+### 5.2 RDF Role-Tensor Binding
 
-ATP costs derived from expected V3:
+```turtle
+# T3 tensors are bound to entity-role pairs
+lct:alice web4:hasRole web4:Surgeon .
+lct:alice web4:hasRole web4:Researcher .
 
+_:tensor1 a web4:T3Tensor ;
+    web4:entity lct:alice ;
+    web4:role web4:Surgeon ;
+    web4:talent 0.95 ;
+    web4:training 0.92 ;
+    web4:temperament 0.88 .
+
+_:tensor2 a web4:T3Tensor ;
+    web4:entity lct:alice ;
+    web4:role web4:Researcher ;
+    web4:talent 0.80 ;
+    web4:training 0.85 ;
+    web4:temperament 0.90 .
 ```
-ATP_price = base_cost * (1 + expected_valuation) * veracity_weight * validity_probability
+
+### 5.3 Role-Aware Value Pricing
+
+ATP costs derived from role-specific V3 expectations:
+
+```python
+def calculate_atp_price(entity_id, role, task_type):
+    # Get role-specific V3 tensor
+    v3 = get_v3_for_role(entity_id, role)
+    
+    # Price depends on role-task alignment
+    if not role_matches_task(role, task_type):
+        return INVALID_ROLE_PRICE  # Very high or rejection
+    
+    # Role-appropriate pricing
+    base_cost = get_role_base_cost(role)
+    role_multiplier = get_role_value_multiplier(role)
+    
+    return base_cost * (1 + v3.valuation) * v3.veracity * v3.validity * role_multiplier
 ```
 
 ## 6. Implementation Requirements
@@ -223,10 +281,11 @@ ATP_price = base_cost * (1 + expected_valuation) * veracity_weight * validity_pr
 - V3 updates MUST occur upon value confirmation
 - Decay calculations SHOULD run daily
 
-### 6.3 Context Segregation
-- Global scores MUST be weighted averages
-- Context-specific scores MUST be tracked separately
-- New contexts MUST inherit from global initially
+### 6.3 Role-Based Segregation
+- No global trust scores - only role-specific tensors
+- Each role maintains separate T3/V3 tensors
+- New roles start with minimal trust, not inherited
+- Cross-role trust transfer requires explicit bridging
 
 ## 7. Privacy and Gaming Prevention
 
@@ -250,24 +309,64 @@ Based on historical patterns:
 - Estimate V3 outcomes for actions
 - Recommend improvement strategies
 
-### 8.2 Tensor Composition
+### 8.2 Role-Aware Tensor Composition
 For composite entities:
-- Team T3 = weighted average of members
-- Organization V3 = sum of department contributions
-- Role T3 = average of historical performers
+- Team T3 for role = weighted average of members' tensors FOR THAT ROLE
+- Organization V3 = sum of role-appropriate contributions
+- Cannot average trust across different roles
+- Multi-role teams compose role-specific sub-teams
+
+Example:
+```python
+def compute_team_trust(team_members, required_role):
+    role_qualified = [m for m in team_members 
+                      if has_role(m, required_role)]
+    
+    if not role_qualified:
+        return NO_TRUST  # Team lacks required role
+    
+    # Average only among those with the role
+    role_tensors = [get_t3_for_role(m, required_role) 
+                    for m in role_qualified]
+    return weighted_average(role_tensors)
+```
 
 ### 8.3 Cross-Tensor Analytics
 - Identify T3/V3 correlation patterns
 - Detect anomalous tensor evolution
 - Optimize for specific tensor targets
 
-## 9. Integration with R6
+## 9. Integration with R6 and MRH
 
-The R6 framework provides the primary mechanism for tensor updates:
+### 9.1 R6 Role-Based Updates
 
-1. **Before Action**: T3 used for confidence calculation
-2. **During Action**: Real-time performance monitoring
-3. **After Action**: V3 assessment and T3 evolution
-4. **As Reference**: Historical tensors inform future actions
+The R6 framework updates tensors within role contexts:
 
-This creates a continuous learning loop where every action refines the system's understanding of entity capabilities and value creation patterns.
+1. **Before Action**: Role-specific T3 used for confidence
+2. **During Action**: Monitor performance in role context
+3. **After Action**: Update tensors for performed role only
+4. **As Reference**: Role-specific history informs similar roles
+
+### 9.2 MRH Graph Integration
+
+RDF triples in MRH explicitly track role-tensor relationships:
+
+```sparql
+# Query for best entity-role match for task
+SELECT ?entity ?role ?trust WHERE {
+    ?tensor web4:entity ?entity ;
+            web4:role ?role ;
+            web4:matchesTask ?taskType .
+    
+    # Calculate composite trust for role
+    ?tensor web4:talent ?t ;
+            web4:training ?tr ;
+            web4:temperament ?tm .
+    
+    BIND((?t * 0.3 + ?tr * 0.4 + ?tm * 0.3) AS ?trust)
+}
+ORDER BY DESC(?trust)
+LIMIT 1
+```
+
+This creates a continuous learning loop where every action refines role-specific capabilities, preventing trust leakage across unrelated domains.

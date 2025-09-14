@@ -211,44 +211,121 @@ Trust patterns in the graph:
 - Strong binding subgraphs → Institutional trust
 - Central position in trust graph → Network authority
 
-## 5. Integration with T3/V3 Tensors
+## 5. Role-Contextual T3/V3 Tensors
 
-### 5.1 Trust Tensor (T3) from Graph Metrics
+### 5.1 Critical Principle: Trust is Role-Specific
 
-The T3 tensor emerges from graph analysis:
+**T3/V3 tensors are not absolute properties of entities - they only exist within the context of specific roles.** A person trusted as a surgeon has no inherent trust as a mechanic. RDF triples explicitly bind trust and value tensors to role pairings.
 
-```python
-class T3Tensor:
-    talent: float      # Capability score from successful interactions
-    training: float    # Learning rate from graph evolution
-    temperament: float # Behavioral consistency across relationships
-    
-    @classmethod
-    def from_graph(cls, node: MRHNode, graph: RDFGraph):
-        return cls(
-            talent=graph.calculate_capability_score(node),
-            training=graph.calculate_learning_rate(node),
-            temperament=graph.calculate_consistency(node)
-        )
+### 5.2 Role-Bound Trust Tensor (T3)
+
+Trust tensors are always qualified by role context:
+
+```turtle
+# Trust is tied to entity-role pairs
+lct:alice web4:hasRole web4:Surgeon .
+lct:alice web4:hasRole web4:Researcher .
+
+# T3 tensors exist only for entity-role combinations
+_:trust1 a web4:T3Tensor ;
+    web4:entity lct:alice ;
+    web4:role web4:Surgeon ;
+    web4:talent 0.95 ;       # High surgical skill
+    web4:training 0.90 ;     # Extensive medical training
+    web4:temperament 0.88 .  # Consistent surgical performance
+
+_:trust2 a web4:T3Tensor ;
+    web4:entity lct:alice ;
+    web4:role web4:Mechanic ;
+    web4:talent 0.20 ;       # Low mechanical skill
+    web4:training 0.15 ;     # Minimal mechanical training
+    web4:temperament 0.30 .  # Inconsistent mechanical work
 ```
 
-### 5.2 Value Tensor (V3) from Edge Flows
+### 5.3 Role-Contextual Value Tensor (V3)
 
-The V3 tensor tracks value exchange through edges:
+Value creation is measured within role contexts:
 
 ```python
-class V3Tensor:
-    valuation: float   # Total value exchanged
-    veracity: float    # Accuracy of value claims
-    validity: float    # Legitimacy of exchanges
+class RoleContextualT3V3:
+    def __init__(self, entity_id: str, role: str):
+        self.entity_id = entity_id
+        self.role = role
+        self.t3 = None  # Trust tensor for this role
+        self.v3 = None  # Value tensor for this role
     
-    @classmethod
-    def from_edges(cls, edges: List[MRHEdge]):
-        return cls(
-            valuation=sum(e.metadata.get('value', 0) for e in edges),
-            veracity=calculate_claim_accuracy(edges),
-            validity=verify_exchange_legitimacy(edges)
-        )
+    def get_trust_in_role(self, graph: RDFGraph) -> T3Tensor:
+        """Get T3 tensor for entity in specific role"""
+        query = f"""
+        SELECT ?talent ?training ?temperament WHERE {{
+            ?tensor web4:entity <{self.entity_id}> ;
+                    web4:role <{self.role}> ;
+                    web4:talent ?talent ;
+                    web4:training ?training ;
+                    web4:temperament ?temperament .
+        }}
+        """
+        return graph.query(query)
+    
+    def calculate_role_trust(self, interaction_type: str) -> float:
+        """Trust depends on role-interaction alignment"""
+        if not self.role_matches_interaction(interaction_type):
+            return 0.0  # No trust outside of role context
+        return self.t3.compute_trust_score()
+```
+
+### 5.4 Role Pairing in MRH
+
+RDF enables precise role-based relationship modeling:
+
+```turtle
+# Pairing with role context
+_:pairing1 a web4:RolePairing ;
+    web4:subject lct:alice ;
+    web4:subjectRole web4:Surgeon ;
+    web4:object lct:hospital ;
+    web4:objectRole web4:MedicalFacility ;
+    web4:trustContext "surgical-procedures" ;
+    web4:t3Score 0.92 .
+
+_:pairing2 a web4:RolePairing ;
+    web4:subject lct:alice ;
+    web4:subjectRole web4:CarOwner ;  # Different role
+    web4:object lct:garage ;
+    web4:objectRole web4:AutoRepair ;
+    web4:trustContext "vehicle-maintenance" ;
+    web4:t3Score 0.15 .  # Low trust in mechanical context
+```
+
+### 5.5 SPARQL for Role-Based Trust Queries
+
+```sparql
+# Find entities trusted for specific role
+PREFIX web4: <https://web4.io/ontology#>
+
+SELECT ?entity ?trustScore WHERE {
+    ?tensor a web4:T3Tensor ;
+            web4:entity ?entity ;
+            web4:role web4:Surgeon ;
+            web4:talent ?talent ;
+            web4:training ?training ;
+            web4:temperament ?temperament .
+    
+    # Calculate composite trust score for role
+    BIND((?talent * 0.4 + ?training * 0.3 + ?temperament * 0.3) AS ?trustScore)
+    FILTER(?trustScore > 0.8)
+}
+ORDER BY DESC(?trustScore)
+
+# Find best role match for interaction
+SELECT ?entity ?role (MAX(?trust) AS ?maxTrust) WHERE {
+    ?pairing web4:interactionType "medical-procedure" ;
+             web4:subject ?entity ;
+             web4:subjectRole ?role ;
+             web4:t3Score ?trust .
+} 
+GROUP BY ?entity ?role
+ORDER BY DESC(?maxTrust)
 ```
 
 ## 6. SPARQL Queries for MRH Analysis
