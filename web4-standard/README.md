@@ -8,10 +8,10 @@ The Web4 standard defines a trust-native distributed intelligence architecture t
 **Version**: 1.0.0-beta  
 **Lead Author**: Dennis Palatov
 
-## The Web4 Equation (Extended)
+## The Complete Web4 Equation
 
 ```
-Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
+Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
 ```
 
 - **LCTs** (Linked Context Tokens): Provide unforgeable identity and context preservation
@@ -21,6 +21,8 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
 - **SAL** (Society-Authority-Law): Governance framework with birth certificates, law oracles, and authority delegation
 - **AGY** (Agency Delegation): Formal mechanism for Client entities to delegate authority to Agent entities
 - **ACP** (Agentic Context Protocol): Enables autonomous agent operation with planning, decision-making, and execution
+- **ATP** (Alignment Transfer Protocol): Energy-based economy where value flows through work, not accumulation
+- **Dictionaries**: Living semantic bridges managing compression-trust relationships across domains
 
 ## Quick Navigation
 
@@ -35,6 +37,8 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
 - [**SAL_INTEGRATION_SUMMARY.md**](SAL_INTEGRATION_SUMMARY.md) - Society-Authority-Law governance layer
 - [**AGY_INTEGRATION_SUMMARY.md**](AGY_INTEGRATION_SUMMARY.md) - Agency Delegation framework
 - [**ACP_INTEGRATION_SUMMARY.md**](ACP_INTEGRATION_SUMMARY.md) - Agentic Context Protocol framework
+- [**ATP_INTEGRATION_SUMMARY.md**](ATP_INTEGRATION_SUMMARY.md) - ATP/ADP value cycle and economy
+- [**DICTIONARY_INTEGRATION_SUMMARY.md**](DICTIONARY_INTEGRATION_SUMMARY.md) - Dictionary entities and semantic bridging
 
 ### 🔧 Core Specifications
 
@@ -55,6 +59,8 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
 - [**R6_TENSOR_GUIDE.md**](R6_TENSOR_GUIDE.md) - Role, Rights, Responsibilities, Risks, Rewards, Results
 - [**core-spec/r6-framework.md**](core-spec/r6-framework.md) - R6 Action Framework specification
 - [**core-spec/acp-framework.md**](core-spec/acp-framework.md) - Agentic Context Protocol specification
+- [**core-spec/atp-adp-cycle.md**](core-spec/atp-adp-cycle.md) - ATP/ADP value cycle specification
+- [**core-spec/dictionary-entities.md**](core-spec/dictionary-entities.md) - Dictionary entity specification
 
 #### Protocols
 - [**core-spec/mcp-protocol.md**](core-spec/mcp-protocol.md) - Model Context Protocol as inter-entity communication layer
@@ -130,6 +136,12 @@ Precise authority transfer with scope, caps, and temporal bounds, enabling safe 
 ### 8. Trust-Aware Communication (MCP)
 Every interaction builds or erodes trust, creating an antifragile system that strengthens through use.
 
+### 9. Value as Energy (ATP/ADP)
+A revolutionary economic system where value flows like biological energy—tokens exist in charged/discharged states, cannot be hoarded, and reward productive work over accumulation.
+
+### 10. Semantic Interoperability (Dictionaries)
+Living entities that manage the compression-trust relationship fundamental to all communication, enabling seamless translation between domains while tracking confidence and degradation.
+
 ## Development Status
 
 ### ✅ Complete Components
@@ -160,6 +172,18 @@ Every interaction builds or erodes trust, creating an antifragile system that st
 - **Reference Code**: Python implementations with examples
 - **Test Vectors**: Comprehensive validation suite
 - **Documentation**: Complete technical specifications
+
+#### Economic Layer
+- **ATP/ADP Cycle**: Semifungible tokens with charged/discharged states
+- **Society Pools**: Currency management and minting
+- **Anti-hoarding**: Demurrage and velocity requirements
+- **Value Tracking**: Fractal distribution through T3/V3
+
+#### Semantic Layer
+- **Dictionary Entities**: Living translation bridges
+- **Compression-Trust**: Fundamental communication principle
+- **Degradation Tracking**: Confidence across translations
+- **Community Curation**: Evolving semantic mappings
 
 ### 🚧 In Progress
 - IANA registry considerations

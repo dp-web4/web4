@@ -11,12 +11,14 @@
 ### Current Status (September 2025)
 - ✅ **Beta-ready** for production implementations
 - ✅ **Submission-ready** for standards bodies (IETF/ISO)
-- ✅ Complete seven-component architecture (LCTs + MRH + Trust + MCP + SAL + AGY + ACP)
+- ✅ Complete nine-component architecture (LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries)
 - ✅ Reference implementations in Python with test coverage
 - ✅ Comprehensive witness specification (JOSE/COSE formats)
 - ✅ MRH as RDF graphs with SPARQL queries and trust propagation
 - ✅ Full governance framework with societies, laws, and authority delegation
 - ✅ Autonomous agent operation with human oversight
+- ✅ Energy-based economy preventing wealth accumulation
+- ✅ Semantic interoperability through living dictionary entities
 
 ### [📋 Executive Summary](web4-standard/EXECUTIVE_SUMMARY.md)
 Complete overview of Web4 vision, architecture, and all seven core components
@@ -61,10 +63,10 @@ Interactive HTML with navigation, search, and responsive design
 
 ---
 
-## The Web4 Equation (Complete)
+## The Complete Web4 Equation
 
 ```
-Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
+Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
 ```
 
 - **LCTs** (Linked Context Tokens): Unforgeable identity and context preservation
@@ -74,14 +76,16 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
 - **SAL** (Society-Authority-Law): Governance with birth certificates and law oracles
 - **AGY** (Agency Delegation): Formal authority transfer with proof-of-agency
 - **ACP** (Agentic Context Protocol): Autonomous planning and execution
+- **ATP** (Alignment Transfer Protocol): Energy-based economy with charged/discharged tokens
+- **Dictionaries**: Living semantic bridges managing compression-trust relationships
 
 ## Core Concepts
 
 ### 🔑 Linked Context Tokens (LCTs)
 The **reification of presence itself**. Every entity—human, AI, or hybrid—gains an unforgeable footprint in the digital realm. Your LCT is born with you, lives through your actions, and bears witness to your contributions. It cannot be stolen, sold, or transferred. It is you, crystallized in cryptographic reality.
 
-### ⚡ Alignment Transfer Protocol (ATP)
-Energy becomes value through a biological metaphor made digital. Like ATP in living cells, our protocol tracks energy expenditure and value creation in a continuous cycle. Work consumes energy, creating value, which when recognized by others, generates new energy. This is not mining or staking—it's genuine contribution recognized by genuine benefit.
+### ⚡ Alignment Transfer Protocol (ATP/ADP)
+A revolutionary economic system inspired by biological energy transfer. ATP tokens exist in charged or discharged (ADP) states, flowing through society-managed pools rather than accumulating in individual accounts. Value is created through productive work (charging ADP to ATP), consumed through R6 actions (discharging ATP to ADP), and benefits all participants fractally through T3/V3 tensor updates. Demurrage and velocity requirements prevent hoarding, ensuring value flows like energy through living systems.
 
 ### 🧠 Memory as Temporal Sensor
 Memory doesn't just record the past—it **senses** it. Alongside physical sensors (spatial) and cognitive sensors (future projection), memory as temporal sensor creates the complete reality field where intelligence operates. Every interaction leaves a trace, every trace can be witnessed, and every witness strengthens the fabric of collective trust.
@@ -127,6 +131,12 @@ Every entity is born into a society with laws, authorities, and witnesses. Law O
 ### Formal Delegation (AGY)
 Precise authority transfer where Clients delegate specific powers to Agents with exact scope, resource caps, temporal bounds, and proof-of-agency requirements for every action.
 
+### Value as Energy (ATP/ADP Cycle)
+Unlike traditional currencies designed for accumulation, ATP tokens must flow to maintain value. Societies mint ADP (discharged), producers charge it to ATP through value creation, R6 actions discharge it back to ADP, and demurrage prevents hoarding—creating an economy that rewards work over wealth.
+
+### Semantic Bridges (Dictionary Entities)
+Living entities that manage the fundamental principle: all meaningful communication is compression plus trust. Dictionaries translate between domains, track semantic degradation, evolve through community curation, and build reputation through successful service.
+
 ### Four-Tier Blockchain Typology
 - **Compost** (milliseconds): Ephemeral working memory
 - **Leaf** (seconds-minutes): Short-term episodic memory
@@ -165,13 +175,15 @@ web4/
 ## Implementation Status
 
 ### ✅ Standard Complete (September 2025)
-- Full seven-component architecture specifications
+- Full nine-component architecture specifications
 - Complete protocol suite (binding, pairing, witnessing, broadcast)
 - R6 Action Framework for all transactions
 - SAL governance with Law Oracles and birth certificates
 - AGY delegation with proof-of-agency
 - ACP autonomous operation with human oversight
 - MCP inter-entity communication layer
+- ATP/ADP value cycle with anti-hoarding mechanisms
+- Dictionary entities for semantic interoperability
 - Reference implementations with test coverage
 - Ready for production deployment and standards submission
 

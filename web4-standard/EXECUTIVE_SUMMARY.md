@@ -7,10 +7,10 @@ Web4 is the trust-native evolution of the internet—a distributed intelligence 
 ## The Web4 Equation
 
 ```
-Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
+Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
 ```
 
-Seven foundational components that work together to create a complete trust-native infrastructure:
+Nine foundational components that work together to create a complete trust-native infrastructure:
 
 ## Core Components
 
@@ -85,6 +85,28 @@ ACP transforms Web4 from reactive to agentic, enabling entities to plan, decide,
 - Human approval gates for critical actions
 - Complete audit trail on immutable ledger
 
+### 8. ATP/ADP Value Cycle
+**Energy-Based Economy**
+
+Inspired by biological ATP, Web4's economic system ensures value flows through work rather than accumulation. Tokens exist in charged (ATP) or discharged (ADP) states.
+
+- Semifungible tokens that cannot be hoarded
+- Society-managed currency pools
+- Value creation through productive work
+- Demurrage prevents accumulation
+- Fractal value distribution through T3/V3
+
+### 9. Dictionary Entities
+**Semantic Bridges**
+
+Living entities that manage the compression-trust relationship inherent in all communication, bridging gaps between domains, models, and cultures.
+
+- Translation with confidence tracking
+- Semantic degradation measurement
+- Community curation and evolution
+- Cross-domain interoperability
+- Trust-aware compression
+
 ## The R6 Action Framework
 
 Every transaction in Web4 follows the R6 pattern:
@@ -113,7 +135,10 @@ Every entity begins with a citizen role pairing that serves as its birth certifi
 Trust operates as a fundamental force in Web4. High-trust entities attract attention, resources, and opportunities. Trust literally shapes the topology of the network.
 
 ### Dictionary Entities
-Living entities that bridge semantic gaps between domains, managing the trust-compression relationship inherent in translation and communication.
+Living entities that bridge semantic gaps between domains, managing the fundamental principle that all meaningful communication is compression plus trust across shared or sufficiently aligned latent fields.
+
+### ATP/ADP Value Cycle
+A revolutionary economic system where value flows like energy in biological systems. Tokens exist in charged (ATP) or discharged (ADP) states, preventing accumulation and rewarding productive work over wealth storage.
 
 ### Witness-Based Reality
 Presence exists through witnessing. The more an entity is witnessed, the more present it becomes. Accumulated witnessing makes falsifying history exponentially harder.
@@ -147,6 +172,8 @@ Resources are gated by trust levels. Higher trust means:
 - AGY delegation mechanism
 - ACP autonomous operation
 - MCP communication layer
+- ATP/ADP value cycle specification
+- Dictionary entity framework
 
 ### In Progress 🚧
 - Reference implementations
