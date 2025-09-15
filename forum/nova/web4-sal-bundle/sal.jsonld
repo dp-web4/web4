@@ -1,0 +1,66 @@
+{
+  "@context": {
+    "web4": "https://web4.io/ontology#",
+    "lct": "https://web4.io/lct/",
+    "type": "@type",
+    "id": "@id",
+    "Society": "web4:Society",
+    "AuthorityRole": "web4:AuthorityRole",
+    "LawOracle": "web4:LawOracle",
+    "CitizenRole": "web4:CitizenRole",
+    "WitnessRole": "web4:WitnessRole",
+    "AuditorRole": "web4:AuditorRole",
+    "ImmutableRecord": "web4:ImmutableRecord",
+    "Web4BirthCertificate": "web4:Web4BirthCertificate",
+    "Web4LawDataset": "web4:Web4LawDataset",
+    "memberOf": {
+      "@id": "web4:memberOf",
+      "@type": "@id"
+    },
+    "pairedWith": {
+      "@id": "web4:pairedWith",
+      "@type": "@id"
+    },
+    "hasAuthority": {
+      "@id": "web4:hasAuthority",
+      "@type": "@id"
+    },
+    "hasLawOracle": {
+      "@id": "web4:hasLawOracle",
+      "@type": "@id"
+    },
+    "hasWitness": {
+      "@id": "web4:hasWitness",
+      "@type": "@id"
+    },
+    "hasAuditor": {
+      "@id": "web4:hasAuditor",
+      "@type": "@id"
+    },
+    "recordsOn": {
+      "@id": "web4:recordsOn",
+      "@type": "@id"
+    },
+    "delegatesTo": {
+      "@id": "web4:delegatesTo",
+      "@type": "@id"
+    },
+    "publishes": {
+      "@id": "web4:publishes",
+      "@type": "@id"
+    },
+    "attestedBy": {
+      "@id": "web4:attestedBy",
+      "@type": "@id"
+    },
+    "adjustedBy": {
+      "@id": "web4:adjustedBy",
+      "@type": "@id"
+    },
+    "hash": "web4:hash",
+    "lawHash": "web4:lawHash",
+    "quorum": "web4:quorum",
+    "scope": "web4:scope",
+    "lawVersion": "web4:lawVersion"
+  }
+}

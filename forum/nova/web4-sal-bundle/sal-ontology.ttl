@@ -1,0 +1,59 @@
+@prefix web4: <https://web4.io/ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+
+### Classes
+web4:Society a rdfs:Class .
+web4:AuthorityRole a rdfs:Class .
+web4:LawOracle a rdfs:Class .
+web4:CitizenRole a rdfs:Class .
+web4:WitnessRole a rdfs:Class .
+web4:AuditorRole a rdfs:Class .
+web4:ImmutableRecord a rdfs:Class .
+web4:Web4BirthCertificate a rdfs:Class .
+web4:Web4LawDataset a rdfs:Class .
+
+### Properties
+web4:memberOf a rdf:Property ;
+  rdfs:domain web4:CitizenRole ;
+  rdfs:range web4:Society .
+
+web4:pairedWith a rdf:Property ;
+  rdfs:domain web4:Society ;
+  rdfs:range web4:CitizenRole .
+
+web4:hasAuthority a rdf:Property ;
+  rdfs:domain web4:Society ;
+  rdfs:range web4:AuthorityRole .
+
+web4:hasLawOracle a rdf:Property ;
+  rdfs:domain web4:Society ;
+  rdfs:range web4:LawOracle .
+
+web4:hasWitness a rdf:Property ;
+  rdfs:domain web4:Society ;
+  rdfs:range web4:WitnessRole .
+
+web4:hasAuditor a rdf:Property ;
+  rdfs:domain web4:Society ;
+  rdfs:range web4:AuditorRole .
+
+web4:recordsOn a rdf:Property ;
+  rdfs:domain web4:Society ;
+  rdfs:range web4:ImmutableRecord .
+
+web4:delegatesTo a rdf:Property ;
+  rdfs:domain web4:AuthorityRole ;
+  rdfs:range web4:AuthorityRole .
+
+web4:publishes a rdf:Property ;
+  rdfs:domain web4:LawOracle ;
+  rdfs:range web4:Web4LawDataset .
+
+web4:attestedBy a rdf:Property ;
+  rdfs:domain web4:Web4BirthCertificate ;
+  rdfs:range web4:WitnessRole .
+
+web4:adjustedBy a rdf:Property ;
+  rdfs:domain web4:CitizenRole ;
+  rdfs:range web4:AuditorRole .
