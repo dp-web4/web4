@@ -1,0 +1,6 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?action web4:underGrant ?grant .
+  ?grant  web4:delegationScope ?scope .
+  ?action web4:inScope ?scope .
+}

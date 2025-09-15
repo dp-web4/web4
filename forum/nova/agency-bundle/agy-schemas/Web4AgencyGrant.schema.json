@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/Web4AgencyGrant.json",
+  "title": "Web4AgencyGrant",
+  "type": "object",
+  "required": [
+    "@context",
+    "type",
+    "grantId",
+    "client",
+    "agent",
+    "society",
+    "lawHash",
+    "scope",
+    "duration",
+    "witnesses",
+    "signatures"
+  ],
+  "properties": {
+    "@context": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "type": {
+      "const": "Web4AgencyGrant"
+    },
+    "grantId": {
+      "type": "string"
+    },
+    "client": {
+      "type": "string"
+    },
+    "agent": {
+      "type": "string"
+    },
+    "society": {
+      "type": "string"
+    },
+    "lawHash": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "methods",
+        "delegatable",
+        "witnessLevel"
+      ],
+      "properties": {
+        "contexts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mrhSelectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "r6Caps": {
+          "type": "object"
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "delegatable": {
+          "type": "boolean"
+        },
+        "witnessLevel": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "trustCaps": {
+          "type": "object"
+        }
+      }
+    },
+    "duration": {
+      "type": "object",
+      "required": [
+        "notBefore",
+        "expiresAt"
+      ],
+      "properties": {
+        "notBefore": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "session": {
+      "type": "object"
+    },
+    "witnesses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "signatures": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

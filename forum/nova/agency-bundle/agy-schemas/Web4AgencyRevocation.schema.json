@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/Web4AgencyRevocation.json",
+  "title": "Web4AgencyRevocation",
+  "type": "object",
+  "required": [
+    "@context",
+    "type",
+    "grantId",
+    "revokedBy",
+    "timestamp",
+    "signatures"
+  ],
+  "properties": {
+    "@context": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "type": {
+      "const": "Web4AgencyRevocation"
+    },
+    "grantId": {
+      "type": "string"
+    },
+    "revokedBy": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "witnesses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "signatures": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

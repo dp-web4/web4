@@ -1,0 +1,50 @@
+{
+  "@context": {
+    "web4": "https://web4.io/ontology#",
+    "type": "@type",
+    "id": "@id",
+    "AgencyGrant": "web4:AgencyGrant",
+    "AgencyRevocation": "web4:AgencyRevocation",
+    "AgentRole": "web4:AgentRole",
+    "ClientRole": "web4:ClientRole",
+    "grantId": "web4:grantId",
+    "client": {
+      "@id": "web4:client",
+      "@type": "@id"
+    },
+    "agent": {
+      "@id": "web4:agent",
+      "@type": "@id"
+    },
+    "society": {
+      "@id": "web4:society",
+      "@type": "@id"
+    },
+    "lawHash": "web4:lawHash",
+    "scope": "web4:delegationScope",
+    "mrhSelectors": "web4:mrhSelectors",
+    "r6Caps": "web4:r6Caps",
+    "methods": "web4:methods",
+    "delegatable": "web4:delegatable",
+    "witnessLevel": "web4:witnessLevel",
+    "trustCaps": "web4:trustCaps",
+    "duration": "web4:duration",
+    "notBefore": "web4:notBefore",
+    "expiresAt": "web4:expiresAt",
+    "session": "web4:session",
+    "nonce": "web4:nonce",
+    "audience": "web4:audience",
+    "bindings": "web4:bindings",
+    "witnesses": {
+      "@id": "web4:witnesses",
+      "@type": "@id"
+    },
+    "signatures": "web4:signatures",
+    "revokedBy": {
+      "@id": "web4:revokedBy",
+      "@type": "@id"
+    },
+    "reason": "web4:reason",
+    "timestamp": "web4:timestamp"
+  }
+}

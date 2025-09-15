@@ -1,0 +1,5 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?rev a web4:AgencyRevocation ;
+       web4:revokedBy ?client .
+}

@@ -1,0 +1,10 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?child a web4:AgencyGrant ;
+         web4:delegationScope ?cScope ;
+         web4:expiresAt ?ce .
+  ?parent a web4:AgencyGrant ;
+          web4:delegationScope ?pScope ;
+          web4:expiresAt ?pe .
+  FILTER(?ce <= ?pe)
+}

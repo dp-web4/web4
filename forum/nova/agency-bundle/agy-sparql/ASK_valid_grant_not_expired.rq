@@ -1,0 +1,6 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?grant a web4:AgencyGrant ;
+         web4:expiresAt ?t .
+  FILTER(NOW() < ?t)
+}

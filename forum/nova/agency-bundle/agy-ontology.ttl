@@ -1,0 +1,43 @@
+@prefix web4: <https://web4.io/ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+### Classes
+web4:AgencyGrant a rdfs:Class .
+web4:AgencyRevocation a rdfs:Class .
+web4:AgentRole a rdfs:Class .
+web4:ClientRole a rdfs:Class .
+
+### Properties
+web4:hasAgent a rdf:Property ;
+  rdfs:domain web4:ClientRole ;
+  rdfs:range  web4:AgentRole .
+
+web4:agentOf a rdf:Property ;
+  rdfs:domain web4:AgentRole ;
+  rdfs:range  web4:ClientRole .
+
+web4:delegationScope a rdf:Property ;
+  rdfs:domain web4:AgencyGrant ;
+  rdfs:range  rdfs:Resource .
+
+web4:delegatable a rdf:Property ;
+  rdfs:domain web4:AgencyGrant ;
+  rdfs:range  xsd:boolean .
+
+web4:expiresAt a rdf:Property ;
+  rdfs:domain web4:AgencyGrant ;
+  rdfs:range  xsd:dateTime .
+
+web4:witnessLevel a rdf:Property ;
+  rdfs:domain web4:AgencyGrant ;
+  rdfs:range  xsd:integer .
+
+web4:revokedBy a rdf:Property ;
+  rdfs:domain web4:AgencyRevocation ;
+  rdfs:range  rdfs:Resource .
+
+web4:underGrant a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range  web4:AgencyGrant .
