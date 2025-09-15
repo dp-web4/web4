@@ -74,6 +74,7 @@ Each component is essential and together they form a complete, deterministic act
 - Target entity or resource
 - Parameters and modifiers
 - Temporal constraints
+- Proof of agency (if acting as agent)
 
 **Structure**:
 ```json
@@ -91,7 +92,12 @@ Each component is essential and together they form a complete, deterministic act
       "max_compute": "1000_units"
     },
     "atpStake": 100,
-    "nonce": "unique_request_id"
+    "nonce": "unique_request_id",
+    "proofOfAgency": {
+      "grantId": "agy:...",
+      "inclusionProof": "hash:...",
+      "audience": ["mcp:web4://tool/*"]
+    }
   }
 }
 ```
@@ -214,19 +220,26 @@ def validate_r6_action(r6_action):
     if not verify_role_pairing(r6_action.role):
         raise InvalidRole("Actor not paired with specified role")
     
-    # 2. Check rules compliance
+    # 2. Check for agency delegation if acting as agent
+    if r6_action.request.get('proofOfAgency'):
+        if not verify_agency_grant(r6_action.request.proofOfAgency):
+            raise InvalidAgency("Invalid or expired agency grant")
+        if not check_agency_scope(r6_action.request, r6_action.request.proofOfAgency):
+            raise AgencyScopeViolation("Action outside delegated scope")
+    
+    # 3. Check rules compliance
     if not check_law_compliance(r6_action.rules, r6_action.request):
         raise RuleViolation("Request violates active rules")
     
-    # 3. Verify resource availability
+    # 4. Verify resource availability (including agency caps)
     if not check_resources(r6_action.resource.required):
         raise InsufficientResources("Cannot fulfill resource requirements")
     
-    # 4. Validate references
+    # 5. Validate references
     if not verify_references(r6_action.reference):
         raise InvalidReference("Referenced precedents/witnesses invalid")
     
-    # 5. Lock resources (escrow)
+    # 6. Lock resources (escrow)
     escrow_lock = lock_resources(r6_action.resource.escrow)
     
     return ValidationResult(valid=True, escrow=escrow_lock)
@@ -325,10 +338,10 @@ The R6 framework integrates tightly with the Society-Authority-Law layer:
 | R6 Component | SAL Integration | Enforcement |
 |--------------|-----------------|-------------|
 | **Rules** | Law Oracle provides norms and procedures | Laws versioned and signed |
-| **Role** | Citizen role prerequisite, Authority scoping | Role LCTs with permissions |
-| **Request** | Must comply with society's laws | Quorum checks, rate limits |
-| **Reference** | Law interpretations and precedents | Oracle rulings cached |
-| **Resource** | ATP caps and pricing from law | Metering enforced |
+| **Role** | Citizen role prerequisite, Authority scoping, Agency delegation | Role LCTs with permissions |
+| **Request** | Must comply with society's laws, proof-of-agency for delegated actions | Quorum checks, rate limits |
+| **Reference** | Law interpretations and precedents, agency grants | Oracle rulings cached |
+| **Resource** | ATP caps and pricing from law, agency resource caps | Metering enforced |
 | **Result** | Auditor can adjust based on evidence | Witness attestations required |
 
 ## 4. R6 Security Properties
@@ -421,6 +434,46 @@ Resource transfers and tensor updates either fully complete or fully roll back.
   "result": {
     "output": {"delegationProof": "..."},
     "ledgerProof": {...}
+  }
+}
+```
+
+### 5.5 Agency-Delegated Action (AGY)
+```json
+{
+  "type": "agency_action",
+  "rules": {"lawHash": "...", "agencyGrant": "agy:..."},
+  "role": {"roleType": "web4:Agent", "actingFor": "lct:web4:client:..."},
+  "request": {
+    "action": "approve_invoice",
+    "target": "invoice:123",
+    "parameters": {"amount": 20, "currency": "ATP"},
+    "proofOfAgency": {
+      "grantId": "agy:...",
+      "inclusionProof": "hash:...",
+      "scope": "finance:payments",
+      "witnessLevel": 2
+    }
+  },
+  "reference": {
+    "agencyGrant": {"hash": "...", "expiresAt": "2025-12-31T23:59:59Z"},
+    "precedents": [{"similar_approval": "..."}]
+  },
+  "resource": {
+    "required": {"atp": 20},
+    "agencyCaps": {"max_atp": 25, "remaining": 5}
+  },
+  "result": {
+    "output": {"approval": "confirmed"},
+    "attribution": {
+      "agent": "lct:web4:agent:...",
+      "client": "lct:web4:client:...",
+      "grantUsed": "agy:..."
+    },
+    "tensorUpdates": {
+      "agent_t3": {"temperament": +0.01},
+      "client_v3": {"validity": +0.005}
+    }
   }
 }
 ```
