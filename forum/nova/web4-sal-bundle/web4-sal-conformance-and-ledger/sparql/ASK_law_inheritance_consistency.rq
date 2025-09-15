@@ -1,0 +1,16 @@
+# Checks that child society inherits or explicitly overrides parent law
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?child web4:memberOf ?parent .
+  ?parent web4:hasLawOracle ?plaw .
+  # Either child has same hash or declares an explicit override relation (implementation-specific)
+  {
+    ?plaw web4:hash ?h .
+    ?child web4:hasLawOracle ?claw .
+    ?claw  web4:hash ?h .
+  } UNION {
+    ?child web4:hasLawOracle ?claw2 .
+    ?claw2 web4:publishes ?childLawDataset .
+    ?childLawDataset ?overrideProp ?parentLawRef .
+  }
+}

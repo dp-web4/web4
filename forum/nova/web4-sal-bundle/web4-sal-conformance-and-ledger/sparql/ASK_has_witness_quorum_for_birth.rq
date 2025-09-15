@@ -1,0 +1,5 @@
+# Ensures birth certificate event is co-signed by witness quorum
+ASK WHERE {
+  ?birthCert a <https://web4.io/ontology#Web4BirthCertificate> ;
+             <https://web4.io/ontology#attestedBy> ?w1, ?w2, ?w3 .
+}

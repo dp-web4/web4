@@ -1,0 +1,5 @@
+# Verifies that a citizen has an auditor adjustment on record
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?citizen web4:adjustedBy ?auditorAction .
+}

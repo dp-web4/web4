@@ -1,0 +1,6 @@
+# Confirms entity has genesis citizen role paired and is member of a society
+ASK WHERE {
+  ?entity  <https://web4.io/ontology#pairedWith> ?citizenRole .
+  ?entity  <https://web4.io/ontology#memberOf>   ?society .
+  ?society <https://web4.io/ontology#hasLawOracle> ?lawOracle .
+}

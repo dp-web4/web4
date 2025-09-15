@@ -1,0 +1,9 @@
+# Retrieves active law dataset hash for a society (latest by version or timestamp)
+PREFIX web4: <https://web4.io/ontology#>
+SELECT ?law ?hash WHERE {
+  ?soc web4:hasLawOracle ?lor .
+  ?lor web4:publishes ?law .
+  ?law web4:hash ?hash .
+}
+ORDER BY DESC(?law) 
+LIMIT 1

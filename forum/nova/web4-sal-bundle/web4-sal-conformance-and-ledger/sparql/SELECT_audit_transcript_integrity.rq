@@ -1,0 +1,9 @@
+# Selects audit transcripts and linked evidence hashes for verification
+PREFIX web4: <https://web4.io/ontology#>
+SELECT ?audit ?target ?evidenceHash ?appliedDelta WHERE {
+  ?audit a web4:AuditTranscript ;
+         web4:target ?target ;
+         web4:evidence ?evidence ;
+         web4:appliedDelta ?appliedDelta .
+  ?evidence web4:hash ?evidenceHash .
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/Web4AuditRequest.json",
+  "title": "Web4AuditRequest",
+  "type": "object",
+  "required": [
+    "type",
+    "society",
+    "targets",
+    "scope",
+    "basis",
+    "proposed"
+  ],
+  "properties": {
+    "type": {
+      "const": "Web4AuditRequest"
+    },
+    "society": {
+      "type": "string"
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "scope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "basis": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposed": {
+      "type": "object",
+      "properties": {
+        "t3": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "v3": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "t3",
+        "v3"
+      ]
+    }
+  }
+}
