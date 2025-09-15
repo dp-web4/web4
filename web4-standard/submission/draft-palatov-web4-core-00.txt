@@ -1,0 +1,986 @@
+
+
+
+Internet Engineering Task Force                           D. Palatov
+Internet-Draft                                              Web4.io
+Intended status: Standards Track                   September 15, 2025
+Expires: March 15, 2026
+
+
+        Web4: Trust-Native Distributed Intelligence Architecture
+                    draft-palatov-web4-core-00
+
+Abstract
+
+   This document specifies Web4, a trust-native distributed
+   intelligence architecture that enables verifiable context
+   preservation, decentralized coordination, and semantic
+   interoperability across AI systems and traditional computing
+   infrastructure. Web4 introduces nine foundational components:
+   Linked Context Tokens (LCTs) for unforgeable identity, Markov
+   Relevancy Horizon (MRH) for fractal context, multidimensional
+   Trust tensors, Model Context Protocol (MCP) for communication,
+   Society-Authority-Law (SAL) governance, Agency Delegation (AGY),
+   Agentic Context Protocol (ACP), Alignment Transfer Protocol
+   (ATP/ADP) value cycle, and Dictionary entities for semantic
+   bridging. Together, these create an architecture where trust
+   emerges from witnessed interactions rather than central
+   authorities.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF). Note that other groups may also distribute
+   working documents as Internet-Drafts. The list of current
+   Internet-Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six
+   months and may be updated, replaced, or obsoleted by other
+   documents at any time. It is inappropriate to use Internet-Drafts
+   as reference material or to cite them other than as
+   "work in progress."
+
+   This Internet-Draft will expire on March 15, 2026.
+
+Copyright Notice
+
+   Copyright (c) 2025 IETF Trust and the persons identified as the
+   document authors. All rights reserved.
+
+
+
+Palatov                  Expires March 15, 2026                [Page 1]
+
+Internet-Draft                   Web4                    September 2025
+
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document. Please review these documents
+   carefully, as they describe your rights and restrictions with
+   respect to this document.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . .   3
+     1.1.  Motivation  . . . . . . . . . . . . . . . . . . . . . .   3
+     1.2.  The Web4 Equation . . . . . . . . . . . . . . . . . . .   3
+     1.3.  Design Goals  . . . . . . . . . . . . . . . . . . . . .   4
+   2.  Terminology . . . . . . . . . . . . . . . . . . . . . . . .   4
+   3.  Architecture Overview . . . . . . . . . . . . . . . . . . .   5
+     3.1.  Linked Context Tokens (LCTs) . . . . . . . . . . . . .   5
+     3.2.  Markov Relevancy Horizon (MRH) . . . . . . . . . . . .   6
+     3.3.  Trust Tensors (T3/V3)  . . . . . . . . . . . . . . . .   6
+     3.4.  Model Context Protocol (MCP)  . . . . . . . . . . . . .   7
+     3.5.  Society-Authority-Law (SAL) . . . . . . . . . . . . . .   7
+     3.6.  Agency Delegation (AGY) . . . . . . . . . . . . . . . .   8
+     3.7.  Agentic Context Protocol (ACP) . . . . . . . . . . . .   8
+     3.8.  ATP/ADP Value Cycle . . . . . . . . . . . . . . . . . .   8
+     3.9.  Dictionary Entities . . . . . . . . . . . . . . . . . .   9
+   4.  Protocol Specifications . . . . . . . . . . . . . . . . . .   9
+     4.1.  LCT Structure . . . . . . . . . . . . . . . . . . . . .   9
+     4.2.  Handshake Protocol  . . . . . . . . . . . . . . . . . .  10
+     4.3.  R6 Action Framework . . . . . . . . . . . . . . . . . .  11
+   5.  Security Considerations . . . . . . . . . . . . . . . . . .  12
+     5.1.  Cryptographic Requirements . . . . . . . . . . . . . .  12
+     5.2.  Threat Model  . . . . . . . . . . . . . . . . . . . . .  12
+     5.3.  Privacy Considerations  . . . . . . . . . . . . . . . .  13
+   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . .  13
+     6.1.  Web4 URI Scheme . . . . . . . . . . . . . . . . . . . .  13
+     6.2.  Web4 Media Types  . . . . . . . . . . . . . . . . . . .  13
+     6.3.  Web4 Error Codes  . . . . . . . . . . . . . . . . . . .  14
+   7.  References  . . . . . . . . . . . . . . . . . . . . . . . .  14
+     7.1.  Normative References  . . . . . . . . . . . . . . . . .  14
+     7.2.  Informative References  . . . . . . . . . . . . . . . .  15
+   Appendix A.  Example LCT  . . . . . . . . . . . . . . . . . . .  15
+   Appendix B.  Example R6 Transaction  . . . . . . . . . . . . . .  16
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . .  17
+
+
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026                [Page 2]
+
+Internet-Draft                   Web4                    September 2025
+
+
+1.  Introduction
+
+1.1.  Motivation
+
+   The current internet architecture faces fundamental challenges in
+   establishing trust, preserving context, and enabling meaningful
+   coordination between humans and AI systems. Centralized platforms
+   control identity, reputation is siloed and non-portable, and there
+   is no native mechanism for verifiable trust without intermediaries.
+
+   Web4 addresses these challenges by creating a trust-native
+   architecture where:
+
+   o  Every entity has an unforgeable digital presence through Linked
+      Context Tokens (LCTs)
+
+   o  Trust emerges from accumulated witnessed interactions rather
+      than central declaration
+
+   o  Context is preserved across interactions through Markov
+      Relevancy Horizons (MRH)
+
+   o  Value flows through productive work rather than accumulation
+      via the ATP/ADP cycle
+
+   o  Semantic gaps are bridged by living Dictionary entities
+
+1.2.  The Web4 Equation
+
+   Web4 is defined by nine foundational components:
+
+   Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dict
+
+   Where:
+   o  LCTs: Linked Context Tokens (unforgeable identity)
+   o  MRH: Markov Relevancy Horizon (fractal context)
+   o  Trust: T3/V3 tensors (multidimensional reputation)
+   o  MCP: Model Context Protocol (inter-entity communication)
+   o  SAL: Society-Authority-Law (governance framework)
+   o  AGY: Agency Delegation (authority transfer)
+   o  ACP: Agentic Context Protocol (autonomous operation)
+   o  ATP: Alignment Transfer Protocol (value cycle)
+   o  Dict: Dictionary Entities (semantic bridges)
+
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026                [Page 3]
+
+Internet-Draft                   Web4                    September 2025
+
+
+1.3.  Design Goals
+
+   Web4 aims to:
+
+   1. Enable verifiable trust without central authorities
+   2. Preserve context across all interactions
+   3. Support autonomous agent operation with accountability
+   4. Create an economy based on contribution rather than accumulation
+   5. Bridge semantic gaps between domains and systems
+   6. Scale fractally from individuals to global networks
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+   NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+   "MAY", and "OPTIONAL" in this document are to be interpreted as
+   described in BCP 14 [RFC2119] [RFC8174] when, and only when, they
+   appear in all capitals, as shown here.
+
+   Entity: Anything with presence that can hold an LCT - humans, AIs,
+           organizations, devices, services, roles, or tasks.
+
+   LCT: Linked Context Token - an unforgeable cryptographic identity
+        bound to an entity.
+
+   MRH: Markov Relevancy Horizon - the fractal context boundary that
+        defines what is relevant to an entity.
+
+   T3: Trust Tensor measuring Talent, Training, and Temperament.
+
+   V3: Value Tensor measuring Veracity, Validity, and Value.
+
+   R6: Action framework where Rules + Role + Request + Reference +
+       Resource leads to Result.
+
+   ATP: Alignment Transfer Protocol token in charged state.
+
+   ADP: Alignment Discharge Protocol token in discharged state.
+
+   Society: A delegative entity that can issue citizenship and
+            establish laws.
+
+   Dictionary: An entity that bridges semantic gaps between domains.
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026                [Page 4]
+
+Internet-Draft                   Web4                    September 2025
+
+
+3.  Architecture Overview
+
+3.1.  Linked Context Tokens (LCTs)
+
+   An LCT is the foundational identity primitive in Web4, providing
+   unforgeable digital presence for any entity.
+
+   Structure:
+   {
+     "lct_id": "lct:web4:entity:alice:2025",
+     "entity_type": "human",
+     "binding": {
+       "public_key": "Ed25519:base64...",
+       "created_at": "2025-09-15T12:00:00Z",
+       "binding_proof": "signature..."
+     },
+     "mrh": {
+       "bound": [],     // Parent relationships
+       "paired": [],    // Peer relationships
+       "witnessing": [] // Observation relationships
+     }
+   }
+
+   Key Properties:
+   o  Cryptographically bound to entity
+   o  Cannot be transferred or sold
+   o  Accumulates reputation through use
+   o  Maintains relationship graph
+
+   Lifecycle:
+   1. Creation: Entity generates keypair and binding proof
+   2. Birth Certificate: Paired with citizen role in a society
+   3. Evolution: Accumulates relationships and reputation
+   4. Termination: Marked as void but history preserved
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026                [Page 5]
+
+Internet-Draft                   Web4                    September 2025
+
+
+3.2.  Markov Relevancy Horizon (MRH)
+
+   MRH extends Markov blankets to fractal scales, maintaining context
+   across multiple levels of organization. Implemented as RDF graphs
+   with SPARQL query capability.
+
+   Relationship Types:
+   o  Binding: Permanent parent-child (Organization -> Role)
+   o  Pairing: Authorized peer-to-peer (Human <-> AI)
+   o  Witnessing: Trust-building observation (Witness -> Action)
+   o  Broadcast: Public announcement (Entity -> Network)
+
+   RDF Representation:
+   @prefix web4: <https://web4.io/ontology#> .
+   
+   lct:alice web4:pairedWith lct:bob .
+   lct:alice web4:witnessing lct:transaction123 .
+   lct:org web4:binds lct:role .
+
+   Trust Propagation:
+   Trust flows through MRH edges with configurable models:
+   o  Multiplicative: trust_path = product(edge_weights)
+   o  Probabilistic: trust_path = 1 - product(1 - edge_weights)
+   o  Maximal: trust_path = min(edge_weights)
+
+3.3.  Trust Tensors (T3/V3)
+
+   Multidimensional, role-contextual reputation scores.
+
+   T3 (Capability):
+   o  Talent: Innate abilities (0.0 - 1.0)
+   o  Training: Learned skills (0.0 - 1.0)
+   o  Temperament: Behavioral consistency (0.0 - 1.0)
+
+   V3 (Outcomes):
+   o  Veracity: Truthfulness of claims (0.0 - 1.0)
+   o  Validity: Correctness of actions (0.0 - 1.0)
+   o  Value: Worth created (unbounded positive)
+
+   Role Context:
+   Trust is always contextual to roles. An entity's trust as a
+   surgeon is independent of their trust as a pilot.
+
+   Query Requirements:
+   Trust queries MUST be ATP-staked to prevent reputation farming.
+   The stake is consumed only if the querier engages with the target.
+
+
+
+Palatov                  Expires March 15, 2026                [Page 6]
+
+Internet-Draft                   Web4                    September 2025
+
+
+3.4.  Model Context Protocol (MCP)
+
+   MCP provides the inter-entity communication layer, where every
+   interaction affects trust.
+
+   Message Structure:
+   {
+     "jsonrpc": "2.0",
+     "method": "tools/call",
+     "params": {...},
+     "web4_context": {
+       "sender_lct": "lct:web4:client:...",
+       "sender_role": "web4:Developer",
+       "trust_context": {
+         "t3_in_role": {...},
+         "atp_stake": 50
+       },
+       "proof_of_agency": {...}
+     }
+   }
+
+   Trust-Based Access:
+   1. Verify entity LCT
+   2. Check trust requirements
+   3. Validate ATP stake
+   4. Verify agency delegation if present
+   5. Execute with metering
+   6. Update trust tensors
+
+3.5.  Society-Authority-Law (SAL)
+
+   Every entity is born into a society that provides governance.
+
+   Society Components:
+   o  Law Oracle: Publishes machine-readable laws
+   o  Authority: Delegated powers with scope
+   o  Citizens: Entities with base rights/responsibilities
+   o  Witnesses: Attestation providers
+
+   Birth Certificate:
+   The first pairing with a citizen role, providing:
+   o  Society membership
+   o  Initial rights and responsibilities
+   o  Law version binding
+   o  Witness attestations
+
+
+
+
+Palatov                  Expires March 15, 2026                [Page 7]
+
+Internet-Draft                   Web4                    September 2025
+
+
+3.6.  Agency Delegation (AGY)
+
+   Formal mechanism for authority transfer from Client to Agent.
+
+   Grant Structure:
+   {
+     "grantId": "agy:...",
+     "client": "lct:web4:entity:CLIENT",
+     "agent": "lct:web4:entity:AGENT",
+     "scope": {
+       "contexts": ["finance:payments"],
+       "resourceCaps": {"max_atp": 25},
+       "methods": ["approve", "review"]
+     },
+     "expiresAt": "2026-01-01T00:00:00Z"
+   }
+
+   Every agent action MUST include proof-of-agency referencing a
+   valid grant.
+
+3.7.  Agentic Context Protocol (ACP)
+
+   Enables autonomous agent operation with human oversight.
+
+   Components:
+   o  Agent Plans: Declarative workflows with triggers
+   o  Intents: Proposed actions from plan evaluation
+   o  Decisions: Human/automated approval
+   o  Execution Records: Immutable audit trail
+
+   Safety Mechanisms:
+   o  Agency grants required
+   o  Law compliance verification
+   o  Human approval gates
+   o  Witness attestations
+   o  Resource caps
+
+3.8.  ATP/ADP Value Cycle
+
+   Economic system inspired by biological ATP/ADP energy cycle.
+
+   Token States:
+   o  ATP: Charged state, ready for work
+   o  ADP: Discharged state, depleted
+
+   Key Properties:
+   o  Semifungible (two states only)
+
+
+
+Palatov                  Expires March 15, 2026                [Page 8]
+
+Internet-Draft                   Web4                    September 2025
+
+
+   o  Cannot be accumulated (society pools only)
+   o  Demurrage prevents hoarding
+   o  Value creation through charging (ADP -> ATP)
+   o  Work consumes ATP (ATP -> ADP)
+
+3.9.  Dictionary Entities
+
+   Living entities that bridge semantic gaps.
+
+   Core Principle:
+   All meaningful communication is compression plus trust across
+   shared or sufficiently aligned latent fields.
+
+   Functions:
+   o  Translate between domains with confidence tracking
+   o  Measure semantic degradation
+   o  Evolve through community curation
+   o  Build reputation through successful translations
+
+4.  Protocol Specifications
+
+4.1.  LCT Structure
+
+   LCTs use JSON-LD with cryptographic signatures.
+
+   Minimal LCT:
+   {
+     "@context": "https://web4.io/contexts/lct.jsonld",
+     "type": "LinkedContextToken",
+     "id": "lct:web4:entity:alice:2025",
+     "entityType": "human",
+     "publicKey": {
+       "id": "lct:web4:entity:alice:2025#keys-1",
+       "type": "Ed25519VerificationKey2020",
+       "publicKeyMultibase": "z6Mk..."
+     },
+     "proof": {
+       "type": "Ed25519Signature2020",
+       "created": "2025-09-15T12:00:00Z",
+       "verificationMethod": "lct:web4:entity:alice:2025#keys-1",
+       "proofPurpose": "assertionMethod",
+       "proofValue": "z5J..."
+     }
+   }
+
+
+
+
+
+Palatov                  Expires March 15, 2026                [Page 9]
+
+Internet-Draft                   Web4                    September 2025
+
+
+4.2.  Handshake Protocol
+
+   HPKE-based mutual authentication and key agreement.
+
+   Phase 1: Announcement
+   {
+     "type": "ANNOUNCE",
+     "lct_id": "lct:web4:entity:alice",
+     "capabilities": [...],
+     "ephemeral_public": "X25519:base64..."
+   }
+
+   Phase 2: Interest
+   {
+     "type": "INTEREST",
+     "lct_id": "lct:web4:entity:bob",
+     "responding_to": "lct:web4:entity:alice",
+     "ephemeral_public": "X25519:base64...",
+     "proposed_interaction": "pairing"
+   }
+
+   Phase 3: Confirmation
+   {
+     "type": "CONFIRM",
+     "session_id": "sess:...",
+     "encrypted_payload": "HPKE:base64...",
+     "witness_request": ["lct:web4:witness:..."]
+   }
+
+   Phase 4: Acknowledgment
+   {
+     "type": "ACK",
+     "session_id": "sess:...",
+     "encrypted_payload": "HPKE:base64...",
+     "witness_attestations": [...]
+   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026               [Page 10]
+
+Internet-Draft                   Web4                    September 2025
+
+
+4.3.  R6 Action Framework
+
+   Every Web4 transaction follows the R6 pattern.
+
+   R6 Structure:
+   {
+     "type": "R6Action",
+     "rules": {
+       "lawHash": "sha256:...",
+       "society": "lct:web4:society:..."
+     },
+     "role": {
+       "actor": "lct:web4:entity:...",
+       "roleType": "web4:Developer"
+     },
+     "request": {
+       "action": "analyze_dataset",
+       "target": "resource:...",
+       "parameters": {...},
+       "atpStake": 100
+     },
+     "reference": {
+       "precedents": [...],
+       "mrhContext": {...}
+     },
+     "resource": {
+       "required": {"atp": 100, "compute": "medium"}
+     },
+     "result": {
+       "status": "success",
+       "output": {...},
+       "tensorUpdates": {...}
+     }
+   }
+
+   Processing:
+   1. Validate actor has required role
+   2. Check law compliance
+   3. Verify resource availability
+   4. Validate references
+   5. Lock resources (escrow)
+   6. Execute action
+   7. Update tensors
+   8. Record on ledger
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026               [Page 11]
+
+Internet-Draft                   Web4                    September 2025
+
+
+5.  Security Considerations
+
+5.1.  Cryptographic Requirements
+
+   Algorithms:
+   o  Signatures: Ed25519 (MUST), ECDSA P-256 (SHOULD)
+   o  Key Agreement: X25519 (MUST), ECDH P-256 (SHOULD)
+   o  Encryption: ChaCha20-Poly1305 (MUST), AES-256-GCM (SHOULD)
+   o  Hashing: SHA-256 (MUST), SHA-3-256 (SHOULD)
+
+   Key Management:
+   o  Keys MUST be generated using cryptographically secure RNG
+   o  Private keys MUST never be transmitted
+   o  Key rotation SHOULD occur annually
+   o  Compromised keys MUST be revoked immediately
+
+5.2.  Threat Model
+
+   Identity Threats:
+   o  LCT theft: Mitigated by cryptographic binding
+   o  Impersonation: Prevented by signature verification
+   o  Sybil attacks: Addressed by birth certificate requirements
+
+   Trust Threats:
+   o  Reputation gaming: ATP staking required for queries
+   o  False witnessing: Slashing for dishonest attestations
+   o  Trust farming: Rate limits and pattern detection
+
+   Economic Threats:
+   o  Double spending: Prevented by society pool management
+   o  ATP hoarding: Demurrage and velocity requirements
+   o  Value manipulation: Witness requirements for charging
+
+   Communication Threats:
+   o  Man-in-the-middle: HPKE encryption
+   o  Replay attacks: Nonces and timestamps
+   o  Denial of service: Rate limiting and ATP costs
+
+
+
+
+
+
+
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026               [Page 12]
+
+Internet-Draft                   Web4                    September 2025
+
+
+5.3.  Privacy Considerations
+
+   Data Minimization:
+   o  Collect only necessary information
+   o  Role-specific data disclosure
+   o  Selective credential presentation
+
+   Anonymity Options:
+   o  Ephemeral LCTs for temporary interactions
+   o  Zero-knowledge proofs for trust queries
+   o  Mixing services for ATP transfers
+
+   Right to Deletion:
+   o  Personal data erasure on request
+   o  Immutable ledger entries pseudonymized
+   o  Relationship unlinking supported
+
+6.  IANA Considerations
+
+6.1.  Web4 URI Scheme
+
+   This document requests registration of the "web4" URI scheme:
+
+   Scheme name: web4
+   Status: Permanent
+   Applications/protocols: Web4 protocol suite
+   Contact: Dennis Palatov <dp@web4.io>
+   Change controller: IETF
+   Reference: This document
+
+   Example URIs:
+   o  web4://entity/alice
+   o  web4://society/global/law
+   o  web4://dictionary/medical-legal
+
+6.2.  Web4 Media Types
+
+   This document requests registration of the following media types:
+
+   application/web4-lct+json
+   o  LCT documents in JSON-LD format
+
+   application/web4-r6+json
+   o  R6 action specifications
+
+   application/web4-witness+jose
+   o  Witness attestations in JOSE format
+
+
+
+Palatov                  Expires March 15, 2026               [Page 13]
+
+Internet-Draft                   Web4                    September 2025
+
+
+6.3.  Web4 Error Codes
+
+   This document requests a registry for Web4 error codes:
+
+   Range 1000-1999: Protocol errors
+   o  1001: Invalid LCT
+   o  1002: Signature verification failed
+   o  1003: Expired token
+
+   Range 2000-2999: Trust errors
+   o  2001: Insufficient trust
+   o  2002: Role mismatch
+   o  2003: Agency violation
+
+   Range 3000-3999: Economic errors
+   o  3001: Insufficient ATP
+   o  3002: Resource unavailable
+   o  3003: Slashing event
+
+7.  References
+
+7.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in
+              RFC 2119 Key Words", BCP 14, RFC 8174,
+              DOI 10.17487/RFC8174, May 2017,
+              <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC9180]  Barnes, R., Bhargavan, K., Lipp, B., and C. Wood,
+              "Hybrid Public Key Encryption", RFC 9180,
+              DOI 10.17487/RFC9180, February 2022,
+              <https://www.rfc-editor.org/info/rfc9180>.
+
+   [RFC8032]  Josefsson, S. and I. Liusvaara, "Edwards-Curve
+              Digital Signature Algorithm (EdDSA)", RFC 8032,
+              DOI 10.17487/RFC8032, January 2017,
+              <https://www.rfc-editor.org/info/rfc8032>.
+
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026               [Page 14]
+
+Internet-Draft                   Web4                    September 2025
+
+
+7.2.  Informative References
+
+   [JSON-LD]  Sporny, M., Longley, D., Kellogg, G., Lanthaler, M.,
+              and N. Lindstrom, "JSON-LD 1.1", W3C Recommendation,
+              16 July 2020,
+              <https://www.w3.org/TR/json-ld11/>.
+
+   [RDF]      Cyganiak, R., Wood, D., and M. Lanthaler, "RDF 1.1
+              Concepts and Abstract Syntax", W3C Recommendation,
+              25 February 2014,
+              <https://www.w3.org/TR/rdf11-concepts/>.
+
+   [SPARQL]   Harris, S. and A. Seaborne, "SPARQL 1.1 Query
+              Language", W3C Recommendation, 21 March 2013,
+              <https://www.w3.org/TR/sparql11-query/>.
+
+Appendix A.  Example LCT
+
+   A complete LCT with relationships:
+
+   {
+     "@context": [
+       "https://web4.io/contexts/lct.jsonld",
+       "https://web4.io/contexts/mrh.jsonld"
+     ],
+     "type": "LinkedContextToken",
+     "id": "lct:web4:entity:alice:2025",
+     "entityType": "human",
+     "publicKey": {
+       "id": "lct:web4:entity:alice:2025#keys-1",
+       "type": "Ed25519VerificationKey2020",
+       "publicKeyMultibase": "z6MkrHKzgsahxBLyNAbLQyB1pcWNYC9GmywiWPgkrvntAZcj"
+     },
+     "mrh": {
+       "bound": [],
+       "paired": [
+         {
+           "lct": "lct:web4:role:citizen:usa",
+           "type": "birth_certificate",
+           "timestamp": "2025-01-01T00:00:00Z"
+         }
+       ],
+       "witnessing": [
+         {
+           "lct": "lct:web4:witness:notary",
+           "attestation": "identity_verified"
+         }
+       ]
+
+
+
+Palatov                  Expires March 15, 2026               [Page 15]
+
+Internet-Draft                   Web4                    September 2025
+
+
+     },
+     "trust": {
+       "t3": {
+         "talent": 0.85,
+         "training": 0.90,
+         "temperament": 0.88
+       },
+       "v3": {
+         "veracity": 0.92,
+         "validity": 0.89,
+         "value": 1250.5
+       }
+     },
+     "proof": {
+       "type": "Ed25519Signature2020",
+       "created": "2025-09-15T12:00:00Z",
+       "verificationMethod": "lct:web4:entity:alice:2025#keys-1",
+       "proofPurpose": "assertionMethod",
+       "proofValue": "z5JzBrRQGHTCMbVcYkLPCA8ahCwJPCQKxh3vBiwxZBPAm6pYyZgNPRXJBU5vhv4XTR7LzH9hPw2VG2kdnWXGDZCzH"
+     }
+   }
+
+Appendix B.  Example R6 Transaction
+
+   A complete R6 action for data analysis:
+
+   {
+     "type": "R6Action",
+     "id": "r6:action:2025091512345",
+     "rules": {
+       "lawHash": "sha256:abcdef123456...",
+       "society": "lct:web4:society:research-net",
+       "constraints": [
+         {"type": "atp_minimum", "value": 50},
+         {"type": "witness_required", "value": 2}
+       ]
+     },
+     "role": {
+       "actor": "lct:web4:entity:alice",
+       "roleType": "web4:DataAnalyst",
+       "pairedAt": "2025-09-01T00:00:00Z"
+     },
+     "request": {
+       "action": "analyze_dataset",
+       "target": "resource:web4:dataset:climate-2025",
+       "parameters": {
+         "algorithm": "neural_net_v2",
+         "confidence_threshold": 0.95
+       },
+
+
+
+Palatov                  Expires March 15, 2026               [Page 16]
+
+Internet-Draft                   Web4                    September 2025
+
+
+       "atpStake": 100,
+       "nonce": "nonce123456"
+     },
+     "reference": {
+       "precedents": [
+         {
+           "actionHash": "sha256:previous123...",
+           "outcome": "success",
+           "relevance": 0.9
+         }
+       ],
+       "witnesses": [
+         "lct:web4:witness:auditor1",
+         "lct:web4:witness:auditor2"
+       ]
+     },
+     "resource": {
+       "required": {
+         "atp": 100,
+         "compute": "medium",
+         "memory": "4GB"
+       },
+       "pricing": {
+         "atp_per_compute": 0.1
+       }
+     },
+     "result": {
+       "status": "success",
+       "output": {
+         "analysis": "...",
+         "confidence": 0.97
+       },
+       "resourceConsumed": {
+         "atp": 95,
+         "compute_seconds": 285
+       },
+       "tensorUpdates": {
+         "actor": {
+           "t3": {"training": 0.01},
+           "v3": {"value": 5.0}
+         }
+       }
+     }
+   }
+
+Author's Address
+
+   Dennis Palatov
+   Web4.io
+
+
+
+Palatov                  Expires March 15, 2026               [Page 17]
+
+Internet-Draft                   Web4                    September 2025
+
+
+   Email: dp@metalinxx.io
+   URI:   https://web4.io/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Palatov                  Expires March 15, 2026               [Page 18]
