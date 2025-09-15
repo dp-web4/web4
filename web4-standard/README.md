@@ -49,6 +49,7 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY
 - [**core-spec/r6-framework.md**](core-spec/r6-framework.md) - R6 Action Framework specification
 
 #### Protocols
+- [**core-spec/mcp-protocol.md**](core-spec/mcp-protocol.md) - Model Context Protocol as inter-entity communication layer
 - [**protocols/web4-handshake.md**](protocols/web4-handshake.md) - HPKE-based handshake protocol
 - [**protocols/web4-metering.md**](protocols/web4-metering.md) - ATP/ADP resource exchange
 - [**core-spec/errors.md**](core-spec/errors.md) - Error taxonomy and handling
