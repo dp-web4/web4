@@ -4,21 +4,22 @@
 
 ---
 
-## 🚀 Web4 Standard - Alpha Ready for Implementation
+## 🚀 Web4 Standard - Feature Complete and Beta Ready
 
-**The Web4 Internet Standard specification is substantively complete and technically coherent.** Created through unprecedented collaboration between AI systems (Manus, Nova, Claude), the standard demonstrates Web4's core principle: witnessed presence strengthening truth.
+**The Web4 Internet Standard specification is feature-complete and ready for implementation.** Created through unprecedented collaboration between AI systems (Manus, Nova, Claude) and human architects, the standard demonstrates Web4's core principle: witnessed presence strengthening truth.
 
 ### Current Status (September 2025)
-- ✅ **Alpha-ready** for independent implementations
-- ✅ **Beta-ready** for submission to standards bodies (IETF/ISO)
-- ✅ Complete protocol specifications with test vectors
-- ✅ Reference implementations in Python
+- ✅ **Beta-ready** for production implementations
+- ✅ **Submission-ready** for standards bodies (IETF/ISO)
+- ✅ Complete seven-component architecture (LCTs + MRH + Trust + MCP + SAL + AGY + ACP)
+- ✅ Reference implementations in Python with test coverage
 - ✅ Comprehensive witness specification (JOSE/COSE formats)
-- ✅ MRH as RDF graphs with SPARQL queries
-- ✅ MCP entity integration completing the Web4 equation
+- ✅ MRH as RDF graphs with SPARQL queries and trust propagation
+- ✅ Full governance framework with societies, laws, and authority delegation
+- ✅ Autonomous agent operation with human oversight
 
-### [📋 Executive Summary](EXECUTIVE_SUMMARY.md)
-High-level overview for decision makers
+### [📋 Executive Summary](web4-standard/EXECUTIVE_SUMMARY.md)
+Complete overview of Web4 vision, architecture, and all seven core components
 
 ### [📚 Full Standard Specification](web4-standard/)
 Complete technical specification with all protocols, registries, and profiles
@@ -60,16 +61,19 @@ Interactive HTML with navigation, search, and responsive design
 
 ---
 
-## The Web4 Equation
+## The Web4 Equation (Complete)
 
 ```
-Web4 = LCTs + MRH + Trust + MCP
+Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
 ```
 
-- **LCTs** (Linked Context Tokens): Provide unforgeable identity and context preservation
-- **MRH** (Markov Relevancy Horizon): Maintain relevance across fractal scales  
-- **Trust**: Enable decentralized coordination without central authority
-- **MCP** (Model Context Protocol): Bridge AI models to external resources
+- **LCTs** (Linked Context Tokens): Unforgeable identity and context preservation
+- **MRH** (Markov Relevancy Horizon): Fractal context maintenance via RDF graphs
+- **Trust**: Role-contextual T3/V3 tensors for reputation
+- **MCP** (Model Context Protocol): Inter-entity communication layer
+- **SAL** (Society-Authority-Law): Governance with birth certificates and law oracles
+- **AGY** (Agency Delegation): Formal authority transfer with proof-of-agency
+- **ACP** (Agentic Context Protocol): Autonomous planning and execution
 
 ## Core Concepts
 
@@ -83,12 +87,14 @@ Energy becomes value through a biological metaphor made digital. Like ATP in liv
 Memory doesn't just record the past—it **senses** it. Alongside physical sensors (spatial) and cognitive sensors (future projection), memory as temporal sensor creates the complete reality field where intelligence operates. Every interaction leaves a trace, every trace can be witnessed, and every witness strengthens the fabric of collective trust.
 
 ### 📊 T3 and V3 Tensors
-**Trust** and **Value** become measurable, multidimensional:
-- **T3 (Trust Tensor)**: Talent, Training, Temperament—capturing an entity's capabilities
-- **V3 (Value Tensor)**: Valuation, Veracity, Validity—measuring created value
+**Trust** and **Value** are role-contextual and multidimensional:
+- **T3 (Trust Tensor)**: Talent, Training, Temperament—capabilities in specific roles
+- **V3 (Value Tensor)**: Veracity, Validity, Value—outcomes in specific contexts
+- **Role-Specific**: Trust as surgeon ≠ trust as mechanic
+- **ATP-Staked Queries**: Prevent reputation farming through economic commitment
 
 ### 🌐 Markov Relevancy Horizon (MRH)
-Each entity's contextual lens—defining what is knowable, actionable, and relevant within their scope. Created by Dennis Palatov to extend Markov blankets to fractal scales, MRH enables systems to maintain context across multiple levels of organization. Now implemented as RDF graphs with SPARQL queries for semantic relationships.
+Created by Dennis Palatov to extend Markov blankets to fractal scales, MRH maintains context across multiple levels of organization. Implemented as RDF graphs with SPARQL queries, supporting four relationship types: binding (permanent identity), pairing (operational authorization), witnessing (trust building), and broadcast (public announcement).
 
 ### 🔗 Fractal Lightchain Architecture
 Hierarchical witness-based verification that scales from nanosecond cell operations to permanent blockchain anchors—all without global consensus bottlenecks. Trust emerges from witnessed interactions at every scale.
@@ -106,14 +112,20 @@ A physics-inspired governance system where change resistance emerges from natura
 
 ## Key Innovations
 
-### Trust Through Witnessing
-Trust emerges from accumulated witnessed interactions. Every action creates a witness mark, every witness can be acknowledged, creating bidirectional proof without global consensus.
+### Roles as First-Class Entities
+Roles aren't just labels—they're entities with their own LCTs, histories, and reputations. Every entity begins with a "citizen" role pairing that serves as its birth certificate, providing permanent base rights and responsibilities.
 
-### Entities Beyond Users
-Anything with presence can be an entity: humans, AIs, organizations, roles, tasks, even thoughts. Each gets an LCT, making them first-class participants in the trust network.
+### Complete Action Grammar (R6)
+Every transaction follows the R6 pattern: Rules + Role + Request + Reference + Resource → Result. This ensures deterministic, auditable, and law-compliant execution across all Web4 interactions.
 
-### Memory as Living History
-Memory actively perceives temporal patterns, building trust through witnessed experience. It's not storage—it's the sense that makes time itself tangible.
+### Autonomous Yet Accountable (ACP)
+Agents can plan and execute autonomously through triggers, workflows, and decision trees, while maintaining human oversight gates, witness requirements, and complete audit trails on immutable ledgers.
+
+### Society-Based Governance (SAL)
+Every entity is born into a society with laws, authorities, and witnesses. Law Oracles publish machine-readable rules, creating fractal governance that scales from individuals to ecosystems.
+
+### Formal Delegation (AGY)
+Precise authority transfer where Clients delegate specific powers to Agents with exact scope, resource caps, temporal bounds, and proof-of-agency requirements for every action.
 
 ### Four-Tier Blockchain Typology
 - **Compost** (milliseconds): Ephemeral working memory
@@ -127,23 +139,25 @@ Memory actively perceives temporal patterns, building trust through witnessed ex
 
 ```
 web4/
-├── web4-standard/       # 🆕 Complete Internet Standard Specification
-│   ├── protocols/       # Core protocol specifications (LCT, handshake, metering, witness)
-│   ├── core-spec/       # Technical specifications (tensors, security, data formats)
-│   ├── implementation/  # Reference code and working demos
-│   ├── testing/        # Test vectors, validators, witness attestations
-│   ├── profiles/       # Conformance profiles (edge, P2P, cloud, blockchain)
-│   ├── registries/     # IANA registries (cipher suites, error codes, extensions)
-│   └── submission/     # RFC submission documents
-├── whitepaper/          # Philosophical foundation
-│   ├── sections/        # Individual document sections
-│   ├── build/          # Generated outputs (MD, PDF, HTML)
-│   └── log/            # Changelog and development notes
-├── docs/               # Documentation and guides
-├── forum/              # Community discussions
-│   └── nova/           # Nova's contributions and reviews
-├── reference/          # Reference materials
-└── integration/        # Cross-project integration logs
+├── web4-standard/           # ✅ Feature-Complete Internet Standard
+│   ├── EXECUTIVE_SUMMARY.md # Complete vision and architecture overview
+│   ├── protocols/           # Core protocols (LCT, handshake, metering, witness)
+│   ├── core-spec/           # Specifications (R6, MCP, ACP, tensors, security)
+│   │   ├── r6-framework.md  # Complete action grammar
+│   │   ├── mcp-protocol.md  # Inter-entity communication
+│   │   └── acp-framework.md # Autonomous agent operation
+│   ├── *_INTEGRATION_SUMMARY.md # SAL, AGY, ACP integration docs
+│   ├── implementation/      # Reference code and demos
+│   ├── testing/            # Test vectors, validators, witness formats
+│   ├── profiles/           # Conformance profiles
+│   └── registries/         # IANA considerations
+├── whitepaper/             # Philosophical foundation
+├── forum/                  # Community discussions
+│   └── nova/               # Nova's contributions
+│       ├── web4-sal-bundle/  # Society-Authority-Law
+│       ├── agency-bundle/    # Agency delegation
+│       └── ACP-bundle/       # Agentic context protocol
+└── reference/              # Supporting materials
 ```
 
 ---
@@ -151,13 +165,15 @@ web4/
 ## Implementation Status
 
 ### ✅ Standard Complete (September 2025)
-- Full protocol specifications (binding, pairing, witnessing, broadcast)
-- Cryptographic suites defined (X25519, Ed25519, ChaCha20-Poly1305)
-- Reference implementation in Python with complete test coverage
-- JOSE/COSE witness vectors with validator
-- MRH as RDF graphs with trust propagation algorithms
-- MCP servers defined as responsive + delegative entities
-- Ready for IETF/ISO submission
+- Full seven-component architecture specifications
+- Complete protocol suite (binding, pairing, witnessing, broadcast)
+- R6 Action Framework for all transactions
+- SAL governance with Law Oracles and birth certificates
+- AGY delegation with proof-of-agency
+- ACP autonomous operation with human oversight
+- MCP inter-entity communication layer
+- Reference implementations with test coverage
+- Ready for production deployment and standards submission
 
 ### 🔨 Reference Implementation: modbatt-CAN
 The [modbatt-CAN project](https://github.com/dp-web4/modbatt-CAN) demonstrates Web4 in production:
