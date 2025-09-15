@@ -25,7 +25,7 @@ The following entity types are recognized in Web4:
 | **Service** | Software services and applications | Web services, microservices | Responsive |
 | **Oracle** | External data providers | Price feeds, Law Oracle, weather data | Responsive/Delegative |
 | **Accumulator** | Broadcast listeners and recorders | Presence validators, history indexers | Responsive |
-| **Dictionary** | Semantic bridges between domains | Medical-legal translator, tech-common interpreter | Responsive |
+| **Dictionary** | Living semantic bridges managing compression-trust | Medical-legal translator, AI model bridges, cultural interpreters | Responsive/Agentic |
 | **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Mixed |
 
 ### 2.2 Entity Behavioral Modes
@@ -424,9 +424,73 @@ Role permissions MUST be:
 - Performance histories may be selectively disclosed
 - Agent-role pairings visible only to relevant parties
 
-## 9. Specialized Entity: Accumulators
+## 9. Specialized Entity: Dictionary
 
-### 9.1 Accumulator Role
+### 9.1 Dictionary Role
+Dictionaries are first-class entities that serve as living semantic bridges:
+
+- **Translate** between domains, models, and cultures
+- **Manage** compression-trust relationships
+- **Evolve** through community feedback and usage
+- **Build** reputation through successful translations
+- **Track** confidence and semantic degradation
+
+### 9.2 Dictionary LCT Structure
+```json
+{
+  "entity_type": "dictionary",
+  "dictionary_spec": {
+    "source_domain": "medical",
+    "target_domain": "legal",
+    "bidirectional": true,
+    "coverage": {
+      "terms": 15000,
+      "concepts": 3200
+    }
+  },
+  "compression_profile": {
+    "average_ratio": 12.5,
+    "lossy_threshold": 0.02,
+    "context_required": "moderate"
+  },
+  "trust_requirements": {
+    "minimum_t3": {
+      "talent": 0.8,
+      "training": 0.9,
+      "temperament": 0.85
+    },
+    "stake_required": 100
+  },
+  "evolution": {
+    "learning_rate": 0.001,
+    "update_frequency": "daily",
+    "community_edits": true
+  }
+}
+```
+
+### 9.3 Dictionary Trust Building
+Dictionaries earn trust through:
+- Translation accuracy and consistency
+- Successful witness attestations
+- Community validation and curation
+- Low semantic degradation rates
+- Handling of edge cases and ambiguity
+
+### 9.4 Compression-Trust Principle
+**All meaningful communication is compression plus trust across shared or sufficiently aligned latent fields.**
+
+Dictionaries manage this by:
+- Building trust → Enabling higher compression
+- Tracking degradation → Maintaining quality
+- Facilitating alignment → Bridging latent spaces
+- Evolving continuously → Adapting to drift
+
+For complete specification, see [dictionary-entities.md](dictionary-entities.md).
+
+## 10. Specialized Entity: Accumulators
+
+### 10.1 Accumulator Role
 Accumulators are specialized responsive entities that provide passive witnessing services:
 
 - **Listen** to public broadcasts without acknowledgment
@@ -434,7 +498,7 @@ Accumulators are specialized responsive entities that provide passive witnessing
 - **Index** by broadcaster, type, timestamp
 - **Query** interface for presence validation
 
-### 9.2 Accumulator LCT Structure
+### 10.2 Accumulator LCT Structure
 ```json
 {
   "entity_type": "accumulator",
@@ -454,16 +518,16 @@ Accumulators are specialized responsive entities that provide passive witnessing
 }
 ```
 
-### 9.3 Accumulator Trust
+### 10.3 Accumulator Trust
 Accumulator reliability measured by:
 - Uptime and availability
 - Query response accuracy
 - Storage commitment honoring
 - Non-selective recording (no censorship)
 
-## 10. Citizen Role Examples
+## 11. Citizen Role Examples
 
-### 10.1 Context-Specific Citizens
+### 11.1 Context-Specific Citizens
 
 Different contexts define different citizen roles:
 
@@ -475,7 +539,7 @@ Different contexts define different citizen roles:
 | Organization | Member Citizen | Participate, propose | Contribute, uphold values |
 | Ecosystem | Ecosystem Citizen | Use resources | Sustain balance |
 
-### 10.2 Birth Certificate as Proof of Origin
+### 11.2 Birth Certificate as Proof of Origin
 
 The birth certificate provides:
 - **Provenance**: Where and when entity originated
@@ -484,7 +548,7 @@ The birth certificate provides:
 - **Inheritance**: Rights/responsibilities from parent
 - **Witnesses**: Who validated the birth
 
-## 11. Future Extensions
+## 12. Future Extensions
 
 Potential entity types under consideration:
 - **Contract**: Smart contracts as entities
