@@ -9,7 +9,7 @@ The Web4 standard defines a trust-native distributed intelligence architecture t
 ## The Web4 Equation (Extended)
 
 ```
-Web4 = LCTs + MRH + Trust + MCP + SAL + AGY
+Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP
 ```
 
 - **LCTs** (Linked Context Tokens): Provide unforgeable identity and context preservation
@@ -18,6 +18,7 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY
 - **MCP** (Model Context Protocol): Bridge AI models to external resources
 - **SAL** (Society-Authority-Law): Governance framework with birth certificates, law oracles, and authority delegation
 - **AGY** (Agency Delegation): Formal mechanism for Client entities to delegate authority to Agent entities
+- **ACP** (Agentic Context Protocol): Enables autonomous agent operation with planning, decision-making, and execution
 
 ## Quick Navigation
 
@@ -28,6 +29,7 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY
 - [**NOVA_REVIEW_SUMMARY.md**](NOVA_REVIEW_SUMMARY.md) - Technical review and assessment
 - [**SAL_INTEGRATION_SUMMARY.md**](SAL_INTEGRATION_SUMMARY.md) - Society-Authority-Law governance layer
 - [**AGY_INTEGRATION_SUMMARY.md**](AGY_INTEGRATION_SUMMARY.md) - Agency Delegation framework
+- [**ACP_INTEGRATION_SUMMARY.md**](ACP_INTEGRATION_SUMMARY.md) - Agentic Context Protocol framework
 
 ### 🔧 Core Specifications
 
@@ -47,6 +49,7 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY
 - [**core-spec/t3-v3-tensors.md**](core-spec/t3-v3-tensors.md) - Trust and value tensors
 - [**R6_TENSOR_GUIDE.md**](R6_TENSOR_GUIDE.md) - Role, Rights, Responsibilities, Risks, Rewards, Results
 - [**core-spec/r6-framework.md**](core-spec/r6-framework.md) - R6 Action Framework specification
+- [**core-spec/acp-framework.md**](core-spec/acp-framework.md) - Agentic Context Protocol specification
 
 #### Protocols
 - [**core-spec/mcp-protocol.md**](core-spec/mcp-protocol.md) - Model Context Protocol as inter-entity communication layer
@@ -113,6 +116,9 @@ Sophisticated algorithms for trust flow through MRH graphs, supporting multiple 
 ### 5. Agency Delegation (AGY)
 Formal delegation mechanism where Client entities authorize Agent entities to act on their behalf with scoped constraints, resource caps, and proof-of-agency requirements.
 
+### 6. Agentic Context Protocol (ACP)
+Transforms Web4 from reactive to agentic, enabling autonomous planning, decision-making, and execution with human oversight and full auditability.
+
 ## Development Status
 
 ### ✅ Complete
@@ -130,6 +136,8 @@ Formal delegation mechanism where Client entities authorize Agent entities to ac
 - Auditor role with adjustment powers
 - R6 Action Framework documentation
 - AGY (Agency Delegation) framework with proof-of-agency
+- ACP (Agentic Context Protocol) with planning and execution
+- MCP as inter-entity communication layer
 
 ### 🚧 In Progress
 - Transport & discovery matrix
