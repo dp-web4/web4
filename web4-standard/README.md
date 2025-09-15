@@ -6,16 +6,17 @@ The Web4 standard defines a trust-native distributed intelligence architecture t
 
 **Current Status**: Alpha-ready for independent implementations, Beta-ready for submission (IETF/ISO)
 
-## The Web4 Equation
+## The Web4 Equation (Extended)
 
 ```
-Web4 = LCTs + MRH + Trust + MCP
+Web4 = LCTs + MRH + Trust + MCP + SAL
 ```
 
 - **LCTs** (Linked Context Tokens): Provide unforgeable identity and context preservation
 - **MRH** (Markov Relevancy Horizon): Maintain relevance across fractal scales  
 - **Trust**: Enable decentralized coordination without central authority
 - **MCP** (Model Context Protocol): Bridge AI models to external resources
+- **SAL** (Society-Authority-Law): Governance framework with birth certificates, law oracles, and authority delegation
 
 ## Quick Navigation
 
@@ -24,6 +25,7 @@ Web4 = LCTs + MRH + Trust + MCP
 - [**GLOSSARY.md**](GLOSSARY.md) - Complete terminology reference
 - [**INTEGRATION_STATUS.md**](INTEGRATION_STATUS.md) - Development phases and current status
 - [**NOVA_REVIEW_SUMMARY.md**](NOVA_REVIEW_SUMMARY.md) - Technical review and assessment
+- [**SAL_INTEGRATION_SUMMARY.md**](SAL_INTEGRATION_SUMMARY.md) - Society-Authority-Law governance layer
 
 ### 🔧 Core Specifications
 
@@ -34,6 +36,7 @@ Web4 = LCTs + MRH + Trust + MCP
 
 #### Entity Relationships
 - [**protocols/web4-entity-relationships.md**](protocols/web4-entity-relationships.md) - Binding, pairing, witnessing, broadcast
+- [**core-spec/web4-society-authority-law.md**](core-spec/web4-society-authority-law.md) - SAL governance framework
 - [**MCP_ENTITY_SPECIFICATION.md**](MCP_ENTITY_SPECIFICATION.md) - MCP servers as Web4 entities
 - [**WEB4_WITNESSING_SPECIFICATION.md**](WEB4_WITNESSING_SPECIFICATION.md) - Canonical witness formats
 
@@ -114,6 +117,10 @@ Sophisticated algorithms for trust flow through MRH graphs, supporting multiple 
 - Trust propagation algorithms
 - Reference implementations
 - Test vectors and validators
+- SAL governance framework (Society-Authority-Law)
+- Law Oracle specification
+- Enhanced birth certificates
+- Auditor role with adjustment powers
 
 ### 🚧 In Progress
 - Transport & discovery matrix

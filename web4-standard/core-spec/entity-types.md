@@ -16,13 +16,14 @@ The following entity types are recognized in Web4:
 |-------------|-------------|----------|------|
 | **Human** | Individual persons participating in Web4 | End users, developers, administrators | Agentic |
 | **AI** | Artificial intelligence agents with autonomous capabilities | Chatbots, analysis engines, autonomous agents | Agentic |
+| **Society** | Delegative entity with authority to issue citizenship and bind law | Nation, platform, network, organization | Delegative |
 | **Organization** | Collective entities representing groups | Companies, DAOs, communities | Delegative |
-| **Role** | First-class entities representing functions or positions | Citizen, Developer, Auditor, Energy Provider | Delegative |
+| **Role** | First-class entities representing functions or positions | Citizen, Authority, Auditor, Witness | Delegative |
 | **Task** | Specific work units or objectives | Data processing job, verification task | Responsive |
 | **Resource** | Data, services, or assets | Databases, APIs, compute resources | Responsive |
 | **Device** | Physical or virtual hardware | IoT sensors, servers, vehicles | Responsive/Agentic |
 | **Service** | Software services and applications | Web services, microservices | Responsive |
-| **Oracle** | External data providers | Price feeds, weather data, event confirmers | Responsive |
+| **Oracle** | External data providers | Price feeds, Law Oracle, weather data | Responsive/Delegative |
 | **Accumulator** | Broadcast listeners and recorders | Presence validators, history indexers | Responsive |
 | **Dictionary** | Semantic bridges between domains | Medical-legal translator, tech-common interpreter | Responsive |
 | **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Mixed |
@@ -65,19 +66,23 @@ One of Web4's most radical innovations is treating roles not as labels but as en
 - **Immutable**: Birth certificate pairing cannot be revoked
 - **Inherited**: Carries context from creating/binding entity
 
-#### Birth Certificate Structure
+#### Birth Certificate Structure (SAL-compliant)
 ```json
 {
-  "birth_certificate": {
-    "entity_lct": "lct:web4:entity:...",
-    "citizen_role": "lct:web4:role:citizen:...",
-    "context": "web4://context/nation|platform|network",
-    "birth_timestamp": "2025-09-14T12:00:00Z",
-    "parent_entity": "lct:web4:parent:...",
-    "birth_witness": ["lct:web4:witness1", "lct:web4:witness2"],
-    "initial_rights": ["exist", "interact", "accumulate_reputation"],
-    "genesis_block": "block:12345"
-  }
+  "@context": ["https://web4.io/contexts/sal.jsonld"],
+  "type": "Web4BirthCertificate",
+  "entity": "lct:web4:entity:...",
+  "citizenRole": "lct:web4:role:citizen:...",
+  "society": "lct:web4:society:...",
+  "lawOracle": "lct:web4:oracle:law:...",
+  "lawVersion": "v1.2.0",
+  "birthTimestamp": "2025-09-14T12:00:00Z",
+  "witnesses": ["lct:web4:witness1", "lct:web4:witness2"],
+  "genesisBlock": "block:12345",
+  "initialRights": ["exist", "interact", "accumulate_reputation"],
+  "initialResponsibilities": ["abide_law", "respect_quorum"],
+  "ledgerProof": "hash:sha256:...",
+  "parentEntity": "lct:web4:parent:..."
 }
 ```
 
@@ -163,18 +168,76 @@ This creates a transparent, reputation-based labor market where:
 - Agents with proven performance access better roles
 - Performance history is verifiable and portable
 
-## 4. Entity Lifecycle
+## 4. SAL-Specific Roles
 
-### 4.1 Entity Creation and Birth Certificate
+### 4.1 Society Role
+A **Society** is a delegative entity with special capabilities:
+- Issues citizenship (birth certificates) to new entities
+- Maintains a Law Oracle that publishes machine-readable laws
+- Operates or binds to an immutable ledger for record-keeping
+- Can be a citizen of other societies (fractal membership)
+
+### 4.2 Authority Role
+The **Authority** role within a society:
+- Scoped delegation powers (finance, safety, membership)
+- Can create sub-authorities with limited scope
+- Must publish scope and limits as machine-readable policy
+- Emergency powers if defined by law
+
+### 4.3 Law Oracle Role
+A specialized oracle that:
+- Publishes versioned law datasets (norms, procedures, interpretations)
+- Signs interpretations and precedents
+- Answers compliance queries with proof transcripts
+- Maps laws to R6 action grammar
+
+### 4.4 Witness Role (Enhanced)
+Beyond basic witnessing:
+- Co-signs ledger entries for SAL-critical events
+- Maintains immutable record via timestamping
+- Participates in quorum requirements
+- Provides availability proofs
+
+### 4.5 Auditor Role
+Invokable role with special powers:
+- Traverses society's MRH graph
+- Validates and adjusts T3/V3 tensors of direct citizens
+- Must provide evidence-based audit transcripts
+- Adjustments written to immutable ledger with witness quorum
+
+#### Auditor Adjustment Policy
+```json
+{
+  "type": "Web4AuditRequest",
+  "society": "lct:web4:society:...",
+  "targets": ["lct:web4:citizen:..."],
+  "scope": ["context:data_analysis"],
+  "basis": ["hash:evidence1", "hash:evidence2"],
+  "proposed": {
+    "t3": {"temperament": -0.02},
+    "v3": {"veracity": -0.03}
+  },
+  "rateLimits": "per_law_oracle",
+  "appealPath": "defined_by_law"
+}
+```
+
+## 5. Entity Lifecycle
+
+### 5.1 Entity Creation and Birth Certificate (SAL-compliant)
 
 When an entity enters Web4:
 
-1. **LCT Generation**: Unique LCT created and cryptographically bound
-2. **Entity Type Declaration**: Immutable type assignment
-3. **Citizen Role Pairing**: Automatic pairing with contextual citizen role
-4. **Birth Certificate Recording**: Immutable record of creation context
-5. **Initial Binding**: For delegative entities, binding to parent/creator
-6. **MRH Initialization**: Citizen role pre-populated in paired array
+1. **Society Selection**: Entity must be born into a society context
+2. **LCT Generation**: Unique LCT created and cryptographically bound
+3. **Entity Type Declaration**: Immutable type assignment
+4. **Citizen Role Pairing**: Automatic pairing with society's citizen role
+5. **Birth Certificate Recording**: Written to society's immutable ledger
+6. **Witness Quorum**: Required witnesses co-sign the birth event
+7. **Law Oracle Binding**: Current law version recorded in certificate
+8. **Initial Binding**: For delegative entities, binding to parent/creator
+9. **MRH Initialization**: Citizen role pre-populated in paired array
+10. **Ledger Proof**: Inclusion proof from immutable record
 
 #### Birth Certificate Process
 ```python
