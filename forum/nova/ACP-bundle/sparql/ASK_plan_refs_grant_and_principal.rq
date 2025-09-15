@@ -1,0 +1,6 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?plan a web4:ACP_AgentPlan ;
+        web4:grantId ?g ;
+        web4:principal ?p .
+}

@@ -1,0 +1,7 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?rec a web4:ACP_ExecutionRecord ;
+       web4:executedBy ?agent ;
+       web4:ledgerInclusion ?proof .
+  ?rec web4:witnesses ?w .
+}

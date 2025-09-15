@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExecutionRecord",
+  "type": "object",
+  "required": [
+    "type",
+    "intentId",
+    "grantId",
+    "lawHash",
+    "mcpCall",
+    "result"
+  ],
+  "properties": {
+    "type": {
+      "const": "ACP.ExecutionRecord"
+    },
+    "intentId": {
+      "type": "string"
+    },
+    "grantId": {
+      "type": "string"
+    },
+    "lawHash": {
+      "type": "string"
+    },
+    "mcpCall": {
+      "type": "object"
+    },
+    "result": {
+      "type": "object"
+    },
+    "t3v3Delta": {
+      "type": "object"
+    },
+    "witnesses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ledgerInclusion": {
+      "type": "object"
+    }
+  }
+}

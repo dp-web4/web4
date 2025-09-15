@@ -1,0 +1,6 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?plan a web4:AgentPlan ;
+        web4:expiresAt ?t .
+  FILTER(NOW() < ?t)
+}

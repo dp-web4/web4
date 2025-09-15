@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decision",
+  "type": "object",
+  "required": [
+    "type",
+    "intentId",
+    "decision",
+    "by"
+  ],
+  "properties": {
+    "type": {
+      "const": "ACP.Decision"
+    },
+    "intentId": {
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "approve",
+        "deny",
+        "modify"
+      ]
+    },
+    "modifications": {
+      "type": "object"
+    },
+    "by": {
+      "type": "string"
+    },
+    "witnesses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

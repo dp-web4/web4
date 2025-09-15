@@ -1,0 +1,9 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?intent a web4:ACP_Intent ;
+          web4:proofOfAgency ?grant ;
+          web4:underPlan ?plan .
+  ?grant a web4:AgencyGrant ;
+         web4:expiresAt ?t .
+  FILTER(NOW() < ?t)
+}

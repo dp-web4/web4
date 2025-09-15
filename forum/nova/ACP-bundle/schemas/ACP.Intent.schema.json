@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/ACP.Intent.json",
+  "title": "ACP.Intent",
+  "type": "object",
+  "required": [
+    "type",
+    "intentId",
+    "planId",
+    "proposedAction",
+    "proofOfAgency",
+    "needsApproval"
+  ],
+  "properties": {
+    "type": {
+      "const": "ACP.Intent"
+    },
+    "intentId": {
+      "type": "string"
+    },
+    "planId": {
+      "type": "string"
+    },
+    "proposedAction": {
+      "type": "object"
+    },
+    "proofOfAgency": {
+      "type": "object"
+    },
+    "explain": {
+      "type": "object"
+    },
+    "needsApproval": {
+      "type": "boolean"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

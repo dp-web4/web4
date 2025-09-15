@@ -1,0 +1,74 @@
+openapi: 3.1.0
+info:
+  title: Agentic Context Protocol (ACP) Control Plane
+  version: 0.1.0
+  description: Human-and-agent interface for plans, intents, decisions, and execution records.
+servers:
+  - url: https://acp.web4.example
+paths:
+  /plans:
+    post:
+      summary: Create or update an AgentPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentPlan'
+      responses:
+        '201':
+          description: Plan created
+    get:
+      summary: List plans
+      responses:
+        '200':
+          description: OK
+  /intents:
+    get:
+      summary: List pending intents (inbox)
+      parameters:
+        - in: query
+          name: planId
+          schema: {"type":"string"}
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Submit an intent (from agent evaluation)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Intent'
+      responses:
+        '201':
+          description: Created
+  /decisions:
+    post:
+      summary: Submit a decision for an intent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '201':
+          description: Decision recorded
+  /records:
+    get:
+      summary: Stream execution records (NDJSON) for audits
+      responses:
+        '200':
+          description: OK
+components:
+  schemas:
+    AgentPlan:
+      $ref: 'schemas/ACP.AgentPlan.schema.json'
+    Intent:
+      $ref: 'schemas/ACP.Intent.schema.json'
+    Decision:
+      $ref: 'schemas/ACP.Decision.schema.json'
+    ExecutionRecord:
+      $ref: 'schemas/ACP.ExecutionRecord.schema.json'

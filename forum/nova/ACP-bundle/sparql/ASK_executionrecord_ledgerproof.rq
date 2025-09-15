@@ -1,0 +1,5 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?rec a web4:ExecutionRecord ;
+       web4:ledgerInclusion ?proof .
+}

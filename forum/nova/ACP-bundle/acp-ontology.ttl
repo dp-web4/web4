@@ -1,0 +1,31 @@
+@prefix web4: <https://web4.io/ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+### Classes
+web4:ACP_AgentPlan a rdfs:Class .
+web4:ACP_Intent a rdfs:Class .
+web4:ACP_Decision a rdfs:Class .
+web4:ACP_ExecutionRecord a rdfs:Class .
+
+### Properties
+web4:underPlan a rdf:Property ;
+  rdfs:domain web4:ACP_Intent ;
+  rdfs:range  web4:ACP_AgentPlan .
+
+web4:hasDecision a rdf:Property ;
+  rdfs:domain web4:ACP_Intent ;
+  rdfs:range  web4:ACP_Decision .
+
+web4:hasExecutionRecord a rdf:Property ;
+  rdfs:domain web4:ACP_Intent ;
+  rdfs:range  web4:ACP_ExecutionRecord .
+
+web4:executedBy a rdf:Property ;
+  rdfs:domain web4:ACP_ExecutionRecord ;
+  rdfs:range  rdfs:Resource .
+
+web4:proofOfAgency a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range  rdfs:Resource .

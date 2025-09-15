@@ -1,0 +1,6 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?intent a web4:ACP_Intent ;
+          web4:hasDecision ?d .
+  ?d a web4:ACP_Decision .
+}

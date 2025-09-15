@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/ACP.Decision.json",
+  "title": "ACP.Decision",
+  "type": "object",
+  "required": [
+    "type",
+    "intentId",
+    "decision",
+    "by",
+    "timestamp"
+  ],
+  "properties": {
+    "type": {
+      "const": "ACP.Decision"
+    },
+    "intentId": {
+      "type": "string"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "deny",
+        "modify"
+      ]
+    },
+    "modifications": {
+      "type": "object"
+    },
+    "by": {
+      "type": "string"
+    },
+    "witnesses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?dec a web4:Decision ;
+       web4:witnesses ?w .
+}

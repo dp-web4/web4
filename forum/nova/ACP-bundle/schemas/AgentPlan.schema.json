@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentPlan",
+  "type": "object",
+  "required": [
+    "type",
+    "planId",
+    "principal",
+    "agent",
+    "grantId",
+    "triggers",
+    "steps",
+    "guards",
+    "expiresAt"
+  ],
+  "properties": {
+    "type": {
+      "const": "ACP.AgentPlan"
+    },
+    "planId": {
+      "type": "string"
+    },
+    "principal": {
+      "type": "string"
+    },
+    "agent": {
+      "type": "string"
+    },
+    "grantId": {
+      "type": "string"
+    },
+    "triggers": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "guards": {
+      "type": "object"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signatures": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "@context": {
+    "web4": "https://web4.io/ontology#",
+    "type": "@type",
+    "id": "@id",
+    "ACP.AgentPlan": "web4:ACP_AgentPlan",
+    "ACP.Intent": "web4:ACP_Intent",
+    "ACP.Decision": "web4:ACP_Decision",
+    "ACP.ExecutionRecord": "web4:ACP_ExecutionRecord",
+    "planId": "web4:planId",
+    "principal": {
+      "@id": "web4:principal",
+      "@type": "@id"
+    },
+    "agent": {
+      "@id": "web4:agent",
+      "@type": "@id"
+    },
+    "grantId": "web4:grantId",
+    "triggers": "web4:triggers",
+    "steps": "web4:steps",
+    "guards": "web4:guards",
+    "expiresAt": "web4:expiresAt",
+    "proposedAction": "web4:proposedAction",
+    "proofOfAgency": "web4:proofOfAgency",
+    "needsApproval": "web4:needsApproval",
+    "explain": "web4:explain",
+    "decision": "web4:decision",
+    "modifications": "web4:modifications",
+    "by": {
+      "@id": "web4:by",
+      "@type": "@id"
+    },
+    "witnesses": {
+      "@id": "web4:witnesses",
+      "@type": "@id"
+    },
+    "mcpCall": "web4:mcpCall",
+    "result": "web4:result",
+    "t3v3Delta": "web4:t3v3Delta",
+    "ledgerInclusion": "web4:ledgerInclusion",
+    "underPlan": {
+      "@id": "web4:underPlan",
+      "@type": "@id"
+    },
+    "executedBy": {
+      "@id": "web4:executedBy",
+      "@type": "@id"
+    },
+    "hasDecision": {
+      "@id": "web4:hasDecision",
+      "@type": "@id"
+    },
+    "hasExecutionRecord": {
+      "@id": "web4:hasExecutionRecord",
+      "@type": "@id"
+    }
+  }
+}

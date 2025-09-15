@@ -1,0 +1,5 @@
+PREFIX web4: <https://web4.io/ontology#>
+ASK WHERE {
+  ?intent a web4:Intent ;
+          web4:proofOfAgency ?proof .
+}
