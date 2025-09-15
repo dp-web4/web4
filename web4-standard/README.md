@@ -9,7 +9,7 @@ The Web4 standard defines a trust-native distributed intelligence architecture t
 ## The Web4 Equation (Extended)
 
 ```
-Web4 = LCTs + MRH + Trust + MCP + SAL
+Web4 = LCTs + MRH + Trust + MCP + SAL + AGY
 ```
 
 - **LCTs** (Linked Context Tokens): Provide unforgeable identity and context preservation
@@ -17,6 +17,7 @@ Web4 = LCTs + MRH + Trust + MCP + SAL
 - **Trust**: Enable decentralized coordination without central authority
 - **MCP** (Model Context Protocol): Bridge AI models to external resources
 - **SAL** (Society-Authority-Law): Governance framework with birth certificates, law oracles, and authority delegation
+- **AGY** (Agency Delegation): Formal mechanism for Client entities to delegate authority to Agent entities
 
 ## Quick Navigation
 
@@ -26,6 +27,7 @@ Web4 = LCTs + MRH + Trust + MCP + SAL
 - [**INTEGRATION_STATUS.md**](INTEGRATION_STATUS.md) - Development phases and current status
 - [**NOVA_REVIEW_SUMMARY.md**](NOVA_REVIEW_SUMMARY.md) - Technical review and assessment
 - [**SAL_INTEGRATION_SUMMARY.md**](SAL_INTEGRATION_SUMMARY.md) - Society-Authority-Law governance layer
+- [**AGY_INTEGRATION_SUMMARY.md**](AGY_INTEGRATION_SUMMARY.md) - Agency Delegation framework
 
 ### 🔧 Core Specifications
 
@@ -44,8 +46,10 @@ Web4 = LCTs + MRH + Trust + MCP + SAL
 - [**core-spec/mrh-tensors.md**](core-spec/mrh-tensors.md) - MRH tensor specification
 - [**core-spec/t3-v3-tensors.md**](core-spec/t3-v3-tensors.md) - Trust and value tensors
 - [**R6_TENSOR_GUIDE.md**](R6_TENSOR_GUIDE.md) - Role, Rights, Responsibilities, Risks, Rewards, Results
+- [**core-spec/r6-framework.md**](core-spec/r6-framework.md) - R6 Action Framework specification
 
 #### Protocols
+- [**core-spec/mcp-protocol.md**](core-spec/mcp-protocol.md) - Model Context Protocol as inter-entity communication layer
 - [**protocols/web4-handshake.md**](protocols/web4-handshake.md) - HPKE-based handshake protocol
 - [**protocols/web4-metering.md**](protocols/web4-metering.md) - ATP/ADP resource exchange
 - [**core-spec/errors.md**](core-spec/errors.md) - Error taxonomy and handling
@@ -106,6 +110,9 @@ MCP servers are defined as both responsive (return results) and delegative (fron
 ### 4. Trust Propagation
 Sophisticated algorithms for trust flow through MRH graphs, supporting multiple models (multiplicative, probabilistic, maximal) with temporal decay.
 
+### 5. Agency Delegation (AGY)
+Formal delegation mechanism where Client entities authorize Agent entities to act on their behalf with scoped constraints, resource caps, and proof-of-agency requirements.
+
 ## Development Status
 
 ### ✅ Complete
@@ -121,6 +128,8 @@ Sophisticated algorithms for trust flow through MRH graphs, supporting multiple 
 - Law Oracle specification
 - Enhanced birth certificates
 - Auditor role with adjustment powers
+- R6 Action Framework documentation
+- AGY (Agency Delegation) framework with proof-of-agency
 
 ### 🚧 In Progress
 - Transport & discovery matrix

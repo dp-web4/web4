@@ -204,6 +204,23 @@ Invokable role with special powers:
 - Validates and adjusts T3/V3 tensors of direct citizens
 - Must provide evidence-based audit transcripts
 - Adjustments written to immutable ledger with witness quorum
+- Can validate agency delegations and their execution
+
+### 4.6 Agent Role (AGY)
+Specialized role for delegated authority:
+- Acts on behalf of a Client entity within scoped constraints
+- Requires proof-of-agency for all actions
+- Cannot impersonate Client unless explicitly allowed
+- Accrues own T3/V3 for execution quality
+- Bound by grant scope, caps, and temporal limits
+
+### 4.7 Client Role (AGY)
+Principal entity in agency delegation:
+- Delegates authority to Agent entities
+- Defines scope, caps, and constraints for delegation
+- Can revoke grants immediately
+- Shares reduced/indirect liability per law policy
+- Maintains ultimate responsibility for delegated actions
 
 #### Auditor Adjustment Policy
 ```json
@@ -219,6 +236,40 @@ Invokable role with special powers:
   },
   "rateLimits": "per_law_oracle",
   "appealPath": "defined_by_law"
+}
+```
+
+#### Agency Grant Structure (AGY)
+```json
+{
+  "type": "Web4AgencyGrant",
+  "grantId": "agy:...",
+  "client": "lct:web4:entity:CLIENT",
+  "agent": "lct:web4:entity:AGENT",
+  "society": "lct:web4:society:ROOT",
+  "lawHash": "sha256-...",
+  "scope": {
+    "contexts": ["finance:payments", "docs:sign"],
+    "mrhSelectors": ["web4://org/finance/*"],
+    "r6Caps": {
+      "rules": ["LAW-ATP-LIMIT"],
+      "resourceCaps": {"max_atp": 25},
+      "roleImpersonation": false
+    },
+    "methods": ["create", "update", "approve"],
+    "delegatable": false,
+    "witnessLevel": 2,
+    "trustCaps": {
+      "t3.min": {"temperament": 0.7},
+      "v3.floor": {"veracity": 0.9}
+    }
+  },
+  "duration": {
+    "notBefore": "2025-09-15T00:00:00Z",
+    "expiresAt": "2025-12-31T23:59:59Z"
+  },
+  "witnesses": ["lct:web4:witness:A"],
+  "signatures": [...]
 }
 ```
 
