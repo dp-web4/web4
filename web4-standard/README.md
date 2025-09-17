@@ -11,11 +11,12 @@ The Web4 standard defines a trust-native distributed intelligence architecture t
 ## The Complete Web4 Equation
 
 ```
-Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
+Web4 = Societies + LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
 ```
 
+- **Societies**: Self-governing collectives with laws, ledgers, and shared economies
 - **LCTs** (Linked Context Tokens): Provide unforgeable identity and context preservation
-- **MRH** (Markov Relevancy Horizon): Maintain relevance across fractal scales  
+- **MRH** (Markov Relevancy Horizon): Maintain relevance across fractal scales
 - **Trust**: Enable decentralized coordination without central authority
 - **MCP** (Model Context Protocol): Bridge AI models to external resources
 - **SAL** (Society-Authority-Law): Governance framework with birth certificates, law oracles, and authority delegation
@@ -34,6 +35,7 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
 ### 📚 Integration Summaries
 - [**INTEGRATION_STATUS.md**](INTEGRATION_STATUS.md) - Development phases and current status
 - [**NOVA_REVIEW_SUMMARY.md**](NOVA_REVIEW_SUMMARY.md) - Technical review and assessment
+- [**SOCIETY_INTEGRATION_SUMMARY.md**](SOCIETY_INTEGRATION_SUMMARY.md) - **NEW**: Foundational society concept
 - [**SAL_INTEGRATION_SUMMARY.md**](SAL_INTEGRATION_SUMMARY.md) - Society-Authority-Law governance layer
 - [**AGY_INTEGRATION_SUMMARY.md**](AGY_INTEGRATION_SUMMARY.md) - Agency Delegation framework
 - [**ACP_INTEGRATION_SUMMARY.md**](ACP_INTEGRATION_SUMMARY.md) - Agentic Context Protocol framework
@@ -42,6 +44,10 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
 
 ### 🔧 Core Specifications
 
+#### Society & Governance
+- [**core-spec/SOCIETY_SPECIFICATION.md**](core-spec/SOCIETY_SPECIFICATION.md) - **NEW**: Foundational society concept with laws, ledgers, and citizenship
+- [**core-spec/web4-society-authority-law.md**](core-spec/web4-society-authority-law.md) - SAL governance framework
+
 #### Identity & Context
 - [**protocols/web4-lct.md**](protocols/web4-lct.md) - Linked Context Token specification
 - [**MRH_RDF_SPECIFICATION.md**](MRH_RDF_SPECIFICATION.md) - Markov Relevancy Horizon as RDF graphs
@@ -49,7 +55,6 @@ Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
 
 #### Entity Relationships
 - [**protocols/web4-entity-relationships.md**](protocols/web4-entity-relationships.md) - Binding, pairing, witnessing, broadcast
-- [**core-spec/web4-society-authority-law.md**](core-spec/web4-society-authority-law.md) - SAL governance framework
 - [**MCP_ENTITY_SPECIFICATION.md**](MCP_ENTITY_SPECIFICATION.md) - MCP servers as Web4 entities
 - [**WEB4_WITNESSING_SPECIFICATION.md**](WEB4_WITNESSING_SPECIFICATION.md) - Canonical witness formats
 
