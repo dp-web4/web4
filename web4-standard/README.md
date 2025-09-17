@@ -46,6 +46,7 @@ Web4 = Societies + LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionari
 
 #### Society & Governance
 - [**core-spec/SOCIETY_SPECIFICATION.md**](core-spec/SOCIETY_SPECIFICATION.md) - **NEW**: Foundational society concept with laws, ledgers, and citizenship
+- [**core-spec/SOCIETY_METABOLIC_STATES.md**](core-spec/SOCIETY_METABOLIC_STATES.md) - **NEW**: Living societies with sleep, hibernation, and renewal cycles
 - [**core-spec/web4-society-authority-law.md**](core-spec/web4-society-authority-law.md) - SAL governance framework
 
 #### Identity & Context
