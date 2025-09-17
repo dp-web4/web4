@@ -142,6 +142,9 @@ A revolutionary economic system where value flows like biological energy—token
 ### 10. Semantic Interoperability (Dictionaries)
 Living entities that manage the compression-trust relationship fundamental to all communication, enabling seamless translation between domains while tracking confidence and degradation.
 
+### 11. Spatial Web Integration
+Web4 integrates with emerging semantic protocols (HSML, HSTP, Active Inference) to combine rich semantic understanding with trust-native execution. While Spatial Web frameworks handle the "how" of agent communication, Web4 provides the critical "why trust" and "what value" layers. [See detailed integration strategy](./SPATIAL_WEB_INTEGRATION.md)
+
 ## Development Status
 
 ### ✅ Complete Components

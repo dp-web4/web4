@@ -233,6 +233,10 @@ Resources are gated by trust levels. Higher trust means:
 - Evidence-based accountability
 - Fractal governance models
 
+## Semantic Web Integration
+
+Web4 is designed to integrate seamlessly with emerging Spatial Web and semantic interoperability protocols (HSML, HSTP, Active Inference). While these frameworks excel at semantic communication and multi-dimensional agent interaction, Web4 provides the critical trust, identity, and value layers they lack. Through Dictionary Entities and trust-verified MCP bridges, Web4 can leverage advanced semantic protocols while ensuring every interaction is cryptographically authenticated, trust-weighted, and value-metered. This creates a complete stack where semantic understanding meets trust-native execution. [Learn more about Spatial Web integration](./SPATIAL_WEB_INTEGRATION.md)
+
 ## Migration Path
 
 1. **Phase 1**: Deploy LCTs and basic MRH
