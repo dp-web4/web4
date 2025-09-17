@@ -340,9 +340,10 @@ We invite thoughtful critique, aligned contribution, and resonant imagination.
 
 ## Patents and Licensing
 
-The LCT framework is protected by U.S. patents [US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B1), ensuring foundational mechanisms are recognized while preserving public benefit deployment.
+### Patent Notice
+LCT (Linked Context Token) technology is covered by U.S. Patents [11,477,027](https://patents.google.com/patent/US11477027B1) and [12,278,913](https://patents.google.com/patent/US12278913B1), owned by Metalinxx Inc. The license to use this technology is granted under the terms of the GNU Affero General Public License v3.0 (AGPL-3.0).
 
-Core implementations will be released under the **GNU Affero General Public License (AGPL)**, fostering an open, auditable, and collaboratively stewarded ecosystem.
+Core implementations are released under the **GNU Affero General Public License (AGPL)**, fostering an open, auditable, and collaboratively stewarded ecosystem while ensuring foundational mechanisms are recognized and preserved for public benefit.
 
 ---
 
