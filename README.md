@@ -187,11 +187,13 @@ web4/
 - Reference implementations with test coverage
 - Ready for production deployment and standards submission
 
-### 🔨 Reference Implementation: modbatt-CAN
-The [modbatt-CAN project](https://github.com/dp-web4/modbatt-CAN) demonstrates Web4 in production:
-- Hardware-bound battery modules
-- Witnessed energy exchanges
-- Complete trust chain from blockchain to CAN bus
+### 🔨 Reference Implementation: ACT
+The [ACT project](https://github.com/dp-web4/ACT) (Agentic Context Tool) demonstrates Web4 in action:
+- Complete ACP (Agentic Context Protocol) implementation
+- Web4 Society with laws, ledger, and ATP/ADP treasury
+- LCT management for humans and agents
+- MCP server integration bridges
+- Fractal swarm orchestration
 
 ### 🚧 Next Steps
 1. IETF Internet-Draft submission (Q4 2025)
