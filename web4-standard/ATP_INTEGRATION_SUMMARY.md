@@ -4,6 +4,8 @@
 
 The ATP/ADP (Alignment Transfer Protocol / Alignment Discharge Protocol) cycle has been formally specified as Web4's fundamental value mechanism. Inspired by the biological ATP/ADP energy cycle that powers all living cells, this system creates an economy where value flows through work rather than accumulation.
 
+> **Implementation Status**: Core mechanics operational in ACT blockchain (Jan 17, 2025). See [implementation insights](implementation/ATP_ADP_IMPLEMENTATION_INSIGHTS.md) for discovered patterns and validation.
+
 ## Revolutionary Concept: Value as Energy
 
 Just as biological systems use ATP for energy transfer, Web4 uses ATP tokens for value transfer:

@@ -199,6 +199,8 @@ Web4 integrates with emerging semantic protocols (HSML, HSTP, Active Inference) 
 1. **Read the Concepts**: Start with [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
 2. **Understand the Terms**: Review [GLOSSARY.md](GLOSSARY.md)
 3. **Explore Examples**: Check implementation examples in [implementation/](implementation/)
+   - **NEW**: [ATP/ADP Energy Economy](implementation/ATP_ADP_IMPLEMENTATION_INSIGHTS.md) - Validated patterns from ACT blockchain (Jan 2025)
+   - **NEW**: [LCT Minting Patterns](implementation/LCT_MINTING_PATTERNS.md) - Entity creation and identity management (Jan 2025)
 4. **Run Tests**: Use test vectors in [testing/](testing/)
 5. **Choose a Profile**: Select appropriate [profile](profiles/) for your use case
 
