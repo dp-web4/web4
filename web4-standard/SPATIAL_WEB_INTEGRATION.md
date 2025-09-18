@@ -213,13 +213,32 @@ The Spatial Web provides sophisticated semantic interoperability that complement
 
 This isn't competition but convergence - the Spatial Web's semantic highways running on Web4's trust foundation, creating the infrastructure for a genuinely intelligent and trustworthy internet.
 
+## Specification Availability
+
+### Spatial Web (IEEE P2874)
+- **Status**: Ratified by IEEE SA on May 29, 2025
+- **Access**: Purchase required through IEEE Xplore
+- **Documentation**: High-level introduction available from Spatial Web Foundation
+- **Implementation**: No open-source reference implementation available
+- **Code**: No public repositories or SDKs
+
+### Web4
+- **Status**: Open specification under active development
+- **Access**: Freely available on GitHub
+- **Documentation**: Complete technical specification with examples
+- **Implementation**: ACT ledger at 65% completion, fully open source
+- **Code**: Multiple implementations emerging, all open source
+
+This difference in openness presents an opportunity: Web4 can provide the open, implementable trust layer that makes the Spatial Web vision achievable in practice.
+
 ## References
 
 - [The Future of Agent Communication: From Protocol Proliferation to Spatial Web Convergence](https://deniseholt.us/the-future-of-agent-communication-from-protocol-proliferation-to-spatial-web-convergence/)
-- [Web4 Specification](https://github.com/dp-web4/web4/tree/main/web4-standard)
-- [ACT Implementation](https://github.com/dp-web4/ACT)
+- [IEEE P2874 Spatial Web Standard](https://standards.ieee.org/ieee/2874/11717/) (Purchase required)
+- [Spatial Web Foundation Introduction](https://spatialwebfoundation.org/wp-content/uploads/2024/10/Spatial-Web-Foundation_Specification-Introduction_2024-06-03.pdf) (PDF)
+- [Web4 Specification](https://github.com/dp-web4/web4/tree/main/web4-standard) (Open source)
+- [ACT Implementation](https://github.com/dp-web4/ACT) (Open source)
 - [Active Inference Framework](https://www.activeinference.org/)
-- [VERSES Spatial Web Protocol](https://www.verses.ai/)
 
 ---
 
