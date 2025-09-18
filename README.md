@@ -4,21 +4,35 @@
 
 ---
 
-## 🚀 Web4 Standard - Feature Complete and Beta Ready
+## 🚀 Web4 Standard - Living Document Co-Evolving with Implementations
 
-**The Web4 Internet Standard specification is feature-complete and ready for implementation.** Created through unprecedented collaboration between AI systems (Manus, Nova, Claude) and human architects, the standard demonstrates Web4's core principle: witnessed presence strengthening truth.
+**The Web4 Internet Standard is a living proposal that evolves through dialogue with implementations.** Created through unprecedented collaboration between AI systems (Manus, Nova, Claude) and human architects, the standard demonstrates Web4's core principle: witnessed presence strengthening truth.
 
-### Current Status (September 2025)
-- ✅ **Beta-ready** for production implementations
-- ✅ **Submission-ready** for standards bodies (IETF/ISO)
+### Bidirectional Alignment Philosophy
+Web4 is not a fixed specification for compliance but a pattern language that co-evolves with its implementations:
+- **Standard → Implementation**: Patterns guide experiments
+- **Implementation → Standard**: Discoveries inform evolution
+- Each implementation teaches us what naturally emerges
+- Alignment, not compliance, is the organizing principle
+
+### Current Status (January 2025)
+- ✅ **Living Standard** evolving with implementations
 - ✅ Complete nine-component architecture (LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries)
 - ✅ Reference implementations in Python with test coverage
+- ✅ ACT blockchain demonstrating 95% alignment
 - ✅ Comprehensive witness specification (JOSE/COSE formats)
 - ✅ MRH as RDF graphs with SPARQL queries and trust propagation
 - ✅ Full governance framework with societies, laws, and authority delegation
 - ✅ Autonomous agent operation with human oversight
-- ✅ Energy-based economy preventing wealth accumulation
+- ✅ Energy-based economy with readiness costs discovered (~33% overhead)
 - ✅ Semantic interoperability through living dictionary entities
+
+### Recent Discoveries from Implementations
+- **Roles as Attention Partitions**: Not power structures (ACT, Jan 2025)
+- **Readiness Economy**: ~33% resources for "idle" readiness (ACT, Jan 2025)
+- **Synthon Consciousness**: Human-AI collaborations create new entities (ACT, Jan 2025)
+- **Context Privilege**: Sometimes beats distributed execution (ACT, Jan 2025)
+- **Metabolic States**: Digital organisms have maintenance costs (ACT, Jan 2025)
 
 ### [📋 Executive Summary](web4-standard/EXECUTIVE_SUMMARY.md)
 Complete overview of Web4 vision, architecture, and all seven core components
