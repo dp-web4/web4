@@ -1,6 +1,6 @@
-# Web4 Lineage and Capability Token (LCT) Specification
+# Web4 Linked Context Token (LCT) Specification
 
-This document provides the formal specification for the Lineage and Capability Token (LCT), a core data structure in Web4 that represents a digital entity's identity, capabilities, and history.
+This document provides the formal specification for the Linked Context Token (LCT), a core data structure in Web4 that represents a digital entity's identity, context relationships, and history.
 
 ## 1. LCT Object Definition
 
