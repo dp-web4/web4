@@ -22,6 +22,15 @@ This separation makes trust mechanics **observable, attributable, and verifiable
 {
   "reputation": {
     "subject_lct": "lct:web4:entity:...",
+    "role_lct": "lct:web4:role:...",
+    "role_pairing_in_mrh": {
+      "entity": "lct:web4:entity:...",
+      "role": "lct:web4:role:...",
+      "paired_at": "2025-XX-XXT...",
+      "mrh_link": "link:mrh:entity→role:..."
+    },
+    "action_type": "action_verb",
+    "action_target": "resource:...",
     "action_id": "txn:0x...",
     "rule_triggered": "rule_identifier",
     "reason": "Human-readable explanation",
@@ -60,16 +69,22 @@ This separation makes trust mechanics **observable, attributable, and verifiable
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `subject_lct` | LCT | Yes | Entity whose reputation changed |
+| `role_lct` | LCT | Yes | Role LCT (MRH pairing link) |
+| `role_pairing_in_mrh` | Object | Yes | Full MRH role pairing context |
+| `action_type` | String | Yes | Action verb from request |
+| `action_target` | LCT/URI | Yes | Target of the action |
 | `action_id` | Hash | Yes | Transaction that caused the change |
 | `rule_triggered` | String | No | Which reputation rule was triggered |
 | `reason` | String | Yes | Human-readable explanation |
-| `t3_delta` | Object | Yes | Trust tensor changes (may be empty) |
-| `v3_delta` | Object | Yes | Value tensor changes (may be empty) |
+| `t3_delta` | Object | Yes | Trust tensor changes on this role (may be empty) |
+| `v3_delta` | Object | Yes | Value tensor changes on this role (may be empty) |
 | `contributing_factors` | Array | No | Factors that influenced the delta |
 | `witnesses` | Array | No | Independent validators of change |
 | `net_trust_change` | Number | Yes | Sum of T3 changes |
 | `net_value_change` | Number | Yes | Sum of V3 changes |
 | `timestamp` | ISO8601 | Yes | When reputation changed |
+
+**CRITICAL**: Reputation is **role-contextualized**. The `t3_delta` and `v3_delta` apply to the specific MRH role pairing link, NOT globally to the entity. An entity can have different reputations in different roles.
 
 ## 2. Trust Tensor (T3) Dimensions
 
@@ -579,18 +594,32 @@ Individual reputation deltas aggregate to form long-term reputation:
 ### Time-Weighted Aggregation
 
 ```python
-def compute_current_reputation(entity_lct, dimension, time_horizon_days=90):
+def compute_current_reputation(entity_lct, role_lct, dimension, time_horizon_days=90):
     """
     Compute current reputation by time-weighted aggregation of deltas.
+
+    CRITICAL: Reputation is role-contextualized. This function computes
+    reputation for a specific entity+role pairing, not globally.
+
+    Args:
+        entity_lct: The entity whose reputation to compute
+        role_lct: The specific role LCT (from MRH pairing)
+        dimension: Which T3/V3 dimension to compute
+        time_horizon_days: How far back to aggregate
+
+    Returns:
+        Current reputation value [0.0, 1.0] for this entity in this role
     """
+    # Get deltas for this specific entity+role pairing
     deltas = get_reputation_deltas(
-        entity_lct,
-        dimension,
+        entity_lct=entity_lct,
+        role_lct=role_lct,  # Filter by role!
+        dimension=dimension,
         since=now() - timedelta(days=time_horizon_days)
     )
 
     if not deltas:
-        return 0.5  # Neutral starting point
+        return 0.5  # Neutral starting point for new role pairings
 
     # Recent deltas weighted more heavily
     weighted_sum = 0.0
@@ -607,6 +636,25 @@ def compute_current_reputation(entity_lct, dimension, time_horizon_days=90):
 
     # Clamp to [0.0, 1.0]
     return max(0.0, min(1.0, current_value))
+```
+
+### Example: Role-Specific Reputation Query
+
+```python
+# Alice has reputation in multiple roles
+alice = "lct:web4:entity:alice"
+
+# Role 1: Financial Analyst
+role_analyst = "lct:web4:role:analyst_financial:abc"
+training_as_analyst = compute_current_reputation(alice, role_analyst, "training")
+# Returns: 0.90 (highly trained financial analyst)
+
+# Role 2: Medical Surgeon
+role_surgeon = "lct:web4:role:surgeon_cardiac:xyz"
+training_as_surgeon = compute_current_reputation(alice, role_surgeon, "training")
+# Returns: 0.20 (no medical training)
+
+# Same entity, different roles, different reputations!
 ```
 
 ### Reputation Decay

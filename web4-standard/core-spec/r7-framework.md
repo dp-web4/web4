@@ -54,24 +54,30 @@ Each component is essential. Together they form a complete, deterministic action
 - Must be a valid role pairing in the actor's MRH
 - Citizen role is prerequisite for all other roles
 - Role must have necessary permissions for the request
+- Role is represented by a role LCT (fully flexible, domain-specific)
 
 **Structure**:
 ```json
 {
   "role": {
     "actor": "lct:web4:entity:alice",
-    "roleType": "web4:DataAnalyst",
-    "roleLCT": "lct:web4:role:analyst:...",
+    "roleLCT": "lct:web4:role:analyst_financial_q4:abc123",
     "pairedAt": "2025-09-15T12:00:00Z",
-    "scopeContext": "financial_analysis",
     "t3InRole": {
       "talent": 0.85,
       "training": 0.90,
       "temperament": 0.88
+    },
+    "v3InRole": {
+      "veracity": 0.92,
+      "validity": 0.88,
+      "value": 0.85
     }
   }
 }
 ```
+
+**Note**: Both T3 (trust) and V3 (value) tensors are stored on the MRH role pairing link. There is no global reputation—all reputation is role-contextualized.
 
 ### 1.3 Request
 **Definition**: The specific action intent and parameters.
@@ -218,10 +224,14 @@ Each component is essential. Together they form a complete, deterministic action
 
 **Why Explicit?** In R6, tensor updates were buried in the Result. In R7, reputation is a first-class output because **trust-building is the core value proposition of Web4**.
 
+**Critical Design Principle**: Reputation is **role-contextualized**. An entity's reputation is stored in their MRH as T3/V3 tensors on the specific role pairing link. There is no global reputation—only reputation within specific role contexts.
+
 **Components**:
 - Subject LCT (who's reputation changed)
-- Trust tensor deltas (T3 changes)
-- Value tensor deltas (V3 changes)
+- **Role LCT** (which role pairing in the MRH)
+- **Request context** (what action was performed)
+- Trust tensor deltas (T3 changes on this role pairing)
+- Value tensor deltas (V3 changes on this role pairing)
 - Reason and attribution
 - Contributing factors
 - Witnesses to the change
@@ -232,6 +242,15 @@ Each component is essential. Together they form a complete, deterministic action
 {
   "reputation": {
     "subject_lct": "lct:web4:entity:alice",
+    "role_lct": "lct:web4:role:analyst_financial_q4_2025:abc123",
+    "role_pairing_in_mrh": {
+      "entity": "lct:web4:entity:alice",
+      "role": "lct:web4:role:analyst_financial_q4_2025:abc123",
+      "paired_at": "2025-09-15T12:00:00Z",
+      "mrh_link": "link:mrh:alice→role_analyst:xyz"
+    },
+    "action_type": "analyze_dataset",
+    "action_target": "resource:web4:dataset:quarterly_financials",
     "action_id": "txn:0x...",
     "rule_triggered": "successful_analysis_completion",
     "reason": "Completed high-quality data analysis under deadline",
@@ -260,9 +279,13 @@ Each component is essential. Together they form a complete, deterministic action
 **Key Properties**:
 - **Observable**: Every action's trust impact is visible
 - **Attributable**: Clear link to specific action and rules
+- **Role-Contextualized**: Reputation stored on MRH role pairing link, not globally
+- **LCT-Based Roles**: Roles are LCTs, fully flexible and domain-specific
+- **Request-Scoped**: Action type and target captured for traceability
 - **Multi-dimensional**: T3 and V3 capture different aspects
 - **Witnessed**: Independent attestation of reputation changes
-- **Composable**: Reputation deltas aggregate over time
+- **Composable**: Reputation deltas aggregate over time on the specific MRH role link
+- **MRH-Integrated**: Updates existing T3/V3 on role pairing in entity's MRH graph
 
 ## 2. R7 Transaction Flow
 
@@ -346,9 +369,25 @@ def compute_reputation_delta(r7_action, result):
     """
     Compute explicit reputation changes based on action outcome.
     This is the key R7 innovation: trust changes are first-class outputs.
+
+    CRITICAL: Reputation is role-contextualized. Changes apply to the specific
+    MRH role pairing link, not to the entity globally.
     """
+    # Extract role context from R7 action
+    entity_lct = r7_action.role.actor
+    role_lct = r7_action.role.roleLCT
+
+    # Get current T3/V3 on this specific MRH role pairing
+    mrh_role_link = get_mrh_role_pairing(entity_lct, role_lct)
+    current_t3 = mrh_role_link.t3InRole
+    current_v3 = mrh_role_link.v3InRole  # V3 is also role-specific!
+
     reputation = ReputationDelta(
-        subject_lct=r7_action.role.actor,
+        subject_lct=entity_lct,
+        role_lct=role_lct,
+        role_pairing_in_mrh=mrh_role_link,
+        action_type=r7_action.request.action,
+        action_target=r7_action.request.target,
         action_id=result.ledgerProof.txHash
     )
 
@@ -359,7 +398,7 @@ def compute_reputation_delta(r7_action, result):
         result
     )
 
-    # 2. Compute T3 deltas (trust dimensions)
+    # 2. Compute T3 deltas (trust dimensions) on THIS ROLE
     t3_changes = {}
     for rule in triggered_rules:
         if rule.affects_trust:
@@ -367,11 +406,16 @@ def compute_reputation_delta(r7_action, result):
             delta = calculate_trust_delta(
                 rule,
                 result,
-                r7_action.role.t3InRole
+                current_t3  # Use role-specific T3
             )
-            t3_changes[dimension] = delta
+            if delta != 0:
+                t3_changes[dimension] = {
+                    'change': delta,
+                    'from': current_t3[dimension],
+                    'to': current_t3[dimension] + delta
+                }
 
-    # 3. Compute V3 deltas (value dimensions)
+    # 3. Compute V3 deltas (value dimensions) on THIS ROLE
     v3_changes = {}
     for rule in triggered_rules:
         if rule.affects_value:
@@ -379,9 +423,14 @@ def compute_reputation_delta(r7_action, result):
             delta = calculate_value_delta(
                 rule,
                 result,
-                r7_action.reference
+                current_v3  # Use role-specific V3, not global!
             )
-            v3_changes[dimension] = delta
+            if delta != 0:
+                v3_changes[dimension] = {
+                    'change': delta,
+                    'from': current_v3[dimension],
+                    'to': current_v3[dimension] + delta
+                }
 
     # 4. Identify contributing factors
     factors = analyze_contributing_factors(
@@ -405,8 +454,8 @@ def compute_reputation_delta(r7_action, result):
     reputation.reason = generate_reputation_reason(triggered_rules, result)
     reputation.contributing_factors = factors
     reputation.witnesses = witnesses
-    reputation.net_trust_change = sum(t3_changes.values())
-    reputation.net_value_change = sum(v3_changes.values())
+    reputation.net_trust_change = sum(c['change'] for c in t3_changes.values())
+    reputation.net_value_change = sum(c['change'] for c in v3_changes.values())
 
     return reputation
 ```
@@ -436,25 +485,30 @@ def settle_r7_action(r7_action, result):
     # 3. COMPUTE REPUTATION (R7 innovation)
     reputation = compute_reputation_delta(r7_action, result)
 
-    # 4. Apply tensor updates
-    apply_t3_v3_updates(
-        entity=r7_action.role.actor,
-        role=r7_action.role.roleType,
+    # 4. Apply tensor updates to SPECIFIC MRH ROLE PAIRING
+    # This updates the T3/V3 on the role pairing link in the entity's MRH
+    apply_t3_v3_updates_to_role_pairing(
+        entity_lct=r7_action.role.actor,
+        role_lct=r7_action.role.roleLCT,
+        mrh_link=reputation.role_pairing_in_mrh.mrh_link,
         t3_delta=reputation.t3_delta,
         v3_delta=reputation.v3_delta
     )
 
-    # 5. Record to ledger (including reputation)
+    # 5. Record to ledger (including role-contextualized reputation)
     ledger_entry = create_ledger_entry(r7_action, result, reputation)
     proof = write_to_ledger(ledger_entry, witnesses=reputation.witnesses)
 
-    # 6. Update MRH with reputation-aware action
+    # 6. Update MRH with new action witness link
+    # The action itself becomes part of the entity's MRH history
+    # linked to the specific role pairing that executed it
     update_mrh_with_action(
-        r7_action.role.actor,
-        r7_action,
-        result,
-        reputation,
-        proof
+        entity_lct=r7_action.role.actor,
+        role_lct=r7_action.role.roleLCT,
+        action=r7_action,
+        result=result,
+        reputation=reputation,
+        proof=proof
     )
 
     return SettlementResult(
@@ -570,9 +624,24 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
 {
   "type": "compute",
   "rules": {"permissions": ["execute"]},
-  "role": {"roleType": "web4:DataScientist"},
+  "role": {
+    "actor": "lct:web4:entity:bob",
+    "roleLCT": "lct:web4:role:ml_engineer_biotech_2025:def456",
+    "pairedAt": "2025-08-10T09:00:00Z",
+    "t3InRole": {
+      "talent": 0.85,
+      "training": 0.88,
+      "temperament": 0.90
+    },
+    "v3InRole": {
+      "veracity": 0.90,
+      "validity": 0.92,
+      "value": 0.88
+    }
+  },
   "request": {
     "action": "train_model",
+    "target": "dataset:biotech:protein_folding_v3",
     "parameters": {"dataset": "...", "algorithm": "..."}
   },
   "reference": {"precedents": [...]},
@@ -585,7 +654,16 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
     "resourceConsumed": {"gpu_hours": 4}
   },
   "reputation": {
-    "subject_lct": "lct:web4:entity:data_scientist",
+    "subject_lct": "lct:web4:entity:bob",
+    "role_lct": "lct:web4:role:ml_engineer_biotech_2025:def456",
+    "role_pairing_in_mrh": {
+      "entity": "lct:web4:entity:bob",
+      "role": "lct:web4:role:ml_engineer_biotech_2025:def456",
+      "paired_at": "2025-08-10T09:00:00Z",
+      "mrh_link": "link:mrh:bob→role_ml_engineer:xyz"
+    },
+    "action_type": "train_model",
+    "action_target": "dataset:biotech:protein_folding_v3",
     "action_id": "txn:0x...",
     "rule_triggered": "successful_model_training",
     "t3_delta": {
@@ -595,14 +673,15 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
     "v3_delta": {
       "veracity": {"change": +0.01, "from": 0.90, "to": 0.91}
     },
-    "reason": "Successfully trained high-quality ML model with good metrics",
+    "reason": "Successfully trained high-quality ML model with good metrics in biotech domain",
     "contributing_factors": [
       {"factor": "model_accuracy", "weight": 0.5},
       {"factor": "resource_efficiency", "weight": 0.3},
       {"factor": "completion_time", "weight": 0.2}
     ],
     "net_trust_change": +0.035,
-    "net_value_change": +0.01
+    "net_value_change": +0.01,
+    "note": "Reputation applies to MRH role pairing: Bob as ML Engineer in Biotech"
   }
 }
 ```
