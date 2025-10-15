@@ -63,7 +63,9 @@ Web4 = Societies + LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionari
 - [**core-spec/mrh-tensors.md**](core-spec/mrh-tensors.md) - MRH tensor specification
 - [**core-spec/t3-v3-tensors.md**](core-spec/t3-v3-tensors.md) - Trust and value tensors
 - [**R6_TENSOR_GUIDE.md**](R6_TENSOR_GUIDE.md) - Role, Rights, Responsibilities, Risks, Rewards, Results
-- [**core-spec/r6-framework.md**](core-spec/r6-framework.md) - R6 Action Framework specification
+- [**core-spec/r7-framework.md**](core-spec/r7-framework.md) - **NEW**: R7 Action Framework with explicit reputation output
+- [**core-spec/reputation-computation.md**](core-spec/reputation-computation.md) - **NEW**: Multi-factor reputation algorithm and T3/V3 computation
+- [**core-spec/r6-framework-legacy.md**](core-spec/r6-framework-legacy.md) - Legacy R6 specification (pre-reputation)
 - [**core-spec/acp-framework.md**](core-spec/acp-framework.md) - Agentic Context Protocol specification
 - [**core-spec/atp-adp-cycle.md**](core-spec/atp-adp-cycle.md) - ATP/ADP value cycle specification
 - [**core-spec/dictionary-entities.md**](core-spec/dictionary-entities.md) - Dictionary entity specification
@@ -127,8 +129,8 @@ Roles aren't just labels but entities with their own LCTs, histories, and reputa
 ### 3. Trust as Multidimensional and Contextual
 T3/V3 tensors provide role-specific trust scores. Trust in one context doesn't imply trust in another, preventing reputation gaming.
 
-### 4. Complete Action Grammar (R6)
-Every transaction follows the R6 pattern, ensuring deterministic, auditable, and law-compliant execution.
+### 4. Complete Action Grammar with Explicit Reputation (R7)
+Every transaction follows the R7 pattern: Rules + Role + Request + Reference + Resource → Result + Reputation. Trust-building is the explicit product of every action, making Web4 truly trust-native.
 
 ### 5. Autonomous Yet Accountable (ACP)
 Agents can plan and execute autonomously while maintaining human oversight, witness requirements, and full audit trails.
@@ -168,7 +170,8 @@ Web4 integrates with emerging semantic protocols (HSML, HSTP, Active Inference) 
 - **Auditor**: Evidence-based tensor adjustments
 
 #### Action Layer
-- **R6 Framework**: Complete action grammar (Rules + Role + Request + Reference + Resource → Result)
+- **R7 Framework**: Complete action grammar with explicit reputation (Rules + Role + Request + Reference + Resource → Result + Reputation)
+- **Reputation Computation**: Multi-factor T3/V3 delta calculation with witnesses and contributing factors
 - **AGY**: Agency delegation with proof-of-agency requirements
 - **ACP**: Autonomous planning and execution with human oversight
 
