@@ -300,9 +300,21 @@ Compression trust bridges three layers:
 - Cross-project integration with HRM, Memory, and AI-DNA Discovery
 
 ### Related Projects
+
+#### AI & Cognitive Systems
 - [HRM](https://github.com/dp-web4/HRM) - Hierarchical Reasoning Model (SAGE foundation)
 - [Memory](https://github.com/dp-web4/Memory) - Lightchain and memory paradigms
 - [AI-DNA Discovery](https://github.com/dp-web4/ai-dna-discovery) - Sensor fusion experiments
+
+#### Physical Layer Reference: ModBatt Battery Management
+Production hardware demonstrating Web4 patterns in embedded systems. Released October 2025 under AGPL-3.0 as reference implementations for hierarchical trust, distributed intelligence, and provenance tracking at scale.
+
+- **[CellCPU](https://github.com/dp-web4/CellCPU)** - Autonomous cell controllers demonstrating nano-LCT identity concepts at hardware level (ATtiny45, 4KB flash)
+- **[ModuleCPU](https://github.com/dp-web4/ModuleCPU)** - Module coordination showing trust-based resource allocation and hierarchical communication (ATmega64M1, CAN gateway)
+- **[Pack-Controller](https://github.com/dp-web4/Pack-Controller-EEPROM)** - System orchestration with memory as temporal sensor and distributed state management (STM32WB55, dual CAN)
+- **[modbatt-CAN](https://github.com/dp-web4/modbatt-CAN)** - Configuration utility with API-Bridge specification for future blockchain integration
+
+These repositories demonstrate how Web4 concepts—unforgeable identity, witnessed relationships, hierarchical autonomy, and trust-based coordination—can be implemented in resource-constrained embedded hardware managing distributed energy systems.
 
 ---
 
