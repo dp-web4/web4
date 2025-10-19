@@ -1,0 +1,61 @@
+cff-version: 1.2.0
+message: "If you use this protocol, please cite it as below."
+type: software
+title: "Web4: Trust-Native Internet Architecture"
+abstract: "Revolutionary internet protocol making trust the fundamental force of digital interaction. Implements Linked Context Tokens (LCTs) for unforgeable identity, Trust/Value tensors (T3/V3), Markov Relevancy Horizons (MRH), ATP/ADP energy economy, and complete governance framework. Transforms the internet from platform-controlled to trust-native with distributed intelligence."
+authors:
+  - family-names: "Palatov"
+    given-names: "Dennis"
+    orcid: "https://orcid.org/0009-0006-5510-6445"
+    affiliation: "Metalinxx Inc."
+repository-code: "https://github.com/dp-web4/web4"
+url: "https://github.com/dp-web4/web4"
+keywords:
+  - web4
+  - trust-native
+  - linked-context-tokens
+  - lct
+  - distributed-intelligence
+  - markov-relevancy-horizon
+  - trust-tensors
+  - value-tensors
+  - atp-economy
+  - blockchain
+  - identity
+  - governance
+  - internet-protocol
+  - r6-framework
+  - mcp-protocol
+  - acp-framework
+  - sal-governance
+  - agency-delegation
+  - dictionary-entities
+  - compression-trust
+  - synchronism
+  - lightchain
+  - memory-temporal-sensor
+  - fractal-architecture
+license: AGPL-3.0-or-later
+license-url: "https://github.com/dp-web4/web4/blob/main/LICENSE"
+version: "1.0.0"
+date-released: "2025-09-01"
+references:
+  - type: software
+    title: "Synchronism Framework (Philosophical Foundation)"
+    repository-code: "https://github.com/dp-web4/Synchronism"
+  - type: software
+    title: "ACT: Reference Implementation"
+    repository-code: "https://github.com/dp-web4/ACT"
+  - type: software
+    title: "ModBatt: Physical Layer Implementation"
+    repository-code: "https://github.com/dp-web4/CellCPU"
+identifiers:
+  - type: url
+    value: "https://github.com/dp-web4/web4"
+    description: "GitHub Repository"
+  - type: other
+    value: "US11477027B1"
+    description: "US Patent 11,477,027: Linked Context Token technology"
+  - type: other
+    value: "US12278913B1"
+    description: "US Patent 12,278,913: LCT implementation methods"
