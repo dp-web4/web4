@@ -29,6 +29,9 @@ import time
 import hashlib
 import json
 
+# Import real Law Oracle implementation
+from law_oracle import LawOracle, RolePermissions, create_default_law_dataset
+
 
 class AuthorizationDecision(Enum):
     """Authorization decision outcomes"""
@@ -64,21 +67,6 @@ class LCTCredential:
         """Verify cryptographic signature (stub - needs real crypto)"""
         # TODO: Implement proper Ed25519 signature verification
         return True  # Placeholder
-
-
-@dataclass
-class RolePermissions:
-    """Permissions granted by a role within a society"""
-    role_lct: str
-    allowed_actions: Set[str]
-    resource_limits: Dict[str, int]
-    trust_threshold: float  # Minimum T3 score required
-    requires_witness: bool
-    max_atp_per_action: int
-
-    def can_perform(self, action: str) -> bool:
-        """Check if this role allows the action"""
-        return action in self.allowed_actions
 
 
 @dataclass
@@ -169,52 +157,6 @@ class AuthorizationResult:
         }
 
 
-class LawOracle:
-    """Stub for Law Oracle - queries society rules"""
-
-    def __init__(self, society_id: str):
-        self.society_id = society_id
-        self.law_version = "v1.0.0"
-
-    def get_role_permissions(self, role_lct: str) -> Optional[RolePermissions]:
-        """Get permissions for a role"""
-        # TODO: Implement actual Law Oracle queries
-        # For now, return stub permissions based on role
-        if "researcher" in role_lct or "assistant" in role_lct:
-            return RolePermissions(
-                role_lct=role_lct,
-                allowed_actions={"read", "write", "compute", "delegate"},
-                resource_limits={"storage": 10000, "compute": 1000},
-                trust_threshold=0.5,
-                requires_witness=False,
-                max_atp_per_action=500
-            )
-        elif "spender" in role_lct:
-            return RolePermissions(
-                role_lct=role_lct,
-                allowed_actions={"compute", "read", "write"},
-                resource_limits={"storage": 1000, "compute": 500},
-                trust_threshold=0.5,
-                requires_witness=False,
-                max_atp_per_action=100
-            )
-        else:
-            # Default limited permissions
-            return RolePermissions(
-                role_lct=role_lct,
-                allowed_actions={"read"},
-                resource_limits={"storage": 100, "compute": 10},
-                trust_threshold=0.7,
-                requires_witness=True,
-                max_atp_per_action=10
-            )
-
-    def check_action_legality(self, action: str, context: Dict) -> Tuple[bool, Optional[str]]:
-        """Check if action is legal under society law"""
-        # TODO: Implement actual law checking
-        return True, None
-
-
 class TrustOracle:
     """Stub for Trust Tensor queries"""
 
@@ -232,9 +174,19 @@ class AuthorizationEngine:
     Integrates LCT identity, role-based permissions, trust assessment, and ATP budgeting.
     """
 
-    def __init__(self, society_id: str):
+    def __init__(self, society_id: str, law_oracle_lct: Optional[str] = None):
         self.society_id = society_id
-        self.law_oracle = LawOracle(society_id)
+
+        # Create law oracle and publish default law dataset
+        if law_oracle_lct is None:
+            law_oracle_lct = f"lct:web4:oracle:law:{society_id}:1"
+
+        self.law_oracle = LawOracle(society_id, law_oracle_lct)
+
+        # Publish default law dataset
+        default_law = create_default_law_dataset(society_id, law_oracle_lct, "1.0.0")
+        self.law_oracle.publish_law_dataset(default_law)
+
         self.trust_oracle = TrustOracle()
 
         # Runtime state
@@ -345,7 +297,8 @@ class AuthorizationEngine:
         # Step 5: Check Law Oracle for action legality
         is_legal, violation = self.law_oracle.check_action_legality(
             request.action,
-            request.context
+            request.context,
+            role_lct
         )
 
         if not is_legal:
