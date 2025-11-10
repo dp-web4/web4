@@ -1,0 +1,71 @@
+# Prometheus Configuration for Web4 Services
+# ===========================================
+#
+# Scrapes metrics from all 6 Web4 microservices:
+# - Identity Service (8001)
+# - Governance Service (8002)
+# - Authorization Service (8003)
+# - Reputation Service (8004)
+# - Resources Service (8005)
+# - Knowledge Service (8006)
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'web4'
+    environment: 'development'
+
+scrape_configs:
+  # Identity Service
+  - job_name: 'web4-identity'
+    static_configs:
+      - targets: ['identity:8001']
+        labels:
+          service: 'identity'
+          version: 'v1.0.0'
+
+  # Governance Service
+  - job_name: 'web4-governance'
+    static_configs:
+      - targets: ['governance:8002']
+        labels:
+          service: 'governance'
+          version: 'v1.0.0'
+
+  # Authorization Service
+  - job_name: 'web4-authorization'
+    static_configs:
+      - targets: ['authorization:8003']
+        labels:
+          service: 'authorization'
+          version: 'v1.0.0'
+
+  # Reputation Service
+  - job_name: 'web4-reputation'
+    static_configs:
+      - targets: ['reputation:8004']
+        labels:
+          service: 'reputation'
+          version: 'v1.0.0'
+
+  # Resources Service
+  - job_name: 'web4-resources'
+    static_configs:
+      - targets: ['resources:8005']
+        labels:
+          service: 'resources'
+          version: 'v1.0.0'
+
+  # Knowledge Service
+  - job_name: 'web4-knowledge'
+    static_configs:
+      - targets: ['knowledge:8006']
+        labels:
+          service: 'knowledge'
+          version: 'v1.0.0'
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

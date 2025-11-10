@@ -115,6 +115,29 @@ services:
     networks:
       - web4
 
+  # Knowledge Service (MRH Graph) - Port 8006
+  knowledge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/knowledge:latest
+    container_name: web4-knowledge
+    ports:
+      - "8006:8006"
+    environment:
+      - WEB4_KNOWLEDGE_HOST=0.0.0.0
+      - WEB4_KNOWLEDGE_PORT=8006
+      - WEB4_KNOWLEDGE_WORKERS=1
+      - WEB4_KNOWLEDGE_DEBUG=false
+    command: python knowledge_service.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4
+
   # Prometheus for metrics collection
   prometheus:
     image: prom/prometheus:latest
