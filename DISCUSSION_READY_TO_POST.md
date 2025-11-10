@@ -86,6 +86,21 @@ We document what we don't know:
 - Attack vectors we're still exploring
 - Areas inviting collaboration
 
+### Security Status: Proof of Concept
+**⚠️ IMPORTANT**: The LCT identity implementation (`implementation/reference/lct_identity.py`) is a **proof of concept** demonstrating cryptographic foundations. It has known vulnerabilities and is **NOT production-ready**.
+
+**Known Critical Issues** (self-audited):
+- ❌ ATP budget limits defined but not enforced
+- ❌ No revocation mechanism for compromised keys
+- ❌ No replay attack prevention
+- ❌ Timestamp validation not implemented
+- ❌ No key rotation support
+- ❌ Witness requirements not enforced
+
+**Full security audit**: `private-context/outreach/LCT_SECURITY_AUDIT.md`
+
+**We are being honest about limitations.** This builds trust through transparency, not perfection. Security researchers are **explicitly invited** to attack this implementation and report vulnerabilities (create issues with `security` label).
+
 ## Open Questions We're Exploring
 
 **Identity & Authorization**:
