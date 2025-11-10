@@ -1,0 +1,19 @@
+# Web4 Services Requirements
+
+# FastAPI and server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Cryptography
+pynacl==1.5.0
+
+# Metrics
+prometheus-client==0.19.0
+
+# HTTP client (for testing)
+httpx==0.25.2
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1

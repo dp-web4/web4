@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+  # Identity Service (LCT Registry) - Port 8001
+  identity:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/identity:latest
+    container_name: web4-identity
+    ports:
+      - "8001:8001"
+    environment:
+      - WEB4_IDENTITY_HOST=0.0.0.0
+      - WEB4_IDENTITY_PORT=8001
+      - WEB4_IDENTITY_WORKERS=1
+      - WEB4_IDENTITY_DEBUG=false
+    command: python identity_service.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4
+
+  # Governance Service (Law Oracle) - Port 8002
+  governance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/governance:latest
+    container_name: web4-governance
+    ports:
+      - "8002:8002"
+    environment:
+      - WEB4_GOVERNANCE_HOST=0.0.0.0
+      - WEB4_GOVERNANCE_PORT=8002
+      - WEB4_GOVERNANCE_WORKERS=1
+    command: python governance_service.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4
+
+  # Authorization Service - Port 8003
+  authorization:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/authorization:latest
+    container_name: web4-authorization
+    ports:
+      - "8003:8003"
+    environment:
+      - WEB4_AUTH_HOST=0.0.0.0
+      - WEB4_AUTH_PORT=8003
+      - WEB4_AUTH_WORKERS=1
+    command: python authorization_service.py
+    depends_on:
+      - identity
+      - governance
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4
+
+  # Reputation Service - Port 8004
+  reputation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/reputation:latest
+    container_name: web4-reputation
+    ports:
+      - "8004:8004"
+    environment:
+      - WEB4_REPUTATION_HOST=0.0.0.0
+      - WEB4_REPUTATION_PORT=8004
+      - WEB4_REPUTATION_WORKERS=1
+    command: python reputation_service.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4
+
+  # Resources Service - Port 8005
+  resources:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/resources:latest
+    container_name: web4-resources
+    ports:
+      - "8005:8005"
+    environment:
+      - WEB4_RESOURCES_HOST=0.0.0.0
+      - WEB4_RESOURCES_PORT=8005
+      - WEB4_RESOURCES_WORKERS=1
+    command: python resources_service.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: web4-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - web4
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: web4-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - web4
+
+networks:
+  web4:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:
