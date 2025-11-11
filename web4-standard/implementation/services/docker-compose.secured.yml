@@ -1,0 +1,182 @@
+version: '3.8'
+
+services:
+  # Identity Service (LCT Registry) - Port 8101 (Secured)
+  identity-secured:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/identity-secured:latest
+    container_name: web4-identity-secured
+    ports:
+      - "8101:8101"
+    environment:
+      - WEB4_IDENTITY_HOST=0.0.0.0
+      - WEB4_IDENTITY_PORT=8101
+      - WEB4_IDENTITY_WORKERS=1
+      - WEB4_IDENTITY_DEBUG=false
+      - PHASE1_SECURITY_ENABLED=true
+    command: python identity_service_secured.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8101/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4-secured
+
+  # Governance Service (Law Oracle) - Port 8102 (Standard, no secured version yet)
+  governance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/governance:latest
+    container_name: web4-governance-secured
+    ports:
+      - "8102:8102"
+    environment:
+      - WEB4_GOVERNANCE_HOST=0.0.0.0
+      - WEB4_GOVERNANCE_PORT=8102
+      - WEB4_GOVERNANCE_WORKERS=1
+    command: python governance_service.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8102/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4-secured
+
+  # Authorization Service - Port 8103 (Standard, no secured version yet)
+  authorization:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/authorization:latest
+    container_name: web4-authorization-secured
+    ports:
+      - "8103:8103"
+    environment:
+      - WEB4_AUTH_HOST=0.0.0.0
+      - WEB4_AUTH_PORT=8103
+      - WEB4_AUTH_WORKERS=1
+    command: python authorization_service.py
+    depends_on:
+      - identity-secured
+      - governance
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8103/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4-secured
+
+  # Reputation Service - Port 8104 (Secured)
+  reputation-secured:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/reputation-secured:latest
+    container_name: web4-reputation-secured
+    ports:
+      - "8104:8104"
+    environment:
+      - WEB4_REPUTATION_HOST=0.0.0.0
+      - WEB4_REPUTATION_PORT=8104
+      - WEB4_REPUTATION_WORKERS=1
+      - PHASE1_SECURITY_ENABLED=true
+    command: python reputation_service_secured.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8104/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4-secured
+
+  # Resources Service - Port 8105 (Secured)
+  resources-secured:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/resources-secured:latest
+    container_name: web4-resources-secured
+    ports:
+      - "8105:8105"
+    environment:
+      - WEB4_RESOURCES_HOST=0.0.0.0
+      - WEB4_RESOURCES_PORT=8105
+      - WEB4_RESOURCES_WORKERS=1
+      - PHASE1_SECURITY_ENABLED=true
+    command: python resources_service_secured.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8105/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4-secured
+
+  # Knowledge Service (MRH Graph) - Port 8106 (Secured)
+  knowledge-secured:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: web4/knowledge-secured:latest
+    container_name: web4-knowledge-secured
+    ports:
+      - "8106:8106"
+    environment:
+      - WEB4_KNOWLEDGE_HOST=0.0.0.0
+      - WEB4_KNOWLEDGE_PORT=8106
+      - WEB4_KNOWLEDGE_WORKERS=1
+      - WEB4_KNOWLEDGE_DEBUG=false
+      - PHASE1_SECURITY_ENABLED=true
+    command: python knowledge_service_secured.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8106/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - web4-secured
+
+  # Prometheus for metrics collection
+  prometheus-secured:
+    image: prom/prometheus:latest
+    container_name: web4-prometheus-secured
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_secured_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - web4-secured
+
+  # Grafana for visualization
+  grafana-secured:
+    image: grafana/grafana:latest
+    container_name: web4-grafana-secured
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_secured_data:/var/lib/grafana
+    depends_on:
+      - prometheus-secured
+    networks:
+      - web4-secured
+
+networks:
+  web4-secured:
+    driver: bridge
+
+volumes:
+  prometheus_secured_data:
+  grafana_secured_data:

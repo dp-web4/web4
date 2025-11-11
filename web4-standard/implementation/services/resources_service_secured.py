@@ -374,7 +374,8 @@ async def startup_event():
     """Initialize service on startup"""
     global allocator
 
-    allocator = ResourceAllocator()
+    # Initialize with default society for MVP
+    allocator = ResourceAllocator(society_id="default")
 
     print(f"✅ Web4 Resources Service (Secured) started")
     print(f"   Version: {SERVICE_VERSION}")
@@ -666,14 +667,14 @@ def main():
 
     host = os.getenv("WEB4_RESOURCES_HOST", "0.0.0.0")
     port = int(os.getenv("WEB4_RESOURCES_PORT", "8005"))
-    workers = int(os.getenv("WEB4_RESOURCES_WORKERS", "1"))
 
+    # Use app object directly to avoid double-import of Prometheus metrics
     uvicorn.run(
-        "resources_service_secured:app",
+        app,
         host=host,
         port=port,
-        workers=workers,
-        log_level="info"
+        log_level="info",
+        reload=False
     )
 
 

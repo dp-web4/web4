@@ -61,12 +61,12 @@ MIN_WITNESS_REPUTATION = 0.4  # Minimum T3 score to be a witness
 MIN_WITNESS_AGE_DAYS = 30  # Minimum days since witness LCT creation
 MIN_WITNESS_ACTIONS = 50  # Minimum actions witnessed by the witness
 
-# Witness Requirements by Entity Type
+# Witness Requirements by Entity Type (using string keys to avoid import order issues)
 WITNESS_REQUIREMENTS = {
-    EntityType.HUMAN: 3,  # Humans need 3 witnesses
-    EntityType.AI: 1,  # AI agents need 1 witness
-    EntityType.ORG: 3,  # Organizations need 3 witnesses
-    EntityType.DEVICE: 0  # Devices validated by parent_org
+    "human": 3,  # Humans need 3 witnesses
+    "ai": 1,  # AI agents need 1 witness
+    "org": 3,  # Organizations need 3 witnesses
+    "device": 0  # Devices validated by parent_org
 }
 
 
@@ -327,7 +327,7 @@ async def mint_lct(request: MintLCTRequest):
         society = request.society or "default"
 
         # --- MITIGATION 2: Witness Validation ---
-        required_witnesses = WITNESS_REQUIREMENTS[entity_type]
+        required_witnesses = WITNESS_REQUIREMENTS[request.entity_type.value]
 
         if len(request.witnesses) < required_witnesses:
             if METRICS_AVAILABLE:
@@ -527,14 +527,15 @@ def main():
 
     host = os.getenv("WEB4_IDENTITY_HOST", "0.0.0.0")
     port = int(os.getenv("WEB4_IDENTITY_PORT", "8001"))
-    workers = int(os.getenv("WEB4_IDENTITY_WORKERS", "1"))
 
+    # Use app object directly to avoid double-import of Prometheus metrics
+    # Only use 1 worker to avoid registry conflicts
     uvicorn.run(
-        "identity_service_secured:app",
+        app,
         host=host,
         port=port,
-        workers=workers,
-        log_level="info"
+        log_level="info",
+        reload=False
     )
 
 

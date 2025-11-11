@@ -435,14 +435,14 @@ def main():
 
     host = os.getenv("WEB4_REPUTATION_HOST", "0.0.0.0")
     port = int(os.getenv("WEB4_REPUTATION_PORT", "8004"))
-    workers = int(os.getenv("WEB4_REPUTATION_WORKERS", "1"))
 
+    # Use app object directly to avoid double-import of Prometheus metrics
     uvicorn.run(
-        "reputation_service_secured:app",
+        app,
         host=host,
         port=port,
-        workers=workers,
-        log_level="info"
+        log_level="info",
+        reload=False
     )
 
 

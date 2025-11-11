@@ -559,14 +559,14 @@ def main():
 
     host = os.getenv("WEB4_KNOWLEDGE_HOST", "0.0.0.0")
     port = int(os.getenv("WEB4_KNOWLEDGE_PORT", "8006"))
-    workers = int(os.getenv("WEB4_KNOWLEDGE_WORKERS", "1"))
 
+    # Use app object directly to avoid double-import of Prometheus metrics
     uvicorn.run(
-        "knowledge_service_secured:app",
+        app,
         host=host,
         port=port,
-        workers=workers,
-        log_level="info"
+        log_level="info",
+        reload=False
     )
 
 

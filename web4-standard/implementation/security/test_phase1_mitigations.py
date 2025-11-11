@@ -91,7 +91,7 @@ class MitigationTester:
 
     async def __aexit__(self, *args):
         if self.client:
-            await self.client.close()
+            await self.client.aclose()
 
     def record_result(self, result: TestResult):
         """Record test result"""
