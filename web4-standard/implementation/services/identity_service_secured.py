@@ -231,6 +231,17 @@ async def validate_witness(witness_lct_id: str) -> tuple[bool, str]:
     Returns:
         Tuple of (valid: bool, reason: str)
     """
+    # TEST MODE: Accept genesis witnesses for bootstrap testing
+    # In production, these would be pre-registered trusted entities
+    import os
+    test_mode = os.getenv("WEB4_TEST_MODE", "false").lower() == "true"
+
+    if test_mode and ("genesis_witness" in witness_lct_id or "test_witness" in witness_lct_id):
+        # Basic format validation for test witnesses
+        if len(witness_lct_id) < 20:
+            return False, "Test witness ID too short"
+        return True, "Test genesis witness accepted"
+
     # TODO: In production, query actual LCT data and reputation service
     # For now, we do basic validation
 
