@@ -432,8 +432,8 @@ async def mint_lct(request: MintLCTRequest):
         response_data = {
             "lct_id": lct.lct_id,
             "entity_type": lct.entity_type.value,
-            "public_key": lct.public_key.hex(),
-            "private_key": private_key.hex(),
+            "public_key": lct.public_key_bytes.hex(),  # Fixed: use public_key_bytes
+            "private_key": lct.private_key_bytes.hex() if lct.private_key_bytes else None,  # Fixed: get from lct
             "birth_certificate": {
                 "certificate_hash": lct.birth_certificate.certificate_hash,
                 "witnesses": lct.birth_certificate.witnesses,
@@ -483,7 +483,7 @@ async def get_lct_info(lct_id: str):
         response_data = {
             "lct_id": lct.lct_id,
             "entity_type": lct.entity_type.value,
-            "public_key": lct.public_key.hex(),
+            "public_key": lct.public_key_bytes.hex(),  # Fixed: use public_key_bytes
             "birth_certificate": {
                 "certificate_hash": lct.birth_certificate.certificate_hash,
                 "witnesses": lct.birth_certificate.witnesses,
