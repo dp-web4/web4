@@ -437,10 +437,10 @@ async def mint_lct(request: MintLCTRequest):
             "birth_certificate": {
                 "certificate_hash": lct.birth_certificate.certificate_hash,
                 "witnesses": lct.birth_certificate.witnesses,
-                "creation_time": lct.birth_certificate.creation_time,
-                "blockchain_anchor": lct.birth_certificate.blockchain_anchor
-            },
-            "status": lct.status.value
+                "birth_timestamp": lct.birth_certificate.birth_timestamp  # Fixed: use birth_timestamp
+                # Note: blockchain_anchor not implemented in BirthCertificate yet
+            }
+            # Note: status tracked in registry sets (active_lcts, suspended_lcts, revoked_lcts)
         }
 
         caller_remaining = None
@@ -487,10 +487,10 @@ async def get_lct_info(lct_id: str):
             "birth_certificate": {
                 "certificate_hash": lct.birth_certificate.certificate_hash,
                 "witnesses": lct.birth_certificate.witnesses,
-                "creation_time": lct.birth_certificate.creation_time
+                "birth_timestamp": lct.birth_certificate.birth_timestamp  # Fixed: use birth_timestamp
             },
-            "status": lct.status.value,
-            "creation_time": lct.creation_time
+            "created_at": lct.created_at  # Fixed: LCTCredential has created_at not creation_time
+            # Note: status tracked in registry sets, not on LCTCredential
         }
 
         return LCTInfoResponse(
