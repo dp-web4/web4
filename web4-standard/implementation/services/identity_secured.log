@@ -1,0 +1,47 @@
+/home/dp/ai-workspace/web4/web4-standard/implementation/services/identity_service_secured.py:292: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [122866]
+INFO:     Waiting for application startup.
+✅ Web4 Identity Service (Secured) started
+   Society: society:web4_default
+   Version: 2.0.0-secured
+   Security: Phase 1 Mitigations Active
+   - LCT Minting Cost: 100 ATP (base)
+   - Witness Validation: Enabled
+   - Initial ATP Grant: 10000 ATP
+   Docs: http://localhost:8001/docs
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8101 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50760 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50774 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50780 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50780 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50786 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50786 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50786 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+Bootstrap mint: System funding 100 ATP
+INFO:     127.0.0.1:52070 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50016 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:50020 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     127.0.0.1:43434 - "POST /v1/lct/mint HTTP/1.1" 201 Created
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [122866]

@@ -1,0 +1,18 @@
+/home/dp/ai-workspace/web4/web4-standard/implementation/services/knowledge_service_secured.py:305: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [122879]
+INFO:     Waiting for application startup.
+✅ Web4 Knowledge Service (Secured) started
+   Version: 2.0.0-secured
+   Security: Phase 1 Mitigations Active
+   - Triple Authentication: Enabled
+   - ATP Costs: 11 predicate types
+   - High-Stakes Predicates: 4
+   Docs: http://localhost:8006/docs
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8106 (Press CTRL+C to quit)

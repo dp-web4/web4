@@ -1,0 +1,19 @@
+/home/dp/ai-workspace/web4/web4-standard/implementation/services/resources_service_secured.py:372: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [122876]
+INFO:     Waiting for application startup.
+✅ Web4 Resources Service (Secured) started
+   Version: 2.0.0-secured
+   Security: Phase 1 Mitigations Active
+   - Usage Monitoring: Enabled
+   - Measurement Interval: 60s
+   - Verification Tolerance: 10%
+   - Minimum Usage: 20%
+   Docs: http://localhost:8005/docs
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8105 (Press CTRL+C to quit)

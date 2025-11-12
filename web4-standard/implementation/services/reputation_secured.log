@@ -1,0 +1,18 @@
+/home/dp/ai-workspace/web4/web4-standard/implementation/services/reputation_service_secured.py:209: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [122869]
+INFO:     Waiting for application startup.
+✅ Web4 Reputation Service (Secured) started
+   Version: 2.0.0-secured
+   Security: Phase 1 Mitigations Active
+   - Outcome Recording Cost: 10 ATP (base)
+   - Quality Multipliers: {'exceptional_quality': 5.0, 'success': 2.0, 'partial_success': 1.0, 'failure': 0.5, 'poor_quality': 0.5}
+   - Witness Validation: Enabled
+   Docs: http://localhost:8004/docs
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8104 (Press CTRL+C to quit)

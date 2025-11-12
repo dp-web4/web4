@@ -307,8 +307,8 @@ async def startup_event():
     print(f"   Docs: http://localhost:8001/docs")
 
 
-@app.post("/v1/lct/mint", response_model=MintLCTResponse, status_code=status.HTTP_201_CREATED)
-async def mint_lct(request: MintLCTRequest):
+@app.post("/v1/lct/mint", response_model=MintLCTResponse)
+async def mint_lct(request: MintLCTRequest, response: Response):
     """
     Mint a new LCT with Phase 1 Security Mitigations.
 
@@ -344,6 +344,7 @@ async def mint_lct(request: MintLCTRequest):
             if METRICS_AVAILABLE:
                 lct_mint_rejected_counter.labels(reason="insufficient_witnesses").inc()
 
+            response.status_code = status.HTTP_400_BAD_REQUEST
             return MintLCTResponse(
                 success=False,
                 error=f"Insufficient witnesses. Required: {required_witnesses}, provided: {len(request.witnesses)}"
@@ -360,6 +361,7 @@ async def mint_lct(request: MintLCTRequest):
                 if METRICS_AVAILABLE:
                     lct_mint_rejected_counter.labels(reason="invalid_witness").inc()
 
+                response.status_code = status.HTTP_400_BAD_REQUEST
                 return MintLCTResponse(
                     success=False,
                     error=f"Invalid witness {witness}: {reason}"
@@ -381,6 +383,7 @@ async def mint_lct(request: MintLCTRequest):
                 if METRICS_AVAILABLE:
                     lct_mint_rejected_counter.labels(reason="insufficient_atp").inc()
 
+                response.status_code = status.HTTP_400_BAD_REQUEST
                 return MintLCTResponse(
                     success=False,
                     error=f"Insufficient ATP. Required: {minting_cost}, available: {atp_manager.get_balance(payer_lct_id)}"
@@ -396,6 +399,7 @@ async def mint_lct(request: MintLCTRequest):
             )
 
             if not success:
+                response.status_code = status.HTTP_400_BAD_REQUEST
                 return MintLCTResponse(
                     success=False,
                     error="Failed to deduct ATP (concurrent transaction?)"
@@ -447,6 +451,7 @@ async def mint_lct(request: MintLCTRequest):
         if payer_lct_id:
             caller_remaining = atp_manager.get_balance(payer_lct_id)
 
+        response.status_code = status.HTTP_201_CREATED  # Success
         return MintLCTResponse(
             success=True,
             data=response_data,
