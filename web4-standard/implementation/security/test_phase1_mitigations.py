@@ -317,11 +317,13 @@ class ReputationSecurityTests(MitigationTester):
 
     async def _mint_test_lct(self) -> Optional[Dict[str, Any]]:
         """Helper: Mint LCT for testing"""
+        # Use proper test witness format to trigger TEST_MODE
+        test_witness = "lct:test_witness_" + "a" * 30
         request = {
             "entity_type": "ai",
             "entity_identifier": f"rep_test_{int(time.time())}",
             "society": "test_society",
-            "witnesses": ["witness:test"]
+            "witnesses": [test_witness]
         }
 
         try:
@@ -517,11 +519,13 @@ class ResourceSecurityTests(MitigationTester):
 
     async def _mint_test_lct(self) -> Optional[Dict[str, Any]]:
         """Helper: Mint LCT for testing"""
+        # Use proper test witness format to trigger TEST_MODE
+        test_witness = "lct:test_witness_" + "a" * 30
         request = {
             "entity_type": "ai",
             "entity_identifier": f"resource_test_{int(time.time())}",
             "society": "test_society",
-            "witnesses": ["witness:test"]
+            "witnesses": [test_witness]
         }
 
         try:
@@ -729,11 +733,13 @@ class KnowledgeSecurityTests(MitigationTester):
 
     async def _mint_test_lct(self) -> Optional[Dict[str, Any]]:
         """Helper: Mint LCT for testing"""
+        # Use proper test witness format to trigger TEST_MODE
+        test_witness = "lct:test_witness_" + "a" * 30
         request = {
             "entity_type": "ai",
             "entity_identifier": f"knowledge_test_{int(time.time())}",
             "society": "test_society",
-            "witnesses": ["witness:test"]
+            "witnesses": [test_witness]
         }
 
         try:
