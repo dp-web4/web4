@@ -25,6 +25,13 @@ export WEB4_REPUTATION_WORKERS=1
 export WEB4_RESOURCES_WORKERS=1
 export WEB4_KNOWLEDGE_WORKERS=1
 
+# TEST_MODE support (inherit from environment if set)
+if [ -n "$WEB4_TEST_MODE" ]; then
+    export WEB4_TEST_MODE
+    echo "🧪 TEST_MODE enabled: $WEB4_TEST_MODE"
+    echo "   Genesis witnesses will be accepted for testing"
+fi
+
 # Check if ports are available
 for port in 8101 8104 8105 8106; do
     if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then

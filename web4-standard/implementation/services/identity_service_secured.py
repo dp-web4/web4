@@ -326,11 +326,11 @@ async def mint_lct(request: MintLCTRequest):
     6. Return LCT credentials + ATP information
     """
     try:
-        # Map entity type
+        # Map entity type (use correct EntityType names from lct_registry)
         entity_type_map = {
             "human": EntityType.HUMAN,
             "ai": EntityType.AI,
-            "org": EntityType.ORG,
+            "org": EntityType.ORGANIZATION,  # Note: ORGANIZATION not ORG
             "device": EntityType.DEVICE
         }
         entity_type = entity_type_map[request.entity_type.value]
@@ -402,11 +402,12 @@ async def mint_lct(request: MintLCTRequest):
                 )
 
         # --- Mint LCT ---
+        # Note: parent_org mapped to genesis_block parameter in lct_registry
         lct, private_key = registry.mint_lct(
             entity_type=entity_type,
             entity_identifier=request.entity_identifier,
             witnesses=request.witnesses,
-            parent_org=request.parent_org
+            genesis_block=request.parent_org  # Optional genesis block reference
         )
 
         # --- Grant Initial ATP to New Entity ---
