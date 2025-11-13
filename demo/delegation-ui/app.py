@@ -26,7 +26,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from datetime import datetime, timezone
 import json
@@ -56,6 +56,9 @@ delegations_db: Dict[str, dict] = {}
 
 # Store pending approvals
 pending_approvals: Dict[str, dict] = {}
+
+# Store activity log
+activity_log: List[Dict[str, Any]] = []
 
 
 # ============================================================================
@@ -726,8 +729,74 @@ async def home():
             }
 
             async function loadActivity() {
-                const container = document.getElementById('activity-list');
-                container.innerHTML = '<p style="color: #666;">Activity log coming soon...</p>';
+                try {
+                    const response = await fetch('/api/activity');
+                    const activities = await response.json();
+
+                    const container = document.getElementById('activity-list');
+
+                    if (activities.length === 0) {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📝</div>
+                                <h3>No activity yet</h3>
+                                <p>Delegation events will appear here</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    container.innerHTML = activities.map(a => {
+                        const eventIcon = {
+                            'delegation_created': '✨',
+                            'delegation_revoked': '🚫',
+                            'approval_response': '✓',
+                            'purchase': '💳'
+                        }[a.event_type] || '📝';
+
+                        const eventColor = {
+                            'delegation_created': '#4caf50',
+                            'delegation_revoked': '#f44336',
+                            'approval_response': '#2196f3',
+                            'purchase': '#ff9800'
+                        }[a.event_type] || '#666';
+
+                        const date = new Date(a.timestamp);
+                        const timeAgo = formatTimeAgo(date);
+
+                        return `
+                            <div style="padding: 15px; background: white; border-left: 4px solid ${eventColor}; margin-bottom: 10px; border-radius: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                            <span style="font-size: 20px;">${eventIcon}</span>
+                                            <strong>${a.agent_name || 'System'}</strong>
+                                        </div>
+                                        <div style="color: #666; font-size: 14px;">
+                                            ${a.details}
+                                        </div>
+                                    </div>
+                                    <div style="color: #999; font-size: 12px; white-space: nowrap; margin-left: 15px;">
+                                        ${timeAgo}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } catch (error) {
+                    console.error('Error loading activity:', error);
+                }
+            }
+
+            function formatTimeAgo(date) {
+                const seconds = Math.floor((new Date() - date) / 1000);
+
+                if (seconds < 60) return 'just now';
+                if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+                if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+                if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+
+                return date.toLocaleDateString();
             }
 
             // Load delegations on page load
@@ -760,6 +829,15 @@ async def create_delegation(request: CreateDelegationRequest):
 
         delegations_db[delegation_id] = delegation
 
+        # Log activity
+        activity_log.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_type": "delegation_created",
+            "agent_name": request.agent_name,
+            "agent_id": request.agent_id,
+            "details": f"Created delegation with ${request.daily_budget}/day limit"
+        })
+
         return {
             "success": True,
             "delegation_id": delegation_id,
@@ -785,8 +863,18 @@ async def revoke_delegation(delegation_id: str):
     if delegation_id not in delegations_db:
         raise HTTPException(status_code=404, detail="Delegation not found")
 
-    delegations_db[delegation_id]["status"] = "revoked"
-    delegations_db[delegation_id]["revoked_at"] = datetime.now(timezone.utc).isoformat()
+    delegation = delegations_db[delegation_id]
+    delegation["status"] = "revoked"
+    delegation["revoked_at"] = datetime.now(timezone.utc).isoformat()
+
+    # Log activity
+    activity_log.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_type": "delegation_revoked",
+        "agent_name": delegation["agent_name"],
+        "agent_id": delegation["agent_id"],
+        "details": "Delegation revoked by user"
+    })
 
     return {
         "success": True,
@@ -810,6 +898,14 @@ async def respond_to_approval(request: ApprovalRequest):
     approval["approved"] = request.approved
     approval["responded_at"] = datetime.now(timezone.utc).isoformat()
 
+    # Log activity
+    activity_log.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_type": "approval_response",
+        "agent_name": approval.get("agent_name", "Unknown"),
+        "details": f"{'Approved' if request.approved else 'Denied'} purchase: {approval.get('item_description', 'Unknown')} (${approval.get('amount', 0)})"
+    })
+
     # Remove from pending
     del pending_approvals[request.approval_id]
 
@@ -817,6 +913,13 @@ async def respond_to_approval(request: ApprovalRequest):
         "success": True,
         "approved": request.approved
     }
+
+
+@app.get("/api/activity")
+async def get_activity():
+    """Get recent activity log."""
+    # Return most recent 50 events, newest first
+    return sorted(activity_log, key=lambda x: x["timestamp"], reverse=True)[:50]
 
 
 # ============================================================================
