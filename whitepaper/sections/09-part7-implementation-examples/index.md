@@ -1,4 +1,6 @@
-# Part 7: Implementation Examples
+# Part 7: Future Implementation Examples
+
+> **Note**: The following examples illustrate how Web4 vision components could work together once fully implemented. Currently, these examples represent future possibilities rather than working code. For a working implementation demonstrating core Web4 principles (trust delegation, resource constraints, revocation), see the agent authorization demo in `/demo`.
 
 ## 7.1. Multi-Agent Collaborative Learning
 

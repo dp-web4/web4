@@ -73,13 +73,13 @@ This is not utopian fantasy but pragmatic possibility. The tools exist. The visi
 
 Unlike previous internet iterations delivered from above, Web4 grows from below—from every implementation, every experiment, every contribution. It's not owned by anyone because it's created by everyone.
 
-The framework lives and breathes:
-- **Adapting** through real-world testing
-- **Evolving** through community contribution
-- **Growing** through collective wisdom
-- **Healing** through identified weaknesses
+The framework is evolving:
+- **Adapting** through real-world testing (agent authorization proof-of-concept)
+- **Expanding** through new implementations (vision components await builders)
+- **Growing** through community contribution
+- **Learning** from what works and what needs revision
 
-You are not users of Web4—you are its co-creators, its gardeners, its immune system, its consciousness.
+You are not users of Web4—you are its co-creators, its explorers, its contributors, its consciousness.
 
 ## The Moment of Decision
 
@@ -89,13 +89,14 @@ The trust crisis deepens daily. AI capabilities explode exponentially. The need 
 
 But urgency without action is merely anxiety. This whitepaper is not meant to be read and forgotten but to be read and acted upon:
 
-1. **Clone the repositories**
-2. **Run the examples**
-3. **Build something new**
-4. **Share what you learn**
-5. **Help others build**
+1. **Clone the repository** (`github.com/dp-web4/web4`)
+2. **Try the agent authorization demo** (`/demo`)
+3. **Explore the vision components** (described throughout)
+4. **Build something new** (implement pieces of the vision)
+5. **Share what you learn**
+6. **Help others build**
 
-Start small. Start today. Start with whatever skills you have. Every contribution matters, from fixing typos to implementing core protocols.
+Start small. Start today. Start with whatever skills you have. Every contribution matters, from testing the demo to implementing vision components.
 
 ## The Final Truth
 
@@ -105,7 +106,7 @@ Web4 succeeds not through grand proclamations but through accumulated actions. E
 
 We are not building another platform or protocol. We are building the trust infrastructure for the next phase of intelligence—biological and digital, individual and collective, human and artificial.
 
-The code is written. The vision is shared. The invitation is extended.
+The vision is emerging. The first implementations are being tested. The invitation is extended.
 
 **Now we build.**
 
@@ -128,6 +129,6 @@ Welcome to the future we build together.
 
 ---
 
-*The blueprint is complete. The tools are ready. The community awaits.*
+*The blueprint is evolving. Initial tools are ready for testing. The community is forming.*
 
 *What will you build today?*

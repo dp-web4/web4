@@ -1,4 +1,6 @@
-# Part 7: Implementation Details
+# Part 7: Proposed Implementation Details
+
+> **Note**: This section describes the vision architecture for Web4 components. Most features described here are not yet implemented. For working code, see the agent authorization demo in `/demo`.
 
 ## 7.1. Core Implementation Mechanisms
 

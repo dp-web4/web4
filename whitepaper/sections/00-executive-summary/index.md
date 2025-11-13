@@ -26,11 +26,25 @@ WEB4 addresses these limitations not through incremental improvement but through
 
 WEB4 emerges from the philosophical framework of Synchronism—the recognition that coherence, resonance, and shared intent form the basis of all sustainable systems. But it manifests as practical architecture: protocols you can implement, structures you can build upon, networks you can join.
 
-This whitepaper presents both vision and blueprint. The conceptual sections explore what becomes possible when trust becomes native to the internet itself. The implementation sections provide the technical details for those ready to build. Like a fractal, each level contains the whole—you can engage at the depth that serves your purpose.
+This whitepaper presents both vision and blueprint. The conceptual sections explore what becomes possible when trust becomes native to the internet itself. The implementation sections describe proposed architectures for those exploring the design space. Like a fractal, each level contains the whole—you can engage at the depth that serves your purpose.
 
-### Reference Implementation Progress
+### Implementation Status
 
-The Web4 standard is actively being implemented as a Cosmos SDK blockchain module. The ACT (Accessible Coordination Technology) ledger serves as the reference implementation, currently at 65% completion with full protobuf definitions for all Web4 types including LCT identity, trust tensors, ATP energy cycles, MRH graphs, and society governance. This prototype implementation demonstrates Web4's practical feasibility and will be made publicly available shortly as a foundation for standardization efforts.
+**This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity:
+
+**Currently Available** (ready for testing):
+- **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
+
+**Vision Components** (described in this document but not yet implemented):
+- Full LCT identity system with trust webs and lifecycle management
+- Complete ATP/ADP energy-value metabolic cycles
+- T3/V3 tensor-based trust and value assessment
+- Memory as temporal sensing architecture
+- Blockchain typology (Compost/Leaf/Stem/Root chains)
+- Witness acknowledgment protocols
+- Dictionary entity systems
+
+The agent authorization system demonstrates that Web4's core principles—verifiable trust, cryptographic delegation, resource constraints, and instant revocation—can be implemented and tested today. The broader vision provides a roadmap for future development.
 
 ## An Invitation
 
