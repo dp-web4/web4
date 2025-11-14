@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-MPE + FIPT Integration for Complete BEC Prevention
-===================================================
+MPE + FIPT + WAL Integration for Complete BEC Prevention
+==========================================================
 
-Combines Message Provenance Envelopes (MPE) with Financial Instruction
-Provenance Tokens (FIPT) to create a complete defense-in-depth system
-against Business Email Compromise attacks.
+Combines Message Provenance Envelopes (MPE), Financial Instruction
+Provenance Tokens (FIPT), and Web4 Accountability Layer (WAL) to create
+a complete defense-in-depth system against Business Email Compromise attacks.
 
 Defense Layers:
 1. MPE: Cryptographic message provenance (who sent what, when, from where)
 2. FIPT: Cryptographic payment endpoint binding (authorized payment instructions)
 3. Reputation: Trust-based gating (who is allowed to do what)
-4. Automatic Verification: System enforces checks (no human decision points)
+4. WAL: Accountability and constraint enforcement (consequences for fraud)
+5. Automatic Verification: System enforces checks (no human decision points)
 
 Created: Session #26 (2025-11-14)
-Related: FIPT (Session #25), MPE (Session #26), Nova BEC Case Study
+Updated: Session #27 (2025-11-14) - Added WAL integration
+Related: FIPT (Session #25), MPE (Session #26), WAL (Session #27), Nova BEC Case Study
 """
 
 import sys
@@ -50,6 +52,9 @@ from reputation_tracker import ReputationTracker, BehaviorType
 # Import FIPT-reputation integration
 from fipt_reputation_integration import ReputationGatedFIPT
 
+# Import WAL
+from wal import WALEnforcement, WALEventType
+
 
 @dataclass
 class PaymentInstruction:
@@ -75,7 +80,7 @@ class BECPreventionSystem:
     """
     Complete BEC Prevention System
 
-    Integrates MPE + FIPT + Reputation for defense-in-depth against
+    Integrates MPE + FIPT + Reputation + WAL for defense-in-depth against
     Business Email Compromise attacks.
     """
 
@@ -92,6 +97,7 @@ class BECPreventionSystem:
         self.reputation_tracker = reputation_tracker or ReputationTracker()
         self.fipt_system = ReputationGatedFIPT(self.reputation_tracker)
         self.mpe_verifier = MPEVerifier()
+        self.wal_enforcement = WALEnforcement(self.reputation_tracker)
 
     def create_payment_instruction(
         self,
@@ -284,12 +290,16 @@ class BECPreventionSystem:
         instruction: Optional[PaymentInstruction],
         reporter_lct: str,
         organization: str = "default",
-        description: str = "BEC attack detected"
+        description: str = "BEC attack detected",
+        quarantine_days: int = 90
     ):
         """
         Report a detected BEC attack.
 
-        This creates a permanent reputation penalty and WAL event.
+        This creates:
+        - Permanent reputation penalty
+        - WAL event with quarantine and transaction limits
+        - Audit trail for forensics
 
         Args:
             attacker_lct: LCT of attacker
@@ -297,22 +307,26 @@ class BECPreventionSystem:
             reporter_lct: LCT of entity reporting attack
             organization: Organization context
             description: Description of attack
+            quarantine_days: Days to quarantine attacker
         """
-        metadata = {"attack_type": "bec"}
-
+        # Collect evidence
+        evidence_refs = []
         if instruction:
-            metadata["mpe_id"] = instruction.mpe.mpe_id
-            metadata["fipt_id"] = instruction.fipt.fipt_id
+            evidence_refs.append(instruction.mpe.mpe_id)
+            evidence_refs.append(instruction.fipt.fipt_id)
 
-        # Severe penalty for BEC attack
-        self.reputation_tracker.record_event(
-            agent_lct=attacker_lct,
-            behavior_type=BehaviorType.FALSE_WITNESS,  # Severe penalty
+        # Record fraud attempt via WAL (includes reputation penalty)
+        wal_event = self.wal_enforcement.record_fraud_attempt(
+            entity_lct=attacker_lct,
+            evidence_refs=evidence_refs,
+            adjudicator=reporter_lct,
             organization=organization,
             description=description,
-            attested_by=reporter_lct,
-            metadata=metadata
+            quarantine_days=quarantine_days,
+            max_transaction_value=1000.0  # Severely limit future transactions
         )
+
+        return wal_event
 
 
 # Example usage
@@ -486,17 +500,22 @@ if __name__ == "__main__":
         print(f"   ✅ BLOCKED: {attack_message}")
 
         # Report attack
-        print("\n7. System reports BEC attack:")
-        bec_system.report_attack(
+        print("\n7. System reports BEC attack with WAL:")
+        wal_event = bec_system.report_attack(
             attacker_lct=attacker_lct,
             instruction=legitimate_instruction,
             reporter_lct="lct:system:payment_processor",
             organization=org,
-            description="Payment diversion attempt - endpoint mismatch"
+            description="Payment diversion attempt - endpoint mismatch",
+            quarantine_days=90
         )
 
         attacker_t3 = reputation.calculate_t3(attacker_lct, org)
         print(f"   ✅ Attack reported - attacker T3: {attacker_t3:.3f}")
+        print(f"   WAL Event ID: {wal_event.wal_event_id}")
+        print(f"   Constraints: {len(wal_event.constraints)} active")
+        for constraint in wal_event.constraints:
+            print(f"     - {constraint.constraint_type}: {constraint.reason}")
 
     # Verify tampering detection
     print("\n8. Tampering detection test:")
@@ -516,16 +535,20 @@ if __name__ == "__main__":
         print(f"   ✅ TAMPERING DETECTED: {tamper_message}")
 
     print("\n" + "=" * 80)
-    print("MPE + FIPT Integration: OPERATIONAL")
+    print("MPE + FIPT + WAL Integration: OPERATIONAL")
     print("=" * 80)
     print("\nDefense Layers:")
     print("  ✅ Layer 1: Cryptographic message provenance (MPE)")
     print("  ✅ Layer 2: Cryptographic payment authorization (FIPT)")
     print("  ✅ Layer 3: Reputation-based gating (T3 thresholds)")
-    print("  ✅ Layer 4: Automatic verification (no human decision)")
+    print("  ✅ Layer 4: Accountability & constraints (WAL)")
+    print("  ✅ Layer 5: Automatic verification (no human decision)")
     print("\nBEC Attack Prevention:")
     print("  ✅ Attacker blocked from creating FIPTs (no reputation)")
     print("  ✅ Payment endpoint mismatch detected automatically")
     print("  ✅ Message tampering detected via content hash")
-    print("  ✅ Attack reported with permanent reputation penalty")
+    print("  ✅ Attack reported with WAL event and constraints")
+    print("  ✅ Permanent reputation penalty recorded")
+    print("  ✅ Attacker quarantined for 90 days")
+    print("  ✅ Transaction limits imposed ($1,000 max)")
     print("\nResult: $70,000 payment protected ✓")
