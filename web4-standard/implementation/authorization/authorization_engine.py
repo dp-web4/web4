@@ -25,6 +25,28 @@ from permission_claim import (
     get_reputation_level
 )
 
+# Try to import real reputation service, fall back to mock
+try:
+    from reputation_service import ReputationService, MockReputationService
+    REPUTATION_SERVICE_AVAILABLE = True
+except ImportError:
+    REPUTATION_SERVICE_AVAILABLE = False
+    # Define mock here if reputation_service not available
+    class MockReputationService:
+        """Mock reputation service for T3 score lookup."""
+        def __init__(self):
+            self.t3_scores: Dict[str, Dict[str, float]] = {}
+
+        def get_t3(self, lct_id: str, organization: str = "default") -> float:
+            return self.t3_scores.get(lct_id, {}).get(organization, 0.0)
+
+        def set_t3(self, lct_id: str, score: float, organization: str = "default"):
+            if lct_id not in self.t3_scores:
+                self.t3_scores[lct_id] = {}
+            self.t3_scores[lct_id][organization] = max(0.0, min(1.0, score))
+
+    ReputationService = MockReputationService  # Alias for compatibility
+
 
 class PermissionStore:
     """
@@ -93,26 +115,8 @@ class PermissionStore:
         return True
 
 
-class ReputationService:
-    """
-    Mock reputation service for T3 score lookup.
-
-    For production, integrate with actual reputation tracking system.
-    """
-
-    def __init__(self):
-        # t3_scores[lct_id][organization] = score
-        self.t3_scores: Dict[str, Dict[str, float]] = {}
-
-    def get_t3(self, lct_id: str, organization: str = "default") -> float:
-        """Get T3 reputation score for an agent"""
-        return self.t3_scores.get(lct_id, {}).get(organization, 0.0)
-
-    def set_t3(self, lct_id: str, score: float, organization: str = "default"):
-        """Set T3 reputation score (for testing)"""
-        if lct_id not in self.t3_scores:
-            self.t3_scores[lct_id] = {}
-        self.t3_scores[lct_id][organization] = max(0.0, min(1.0, score))  # Clamp to [0, 1]
+# ReputationService is now imported from reputation_service.py (lines 30-48)
+# For backward compatibility, MockReputationService is available if import fails
 
 
 class AuthorizationEngine:
