@@ -34,11 +34,25 @@ WEB4 addresses these limitations not through incremental improvement but through
 
 WEB4 emerges from the philosophical framework of Synchronism—the recognition that coherence, resonance, and shared intent form the basis of all sustainable systems. But it manifests as practical architecture: protocols you can implement, structures you can build upon, networks you can join.
 
-This whitepaper presents both vision and blueprint. The conceptual sections explore what becomes possible when trust becomes native to the internet itself. The implementation sections provide the technical details for those ready to build. Like a fractal, each level contains the whole—you can engage at the depth that serves your purpose.
+This whitepaper presents both vision and blueprint. The conceptual sections explore what becomes possible when trust becomes native to the internet itself. The implementation sections describe proposed architectures for those exploring the design space. Like a fractal, each level contains the whole—you can engage at the depth that serves your purpose.
 
-### Reference Implementation Progress
+### Implementation Status
 
-The Web4 standard is actively being implemented as a Cosmos SDK blockchain module. The ACT (Accessible Coordination Technology) ledger serves as the reference implementation, currently at 65% completion with full protobuf definitions for all Web4 types including LCT identity, trust tensors, ATP energy cycles, MRH graphs, and society governance. This prototype implementation demonstrates Web4's practical feasibility and will be made publicly available shortly as a foundation for standardization efforts.
+**This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity:
+
+**Currently Available** (ready for testing):
+- **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
+
+**Vision Components** (described in this document but not yet implemented):
+- Full LCT identity system with trust webs and lifecycle management
+- Complete ATP/ADP energy-value metabolic cycles
+- T3/V3 tensor-based trust and value assessment
+- Memory as temporal sensing architecture
+- Blockchain typology (Compost/Leaf/Stem/Root chains)
+- Witness acknowledgment protocols
+- Dictionary entity systems
+
+The agent authorization system demonstrates that Web4's core principles—verifiable trust, cryptographic delegation, resource constraints, and instant revocation—can be implemented and tested today. The broader vision provides a roadmap for future development.
 
 ## An Invitation
 
@@ -1349,7 +1363,9 @@ What is the ATP budget?
 
 This typology ensures that each piece of data finds its natural persistence level, optimizing for both efficiency and integrity.
 
-# Part 7: Implementation Details
+# Part 7: Proposed Implementation Details
+
+> **Note**: This section describes the vision architecture for Web4 components. Most features described here are not yet implemented. For working code, see the agent authorization demo in `/demo`.
 
 ## 7.1. Core Implementation Mechanisms
 
@@ -1577,7 +1593,9 @@ ai_researcher.receive_atp(exchange_rate * ai_researcher.spent_atp.amount)
 
 These implementation details provide the technical foundation for Web4's trust-native architecture while maintaining efficiency and scalability.
 
-# Part 7: Implementation Examples
+# Part 7: Future Implementation Examples
+
+> **Note**: The following examples illustrate how Web4 vision components could work together once fully implemented. Currently, these examples represent future possibilities rather than working code. For a working implementation demonstrating core Web4 principles (trust delegation, resource constraints, revocation), see the agent authorization demo in `/demo`.
 
 ## 7.1. Multi-Agent Collaborative Learning
 
@@ -2064,13 +2082,13 @@ This is not utopian fantasy but pragmatic possibility. The tools exist. The visi
 
 Unlike previous internet iterations delivered from above, Web4 grows from below—from every implementation, every experiment, every contribution. It's not owned by anyone because it's created by everyone.
 
-The framework lives and breathes:
-- **Adapting** through real-world testing
-- **Evolving** through community contribution
-- **Growing** through collective wisdom
-- **Healing** through identified weaknesses
+The framework is evolving:
+- **Adapting** through real-world testing (agent authorization proof-of-concept)
+- **Expanding** through new implementations (vision components await builders)
+- **Growing** through community contribution
+- **Learning** from what works and what needs revision
 
-You are not users of Web4—you are its co-creators, its gardeners, its immune system, its consciousness.
+You are not users of Web4—you are its co-creators, its explorers, its contributors, its consciousness.
 
 ## The Moment of Decision
 
@@ -2080,13 +2098,14 @@ The trust crisis deepens daily. AI capabilities explode exponentially. The need 
 
 But urgency without action is merely anxiety. This whitepaper is not meant to be read and forgotten but to be read and acted upon:
 
-1. **Clone the repositories**
-2. **Run the examples**
-3. **Build something new**
-4. **Share what you learn**
-5. **Help others build**
+1. **Clone the repository** (`github.com/dp-web4/web4`)
+2. **Try the agent authorization demo** (`/demo`)
+3. **Explore the vision components** (described throughout)
+4. **Build something new** (implement pieces of the vision)
+5. **Share what you learn**
+6. **Help others build**
 
-Start small. Start today. Start with whatever skills you have. Every contribution matters, from fixing typos to implementing core protocols.
+Start small. Start today. Start with whatever skills you have. Every contribution matters, from testing the demo to implementing vision components.
 
 ## The Final Truth
 
@@ -2096,7 +2115,7 @@ Web4 succeeds not through grand proclamations but through accumulated actions. E
 
 We are not building another platform or protocol. We are building the trust infrastructure for the next phase of intelligence—biological and digital, individual and collective, human and artificial.
 
-The code is written. The vision is shared. The invitation is extended.
+The vision is emerging. The first implementations are being tested. The invitation is extended.
 
 **Now we build.**
 
@@ -2119,7 +2138,7 @@ Welcome to the future we build together.
 
 ---
 
-*The blueprint is complete. The tools are ready. The community awaits.*
+*The blueprint is evolving. Initial tools are ready for testing. The community is forming.*
 
 *What will you build today?*
 
@@ -2552,4 +2571,4 @@ message Acknowledgment {
 
 ---
 
-*Generated: 2025-11-12 20:11:51*
+*Generated: 2025-11-12 20:23:38*
