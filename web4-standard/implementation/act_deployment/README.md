@@ -1,16 +1,63 @@
 # ACT Deployment - Web4 Society Coordination
 
-**Session #30** - 2025-11-15
+**Sessions #30-31** - 2025-11-15
 
 ## Overview
 
 This directory contains the ACT (Agentic Context Tool) deployment infrastructure for Web4 society coordination. It implements the greenlight vision from `web4-act-testing-greenlight-2025-11-14.md`.
 
+**Session #30:** Phase 1 (Local ACT Network) - Society formation, peer discovery, ATP exchange
+**Session #31:** Production Hardening - Ed25519 cryptography, security validation
+
 ## Components
 
-### society_manager.py
+### web4_crypto.py (Session #31)
 
-Core society formation and peer discovery system.
+**Production-grade cryptographic primitives** for Web4 societies.
+
+**Key Classes:**
+- `KeyPair` - Ed25519 signing/verification
+- `Web4Crypto` - Key generation, LCT creation, heartbeat signing
+
+**Features:**
+- ✅ Real Ed25519 signatures (128-bit security)
+- ✅ Deterministic key derivation (testing mode)
+- ✅ Secure random generation (production mode)
+- ✅ Canonical JSON serialization
+- ✅ Cryptographically-bound LCTs
+
+**Demo:**
+```bash
+python3 web4_crypto.py
+```
+
+### society_manager_secure.py (Session #31)
+
+**Cryptographically-secured society coordination** with signature verification.
+
+**Enhancements over society_manager.py:**
+- `SignedHeartbeat` - Ed25519 signatures on all heartbeats
+- `PeerStatus.signature_failures` - Track invalid signatures
+- Signature verification on peer discovery
+- Spoofing prevention (wrong key rejected)
+- Replay mitigation (sequence number enforcement)
+- Tamper detection (signature invalidation)
+
+**Security Validation:**
+```
+✅ Spoofing prevention (3 attack scenarios)
+✅ Replay attack mitigation
+✅ Tamper detection
+```
+
+**Demo:**
+```bash
+python3 society_manager_secure.py
+```
+
+### society_manager.py (Session #30)
+
+Core society formation and peer discovery system (original implementation).
 
 **Key Classes:**
 - `SocietyIdentity` - LCT-based society identity
@@ -188,24 +235,64 @@ This implements the vision from the greenlight message:
 
 **Progress:** Phases 1-2 complete, Phase 3 (resource competition) next.
 
+## Security Testing (Session #31)
+
+### Test Suite: test_security.py
+
+Comprehensive validation of cryptographic defenses:
+
+**Test 1: Spoofing Prevention**
+```
+Attacker creates fake heartbeat claiming to be Legion
+Signs with attacker's key (not Legion's key)
+Result: ⚠️ Invalid signature detected → REJECTED
+```
+
+**Test 2: Replay Attack Mitigation**
+```
+Attacker captures old heartbeat (seq=3)
+Waits for sequence to advance (seq=6)
+Replays old heartbeat
+Result: Sequence stays at 6 → Old heartbeat IGNORED
+```
+
+**Test 3: Tamper Detection**
+```
+Attacker modifies heartbeat content (changes peer_count)
+Keeps original signature (now invalid for modified data)
+Result: ⚠️ Signature verification failed → REJECTED
+```
+
+**All Tests: ✅ PASSED**
+
 ## Next Steps
 
 1. **Multi-machine federation** - Legion, cbp, Thor on separate machines
-2. **Real crypto** - Replace stub keys with Ed25519
-3. **Phase 2 resource competition** - All three compete for Claude Code compute
+2. ~~**Real crypto**~~ - ✅ Ed25519 implemented (Session #31)
+3. **Cross-society messaging** - Direct peer-to-peer communication
 4. **Trust propagation** - Reputation scores affect exchange rates
-5. **External deployment** - Open to other AI agents
+5. **Phase 2 resource competition** - All three compete for Claude Code compute
+6. **External deployment** - Open to other AI agents
 
 ## Related Work
 
+- **Session #31:** Ed25519 cryptography, security hardening
+- **Session #30:** Society formation, peer discovery, ATP exchange
 - **Session #29:** ATP Lowest-Exchange Principle implementation
 - **Session #28:** Synchronism SPARC correlation analysis
 - **Greenlight:** `web4-act-testing-greenlight-2025-11-14.md`
 
 ---
 
-**Status:** Phase 1 (Society Formation) ✅, Phase 2 (Resource Coordination) ✅
+**Status:**
+- Phase 1 (Society Formation) ✅
+- Phase 2 (Resource Coordination) ✅
+- Security Hardening ✅
 
-**Validation:** Thor detection scenario working, ATP exchange working, gaming detection working
+**Validation:**
+- Thor detection scenario working
+- ATP exchange working
+- Gaming detection working
+- Cryptographic security validated (spoofing, replay, tamper)
 
-**Ready for:** Phase 3 (Resource Competition) and multi-machine federation
+**Ready for:** Cross-society messaging, Phase 3 (Resource Competition), multi-machine federation
