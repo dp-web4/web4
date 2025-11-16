@@ -152,6 +152,161 @@ Records the outcome and impacts.
 }
 ```
 
+### R6 and Energy Flow: Resource → Result = ATP → ADP
+
+**Key Insight**: The Resource → Result transformation in R6 **IS** the ATP → ADP energy transformation.
+
+#### Energy Flow Mapping
+
+```
+Resource (Input):
+├─ ATP allocated (charged with energy)
+├─ Energy source verified (solar/compute/human)
+└─ Automatic staking (allocation IS commitment)
+
+↓ [R6 Transaction Processing] ↓
+
+Result (Output):
+├─ New Resource (output of work)
+├─ ADP generated (discharged energy, proof of work)
+└─ Reputation (distributed when ADP returns to pool)
+```
+
+#### Active Resources (R6-Capable)
+
+Entities that can complete full R6 transactions:
+
+```json
+{
+  "resource": {
+    "entity_lct": "lct:web4:ai:claude-analyst",
+    "atp_allocated": 55,
+    "energy_source": "compute",
+    "transaction_id": "r6:tx:...",
+    "fractal_chain": [
+      "lct:web4:society:web4",
+      "lct:web4:org:analytics",
+      "lct:web4:team:data",
+      "lct:web4:ai:claude-analyst"
+    ]
+  }
+}
+```
+
+**Energy Flow:**
+```
+ATP 55J allocated → Work performed → ADP 55J discharged
+    ↓
+ADP returns to pool
+    ↓
+Reputation propagates up fractal chain:
+├─ Claude-analyst: +49.5 (90% contribution)
+├─ Data team: +3.85 (7% coordination)
+├─ Analytics org: +1.1 (2% oversight)
+└─ Web4 society: +0.55 (1% governance)
+```
+
+#### Passive Resources (Cannot Process R6)
+
+Infrastructure that supports but cannot complete R6 transactions:
+
+```json
+{
+  "resource": {
+    "entity_lct": "lct:web4:infrastructure:database",
+    "atp_allocated": 10,
+    "purpose": "maintenance",
+    "utilization_by": [
+      "lct:web4:ai:claude-analyst",
+      "lct:web4:ai:data-processor"
+    ]
+  }
+}
+```
+
+**Energy Flow:**
+```
+ATP 10J allocated → Maintenance performed → ADP 10J discharged
+    ↓
+ADP SLASHED (permanently consumed)
+    ↓
+NO reputation updates
+    ↓
+Utilization metrics updated:
+└─ Used by 2 active resources, effectiveness: 0.95
+```
+
+#### Result Structure with ADP
+
+```json
+{
+  "result": {
+    "status": "success",
+    "new_resource": {
+      "type": "analysis_report",
+      "lct": "lct:web4:resource:report:...",
+      "value": "insights_generated"
+    },
+    "adp_proof": {
+      "amount": 52,
+      "transaction_id": "r6:tx:...",
+      "transaction_hash": "sha256:...",
+      "energy_spent": 52.0,
+      "fractal_chain": [...],
+      "context_bound": true
+    },
+    "reputation_distribution": {
+      "lct:web4:ai:claude-analyst": {
+        "contribution": 0.90,
+        "reputation_earned": 46.8
+      },
+      "lct:web4:team:data": {
+        "contribution": 0.07,
+        "reputation_earned": 3.64
+      },
+      "lct:web4:org:analytics": {
+        "contribution": 0.02,
+        "reputation_earned": 1.04
+      },
+      "lct:web4:society:web4": {
+        "contribution": 0.01,
+        "reputation_earned": 0.52
+      }
+    }
+  }
+}
+```
+
+#### Anti-Gaming Properties
+
+1. **Reputation Requires Proof**: Cannot claim reputation without ADP from actual work
+2. **Context-Bound**: ADP can only update reputation for THIS transaction
+3. **Single-Use**: ADP can only return to pool once, no replay attacks
+4. **Energy Conservation**: Total reputation ≤ ADP amount
+5. **Fractal Verification**: Cannot claim credit for work outside delegation chain
+
+#### Efficiency Pressure
+
+The Active/Passive distinction creates natural optimization:
+
+**Efficient R6 Actor:**
+```
+1000 ATP budget:
+├─ 900 ATP → Productive R6 work → 900 reputation
+└─ 100 ATP → Infrastructure overhead → 0 reputation
+Result: 90% efficiency, high trust scores
+```
+
+**Inefficient R6 Actor:**
+```
+1000 ATP budget:
+├─ 400 ATP → Productive R6 work → 400 reputation
+└─ 600 ATP → Infrastructure overhead → 0 reputation
+Result: 40% efficiency, low trust scores
+```
+
+Natural selection: Efficient actors attract more R6 delegations, inefficient actors decline.
+
 ### R6 Action Lifecycle
 
 ```mermaid

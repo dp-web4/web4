@@ -204,6 +204,258 @@ Agent swarms now have:
 - Collaboration requirements (society pool)
 - Learning mechanisms (energy investment tracking)
 
+## ADP Return → Reputation Flow (November 16, 2025)
+
+### Critical Discovery: When Reputation Updates Happen
+
+**Key Insight**: Reputation updates occur during **ADP return to pool**, not during ATP discharge.
+
+This prevents all reputation gaming thermodynamically.
+
+### The Complete Cycle
+
+```
+1. Energy Source → ATP (charged with energy)
+    ↓
+2. ATP allocated to R6 transaction (automatic staking)
+    ↓
+3. Work performed (R6 processing)
+    ↓
+4. ATP → ADP (energy discharged, proof of work created)
+    ↓
+5. ADP RETURNS TO POOL:
+    │
+    ├─ DURING RETURN: Reputation updates propagate UP fractal chain
+    │  ├─ Individual Agent: +reputation for work quality
+    │  ├─ Team: +reputation for coordination
+    │  ├─ Organization: +reputation for service delivery
+    │  └─ Society: +reputation for citizen service
+    │
+    ├─ Reputation update REQUIRES discharged ADP
+    ├─ ADP bound to THIS transaction context ONLY
+    └─ ADP completes return, available for recharging with new energy
+```
+
+### Context-Bound ADP (Anti-Gaming)
+
+ADP can only update reputation "in context of the current transaction only":
+
+```go
+type ADP struct {
+    Amount          string    // ADP amount
+    TransactionId   string    // Unique R6 transaction
+    TransactionHash string    // Cryptographic binding
+    EnergySpent     string    // Actual joules consumed
+    FractalChain    []string  // All entities in delegation chain
+    AlreadyReturned bool      // Single-use flag
+}
+
+func (adp *ADP) VerifyContext(tx R6Transaction) bool {
+    // Verify this ADP came from the specified transaction
+    // Cannot reuse old ADP for new reputation claims
+    return adp.TransactionHash == tx.ComputeHash() &&
+           adp.TransactionId == tx.Id
+}
+```
+
+**This prevents:**
+- Reusing old ADP to claim new reputation
+- Transferring ADP between contexts to inflate scores
+- Claiming reputation for work you didn't participate in
+
+### Automatic Staking
+
+ATP allocation to R6 task **IS** the stake:
+
+```
+NOT: "Lock 1000 ATP hoping to get it back" (gambling)
+BUT: "Allocate 1000 ATP to work, prove completion with ADP" (energy accounting)
+
+Success: Work done → ADP returns → reputation earned
+Failure: No work → ADP slashed → no reputation
+```
+
+### Active vs Passive Resources
+
+**Active Resources** (can process R6 transactions):
+```
+ATP → R6 Work → ADP
+    ↓
+ADP returns to pool
+    ↓
+Reputation updates propagate
+    ↓
+ADP available for recharging
+```
+
+**Passive Resources** (infrastructure, cannot process R6):
+```
+ATP → Maintenance → ADP
+    ↓
+ADP SLASHED (permanently consumed)
+    ↓
+NO reputation updates
+    ↓
+Only utilization metrics updated
+```
+
+This creates the **efficiency forcing function**:
+- Minimize passive overhead → maximize reputation per ATP
+- Share infrastructure efficiently → reduce slashed ADP
+- Abandon underutilized infrastructure → let it decay naturally
+
+### Fractal Reputation Propagation
+
+When ADP returns to pool, reputation updates propagate up the entire delegation chain:
+
+```go
+func PropagateReputationFromADP(
+    adp ADP,
+    result R6Result,
+    contributions map[string]float64, // entity_lct → contribution %
+) []ReputationUpdate {
+    // Calculate base reputation from ADP and result quality
+    baseReputation := adp.Amount * result.QualityScore
+
+    updates := []ReputationUpdate{}
+
+    // Propagate up fractal chain
+    for entityLct, contribution := range contributions {
+        // Verify entity was in fractal chain
+        if !adp.CanUpdateReputationFor(entityLct) {
+            return error("entity not in fractal chain")
+        }
+
+        // Create reputation update
+        update := ReputationUpdate{
+            Entity:    entityLct,
+            Delta:     baseReputation * contribution,
+            Proof:     adp,
+            Timestamp: now(),
+        }
+        updates = append(updates, update)
+    }
+
+    // Mark ADP as returned (single-use)
+    adp.AlreadyReturned = true
+
+    return updates
+}
+```
+
+**Example**: Tax Processing
+```
+AI Agent (Claude-Tax-Processor-7):
+    Contribution: 90% (did the actual work)
+    Reputation: +450 (500 ADP * 0.9)
+
+Team (Form 1040 Processing Team):
+    Contribution: 7% (coordinated resources)
+    Reputation: +35 (500 ADP * 0.07)
+
+Organization (Tax Processing Department):
+    Contribution: 2% (allocated budget, set standards)
+    Reputation: +10 (500 ADP * 0.02)
+
+Society (Government):
+    Contribution: 1% (defined the need)
+    Reputation: +5 (500 ADP * 0.01)
+
+TOTAL: 500 ADP fully allocated across all contributors
+```
+
+The 500 ADP is unforgeable proof that work happened at each level.
+
+### Anti-Gaming Through Thermodynamics
+
+**Gaming Attempt #1: Fake Work Claims**
+```
+Attack: Create fake R6 transaction, claim work completed
+Defense: Reputation requires ADP, ADP requires actual energy expenditure
+Result: Cannot fake energy. Physics prevents fraud.
+```
+
+**Gaming Attempt #2: Reusing Old ADP**
+```
+Attack: Save ADP proof from good transaction, reuse for multiple claims
+Defense: ADP cryptographically bound to transaction context, single-use
+Result: Cannot replay ADP proof. Each transaction unique.
+```
+
+**Gaming Attempt #3: Reputation Inflation**
+```
+Attack: Create circular delegation to multiply reputation
+Defense: Energy conservation - total reputation cannot exceed ADP amount
+Result: Cannot create value from nothing. Physics enforces limits.
+```
+
+### Implementation Requirements
+
+**ACT Module Updates Needed:**
+
+1. **ADP Context Binding**
+```protobuf
+message AdpToken {
+  string id = 1;
+  string amount = 2;
+  string transaction_id = 3;      // NEW: Unique R6 transaction
+  string transaction_hash = 4;    // NEW: Cryptographic binding
+  repeated string fractal_chain = 5;  // NEW: Delegation chain LCTs
+  bool already_returned = 6;      // NEW: Single-use flag
+  google.protobuf.Timestamp created = 7;
+}
+```
+
+2. **Reputation Update on Return**
+```go
+// MsgReturnADP replaces simple pool return
+message MsgReturnADP {
+  string lct_id = 1;           // Who is returning ADP
+  string adp_token_id = 2;     // Which ADP token
+  string r6_result_hash = 3;   // Proof of work completion
+  map<string, string> contributions = 4;  // entity_lct → contribution %
+}
+
+// Handler propagates reputation during return
+func handleMsgReturnADP(ctx, msg) {
+    // Verify ADP belongs to this LCT
+    // Verify ADP not already returned
+    // Verify contributions sum to ≤ 100%
+    // Calculate reputation updates
+    // Propagate up fractal chain
+    // Mark ADP as returned
+    // Return ADP to society pool
+}
+```
+
+3. **Slashing for Maintenance**
+```go
+message MsgSlashADP {
+  string lct_id = 1;               // Infrastructure being maintained
+  string adp_token_id = 2;         // ADP being slashed
+  string maintenance_description = 3;
+}
+
+// Handler permanently consumes ADP, no reputation update
+func handleMsgSlashADP(ctx, msg) {
+    // Verify ADP exists
+    // Permanently remove from pool (do NOT return)
+    // Update utilization metrics only
+    // NO reputation updates
+}
+```
+
+### Philosophical Validation
+
+This completes the energy economy design:
+
+- **Energy constrains action**: Can't act without ATP
+- **Work creates value**: ATP discharge produces outcomes
+- **Reputation requires proof**: ADP is unforgeable proof of work
+- **Gaming is thermodynamically impossible**: Cannot fake energy expenditure
+- **Efficiency emerges naturally**: Slashed ADP creates optimization pressure
+- **Society benefits collectively**: Reputation flows up fractal chain
+
 ## Conclusion
 
-The ACT implementation validates Web4's energy economy design while revealing critical implementation patterns. The society pool architecture, semifungible token mechanics, and energy validation requirements are not just technical details—they embody Web4's philosophy of collective value creation through energy-constrained action.
+The ACT implementation validates Web4's energy economy design while revealing critical implementation patterns. The society pool architecture, semifungible token mechanics, energy validation requirements, and **ADP-backed reputation flow** are not just technical details—they embody Web4's philosophy of collective value creation through energy-constrained action where **reputation emerges from thermodynamic proof, not belief**.

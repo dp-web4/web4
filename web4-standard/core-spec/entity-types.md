@@ -12,21 +12,22 @@ In Web4, an **entity** is anything that can manifest presence—anything that ca
 
 The following entity types are recognized in Web4:
 
-| Entity Type | Description | Examples | Mode |
-|-------------|-------------|----------|------|
-| **Human** | Individual persons participating in Web4 | End users, developers, administrators | Agentic |
-| **AI** | Artificial intelligence agents with autonomous capabilities | Chatbots, analysis engines, autonomous agents | Agentic |
-| **Society** | Delegative entity with authority to issue citizenship and bind law | Nation, platform, network, organization | Delegative |
-| **Organization** | Collective entities representing groups | Companies, DAOs, communities | Delegative |
-| **Role** | First-class entities representing functions or positions | Citizen, Authority, Auditor, Witness | Delegative |
-| **Task** | Specific work units or objectives | Data processing job, verification task | Responsive |
-| **Resource** | Data, services, or assets | Databases, APIs, compute resources | Responsive |
-| **Device** | Physical or virtual hardware | IoT sensors, servers, vehicles | Responsive/Agentic |
-| **Service** | Software services and applications | Web services, microservices | Responsive |
-| **Oracle** | External data providers | Price feeds, Law Oracle, weather data | Responsive/Delegative |
-| **Accumulator** | Broadcast listeners and recorders | Presence validators, history indexers | Responsive |
-| **Dictionary** | Living semantic bridges managing compression-trust | Medical-legal translator, AI model bridges, cultural interpreters | Responsive/Agentic |
-| **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Mixed |
+| Entity Type | Description | Examples | Mode | Energy Pattern |
+|-------------|-------------|----------|------|----------------|
+| **Human** | Individual persons participating in Web4 | End users, developers, administrators | Agentic | Active |
+| **AI** | Artificial intelligence agents with autonomous capabilities | Chatbots, analysis engines, autonomous agents | Agentic | Active |
+| **Society** | Delegative entity with authority to issue citizenship and bind law | Nation, platform, network, organization | Delegative | Active (via citizens) |
+| **Organization** | Collective entities representing groups | Companies, DAOs, communities | Delegative | Active (via members) |
+| **Role** | First-class entities representing functions or positions | Citizen, Authority, Auditor, Witness | Delegative | Active (via paired agents) |
+| **Task** | Specific work units or objectives | Data processing job, verification task | Responsive | Active (when R6-capable) |
+| **Resource** | Data, services, or assets | Databases, APIs, compute resources | Responsive | Passive |
+| **Device** | Physical or virtual hardware | IoT sensors, servers, vehicles | Responsive/Agentic | Active or Passive |
+| **Service** | Software services and applications | Web services, microservices | Responsive | Active (can process R6) |
+| **Oracle** | External data providers | Price feeds, Law Oracle, weather data | Responsive/Delegative | Active (delivers results) |
+| **Accumulator** | Broadcast listeners and recorders | Presence validators, history indexers | Responsive | Passive (stores data) |
+| **Dictionary** | Living semantic bridges managing compression-trust | Medical-legal translator, AI model bridges, cultural interpreters | Responsive/Agentic | Active (translates) |
+| **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Mixed | Active |
+| **Infrastructure** | Physical passive resources | Buildings, roads, machinery, tools | Passive | Passive |
 
 ### 2.2 Entity Behavioral Modes
 
@@ -49,6 +50,71 @@ Entities exhibit three primary modes of existence:
 - **Characteristics**: Define scope, grant permissions, establish boundaries
 - **Examples**: Organizations, governance structures, **roles**
 - **LCT Behavior**: Create authorization chains through binding
+
+### 2.3 Energy Metabolism Patterns
+
+In addition to behavioral modes, entities are classified by their **energy metabolism** in R6 transactions:
+
+#### Active Resources
+- **Definition**: Entities capable of expending energy to produce new resources (ATP discharge capable)
+- **Characteristics**: Can process R6 transactions, deliver results, earn reputation
+- **R6 Capability**: Can complete full R6 cycle autonomously or through delegation
+- **Energy Flow**:
+  ```
+  ATP (charged) → R6 Work → ADP (discharged)
+      ↓
+  ADP returns to pool
+      ↓
+  Reputation updates propagate up fractal chain
+      ↓
+  ADP available for recharging
+  ```
+- **Examples**:
+  - Agentic entities (Human, AI, autonomous Device)
+  - Delegative entities when filled (Organization via members, Role via paired agent)
+  - R6-capable Responsive entities (Oracle, Dictionary, Service)
+- **Key Property**: ADP returns to pool, enabling reputation updates
+
+#### Passive Resources
+- **Definition**: Infrastructure utilized by Active Resources but incapable of R6 processing
+- **Characteristics**: Cannot deliver results, requires maintenance energy, reputation from utilization
+- **R6 Capability**: Cannot process R6 transactions
+- **Energy Flow**:
+  ```
+  ATP (charged) → Maintenance → ADP (discharged)
+      ↓
+  ADP SLASHED (permanently consumed)
+      ↓
+  NO reputation updates
+      ↓
+  Only utilization metrics updated
+  ```
+- **Examples**:
+  - Infrastructure (buildings, roads, machinery)
+  - Storage resources (databases, file systems)
+  - Non-autonomous devices (sensors, actuators)
+  - Accumulators (passive data collection)
+- **Key Property**: ADP slashed (consumed), no reputation updates
+- **Reputation Metric**: Utilization frequency × effectiveness by Active Resources
+
+#### The Efficiency Forcing Function
+
+This creates automatic optimization pressure:
+
+**Active Resources compete on:**
+- Quality of results delivered
+- Efficiency of energy use
+- Reputation from successful R6 completions
+
+**Passive Resources compete on:**
+- How frequently Active Resources utilize them
+- How effectively they support R6 transactions
+- Energy cost vs. value provided
+
+**Natural Selection Emerges:**
+- Well-utilized infrastructure gets maintained (receives ATP allocation)
+- Disused infrastructure degrades (no ATP allocation)
+- System self-optimizes without governance
 
 ## 3. Roles as First-Class Entities
 
