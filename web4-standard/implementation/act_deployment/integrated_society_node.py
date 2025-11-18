@@ -26,9 +26,9 @@ import json
 import hashlib
 
 # Import all Web4 components
-from energy_capacity import EnergyCapacityRegistry, EnergySource
-from energy_backed_atp import EnergyBackedATP, ATPAllocation
-from energy_backed_identity_bond import EnergyBackedIdentityBond, IdentityBond
+from energy_capacity import EnergyCapacityRegistry, EnergySourceType
+from energy_backed_atp import EnergyBackedSocietyPool, ChargedATP, WorkTicket
+from energy_backed_identity_bond import EnergyBackedIdentityBond, EnergyBackedBondRegistry
 from hardened_energy_system import (
     HardenedEnergyCapacityRegistry,
     HardenedEnergyBackedIdentityBond,
@@ -132,7 +132,10 @@ class IntegratedSocietyNode:
         )
 
         # Initialize energy system (hardened)
-        self.energy_registry = HardenedEnergyCapacityRegistry()
+        # Session #44: Use factory method for testing mode (no security features)
+        self.energy_registry = HardenedEnergyCapacityRegistry.create_for_testing(
+            society_lct=config.society_lct
+        )
         self.identity_bond = HardenedEnergyBackedIdentityBond(
             self.energy_registry
         )
@@ -190,7 +193,7 @@ class IntegratedSocietyNode:
         self.energy_trust = EnergyWeightedTrustEngine(self.sybil_resistance)
 
         # Local state
-        self.members: Dict[str, IdentityBond] = {}  # member_lct -> bond
+        self.members: Dict[str, EnergyBackedIdentityBond] = {}  # member_lct -> bond
         self.total_atp_supply = 0.0
         self.atp_allocations: Dict[str, float] = {}  # member_lct -> ATP amount
 
@@ -228,7 +231,7 @@ class IntegratedSocietyNode:
         self,
         member_lct: str,
         energy_capacity_watts: float,
-    ) -> IdentityBond:
+    ) -> EnergyBackedIdentityBond:
         """
         Add a member to the society.
 

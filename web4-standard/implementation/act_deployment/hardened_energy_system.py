@@ -63,6 +63,7 @@ from phase1_extended_mitigations import (
 # Hardened Energy Capacity Registry
 # ============================================================================
 
+@dataclass
 class HardenedEnergyCapacityRegistry(EnergyCapacityRegistry):
     """
     Energy capacity registry with integrated security mitigations.
@@ -70,64 +71,102 @@ class HardenedEnergyCapacityRegistry(EnergyCapacityRegistry):
     Extends Session #36 EnergyCapacityRegistry with:
     - Global registry check (prevents A2: proof reuse)
     - Device spec validation (prevents A3: capacity inflation)
+
+    Session #44: Standardized to dataclass + factory pattern for consistent API.
     """
 
-    def __init__(
-        self,
+    # Optional security components (for testing flexibility)
+    global_registry: Optional[GlobalEnergyRegistry] = None
+    device_spec_db: Optional[DeviceSpecDatabase] = None
+
+    @classmethod
+    def create_hardened(
+        cls,
         society_lct: str,
         global_registry: GlobalEnergyRegistry,
         device_spec_db: DeviceSpecDatabase,
-    ):
-        super().__init__(society_lct=society_lct)
-        self.global_registry = global_registry
-        self.device_spec_db = device_spec_db
+    ) -> "HardenedEnergyCapacityRegistry":
+        """
+        Create hardened registry with all security features enabled.
+
+        Args:
+            society_lct: Society identifier
+            global_registry: Global registry for proof reuse detection
+            device_spec_db: Device spec database for capacity validation
+
+        Returns:
+            HardenedEnergyCapacityRegistry with full security
+        """
+        return cls(
+            society_lct=society_lct,
+            global_registry=global_registry,
+            device_spec_db=device_spec_db,
+        )
+
+    @classmethod
+    def create_for_testing(
+        cls,
+        society_lct: str,
+    ) -> "HardenedEnergyCapacityRegistry":
+        """
+        Create registry for testing (security features disabled).
+
+        Args:
+            society_lct: Society identifier
+
+        Returns:
+            HardenedEnergyCapacityRegistry without security checks
+        """
+        return cls(society_lct=society_lct)
 
     def register_source(self, proof: EnergyCapacityProof) -> bool:
         """
         Register energy source with security checks.
 
         Security enhancements:
-        1. Check global registry (prevents proof reuse)
-        2. Validate device specs (prevents capacity inflation)
+        1. Check global registry (prevents proof reuse) - if enabled
+        2. Validate device specs (prevents capacity inflation) - if enabled
         3. Only then call parent registration
         """
 
         # SECURITY CHECK 1: Global Registry (A2 mitigation)
         # Check if energy source already registered elsewhere
-        try:
-            self.global_registry.register_source(
-                proof,
-                self.society_lct,
-                f"society:{self.society_lct}"
-            )
-        except ValueError as e:
-            # Energy source already registered to another society
-            print(f"[SECURITY] Global registry blocked proof reuse: {e}")
-            return False
+        if self.global_registry is not None:
+            try:
+                self.global_registry.register_source(
+                    proof,
+                    self.society_lct,
+                    f"society:{self.society_lct}"
+                )
+            except ValueError as e:
+                # Energy source already registered to another society
+                print(f"[SECURITY] Global registry blocked proof reuse: {e}")
+                return False
 
         # SECURITY CHECK 2: Device Spec Validation (A3 mitigation)
         # Validate capacity claims against manufacturer specs
-        if isinstance(proof, SolarPanelProof):
-            # Validate solar degradation
-            valid = self.device_spec_db.validate_solar_degradation(
-                proof.panel_model,
-                proof.installation_date,
-                proof.degradation_factor,
-            )
-            if not valid:
-                print(f"[SECURITY] Device spec DB rejected solar degradation")
-                return False
-
-        elif isinstance(proof, ComputeResourceProof):
-            # Validate GPU TDP
-            if proof.device_type == "gpu":
-                valid = self.device_spec_db.validate_gpu_tdp(
-                    proof.device_model,
-                    proof.tdp_watts,
+        if self.device_spec_db is not None:
+            if isinstance(proof, SolarPanelProof):
+                # Validate solar degradation
+                valid = self.device_spec_db.validate_solar_degradation(
+                    proof.panel_model,
+                    proof.installation_date,
+                    proof.degradation_factor,
                 )
                 if not valid:
-                    print(f"[SECURITY] Device spec DB rejected GPU TDP")
+                    print(f"[SECURITY] Device spec DB rejected solar degradation")
                     return False
+
+            elif isinstance(proof, ComputeResourceProof):
+                # Validate GPU TDP
+                if proof.device_type == "gpu":
+                    valid = self.device_spec_db.validate_gpu_tdp(
+                        proof.device_model,
+                        proof.tdp_watts,
+                    )
+                    if not valid:
+                        print(f"[SECURITY] Device spec DB rejected GPU TDP")
+                        return False
 
         # All security checks passed - call parent registration
         return super().register_source(proof)

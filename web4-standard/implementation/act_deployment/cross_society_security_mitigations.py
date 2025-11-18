@@ -618,9 +618,17 @@ class RateLimitedMessageBus(CrossSocietyMessageBus):
             if message.sequence_number in self.seen_sequences[sender]:
                 self.rejected_messages += 1
                 return False
+        else:
+            # Initialize set for new sender
+            self.seen_sequences[sender] = set()
 
         # Accept message
         self.seen_sequences[sender].add(message.sequence_number)
+
+        # Initialize message list for recipient if needed
+        if message.recipient_lct not in self.messages:
+            self.messages[message.recipient_lct] = []
+
         self.messages[message.recipient_lct].append(message)
         self.total_messages += 1
         self.verified_messages += 1
