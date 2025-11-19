@@ -478,10 +478,10 @@ async def home():
                 <h1>🔐 Web4 Delegation Manager</h1>
                 <p>Manage AI agent delegations with fine-grained control</p>
                 <div class="nav">
-                    <button onclick="showSection('create')" class="active">➕ Create Delegation</button>
-                    <button onclick="showSection('manage')">📋 Manage Delegations</button>
-                    <button onclick="showSection('approvals')">⏳ Pending Approvals</button>
-                    <button onclick="showSection('activity')">📊 Activity</button>
+                    <button onclick="showSection('create', event)" class="active">➕ Create Delegation</button>
+                    <button onclick="showSection('manage', event)">📋 Manage Delegations</button>
+                    <button onclick="showSection('approvals', event)">⏳ Pending Approvals</button>
+                    <button onclick="showSection('activity', event)">📊 Activity</button>
                 </div>
             </div>
 
@@ -573,14 +573,16 @@ async def home():
         </div>
 
         <script>
-            function showSection(section) {
+            function showSection(section, event) {
                 // Hide all sections
                 document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
                 document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
 
                 // Show selected section
                 document.getElementById(section + '-section').classList.add('active');
-                event.target.classList.add('active');
+                if (event && event.target) {
+                    event.target.classList.add('active');
+                }
 
                 // Load data for section
                 if (section === 'manage') loadDelegations();
