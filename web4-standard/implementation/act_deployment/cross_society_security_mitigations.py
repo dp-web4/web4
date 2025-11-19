@@ -423,13 +423,17 @@ class SecureATPMarketplace(ATPMarketplace):
         return exchanges
 
     def _is_wash_trade(self, seller_lct: str, buyer_lct: str) -> bool:
-        """Detect wash trading (same entity on both sides)"""
+        """
+        Detect wash trading (same entity on both sides).
 
-        # Exact match
+        Session #45: Enhanced with Sybil cluster detection.
+        """
+
+        # Check 1: Exact match
         if seller_lct == buyer_lct:
             return True
 
-        # Pattern matching: detect related identities
+        # Check 2: Pattern matching - detect related identities
         # e.g., "lct-alice-seller" and "lct-alice-buyer"
         seller_parts = seller_lct.split('-')
         buyer_parts = buyer_lct.split('-')
@@ -438,6 +442,26 @@ class SecureATPMarketplace(ATPMarketplace):
         if len(seller_parts) >= 2 and len(buyer_parts) >= 2:
             if seller_parts[1] == buyer_parts[1]:  # Same core identity
                 return True
+
+        # Check 3: Sybil cluster detection (Session #45)
+        # If both parties are isolated Sybils, likely same attacker
+        if self.sybil_engine:
+            isolated_societies = self.sybil_engine.get_isolated_societies()
+
+            # Both isolated = likely wash trade
+            if seller_lct in isolated_societies and buyer_lct in isolated_societies:
+                return True
+
+            # Check if both have similar reputation patterns (heuristic for same cluster)
+            seller_rep = self.sybil_engine.society_reputations.get(seller_lct)
+            buyer_rep = self.sybil_engine.society_reputations.get(buyer_lct)
+
+            if seller_rep and buyer_rep:
+                # If both have low reputation and similar scores, likely same cluster
+                if (seller_rep.reputation_score < 0.6 and
+                    buyer_rep.reputation_score < 0.6 and
+                    abs(seller_rep.reputation_score - buyer_rep.reputation_score) < 0.1):
+                    return True
 
         return False
 

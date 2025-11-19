@@ -133,12 +133,11 @@ class IntegratedSocietyNode:
 
         # Initialize energy system (hardened)
         # Session #44: Use factory method for testing mode (no security features)
+        # Session #45: Use bond registry instead of single bond instance
         self.energy_registry = HardenedEnergyCapacityRegistry.create_for_testing(
             society_lct=config.society_lct
         )
-        self.identity_bond = HardenedEnergyBackedIdentityBond(
-            self.energy_registry
-        )
+        self.bond_registry = EnergyBackedBondRegistry()
 
         # Initialize energy sources
         self._setup_energy_sources()
