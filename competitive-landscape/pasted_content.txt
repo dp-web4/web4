@@ -1,0 +1,156 @@
+TASK: Web4 Competitive/Collaborative Landscape Analysis
+OBJECTIVE
+Conduct thorough research and analysis of the Web4 trust-native internet architecture landscape, identifying competitive approaches, collaborative opportunities, parallel research, and positioning insights.
+PHASE 1: Internal Context Building
+Task 1.1 - Web4 Repository Analysis
+
+Clone and analyze the Web4 repository structure
+Document core architectural principles (Linked Context Tokens, trust-native design, etc.)
+Identify unique value propositions and technical differentiators
+Extract key claims, assumptions, and design decisions
+Map dependencies and implementation requirements
+Create structured summary of Web4's approach for comparison baseline
+
+PHASE 2: Academic/Research Landscape
+Task 2.1 - Published Research Survey
+Search and analyze:
+
+Trust-native network architectures
+Context-based routing and addressing systems
+Decentralized identity and authentication mechanisms
+Blockchain-integrated internet protocols
+Post-scarcity economic models in distributed systems
+Self-sovereign data architectures
+
+Task 2.2 - Research Paper Analysis
+For each relevant paper:
+
+Core thesis and approach
+Technical methodology
+Similarities/differences vs Web4
+Potential collaboration opportunities
+Citations and research lineage
+Implementation status (theoretical vs practical)
+
+PHASE 3: Commercial/Applied Landscape
+Task 3.1 - Commercial Initiatives
+Identify and analyze:
+
+Startups building trust-native infrastructure
+Enterprise projects in decentralized internet space
+Protocol foundations working on similar problems
+Blockchain projects with internet infrastructure focus
+Identity/authentication platform initiatives
+
+Task 3.2 - Technology Previews & Announcements
+Track:
+
+Recent announcements (past 18 months)
+Beta programs and early access initiatives
+Patent filings in relevant spaces
+Conference presentations and whitepapers
+Developer communities and adoption signals
+
+PHASE 4: Parallel/Adjacent Work
+Task 4.1 - Related Concepts
+Explore connections to:
+
+Web3 (similarities/differences/evolution)
+Solid Project (Tim Berners-Lee)
+DID (Decentralized Identifiers) standards
+IPFS and content-addressed systems
+Holochain and agent-centric computing
+Urbit and network identity
+Other post-web paradigms
+
+Task 4.2 - Cross-Domain Patterns
+Look for parallel thinking in:
+
+Energy sector (trust in distributed grids)
+Healthcare (patient-sovereign data)
+Finance (self-custodial architectures)
+IoT (device identity and trust)
+
+PHASE 5: Analysis & Synthesis
+Task 5.1 - Competitive Positioning Matrix
+Create structured analysis:
+
+Direct competitors (solving same problem, similar approach)
+Indirect competitors (solving same problem, different approach)
+Adjacent innovators (different problem, similar techniques)
+Potential collaborators (complementary approaches)
+
+Task 5.2 - Gap Analysis
+Identify:
+
+What Web4 does that others don't
+What others do that Web4 could incorporate
+Unsolved problems in the space
+Market positioning opportunities
+Technical differentiation points
+
+Task 5.3 - Threat/Opportunity Assessment
+Evaluate:
+
+Which initiatives could obsolete aspects of Web4?
+Which could accelerate Web4 adoption?
+Where are the collaborative opportunities?
+What's the competitive moat?
+Where's the market heading?
+
+DELIVERABLES
+Required Outputs:
+
+Executive Summary (2-3 pages)
+
+Key findings
+Competitive position assessment
+Strategic recommendations
+
+
+Detailed Landscape Report (structured document)
+
+Academic research summary with citations
+Commercial initiative profiles
+Comparison matrices
+Gap analysis findings
+
+
+Source Database (structured format - CSV/JSON)
+
+All identified papers, projects, companies
+Key metadata, URLs, relevance scores
+Contact information where available
+
+
+Visual Mapping (if feasible)
+
+Ecosystem map showing relationships
+Technology stack comparisons
+Timeline of major developments
+
+
+Collaboration Opportunity Brief
+
+Specific projects/researchers to engage
+Potential partnership models
+Integration possibilities
+
+
+
+METHODOLOGY NOTES
+
+Use web search extensively
+Check academic databases (arXiv, IEEE, ACM)
+Monitor GitHub for implementation signals
+Search patent databases
+Check tech news sources and specialized blogs
+Look at conference proceedings (ICBC, IEEE Blockchain, etc.)
+
+SUCCESS CRITERIA
+
+Comprehensive coverage of known competitive space
+Clear positioning insights
+Actionable collaboration opportunities identified
+Well-sourced and verifiable claims
+Useful for both technical and business strategy
