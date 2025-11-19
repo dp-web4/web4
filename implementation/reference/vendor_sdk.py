@@ -6,10 +6,10 @@ Integrates all security components into a single, easy-to-use API.
 
 Key Features:
 - One-line authorization verification
-- Integrates all 7 security fixes + financial binding
+- Integrates all 8 security checks + financial binding + T3 trust tracking
 - Clear error messages for debugging
 - Detailed verification reports
-- Production-ready error handling
+- Agent reputation building through T3 (Talent/Training/Temperament)
 
 For Merchants:
 - Simple integration (< 1 day of dev work)
@@ -58,6 +58,7 @@ from key_rotation import KeyRotationManager
 from witness_enforcer import WitnessEnforcer, WitnessSignature
 from resource_constraints import ResourceConstraints, PermissionLevel
 from financial_binding import FinancialBinding
+from t3_tracker import T3Tracker
 
 
 # Configure logging
@@ -153,7 +154,9 @@ class Web4Verifier:
         key_rotation_manager: KeyRotationManager,
         witness_enforcer: WitnessEnforcer,
         resource_constraints_registry: Optional[Dict[str, ResourceConstraints]] = None,
-        financial_binding_registry: Optional[Dict[str, FinancialBinding]] = None
+        financial_binding_registry: Optional[Dict[str, FinancialBinding]] = None,
+        t3_tracker: Optional[T3Tracker] = None,
+        min_trust_threshold: float = 0.3
     ):
         """
         Initialize Web4 verifier.
@@ -167,6 +170,8 @@ class Web4Verifier:
             witness_enforcer: Witness requirement enforcement
             resource_constraints_registry: Per-delegation resource constraints
             financial_binding_registry: Per-entity financial bindings
+            t3_tracker: Optional T3 (Talent/Training/Temperament) trust tracker
+            min_trust_threshold: Minimum composite trust score required (0.0-1.0)
         """
         self.atp_tracker = atp_tracker
         self.revocation_registry = revocation_registry
@@ -177,8 +182,13 @@ class Web4Verifier:
 
         self.resource_constraints_registry = resource_constraints_registry or {}
         self.financial_binding_registry = financial_binding_registry or {}
+        self.t3_tracker = t3_tracker
+        self.min_trust_threshold = min_trust_threshold
 
-        logger.info("Web4Verifier initialized with all security components")
+        components = "all security components"
+        if t3_tracker:
+            components += " + T3 trust tracking"
+        logger.info(f"Web4Verifier initialized with {components}")
 
     def verify_authorization(
         self,
@@ -202,6 +212,7 @@ class Web4Verifier:
         6. Financial authorization (if amount specified)
         7. ATP budget check
         8. Witness enforcement
+        9. Trust score verification (T3 - if tracker enabled)
 
         Args:
             lct_chain: LCT delegation chain from request
@@ -349,6 +360,36 @@ class Web4Verifier:
                 )
                 result.witnesses_verified = len(witness_sigs)
 
+            # Check 9: Agent Trust Score (T3)
+            if self.t3_tracker and delegatee_id:
+                composite_trust = self.t3_tracker.get_composite_trust(delegatee_id)
+
+                if composite_trust is not None:
+                    # Agent has T3 profile - check trust threshold
+                    t3_scores = self.t3_tracker.get_t3_scores(delegatee_id)
+
+                    if composite_trust >= self.min_trust_threshold:
+                        result.add_check(
+                            "Trust Score (T3)",
+                            True,
+                            f"Trust: {composite_trust:.2f} (Talent: {t3_scores['talent']:.2f}, "
+                            f"Training: {t3_scores['training']:.2f}, Temperament: {t3_scores['temperament']:.2f})"
+                        )
+                    else:
+                        result.add_check(
+                            "Trust Score (T3)",
+                            False,
+                            f"Trust too low: {composite_trust:.2f} < {self.min_trust_threshold:.2f}"
+                        )
+                        return result
+                else:
+                    # No T3 profile yet - first transaction, allow but note it
+                    result.add_check(
+                        "Trust Score (T3)",
+                        True,
+                        "New agent - T3 profile will be created"
+                    )
+
             # All checks passed!
             logger.info(
                 f"✅ Authorization verified: {delegatee_id} → {resource_id} "
@@ -403,7 +444,10 @@ class Web4Verifier:
         amount: Decimal,
         merchant: str,
         item_id: str,
-        category: Optional[str] = None
+        category: Optional[str] = None,
+        success: bool = True,
+        within_constraints: bool = True,
+        quality_score: Optional[float] = None
     ) -> bool:
         """
         Record completed purchase after verification.
@@ -416,6 +460,9 @@ class Web4Verifier:
             merchant: Merchant identifier
             item_id: Item/product identifier
             category: Purchase category
+            success: Whether the purchase succeeded (default: True)
+            within_constraints: Whether purchase was within all constraints (default: True)
+            quality_score: Optional quality rating (0.0-1.0) for purchase outcome
 
         Returns:
             True if recorded successfully
@@ -432,6 +479,32 @@ class Web4Verifier:
             item_id=item_id,
             category=category
         )
+
+        # Record in T3 tracker for reputation building
+        if self.t3_tracker:
+            # Create profile if doesn't exist
+            if not self.t3_tracker.get_profile(delegatee_id):
+                self.t3_tracker.create_profile(
+                    delegatee_id,
+                    initial_talent=0.5,
+                    initial_training=0.0,
+                    initial_temperament=0.5
+                )
+
+            # Record transaction
+            recorded, msg = self.t3_tracker.record_transaction(
+                agent_id=delegatee_id,
+                transaction_type="purchase",
+                success=success,
+                amount=float(amount),
+                within_constraints=within_constraints,
+                quality_score=quality_score
+            )
+
+            if recorded:
+                logger.info(f"T3 reputation updated: {msg}")
+            else:
+                logger.warning(f"T3 update failed: {msg}")
 
         logger.info(
             f"Purchase recorded: {delegatee_id} → ${amount} at {merchant}"
@@ -478,8 +551,20 @@ if __name__ == "__main__":
         allowed_merchants=["amazon.com"]
     )
 
+    # Create T3 tracker for agent reputation
+    print("\n2. Creating T3 trust tracker...")
+    t3_tracker = T3Tracker()
+
+    # Create initial T3 profile for agent
+    t3_tracker.create_profile(
+        "agent-claude-42",
+        initial_talent=0.7,      # Agent shows good capability
+        initial_training=0.0,    # No experience yet
+        initial_temperament=0.8  # Good behavioral patterns
+    )
+
     # Create verifier
-    print("\n2. Creating Web4 verifier...")
+    print("\n3. Creating Web4 verifier with T3 integration...")
     verifier = Web4Verifier(
         atp_tracker=atp_tracker,
         revocation_registry=revocation_registry,
@@ -492,11 +577,13 @@ if __name__ == "__main__":
         },
         financial_binding_registry={
             "agent-claude-42": binding
-        }
+        },
+        t3_tracker=t3_tracker,
+        min_trust_threshold=0.3  # Require 30% minimum trust
     )
 
     # Mock LCT chain (normally from request)
-    print("\n3. Verifying purchase authorization...")
+    print("\n4. Verifying purchase authorization...")
     lct_chain = {
         "delegator": "human-alice-123",
         "delegatee": "agent-claude-42",
@@ -515,28 +602,40 @@ if __name__ == "__main__":
         category="books"
     )
 
-    print(f"\n4. Verification result:")
+    print(f"\n5. Verification result:")
     print(f"  Status: {result.status.value}")
     print(f"  Authorized: {result.authorized}")
     if result.denial_reason:
         print(f"  Denial reason: {result.denial_reason}")
 
-    print(f"\n5. Verification checks:")
+    print(f"\n6. Verification checks:")
     for check in result.checks:
         status = "✅" if check.passed else "❌"
         print(f"  {status} {check.check_name}: {check.message}")
 
     # Record purchase if authorized
     if result.authorized:
-        print(f"\n6. Recording purchase...")
+        print(f"\n7. Recording purchase with T3 reputation update...")
         recorded = verifier.record_purchase(
             delegatee_id="agent-claude-42",
             amount=Decimal("75.00"),
             merchant="amazon.com",
             item_id="books/isbn-123456",
-            category="books"
+            category="books",
+            success=True,
+            within_constraints=True,
+            quality_score=0.9  # High quality transaction
         )
         print(f"  Purchase recorded: {recorded}")
+
+        # Show updated T3 scores
+        t3_scores = t3_tracker.get_t3_scores("agent-claude-42")
+        composite = t3_tracker.get_composite_trust("agent-claude-42")
+        print(f"\n8. Updated T3 trust scores:")
+        print(f"  Talent:      {t3_scores['talent']:.3f}")
+        print(f"  Training:    {t3_scores['training']:.3f}")
+        print(f"  Temperament: {t3_scores['temperament']:.3f}")
+        print(f"  Composite:   {composite:.3f}")
 
     print("\n" + "="*60)
     print("✅ Web4 Vendor SDK operational - Simple merchant integration!")

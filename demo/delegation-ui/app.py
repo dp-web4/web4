@@ -41,6 +41,7 @@ from resource_constraints import ResourceConstraints, PermissionLevel
 from financial_binding import FinancialBinding, PaymentMethod, PaymentMethodType
 from atp_tracker import ATPTracker
 from witness_enforcer import WitnessEnforcer
+from t3_tracker import T3Tracker
 
 
 # Initialize FastAPI app
@@ -59,6 +60,9 @@ pending_approvals: Dict[str, dict] = {}
 
 # Store activity log
 activity_log: List[Dict[str, Any]] = []
+
+# T3 Tracker for agent reputation
+t3_tracker = T3Tracker()
 
 
 # ============================================================================
@@ -393,6 +397,79 @@ async def home():
                 font-size: 64px;
                 margin-bottom: 20px;
             }
+
+            .trust-section {
+                margin-top: 20px;
+                padding: 15px;
+                background: #f9f9f9;
+                border-radius: 8px;
+            }
+
+            .trust-header {
+                font-size: 14px;
+                font-weight: 600;
+                color: #555;
+                margin-bottom: 15px;
+            }
+
+            .trust-score {
+                display: grid;
+                grid-template-columns: 1fr 3fr;
+                gap: 10px;
+                margin-bottom: 10px;
+                align-items: center;
+            }
+
+            .trust-label {
+                font-size: 13px;
+                color: #666;
+            }
+
+            .trust-bar {
+                background: #e0e0e0;
+                height: 20px;
+                border-radius: 10px;
+                overflow: hidden;
+                position: relative;
+            }
+
+            .trust-fill {
+                height: 100%;
+                border-radius: 10px;
+                transition: width 0.3s;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                padding-right: 8px;
+                color: white;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            .trust-fill.talent {
+                background: linear-gradient(90deg, #2196f3, #1976d2);
+            }
+
+            .trust-fill.training {
+                background: linear-gradient(90deg, #4caf50, #388e3c);
+            }
+
+            .trust-fill.temperament {
+                background: linear-gradient(90deg, #ff9800, #f57c00);
+            }
+
+            .trust-composite {
+                margin-top: 15px;
+                padding-top: 15px;
+                border-top: 2px solid #e0e0e0;
+            }
+
+            .trust-composite-value {
+                font-size: 32px;
+                font-weight: bold;
+                color: #667eea;
+                margin: 10px 0;
+            }
         </style>
     </head>
     <body>
@@ -579,7 +656,21 @@ async def home():
                         return;
                     }
 
-                    container.innerHTML = delegations.map(d => `
+                    // Fetch T3 scores for all agents
+                    const trustDataMap = {};
+                    await Promise.all(delegations.map(async (d) => {
+                        try {
+                            const trustResponse = await fetch(`/api/agents/${d.agent_id}/trust`);
+                            trustDataMap[d.agent_id] = await trustResponse.json();
+                        } catch (error) {
+                            console.error(`Failed to fetch trust for ${d.agent_id}:`, error);
+                            trustDataMap[d.agent_id] = { exists: false };
+                        }
+                    }));
+
+                    container.innerHTML = delegations.map(d => {
+                        const trustData = trustDataMap[d.agent_id] || { exists: false };
+                        return `
                         <div class="delegation-card">
                             <div class="delegation-header">
                                 <div>
@@ -620,6 +711,55 @@ async def home():
                                 <strong>Allowed Resources:</strong> ${d.allowed_resources.join(', ')}
                             </div>
 
+                            ${trustData.exists ? `
+                                <div class="trust-section">
+                                    <div class="trust-header">🎯 Agent Trust Score (T3)</div>
+
+                                    <div class="trust-score">
+                                        <div class="trust-label">💡 Talent:</div>
+                                        <div class="trust-bar">
+                                            <div class="trust-fill talent" style="width: ${(trustData.talent * 100).toFixed(0)}%">
+                                                ${(trustData.talent * 100).toFixed(0)}%
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="trust-score">
+                                        <div class="trust-label">📚 Training:</div>
+                                        <div class="trust-bar">
+                                            <div class="trust-fill training" style="width: ${(trustData.training * 100).toFixed(0)}%">
+                                                ${(trustData.training * 100).toFixed(0)}%
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="trust-score">
+                                        <div class="trust-label">⚖️ Temperament:</div>
+                                        <div class="trust-bar">
+                                            <div class="trust-fill temperament" style="width: ${(trustData.temperament * 100).toFixed(0)}%">
+                                                ${(trustData.temperament * 100).toFixed(0)}%
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="trust-composite">
+                                        <div class="trust-label">Overall Trust Score:</div>
+                                        <div class="trust-composite-value">${(trustData.composite * 100).toFixed(1)}%</div>
+                                        <div style="font-size: 12px; color: #666;">
+                                            Based on ${trustData.transaction_count} transactions
+                                            (${trustData.success_count} successful, ${(trustData.success_rate * 100).toFixed(0)}% success rate)
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div class="trust-section">
+                                    <div class="trust-header">🎯 Agent Trust Score (T3)</div>
+                                    <div style="color: #999; font-style: italic;">
+                                        No transaction history yet. T3 scores will appear after first purchase.
+                                    </div>
+                                </div>
+                            `}
+
                             ${d.status === 'active' ? `
                                 <div style="margin-top: 20px; display: flex; gap: 10px;">
                                     <button class="btn btn-danger" onclick="revokeDelegation('${d.delegation_id}')">
@@ -628,7 +768,8 @@ async def home():
                                 </div>
                             ` : ''}
                         </div>
-                    `).join('');
+                        `;
+                    }).join('');
                 } catch (error) {
                     console.error('Error loading delegations:', error);
                 }
@@ -829,6 +970,15 @@ async def create_delegation(request: CreateDelegationRequest):
 
         delegations_db[delegation_id] = delegation
 
+        # Create T3 profile for new agent
+        if not t3_tracker.get_profile(request.agent_id):
+            t3_tracker.create_profile(
+                request.agent_id,
+                initial_talent=0.5,      # Neutral starting point
+                initial_training=0.0,    # No experience yet
+                initial_temperament=0.5  # Neutral behavioral track record
+            )
+
         # Log activity
         activity_log.append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -920,6 +1070,33 @@ async def get_activity():
     """Get recent activity log."""
     # Return most recent 50 events, newest first
     return sorted(activity_log, key=lambda x: x["timestamp"], reverse=True)[:50]
+
+
+@app.get("/api/agents/{agent_id}/trust")
+async def get_agent_trust(agent_id: str):
+    """Get T3 trust scores for an agent."""
+    profile = t3_tracker.get_profile(agent_id)
+
+    if not profile:
+        return {
+            "exists": False,
+            "agent_id": agent_id
+        }
+
+    t3_scores = t3_tracker.get_t3_scores(agent_id)
+    composite = t3_tracker.get_composite_trust(agent_id)
+
+    return {
+        "exists": True,
+        "agent_id": agent_id,
+        "talent": t3_scores["talent"],
+        "training": t3_scores["training"],
+        "temperament": t3_scores["temperament"],
+        "composite": composite,
+        "transaction_count": profile.transaction_count,
+        "success_count": profile.success_count,
+        "success_rate": profile.get_success_rate()
+    }
 
 
 # ============================================================================
