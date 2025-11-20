@@ -1,0 +1,197 @@
+{
+  "agent-claude-42": {
+    "agent_id": "agent-claude-42",
+    "talent": 0.97,
+    "training": 0.15019048322368794,
+    "temperament": 0.8,
+    "transaction_history": [
+      {
+        "timestamp": "2025-11-19T02:30:39.013989Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 75.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      }
+    ],
+    "created_at": "2025-11-19T02:30:39.013048Z",
+    "last_updated": "2025-11-19T02:30:39.014024Z",
+    "total_transactions": 1,
+    "successful_transactions": 1,
+    "constraint_violations": 0,
+    "total_value_handled": 75.0
+  },
+  "agent-test-01": {
+    "agent_id": "agent-test-01",
+    "talent": 0.62,
+    "training": 0.5718284755479183,
+    "temperament": 0.6605128205128205,
+    "transaction_history": [
+      {
+        "timestamp": "2025-11-19T02:34:18.167186Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.167326Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.167484Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.167606Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.167728Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.168397Z",
+        "transaction_type": "purchase",
+        "success": false,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.2,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.168565Z",
+        "transaction_type": "purchase",
+        "success": false,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.2,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.168755Z",
+        "transaction_type": "purchase",
+        "success": false,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.2,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.168916Z",
+        "transaction_type": "purchase",
+        "success": false,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.2,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.169070Z",
+        "transaction_type": "purchase",
+        "success": false,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.2,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.169660Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": false,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.169845Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": false,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.170039Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": false,
+        "quality_score": 0.9,
+        "notes": ""
+      }
+    ],
+    "created_at": "2025-11-19T02:34:18.166348Z",
+    "last_updated": "2025-11-19T02:34:18.170080Z",
+    "total_transactions": 13,
+    "successful_transactions": 8,
+    "constraint_violations": 3,
+    "total_value_handled": 325.0
+  },
+  "agent-purchase-test": {
+    "agent_id": "agent-purchase-test",
+    "talent": 0.6566666666666666,
+    "training": 0.3003809664473759,
+    "temperament": 0.6546666666666666,
+    "transaction_history": [
+      {
+        "timestamp": "2025-11-19T02:34:18.183329Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.85,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.187498Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 30.0,
+        "within_constraints": true,
+        "quality_score": 0.95,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-19T02:34:18.188174Z",
+        "transaction_type": "purchase",
+        "success": false,
+        "amount": 20.0,
+        "within_constraints": true,
+        "quality_score": 0.1,
+        "notes": ""
+      }
+    ],
+    "created_at": "2025-11-19T02:34:18.183162Z",
+    "last_updated": "2025-11-19T02:34:18.188225Z",
+    "total_transactions": 3,
+    "successful_transactions": 2,
+    "constraint_violations": 0,
+    "total_value_handled": 75.0
+  }
+}

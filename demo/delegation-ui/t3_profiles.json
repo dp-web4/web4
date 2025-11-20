@@ -1,0 +1,15 @@
+{
+  "claude-42": {
+    "agent_id": "claude-42",
+    "talent": 0.5,
+    "training": 0.0,
+    "temperament": 0.5,
+    "transaction_history": [],
+    "created_at": "2025-11-19T06:12:47.813225Z",
+    "last_updated": "2025-11-19T06:12:47.813225Z",
+    "total_transactions": 0,
+    "successful_transactions": 0,
+    "constraint_violations": 0,
+    "total_value_handled": 0.0
+  }
+}

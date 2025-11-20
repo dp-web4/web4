@@ -109,6 +109,7 @@ class DiversifiedTrustEngine(TrustPropagationEngine):
 
         trust_scores = []
         weights = []
+        has_direct_trust = False
 
         # Direct trust (highest weight, no diversity discount)
         if subject_lct in self.direct_trust:
@@ -116,24 +117,15 @@ class DiversifiedTrustEngine(TrustPropagationEngine):
             if not record.is_expired():
                 trust_scores.append(record.trust_score)
                 weights.append(1.0)  # Full weight for direct trust
+                has_direct_trust = True
 
-        # Propagated trust (weighted by effective trust)
+        # Propagated trust (weighted by decay factor)
         propagated_records = self.propagated_trust.get(subject_lct, [])
-
-        # Count sources for diversity calculation
-        num_sources = len(propagated_records)
-
-        # Diversity discount: logarithmic in number of sources
-        # Prevents Sybil amplification
-        if num_sources > 0:
-            diversity_discount = 1.0 / math.log2(num_sources + 1)
-        else:
-            diversity_discount = 1.0
 
         for record in propagated_records:
             trust_scores.append(record.trust_score)
-            # Weight is the decay factor applied, with diversity discount
-            weight = (self.decay_factor ** record.propagation_distance) * diversity_discount
+            # Weight is the decay factor applied (NO diversity discount in weight)
+            weight = self.decay_factor ** record.propagation_distance
             weights.append(weight)
 
         # No trust information available
@@ -144,6 +136,16 @@ class DiversifiedTrustEngine(TrustPropagationEngine):
         total_weight = sum(weights)
         weighted_sum = sum(score * weight for score, weight in zip(trust_scores, weights))
         aggregated = weighted_sum / total_weight
+
+        # Apply diversity discount to FINAL score (only for propagated trust)
+        # This prevents Sybil amplification even when all sources agree
+        num_sources = len(propagated_records)
+        if num_sources > 0 and not has_direct_trust:
+            # Diversity discount: logarithmic in number of sources
+            diversity_discount = 1.0 / math.log2(num_sources + 1)
+            # Scale the aggregated score toward neutral (0.5) based on diversity
+            # More sources = less trust in the consensus
+            aggregated = 0.5 + (aggregated - 0.5) * diversity_discount
 
         return aggregated
 
