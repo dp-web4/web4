@@ -1,0 +1,764 @@
+# Trust System Attack Vectors
+**Session #56**: Security analysis of trust update batching and Web4 authorization
+
+## Overview
+
+This document analyzes potential attack vectors against the Web4 trust system, focusing on both the batching mechanism and the underlying trust tensor architecture.
+
+**System Components**:
+- Trust Update Batcher (write-behind caching)
+- T3 Trust Tensor (Talent, Training, Temperament)
+- V3 Trust Tensor (Veracity, Validity, Valuation)
+- Action sequence validation
+- Delegation chains
+
+## Attack Vector Categories
+
+### 1. Batch-Specific Attacks
+
+#### 1.1 Batch Stuffing
+
+**Description**: Attacker floods the system with low-value updates to force frequent flushes, degrading performance.
+
+**Attack Pattern**:
+```python
+for i in range(1000):
+    # Create unique entities to prevent accumulation
+    api.record_action(
+        lct_id=f"lct:attacker:{i}",
+        org_id="org:victim:001",
+        action_type="generic",
+        success=True
+    )
+```
+
+**Impact**:
+- Forces batch flush at max_batch_size (100 updates)
+- 1000 updates = 10 flushes instead of 1
+- Degrades 79x performance improvement to ~8x
+
+**Mitigation**:
+1. **Rate limiting per LCT**: Max updates per minute per entity
+2. **Organization-level rate limiting**: Max updates per org
+3. **Batch size adaptation**: Increase batch size under attack
+4. **Cost model**: Require ATP payment for trust updates
+
+**Status**: ⚠️ VULNERABLE - No rate limiting implemented
+
+**Recommended Fix**:
+```python
+class TrustUpdateBatcher:
+    def __init__(self, ..., max_updates_per_minute_per_lct=60):
+        self.rate_limits = {}  # lct_id -> (count, window_start)
+
+    def record_t3_update(self, lct_id, ...):
+        if not self._check_rate_limit(lct_id):
+            raise RateLimitExceeded(f"LCT {lct_id} exceeded rate limit")
+```
+
+#### 1.2 Timing Attacks
+
+**Description**: Attacker observes flush timing to infer system state or other agents' activity.
+
+**Attack Pattern**:
+```python
+import time
+
+# Measure time between own updates
+start = time.time()
+api.record_action(lct_id="lct:attacker:001", ...)
+# ... wait for flush ...
+api.record_action(lct_id="lct:attacker:001", ...)
+elapsed = time.time() - start
+
+# If elapsed < 60s, other agents triggered flush
+# Reveals concurrent activity
+```
+
+**Impact**:
+- Information leakage about concurrent agents
+- Potential privacy violation
+- Could enable coordination attacks
+
+**Mitigation**:
+1. **Random flush jitter**: Add ±10s random variance to flush interval
+2. **Constant-time operations**: Don't vary behavior based on batch size
+3. **Noise injection**: Occasionally flush early/late randomly
+
+**Status**: ⚠️ VULNERABLE - Deterministic flush timing
+
+**Recommended Fix**:
+```python
+def _flush_loop(self):
+    while self.running:
+        jitter = random.uniform(-10, 10)
+        time.sleep(self.flush_interval + jitter)
+        # ...
+```
+
+#### 1.3 Memory Exhaustion
+
+**Description**: Attacker creates many pending updates to exhaust server memory.
+
+**Attack Pattern**:
+```python
+# Create updates for millions of unique entities
+for i in range(10_000_000):
+    api.record_action(
+        lct_id=f"lct:attacker:{i}",
+        org_id=f"org:attacker:{i % 1000}",
+        action_type="generic",
+        success=True
+    )
+```
+
+**Impact**:
+- Each TrustDelta object ~200 bytes
+- 10M updates = 2GB memory
+- Server OOM, denial of service
+
+**Mitigation**:
+1. **Absolute pending limit**: Max 10,000 pending updates
+2. **Force flush on memory pressure**: Monitor memory usage
+3. **Per-LCT pending limit**: Max 100 pending per entity
+4. **Credential requirements**: Require valid LCT identity
+
+**Status**: ⚠️ VULNERABLE - Unbounded memory growth
+
+**Recommended Fix**:
+```python
+class TrustUpdateBatcher:
+    def __init__(self, ..., max_pending_total=10000, max_pending_per_lct=100):
+        self.max_pending_total = max_pending_total
+        self.max_pending_per_lct = max_pending_per_lct
+
+    def record_t3_update(self, lct_id, ...):
+        if len(self.pending) >= self.max_pending_total:
+            self.flush()  # Force flush
+
+        if key in self.pending and \
+           self.pending[key].actions_count >= self.max_pending_per_lct:
+            # Flush this entity specifically
+            self._flush_entity(key)
+```
+
+#### 1.4 Race Condition Exploitation
+
+**Description**: Attacker exploits thread safety gaps to corrupt batch state.
+
+**Attack Pattern**:
+```python
+import threading
+
+def attack_thread():
+    # Concurrent updates to same entity
+    for i in range(1000):
+        api.record_action(lct_id="lct:victim:001", ...)
+
+# Launch 100 threads
+threads = [threading.Thread(target=attack_thread) for _ in range(100)]
+for t in threads:
+    t.start()
+```
+
+**Impact**:
+- Lost updates if lock not held properly
+- Incorrect delta accumulation
+- Trust score corruption
+
+**Mitigation**:
+1. **Comprehensive locking**: All shared state access locked ✅ IMPLEMENTED
+2. **Atomic operations**: Use atomic counters where possible
+3. **Testing**: Thread safety tests ✅ IMPLEMENTED
+
+**Status**: ✅ MITIGATED - Lock-based protection implemented
+
+**Validation**: `test_thread_safety` test passes with 5 concurrent threads
+
+### 2. Trust Score Manipulation
+
+#### 2.1 Sybil Attacks
+
+**Description**: Attacker creates many fake identities to artificially inflate trust scores.
+
+**Attack Pattern**:
+```python
+# Create 1000 fake identities
+for i in range(1000):
+    fake_lct = create_identity(f"lct:fake:{i}")
+
+    # Cross-vouch to build reputation
+    for j in range(100):
+        api.record_transaction(
+            lct_id=fake_lct,
+            org_id="org:target:001",
+            transaction_type="vouch",
+            value=Decimal('1.0'),
+            verified=True
+        )
+```
+
+**Impact**:
+- Fake high-reputation identities
+- Undermines trust system integrity
+- Enables fraud, impersonation
+
+**Mitigation**:
+1. **Birth certificate verification**: Require valid BC hash ✅ SCHEMA ENFORCED
+2. **Hardware binding**: Tie LCT to hardware ✅ SCHEMA SUPPORTED
+3. **Cost of identity creation**: Require ATP deposit
+4. **Graph analysis**: Detect suspicious vouching patterns
+5. **Reputation aging**: New identities start with low trust
+
+**Status**: ⚠️ PARTIALLY MITIGATED - Schema supports, needs enforcement
+
+**Schema Support** (from Session #54):
+```sql
+CREATE TABLE lct_identities (
+    birth_certificate_hash VARCHAR(66) NOT NULL,  -- Unique BC
+    hardware_binding_hash VARCHAR(66),            -- Hardware tie
+    -- ...
+)
+```
+
+#### 2.2 Reputation Washing
+
+**Description**: Attacker transfers reputation from compromised/discarded identity to new identity.
+
+**Attack Pattern**:
+```python
+# Build reputation on compromised identity
+for i in range(1000):
+    api.record_action(lct_id="lct:compromised:001", ..., success=True)
+
+# Transfer reputation via trust relationships
+create_trust_relationship(
+    source="lct:compromised:001",
+    target="lct:attacker:new:001",
+    trust_weight=1.0
+)
+
+# Discard old identity, use new with inherited trust
+```
+
+**Impact**:
+- Evades reputation-based penalties
+- Enables repeat offenders
+- Undermines accountability
+
+**Mitigation**:
+1. **Trust decay**: Relationships decay over time
+2. **Transfer limits**: Cap transferred trust amount
+3. **Audit trails**: Track reputation lineage ✅ SCHEMA SUPPORTED (trust_history)
+4. **Anti-laundering analysis**: Detect suspicious transfer patterns
+
+**Status**: ⚠️ PARTIALLY MITIGATED - trust_history table exists, needs analysis
+
+**Schema Support**:
+```sql
+CREATE TABLE trust_history (
+    history_id UUID PRIMARY KEY,
+    lct_id VARCHAR(255) REFERENCES lct_identities(lct_id),
+    -- Temporal tracking of trust evolution
+)
+```
+
+#### 2.3 Score Clamping Exploitation
+
+**Description**: Attacker exploits [0,1] clamping to prevent trust decay.
+
+**Attack Pattern**:
+```python
+# Max out trust scores
+for i in range(10000):
+    api.record_action(lct_id="lct:attacker:001", ..., success=True)
+# Scores now at 1.0
+
+# Perform malicious actions
+api.record_action(lct_id="lct:attacker:001", ..., success=False)
+# Score: 1.0 - 0.0005 = 0.9995, still very high
+
+# Takes many failures to decay from 1.0
+```
+
+**Impact**:
+- Slow trust decay from maximum
+- Enables brief malicious activity
+- "Trust capital" exploitation
+
+**Mitigation**:
+1. **Accelerated decay**: Larger penalties for failures at high trust
+2. **Critical failure penalties**: Immediate trust loss for severe violations
+3. **Trust halflife**: Exponential decay over time
+4. **Nonlinear penalties**: Penalty scales with current trust level
+
+**Status**: ⚠️ VULNERABLE - Linear deltas regardless of current score
+
+**Recommended Fix**:
+```python
+def record_action(self, lct_id, org_id, action_type, success):
+    if not success:
+        # Get current trust scores
+        current = self.get_t3_scores(lct_id, org_id)
+        if current['t3_score'] > 0.8:
+            # High trust = bigger fall
+            penalty_multiplier = 3.0
+        else:
+            penalty_multiplier = 1.0
+
+        talent_delta = Decimal('-0.0005') * Decimal(str(penalty_multiplier))
+        # ...
+```
+
+### 3. Delegation Attacks
+
+#### 3.1 Unauthorized Delegation
+
+**Description**: Attacker delegates permissions without proper authorization.
+
+**Attack Pattern**:
+```python
+# Attacker delegates admin role to themselves
+create_delegation(
+    delegator="lct:admin:org:001",  # Spoofed
+    delegatee="lct:attacker:001",
+    role="org:admin",
+    permissions=["*"]  # All permissions
+)
+```
+
+**Impact**:
+- Privilege escalation
+- Unauthorized access to resources
+- System compromise
+
+**Mitigation**:
+1. **Signature verification**: Verify delegator signature ✅ SCHEMA ENFORCED
+2. **Permission validation**: Check delegator has permission to delegate
+3. **Audit logging**: Track all delegations ✅ SCHEMA SUPPORTED
+4. **Revocation mechanisms**: Quick delegation revocation
+
+**Status**: ⚠️ PARTIALLY MITIGATED - Schema enforces, needs runtime validation
+
+**Schema Support**:
+```sql
+CREATE TABLE agent_delegations (
+    signature TEXT NOT NULL,  -- Delegator signature
+    -- Cryptographic proof of authorization
+)
+```
+
+#### 3.2 Delegation Depth Attacks
+
+**Description**: Attacker creates deep delegation chains to obscure responsibility.
+
+**Attack Pattern**:
+```python
+# Create 100-deep delegation chain
+for i in range(100):
+    create_delegation(
+        delegator=f"lct:chain:{i}",
+        delegatee=f"lct:chain:{i+1}",
+        role="delegate",
+        permissions=["execute"]
+    )
+
+# Malicious action at depth 100
+perform_action(actor=f"lct:chain:100", ...)
+# Responsibility diffused across 100 entities
+```
+
+**Impact**:
+- Accountability obscured
+- Trust diffusion
+- Hard to trace malicious activity
+
+**Mitigation**:
+1. **Depth limits**: Max delegation depth (e.g., 5 levels) ✅ SCHEMA DEFAULT
+2. **Chain trust decay**: Trust decays with delegation depth
+3. **Full chain audit**: Track entire delegation chain
+
+**Status**: ✅ MITIGATED - max_depth=5 enforced in schema
+
+**Schema Support**:
+```sql
+CREATE TABLE agent_delegations (
+    max_depth INTEGER DEFAULT 5,  -- Depth limit
+    current_depth INTEGER DEFAULT 0
+)
+```
+
+#### 3.3 Revocation Evasion
+
+**Description**: Attacker continues using revoked delegation via caching.
+
+**Attack Pattern**:
+```python
+# Obtain delegation
+delegation = get_delegation("lct:attacker:001")
+
+# Delegation gets revoked
+revoke_delegation(delegation_id)
+
+# Attacker uses cached delegation
+# If system doesn't check revocation on each use
+perform_action(actor="lct:attacker:001", delegation=delegation)
+```
+
+**Impact**:
+- Unauthorized access persists
+- Revocation ineffective
+- Security policy violation
+
+**Mitigation**:
+1. **Real-time revocation checks**: Check every action
+2. **Revocation timestamp**: Verify delegation valid_until
+3. **Revocation propagation**: Immediate propagation across nodes
+
+**Status**: ⚠️ UNKNOWN - Needs runtime implementation analysis
+
+**Required Validation**: Check if action validation includes revocation check
+
+### 4. ATP (Energy/Payment) Attacks
+
+#### 4.1 ATP Refund Exploitation
+
+**Description**: Attacker exploits ATP refund policy to get free resources.
+
+**Attack Pattern**:
+```python
+# Sequence with guaranteed failure and refund
+action_sequence = create_sequence(
+    actions=[
+        {"type": "allocate_resource", "atp_cost": 100},
+        {"type": "intentional_failure"}  # Trigger refund
+    ],
+    total_atp=100,
+    refund_policy="full"
+)
+
+# Execute sequence
+execute_sequence(action_sequence)
+# Resources allocated, failure occurs, ATP refunded
+# Attacker got free resource usage
+```
+
+**Impact**:
+- Free resource consumption
+- ATP system undermined
+- Economic attack on system
+
+**Mitigation**:
+1. **Partial refunds**: Only refund unused ATP
+2. **Refund delay**: Delay refunds to prevent rapid cycling
+3. **Refund limits**: Max refunds per time period
+4. **Execution tracking**: Track which actions consumed resources
+
+**Status**: ⚠️ VULNERABLE - test_action_sequences shows full refund policy
+
+**From Session #55 Tests**:
+```python
+def test_atp_refund_on_failure(self):
+    # Failure at action 2 (used 20 ATP)
+    # Should refund 80 ATP
+    # Currently: Refunds all 100 ATP? Needs verification
+```
+
+#### 4.2 ATP Drain Attacks
+
+**Description**: Attacker forces victim to exhaust ATP through induced failures.
+
+**Attack Pattern**:
+```python
+# Victim starts action sequence
+victim_sequence = create_sequence(
+    actor="lct:victim:001",
+    actions=[many_expensive_actions],
+    total_atp=1000
+)
+
+# Attacker sabotages actions
+# E.g., denial of service, resource contention
+sabotage_action(victim_sequence, action_index=5)
+
+# Victim loses ATP, attacker gains competitive advantage
+```
+
+**Impact**:
+- Denial of service
+- Resource exhaustion
+- Competitive sabotage
+
+**Mitigation**:
+1. **Failure attribution**: Identify attacker causing failures
+2. **ATP insurance**: Optional ATP insurance for failures
+3. **Retry mechanisms**: Automatic retry with ATP protection
+4. **Reputation requirements**: High-reputation required for expensive operations
+
+**Status**: ⚠️ VULNERABLE - No attribution mechanism
+
+#### 4.3 ATP Front-Running
+
+**Description**: Attacker observes pending high-value ATP transactions and front-runs them.
+
+**Attack Pattern**:
+```python
+# Observe pending transaction
+pending_tx = observe_mempool()
+if pending_tx.atp_value > 1000:
+    # Submit transaction with higher priority
+    front_run_transaction(
+        atp_value=pending_tx.atp_value + 1,
+        priority=max_priority
+    )
+```
+
+**Impact**:
+- Unfair transaction ordering
+- Victim transaction fails or delayed
+- MEV (Maximal Extractable Value) attacks
+
+**Mitigation**:
+1. **Private mempools**: Hide pending transactions
+2. **Fair ordering**: FCFS or random ordering
+3. **Batch auctions**: Batch transactions to prevent ordering exploitation
+4. **Commit-reveal**: Two-phase transaction submission
+
+**Status**: ⚠️ UNKNOWN - Depends on ATP transaction mechanism
+
+### 5. Data Integrity Attacks
+
+#### 5.1 Flush Interruption
+
+**Description**: Attacker crashes system during flush to corrupt batch state.
+
+**Attack Pattern**:
+```python
+# Wait for flush to start
+wait_for_flush_start()
+
+# Kill process mid-flush
+os.kill(pid, signal.SIGKILL)
+
+# On restart:
+# - Pending updates lost or
+# - Partially flushed state or
+# - Inconsistent database state
+```
+
+**Impact**:
+- Lost trust updates
+- Database inconsistency
+- Trust score corruption
+
+**Mitigation**:
+1. **Atomic transactions**: All-or-nothing flush ✅ IMPLEMENTED
+2. **Write-ahead logging**: Log pending updates before flush
+3. **Graceful shutdown**: Flush on SIGTERM ✅ IMPLEMENTED (stop())
+4. **Idempotent operations**: Safe to retry flush
+
+**Status**: ✅ PARTIALLY MITIGATED - Atomic transactions, graceful shutdown
+
+**Implementation**:
+```python
+def flush(self):
+    try:
+        conn.begin()
+        # ... all updates ...
+        conn.commit()  # Atomic
+    except:
+        conn.rollback()
+        # Re-queue updates
+```
+
+#### 5.2 SQL Injection
+
+**Description**: Attacker injects malicious SQL through trust API parameters.
+
+**Attack Pattern**:
+```python
+api.record_action(
+    lct_id="lct:attacker'; DROP TABLE reputation_scores; --",
+    org_id="org:victim:001",
+    action_type="code_commit",
+    success=True
+)
+```
+
+**Impact**:
+- Database compromise
+- Data deletion
+- Privilege escalation
+
+**Mitigation**:
+1. **Parameterized queries**: Use %s placeholders ✅ IMPLEMENTED
+2. **Input validation**: Validate LCT format
+3. **Least privilege**: Database user with minimal permissions
+
+**Status**: ✅ MITIGATED - All queries use parameterized SQL
+
+**Implementation**:
+```python
+cursor.execute("""
+    UPDATE reputation_scores
+    SET talent_score = ...
+    WHERE lct_id = %s AND organization_id = %s
+""", (lct_id, org_id))  # Safe parameterization
+```
+
+#### 5.3 Batch Replay Attacks
+
+**Description**: Attacker replays old batch updates to revert trust scores.
+
+**Attack Pattern**:
+```python
+# Capture flush network traffic
+captured_flush = intercept_flush_packets()
+
+# Wait for victim's trust to increase
+time.sleep(3600)
+
+# Replay old flush
+replay_flush(captured_flush)
+# Victim's trust reverted to old state
+```
+
+**Impact**:
+- Trust score rollback
+- Reputation loss for victims
+- System integrity compromised
+
+**Mitigation**:
+1. **Monotonic timestamps**: Include flush timestamp
+2. **Nonces**: Unique flush ID prevents replay
+3. **TLS encryption**: Encrypt flush traffic
+4. **Database triggers**: Verify timestamps increasing
+
+**Status**: ⚠️ VULNERABLE - No replay protection
+
+**Recommended Fix**:
+```python
+def flush(self):
+    flush_id = uuid.uuid4()
+    flush_timestamp = datetime.utcnow()
+
+    cursor.execute("""
+        INSERT INTO flush_log (flush_id, timestamp, entities_count)
+        VALUES (%s, %s, %s)
+    """, (str(flush_id), flush_timestamp, len(updates_to_flush)))
+
+    # Then do actual flush with flush_id reference
+```
+
+## Summary Matrix
+
+| Attack Vector | Severity | Status | Priority |
+|--------------|----------|--------|----------|
+| Batch Stuffing | HIGH | ⚠️ Vulnerable | P1 |
+| Timing Attacks | MEDIUM | ⚠️ Vulnerable | P2 |
+| Memory Exhaustion | HIGH | ⚠️ Vulnerable | P1 |
+| Race Conditions | LOW | ✅ Mitigated | P3 |
+| Sybil Attacks | HIGH | ⚠️ Partial | P1 |
+| Reputation Washing | MEDIUM | ⚠️ Partial | P2 |
+| Score Clamping | MEDIUM | ⚠️ Vulnerable | P2 |
+| Unauthorized Delegation | HIGH | ⚠️ Partial | P1 |
+| Delegation Depth | LOW | ✅ Mitigated | P3 |
+| Revocation Evasion | MEDIUM | ⚠️ Unknown | P2 |
+| ATP Refund Exploit | MEDIUM | ⚠️ Vulnerable | P2 |
+| ATP Drain | MEDIUM | ⚠️ Vulnerable | P2 |
+| ATP Front-Running | LOW | ⚠️ Unknown | P3 |
+| Flush Interruption | LOW | ✅ Partial | P3 |
+| SQL Injection | HIGH | ✅ Mitigated | P3 |
+| Batch Replay | MEDIUM | ⚠️ Vulnerable | P2 |
+
+## Priority 1 Fixes (Critical)
+
+1. **Rate Limiting** (Batch Stuffing, Memory Exhaustion)
+   - Per-LCT rate limits
+   - Organization-level limits
+   - Absolute pending limits
+
+2. **Sybil Resistance** (Sybil Attacks)
+   - Birth certificate verification enforcement
+   - Hardware binding enforcement
+   - ATP deposit for new identities
+
+3. **Delegation Validation** (Unauthorized Delegation)
+   - Runtime signature verification
+   - Permission chain validation
+   - Audit logging
+
+## Priority 2 Fixes (Important)
+
+1. **Timing Attack Prevention** (Timing Attacks)
+   - Random flush jitter
+   - Constant-time operations
+
+2. **Trust Decay Improvements** (Score Clamping, Reputation Washing)
+   - Nonlinear penalties
+   - Accelerated decay at high trust
+   - Transfer limits
+
+3. **Revocation Enforcement** (Revocation Evasion)
+   - Real-time revocation checks
+   - Timestamp validation
+
+4. **ATP Policy Refinement** (ATP Refund, ATP Drain)
+   - Partial refunds
+   - Failure attribution
+   - Refund limits
+
+5. **Replay Protection** (Batch Replay)
+   - Flush ID tracking
+   - Timestamp validation
+   - Flush log table
+
+## Testing Recommendations
+
+### Security Test Suite
+
+1. **Rate Limit Tests**
+   - Test batch stuffing with 1000 unique entities
+   - Verify rate limit enforcement
+   - Test rate limit bypass attempts
+
+2. **Sybil Tests**
+   - Test identity creation without BC hash
+   - Test fake vouching patterns
+   - Test graph analysis detection
+
+3. **Delegation Tests**
+   - Test unauthorized delegation attempts
+   - Test delegation depth limits
+   - Test revocation timing
+
+4. **ATP Tests**
+   - Test refund policy edge cases
+   - Test ATP drain scenarios
+   - Test transaction ordering
+
+5. **Timing Tests**
+   - Measure flush timing variance
+   - Test information leakage via timing
+   - Verify jitter effectiveness
+
+6. **Resilience Tests**
+   - Test flush interruption recovery
+   - Test concurrent flush attempts
+   - Test database failure handling
+
+## Next Steps
+
+1. Implement P1 fixes (rate limiting, Sybil resistance, delegation validation)
+2. Create security test suite
+3. Perform penetration testing
+4. Document security architecture
+5. Create incident response procedures
+
+---
+
+**Session #56 Achievement**: Identified 16 attack vectors, prioritized fixes, established security testing framework.
+
+**Key Insight**: Batching introduces new attack surfaces (batch stuffing, timing attacks, memory exhaustion) that require specific mitigations beyond traditional trust system security.
+
+**Recommendation**: Security testing should be integrated into CI/CD pipeline to catch vulnerabilities early.
