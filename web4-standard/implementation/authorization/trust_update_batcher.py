@@ -2,6 +2,7 @@
 """
 Trust Update Batcher
 Session #56: Implementation of Session #53 Q11 design
+Session #57: Added Merkle tree anchoring
 
 Implements write-behind caching for trust updates to reduce database load by ~60x.
 
@@ -10,6 +11,11 @@ Design from SAGE_INTEGRATION_ANSWERS.md Q11:
 - Flush periodically (60 seconds) or on batch size (100 updates)
 - Single SQL UPDATE per entity (not one per action)
 - Atomic batch updates (all or nothing)
+
+Session #57 additions:
+- Merkle tree generation for each flush
+- Cryptographic audit trail
+- Proof-of-inclusion support
 
 Performance improvement:
 - Without batching: 1000 actions = 1000 DB writes
@@ -21,9 +27,12 @@ import threading
 import time
 import psycopg2
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from datetime import datetime
 from decimal import Decimal
+
+# Merkle tree for anchoring
+from trust_merkle_tree import TrustMerkleTree, TrustUpdateLeaf
 
 @dataclass
 class TrustDelta:
@@ -115,6 +124,11 @@ class TrustUpdateBatcher:
         # Rate limiting (lct_id -> (count, window_start))
         self.rate_limits: Dict[str, tuple[int, datetime]] = {}
 
+        # Merkle tree tracking (Session #57)
+        self.merkle_roots: List[str] = []  # Historical merkle roots
+        self.last_merkle_root: Optional[str] = None
+        self.last_merkle_tree: Optional[TrustMerkleTree] = None
+
         # Background flush thread
         self.flush_thread: Optional[threading.Thread] = None
         self.running = False
@@ -127,7 +141,8 @@ class TrustUpdateBatcher:
             'last_flush_time': None,
             'flush_errors': 0,
             'rate_limit_rejections': 0,
-            'pending_limit_rejections': 0
+            'pending_limit_rejections': 0,
+            'merkle_roots_generated': 0
         }
 
         if auto_start:
@@ -307,6 +322,8 @@ class TrustUpdateBatcher:
 
         Uses single UPDATE per entity (not per action).
         All updates are atomic (transaction).
+
+        Session #57: Also generates Merkle tree for cryptographic anchoring.
         """
         # Get pending updates
         with self.lock:
@@ -315,6 +332,36 @@ class TrustUpdateBatcher:
 
             updates_to_flush = self.pending.copy()
             self.pending.clear()
+
+        # Build Merkle tree from updates (Session #57)
+        flush_timestamp = datetime.utcnow()
+        merkle_leaves = []
+
+        for key, delta in updates_to_flush.items():
+            leaf = TrustUpdateLeaf(
+                lct_id=delta.lct_id,
+                org_id=delta.org_id,
+                talent_delta=delta.talent_delta,
+                training_delta=delta.training_delta,
+                temperament_delta=delta.temperament_delta,
+                veracity_delta=delta.veracity_delta,
+                validity_delta=delta.validity_delta,
+                valuation_delta=delta.valuation_delta,
+                timestamp=flush_timestamp,
+                action_count=delta.actions_count,
+                transaction_count=delta.transactions_count
+            )
+            merkle_leaves.append(leaf)
+
+        # Generate Merkle tree
+        merkle_tree = TrustMerkleTree(merkle_leaves)
+        merkle_root = merkle_tree.get_root_hex()
+
+        # Store Merkle tree for proof generation
+        self.last_merkle_tree = merkle_tree
+        self.last_merkle_root = merkle_root
+        self.merkle_roots.append(merkle_root)
+        self.stats['merkle_roots_generated'] += 1
 
         # Connect to database
         try:
@@ -413,13 +460,54 @@ class TrustUpdateBatcher:
             return {
                 **self.stats,
                 'pending_updates': len(self.pending),
-                'pending_entities': list(self.pending.keys())[:10]  # First 10
+                'pending_entities': list(self.pending.keys())[:10],  # First 10
+                'last_merkle_root': self.last_merkle_root,
+                'merkle_roots_count': len(self.merkle_roots)
             }
 
     def get_pending_count(self) -> int:
         """Get count of pending updates"""
         with self.lock:
             return len(self.pending)
+
+    def get_merkle_proof(self, lct_id: str, org_id: str) -> Optional[dict]:
+        """
+        Get Merkle proof for the last flush containing this entity.
+
+        Args:
+            lct_id: LCT identity
+            org_id: Organization ID
+
+        Returns:
+            Dictionary with proof data, or None if not found
+
+        Note: Only works for the last flush. For historical proofs,
+        need to query merkle_proofs table (Phase 1).
+        """
+        if not self.last_merkle_tree:
+            return None
+
+        # Find the entity in last flush
+        key = f"{lct_id}:{org_id}"
+        for i, leaf in enumerate(self.last_merkle_tree.leaves):
+            if leaf.lct_id == lct_id and leaf.org_id == org_id:
+                # Found it - generate proof
+                proof = self.last_merkle_tree.get_proof_hex(i)
+                return {
+                    'lct_id': lct_id,
+                    'org_id': org_id,
+                    'leaf_index': i,
+                    'leaf_hash': leaf.hash().hex(),
+                    'merkle_root': self.last_merkle_root,
+                    'proof': proof,
+                    'timestamp': leaf.timestamp.isoformat()
+                }
+
+        return None
+
+    def get_all_merkle_roots(self) -> List[str]:
+        """Get list of all merkle roots generated"""
+        return self.merkle_roots.copy()
 
 
 # Example usage
