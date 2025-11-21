@@ -85,7 +85,10 @@ class TrustUpdateBatcher:
                  db_config: dict,
                  flush_interval_seconds: int = 60,
                  max_batch_size: int = 100,
-                 auto_start: bool = True):
+                 auto_start: bool = True,
+                 max_updates_per_minute_per_lct: int = 60,
+                 max_pending_total: int = 10000,
+                 max_pending_per_lct: int = 100):
         """
         Initialize trust update batcher.
 
@@ -94,14 +97,23 @@ class TrustUpdateBatcher:
             flush_interval_seconds: Seconds between automatic flushes
             max_batch_size: Maximum updates before forcing flush
             auto_start: Start background flush thread automatically
+            max_updates_per_minute_per_lct: Rate limit per LCT (default: 60)
+            max_pending_total: Max total pending updates (default: 10000)
+            max_pending_per_lct: Max pending per LCT (default: 100)
         """
         self.db_config = db_config
         self.flush_interval = flush_interval_seconds
         self.max_batch_size = max_batch_size
+        self.max_updates_per_minute_per_lct = max_updates_per_minute_per_lct
+        self.max_pending_total = max_pending_total
+        self.max_pending_per_lct = max_pending_per_lct
 
         # Pending updates (key: "lct_id:org_id" -> TrustDelta)
         self.pending: Dict[str, TrustDelta] = {}
         self.lock = threading.Lock()
+
+        # Rate limiting (lct_id -> (count, window_start))
+        self.rate_limits: Dict[str, tuple[int, datetime]] = {}
 
         # Background flush thread
         self.flush_thread: Optional[threading.Thread] = None
@@ -113,7 +125,9 @@ class TrustUpdateBatcher:
             'total_flushes': 0,
             'total_entities_flushed': 0,
             'last_flush_time': None,
-            'flush_errors': 0
+            'flush_errors': 0,
+            'rate_limit_rejections': 0,
+            'pending_limit_rejections': 0
         }
 
         if auto_start:
@@ -151,6 +165,56 @@ class TrustUpdateBatcher:
                     print(f"Error in flush loop: {e}")
                     self.stats['flush_errors'] += 1
 
+    def _check_rate_limit(self, lct_id: str) -> bool:
+        """
+        Check if LCT is within rate limit.
+
+        Returns:
+            True if within limit, False if exceeded
+        """
+        now = datetime.utcnow()
+
+        if lct_id not in self.rate_limits:
+            # First update for this LCT
+            self.rate_limits[lct_id] = (1, now)
+            return True
+
+        count, window_start = self.rate_limits[lct_id]
+
+        # Check if window has expired (1 minute)
+        window_age = (now - window_start).total_seconds()
+        if window_age >= 60:
+            # Reset window
+            self.rate_limits[lct_id] = (1, now)
+            return True
+
+        # Within current window
+        if count >= self.max_updates_per_minute_per_lct:
+            # Rate limit exceeded
+            return False
+
+        # Increment count
+        self.rate_limits[lct_id] = (count + 1, window_start)
+        return True
+
+    def _check_pending_limits(self, key: str) -> bool:
+        """
+        Check if pending limits would be exceeded.
+
+        Returns:
+            True if within limits, False if exceeded
+        """
+        # Check total pending limit
+        if key not in self.pending and len(self.pending) >= self.max_pending_total:
+            return False
+
+        # Check per-LCT pending limit
+        if key in self.pending:
+            if self.pending[key].actions_count + self.pending[key].transactions_count >= self.max_pending_per_lct:
+                return False
+
+        return True
+
     def record_t3_update(self,
                         lct_id: str,
                         org_id: str,
@@ -161,11 +225,24 @@ class TrustUpdateBatcher:
         Record T3 trust update in memory.
 
         Will be flushed to database on next flush cycle.
+
+        Raises:
+            RuntimeError: If rate limit or pending limit exceeded
         """
         should_flush = False
 
         with self.lock:
+            # Check rate limit
+            if not self._check_rate_limit(lct_id):
+                self.stats['rate_limit_rejections'] += 1
+                raise RuntimeError(f"Rate limit exceeded for LCT {lct_id}")
+
             key = f"{lct_id}:{org_id}"
+
+            # Check pending limits
+            if not self._check_pending_limits(key):
+                self.stats['pending_limit_rejections'] += 1
+                raise RuntimeError(f"Pending limit exceeded for {key}")
 
             if key not in self.pending:
                 self.pending[key] = TrustDelta(lct_id, org_id)
@@ -191,11 +268,24 @@ class TrustUpdateBatcher:
         Record V3 trust update in memory.
 
         Will be flushed to database on next flush cycle.
+
+        Raises:
+            RuntimeError: If rate limit or pending limit exceeded
         """
         should_flush = False
 
         with self.lock:
+            # Check rate limit
+            if not self._check_rate_limit(lct_id):
+                self.stats['rate_limit_rejections'] += 1
+                raise RuntimeError(f"Rate limit exceeded for LCT {lct_id}")
+
             key = f"{lct_id}:{org_id}"
+
+            # Check pending limits
+            if not self._check_pending_limits(key):
+                self.stats['pending_limit_rejections'] += 1
+                raise RuntimeError(f"Pending limit exceeded for {key}")
 
             if key not in self.pending:
                 self.pending[key] = TrustDelta(lct_id, org_id)
