@@ -1,10 +1,12 @@
 # Claude Context for Web4
 
 ## Machine Information
-**Current Machine**: WSL2 on Windows
-- **OS**: Linux 6.6.87.2-microsoft-standard-WSL2
-- **Platform**: /mnt/c/exe/projects/ai-agents/web4
-- **Working Directory**: /mnt/c/exe/projects/ai-agents/web4
+**Current Machine**: Legion Pro 7 (Native Linux)
+- **Model**: Legion Pro 7 16IRX8H
+- **OS**: Ubuntu 22.04 LTS (Linux 6.8.0-86-generic)
+- **Hardware**: Intel Core i9-13900HX, NVIDIA RTX 4080 (12GB), 32GB RAM
+- **Platform**: /home/dp/ai-workspace/web4
+- **Working Directory**: /home/dp/ai-workspace/web4
 
 ## Authentication
 **GitHub PAT Location**: `../.env` (GITHUB_PAT variable)
