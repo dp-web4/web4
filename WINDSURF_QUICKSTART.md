@@ -104,7 +104,11 @@ web4/
 ├── docs/              # Conceptual documentation
 ├── examples/          # Reference implementations
 ├── tools/             # Utilities and helpers
-└── research/          # Theoretical foundations
+├── research/          # Theoretical foundations
+└── implementation/    # Working code you can use
+    └── reference/
+        ├── lct_identity.py    # LCT creation, Ed25519 signing
+        └── mrh_graph.py       # RDF graph, trust propagation
 ```
 
 **Key documents**:
@@ -112,6 +116,83 @@ web4/
 - `standards/ATP-Energy.md` - Value exchange
 - `docs/Web4-Overview.md` - High-level concepts
 - `research/Trust-Dynamics.md` - Trust mathematics
+
+**Implemented code you can use**:
+```
+web4/
+├── implementation/reference/
+│   ├── lct_identity.py          # LCT creation, Ed25519 signing
+│   └── mrh_graph.py              # RDF graph, trust propagation
+├── web4-standard/
+│   ├── mrh_rdf_implementation.py # MRH with Markov traversal
+│   └── implementation/act_deployment/
+│       └── lct.py                # Standalone LCT library
+```
+
+**Use these as your data layer** - No need to reimplement core concepts.
+
+---
+
+## Technical Quick Start
+
+### Prerequisites (Install Before Event)
+
+```bash
+# Python dependencies
+pip install cryptography rdflib networkx matplotlib
+
+# Verify installation
+python -c "import cryptography; from cryptography.hazmat.primitives.asymmetric import ed25519; print('✅ Ready')"
+```
+
+**What each does:**
+- `cryptography` - Ed25519 signing for LCT identities
+- `rdflib` - RDF graph for MRH relationships
+- `networkx` - Graph algorithms for traversal
+- `matplotlib` - Visualization (optional, for Python demos)
+
+### Validate Your Environment (30 seconds)
+
+```bash
+# Navigate to web4 repo
+cd /path/to/web4
+
+# Run existing LCT demo to understand the system
+python implementation/reference/lct_identity.py
+
+# Run MRH demo to see graph structure
+python web4-standard/mrh_rdf_implementation.py
+```
+
+**Expected output**: Both demos should run without errors, showing LCT creation and graph traversal examples.
+
+### HTML/JS Starting Template
+
+**Minimal structure for web demos (no build system required):**
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web4 Demo - [Your Feature]</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: monospace; margin: 20px; }
+        #viz { border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Web4 [Feature Name]</h1>
+    <div id="viz"></div>
+    <script>
+        // Web4 concept demonstration
+        // Your code here
+    </script>
+</body>
+</html>
+```
+
+---
 
 ## Technical Foundation
 

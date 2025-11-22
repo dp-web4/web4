@@ -35,13 +35,56 @@ Trust path visualized in 3D space (x=time, y=trust level, z=certainty)
 
 **The hook**: "This is how trust actually evolves, mathematically. Not reputation scores, actual physics of trust."
 
+**Where to find working code:**
+- Trust tensor structure: `web4-standard/implementation/reference/mrh_graph.py` (lines 142-164)
+- Trust propagation: Same file, `propagate_trust()` method (lines 391-424)
+- Sample T3 data: See `__main__` section (lines 520-635) for examples
+
+**Minimal working data structure:**
+```python
+@dataclass
+class T3Tensor:
+    entity_lct: str
+    role_lct: str
+    talent: float = 0.5      # Natural capability (0-1)
+    training: float = 0.5    # Acquired skill (0-1)
+    temperament: float = 0.5 # Reliability/consistency (0-1)
+
+    def average(self) -> float:
+        return (self.talent + self.training + self.temperament) / 3.0
+```
+
+**What to visualize:**
+- **X-axis**: Time (interaction sequence: 1, 2, 3...)
+- **Y-axis**: Trust level (0-1, from T3.average())
+- **Z-axis** (optional): Certainty (variance across talent/training/temperament)
+- **Key insight**: Show how trust recovers differently after negative events
+
+**Time budget (3-4 hours total):**
+- **Hour 1**: Get existing trust code working, understand data structures
+- **Hour 2**: Basic 2D visualization (trust over time)
+- **Hour 3**: Add interactivity, polish visuals
+- **Hour 4**: Documentation, demo prep
+
+**Minimum viable (must have):**
+- Interactive trust evolution over 5-10 interactions
+- Visual distinction between positive/negative outcomes
+- Clear labels ("This is how trust recovers after breaks")
+- One-sentence explanation of T3 components
+
+**Nice to have (if time):**
+- 3D visualization with certainty axis
+- Multiple entities comparing trust paths
+- Adjustable interaction parameters
+- Export trust trajectory data
+
 **Files to create**:
 ```
 web4/examples/trust-visualizer/
-├── index.html
-├── trust-dynamics.js
-├── visualization.js
-└── README.md
+├── index.html           # Main demo page
+├── trust-dynamics.js    # T3 tensor calculations
+├── visualization.js     # D3.js visualization
+└── README.md            # Explanation and usage
 ```
 
 **Success metric**: People ask "How does the math work?" or "Can this model real interactions?"
@@ -297,7 +340,7 @@ web4/tools/dictionary-entity/
 **Actual goal**: Introduce Web4 to Portland's AI-native builder community through direct engagement
 **Success**: People leave thinking "I need to understand this better"
 
-**The trojan horse works because**:
+**Why this approach works**:
 - It's not a pitch, it's a demo
 - They engage with the code, not marketing
 - Questions arise naturally from curiosity
