@@ -796,10 +796,13 @@ def flush(self):
 
 **Session #57 Achievement**: Implemented Merkle tree anchoring, mitigating batch replay attacks and enabling cryptographic auditability.
 
+**Session #61 Achievement**: Implemented timing attack prevention with random flush jitter and noise injection, mitigating information leakage through flush timing observation.
+
 **Key Insights**:
 1. Batching introduces new attack surfaces (batch stuffing, timing attacks, memory exhaustion) that require specific mitigations beyond traditional trust system security.
 2. Merkle trees provide exponentially-hard tamper detection without blockchain costs (Phase 1).
 3. "Trust through witnessing" principle applies to trust evolution itself, not just identity.
+4. Timing as information channel: Deterministic timing can leak significant information about concurrent system activity, requiring statistical defenses (jitter, noise).
 
 ## Session #57 Merkle Tree Benefits
 
