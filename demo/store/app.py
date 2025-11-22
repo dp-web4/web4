@@ -23,6 +23,7 @@ Date: November 10, 2025
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 from decimal import Decimal
@@ -49,6 +50,22 @@ from t3_tracker import T3Tracker
 
 # Initialize FastAPI app
 app = FastAPI(title="Web4 Demo Store", version="1.0.0")
+
+# Allow the trust visualizer (and local dev tools) to call the JSON APIs
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8000",
+        "http://localhost:8001",
+        "http://localhost:8002",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8001",
+        "http://127.0.0.1:8002",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ============================================================================
@@ -879,6 +896,59 @@ async def dashboard_data():
             for c in recent
         ]
     }
+
+
+@app.get("/api/t3/history")
+async def t3_history(agent_id: str):
+    """Return a simplified trust history for visualization.
+
+    Maps the T3Tracker transaction history into a sequence of points with
+    time index, value in [-1,1], certainty in [0,1], and an outcome label.
+    """
+    profile = t3_tracker.get_profile(agent_id)
+    if not profile:
+        return {"agent_id": agent_id, "history": []}
+
+    history = profile.transaction_history or []
+    points = []
+    trust_value = 0.0
+    certainty = 0.0
+
+    for idx, rec in enumerate(history):
+        success = rec.get("success", False)
+        within_constraints = rec.get("within_constraints", True)
+
+        if success and within_constraints:
+            outcome = "positive"
+        elif not success or not within_constraints:
+            outcome = "negative"
+        else:
+            outcome = "neutral"
+
+        # Very simple mapping: move toward +1 on positive, -1 on negative
+        if outcome == "positive":
+            trust_value += (1 - trust_value) * 0.3
+        elif outcome == "negative":
+            trust_value += (-1 - trust_value) * 0.5
+        else:
+            trust_value += (0 - trust_value) * 0.05
+
+        trust_value = max(-1.0, min(1.0, trust_value))
+
+        certainty += (1 - certainty) * 0.15
+        certainty *= 0.99
+        certainty = max(0.0, min(1.0, certainty))
+
+        points.append(
+            {
+                "time": idx,
+                "value": trust_value,
+                "certainty": certainty,
+                "outcome": outcome,
+            }
+        )
+
+    return {"agent_id": agent_id, "history": points}
 
 
 # ============================================================================

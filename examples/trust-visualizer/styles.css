@@ -33,6 +33,34 @@ body {
   font-size: 0.95rem;
 }
 
+.agent-bar {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.agent-label {
+  font-size: 0.85rem;
+  color: #e5e7eb;
+}
+
+.agent-select {
+  min-width: 220px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  font-size: 0.85rem;
+}
+
+.agent-status {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
 .content {
   display: grid;
   grid-template-columns: minmax(0, 320px) minmax(0, 1fr);

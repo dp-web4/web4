@@ -167,11 +167,77 @@ window.addEventListener("DOMContentLoaded", () => {
   const certaintyEl = document.getElementById("stat-certainty");
   const countEl = document.getElementById("stat-count");
 
+   const agentSelect = document.getElementById("agent-select");
+   const loadLiveBtn = document.getElementById("btn-load-live");
+   const agentStatus = document.getElementById("agent-status");
+
   function render() {
     viz.update(trust);
     trustEl.textContent = trust.value.toFixed(3);
     certaintyEl.textContent = trust.certainty.toFixed(3);
     countEl.textContent = trust.history.length.toString();
+  }
+
+  async function loadAgentsFromStore() {
+    try {
+      const resp = await fetch("http://localhost:8000/api/agents");
+      const agents = await resp.json();
+
+      if (!agents.length) {
+        agentSelect.innerHTML = '<option value="">No agents</option>';
+        agentStatus.textContent = "No agents available from store";
+        return;
+      }
+
+      agentSelect.innerHTML = agents
+        .map(
+          (a, idx) => `
+          <option value="${a.agent_id}" ${idx === 0 ? "selected" : ""}>
+            ${a.agent_name} (${a.agent_id})
+          </option>
+        `,
+        )
+        .join("");
+
+      agentStatus.textContent = "Loaded agents from store";
+    } catch (e) {
+      agentSelect.innerHTML = '<option value="agent-claude-demo">agent-claude-demo</option>';
+      agentStatus.textContent = "Could not load agents; using default";
+    }
+  }
+
+  async function loadLiveHistory() {
+    const agentId = agentSelect.value || "agent-claude-demo";
+    try {
+      const resp = await fetch(
+        `http://localhost:8000/api/t3/history?agent_id=${encodeURIComponent(agentId)}`,
+      );
+      const data = await resp.json();
+      const history = data.history || [];
+
+      trust.reset();
+
+      for (const pt of history) {
+        trust.history.push({
+          time: pt.time,
+          value: pt.value,
+          certainty: pt.certainty,
+          outcome: pt.outcome,
+          magnitude: 0.7,
+        });
+      }
+
+      if (history.length) {
+        const last = history[history.length - 1];
+        trust.value = last.value;
+        trust.certainty = last.certainty;
+      }
+
+      render();
+      agentStatus.textContent = `Showing live trust history for ${agentId}`;
+    } catch (e) {
+      agentStatus.textContent = "Failed to load live trust history";
+    }
   }
 
   function applyInteraction(outcome) {
@@ -200,6 +266,13 @@ window.addEventListener("DOMContentLoaded", () => {
     render();
   });
 
+  loadLiveBtn.addEventListener("click", () => {
+    loadLiveHistory();
+  });
+
   // Initial render
   render();
+
+  // Load agents from the running store so the user can pick an entity
+  loadAgentsFromStore();
 });
