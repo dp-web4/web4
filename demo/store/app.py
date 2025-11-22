@@ -43,6 +43,7 @@ from key_rotation import KeyRotationManager
 from witness_enforcer import WitnessEnforcer
 from resource_constraints import ResourceConstraints, PermissionLevel
 from financial_binding import FinancialBinding, PaymentMethod, PaymentMethodType
+from t3_tracker import T3Tracker
 
 
 # Initialize FastAPI app
@@ -117,6 +118,9 @@ timestamp_validator = TimestampValidator()
 key_rotation_manager = KeyRotationManager()
 witness_enforcer = WitnessEnforcer()
 
+# T3 tracker for demo agent reputation
+t3_tracker = T3Tracker(storage_path="demo_t3_profiles.json")
+
 # Setup demo agent "Claude"
 DEMO_AGENT_ID = "agent-claude-demo"
 DEMO_USER_ID = "user-alice-demo"
@@ -151,7 +155,7 @@ demo_binding = FinancialBinding(
     allowed_categories=["books", "music"]
 )
 
-# Create Web4 verifier
+# Create Web4 verifier with T3 trust integration
 verifier = Web4Verifier(
     atp_tracker=atp_tracker,
     revocation_registry=revocation_registry,
@@ -160,7 +164,9 @@ verifier = Web4Verifier(
     key_rotation_manager=key_rotation_manager,
     witness_enforcer=witness_enforcer,
     resource_constraints_registry={DEMO_USER_ID: demo_constraints},
-    financial_binding_registry={DEMO_AGENT_ID: demo_binding}
+    financial_binding_registry={DEMO_AGENT_ID: demo_binding},
+    t3_tracker=t3_tracker,
+    min_trust_threshold=0.0,  # Do not hard-fail on trust in the demo, just track it
 )
 
 
@@ -362,6 +368,28 @@ async def dashboard():
     atp_account = atp_tracker.accounts.get(DEMO_AGENT_ID)
     atp_remaining = atp_account.remaining_today() if atp_account else 0
 
+    # Get T3 trust statistics for demo agent (if any)
+    t3_stats = t3_tracker.get_stats(DEMO_AGENT_ID)
+    if t3_stats:
+        t3_scores = t3_stats["t3_scores"]
+        t3_statistics = t3_stats["statistics"]
+    else:
+        t3_scores = {
+            "talent": 0.5,
+            "training": 0.0,
+            "temperament": 0.5,
+            "composite": 0.0,
+        }
+        t3_statistics = {
+            "total_transactions": 0,
+            "successful_transactions": 0,
+            "success_rate": 0.0,
+            "constraint_violations": 0,
+            "constraint_adherence_rate": 0.0,
+            "total_value_handled": 0.0,
+            "experience_level": 0.0,
+        }
+
     charges_html = ""
     for charge in recent:
         status_icon = "✅" if charge.status.value == "completed" else "❌"
@@ -471,6 +499,34 @@ async def dashboard():
         </div>
 
         <div class="card">
+            <h2>🎯 Agent Trust (T3)</h2>
+            <p style="color: #666; margin-bottom: 10px;">Trust tensor for demo agent based on transaction history.</p>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+                <div class="stat-box">
+                    <div class="stat-label">Talent</div>
+                    <div class="stat-value">{t3_scores["talent"]:.2f}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Training</div>
+                    <div class="stat-value">{t3_scores["training"]:.2f}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Temperament</div>
+                    <div class="stat-value">{t3_scores["temperament"]:.2f}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Composite</div>
+                    <div class="stat-value">{t3_scores["composite"]:.2f}</div>
+                </div>
+            </div>
+            <p style="color: #666; margin-top: 10px; font-size: 14px;">
+                {t3_statistics["total_transactions"]} transactions,
+                {t3_statistics["successful_transactions"]} successful,
+                success rate {(t3_statistics["success_rate"] * 100):.0f}%
+            </p>
+        </div>
+
+        <div class="card">
             <h2>📝 Recent Activity</h2>
             {charges_html if charges_html else '<p style="color: #666;">No purchases yet</p>'}
         </div>
@@ -553,20 +609,26 @@ async def purchase(request: PurchaseRequest):
                 verification_result=result.to_dict()
             )
 
-        # Authorization successful - record purchase
-        charge = demo_binding.record_charge(
+        # Authorization successful - record purchase and update T3 reputation
+        verifier.record_purchase(
+            delegatee_id=DEMO_AGENT_ID,
             amount=product["price"],
             merchant="demostore.com",
-            description=f"Purchase: {product['name']}",
             item_id=product["id"],
-            category=product["category"]
+            category=product["category"],
+            success=True,
+            within_constraints=True,
+            quality_score=0.9,
         )
+
+        # Get the latest charge from financial binding for response
+        latest_charge = demo_binding.get_charge_history(limit=1)[0]
 
         return PurchaseResponse(
             success=True,
             message=f"Purchase successful! Bought {product['name']} for ${product['price']}",
             verification_result=result.to_dict(),
-            charge_id=charge.charge_id
+            charge_id=latest_charge.charge_id
         )
 
     except Exception as e:
@@ -578,13 +640,15 @@ async def purchase(request: PurchaseRequest):
 
 @app.get("/api/dashboard-data")
 async def dashboard_data():
-    """Get dashboard data as JSON."""
+    """Get dashboard data as JSON, including T3 trust stats."""
     spent = demo_binding.get_daily_spending()
     remaining = demo_binding.get_remaining_daily()
     recent = demo_binding.get_charge_history(limit=10)
 
     atp_account = atp_tracker.accounts.get(DEMO_AGENT_ID)
     atp_remaining = atp_account.remaining_today() if atp_account else 0
+
+    t3_stats = t3_tracker.get_stats(DEMO_AGENT_ID)
 
     return {
         "financial": {
@@ -597,6 +661,7 @@ async def dashboard_data():
             "remaining": atp_remaining,
             "daily_limit": 1000
         },
+        "t3": t3_stats,
         "recent_charges": [
             {
                 "timestamp": c.timestamp,
