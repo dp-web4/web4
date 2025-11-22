@@ -58,6 +58,9 @@ delegations_db: Dict[str, dict] = {}
 # Store pending approvals
 pending_approvals: Dict[str, dict] = {}
 
+# Store approved purchases (for demo-local approval→retry behavior)
+approved_purchases: List[Dict[str, Any]] = []
+
 # Store activity log
 activity_log: List[Dict[str, Any]] = []
 
@@ -1009,6 +1012,16 @@ async def get_delegations():
     return list(delegations_db.values())
 
 
+@app.get("/api/delegations/by-agent/{agent_id}")
+async def get_delegation_by_agent(agent_id: str):
+    """Get the first active delegation for a given agent_id, if any."""
+    for delegation in delegations_db.values():
+        if delegation.get("agent_id") == agent_id and delegation.get("status") == "active":
+            return delegation
+
+    raise HTTPException(status_code=404, detail="No active delegation for this agent")
+
+
 @app.post("/api/delegations/{delegation_id}/revoke")
 async def revoke_delegation(delegation_id: str):
     """Revoke a delegation."""
@@ -1040,6 +1053,39 @@ async def get_approvals():
     return list(pending_approvals.values())
 
 
+@app.post("/api/approvals")
+async def create_approval(request: Request):
+    data = await request.json()
+
+    approval_id = f"app-{uuid.uuid4().hex[:16]}"
+
+    approval = {
+        "approval_id": approval_id,
+        "agent_name": data.get("agent_name", "Unknown agent"),
+        "agent_id": data.get("agent_id"),
+        "amount": data.get("amount"),
+        "item_id": data.get("item_id"),
+        "item_description": data.get("item_description", "Unknown item"),
+        "reason": data.get("reason", "High-value purchase requires approval"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    pending_approvals[approval_id] = approval
+
+    activity_log.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_type": "purchase",
+        "agent_name": approval["agent_name"],
+        "agent_id": approval.get("agent_id"),
+        "details": f"High-value purchase request pending approval: {approval['item_description']} (${approval['amount']})",
+    })
+
+    return {
+        "success": True,
+        "approval_id": approval_id,
+    }
+
+
 @app.post("/api/approvals/respond")
 async def respond_to_approval(request: ApprovalRequest):
     """Respond to pending approval."""
@@ -1049,6 +1095,16 @@ async def respond_to_approval(request: ApprovalRequest):
     approval = pending_approvals[request.approval_id]
     approval["approved"] = request.approved
     approval["responded_at"] = datetime.now(timezone.utc).isoformat()
+
+    # If approved, record in approved_purchases so the store can allow retry
+    if request.approved:
+        approved_purchases.append({
+            "agent_id": approval.get("agent_id"),
+            "item_id": approval.get("item_id"),
+            "max_amount": approval.get("amount"),
+            "created_at": approval["responded_at"],
+            "approval_id": approval.get("approval_id"),
+        })
 
     # Log activity
     activity_log.append({
@@ -1072,6 +1128,26 @@ async def get_activity():
     """Get recent activity log."""
     # Return most recent 50 events, newest first
     return sorted(activity_log, key=lambda x: x["timestamp"], reverse=True)[:50]
+
+
+@app.get("/api/approvals/allowed")
+async def is_purchase_allowed(agent_id: str, item_id: str, amount: float):
+    """Check if a specific purchase has been approved.
+
+    This is a demo-local helper for the store: if a high-value purchase was
+    previously approved in the Delegation Manager, the store can allow it
+    on retry even if the T3 trust threshold is low.
+    """
+
+    for entry in approved_purchases:
+        if (
+            entry.get("agent_id") == agent_id
+            and entry.get("item_id") == item_id
+            and amount <= float(entry.get("max_amount", 0))
+        ):
+            return {"allowed": True, "approval_id": entry.get("approval_id")}
+
+    return {"allowed": False}
 
 
 @app.get("/api/agents/{agent_id}/trust")

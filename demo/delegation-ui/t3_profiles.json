@@ -11,5 +11,44 @@
     "successful_transactions": 0,
     "constraint_violations": 0,
     "total_value_handled": 0.0
+  },
+  "agent2": {
+    "agent_id": "agent2",
+    "talent": 0.5,
+    "training": 0.0,
+    "temperament": 0.5,
+    "transaction_history": [],
+    "created_at": "2025-11-22T04:12:25.507733Z",
+    "last_updated": "2025-11-22T04:12:25.507733Z",
+    "total_transactions": 0,
+    "successful_transactions": 0,
+    "constraint_violations": 0,
+    "total_value_handled": 0.0
+  },
+  "bot": {
+    "agent_id": "bot",
+    "talent": 0.5,
+    "training": 0.0,
+    "temperament": 0.5,
+    "transaction_history": [],
+    "created_at": "2025-11-22T04:25:58.176157Z",
+    "last_updated": "2025-11-22T04:25:58.176157Z",
+    "total_transactions": 0,
+    "successful_transactions": 0,
+    "constraint_violations": 0,
+    "total_value_handled": 0.0
+  },
+  "public": {
+    "agent_id": "public",
+    "talent": 0.5,
+    "training": 0.0,
+    "temperament": 0.5,
+    "transaction_history": [],
+    "created_at": "2025-11-22T04:29:29.035388Z",
+    "last_updated": "2025-11-22T04:29:29.035388Z",
+    "total_transactions": 0,
+    "successful_transactions": 0,
+    "constraint_violations": 0,
+    "total_value_handled": 0.0
   }
 }

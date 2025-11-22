@@ -1,0 +1,79 @@
+{
+  "agent-claude-demo": {
+    "agent_id": "agent-claude-demo",
+    "talent": 0.97,
+    "training": 0.45057144967106383,
+    "temperament": 1.0,
+    "transaction_history": [
+      {
+        "timestamp": "2025-11-22T03:53:36.236212Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 45.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-22T04:05:42.358388Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 79.99,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-22T04:07:38.142791Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 79.99,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-22T04:13:00.744319Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 79.99,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-22T04:17:06.586161Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 29.99,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-22T04:26:25.043801Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 79.99,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2025-11-22T04:29:54.639113Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 79.99,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      }
+    ],
+    "created_at": "2025-11-22T03:53:36.229172Z",
+    "last_updated": "2025-11-22T04:29:54.639474Z",
+    "total_transactions": 7,
+    "successful_transactions": 7,
+    "constraint_violations": 0,
+    "total_value_handled": 474.94
+  }
+}

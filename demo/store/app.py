@@ -28,6 +28,7 @@ from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime, timezone
 import json
+import requests
 
 # Import Web4 components (from parent directory)
 import sys
@@ -121,9 +122,12 @@ witness_enforcer = WitnessEnforcer()
 # T3 tracker for demo agent reputation
 t3_tracker = T3Tracker(storage_path="demo_t3_profiles.json")
 
-# Setup demo agent "Claude"
+# Setup demo agent "Claude" (default active agent)
 DEMO_AGENT_ID = "agent-claude-demo"
 DEMO_USER_ID = "user-alice-demo"
+
+# Active agent for the store session (can be switched via API)
+ACTIVE_AGENT_ID = DEMO_AGENT_ID
 
 # Create ATP account for demo agent
 atp_tracker.create_account(
@@ -138,7 +142,7 @@ demo_constraints.add_allowed("demostore.com:products/books/*")
 demo_constraints.add_allowed("demostore.com:products/music/*")
 demo_constraints.add_denied("demostore.com:products/digital/*")  # No digital goods
 
-# Create financial binding
+# Create financial binding with default limits (can be overridden by Delegation Manager)
 demo_card = PaymentMethod(
     method_type=PaymentMethodType.CREDIT_CARD,
     identifier="4242",
@@ -179,6 +183,11 @@ class PurchaseRequest(BaseModel):
     product_id: str
     lct_chain: dict
     nonce: Optional[str] = None
+
+
+class SetActiveAgentRequest(BaseModel):
+    """Request to change the active agent for the demo store."""
+    agent_id: str
 
 
 class PurchaseResponse(BaseModel):
@@ -290,6 +299,11 @@ async def home():
                 <a href="/dashboard">Dashboard</a>
                 <a href="/docs">API Docs</a>
             </div>
+            <div style="margin-top: 20px; display: flex; align-items: center; gap: 10px;">
+                <label for="agent-select" style="font-weight: 500;">Active Agent:</label>
+                <select id="agent-select" style="padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.9); min-width: 220px;"></select>
+                <span id="agent-select-status" style="font-size: 12px; opacity: 0.9;"></span>
+            </div>
         </div>
 
         <div class="info-box">
@@ -302,6 +316,58 @@ async def home():
         <div id="products" class="product-grid"></div>
 
         <script>
+            let activeAgentId = null;
+
+            async function loadAgents() {
+                try {
+                    const [agentsResp, activeResp] = await Promise.all([
+                        fetch('/api/agents'),
+                        fetch('/api/active-agent'),
+                    ]);
+
+                    const agents = await agentsResp.json();
+                    const activeData = await activeResp.json();
+                    activeAgentId = activeData.agent_id;
+
+                    const select = document.getElementById('agent-select');
+                    const status = document.getElementById('agent-select-status');
+
+                    select.innerHTML = agents.map(a => `
+                        <option value="${a.agent_id}" ${a.agent_id === activeAgentId ? 'selected' : ''}>
+                            ${a.agent_name} (${a.agent_id})
+                        </option>
+                    `).join('');
+
+                    select.onchange = async () => {
+                        const newId = select.value;
+                        try {
+                            const resp = await fetch('/api/active-agent', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ agent_id: newId })
+                            });
+                            if (resp.ok) {
+                                const data = await resp.json();
+                                activeAgentId = data.agent_id;
+                                status.textContent = '✓ Agent updated';
+                            } else {
+                                status.textContent = '⚠️ Failed to update agent';
+                            }
+                        } catch (e) {
+                            status.textContent = '⚠️ Error updating agent';
+                        }
+                    };
+
+                    status.textContent = 'Using agent ' + activeAgentId;
+                } catch (e) {
+                    const select = document.getElementById('agent-select');
+                    const status = document.getElementById('agent-select-status');
+                    select.innerHTML = '<option>agent-claude-demo</option>';
+                    activeAgentId = 'agent-claude-demo';
+                    status.textContent = '⚠️ Could not load agents; using default';
+                }
+            }
+
             async function loadProducts() {
                 const response = await fetch('/api/products');
                 const products = await response.json();
@@ -322,6 +388,17 @@ async def home():
 
             async function buyProduct(productId) {
                 try {
+                    // Fallback in case agent metadata failed to load
+                    if (!activeAgentId) {
+                        try {
+                            const activeResp = await fetch('/api/active-agent');
+                            const activeData = await activeResp.json();
+                            activeAgentId = activeData.agent_id || 'agent-claude-demo';
+                        } catch (e) {
+                            activeAgentId = 'agent-claude-demo';
+                        }
+                    }
+
                     const response = await fetch('/api/purchase', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -329,7 +406,7 @@ async def home():
                             product_id: productId,
                             lct_chain: {
                                 delegator: 'user-alice-demo',
-                                delegatee: 'agent-claude-demo',
+                                delegatee: activeAgentId,
                                 delegation_timestamp: new Date().toISOString()
                             }
                         })
@@ -348,7 +425,7 @@ async def home():
                 }
             }
 
-            loadProducts();
+            loadAgents().then(loadProducts);
         </script>
     </body>
     </html>
@@ -358,18 +435,35 @@ async def home():
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
     """Activity dashboard."""
+    # Try to pull delegation limits from Delegation Manager for the active agent
+    delegation_daily_limit = Decimal("500.00")
+    delegation_per_tx_limit = Decimal("100.00")
+    try:
+        resp = requests.get(
+            "http://localhost:8001/api/delegations/by-agent/" + ACTIVE_AGENT_ID,
+            timeout=2.0,
+        )
+        if resp.ok:
+            d = resp.json()
+            delegation_daily_limit = Decimal(str(d.get("daily_budget", 500.0)))
+            delegation_per_tx_limit = Decimal(str(d.get("per_transaction_limit", 100.0)))
+            demo_binding.daily_limit = delegation_daily_limit
+            demo_binding.per_transaction_limit = delegation_per_tx_limit
+    except Exception:
+        pass
+
     # Get spending info
     spent = demo_binding.get_daily_spending()
     remaining = demo_binding.get_remaining_daily()
     by_merchant = demo_binding.get_spending_by_merchant()
     recent = demo_binding.get_charge_history(limit=10)
 
-    # Get ATP info
-    atp_account = atp_tracker.accounts.get(DEMO_AGENT_ID)
+    # Get ATP info for active agent
+    atp_account = atp_tracker.accounts.get(ACTIVE_AGENT_ID)
     atp_remaining = atp_account.remaining_today() if atp_account else 0
 
-    # Get T3 trust statistics for demo agent (if any)
-    t3_stats = t3_tracker.get_stats(DEMO_AGENT_ID)
+    # Get T3 trust statistics for active agent (if any)
+    t3_stats = t3_tracker.get_stats(ACTIVE_AGENT_ID)
     if t3_stats:
         t3_scores = t3_stats["t3_scores"]
         t3_statistics = t3_stats["statistics"]
@@ -483,10 +577,10 @@ async def dashboard():
 
         <div class="card">
             <h2>💰 Daily Budget</h2>
-            <div class="stat">${spent} / $500.00</div>
+            <div class="stat">${spent} / ${delegation_daily_limit}</div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: {float(spent)/500.0*100}%">
-                    {float(spent)/500.0*100:.0f}%
+                <div class="progress-fill" style="width: {float(spent)/float(delegation_daily_limit)*100 if delegation_daily_limit else 0}%">
+                    {float(spent)/float(delegation_daily_limit)*100 if delegation_daily_limit else 0:.0f}%
                 </div>
             </div>
             <p style="color: #666;">Remaining today: ${remaining}</p>
@@ -540,7 +634,7 @@ async def dashboard():
                 </div>
                 <div style="padding: 10px; background: #e8f5e9; border-radius: 6px;">
                     ✅ Financial Limits Enforced<br>
-                    <small style="color: #666;">$100/transaction max</small>
+                    <small style="color: #666;">${delegation_per_tx_limit}/transaction max</small>
                 </div>
                 <div style="padding: 10px; background: #e8f5e9; border-radius: 6px;">
                     ✅ ATP Budget Tracked<br>
@@ -572,6 +666,57 @@ async def get_products():
     ]
 
 
+@app.get("/api/active-agent")
+async def get_active_agent():
+    """Return the current active agent ID for the demo store."""
+    return {"agent_id": ACTIVE_AGENT_ID}
+
+
+@app.post("/api/active-agent")
+async def set_active_agent(request: SetActiveAgentRequest):
+    """Set the active agent for the demo store session.
+
+    This controls which delegation limits, T3 profile, and approvals are used
+    when processing purchases and rendering the dashboard.
+    """
+    global ACTIVE_AGENT_ID
+    ACTIVE_AGENT_ID = request.agent_id
+    return {"success": True, "agent_id": ACTIVE_AGENT_ID}
+
+
+@app.get("/api/agents")
+async def list_agents():
+    """List agents based on delegations in the Delegation Manager.
+
+    This is a thin proxy to avoid CORS issues from the browser. Returns a
+    de-duplicated list of {agent_id, agent_name} objects.
+    """
+    agents = {}
+    try:
+        resp = requests.get("http://localhost:8001/api/delegations", timeout=2.0)
+        if resp.ok:
+            for d in resp.json():
+                aid = d.get("agent_id")
+                if not aid:
+                    continue
+                if aid not in agents:
+                    agents[aid] = {
+                        "agent_id": aid,
+                        "agent_name": d.get("agent_name", aid),
+                    }
+    except Exception:
+        pass
+
+    # Ensure the default demo agent is always present
+    if DEMO_AGENT_ID not in agents:
+        agents[DEMO_AGENT_ID] = {
+            "agent_id": DEMO_AGENT_ID,
+            "agent_name": "Claude (demo agent)",
+        }
+
+    return list(agents.values())
+
+
 @app.post("/api/purchase")
 async def purchase(request: PurchaseRequest):
     """
@@ -589,9 +734,9 @@ async def purchase(request: PurchaseRequest):
         resource_id = f"demostore.com:products/{product['category']}/{product['id']}"
 
         # Generate nonce for this request
-        nonce = nonce_tracker.generate_nonce(DEMO_AGENT_ID)
+        nonce = nonce_tracker.generate_nonce(ACTIVE_AGENT_ID)
 
-        # Verify authorization (this does ALL security checks)
+        # Verify authorization (this does ALL security checks except T3 policy)
         result = verifier.verify_authorization(
             lct_chain=request.lct_chain,
             resource_id=resource_id,
@@ -609,9 +754,70 @@ async def purchase(request: PurchaseRequest):
                 verification_result=result.to_dict()
             )
 
-        # Authorization successful - record purchase and update T3 reputation
+        # Demo-local T3 policy: low-trust agents cannot make high-value purchases
+        composite_trust = t3_tracker.get_composite_trust(ACTIVE_AGENT_ID) or 0.5
+        trust_threshold = 0.3
+        high_value_threshold = Decimal("75.00")
+
+        # First, check if this specific purchase was already approved in Delegation Manager
+        already_allowed = False
+        try:
+            resp = requests.get(
+                "http://localhost:8001/api/approvals/allowed",
+                params={
+                    "agent_id": ACTIVE_AGENT_ID,
+                    "item_id": product["id"],
+                    "amount": float(product["price"]),
+                },
+                timeout=2.0,
+            )
+            if resp.ok:
+                body = resp.json()
+                already_allowed = bool(body.get("allowed"))
+        except Exception:
+            already_allowed = False
+
+        if (not already_allowed and
+                composite_trust < trust_threshold and
+                product["price"] >= high_value_threshold):
+            approval_id = None
+            try:
+                resp = requests.post(
+                    "http://localhost:8001/api/approvals",
+                    json={
+                        "agent_name": "Claude (demo agent)",
+                        "agent_id": DEMO_AGENT_ID,
+                        "amount": float(product["price"]),
+                        "item_id": product["id"],
+                        "item_description": product["name"],
+                        "reason": "Low trust score for high-value purchase",
+                    },
+                    timeout=2.0,
+                )
+                if resp.ok:
+                    body = resp.json()
+                    approval_id = body.get("approval_id")
+            except Exception:
+                approval_id = None
+
+            base_msg = (
+                f"Agent trust too low for high-value purchase. "
+                f"Trust {composite_trust:.2f} < {trust_threshold:.2f} for items over ${high_value_threshold}. "
+            )
+            if approval_id:
+                extra = f"Approval request created. Open the Delegation Manager to review (ID: {approval_id})."
+            else:
+                extra = "Open the Delegation Manager to review and approve this type of request."
+
+            return PurchaseResponse(
+                success=False,
+                message=base_msg + extra,
+                verification_result=result.to_dict(),
+            )
+
+        # Authorization successful and T3 policy satisfied - record purchase and update T3 reputation
         verifier.record_purchase(
-            delegatee_id=DEMO_AGENT_ID,
+            delegatee_id=ACTIVE_AGENT_ID,
             amount=product["price"],
             merchant="demostore.com",
             item_id=product["id"],
