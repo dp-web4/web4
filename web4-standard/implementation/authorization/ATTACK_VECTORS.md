@@ -287,12 +287,12 @@ api.record_action(lct_id="lct:attacker:001", ..., success=False)
 - "Trust capital" exploitation
 
 **Mitigation**:
-1. **Accelerated decay**: Larger penalties for failures at high trust
-2. **Critical failure penalties**: Immediate trust loss for severe violations
-3. **Trust halflife**: Exponential decay over time
-4. **Nonlinear penalties**: Penalty scales with current trust level
+1. **Nonlinear penalties**: Penalty scales with current trust level ✅ IMPLEMENTED (Session #60)
+2. **Accelerated decay**: Larger penalties for failures at high trust ✅ IMPLEMENTED (Session #60)
+3. **Critical failure penalties**: Immediate trust loss for severe violations 🔄 FUTURE
+4. **Trust halflife**: Exponential decay over time 🔄 FUTURE
 
-**Status**: ⚠️ VULNERABLE - Linear deltas regardless of current score
+**Status**: ✅ MITIGATED - Nonlinear scaling implemented (Session #60)
 
 **Recommended Fix**:
 ```python
@@ -671,7 +671,7 @@ def flush(self):
 | Race Conditions | LOW | ✅ Mitigated | P3 |
 | Sybil Attacks | HIGH | ✅ Mitigated | P1 |
 | Reputation Washing | MEDIUM | ⚠️ Partial | P2 |
-| Score Clamping | MEDIUM | ⚠️ Vulnerable | P2 |
+| Score Clamping | MEDIUM | ✅ Mitigated | P2 |
 | Unauthorized Delegation | HIGH | ✅ Mitigated | P1 |
 | Delegation Depth | LOW | ✅ Mitigated | P3 |
 | Revocation Evasion | MEDIUM | ⚠️ Unknown | P2 |
