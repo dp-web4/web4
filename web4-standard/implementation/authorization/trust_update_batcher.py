@@ -3,6 +3,7 @@
 Trust Update Batcher
 Session #56: Implementation of Session #53 Q11 design
 Session #57: Added Merkle tree anchoring
+Session #61: Timing attack mitigation (random flush jitter)
 
 Implements write-behind caching for trust updates to reduce database load by ~60x.
 
@@ -17,14 +18,24 @@ Session #57 additions:
 - Cryptographic audit trail
 - Proof-of-inclusion support
 
+Session #61 additions:
+- Random flush jitter (±10s) to prevent timing attacks
+- Prevents observation of concurrent system activity
+- Mitigates information leakage through flush timing
+
 Performance improvement:
 - Without batching: 1000 actions = 1000 DB writes
 - With batching (60s): 1000 actions = ~17 DB writes (one per minute)
 - ~60x reduction in database load
+
+Security improvement:
+- Timing attack mitigation: Flush timing now unpredictable (50-70s range)
+- Prevents attackers from inferring concurrent agent activity
 """
 
 import threading
 import time
+import random
 import psycopg2
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
@@ -97,7 +108,8 @@ class TrustUpdateBatcher:
                  auto_start: bool = True,
                  max_updates_per_minute_per_lct: int = 60,
                  max_pending_total: int = 10000,
-                 max_pending_per_lct: int = 100):
+                 max_pending_per_lct: int = 100,
+                 flush_jitter_seconds: float = 10.0):
         """
         Initialize trust update batcher.
 
@@ -109,6 +121,8 @@ class TrustUpdateBatcher:
             max_updates_per_minute_per_lct: Rate limit per LCT (default: 60)
             max_pending_total: Max total pending updates (default: 10000)
             max_pending_per_lct: Max pending per LCT (default: 100)
+            flush_jitter_seconds: Random jitter to add to flush interval (±N seconds, default: 10.0)
+                                  Prevents timing attacks by making flush timing unpredictable
         """
         self.db_config = db_config
         self.flush_interval = flush_interval_seconds
@@ -116,6 +130,7 @@ class TrustUpdateBatcher:
         self.max_updates_per_minute_per_lct = max_updates_per_minute_per_lct
         self.max_pending_total = max_pending_total
         self.max_pending_per_lct = max_pending_per_lct
+        self.flush_jitter = flush_jitter_seconds
 
         # Pending updates (key: "lct_id:org_id" -> TrustDelta)
         self.pending: Dict[str, TrustDelta] = {}
@@ -170,9 +185,23 @@ class TrustUpdateBatcher:
         self.flush()
 
     def _flush_loop(self):
-        """Background thread that flushes periodically"""
+        """
+        Background thread that flushes periodically.
+
+        Session #61: Added random jitter to prevent timing attacks.
+        Jitter prevents attackers from observing flush timing to infer
+        concurrent system activity.
+        """
         while self.running:
-            time.sleep(self.flush_interval)
+            # Add random jitter to flush interval (±flush_jitter seconds)
+            # This prevents timing attacks by making flush timing unpredictable
+            jitter = random.uniform(-self.flush_jitter, self.flush_jitter)
+            sleep_time = self.flush_interval + jitter
+
+            # Ensure sleep time is positive (edge case: very large negative jitter)
+            sleep_time = max(sleep_time, 1.0)
+
+            time.sleep(sleep_time)
             if self.running:  # Check again after sleep
                 try:
                     self.flush()
@@ -422,6 +451,12 @@ class TrustUpdateBatcher:
                 self.stats['total_flushes'] += 1
                 self.stats['total_entities_flushed'] += entities_flushed
                 self.stats['last_flush_time'] = datetime.utcnow()
+
+                # Session #61: Add noise injection to prevent timing attacks
+                # Small random delay prevents attackers from inferring batch size from flush duration
+                # Range: 0-50ms (negligible performance impact, significant timing obfuscation)
+                noise_delay = random.uniform(0, 0.05)
+                time.sleep(noise_delay)
 
             except Exception as e:
                 conn.rollback()
