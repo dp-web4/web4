@@ -374,12 +374,13 @@ class TrustUpdateBatcher:
 
                 for key, delta in updates_to_flush.items():
                     # Update T3 scores if any T3 deltas
+                    # Session #60: Uses nonlinear penalty scaling to prevent score clamping exploitation
                     if delta.actions_count > 0:
                         cursor.execute("""
                             UPDATE reputation_scores
-                            SET talent_score = LEAST(1.0, GREATEST(0.0, talent_score + %s)),
-                                training_score = LEAST(1.0, GREATEST(0.0, training_score + %s)),
-                                temperament_score = LEAST(1.0, GREATEST(0.0, temperament_score + %s)),
+                            SET talent_score = apply_scaled_trust_delta(talent_score, %s),
+                                training_score = apply_scaled_trust_delta(training_score, %s),
+                                temperament_score = apply_scaled_trust_delta(temperament_score, %s),
                                 total_actions = total_actions + %s,
                                 last_updated = CURRENT_TIMESTAMP
                             WHERE lct_id = %s AND organization_id = %s
@@ -393,12 +394,13 @@ class TrustUpdateBatcher:
                         ))
 
                     # Update V3 scores if any V3 deltas
+                    # Session #60: Uses nonlinear penalty scaling for V3 scores as well
                     if delta.transactions_count > 0:
                         cursor.execute("""
                             UPDATE v3_scores
-                            SET veracity_score = LEAST(1.0, GREATEST(0.0, veracity_score + %s)),
-                                validity_score = LEAST(1.0, GREATEST(0.0, validity_score + %s)),
-                                valuation_score = LEAST(1.0, GREATEST(0.0, valuation_score + %s)),
+                            SET veracity_score = apply_scaled_trust_delta(veracity_score, %s),
+                                validity_score = apply_scaled_trust_delta(validity_score, %s),
+                                valuation_score = apply_scaled_trust_delta(valuation_score, %s),
                                 total_transactions = total_transactions + %s,
                                 last_updated = CURRENT_TIMESTAMP
                             WHERE lct_id = %s AND organization_id = %s
