@@ -1,0 +1,227 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #0f172a 0, #020617 55%, #000 100%);
+  color: #e5e7eb;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 1.5rem 1.75rem 2rem;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.header h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.9rem;
+  color: #f9fafb;
+}
+
+.tagline {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 0.95rem;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 900px) {
+  .content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.controls-panel,
+.viz-panel,
+.explanation {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 1rem 1.1rem 1.1rem;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.85);
+}
+
+.controls-panel h2,
+.viz-panel h2,
+.explanation h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  color: #e5e7eb;
+}
+
+.hint {
+  margin: 0.15rem 0 0.9rem;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.buttons-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.buttons-row.secondary {
+  margin-bottom: 1rem;
+}
+
+.btn {
+  cursor: pointer;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.15s ease, transform 0.08s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.9);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.btn-positive {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #022c22;
+}
+
+.btn-positive:hover {
+  border-color: rgba(74, 222, 128, 0.9);
+}
+
+.btn-negative {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fef2f2;
+}
+
+.btn-negative:hover {
+  border-color: rgba(248, 113, 113, 0.9);
+}
+
+.btn-neutral {
+  background: linear-gradient(135deg, #e5e7eb, #9ca3af);
+  color: #020617;
+}
+
+.btn-neutral:hover {
+  border-color: rgba(209, 213, 219, 0.9);
+}
+
+.btn-secondary {
+  background: radial-gradient(circle at top left, #0f172a, #020617);
+  border-color: rgba(148, 163, 184, 0.6);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.stat {
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.95));
+  border-radius: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.stat .label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  margin-bottom: 0.15rem;
+}
+
+.stat .value {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  color: #e5e7eb;
+}
+
+.viz-container {
+  width: 100%;
+  height: 360px;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.95));
+  overflow: hidden;
+}
+
+/* SVG styling for trust visualizer */
+
+.area-uncertainty {
+  fill: rgba(34, 197, 94, 0.18); /* soft green band */
+  stroke: none;
+}
+
+.line-trust {
+  fill: none;
+  stroke: #4ade80; /* bright green */
+  stroke-width: 2.2px;
+}
+
+.axis path,
+.axis line {
+  stroke: rgba(148, 163, 184, 0.6);
+}
+
+.axis text {
+  fill: #9ca3af;
+  font-size: 0.75rem;
+}
+
+.axis-label {
+  fill: #9ca3af;
+  font-size: 0.8rem;
+}
+
+.points-group .point-positive {
+  fill: #22c55e;
+}
+
+.points-group .point-negative {
+  fill: #f97373;
+}
+
+.points-group .point-neutral {
+  fill: #e5e7eb;
+}
+
+.explanation {
+  margin-top: 1.5rem;
+}
+
+.explanation ul {
+  margin: 0 0 0.75rem 1.2rem;
+  padding: 0;
+}
+
+.explanation li {
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}

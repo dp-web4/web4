@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Web4 Trust Tensor Evolution Visualizer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <h1>Trust Tensor Evolution Visualizer</h1>
+      <p class="tagline">Interactive demo of Web4-style trust dynamics over time.</p>
+    </header>
+
+    <section class="content">
+      <section class="controls-panel">
+        <h2>Interactions</h2>
+        <p class="hint">Click buttons to simulate interactions between two entities. Watch trust and certainty evolve.</p>
+        <div class="buttons-row">
+          <button id="btn-positive" class="btn btn-positive">Positive (+)</button>
+          <button id="btn-negative" class="btn btn-negative">Negative (−)</button>
+          <button id="btn-neutral"  class="btn btn-neutral">Neutral (○)</button>
+        </div>
+        <div class="buttons-row secondary">
+          <button id="btn-random" class="btn btn-secondary">Random Interaction</button>
+          <button id="btn-reset"  class="btn btn-secondary">Reset</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <span class="label">Current trust</span>
+            <span id="stat-trust" class="value">0.000</span>
+          </div>
+          <div class="stat">
+            <span class="label">Certainty</span>
+            <span id="stat-certainty" class="value">0.000</span>
+          </div>
+          <div class="stat">
+            <span class="label">Interactions</span>
+            <span id="stat-count" class="value">0</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="viz-panel">
+        <h2>Trust over Time</h2>
+        <div id="viz-container" class="viz-container"></div>
+        <p class="hint">
+          Green line shows trust (−1 to +1). Shaded band shows uncertainty: wide band = low certainty, narrow band = high certainty.
+          Note how trust rises slowly with repeated positive interactions but can drop sharply after a single negative one.
+        </p>
+      </section>
+    </section>
+
+    <section class="explanation">
+      <h2>What You Are Seeing</h2>
+      <ul>
+        <li><strong>Asymmetric trust:</strong> Positive interactions nudge trust up; negative interactions pull it down faster.</li>
+        <li><strong>Temporal memory:</strong> Each interaction updates an evolving history; recent events matter more.</li>
+        <li><strong>Uncertainty:</strong> Certainty grows as entities interact. Early on, trust is volatile; later it stabilizes.</li>
+        <li><strong>Web4 connection:</strong> This is a 1D slice of Web4&#39;s T3 trust tensor: a role-contextual trust score evolving over time.</li>
+      </ul>
+      <p class="hint">
+        In full Web4, trust is bound to Linked Context Tokens (LCTs) and roles, and propagates across an MRH graph.
+        This visualizer focuses on one relationship to make the dynamics tangible.
+      </p>
+    </section>
+  </main>
+
+  <script src="trust-dynamics.js"></script>
+  <script src="visualization.js"></script>
+</body>
+</html>
