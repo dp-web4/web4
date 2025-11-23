@@ -25,7 +25,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict
 from decimal import Decimal
 from datetime import datetime, timezone
 import json
@@ -35,6 +35,9 @@ import requests
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "implementation" / "reference"))
+
+MEMORY_REPO_ROOT = Path(__file__).parent.parent.parent.parent / "memory"
+sys.path.insert(0, str(MEMORY_REPO_ROOT))
 
 from vendor_sdk import Web4Verifier, VerificationStatus
 from atp_tracker import ATPTracker
@@ -46,6 +49,7 @@ from witness_enforcer import WitnessEnforcer
 from resource_constraints import ResourceConstraints, PermissionLevel
 from financial_binding import FinancialBinding, PaymentMethod, PaymentMethodType
 from t3_tracker import T3Tracker
+from memory_lightchain_integration import MemoryLightchainNode
 
 
 # Initialize FastAPI app
@@ -138,6 +142,72 @@ witness_enforcer = WitnessEnforcer()
 
 # T3 tracker for demo agent reputation
 t3_tracker = T3Tracker(storage_path="demo_t3_profiles.json")
+
+trust_memory_nodes: Dict[str, MemoryLightchainNode] = {}
+
+
+def get_trust_memory_node(agent_id: str) -> MemoryLightchainNode:
+    node = trust_memory_nodes.get(agent_id)
+    if not node:
+        node = MemoryLightchainNode(node_id="web4-demo-store", agent_id=agent_id)
+        trust_memory_nodes[agent_id] = node
+    return node
+
+
+settlement_events: List[dict] = []
+
+
+def record_settlement_event(
+    *,
+    society_lct: str,
+    agent_lct: str,
+    amount: Decimal,
+    currency: str,
+    product_id: str,
+    category: str,
+    description: str,
+):
+    """Record a minimal settlement event for potential ACT integration.
+
+    This is an in-process stub that appends structured events to
+    settlement_events. Future work can replace this with a real ACT
+    client that posts these events to a society treasury module.
+    """
+    event = {
+        "society_lct": society_lct,
+        "agent_lct": agent_lct,
+        "amount": float(amount),
+        "currency": currency,
+        "product_id": product_id,
+        "category": category,
+        "description": description,
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    settlement_events.append(event)
+
+
+def should_apply_t3_high_value_gate(
+    *,
+    composite_trust: float,
+    trust_threshold: float,
+    price: Decimal,
+    high_value_threshold: Decimal,
+    already_allowed: bool,
+) -> bool:
+    """Decide whether the T3-based high-value gate should be applied.
+
+    This encapsulates the demo policy that low-trust agents must obtain
+    explicit approval for high-value purchases, while preserving existing
+    behavior. Future work can swap this logic for a SAGE-driven policy
+    module without changing the rest of the purchase flow.
+    """
+    if already_allowed:
+        return False
+    if composite_trust >= trust_threshold:
+        return False
+    if price < high_value_threshold:
+        return False
+    return True
 
 # Setup demo agent "Claude" (default active agent)
 DEMO_AGENT_ID = "agent-claude-demo"
@@ -794,9 +864,13 @@ async def purchase(request: PurchaseRequest):
         except Exception:
             already_allowed = False
 
-        if (not already_allowed and
-                composite_trust < trust_threshold and
-                product["price"] >= high_value_threshold):
+        if should_apply_t3_high_value_gate(
+            composite_trust=composite_trust,
+            trust_threshold=trust_threshold,
+            price=product["price"],
+            high_value_threshold=high_value_threshold,
+            already_allowed=already_allowed,
+        ):
             approval_id = None
             try:
                 resp = requests.post(
@@ -842,6 +916,34 @@ async def purchase(request: PurchaseRequest):
             success=True,
             within_constraints=True,
             quality_score=0.9,
+        )
+
+        node = get_trust_memory_node(ACTIVE_AGENT_ID)
+        node.create_memory(
+            content=json.dumps(
+                {
+                    "agent_id": ACTIVE_AGENT_ID,
+                    "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "transaction_type": "purchase",
+                    "product_id": product["id"],
+                    "category": product["category"],
+                    "amount": float(product["price"]),
+                },
+                sort_keys=True,
+            ),
+            type="trust_event",
+            tags=["web4", "t3", "purchase", product["category"]],
+        )
+        node.create_memory_block(lct_id=ACTIVE_AGENT_ID)
+
+        record_settlement_event(
+            society_lct="lct:web4:society:demo",
+            agent_lct=ACTIVE_AGENT_ID,
+            amount=product["price"],
+            currency="USD",
+            product_id=product["id"],
+            category=product["category"],
+            description=f"Purchase settlement for {product['name']}",
         )
 
         # Get the latest charge from financial binding for response

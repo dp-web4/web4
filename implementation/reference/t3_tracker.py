@@ -503,6 +503,42 @@ class T3Tracker:
             }
         }
 
+    def get_t3_tensor(self, agent_id: str) -> Optional[Dict[str, Dict[str, float]]]:
+        """Return a canonical tensor-shaped view of T3 for an agent.
+
+        This presents the existing scalar T3 scores in a structured form that
+        can later be extended to include V3 or additional axes, without
+        breaking current callers that rely on get_t3_scores/get_stats.
+
+        Returns a dict of the form:
+
+            {
+                "axes": {
+                    "T3": {
+                        "talent": float,
+                        "training": float,
+                        "temperament": float,
+                        "composite": float
+                    }
+                }
+            }
+        """
+        scores = self.get_t3_scores(agent_id)
+        if scores is None:
+            return None
+
+        composite = self.get_composite_trust(agent_id)
+        return {
+            "axes": {
+                "T3": {
+                    "talent": scores["talent"],
+                    "training": scores["training"],
+                    "temperament": scores["temperament"],
+                    "composite": composite if composite is not None else 0.0,
+                }
+            }
+        }
+
     def list_profiles(self) -> List[str]:
         """Get list of all agent IDs with T3 profiles."""
         return list(self.profiles.keys())
@@ -518,6 +554,19 @@ class T3Tracker:
             agent_id: self.get_stats(agent_id)
             for agent_id in self.profiles.keys()
         }
+
+    def get_all_t3_tensors(self) -> Dict[str, Dict[str, Dict[str, float]]]:
+        """Get T3 tensors for all agents in a canonical tensor-shaped form.
+
+        Keys are agent IDs; values match the structure returned by
+        get_t3_tensor(agent_id). Agents without valid profiles are skipped.
+        """
+        tensors: Dict[str, Dict[str, Dict[str, float]]] = {}
+        for agent_id in self.profiles.keys():
+            tensor = self.get_t3_tensor(agent_id)
+            if tensor is not None:
+                tensors[agent_id] = tensor
+        return tensors
 
 
 # Example usage
