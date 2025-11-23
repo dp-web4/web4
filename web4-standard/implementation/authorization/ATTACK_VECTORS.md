@@ -489,20 +489,51 @@ execute_sequence(action_sequence)
 - Economic attack on system
 
 **Mitigation**:
-1. **Partial refunds**: Only refund unused ATP
-2. **Refund delay**: Delay refunds to prevent rapid cycling
-3. **Refund limits**: Max refunds per time period
-4. **Execution tracking**: Track which actions consumed resources
+1. **Resource consumption tracking**: Track actual resource usage ✅ IMPLEMENTED (Session #62)
+2. **Non-refundable ATP**: Committed resources cannot be refunded ✅ IMPLEMENTED (Session #62)
+3. **Minimum retention**: 50% of consumed ATP retained even with FULL policy ✅ IMPLEMENTED (Session #62)
+4. **Refund rate limiting**: Max 10 refunds/day, 1000 ATP/day per LCT ✅ IMPLEMENTED (Session #62)
+5. **Abuse detection**: Flag and block entities exceeding limits ✅ IMPLEMENTED (Session #62)
 
-**Status**: ⚠️ VULNERABLE - test_action_sequences shows full refund policy
+**Status**: ✅ MITIGATED - Resource-aware refunds prevent free resource exploitation (Session #62)
 
-**From Session #55 Tests**:
-```python
-def test_atp_refund_on_failure(self):
-    # Failure at action 2 (used 20 ATP)
-    # Should refund 80 ATP
-    # Currently: Refunds all 100 ATP? Needs verification
+**Implementation** (Session #62):
+```sql
+-- Track resource consumption
+ALTER TABLE action_sequences ADD COLUMN atp_committed INTEGER DEFAULT 0;
+ALTER TABLE action_sequences ADD COLUMN resource_consumption_log JSONB;
+ALTER TABLE action_sequences ADD COLUMN min_retention_ratio NUMERIC DEFAULT 0.50;
+
+-- Example: Track GPU usage
+SELECT record_resource_consumption(
+    sequence_id := 'seq:irp:vision:001',
+    iteration := 1,
+    resource_type := 'gpu',
+    amount := 2.5,  -- GPU-seconds
+    cost_atp := 30  -- 30 ATP non-refundable
+);
+
+-- Finalize with resource-aware refund
+SELECT finalize_sequence_v2('seq:irp:vision:001', success := FALSE);
+-- Result: Refunds unused ATP minus committed resources
+-- Attacker pays for resources actually consumed
 ```
+
+**Validation** (Session #62 - 5/5 tests passing):
+- `test_attack_scenario_from_attack_vectors`: Exact attack prevented ✅
+  - Without mitigation: 90 ATP refunded (free GPU)
+  - With mitigation: 60 ATP refunded (30 ATP retained for GPU)
+- `test_resource_consumption_tracking`: Resource logging works ✅
+- `test_minimum_retention_enforcement`: 50% retention enforced ✅
+- `test_tiered_policy_with_resources`: TIERED policy accounts for resources ✅
+- `test_refund_rate_limiting`: Abuse detection triggers after 10 refunds ✅
+
+**Security Properties**:
+- Resource costs are non-refundable
+- Minimum 50% of consumed ATP retained
+- Refund limits prevent rapid cycling attacks
+- Abuse detection flags suspicious patterns
+- Test coverage: 100% (5/5 tests passing)
 
 #### 4.2 ATP Drain Attacks
 
@@ -713,7 +744,7 @@ def flush(self):
 | Unauthorized Delegation | HIGH | ✅ Mitigated | P1 |
 | Delegation Depth | LOW | ✅ Mitigated | P3 |
 | Revocation Evasion | MEDIUM | ✅ Mitigated | P2 |
-| ATP Refund Exploit | MEDIUM | ⚠️ Vulnerable | P2 |
+| ATP Refund Exploit | MEDIUM | ✅ Mitigated | P2 |
 | ATP Drain | MEDIUM | ⚠️ Vulnerable | P2 |
 | ATP Front-Running | LOW | ⚠️ Unknown | P3 |
 | Flush Interruption | LOW | ✅ Partial | P3 |
@@ -762,10 +793,18 @@ def flush(self):
    - Instant revocation propagation ✅
    - Test coverage: 100% (5 tests) ✅
 
-4. **ATP Policy Refinement** (ATP Refund, ATP Drain)
-   - Partial refunds
-   - Failure attribution
-   - Refund limits
+4. **ATP Refund Exploitation Prevention** (ATP Refund Exploit) ✅ SESSION #62
+   - Resource consumption tracking ✅
+   - Non-refundable ATP for committed resources ✅
+   - Minimum retention ratio (50%) ✅
+   - Refund rate limiting (10/day, 1000 ATP/day) ✅
+   - Abuse detection and flagging ✅
+   - Test coverage: 100% (5 tests) ✅
+
+5. **ATP Drain Attack Mitigation** (ATP Drain)
+   - Failure attribution ⚠️ NOT IMPLEMENTED
+   - ATP insurance mechanisms ⚠️ NOT IMPLEMENTED
+   - Retry with ATP protection ⚠️ NOT IMPLEMENTED
 
 5. **Replay Protection** (Batch Replay) ✅ SESSION #57
    - Merkle tree anchoring ✅
@@ -823,6 +862,8 @@ def flush(self):
 **Session #61 Achievement**:
 1. Implemented timing attack prevention with random flush jitter and noise injection, mitigating information leakage through flush timing observation.
 2. Verified revocation enforcement via comprehensive test suite, confirming existing active_delegations view prevents revocation evasion attacks. Status upgraded from ⚠️ UNKNOWN to ✅ MITIGATED.
+
+**Session #62 Achievement**: Implemented resource-aware ATP refund system preventing free resource consumption attacks. Added resource consumption tracking (atp_committed), minimum retention ratio (50%), refund rate limiting (10/day), and abuse detection. Validated with 5-test suite (100% passing).
 
 **Key Insights**:
 1. Batching introduces new attack surfaces (batch stuffing, timing attacks, memory exhaustion) that require specific mitigations beyond traditional trust system security.
