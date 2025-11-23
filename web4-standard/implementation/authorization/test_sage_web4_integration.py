@@ -123,19 +123,21 @@ class TestSAGEWeb4Integration(unittest.TestCase):
                 sequence_id,
                 actor_lct,
                 organization_id,
-                action_list,
+                sequence_type,
+                target_resource,
+                operation,
                 atp_budget_reserved,
                 max_iterations,
                 atp_refund_policy
             ) VALUES (
                 %s, %s, 'org:web4:research',
-                %s::jsonb, 100, 10, 'TIERED'
+                'research_task', 'dataset:web4:research', 'analyze',
+                100, 10, 'TIERED'
             )
             RETURNING sequence_id, atp_budget_reserved
         """, (
             sequence_id,
-            self.sage_lct,
-            '["analyze_data", "generate_insights", "validate_results"]'
+            self.sage_lct
         ))
 
         result = cursor.fetchone()
@@ -210,10 +212,9 @@ class TestSAGEWeb4Integration(unittest.TestCase):
         cursor.execute("""
             UPDATE reputation_scores
             SET
-                talent = 0.55,
-                training = 0.55,
-                temperament = 0.55,
-                t3_score = 0.55
+                talent_score = 0.55,
+                training_score = 0.55,
+                temperament_score = 0.55
             WHERE lct_id = %s AND organization_id = 'org:web4:research'
         """, (self.sage_lct,))
 
@@ -223,10 +224,9 @@ class TestSAGEWeb4Integration(unittest.TestCase):
         cursor.execute("""
             SELECT
                 lct_id,
-                talent,
-                training,
-                temperament,
-                t3_score
+                talent_score,
+                training_score,
+                temperament_score
             FROM reputation_scores
             WHERE lct_id = %s
         """, (self.sage_lct,))
@@ -234,12 +234,15 @@ class TestSAGEWeb4Integration(unittest.TestCase):
         rep = cursor.fetchone()
 
         print(f"  SAGE Reputation Scores:")
-        print(f"    Talent: {rep['talent']}")
-        print(f"    Training: {rep['training']}")
-        print(f"    Temperament: {rep['temperament']}")
-        print(f"    T3 Score: {rep['t3_score']}")
+        print(f"    Talent: {rep['talent_score']}")
+        print(f"    Training: {rep['training_score']}")
+        print(f"    Temperament: {rep['temperament_score']}")
 
-        self.assertGreater(rep['t3_score'], 0.5, "Reputation should improve")
+        # Calculate T3 score (average of the three)
+        t3_score = (float(rep['talent_score']) + float(rep['training_score']) + float(rep['temperament_score'])) / 3.0
+        print(f"    T3 Score: {t3_score:.4f}")
+
+        self.assertGreater(t3_score, 0.5, "Reputation should improve")
 
         print(f"  ✅ SAGE built reputation through successful action")
 
@@ -263,6 +266,15 @@ class TestSAGEWeb4Integration(unittest.TestCase):
             ) ON CONFLICT (lct_id) DO NOTHING
         """, (helper_lct,))
 
+        # Create role LCT if needed (foreign key requirement)
+        cursor.execute("""
+            INSERT INTO lct_identities (
+                lct_id, entity_type, birth_certificate_hash, public_key
+            ) VALUES (
+                'lct:role:researcher:001', 'role', 'role_cert_hash', 'role_public_key'
+            ) ON CONFLICT (lct_id) DO NOTHING
+        """)
+
         # Create delegation
         delegation_id = f"del:sage:{int(time.time())}"
 
@@ -272,20 +284,28 @@ class TestSAGEWeb4Integration(unittest.TestCase):
                 delegator_lct,
                 delegatee_lct,
                 role_lct,
-                authority_level,
-                permissions,
+                organization_id,
+                granted_claim_hashes,
+                atp_budget_total,
+                valid_until,
+                delegation_signature,
                 status
             ) VALUES (
                 %s, %s, %s,
                 'lct:role:researcher:001',
-                'full', %s::jsonb, 'active'
+                'org:web4:research',
+                %s::jsonb,
+                100,
+                CURRENT_TIMESTAMP + INTERVAL '7 days',
+                'sage_delegation_signature_placeholder',
+                'active'
             )
             RETURNING delegation_id
         """, (
             delegation_id,
             self.sage_lct,  # SAGE is delegator
             helper_lct,     # Helper is delegatee
-            '["read", "analyze", "report"]'
+            '["claim:read:dataset", "claim:analyze:data", "claim:report:results"]'
         ))
 
         result = cursor.fetchone()
@@ -299,7 +319,7 @@ class TestSAGEWeb4Integration(unittest.TestCase):
 
         # Verify delegation
         cursor.execute("""
-            SELECT delegator_lct, delegatee_lct, authority_level, status
+            SELECT delegator_lct, delegatee_lct, status
             FROM agent_delegations
             WHERE delegation_id = %s
         """, (delegation_id,))
