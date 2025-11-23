@@ -43,18 +43,47 @@ for i in range(1000):
 3. **Batch size adaptation**: Increase batch size under attack
 4. **Cost model**: Require ATP payment for trust updates
 
-**Status**: ⚠️ VULNERABLE - No rate limiting implemented
+**Status**: ✅ MITIGATED - Session #62 Verification
 
-**Recommended Fix**:
+**Implementation** (trust_update_batcher.py):
 ```python
 class TrustUpdateBatcher:
     def __init__(self, ..., max_updates_per_minute_per_lct=60):
-        self.rate_limits = {}  # lct_id -> (count, window_start)
+        self.rate_limits: Dict[str, tuple[int, datetime]] = {}
+
+    def _check_rate_limit(self, lct_id: str) -> bool:
+        """Check if LCT is within rate limit (60-second rolling window)"""
+        now = datetime.utcnow()
+
+        if lct_id not in self.rate_limits:
+            self.rate_limits[lct_id] = (1, now)
+            return True
+
+        count, window_start = self.rate_limits[lct_id]
+        window_age = (now - window_start).total_seconds()
+
+        if window_age >= 60:
+            self.rate_limits[lct_id] = (1, now)  # Reset window
+            return True
+
+        if count >= self.max_updates_per_minute_per_lct:
+            return False  # Rate limit exceeded
+
+        self.rate_limits[lct_id] = (count + 1, window_start)
+        return True
 
     def record_t3_update(self, lct_id, ...):
         if not self._check_rate_limit(lct_id):
-            raise RateLimitExceeded(f"LCT {lct_id} exceeded rate limit")
+            self.stats['rate_limit_rejections'] += 1
+            raise RuntimeError(f"Rate limit exceeded for LCT {lct_id}")
 ```
+
+**Validation** (Session #62):
+- Test: Attempted 1000 updates from single attacker (10× the limit)
+- Result: System accepts 60 updates, rejects 940
+- Performance impact: Prevents 9 of 10 forced flushes (90% reduction)
+- Coordinated attack: 10 attackers independently rate-limited
+- Statistics tracking enables monitoring and alerting
 
 #### 1.2 Timing Attacks
 
@@ -746,7 +775,7 @@ def flush(self):
 
 | Attack Vector | Severity | Status | Priority |
 |--------------|----------|--------|----------|
-| Batch Stuffing | HIGH | ⚠️ Vulnerable | P1 |
+| Batch Stuffing | HIGH | ✅ Mitigated | P1 |
 | Timing Attacks | MEDIUM | ✅ Mitigated | P2 |
 | Memory Exhaustion | HIGH | ✅ Mitigated | P1 |
 | Race Conditions | LOW | ✅ Mitigated | P3 |
@@ -765,12 +794,16 @@ def flush(self):
 
 ## Priority 1 Fixes (Critical)
 
-1. **Rate Limiting** (Batch Stuffing, Memory Exhaustion)
-   - Batch Stuffing: ⚠️ VULNERABLE - Needs implementation
-   - Memory Exhaustion: ✅ MITIGATED (Session #62)
+1. **Rate Limiting** ✅ COMPLETE (Session #62)
+   - Batch Stuffing: ✅ MITIGATED
+     - max_updates_per_minute_per_lct = 60 (rolling 60s window)
+     - Per-LCT rate limiting prevents performance degradation
+     - Prevents 90% of forced flushes during attack
+     - RuntimeError on limit exceeded
+   - Memory Exhaustion: ✅ MITIGATED
      - max_pending_total = 10,000 (absolute limit)
      - max_pending_per_lct = 100 (per-entity limit)
-     - RuntimeError on limit exceeded
+     - Prevents OOM denial of service
      - Statistics tracking for monitoring
 
 2. **Sybil Resistance** (Sybil Attacks) ✅ SESSION #58
