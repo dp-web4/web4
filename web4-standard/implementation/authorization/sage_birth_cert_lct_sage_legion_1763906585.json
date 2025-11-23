@@ -1,0 +1,15 @@
+{
+  "lct_id": "lct:sage:legion:1763906585",
+  "entity_type": "ai",
+  "birth_certificate_hash": "1e936d903d3e87781025ff2f38d45f90a9abc79ece0e4c356e3d239417f15bef",
+  "hardware_anchor_hash": "aee862f681b569c56ee2d2a93e95b8af6e98d8760517453e96e4c427bf32c011",
+  "public_key": "387719585eae44d85a79ce9779757330c7a8da5d56975c5aeb6bb837cd15ffbd",
+  "subject_did": "did:web4:key:387719585eae44d8",
+  "hardware": {
+    "model": "Generic",
+    "hostname": "dp-Legion-Pro-7-16IRX8H"
+  },
+  "consciousness_version": "cogitation-v1",
+  "birth_timestamp": 1763906585.4583862,
+  "vouched_by": "lct:human:dennis:001"
+}
