@@ -50,6 +50,7 @@ from resource_constraints import ResourceConstraints, PermissionLevel
 from financial_binding import FinancialBinding, PaymentMethod, PaymentMethodType
 from t3_tracker import T3Tracker
 from memory_lightchain_integration import MemoryLightchainNode
+from lct_context import GLOBAL_CONTEXT_GRAPH
 
 
 # Initialize FastAPI app
@@ -173,6 +174,7 @@ def record_settlement_event(
     settlement_events. Future work can replace this with a real ACT
     client that posts these events to a society treasury module.
     """
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     event = {
         "society_lct": society_lct,
         "agent_lct": agent_lct,
@@ -181,9 +183,37 @@ def record_settlement_event(
         "product_id": product_id,
         "category": category,
         "description": description,
-        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "timestamp": timestamp,
     }
     settlement_events.append(event)
+
+    # Also project this settlement into the global LCT context graph using
+    # a few simple, public-safe predicates. This is an in-process view
+    # only; it does not change external behavior.
+    try:
+        mrh_profile = {
+            "deltaR": "local",
+            "deltaT": "session",
+            "deltaC": "agent-scale",
+        }
+        # Agent participates in the demo society for this transaction.
+        GLOBAL_CONTEXT_GRAPH.add_link(
+            subject=agent_lct,
+            predicate="web4:participantIn",
+            object=society_lct,
+            mrh=mrh_profile,
+        )
+        # Agent is contextually related to the product category.
+        category_lct = f"lct:web4:category:{category}"
+        GLOBAL_CONTEXT_GRAPH.add_link(
+            subject=agent_lct,
+            predicate="web4:relevantTo",
+            object=category_lct,
+            mrh=mrh_profile,
+        )
+    except Exception:
+        # Context graph population is best-effort; never break settlement logging.
+        pass
 
 
 def should_apply_t3_high_value_gate(
@@ -575,17 +605,40 @@ async def dashboard():
     for charge in recent:
         status_icon = "✅" if charge.status.value == "completed" else "❌"
         charges_html += f"""
-        <div style="padding: 15px; border-bottom: 1px solid #eee;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style=\"padding: 15px; border-bottom: 1px solid #eee;\">
+            <div style=\"display: flex; justify-content: space-between; align-items: center;\">
                 <div>
                     <strong>{charge.description}</strong><br>
-                    <small style="color: #666;">{charge.timestamp[:19]} at {charge.merchant}</small>
+                    <small style=\"color: #666;\">{charge.timestamp[:19]} at {charge.merchant}</small>
                 </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 20px; font-weight: bold;">${charge.amount}</div>
+                <div style=\"text-align: right;\">
+                    <div style=\"font-size: 20px; font-weight: bold;\">${charge.amount}</div>
                     <div>{status_icon} {charge.status.value}</div>
                 </div>
             </div>
+        </div>
+        """
+
+    # Build a simple MRH/LCT context view for the active agent using the
+    # in-process GLOBAL_CONTEXT_GRAPH. This is a read-only, best-effort
+    # visualization of RDF-like triples associated with the agent.
+    context_triples = GLOBAL_CONTEXT_GRAPH.neighbors(
+        ACTIVE_AGENT_ID,
+        direction="both",
+        within_mrh={
+            "deltaC": "agent-scale",
+        },
+    )
+    context_html = ""
+    for t in context_triples:
+        mrh = t.get("mrh") or {}
+        mrh_str = ", ".join(
+            f"{k}={v}" for k, v in mrh.items()
+        ) if mrh else "(no MRH)"
+        context_html += f"""
+        <div style=\"padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px;\">
+            <div><strong>{t['subject']}</strong> <span style=\"color: #666;\">{t['predicate']}</span> <strong>{t['object']}</strong></div>
+            <div style=\"color: #999; font-size: 12px;\">MRH: {mrh_str}</div>
         </div>
         """
 
@@ -708,6 +761,16 @@ async def dashboard():
         </div>
 
         <div class="card">
+            <h2>🌐 MRH / LCT Context</h2>
+            <p style="color: #666; margin-bottom: 10px; font-size: 14px;">
+                RDF-like context triples for the active agent within the current MRH band
+                (agent-scale complexity). This reflects recent settlements and category
+                relationships only.
+            </p>
+            {context_html if context_html else '<p style="color: #666;">No context triples recorded yet</p>'}
+        </div>
+
+        <div class="card">
             <h2>📝 Recent Activity</h2>
             {charges_html if charges_html else '<p style="color: #666;">No purchases yet</p>'}
         </div>
@@ -751,6 +814,25 @@ async def get_products():
         }
         for p in PRODUCTS.values()
     ]
+
+
+@app.get("/api/context/agent/{agent_lct}")
+async def get_agent_context(agent_lct: str):
+    """Return a simple MRH-scoped context neighborhood for an agent LCT.
+
+    This is a read-only introspection endpoint for the demo, exposing the
+    RDF-like triples currently stored in the in-process GLOBAL_CONTEXT_GRAPH
+    for a given agent.
+    """
+
+    triples = GLOBAL_CONTEXT_GRAPH.neighbors(
+        agent_lct,
+        direction="both",
+        within_mrh={
+            "deltaC": "agent-scale",
+        },
+    )
+    return {"agent_lct": agent_lct, "triples": triples}
 
 
 @app.get("/api/active-agent")
