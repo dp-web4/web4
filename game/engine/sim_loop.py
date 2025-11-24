@@ -7,6 +7,8 @@ will be extended over time.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Callable, Optional
 
 from .models import World, Agent, Society
@@ -54,12 +56,53 @@ def _agent_step(world: World, agent: Agent) -> None:
 
 
 def _society_step(world: World, society: Society) -> None:
-    """Placeholder for per-society behavior in a single tick."""
+    """Placeholder for per-society behavior in a single tick.
+
+    Implements minimal microblock sealing logic:
+    - Checks pending events and elapsed time
+    - Seals blocks with cryptographic chaining (previous_hash, header_hash)
+    - Adds stub signature for future TPM-backed signing
+    """
 
     # Future work: evaluate membership requests, tasks, treasury, and
     # update trust and MRH context.
-    _ = world  # unused for now
-    _ = society
+
+    current_time = float(world.tick)
+    if not society.pending_events:
+        return
+
+    # If enough time has passed since the last block, create a new one.
+    if (current_time - society.last_block_time) >= float(society.block_interval_seconds):
+        block_index = len(society.blocks)
+
+        # Determine previous header hash, if any.
+        previous_hash = None
+        if society.blocks:
+            previous_hash = society.blocks[-1].get("header_hash")
+
+        # Build the block header (without events/signature).
+        header = {
+            "index": block_index,
+            "society_lct": society.society_lct,
+            "previous_hash": previous_hash,
+            "timestamp": current_time,
+        }
+
+        # Deterministic JSON encoding for hashing.
+        header_json = json.dumps(header, sort_keys=True, separators=(",", ":"))
+        header_hash = hashlib.sha256(header_json.encode("utf-8")).hexdigest()
+
+        # Construct full block including events and stub signature.
+        block = {
+            **header,
+            "events": list(society.pending_events),
+            "header_hash": header_hash,
+            "signature": "stub-signature",  # TODO: replace with TPM-backed signature
+        }
+
+        society.blocks.append(block)
+        society.pending_events.clear()
+        society.last_block_time = current_time
 
 
 def run_world(world: World, steps: int) -> World:
