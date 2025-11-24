@@ -1,0 +1,39 @@
+=== Running 3-society federation with adversarial behavior ===
+Carol-C (risky treasurer) will make 8 suspicious treasury spends...
+
+=== Societies and Trust ===
+Society: Society A (strict) (lct:web4:society:A)
+  Blocks: 1  Chain valid: True
+  Society trust (T3.composite): 0.00
+Society: Society B (balanced) (lct:web4:society:B)
+  Blocks: 2  Chain valid: True
+  Society trust (T3.composite): 0.00
+  Suppression events:
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.3799999999999999, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.3799999999999999}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.2199999999999999, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.2199999999999999}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.2199999999999999, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.2199999999999999}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.05999999999999989, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.05999999999999989}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.05999999999999989, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.05999999999999989}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+    {'type': 'federation_throttle', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'federation_throttle', 'justification': 'low-trust neighbor', 'constraints': {'threshold': 0.4, 'trust': 0.0}}}
+    {'type': 'quarantine_request', 'from_society_lct': 'lct:web4:society:B', 'to_society_lct': 'lct:web4:society:C', 'dst_trust': 0.0, 'r6': {'interaction_type': 'quarantine_request', 'justification': 'very low-trust neighbor', 'constraints': {'threshold': 0.25, 'trust': 0.0}}}
+Society: Society C (risky) (lct:web4:society:C)
+  Blocks: 2  Chain valid: True
+  Society trust (T3.composite): 0.00

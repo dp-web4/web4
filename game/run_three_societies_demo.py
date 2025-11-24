@@ -8,13 +8,38 @@ suppression events.
 """
 
 from engine.three_societies import bootstrap_three_societies_world
-from engine.sim_loop import run_world
+from engine.sim_loop import tick_world
 from engine.verify import verify_chain_structure
 
 
 def main() -> None:
     world = bootstrap_three_societies_world()
-    run_world(world, steps=40)
+
+    # Get Society C and Carol (the risky treasurer)
+    socC = world.get_society("lct:web4:society:C")
+    carol_lct = "lct:web4:agent:carol-C"
+
+    # Run simulation with Carol making suspicious treasury spends in Society C
+    # This should trigger Society C's trust to drop, causing B to throttle/quarantine C
+    print("=== Running 3-society federation with adversarial behavior ===")
+    print("Carol-C (risky treasurer) will make 8 suspicious treasury spends...")
+    print()
+
+    for step in range(40):
+        # Carol makes suspicious spends in first 8 ticks
+        if step < 8:
+            event = {
+                "type": "treasury_spend",
+                "society_lct": socC.society_lct,
+                "treasury_lct": "lct:web4:society:C:treasury:primary",
+                "initiator_lct": carol_lct,
+                "amount": 50.0,
+                "reason": "suspicious self-allocation by Carol",
+                "world_tick": world.tick,
+            }
+            socC.pending_events.append(event)
+
+        tick_world(world)
 
     print("=== Societies and Trust ===")
     for soc in world.societies.values():
