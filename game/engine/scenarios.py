@@ -13,6 +13,7 @@ from .models import (
     make_agent_lct,
     make_society_lct,
 )
+from .roles import bind_role, pair_role_with_lct
 
 
 def bootstrap_home_society_world() -> World:
@@ -81,5 +82,41 @@ def bootstrap_home_society_world() -> World:
     )
     world.add_agent(agent_b)
     root_society.members.append(agent_b_lct)
+
+    # Bind roles using LCT-based helpers so that role assignments are
+    # explicit on the society chain and in the MRH/LCT context graph.
+    alice_auditor_role = bind_role(
+        world=world,
+        society=root_society,
+        role_name="auditor",
+        subject_lct=agent_a_lct,
+        reason="founder assigned as initial auditor",
+    )
+    alice_law_oracle_role = bind_role(
+        world=world,
+        society=root_society,
+        role_name="law-oracle",
+        subject_lct=agent_a_lct,
+        reason="founder assigned as initial law oracle",
+    )
+
+    bob_treasurer_role = bind_role(
+        world=world,
+        society=root_society,
+        role_name="treasurer",
+        subject_lct=agent_b_lct,
+        reason="assigned as initial treasurer",
+    )
+
+    # Pair the treasurer role with a primary treasury LCT so policies can
+    # reason about which account the role controls.
+    treasury_lct = f"{root_society_lct}:treasury:primary"
+    pair_role_with_lct(
+        world=world,
+        society=root_society,
+        role_lct=bob_treasurer_role,
+        other_lct=treasury_lct,
+        reason="treasurer paired with primary treasury account",
+    )
 
     return world

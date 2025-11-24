@@ -11,6 +11,7 @@ This module provides utilities for:
 from typing import Dict, Any
 
 from .models import World, Society, Agent
+from .r6 import make_r6_envelope
 
 
 def make_role_lct(society_lct: str, role_name: str) -> str:
@@ -60,6 +61,13 @@ def bind_role(
         "subject_lct": subject_lct,
         "mrh": mrh_profile,
         "reason": reason,
+        "r6": make_r6_envelope(
+            interaction_type="role_binding",
+            justification=reason,
+            constraints={
+                "mrh": mrh_profile,
+            },
+        ),
         "world_tick": world.tick,
     }
     society.pending_events.append(event)
@@ -109,6 +117,13 @@ def pair_role_with_lct(
         "other_lct": other_lct,
         "mrh": mrh_profile,
         "reason": reason,
+        "r6": make_r6_envelope(
+            interaction_type="role_pairing",
+            justification=reason,
+            constraints={
+                "mrh": mrh_profile,
+            },
+        ),
         "world_tick": world.tick,
     }
     society.pending_events.append(event)
@@ -122,6 +137,60 @@ def pair_role_with_lct(
     world.add_context_edge(
         subject=society.society_lct,
         predicate="web4:authorizesPairing",
+        object=role_lct,
+        mrh=mrh_profile,
+    )
+
+
+def revoke_role(
+    *,
+    world: World,
+    society: Society,
+    role_lct: str,
+    subject_lct: str,
+    reason: str,
+    mrh: Dict[str, str] | None = None,
+) -> None:
+    """Revoke a role from a subject LCT under the authority of a society.
+
+    Emits a role_revocation event and updates MRH/LCT context edges to
+    reflect that the subject previously had this role.
+    """
+
+    mrh_profile = mrh or {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale",
+    }
+
+    event: Dict[str, Any] = {
+        "type": "role_revocation",
+        "society_lct": society.society_lct,
+        "role_lct": role_lct,
+        "subject_lct": subject_lct,
+        "mrh": mrh_profile,
+        "reason": reason,
+        "r6": make_r6_envelope(
+            interaction_type="role_revocation",
+            justification=reason,
+            constraints={
+                "mrh": mrh_profile,
+            },
+        ),
+        "world_tick": world.tick,
+    }
+    society.pending_events.append(event)
+
+    # Context edges indicating historical role relationship.
+    world.add_context_edge(
+        subject=subject_lct,
+        predicate="web4:hadRole",
+        object=role_lct,
+        mrh=mrh_profile,
+    )
+    world.add_context_edge(
+        subject=society.society_lct,
+        predicate="web4:revokedRole",
         object=role_lct,
         mrh=mrh_profile,
     )
