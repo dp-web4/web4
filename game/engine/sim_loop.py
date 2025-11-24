@@ -13,6 +13,7 @@ from typing import Callable, Optional
 
 from .models import World, Agent, Society
 from .policy import apply_simple_policies
+from .cross_society_policy import apply_cross_society_policies
 
 
 def tick_world(world: World) -> None:
@@ -32,6 +33,10 @@ def tick_world(world: World) -> None:
 
     for society in list(world.societies.values()):
         _society_step(world, society)
+
+    # Apply cross-society policies once per tick after individual
+    # societies have taken their local actions.
+    apply_cross_society_policies(world)
 
 
 def _agent_step(world: World, agent: Agent) -> None:

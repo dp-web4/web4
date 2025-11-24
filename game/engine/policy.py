@@ -14,6 +14,7 @@ from typing import Dict, Any
 from .models import World, Society
 from .roles import revoke_role
 from .membership import membership_revocation
+from .society_trust import update_society_trust
 
 
 def _lower_trust(world: World, agent_lct: str, delta: float) -> None:
@@ -74,3 +75,6 @@ def apply_simple_policies(world: World, society: Society) -> None:
                 agent_lct=initiator_lct,
                 reason="policy: membership revoked for suspicious treasury behavior",
             )
+
+    # Update society-level trust tensor based on recent behavior.
+    update_society_trust(world, society)

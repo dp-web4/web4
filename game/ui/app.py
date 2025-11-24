@@ -55,6 +55,57 @@ async def list_societies():
     return JSONResponse(items)
 
 
+@app.get("/api/planet")
+async def planet_view():
+    """Return a cross-society summary suitable for a planet-view panel."""
+
+    # Build federation links.
+    federation: Dict[str, set[str]] = {}
+    for edge in WORLD.context_edges:
+        if edge.predicate == "web4:federatesWith":
+            federation.setdefault(edge.subject, set()).add(edge.object)
+
+    items: list[Dict[str, Any]] = []
+    for soc in WORLD.societies.values():
+        struct = verify_chain_structure(soc)
+        t_axes = (soc.trust_axes or {}).get("T3") or {}
+        composite = float(t_axes.get("composite", 0.0))
+
+        # Count suppression-like events.
+        audits = 0
+        role_rev = 0
+        memb_rev = 0
+        suppression = 0
+        for b in soc.blocks:
+            for ev in b.get("events", []):
+                et = ev.get("type")
+                if et == "audit_request":
+                    audits += 1
+                elif et == "role_revocation":
+                    role_rev += 1
+                elif et == "membership_revocation":
+                    memb_rev += 1
+                elif et in {"federation_throttle", "quarantine_request"}:
+                    suppression += 1
+
+        items.append(
+            {
+                "society_lct": soc.society_lct,
+                "name": soc.name,
+                "trust_composite": composite,
+                "block_count": struct["block_count"],
+                "chain_valid": struct["valid"],
+                "audits": audits,
+                "role_revocations": role_rev,
+                "membership_revocations": memb_rev,
+                "suppression_events": suppression,
+                "federates_with": sorted(list(federation.get(soc.society_lct, set()))),
+            }
+        )
+
+    return JSONResponse(items)
+
+
 @app.get("/api/societies/{society_lct}")
 async def get_society(society_lct: str):
     soc = WORLD.societies.get(society_lct)
@@ -65,7 +116,12 @@ async def get_society(society_lct: str):
     sigs = verify_stub_signatures(soc)
 
     blocks: list[Dict[str, Any]] = []
+    role_bindings: Dict[str, set[str]] = {}
+    role_revocations: Dict[str, set[str]] = {}
+    membership_revoked: set[str] = set()
+
     for b in soc.blocks[-20:]:  # last 20 blocks
+        events = b.get("events", [])
         blocks.append(
             {
                 "index": b.get("index"),
@@ -73,24 +129,56 @@ async def get_society(society_lct: str):
                 "previous_hash": b.get("previous_hash"),
                 "header_hash": b.get("header_hash"),
                 "signature": b.get("signature"),
-                "event_count": len(b.get("events", [])),
-                "events": b.get("events", []),
+                "event_count": len(events),
+                "events": events,
             }
         )
+
+        # Derive simple role and membership status from recent events.
+        for ev in events:
+            etype = ev.get("type")
+            if etype == "role_binding":
+                subject = ev.get("subject_lct")
+                role_lct = ev.get("role_lct")
+                if subject and role_lct:
+                    role_bindings.setdefault(subject, set()).add(role_lct)
+            elif etype == "role_revocation":
+                subject = ev.get("subject_lct")
+                role_lct = ev.get("role_lct")
+                if subject and role_lct:
+                    role_revocations.setdefault(subject, set()).add(role_lct)
+            elif etype == "membership_revocation":
+                agent_lct = ev.get("agent_lct")
+                if agent_lct:
+                    membership_revoked.add(agent_lct)
 
     # Simple agent/role/membership summary
     agents: list[Dict[str, Any]] = []
     for agent in WORLD.agents.values():
         if society_lct not in agent.memberships:
             continue
+
+        t3 = (agent.trust_axes or {}).get("T3") or {}
+        composite = t3.get("composite", 0.0)
+
+        bound_roles = role_bindings.get(agent.agent_lct, set())
+        revoked_roles = role_revocations.get(agent.agent_lct, set())
+        current_roles = sorted(list(bound_roles - revoked_roles))
+        revoked_roles_list = sorted(list(revoked_roles))
+
+        membership_status = "revoked" if agent.agent_lct in membership_revoked else "active"
+
         agents.append(
             {
                 "agent_lct": agent.agent_lct,
                 "name": agent.name,
                 "trust_axes": agent.trust_axes,
+                "composite_trust": composite,
                 "resources": agent.resources,
                 "memberships": agent.memberships,
-                # Roles are inferred from context edges client-side for now.
+                "current_roles": current_roles,
+                "revoked_roles": revoked_roles_list,
+                "membership_status": membership_status,
             }
         )
 
@@ -191,6 +279,8 @@ async def home() -> HTMLResponse:
                 <div id="blocks"></div>
                 <h3>Agents</h3>
                 <div id="agents"></div>
+                <h3>Planet View</h3>
+                <div id="planet"></div>
             </div>
         </div>
 
@@ -240,15 +330,48 @@ async def home() -> HTMLResponse:
                 const agentsEl = document.getElementById('agents');
                 agentsEl.innerHTML = '';
                 const at = document.createElement('table');
-                at.innerHTML = '<tr><th>Name</th><th>LCT</th><th>ATP</th></tr>';
+                at.innerHTML = '<tr><th>Name</th><th>LCT</th><th>ATP</th><th>Roles</th><th>Status</th><th>Trust</th></tr>';
                 data.agents.forEach(a => {
+                    const roles = (a.current_roles || []).join(', ');
+                    const status = a.membership_status || 'unknown';
+                    const trust = a.composite_trust != null ? a.composite_trust.toFixed(2) : '0.00';
                     const tr = document.createElement('tr');
                     tr.innerHTML = '<td>' + a.name + '</td>' +
                                    '<td>' + a.agent_lct + '</td>' +
-                                   '<td>' + (a.resources.ATP || 0) + '</td>';
+                                   '<td>' + (a.resources.ATP || 0) + '</td>' +
+                                   '<td>' + roles + '</td>' +
+                                   '<td>' + status + '</td>' +
+                                   '<td>' + trust + '</td>';
                     at.appendChild(tr);
                 });
                 agentsEl.appendChild(at);
+
+                // Update planet view once on first society selection.
+                loadPlanetView();
+            }
+
+            async function loadPlanetView() {
+                const resp = await fetch('/api/planet');
+                const data = await resp.json();
+                const planetEl = document.getElementById('planet');
+                planetEl.innerHTML = '';
+                const pt = document.createElement('table');
+                pt.innerHTML = '<tr><th>Name</th><th>LCT</th><th>Trust</th><th>Blocks</th><th>Chain OK</th><th>Audits</th><th>Role Rev</th><th>Mem Rev</th><th>Suppression</th><th>Federates With</th></tr>';
+                data.forEach(s => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = '<td>' + s.name + '</td>' +
+                                   '<td>' + s.society_lct + '</td>' +
+                                   '<td>' + s.trust_composite.toFixed(2) + '</td>' +
+                                   '<td>' + s.block_count + '</td>' +
+                                   '<td>' + s.chain_valid + '</td>' +
+                                   '<td>' + s.audits + '</td>' +
+                                   '<td>' + s.role_revocations + '</td>' +
+                                   '<td>' + s.membership_revocations + '</td>' +
+                                   '<td>' + s.suppression_events + '</td>' +
+                                   '<td>' + (s.federates_with || []).join(', ') + '</td>';
+                    pt.appendChild(tr);
+                });
+                planetEl.appendChild(pt);
             }
 
             loadSocieties();

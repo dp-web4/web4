@@ -31,6 +31,8 @@ class Society:
     treasury: Dict[str, float] = field(default_factory=dict)
     members: List[str] = field(default_factory=list)  # list of agent LCTs
     policies: Dict[str, str] = field(default_factory=dict)
+    # Optional T3-like trust tensor at the society level.
+    trust_axes: Dict[str, Dict[str, float]] = field(default_factory=dict)
     # Minimal per-society blockchain state (v0, in-memory only).
     block_interval_seconds: int = 15
     last_block_time: float = 0.0
