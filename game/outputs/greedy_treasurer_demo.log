@@ -1,0 +1,65 @@
+=== World Tick ===
+15
+
+=== Societies and Blocks ===
+Society: Home Society (lct:web4:society:home-root)
+  Block interval (s): 15
+  Blocks sealed: 1
+  - Block 0 @ t= 15.0
+    header_hash: 35ae966e4729626ebc41cb06f5f5db0d02623d7a0b2c7077c57bc007cf6f79ea
+    previous_hash: None
+    signature: stub-signature
+    Events:
+      {'type': 'role_binding', 'society_lct': 'lct:web4:society:home-root', 'role_lct': 'lct:web4:role:home-root:auditor', 'subject_lct': 'lct:web4:agent:alice', 'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}, 'reason': 'founder assigned as initial auditor', 'r6': {'interaction_type': 'role_binding', 'justification': 'founder assigned as initial auditor', 'constraints': {'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}}}, 'world_tick': 0}
+      {'type': 'role_binding', 'society_lct': 'lct:web4:society:home-root', 'role_lct': 'lct:web4:role:home-root:law-oracle', 'subject_lct': 'lct:web4:agent:alice', 'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}, 'reason': 'founder assigned as initial law oracle', 'r6': {'interaction_type': 'role_binding', 'justification': 'founder assigned as initial law oracle', 'constraints': {'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}}}, 'world_tick': 0}
+      {'type': 'role_binding', 'society_lct': 'lct:web4:society:home-root', 'role_lct': 'lct:web4:role:home-root:treasurer', 'subject_lct': 'lct:web4:agent:bob', 'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}, 'reason': 'assigned as initial treasurer', 'r6': {'interaction_type': 'role_binding', 'justification': 'assigned as initial treasurer', 'constraints': {'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}}}, 'world_tick': 0}
+      {'type': 'role_pairing', 'society_lct': 'lct:web4:society:home-root', 'role_lct': 'lct:web4:role:home-root:treasurer', 'other_lct': 'lct:web4:society:home-root:treasury:primary', 'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}, 'reason': 'treasurer paired with primary treasury account', 'r6': {'interaction_type': 'role_pairing', 'justification': 'treasurer paired with primary treasury account', 'constraints': {'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}}}, 'world_tick': 0}
+      {'type': 'treasury_spend', 'society_lct': 'lct:web4:society:home-root', 'treasury_lct': 'lct:web4:society:home-root:treasury:primary', 'initiator_lct': 'lct:web4:agent:bob', 'amount': 50.0, 'reason': 'suspicious self-allocation', 'world_tick': 0}
+      {'type': 'treasury_spend', 'society_lct': 'lct:web4:society:home-root', 'treasury_lct': 'lct:web4:society:home-root:treasury:primary', 'initiator_lct': 'lct:web4:agent:bob', 'amount': 50.0, 'reason': 'suspicious self-allocation', 'world_tick': 1}
+      {'type': 'treasury_spend', 'society_lct': 'lct:web4:society:home-root', 'treasury_lct': 'lct:web4:society:home-root:treasury:primary', 'initiator_lct': 'lct:web4:agent:bob', 'amount': 50.0, 'reason': 'suspicious self-allocation', 'world_tick': 2}
+      {'type': 'audit_request', 'auditor_lct': 'lct:web4:agent:alice', 'target_lct': 'lct:web4:agent:bob', 'scope': {'fields': ['trust_axes.T3.composite', 'resources.ATP'], 'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}}, 'reason': 'suspicious treasury activity by treasurer', 'atp_allocation': 10.0, 'r6': {'interaction_type': 'audit', 'justification': 'suspicious treasury activity by treasurer', 'constraints': {'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}, 'fields': ['trust_axes.T3.composite', 'resources.ATP']}}, 'world_tick': 2}
+      {'type': 'role_revocation', 'society_lct': 'lct:web4:society:home-root', 'role_lct': 'lct:web4:role:home-root:treasurer', 'subject_lct': 'lct:web4:agent:bob', 'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}, 'reason': 'treasurer revoked due to repeated suspicious spending', 'r6': {'interaction_type': 'role_revocation', 'justification': 'treasurer revoked due to repeated suspicious spending', 'constraints': {'mrh': {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}}}, 'world_tick': 2}
+      {'type': 'treasury_spend', 'society_lct': 'lct:web4:society:home-root', 'treasury_lct': 'lct:web4:society:home-root:treasury:primary', 'initiator_lct': 'lct:web4:agent:bob', 'amount': 50.0, 'reason': 'suspicious self-allocation', 'world_tick': 3}
+      {'type': 'treasury_spend', 'society_lct': 'lct:web4:society:home-root', 'treasury_lct': 'lct:web4:society:home-root:treasury:primary', 'initiator_lct': 'lct:web4:agent:bob', 'amount': 50.0, 'reason': 'suspicious self-allocation', 'world_tick': 4}
+
+=== MRH / LCT Context Edges ===
+  lct:web4:agent:alice --web4:hasRole--> lct:web4:role:home-root:auditor | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:home-root --web4:bindsRole--> lct:web4:role:home-root:auditor | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:hasRole--> lct:web4:role:home-root:law-oracle | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:home-root --web4:bindsRole--> lct:web4:role:home-root:law-oracle | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:hasRole--> lct:web4:role:home-root:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:home-root --web4:bindsRole--> lct:web4:role:home-root:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:role:home-root:treasurer --web4:pairedWith--> lct:web4:society:home-root:treasury:primary | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:home-root --web4:authorizesPairing--> lct:web4:role:home-root:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:hadRole--> lct:web4:role:home-root:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:home-root --web4:revokedRole--> lct:web4:role:home-root:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:alice --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob --web4:participantIn--> lct:web4:society:home-root | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}

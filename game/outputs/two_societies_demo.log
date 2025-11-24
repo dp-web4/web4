@@ -1,0 +1,29 @@
+=== Societies ===
+Society: Society A (strict) (lct:web4:society:socA)
+  Blocks: 1
+  Chain structure valid: True
+  Signatures present: True
+Society: Society B (loose) (lct:web4:society:socB)
+  Blocks: 1
+  Chain structure valid: True
+  Signatures present: True
+
+=== MRH / LCT Context Edges ===
+  lct:web4:agent:alice-A --web4:memberOf--> lct:web4:society:socA | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob-B --web4:memberOf--> lct:web4:society:socB | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:carol-AB --web4:memberOf--> lct:web4:society:socA | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:carol-AB --web4:memberOf--> lct:web4:society:socB | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:socA --web4:federatesWith--> lct:web4:society:socB | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'society-scale'}
+  lct:web4:society:socB --web4:federatesWith--> lct:web4:society:socA | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'society-scale'}
+  lct:web4:agent:alice-A --web4:hasRole--> lct:web4:role:socA:auditor | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:socA --web4:bindsRole--> lct:web4:role:socA:auditor | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:carol-AB --web4:hasRole--> lct:web4:role:socA:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:socA --web4:bindsRole--> lct:web4:role:socA:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:role:socA:treasurer --web4:pairedWith--> lct:web4:society:socA:treasury:primary | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:socA --web4:authorizesPairing--> lct:web4:role:socA:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:bob-B --web4:hasRole--> lct:web4:role:socB:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:socB --web4:bindsRole--> lct:web4:role:socB:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:agent:carol-AB --web4:hasRole--> lct:web4:role:socB:auditor | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:socB --web4:bindsRole--> lct:web4:role:socB:auditor | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:role:socB:treasurer --web4:pairedWith--> lct:web4:society:socB:treasury:primary | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
+  lct:web4:society:socB --web4:authorizesPairing--> lct:web4:role:socB:treasurer | MRH={'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale'}
