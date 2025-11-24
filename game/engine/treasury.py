@@ -13,14 +13,7 @@ from typing import Dict, Any
 
 from .models import World, Society
 from .r6 import make_r6_envelope
-
-
-def _default_mrh() -> Dict[str, str]:
-    return {
-        "deltaR": "local",
-        "deltaT": "session",
-        "deltaC": "society-scale",
-    }
+from .mrh_profiles import get_mrh_for_event_type
 
 
 def treasury_spend(
@@ -41,7 +34,7 @@ def treasury_spend(
     - Wraps the event in an R6 envelope.
     """
 
-    mrh_profile = mrh or _default_mrh()
+    mrh_profile = mrh or get_mrh_for_event_type("treasury_spend")
     atp_before = float(society.treasury.get("ATP", 0.0))
     atp_after = max(0.0, atp_before - float(amount))
     society.treasury["ATP"] = atp_after
@@ -81,7 +74,7 @@ def treasury_deposit(
 ) -> None:
     """Record a deposit into a society treasury (v0)."""
 
-    mrh_profile = mrh or _default_mrh()
+    mrh_profile = mrh or get_mrh_for_event_type("treasury_deposit")
     atp_before = float(society.treasury.get("ATP", 0.0))
     atp_after = atp_before + float(amount)
     society.treasury["ATP"] = atp_after
@@ -122,7 +115,7 @@ def treasury_transfer(
     field; it just records an intent for later, richer economic models.
     """
 
-    mrh_profile = mrh or _default_mrh()
+    mrh_profile = mrh or get_mrh_for_event_type("treasury_transfer")
 
     event: Dict[str, Any] = {
         "type": "treasury_transfer",

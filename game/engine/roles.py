@@ -181,7 +181,15 @@ def revoke_role(
     }
     society.pending_events.append(event)
 
-    # Context edges indicating historical role relationship.
+    # Remove the current hasRole edge (role is being revoked)
+    world.context_edges = [
+        edge for edge in world.context_edges
+        if not (edge.subject == subject_lct and
+                edge.predicate == "web4:hasRole" and
+                edge.object == role_lct)
+    ]
+
+    # Add hadRole edge indicating historical role relationship
     world.add_context_edge(
         subject=subject_lct,
         predicate="web4:hadRole",
