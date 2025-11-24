@@ -1,0 +1,10 @@
+=== Societies and Trust ===
+Society: Society A (strict) (lct:web4:society:A)
+  Blocks: 1  Chain valid: True
+  Society trust (T3.composite): 0.00
+Society: Society B (balanced) (lct:web4:society:B)
+  Blocks: 1  Chain valid: True
+  Society trust (T3.composite): 0.00
+Society: Society C (risky) (lct:web4:society:C)
+  Blocks: 1  Chain valid: True
+  Society trust (T3.composite): 0.00
