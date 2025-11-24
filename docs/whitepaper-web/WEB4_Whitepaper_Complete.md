@@ -2400,6 +2400,44 @@ class MemorySensor:
 Trust(A→B) = Σ(witnessed_interactions × acknowledgment_weight × time_decay) / total_interactions
 ```
 
+### Web4 Trust Field Equation
+
+The foundational trust dynamics equation captures trust as both energy (magnitude) and wave (phase coherence):
+
+```
+T(t) = [ B * e^(-λ Δt) + ΣS ] * cos(φ)
+```
+
+Where:
+- **B** = Base trust value (initial or established trust baseline)
+- **e^(-λ Δt)** = Exponential decay over time (trust naturally degrades without interaction)
+- **λ** = Decay rate constant (context-dependent)
+- **Δt** = Time elapsed since last interaction
+- **ΣS** = Sum of trust signals (witnessed interactions that add trust)
+- **cos(φ)** = Phase alignment component (MRH-dependent contextual alignment)
+
+#### Phase Alignment (φ)
+
+Phase alignment emerges from overlapping dimensions of entity context and operation:
+
+- **Temporal alignment**: Working at the same pace, synchronized rhythms
+- **Informational alignment**: Sharing context domains, compatible knowledge bases
+- **Action alignment**: Complementary capabilities, coordinated activities
+- **Fractal alignment**: Operating at compatible scales, matching MRH boundaries
+
+When entities are in-phase (φ ≈ 0), trust experiences **constructive interference**—amplifying the base trust value. When out-of-phase (φ ≈ π), trust experiences **destructive interference**—diminishing the trust value despite positive underlying signals.
+
+#### Trust as Field Dynamics
+
+This equation reveals trust not as a simple scalar but as a field phenomenon:
+
+1. **Amplitude**: The bracketed term `[B * e^(-λ Δt) + ΣS]` represents trust magnitude
+2. **Phase**: The `cos(φ)` term introduces wave-like interference patterns
+3. **Temporal dynamics**: Trust decays naturally but can be renewed through signals
+4. **Contextual coherence**: MRH overlap determines phase alignment
+
+This mathematical framework unifies trust computation across all Web4 interactions, from individual exchanges to multi-entity collaboration networks.
+
 ### T3-Weighted Trust
 ```
 T3_Trust = (α × Talent + β × Training + γ × Temperament) × context_relevance
