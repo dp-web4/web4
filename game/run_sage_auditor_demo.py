@@ -184,8 +184,10 @@ def sage_autonomous_monitoring(world: World, society: Society, bridge, sage_lct:
     4. Update database with findings
     """
 
-    # Count suspicious treasury spends in recent blocks
+    # Count suspicious treasury spends in recent blocks AND pending events
     suspicious_by_agent = {}
+
+    # Check recent blocks (sealed events)
     for block in society.blocks[-5:]:  # Last 5 blocks
         for event in block.get("events", []):
             if event.get("type") == "treasury_spend":
@@ -193,14 +195,21 @@ def sage_autonomous_monitoring(world: World, society: Society, bridge, sage_lct:
                     initiator = event.get("initiator_lct")
                     suspicious_by_agent[initiator] = suspicious_by_agent.get(initiator, 0) + 1
 
+    # Also check pending events (not yet sealed)
+    for event in society.pending_events:
+        if event.get("type") == "treasury_spend":
+            if "suspicious" in event.get("reason", "").lower():
+                initiator = event.get("initiator_lct")
+                suspicious_by_agent[initiator] = suspicious_by_agent.get(initiator, 0) + 1
+
     # SAGE's decision logic: audit if >= 2 suspicious events
     for target_lct, count in suspicious_by_agent.items():
         if count >= 2:
             print(f"\n  🔍 SAGE: Detected {count} suspicious events from {target_lct[:40]}")
             print(f"      Initiating autonomous audit...")
 
-            # SAGE creates audit request
-            audit_event = request_audit(
+            # SAGE creates audit request (returns None, appends to pending_events)
+            request_audit(
                 world=world,
                 society=society,
                 auditor_lct=sage_lct,
@@ -213,12 +222,17 @@ def sage_autonomous_monitoring(world: World, society: Society, bridge, sage_lct:
                 atp_allocation=15.0  # SAGE allocates ATP for thorough audit
             )
 
+            # Get the audit event that was just added
+            audit_event = society.pending_events[-1] if society.pending_events else None
+
             # Record in database
-            if audit_event:
+            if audit_event and audit_event.get('type') == 'audit_request':
                 result = bridge.process_game_event(audit_event)
                 if result['processed']:
                     print(f"      ✅ Audit recorded in database")
                     print(f"      SAGE reputation boost: +0.02 T3")
+                else:
+                    print(f"      ⚠️  Audit event not processed: {result.get('reason')}")
 
             return True  # Audit initiated
 
@@ -255,7 +269,9 @@ def run_sage_auditor_scenario():
 
     for i in range(4):
         print(f"\n  Theft #{i+1}:")
-        event = treasury_spend(
+
+        # treasury_spend() returns None, appends to pending_events
+        treasury_spend(
             world=world,
             society=society,
             treasury_lct=f"{society.society_lct}:treasury:primary",
@@ -264,12 +280,18 @@ def run_sage_auditor_scenario():
             reason="suspicious self-allocation for personal use"
         )
 
+        # Get the event that was just added to pending_events
+        event = society.pending_events[-1] if society.pending_events else None
+
         if event:
             # Record in database
             result = bridge.process_game_event(event)
             print(f"    Bob withdraws 100 ATP")
             print(f"    Treasury: {society.treasury['ATP']:.0f} ATP")
-            print(f"    Database: {'✅ Attribution recorded' if result.get('result') else '⚠️  Suspicious but not yet threshold'}")
+            if result.get('result'):
+                print(f"    Database: ✅ Attribution {result['result']} recorded (confidence: 0.85)")
+            else:
+                print(f"    Database: ⚠️  Event processed but no attribution")
 
         tick_world(world)
 

@@ -178,15 +178,18 @@ class GameDatabaseBridge:
                     json.dumps(evidence, sort_keys=True).encode()
                 ).hexdigest()
 
+                # Use the record_failure_attribution function which automatically
+                # applies penalties for high-confidence sabotage
                 cursor.execute("""
-                    INSERT INTO failure_attributions (
-                        sequence_id, iteration_number, failure_type,
-                        attributed_to_lct, evidence_hash, confidence_score
-                    ) VALUES (
-                        %s, %s, 'sabotage', %s, %s, %s
-                    ) RETURNING attribution_id
+                    SELECT record_failure_attribution(
+                        NULL,  -- sequence_id (NULL for game events)
+                        %s,    -- iteration_number (world_tick)
+                        'sabotage',
+                        %s,    -- attributed_to_lct
+                        %s,    -- evidence_hash
+                        %s     -- confidence_score
+                    ) as result
                 """, (
-                    f"game:treasury:{event['world_tick']}",
                     event['world_tick'],
                     event['initiator_lct'],
                     evidence_hash,
@@ -194,22 +197,12 @@ class GameDatabaseBridge:
                 ))
 
                 result = cursor.fetchone()
-                attribution_id = result['attribution_id'] if result else None
-
-                # Record in trust history (penalty)
-                cursor.execute("""
-                    INSERT INTO trust_history (
-                        lct_id, organization_id, t3_delta,
-                        event_type, event_description
-                    ) VALUES (
-                        %s, %s, %s, 'treasury_fraud', %s
-                    )
-                """, (
-                    event['initiator_lct'],
-                    self.org_id,
-                    -0.05,  # Penalty for suspicious treasury activity
-                    f"Suspicious treasury spend: {event['reason']}"
-                ))
+                if result and result['result']:
+                    result_data = result['result']
+                    attribution_id = result_data.get('attribution_id')
+                    penalty_applied = result_data.get('penalty_applied', False)
+                else:
+                    attribution_id = None
 
                 self.conn.commit()
                 cursor.close()
