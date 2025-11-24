@@ -12,6 +12,7 @@ import json
 from typing import Callable, Optional
 
 from .models import World, Agent, Society
+from .policy import apply_simple_policies
 
 
 def tick_world(world: World) -> None:
@@ -68,6 +69,11 @@ def _society_step(world: World, society: Society) -> None:
     # update trust and MRH context.
 
     current_time = float(world.tick)
+
+    # Allow policies to react to recent chain events (e.g., suspicious
+    # treasury behavior) before sealing any new blocks.
+    apply_simple_policies(world, society)
+
     if not society.pending_events:
         return
 
