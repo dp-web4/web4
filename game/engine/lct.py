@@ -50,6 +50,10 @@ class LCT:
     trust_axes: Dict[str, Dict[str, float]] = field(default_factory=dict)
     # Example: {"T3": {"talent": 0.8, "training": 0.7, "temperament": 0.9, "composite": 0.8}}
 
+    # Value metadata (V3 - Value through Verification)
+    value_axes: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    # Example: {"V3": {"valuation": 0.85, "veracity": 0.92, "validity": 0.95, "composite": 0.91}}
+
     # MRH profile (Memory, Reputation, History characteristics)
     mrh_profile: Dict[str, str] = field(default_factory=dict)
     # Example: {"deltaR": "local", "deltaT": "session", "deltaC": "agent-scale"}
@@ -83,6 +87,7 @@ class LCT:
             "created_at_block": self.created_at_block,
             "created_at_tick": self.created_at_tick,
             "trust_axes": self.trust_axes,
+            "value_axes": self.value_axes,
             "mrh_profile": self.mrh_profile,
             "metadata": self.metadata,
             "is_active": self.is_active,
@@ -121,6 +126,36 @@ class LCT:
                 t3.get("temperament", 0.5)
             ) / 3.0
 
+    def update_value(self, v3_updates: Dict[str, float]) -> None:
+        """Update V3 value axes.
+
+        V3 represents Value through Verification:
+        - Valuation: Subjective worth (variable, can exceed 1.0)
+        - Veracity: Objective accuracy (0.0 to 1.0)
+        - Validity: Confirmed value delivery (0.0 to 1.0)
+        """
+        if "V3" not in self.value_axes:
+            self.value_axes["V3"] = {
+                "valuation": 0.5,
+                "veracity": 0.5,
+                "validity": 0.5,
+                "composite": 0.5
+            }
+
+        for axis, value in v3_updates.items():
+            self.value_axes["V3"][axis] = value
+
+        # Recalculate composite if individual axes updated
+        if any(ax in v3_updates for ax in ["valuation", "veracity", "validity"]):
+            v3 = self.value_axes["V3"]
+            # Composite uses normalized valuation (clamped to 1.0) for fair averaging
+            normalized_valuation = min(v3.get("valuation", 0.5), 1.0)
+            v3["composite"] = (
+                normalized_valuation +
+                v3.get("veracity", 0.5) +
+                v3.get("validity", 0.5)
+            ) / 3.0
+
 
 # Factory functions for creating LCTs
 
@@ -131,6 +166,7 @@ def create_agent_lct(
     block_number: int,
     tick: int,
     initial_trust: Optional[Dict[str, float]] = None,
+    initial_value: Optional[Dict[str, float]] = None,
     capabilities: Optional[Dict[str, float]] = None,
     resources: Optional[Dict[str, float]] = None,
     memberships: Optional[List[str]] = None
@@ -150,6 +186,18 @@ def create_agent_lct(
             "composite": 0.5
         }
 
+    value_axes = {}
+    if initial_value:
+        value_axes["V3"] = initial_value
+    else:
+        # Default value profile
+        value_axes["V3"] = {
+            "valuation": 0.5,
+            "veracity": 0.5,
+            "validity": 0.5,
+            "composite": 0.5
+        }
+
     metadata = {
         "capabilities": capabilities or {},
         "resources": resources or {},
@@ -163,6 +211,7 @@ def create_agent_lct(
         created_at_block=block_number,
         created_at_tick=tick,
         trust_axes=trust_axes,
+        value_axes=value_axes,
         metadata=metadata,
         mrh_profile={
             "deltaR": "local",
@@ -347,7 +396,18 @@ if __name__ == "__main__":
         "training": 0.8,
         "temperament": 0.95
     })
-    print(f"\n✅ Updated agent trust: {agent.trust_axes['T3']['composite']:.2f}")
+    print(f"\n✅ Updated agent trust (T3): {agent.trust_axes['T3']['composite']:.2f}")
+
+    # Update value
+    agent.update_value({
+        "valuation": 0.85,  # High perceived value
+        "veracity": 0.92,   # Very accurate
+        "validity": 0.98    # Nearly always delivers
+    })
+    print(f"✅ Updated agent value (V3): {agent.value_axes['V3']['composite']:.2f}")
+    print(f"   Valuation: {agent.value_axes['V3']['valuation']:.2f}")
+    print(f"   Veracity: {agent.value_axes['V3']['veracity']:.2f}")
+    print(f"   Validity: {agent.value_axes['V3']['validity']:.2f}")
 
     # Query registry
     print(f"\n✅ Registry stats:")
