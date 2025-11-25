@@ -1,6 +1,7 @@
 """
 ATP Insurance for Web4 Game Societies
 Session #69 Track 1: Integration of Session #65 insurance with game fraud scenarios
+Session #73: Added quality gates using V3 veracity for auditor selection
 
 This module provides insurance mechanics for society treasuries to protect against
 fraud and unexpected ATP losses.
@@ -16,10 +17,21 @@ Integration with failure_attributions:
 - High-confidence fraud (confidence >= 0.80) triggers claims
 - Payout amount = min(ATP_lost, max_payout * coverage_ratio)
 - Insurance pool funded by premiums across all policies
+
+Quality Gates (Session #73):
+- Insurance claims require high V3 veracity auditors (≥0.90)
+- Uses quality-aware agent selection
+- Fail-fast if no qualified auditor available
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from .models import World, Society
+from .lct import LCT
+from .agent_selection import (
+    select_agent_with_quality,
+    InsufficientQualityError,
+    InsufficientATPBudgetError
+)
 
 class InsurancePool:
     """
@@ -300,6 +312,134 @@ def file_fraud_claim(
             'claim_id': claim['claim_id'],
             'atp_lost': atp_lost,
             'payout': payout,
+            'attribution_id': attribution_id,
+            'confidence': confidence_score,
+            'world_tick': world.tick
+        }
+        society.pending_events.append(event)
+
+    return claim
+
+
+def file_fraud_claim_with_quality(
+    world: World,
+    society: Society,
+    insurance_pool: InsurancePool,
+    atp_lost: float,
+    attribution_id: int,
+    confidence_score: float,
+    attributed_to_lct: str,
+    available_auditors: List[LCT],
+    auditor_atp_costs: Dict[str, float],
+    atp_budget: Optional[float] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    File insurance claim with quality-aware auditor selection (Session #73)
+
+    This version requires high V3 veracity auditor (≥0.90) to process claim.
+    Implements fail-fast quality gates from HRM integration.
+
+    Args:
+        world: Game world
+        society: Victim society
+        insurance_pool: Insurance pool manager
+        atp_lost: ATP stolen/lost
+        attribution_id: Database attribution ID
+        confidence_score: Fraud confidence (0.0-1.0)
+        attributed_to_lct: Fraudster LCT
+        available_auditors: List of auditor LCT objects
+        auditor_atp_costs: ATP cost per auditor
+        atp_budget: Optional ATP budget for auditor selection
+
+    Returns:
+        Claim result with payout and auditor info, or None if denied
+
+    Raises:
+        InsufficientQualityError: No auditor meets V3 veracity ≥0.90
+        InsufficientATPBudgetError: Qualified auditors exceed budget
+
+    Example:
+        >>> try:
+        ...     claim = file_fraud_claim_with_quality(
+        ...         world, society, pool, atp_lost=300,
+        ...         attribution_id=123, confidence_score=0.85,
+        ...         attributed_to_lct="bad_agent",
+        ...         available_auditors=auditors,
+        ...         auditor_atp_costs={"auditor1": 50, "auditor2": 100}
+        ...     )
+        ... except InsufficientQualityError as e:
+        ...     print(f"Cannot process claim: {e}")
+    """
+    # Step 1: Select qualified auditor using quality-aware selection
+    try:
+        auditor_selection = select_agent_with_quality(
+            operation_type="insurance_claim",  # Requires V3 veracity ≥0.90
+            agents=available_auditors,
+            atp_costs=auditor_atp_costs,
+            atp_budget=atp_budget
+        )
+    except (InsufficientQualityError, InsufficientATPBudgetError) as e:
+        # Quality gate failed - cannot process claim
+        # Return denied claim with quality failure reason
+        return {
+            'status': 'denied',
+            'reason': f'quality_gate_failed: {str(e)}',
+            'payout': 0.0,
+            'auditor_selected': None,
+            'quality_error': str(e)
+        }
+
+    # Step 2: Process claim with selected auditor
+    fraud_evidence = {
+        'attribution_id': attribution_id,
+        'confidence_score': confidence_score,
+        'attributed_to_lct': attributed_to_lct,
+        'atp_lost': atp_lost,
+        'world_tick': world.tick,
+        'auditor_lct': auditor_selection.agent_lct,
+        'auditor_veracity': auditor_selection.v3_veracity,
+        'auditor_atp_cost': auditor_selection.atp_cost
+    }
+
+    claim = insurance_pool.file_claim(
+        society_lct=society.society_lct,
+        atp_lost=atp_lost,
+        fraud_evidence=fraud_evidence
+    )
+
+    # Enhance claim result with quality gate info
+    if claim:
+        claim['auditor_lct'] = auditor_selection.agent_lct
+        claim['auditor_veracity'] = auditor_selection.v3_veracity
+        claim['auditor_atp_cost'] = auditor_selection.atp_cost
+        claim['selection_reason'] = auditor_selection.reason
+
+    if claim and claim['status'] == 'approved':
+        # Credit payout to society treasury
+        payout = claim['payout']
+        society.treasury["ATP"] = society.treasury.get("ATP", 0.0) + payout
+
+        # Deduct auditor cost from society treasury (or from payout)
+        # For now, deduct from payout to keep net gain positive
+        net_payout = payout - auditor_selection.atp_cost
+        if net_payout < 0:
+            # Auditor cost exceeds payout - claim might not be worth filing
+            claim['net_payout'] = 0
+            claim['auditor_cost_note'] = "Auditor cost exceeded payout"
+        else:
+            claim['net_payout'] = net_payout
+
+        # Create event for audit trail
+        event = {
+            'type': 'insurance_payout_with_quality',
+            'society_lct': society.society_lct,
+            'claim_id': claim['claim_id'],
+            'atp_lost': atp_lost,
+            'payout': payout,
+            'auditor_lct': auditor_selection.agent_lct,
+            'auditor_veracity': auditor_selection.v3_veracity,
+            'auditor_atp_cost': auditor_selection.atp_cost,
+            'net_payout': claim.get('net_payout', payout),
             'attribution_id': attribution_id,
             'confidence': confidence_score,
             'world_tick': world.tick

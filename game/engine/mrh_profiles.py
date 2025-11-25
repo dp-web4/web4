@@ -1,14 +1,22 @@
 """
 MRH (Markov Relevancy Horizons) Profile Utilities for Web4 Game Engine
 Session #68: Integration of HRM MRH concepts into game simulation
+Session #73: Extended with deltaQ (Quality) dimension
 
 Based on HRM/sage/core/mrh_utils.py and HRM/sage/docs/WEB4_SAGE_INTEGRATION_ANALYSIS.md,
 this module provides MRH profile inference and management for game events.
 
-MRH Dimensions:
+MRH Dimensions (4D):
 - deltaR (Spatial): local | regional | global
 - deltaT (Temporal): ephemeral | session | day | epoch
 - deltaC (Complexity): simple | agent-scale | society-scale
+- deltaQ (Quality): low | medium | high | critical [NEW in Session #73]
+
+Quality Levels:
+- low (0.5-0.7): Approximate, cached, best-effort
+- medium (0.7-0.85): Validated, recent, reliable
+- high (0.85-0.95): Multi-witness, cryptographically verified
+- critical (0.95-1.0): Safety-critical, legal, financial
 """
 
 from typing import Dict
@@ -208,26 +216,39 @@ def filter_events_by_mrh(events: list, target_mrh: Dict[str, str],
 def get_mrh_for_situation(*,
                           spatial_scope: str = "local",
                           temporal_scope: str = "session",
-                          complexity: str = "agent-scale") -> Dict[str, str]:
+                          complexity: str = "agent-scale",
+                          quality_level: str = "medium") -> Dict[str, str]:
     """
-    Construct MRH profile for a specific situation
+    Construct MRH profile for a specific situation (4D with quality)
 
     Args:
         spatial_scope: "local" | "regional" | "global"
         temporal_scope: "ephemeral" | "session" | "day" | "epoch"
         complexity: "simple" | "agent-scale" | "society-scale"
+        quality_level: "low" | "medium" | "high" | "critical" [NEW in Session #73]
 
     Returns:
-        MRH profile dict
+        MRH profile dict (now includes deltaQ)
+
+    Example:
+        >>> get_mrh_for_situation(
+        ...     spatial_scope="local",
+        ...     temporal_scope="session",
+        ...     complexity="agent-scale",
+        ...     quality_level="high"
+        ... )
+        {'deltaR': 'local', 'deltaT': 'session', 'deltaC': 'agent-scale', 'deltaQ': 'high'}
     """
     return {
         "deltaR": spatial_scope,
         "deltaT": temporal_scope,
-        "deltaC": complexity
+        "deltaC": complexity,
+        "deltaQ": quality_level
     }
 
 # ATP Cost Models by MRH Profile (based on HRM experiments)
-ATP_COSTS = {
+# Base costs without quality multiplier
+ATP_COSTS_BASE = {
     ("local", "ephemeral", "simple"): 0,      # Pattern matching (pre-cached)
     ("local", "session", "simple"): 5,         # Simple state update
     ("local", "session", "agent-scale"): 15,   # Agent reasoning
@@ -238,54 +259,158 @@ ATP_COSTS = {
     ("global", "session", "agent-scale"): 100, # Global network call
 }
 
-def estimate_atp_cost(mrh: Dict[str, str]) -> float:
+# Quality multipliers (Session #73: HRM quality-aware integration)
+# Based on HRM experiment showing 7x ATP cost for 100% quality compliance
+QUALITY_MULTIPLIERS = {
+    "low": 1.0,      # Best-effort, cached, approximate
+    "medium": 1.5,   # Validated, recent, reliable
+    "high": 2.0,     # Multi-witness, verified
+    "critical": 3.0  # Safety-critical, cryptographic proof
+}
+
+def quality_level_to_veracity(quality_level: str) -> float:
     """
-    Estimate ATP cost for an operation with given MRH profile
-    Based on HRM ATP cost models
+    Convert quality level to V3 veracity threshold
 
     Args:
-        mrh: MRH profile dict
+        quality_level: "low" | "medium" | "high" | "critical"
+
+    Returns:
+        Minimum V3 veracity required (0.0-1.0)
+    """
+    return {
+        "low": 0.60,
+        "medium": 0.75,
+        "high": 0.90,
+        "critical": 0.95
+    }.get(quality_level, 0.75)  # Default: medium
+
+def veracity_to_quality_level(veracity: float) -> str:
+    """
+    Convert V3 veracity to quality level
+
+    Args:
+        veracity: V3 veracity score (0.0-1.0)
+
+    Returns:
+        Quality level string
+    """
+    if veracity >= 0.95:
+        return "critical"
+    elif veracity >= 0.90:
+        return "high"
+    elif veracity >= 0.75:
+        return "medium"
+    else:
+        return "low"
+
+def estimate_atp_cost(mrh: Dict[str, str], include_quality: bool = True) -> float:
+    """
+    Estimate ATP cost for an operation with given MRH profile
+
+    Session #73: Extended to include quality multiplier
+    Based on HRM ATP cost models and quality-aware selection experiment
+
+    Args:
+        mrh: MRH profile dict (may include deltaQ)
+        include_quality: Whether to apply quality multiplier (default True)
 
     Returns:
         Estimated ATP cost
+
+    Example:
+        >>> mrh = {"deltaR": "local", "deltaT": "session", "deltaC": "agent-scale", "deltaQ": "high"}
+        >>> estimate_atp_cost(mrh)
+        30.0  # Base cost 15 * quality multiplier 2.0
     """
+    # Get base cost from 3D MRH (spatial, temporal, complexity)
     key = (mrh.get("deltaR"), mrh.get("deltaT"), mrh.get("deltaC"))
-    return ATP_COSTS.get(key, 10.0)  # Default: 10 ATP
+    base_cost = ATP_COSTS_BASE.get(key, 10.0)  # Default: 10 ATP
+
+    # Apply quality multiplier if deltaQ present
+    if include_quality and "deltaQ" in mrh:
+        quality_level = mrh["deltaQ"]
+        multiplier = QUALITY_MULTIPLIERS.get(quality_level, 1.0)
+        return base_cost * multiplier
+
+    return base_cost
 
 # Example Usage and Tests
 if __name__ == "__main__":
-    print("MRH Profile Examples:")
-    print("-" * 80)
+    print("=" * 80)
+    print("MRH Profile Examples (4D with Quality)")
+    print("=" * 80)
+    print()
 
-    # Example 1: Treasury spend
+    # Example 1: Treasury spend (backward compatible - no quality)
     treasury_mrh = get_mrh_for_event_type("treasury_spend")
-    print(f"Treasury Spend: {treasury_mrh}")
-    print(f"  Cost: {estimate_atp_cost(treasury_mrh)} ATP")
+    print(f"Treasury Spend (3D): {treasury_mrh}")
+    print(f"  Cost: {estimate_atp_cost(treasury_mrh, include_quality=False)} ATP (no quality)")
+    print()
 
-    # Example 2: Audit request
-    audit_mrh = get_mrh_for_event_type("audit_request")
-    print(f"Audit Request: {audit_mrh}")
-    print(f"  Cost: {estimate_atp_cost(audit_mrh)} ATP")
+    # Example 2: 4D MRH with quality levels
+    print("4D MRH with Quality Levels:")
+    for quality in ["low", "medium", "high", "critical"]:
+        mrh = get_mrh_for_situation(
+            spatial_scope="local",
+            temporal_scope="session",
+            complexity="agent-scale",
+            quality_level=quality
+        )
+        cost = estimate_atp_cost(mrh)
+        veracity = quality_level_to_veracity(quality)
+        print(f"  {quality:8s} (V3≥{veracity:.2f}): {mrh} → {cost:5.1f} ATP")
+    print()
 
-    # Example 3: Cross-society throttle
-    throttle_mrh = get_mrh_for_event_type("federation_throttle")
-    print(f"Federation Throttle: {throttle_mrh}")
-    print(f"  Cost: {estimate_atp_cost(throttle_mrh)} ATP")
+    # Example 3: Quality multiplier impact
+    print("Quality Multiplier Impact on Insurance Claim:")
+    base_mrh = {"deltaR": "local", "deltaT": "session", "deltaC": "agent-scale"}
+    base_cost = estimate_atp_cost(base_mrh, include_quality=False)
+    print(f"  Base cost (no quality): {base_cost} ATP")
 
-    # Example 4: MRH similarity
+    for quality in ["low", "medium", "high", "critical"]:
+        mrh_with_q = {**base_mrh, "deltaQ": quality}
+        cost = estimate_atp_cost(mrh_with_q)
+        multiplier = QUALITY_MULTIPLIERS[quality]
+        print(f"  {quality:8s} quality: {cost:5.1f} ATP ({multiplier}x multiplier)")
+    print()
+
+    # Example 4: Veracity ↔ Quality Level conversion
+    print("Veracity ↔ Quality Level Conversion:")
+    for veracity in [0.55, 0.70, 0.80, 0.92, 0.97]:
+        quality = veracity_to_quality_level(veracity)
+        print(f"  V3 veracity {veracity:.2f} → {quality:8s} quality")
+    print()
+
+    # Example 5: MRH similarity (still 3D-based)
+    print("MRH Similarity (3D dimensions only):")
     mrh1 = {"deltaR": "local", "deltaT": "session", "deltaC": "simple"}
     mrh2 = {"deltaR": "local", "deltaT": "session", "deltaC": "agent-scale"}
     similarity = compute_mrh_similarity(mrh1, mrh2)
-    print(f"\nSimilarity between {mrh1} and {mrh2}: {similarity:.2f}")
+    print(f"  {mrh1}")
+    print(f"  {mrh2}")
+    print(f"  Similarity: {similarity:.2f}")
+    print()
 
-    # Example 5: Event filtering
-    events = [
-        {"type": "treasury_spend", "amount": 100},
-        {"type": "audit_request", "auditor": "sage"},
-        {"type": "treasury_deposit", "amount": 50},
-    ]
-    target = {"deltaR": "local", "deltaT": "session", "deltaC": "simple"}
-    filtered = filter_events_by_mrh(events, target, min_similarity=1.0)
-    print(f"\nFiltered events (exact match to {target}):")
-    for e in filtered:
-        print(f"  - {e['type']}")
+    # Example 6: Critical operation cost comparison
+    print("Cost Comparison: Routine vs Critical Operation:")
+    routine = get_mrh_for_situation(
+        spatial_scope="local",
+        temporal_scope="session",
+        complexity="simple",
+        quality_level="low"
+    )
+    critical = get_mrh_for_situation(
+        spatial_scope="local",
+        temporal_scope="session",
+        complexity="agent-scale",
+        quality_level="critical"
+    )
+    print(f"  Routine (event_logging): {estimate_atp_cost(routine):.1f} ATP")
+    print(f"  Critical (insurance_claim): {estimate_atp_cost(critical):.1f} ATP")
+    print(f"  Ratio: {estimate_atp_cost(critical) / estimate_atp_cost(routine):.1f}x")
+    print()
+
+    print("=" * 80)
+    print("✓ All examples complete")
+    print("=" * 80)
