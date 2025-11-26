@@ -51,12 +51,16 @@ def update_v3_on_success(lct: LCT, operation_type: str) -> float:
     """
     Update V3 veracity after successful operation
 
+    Session #76: Added raw score tracking to handle ceiling problem.
+    - veracity: User-facing score (capped at 1.0)
+    - veracity_raw: Internal uncapped score for differentiation
+
     Args:
         lct: LCT object to update
         operation_type: Type of operation that succeeded
 
     Returns:
-        New veracity value
+        New veracity value (capped)
 
     Example:
         >>> agent = LCT(...)
@@ -66,13 +70,20 @@ def update_v3_on_success(lct: LCT, operation_type: str) -> float:
     """
     current_veracity = lct.value_axes.get("V3", {}).get("veracity", 0.5)
 
-    # Small increment for successful operations
-    new_veracity = min(V3_MAX_VERACITY, current_veracity + V3_SUCCESS_INCREMENT)
+    # Get raw score (uncapped), initialize from capped if not present
+    current_raw = lct.value_axes.get("V3", {}).get("veracity_raw", current_veracity)
 
-    # Update LCT
+    # Update raw score (uncapped)
+    new_raw = current_raw + V3_SUCCESS_INCREMENT
+
+    # Update capped score
+    new_veracity = min(V3_MAX_VERACITY, new_raw)
+
+    # Update LCT with both scores
     if "V3" not in lct.value_axes:
         lct.value_axes["V3"] = {}
     lct.value_axes["V3"]["veracity"] = new_veracity
+    lct.value_axes["V3"]["veracity_raw"] = new_raw
 
     return new_veracity
 
@@ -81,8 +92,8 @@ def update_v3_on_failure(lct: LCT, operation_type: str, severity: float = 1.0) -
     """
     Update V3 veracity after failed operation
 
-    Failures have larger impact than successes (5x by default) to quickly
-    identify unreliable agents.
+    Session #75: 2:1 asymmetry (failures hurt 2x more than successes help)
+    Session #76: Added raw score tracking for ceiling differentiation
 
     Args:
         lct: LCT object to update
@@ -90,24 +101,31 @@ def update_v3_on_failure(lct: LCT, operation_type: str, severity: float = 1.0) -
         severity: Failure severity multiplier (1.0 = normal, 2.0 = critical failure)
 
     Returns:
-        New veracity value
+        New veracity value (capped)
 
     Example:
         >>> agent = LCT(...)
         >>> agent.value_axes = {"V3": {"veracity": 0.80}}
         >>> new_veracity = update_v3_on_failure(agent, "insurance_claim", severity=2.0)
-        >>> # veracity decreased from 0.80 to 0.70 (2x severity = -0.10)
+        >>> # veracity decreased from 0.80 to 0.76 (2x severity = -0.04)
     """
     current_veracity = lct.value_axes.get("V3", {}).get("veracity", 0.5)
 
+    # Get raw score (uncapped), initialize from capped if not present
+    current_raw = lct.value_axes.get("V3", {}).get("veracity_raw", current_veracity)
+
     # Larger decrement for failures, scaled by severity
     decrement = V3_FAILURE_DECREMENT * severity
-    new_veracity = max(V3_MIN_VERACITY, current_veracity + decrement)
+    new_raw = current_raw + decrement
 
-    # Update LCT
+    # Update capped score
+    new_veracity = max(V3_MIN_VERACITY, min(V3_MAX_VERACITY, new_raw))
+
+    # Update LCT with both scores
     if "V3" not in lct.value_axes:
         lct.value_axes["V3"] = {}
     lct.value_axes["V3"]["veracity"] = new_veracity
+    lct.value_axes["V3"]["veracity_raw"] = new_raw
 
     return new_veracity
 
