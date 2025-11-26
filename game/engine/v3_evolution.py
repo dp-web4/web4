@@ -27,12 +27,27 @@ from typing import Dict, Optional
 
 try:
     from .lct import LCT
+    from .multidimensional_v3 import (
+        V3Components,
+        calculate_composite_veracity,
+        update_components_from_operation,
+        get_context_specific_weights
+    )
 except ImportError:
     # Allow testing as standalone script
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent))
     from lct import LCT
+    try:
+        from multidimensional_v3 import (
+            V3Components,
+            calculate_composite_veracity,
+            update_components_from_operation,
+            get_context_specific_weights
+        )
+    except ImportError:
+        V3Components = None  # Fallback if not available
 
 
 # V3 Evolution Parameters (Session #75 calibration)
@@ -385,6 +400,76 @@ def test_v3_evolution():
     print("=" * 80)
     print("✓ All tests complete")
     print("=" * 80)
+
+
+def update_v3_with_components(
+    lct: LCT,
+    operation_result: Dict,
+    context: Optional[Dict] = None
+) -> Dict:
+    """
+    Update V3 using multi-dimensional component system (Session #77)
+
+    Args:
+        lct: LCT object to update
+        operation_result: Operation outcome data
+        context: Operation context for weighted composite
+
+    Returns:
+        {
+            "composite_veracity": float,
+            "component_deltas": dict,
+            "components": dict
+        }
+
+    Example:
+        >>> result = {
+        ...     "success": True,
+        ...     "quality_score": 0.9,
+        ...     "latency": 30.0,
+        ...     "expected_latency": 40.0,
+        ...     "atp_cost": 50.0
+        ... }
+        >>> update = update_v3_with_components(agent_lct, result)
+    """
+    if V3Components is None:
+        # Fallback to simple veracity if components not available
+        if operation_result.get("success"):
+            return {"composite_veracity": update_v3_on_success(lct, "operation")}
+        else:
+            return {"composite_veracity": update_v3_on_failure(lct, "operation")}
+
+    # Initialize or get existing components
+    if "V3" not in lct.value_axes:
+        lct.value_axes["V3"] = {}
+
+    if "components" not in lct.value_axes["V3"]:
+        # Initialize with default 0.5 for all components
+        lct.value_axes["V3"]["components"] = V3Components().to_dict()
+
+    # Get components
+    components = V3Components.from_dict(lct.value_axes["V3"]["components"])
+
+    # Update components based on operation
+    component_deltas = update_components_from_operation(components, operation_result)
+
+    # Calculate composite veracity
+    if context:
+        weights = get_context_specific_weights(context)
+        composite = calculate_composite_veracity(components, weights)
+    else:
+        composite = calculate_composite_veracity(components)
+
+    # Update LCT
+    lct.value_axes["V3"]["components"] = components.to_dict()
+    lct.value_axes["V3"]["veracity"] = composite
+    lct.value_axes["V3"]["veracity_raw"] = composite  # Components already uncapped
+
+    return {
+        "composite_veracity": composite,
+        "component_deltas": {k.value: v for k, v in component_deltas.items()},
+        "components": components.to_dict()
+    }
 
 
 if __name__ == "__main__":
