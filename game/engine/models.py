@@ -64,6 +64,10 @@ class World:
     tick: int = 0
     # MRH/LCT context edges observed in this world (v0, in-memory only).
     context_edges: List[ContextEdge] = field(default_factory=list)
+    # LCT registry for full V3/T3 metadata (Session #75 cross-society reputation)
+    lct_registry: Dict[str, Dict] = field(default_factory=dict)  # lct_id -> lct_dict
+    # Federation structure (Session #70+ federation work)
+    federation: Dict[str, List[str]] = field(default_factory=dict)  # society_lct -> [connected_society_lcts]
 
     def add_agent(self, agent: Agent) -> None:
         self.agents[agent.agent_lct] = agent
@@ -76,6 +80,14 @@ class World:
 
     def get_society(self, society_lct: str) -> Optional[Society]:
         return self.societies.get(society_lct)
+
+    def get_agent_lct(self, agent_lct: str) -> Optional[Dict]:
+        """Get full LCT dict for agent (Session #75 cross-society reputation)"""
+        return self.lct_registry.get(agent_lct)
+
+    def get_society_lct(self, society_lct: str) -> Optional[Dict]:
+        """Get full LCT dict for society (Session #75 cross-society reputation)"""
+        return self.lct_registry.get(society_lct)
 
     def add_context_edge(
         self,

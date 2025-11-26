@@ -35,9 +35,12 @@ except ImportError:
     from lct import LCT
 
 
-# V3 Evolution Parameters
+# V3 Evolution Parameters (Session #75 calibration)
+# 2:1 asymmetry ratio: failures hurt 2x more than successes help
+# Equilibrium success rate: 66.7% (from β/(α+β) = 0.02/0.03)
+# This allows 70%+ quality agents to converge stably while filtering <60% agents
 V3_SUCCESS_INCREMENT = 0.01      # Small increase per successful operation
-V3_FAILURE_DECREMENT = -0.05     # Larger decrease per failure (5x impact)
+V3_FAILURE_DECREMENT = -0.02     # Moderate decrease per failure (2:1 asymmetry, changed from -0.05)
 V3_VALIDATION_BOOST = 0.02       # External validation boost
 V3_DECAY_RATE = 0.001            # Entropy decay per tick without activity
 V3_MIN_VERACITY = 0.0            # Lower bound
