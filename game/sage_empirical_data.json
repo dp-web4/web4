@@ -1,0 +1,2162 @@
+{
+  "overall": {
+    "total_executions": 200,
+    "success_rate": 0.95,
+    "mean_latency_ms": 52.23636404846361,
+    "mean_quality": 0.7384714124684917
+  },
+  "by_task": {
+    "action_recognition": {
+      "count": 20,
+      "success_rate": 0.85,
+      "mean_latency_ms": 86.14106038512571,
+      "p50_latency_ms": 87.20252668256518,
+      "p95_latency_ms": 111.67302554892994,
+      "mean_quality": 0.6106431483712972,
+      "stakes_level": "high"
+    },
+    "image_classification": {
+      "count": 30,
+      "success_rate": 1.0,
+      "mean_latency_ms": 22.329089998512064,
+      "p50_latency_ms": 22.235251317492395,
+      "p95_latency_ms": 32.80170670079447,
+      "mean_quality": 0.8882689857275,
+      "stakes_level": "low"
+    },
+    "instance_segmentation": {
+      "count": 15,
+      "success_rate": 0.8666666666666667,
+      "mean_latency_ms": 110.52396399386261,
+      "p50_latency_ms": 110.50781267822198,
+      "p95_latency_ms": 141.57158534152285,
+      "mean_quality": 0.6102527051457765,
+      "stakes_level": "high"
+    },
+    "object_detection": {
+      "count": 24,
+      "success_rate": 1.0,
+      "mean_latency_ms": 40.49034454826922,
+      "p50_latency_ms": 42.21991678655463,
+      "p95_latency_ms": 54.234750598172496,
+      "mean_quality": 0.6727981911827768,
+      "stakes_level": "medium"
+    },
+    "pose_estimation": {
+      "count": 28,
+      "success_rate": 0.8928571428571429,
+      "mean_latency_ms": 71.19151782155679,
+      "p50_latency_ms": 73.5888057761195,
+      "p95_latency_ms": 89.45550598166359,
+      "mean_quality": 0.7352135307328052,
+      "stakes_level": "medium"
+    },
+    "scene_understanding": {
+      "count": 15,
+      "success_rate": 0.9333333333333333,
+      "mean_latency_ms": 84.40682391158002,
+      "p50_latency_ms": 86.10949758324358,
+      "p95_latency_ms": 105.71749581885469,
+      "mean_quality": 0.6914357372466478,
+      "stakes_level": "high"
+    },
+    "semantic_segmentation": {
+      "count": 22,
+      "success_rate": 0.9545454545454546,
+      "mean_latency_ms": 61.249548500256225,
+      "p50_latency_ms": 63.11658386693327,
+      "p95_latency_ms": 74.9652110762299,
+      "mean_quality": 0.7286832162164412,
+      "stakes_level": "medium"
+    },
+    "visual_attention": {
+      "count": 46,
+      "success_rate": 1.0,
+      "mean_latency_ms": 17.782527136641665,
+      "p50_latency_ms": 17.3047031056446,
+      "p95_latency_ms": 23.995422872832766,
+      "mean_quality": 0.7944316763672639,
+      "stakes_level": "low"
+    }
+  },
+  "by_stakes": {
+    "low": {
+      "count": 76,
+      "success_rate": 1.0,
+      "mean_latency_ms": 19.577223003169454,
+      "mean_quality": 0.8314727195357782
+    },
+    "medium": {
+      "count": 74,
+      "success_rate": 0.9459459459459459,
+      "mean_latency_ms": 58.27865993469849,
+      "mean_quality": 0.7130292730495525
+    },
+    "high": {
+      "count": 50,
+      "success_rate": 0.88,
+      "mean_latency_ms": 92.93566052568308,
+      "mean_quality": 0.6347637920662461
+    }
+  },
+  "atp_costs": [
+    {
+      "task": "action_recognition",
+      "stakes": "high",
+      "atp_cost": 100.39146263457079,
+      "latency_ms": 86.14106038512571,
+      "quality": 0.6106431483712972
+    },
+    {
+      "task": "image_classification",
+      "stakes": "low",
+      "atp_cost": 10.466463582862263,
+      "latency_ms": 22.329089998512064,
+      "quality": 0.8882689857275
+    },
+    {
+      "task": "instance_segmentation",
+      "stakes": "high",
+      "atp_cost": 100.41565031656674,
+      "latency_ms": 110.52396399386261,
+      "quality": 0.6102527051457765
+    },
+    {
+      "task": "object_detection",
+      "stakes": "medium",
+      "atp_cost": 50.37688944013966,
+      "latency_ms": 40.49034454826922,
+      "quality": 0.6727981911827768
+    },
+    {
+      "task": "pose_estimation",
+      "stakes": "medium",
+      "atp_cost": 50.43879828318796,
+      "latency_ms": 71.19151782155679,
+      "quality": 0.7352135307328052
+    },
+    {
+      "task": "scene_understanding",
+      "stakes": "high",
+      "atp_cost": 100.4301246925349,
+      "latency_ms": 84.40682391158002,
+      "quality": 0.6914357372466478
+    },
+    {
+      "task": "semantic_segmentation",
+      "stakes": "medium",
+      "atp_cost": 50.425591156608476,
+      "latency_ms": 61.249548500256225,
+      "quality": 0.7286832162164412
+    },
+    {
+      "task": "visual_attention",
+      "stakes": "low",
+      "atp_cost": 10.414998365320274,
+      "latency_ms": 17.782527136641665,
+      "quality": 0.7944316763672639
+    }
+  ],
+  "raw_telemetry": [
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 15.48667799838437,
+      "quality_score": 0.7369159825541142,
+      "memory_mb": 204.24639525506865,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337013,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 45.00917062881321,
+      "quality_score": 0.6456198711347838,
+      "memory_mb": 651.4537598502633,
+      "compute_util": 0.3506875611118499,
+      "timestamp": 1764230641.9337063,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 20.183796010824224,
+      "quality_score": 0.9572111185538037,
+      "memory_mb": 187.17111367386582,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337094,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 18.93073967199498,
+      "quality_score": 0.7887426068977914,
+      "memory_mb": 180.45673068917233,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337113,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 21.22570685778157,
+      "quality_score": 0.9530590165521761,
+      "memory_mb": 290.1587555463002,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337137,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 45.10475376365944,
+      "quality_score": 0.7259062760549859,
+      "memory_mb": 715.1927228374774,
+      "compute_util": 0.3807443130504658,
+      "timestamp": 1764230641.9337158,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 130.7325035075262,
+      "quality_score": 0.6204957136409281,
+      "memory_mb": 1120.783278650256,
+      "compute_util": 1.0,
+      "timestamp": 1764230641.9337177,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 82.5405782964333,
+      "quality_score": 0.7947953268743376,
+      "memory_mb": 729.5876031003062,
+      "compute_util": 0.6612462270087618,
+      "timestamp": 1764230641.9337199,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 42.3008480962447,
+      "quality_score": 0.5944583634947886,
+      "memory_mb": 636.2858764082742,
+      "compute_util": 0.4009616204778364,
+      "timestamp": 1764230641.9337215,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 66.22503952080346,
+      "quality_score": 0.8310539075009468,
+      "memory_mb": 868.9832359264701,
+      "compute_util": 0.513041831640754,
+      "timestamp": 1764230641.933724,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 92.2036618674676,
+      "quality_score": 0.8599750513608233,
+      "memory_mb": 1016.0838665942911,
+      "compute_util": 0.6186229019532454,
+      "timestamp": 1764230641.9337258,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 15.323644820685804,
+      "quality_score": 0.7787206536205289,
+      "memory_mb": 208.82274500315026,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337282,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 83.45746886629837,
+      "quality_score": 0.6128109312973021,
+      "memory_mb": 976.3331961917086,
+      "compute_util": 0.7319104053358554,
+      "timestamp": 1764230641.9337306,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 121.29582790131184,
+      "quality_score": 0.5,
+      "memory_mb": 1230.9168811239288,
+      "compute_util": 1.0,
+      "timestamp": 1764230641.9337327,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 77.69503223706606,
+      "quality_score": 0.8085020563084523,
+      "memory_mb": 687.1197201543587,
+      "compute_util": 0.5384668898758095,
+      "timestamp": 1764230641.933735,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 17.019286626271228,
+      "quality_score": 0.8910558991431803,
+      "memory_mb": 273.58864164823643,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.933737,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 74.9652110762299,
+      "quality_score": 0.7249384696982433,
+      "memory_mb": 854.158247723214,
+      "compute_util": 0.7325368822566789,
+      "timestamp": 1764230641.9337401,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 22.480990088166127,
+      "quality_score": 0.6463131049713466,
+      "memory_mb": 211.21125104191512,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.933742,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 54.234750598172496,
+      "quality_score": 0.6331450579902924,
+      "memory_mb": 612.005334581154,
+      "compute_util": 0.4150328516949603,
+      "timestamp": 1764230641.9337444,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 16.92599177767677,
+      "quality_score": 0.9061745681004365,
+      "memory_mb": 205.10622352517558,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337463,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 51.63110291693774,
+      "quality_score": 0.7475910339879956,
+      "memory_mb": 763.1061107558938,
+      "compute_util": 0.4668173954434756,
+      "timestamp": 1764230641.9337485,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 13.017275503109715,
+      "quality_score": 0.8336101634775485,
+      "memory_mb": 198.5789283086873,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337506,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 19.86156194334485,
+      "quality_score": 0.9202574074785168,
+      "memory_mb": 278.25311623935295,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337523,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 73.6745760347564,
+      "quality_score": 0.739605660674079,
+      "memory_mb": 663.5156107107098,
+      "compute_util": 0.6234745904270066,
+      "timestamp": 1764230641.9337544,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 73.28066316938352,
+      "quality_score": 0.6898430317667613,
+      "memory_mb": 683.2042836595077,
+      "compute_util": 0.7115574407535937,
+      "timestamp": 1764230641.9337575,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 88.02904401707373,
+      "quality_score": 0.911748637561815,
+      "memory_mb": 741.4355687976608,
+      "compute_util": 0.840010484642873,
+      "timestamp": 1764230641.9337595,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": false,
+      "latency_ms": 43.318838279411835,
+      "quality_score": 0.27626672942569613,
+      "memory_mb": 632.051313466558,
+      "compute_util": 0.36098110009778334,
+      "timestamp": 1764230641.9337616,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 76.16309516344987,
+      "quality_score": 0.7819940625175901,
+      "memory_mb": 673.174158939475,
+      "compute_util": 0.7107139253199232,
+      "timestamp": 1764230641.9337635,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 23.630778704207685,
+      "quality_score": 0.8329744613337994,
+      "memory_mb": 290.4460364102998,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337656,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 80.78645095554633,
+      "quality_score": 0.656045759339405,
+      "memory_mb": 1060.7338552915933,
+      "compute_util": 0.5654575807281906,
+      "timestamp": 1764230641.9337673,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 16.36746829886137,
+      "quality_score": 0.9358885047977018,
+      "memory_mb": 281.25488588995415,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337692,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 22.73926862705955,
+      "quality_score": 0.9318054700614289,
+      "memory_mb": 317.26046919352154,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9337714,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 78.88852135405793,
+      "quality_score": 0.772623857570469,
+      "memory_mb": 803.3190494450464,
+      "compute_util": 0.5962420296951471,
+      "timestamp": 1764230641.9337733,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 47.9561678887103,
+      "quality_score": 0.7100505753431924,
+      "memory_mb": 642.4581764015209,
+      "compute_util": 0.41385214959972966,
+      "timestamp": 1764230641.9337754,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 25.806828286577353,
+      "quality_score": 0.6027354637591082,
+      "memory_mb": 604.2011584917427,
+      "compute_util": 0.250157256544314,
+      "timestamp": 1764230641.933777,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 84.64889145613841,
+      "quality_score": 0.5914004872372367,
+      "memory_mb": 1037.3869752231456,
+      "compute_util": 0.7489675109661955,
+      "timestamp": 1764230641.933779,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 63.48780821196592,
+      "quality_score": 0.8754884179078644,
+      "memory_mb": 686.3560706532202,
+      "compute_util": 0.462177820151278,
+      "timestamp": 1764230641.933781,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 98.32290222987777,
+      "quality_score": 0.5,
+      "memory_mb": 1155.800110908321,
+      "compute_util": 0.8774402383436323,
+      "timestamp": 1764230641.933783,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 76.71306835017884,
+      "quality_score": 0.7391422827666936,
+      "memory_mb": 703.8086037576411,
+      "compute_util": 0.7312748612397484,
+      "timestamp": 1764230641.933786,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 84.84892350552882,
+      "quality_score": 0.7022554208567192,
+      "memory_mb": 923.4554789647989,
+      "compute_util": 0.6688501162569136,
+      "timestamp": 1764230641.9337878,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 132.66279005203967,
+      "quality_score": 0.5764298546546642,
+      "memory_mb": 1144.3383348024984,
+      "compute_util": 1.0,
+      "timestamp": 1764230641.93379,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 28.233492660908677,
+      "quality_score": 0.6385333450036915,
+      "memory_mb": 564.9763706903184,
+      "compute_util": 0.2191376448383443,
+      "timestamp": 1764230641.933792,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 18.62279753462524,
+      "quality_score": 0.7140861441125443,
+      "memory_mb": 191.41177007667133,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.933794,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 39.40087140667884,
+      "quality_score": 0.7299469143998376,
+      "memory_mb": 596.3490671325419,
+      "compute_util": 0.3477022798807109,
+      "timestamp": 1764230641.933796,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 89.59971537872214,
+      "quality_score": 0.8036945650119041,
+      "memory_mb": 981.9525287161138,
+      "compute_util": 0.7019270408053073,
+      "timestamp": 1764230641.9337978,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 62.9297655479676,
+      "quality_score": 0.7360823095377431,
+      "memory_mb": 745.9410567727435,
+      "compute_util": 0.5450506324604771,
+      "timestamp": 1764230641.9337997,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 90.60192650410757,
+      "quality_score": 0.6274713196938267,
+      "memory_mb": 1223.5427666880635,
+      "compute_util": 0.791242119845973,
+      "timestamp": 1764230641.9338017,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 16.124629770721526,
+      "quality_score": 0.8183791228227856,
+      "memory_mb": 193.66428317713164,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338038,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 26.223242424542885,
+      "quality_score": 0.9070070319453765,
+      "memory_mb": 305.6180001482408,
+      "compute_util": 0.25298706947357896,
+      "timestamp": 1764230641.9338055,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 15.532416502765415,
+      "quality_score": 0.7574647224872948,
+      "memory_mb": 213.245584273271,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338074,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 22.83273180834204,
+      "quality_score": 0.7679064922749872,
+      "memory_mb": 547.5365723870945,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338105,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 20.750583812255353,
+      "quality_score": 0.8456062267363156,
+      "memory_mb": 309.8368706373418,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338124,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 95.81661830011036,
+      "quality_score": 0.7408895092226055,
+      "memory_mb": 1035.1159150628268,
+      "compute_util": 0.7844764424844114,
+      "timestamp": 1764230641.9338148,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 96.31143264560711,
+      "quality_score": 0.6217281200224413,
+      "memory_mb": 1054.9210201855792,
+      "compute_util": 0.7845034697515064,
+      "timestamp": 1764230641.933817,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 65.78163239130585,
+      "quality_score": 0.7539953911270534,
+      "memory_mb": 1151.3715142375302,
+      "compute_util": 0.5649716981619192,
+      "timestamp": 1764230641.9338188,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 65.98823698548858,
+      "quality_score": 0.6972469301914604,
+      "memory_mb": 722.6054452932129,
+      "compute_util": 0.49112968795699435,
+      "timestamp": 1764230641.9338207,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": false,
+      "latency_ms": 86.5234667946535,
+      "quality_score": 0.4605298757374595,
+      "memory_mb": 1098.1306668315667,
+      "compute_util": 0.6697070635373261,
+      "timestamp": 1764230641.9338222,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 81.16592690584089,
+      "quality_score": 0.6498529826503912,
+      "memory_mb": 1020.3677615137577,
+      "compute_util": 0.64986755674632,
+      "timestamp": 1764230641.9338243,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 98.20924646758114,
+      "quality_score": 0.7738677595457844,
+      "memory_mb": 1081.6775018633996,
+      "compute_util": 0.8551701444240073,
+      "timestamp": 1764230641.9338262,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 74.36568795957724,
+      "quality_score": 0.5676582182706826,
+      "memory_mb": 1024.7739613039687,
+      "compute_util": 0.7051907025939902,
+      "timestamp": 1764230641.933828,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 70.03788989091925,
+      "quality_score": 0.693933985145426,
+      "memory_mb": 1044.9396617990578,
+      "compute_util": 0.6399485393929066,
+      "timestamp": 1764230641.9338303,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 15.861462127463735,
+      "quality_score": 0.857386257622994,
+      "memory_mb": 285.63632692801497,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338322,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 87.89216623642012,
+      "quality_score": 0.722925489720905,
+      "memory_mb": 670.4234597892394,
+      "compute_util": 0.7915026887224665,
+      "timestamp": 1764230641.9338343,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 89.66517808722362,
+      "quality_score": 0.8204456936584477,
+      "memory_mb": 658.406972977894,
+      "compute_util": 0.7348066466735748,
+      "timestamp": 1764230641.933836,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 91.56826037211678,
+      "quality_score": 0.5478112891372114,
+      "memory_mb": 1046.7782197932277,
+      "compute_util": 0.9151974184414073,
+      "timestamp": 1764230641.9338381,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 15.621905102100602,
+      "quality_score": 0.8659745123726786,
+      "memory_mb": 315.16823806620704,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338415,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 60.84664562051351,
+      "quality_score": 0.7484406160463113,
+      "memory_mb": 680.9706999977645,
+      "compute_util": 0.501668585175182,
+      "timestamp": 1764230641.9338446,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 66.73788779054325,
+      "quality_score": 0.8364443886412559,
+      "memory_mb": 747.5047129789814,
+      "compute_util": 0.53627507017588,
+      "timestamp": 1764230641.9338465,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": false,
+      "latency_ms": 113.95962332243602,
+      "quality_score": 0.34496141174748207,
+      "memory_mb": 1267.5863755402436,
+      "compute_util": 1.0,
+      "timestamp": 1764230641.9338484,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 37.52975802277798,
+      "quality_score": 0.7849540551910247,
+      "memory_mb": 800.9767326070547,
+      "compute_util": 0.2814618366680763,
+      "timestamp": 1764230641.93385,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 14.682970651919524,
+      "quality_score": 0.8266769967024626,
+      "memory_mb": 196.898875907799,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338522,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 59.28376320715032,
+      "quality_score": 0.7893168833747995,
+      "memory_mb": 835.2988535596846,
+      "compute_util": 0.4309149234472311,
+      "timestamp": 1764230641.933854,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": false,
+      "latency_ms": 63.69567664279066,
+      "quality_score": 0.470752868058155,
+      "memory_mb": 630.6384886169648,
+      "compute_util": 0.567262015682596,
+      "timestamp": 1764230641.9338558,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 25.462671326571574,
+      "quality_score": 0.9268443831218384,
+      "memory_mb": 289.99362777193573,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338577,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 65.54484498149613,
+      "quality_score": 0.6758909404291227,
+      "memory_mb": 739.7841305353686,
+      "compute_util": 0.5961339724435467,
+      "timestamp": 1764230641.9338598,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 25.538705007196537,
+      "quality_score": 0.9020024069074679,
+      "memory_mb": 276.762567645288,
+      "compute_util": 0.20692265736395166,
+      "timestamp": 1764230641.9338617,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 19.079733160962824,
+      "quality_score": 0.816613999606693,
+      "memory_mb": 188.7391779879311,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338634,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 46.57176844194769,
+      "quality_score": 0.666203977126988,
+      "memory_mb": 541.1634005400974,
+      "compute_util": 0.394447104337194,
+      "timestamp": 1764230641.9338655,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 18.664394392356893,
+      "quality_score": 0.9249550916264161,
+      "memory_mb": 281.8964315248832,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338675,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 80.87117146847824,
+      "quality_score": 0.7517909387898243,
+      "memory_mb": 983.1776597991536,
+      "compute_util": 0.5956690495531682,
+      "timestamp": 1764230641.9338694,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 53.661629341981495,
+      "quality_score": 0.6924151928309487,
+      "memory_mb": 811.1690584934321,
+      "compute_util": 0.47299520925595584,
+      "timestamp": 1764230641.9338713,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 42.138985476864555,
+      "quality_score": 0.8676841580016424,
+      "memory_mb": 645.4354382888748,
+      "compute_util": 0.3856243051638973,
+      "timestamp": 1764230641.9338732,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 107.30706443338686,
+      "quality_score": 0.6648139492898472,
+      "memory_mb": 1170.1213978746157,
+      "compute_util": 1.0,
+      "timestamp": 1764230641.9338748,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 123.26921866269034,
+      "quality_score": 0.7736752868929719,
+      "memory_mb": 1300.026816412332,
+      "compute_util": 0.9141646110503939,
+      "timestamp": 1764230641.933877,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 17.919292373624902,
+      "quality_score": 0.6597606589266559,
+      "memory_mb": 204.2160760236011,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.933879,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 70.80396643200822,
+      "quality_score": 0.6609203241520198,
+      "memory_mb": 924.5645253396899,
+      "compute_util": 0.60201528976867,
+      "timestamp": 1764230641.9338806,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 23.65894428981726,
+      "quality_score": 0.684019048167121,
+      "memory_mb": 628.2636235353424,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338827,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 91.0186046738019,
+      "quality_score": 0.6596858825611692,
+      "memory_mb": 1000.5765501759902,
+      "compute_util": 0.9078942474670474,
+      "timestamp": 1764230641.9338844,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": false,
+      "latency_ms": 89.75616190899196,
+      "quality_score": 0.44961548503874216,
+      "memory_mb": 1061.1693527438822,
+      "compute_util": 0.7068454791901817,
+      "timestamp": 1764230641.9338872,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 19.378913648395724,
+      "quality_score": 0.917473140101266,
+      "memory_mb": 287.08072531988097,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338896,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 21.446664640929825,
+      "quality_score": 0.8699086856773144,
+      "memory_mb": 329.6148278911946,
+      "compute_util": 0.20537773225599373,
+      "timestamp": 1764230641.9338913,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 59.68337553747623,
+      "quality_score": 0.7518734615624111,
+      "memory_mb": 864.92832282664,
+      "compute_util": 0.451362251822656,
+      "timestamp": 1764230641.9338934,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 21.852993356044692,
+      "quality_score": 0.861306809336902,
+      "memory_mb": 271.5415321848927,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9338965,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 81.02539211697253,
+      "quality_score": 0.8380674331732598,
+      "memory_mb": 632.6799095370733,
+      "compute_util": 0.5791963068781869,
+      "timestamp": 1764230641.9338984,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 15.177094364364713,
+      "quality_score": 0.9007765045543034,
+      "memory_mb": 205.01750569800885,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339004,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 110.67659893882968,
+      "quality_score": 0.6796838895992419,
+      "memory_mb": 1171.9204067439175,
+      "compute_util": 0.9043594267056106,
+      "timestamp": 1764230641.9339023,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 14.159583502434776,
+      "quality_score": 0.9247350214163667,
+      "memory_mb": 217.90900204854887,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339042,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 20.767876870534614,
+      "quality_score": 0.7156763160283678,
+      "memory_mb": 199.82858375197478,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.933906,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 17.562257321893604,
+      "quality_score": 0.7239665573997924,
+      "memory_mb": 202.75391296979257,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339082,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 42.13479150991562,
+      "quality_score": 0.7421491483738051,
+      "memory_mb": 603.002476735079,
+      "compute_util": 0.37972364871274605,
+      "timestamp": 1764230641.9339101,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 17.143919594836905,
+      "quality_score": 0.7928987495502198,
+      "memory_mb": 194.11816717870744,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339125,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 71.45322814680837,
+      "quality_score": 0.7628431501961135,
+      "memory_mb": 681.4764853235912,
+      "compute_util": 0.48725692863598136,
+      "timestamp": 1764230641.9339144,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 58.85573035096539,
+      "quality_score": 0.7077614967029524,
+      "memory_mb": 1041.2236996966533,
+      "compute_util": 0.566920179534462,
+      "timestamp": 1764230641.9339163,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 63.30340218589893,
+      "quality_score": 0.7430959406499702,
+      "memory_mb": 852.587181665999,
+      "compute_util": 0.5036686943150497,
+      "timestamp": 1764230641.9339182,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 23.059697992024493,
+      "quality_score": 0.8589512384247501,
+      "memory_mb": 329.3217999570246,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339201,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 11.917139514429527,
+      "quality_score": 0.8151552020663728,
+      "memory_mb": 182.58141813049335,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.933922,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 101.44516962962324,
+      "quality_score": 0.8700317922138489,
+      "memory_mb": 1195.5953964475245,
+      "compute_util": 0.7629422639675262,
+      "timestamp": 1764230641.9339242,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 15.908703588591978,
+      "quality_score": 0.850422291320866,
+      "memory_mb": 187.18533870926933,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.933926,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 24.06078420889348,
+      "quality_score": 0.8775733978031849,
+      "memory_mb": 319.7701922005273,
+      "compute_util": 0.2250470839564049,
+      "timestamp": 1764230641.933928,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 42.280371808143464,
+      "quality_score": 0.7753527019219076,
+      "memory_mb": 758.8450491743249,
+      "compute_util": 0.29743571411522995,
+      "timestamp": 1764230641.93393,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 65.9068491085811,
+      "quality_score": 0.7140432557036174,
+      "memory_mb": 1089.4920138486495,
+      "compute_util": 0.653577384975377,
+      "timestamp": 1764230641.9339318,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 16.18395568931767,
+      "quality_score": 0.7088736762469414,
+      "memory_mb": 212.86028428036755,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339335,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 70.53576711586828,
+      "quality_score": 0.7768898490393008,
+      "memory_mb": 1171.7662545304613,
+      "compute_util": 0.5223903973138464,
+      "timestamp": 1764230641.9339356,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 25.475505324771195,
+      "quality_score": 0.7709541898462491,
+      "memory_mb": 217.6332808748817,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339373,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 105.71749581885469,
+      "quality_score": 0.7596923852524938,
+      "memory_mb": 1071.7070491351756,
+      "compute_util": 0.8443655015510466,
+      "timestamp": 1764230641.93394,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 23.990278375003186,
+      "quality_score": 0.6289315549602763,
+      "memory_mb": 638.7960640983966,
+      "compute_util": 0.21609529623513,
+      "timestamp": 1764230641.9339418,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 141.57158534152285,
+      "quality_score": 0.6985251446642438,
+      "memory_mb": 1177.1969935171278,
+      "compute_util": 1.0,
+      "timestamp": 1764230641.933945,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": false,
+      "latency_ms": 75.417954932024,
+      "quality_score": 0.46941524878644786,
+      "memory_mb": 1224.5604213727477,
+      "compute_util": 0.6469020859374414,
+      "timestamp": 1764230641.9339466,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": false,
+      "latency_ms": 74.12449565550257,
+      "quality_score": 0.210855885357249,
+      "memory_mb": 761.3652503811305,
+      "compute_util": 0.6460481540661257,
+      "timestamp": 1764230641.9339485,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 17.648819216374363,
+      "quality_score": 0.9473512497360932,
+      "memory_mb": 182.10755677704557,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339502,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 53.95190223013887,
+      "quality_score": 0.7755080876219175,
+      "memory_mb": 837.6122023389893,
+      "compute_util": 0.4502292986115693,
+      "timestamp": 1764230641.9339523,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": false,
+      "latency_ms": 80.5503356584248,
+      "quality_score": 0.257177038027886,
+      "memory_mb": 1167.3636867522728,
+      "compute_util": 0.7618535114448886,
+      "timestamp": 1764230641.9339547,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 34.59393133281698,
+      "quality_score": 0.9028547020344185,
+      "memory_mb": 319.4067931892794,
+      "compute_util": 0.26584244565791243,
+      "timestamp": 1764230641.933957,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 12.781832252610624,
+      "quality_score": 0.7821697240574605,
+      "memory_mb": 187.0502680126849,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339592,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 49.18385576492248,
+      "quality_score": 0.6451742314976676,
+      "memory_mb": 615.3283591111835,
+      "compute_util": 0.357019851380474,
+      "timestamp": 1764230641.933961,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 101.79345644656496,
+      "quality_score": 0.6439261676187451,
+      "memory_mb": 1116.9301596902264,
+      "compute_util": 0.9439983244892449,
+      "timestamp": 1764230641.9339628,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 23.388181762232858,
+      "quality_score": 0.8839248845418851,
+      "memory_mb": 312.70867459790605,
+      "compute_util": 0.21983392590066356,
+      "timestamp": 1764230641.9339647,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 67.35220762780818,
+      "quality_score": 0.8525583034612588,
+      "memory_mb": 657.6699672998988,
+      "compute_util": 0.471574700182915,
+      "timestamp": 1764230641.9339669,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 102.67310839573433,
+      "quality_score": 0.5,
+      "memory_mb": 1203.1520643749284,
+      "compute_util": 0.9527721662964791,
+      "timestamp": 1764230641.9339685,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 68.56518218837586,
+      "quality_score": 0.6844243040445861,
+      "memory_mb": 1163.2613594855372,
+      "compute_util": 0.6380676442948201,
+      "timestamp": 1764230641.9339707,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 51.00915259554553,
+      "quality_score": 0.7958064393179284,
+      "memory_mb": 783.227864753911,
+      "compute_util": 0.45767996107851866,
+      "timestamp": 1764230641.9339728,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 21.91548425728561,
+      "quality_score": 0.8327302828721972,
+      "memory_mb": 217.68732985548985,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339745,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": false,
+      "latency_ms": 100.58409105939107,
+      "quality_score": 0.2219373941826775,
+      "memory_mb": 1152.1110650090664,
+      "compute_util": 0.8543042352348045,
+      "timestamp": 1764230641.9339764,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 35.50938260497034,
+      "quality_score": 0.6758819951508653,
+      "memory_mb": 575.0746611630345,
+      "compute_util": 0.24996649387054856,
+      "timestamp": 1764230641.9339783,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 105.91777431693602,
+      "quality_score": 0.7399319986278753,
+      "memory_mb": 1196.6583504541838,
+      "compute_util": 0.914713653213515,
+      "timestamp": 1764230641.9339802,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 70.74653612957763,
+      "quality_score": 0.7322957126988323,
+      "memory_mb": 812.6919004241037,
+      "compute_util": 0.5037335984278402,
+      "timestamp": 1764230641.9339821,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 59.28476946448297,
+      "quality_score": 0.7231123699897901,
+      "memory_mb": 843.3683287186136,
+      "compute_util": 0.5885648002557413,
+      "timestamp": 1764230641.9339843,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 20.61283732489843,
+      "quality_score": 0.8019582671170545,
+      "memory_mb": 215.87890048576827,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.933986,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 27.6270097192915,
+      "quality_score": 0.7579070108664325,
+      "memory_mb": 570.2661049015551,
+      "compute_util": 0.26809578391194056,
+      "timestamp": 1764230641.9339883,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 64.06641729874796,
+      "quality_score": 0.5594378858613626,
+      "memory_mb": 1159.7605907685622,
+      "compute_util": 0.43222546305483733,
+      "timestamp": 1764230641.9339902,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 99.32026921962017,
+      "quality_score": 0.6627612060362901,
+      "memory_mb": 1032.7996766565539,
+      "compute_util": 0.8384080166703965,
+      "timestamp": 1764230641.9339921,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 38.43578381306109,
+      "quality_score": 0.6714462300060082,
+      "memory_mb": 632.3575850389868,
+      "compute_util": 0.27386748382701737,
+      "timestamp": 1764230641.933994,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 44.70265009042726,
+      "quality_score": 0.6781101146603433,
+      "memory_mb": 636.3978393445703,
+      "compute_util": 0.3748312215014625,
+      "timestamp": 1764230641.933996,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 17.346638382555962,
+      "quality_score": 0.7751366449124336,
+      "memory_mb": 182.2627404371921,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9339979,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 22.002026631268254,
+      "quality_score": 0.7753630671734926,
+      "memory_mb": 213.9940832509506,
+      "compute_util": 0.21674499389795532,
+      "timestamp": 1764230641.9339998,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 68.61364808510577,
+      "quality_score": 0.7560605797271476,
+      "memory_mb": 737.567366806349,
+      "compute_util": 0.5253554302333606,
+      "timestamp": 1764230641.934002,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 14.767949685273294,
+      "quality_score": 0.8438890200552182,
+      "memory_mb": 206.60298604587842,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9340038,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 68.77218524031072,
+      "quality_score": 0.641776846665904,
+      "memory_mb": 761.134494301954,
+      "compute_util": 0.4846418418115699,
+      "timestamp": 1764230641.9340065,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 96.01985678396346,
+      "quality_score": 0.6732467948343448,
+      "memory_mb": 1132.312986140471,
+      "compute_util": 0.6802453746139084,
+      "timestamp": 1764230641.9340088,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 21.43477174526956,
+      "quality_score": 0.8271394494506937,
+      "memory_mb": 182.88727655090474,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9340122,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 17.271432341299064,
+      "quality_score": 0.8514723355870151,
+      "memory_mb": 303.7819096279113,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9340158,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 66.90963041609098,
+      "quality_score": 0.5561824861236747,
+      "memory_mb": 1172.988972505148,
+      "compute_util": 0.5032483716629288,
+      "timestamp": 1764230641.9340181,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 77.70203455679531,
+      "quality_score": 0.8284150185834005,
+      "memory_mb": 726.6061689198078,
+      "compute_util": 0.5960422350503068,
+      "timestamp": 1764230641.9340198,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 92.31804442613314,
+      "quality_score": 0.6752339561011136,
+      "memory_mb": 1056.1543104835832,
+      "compute_util": 0.9054651558376021,
+      "timestamp": 1764230641.934022,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 78.24442945626862,
+      "quality_score": 0.8649747175959605,
+      "memory_mb": 759.48976916275,
+      "compute_util": 0.5503306740452435,
+      "timestamp": 1764230641.9340236,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 26.23505407615613,
+      "quality_score": 0.8972195341855664,
+      "memory_mb": 320.99545174258435,
+      "compute_util": 0.23396643573154194,
+      "timestamp": 1764230641.9340258,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": false,
+      "latency_ms": 70.12732548889274,
+      "quality_score": 0.22696277905822348,
+      "memory_mb": 817.9897003093331,
+      "compute_util": 0.5129028414114046,
+      "timestamp": 1764230641.9340272,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 51.426526073405256,
+      "quality_score": 0.6628341739411954,
+      "memory_mb": 570.6811949999445,
+      "compute_util": 0.46985670861399875,
+      "timestamp": 1764230641.9340293,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 89.45550598166359,
+      "quality_score": 0.7554506321755156,
+      "memory_mb": 743.8737688927712,
+      "compute_util": 0.7925554072190552,
+      "timestamp": 1764230641.934031,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 24.69513389714306,
+      "quality_score": 0.7717250726644336,
+      "memory_mb": 194.38081717078651,
+      "compute_util": 0.20041324529412274,
+      "timestamp": 1764230641.9340332,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 48.30932431029399,
+      "quality_score": 0.7092593018526241,
+      "memory_mb": 606.4420561563794,
+      "compute_util": 0.41335373853851504,
+      "timestamp": 1764230641.9340353,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 15.108004163771902,
+      "quality_score": 0.7773160613402285,
+      "memory_mb": 209.94706150749886,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934037,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 78.62790078863482,
+      "quality_score": 0.8186143812180078,
+      "memory_mb": 683.8452053738209,
+      "compute_util": 0.7418613361636037,
+      "timestamp": 1764230641.934039,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 48.33725182971198,
+      "quality_score": 0.5642041386279742,
+      "memory_mb": 566.8580688536746,
+      "compute_util": 0.4593248153344636,
+      "timestamp": 1764230641.9340408,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 61.71368181247061,
+      "quality_score": 0.8326370537480311,
+      "memory_mb": 724.5355238923186,
+      "compute_util": 0.4867390006211086,
+      "timestamp": 1764230641.934043,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 40.03911041084369,
+      "quality_score": 0.5337351883369098,
+      "memory_mb": 651.3849671018787,
+      "compute_util": 0.3952094381929092,
+      "timestamp": 1764230641.9340446,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 110.50781267822198,
+      "quality_score": 0.7217466340490226,
+      "memory_mb": 1251.7038591739731,
+      "compute_util": 0.8015727916442748,
+      "timestamp": 1764230641.9340472,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 17.26276782873324,
+      "quality_score": 0.7058990565191481,
+      "memory_mb": 212.50604823764004,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934051,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "scene_understanding",
+      "success": true,
+      "latency_ms": 86.10949758324358,
+      "quality_score": 0.6995737598945785,
+      "memory_mb": 1031.5675596875378,
+      "compute_util": 0.7176331366406458,
+      "timestamp": 1764230641.9340532,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 21.84131397873089,
+      "quality_score": 0.8940197119317805,
+      "memory_mb": 203.50704787958534,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934055,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 11.38529266679819,
+      "quality_score": 0.8260418890479228,
+      "memory_mb": 195.8605385119219,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934057,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 14.066485332613542,
+      "quality_score": 0.7892755263548964,
+      "memory_mb": 207.20603912160905,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934059,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 54.54570954398262,
+      "quality_score": 0.6102287882394369,
+      "memory_mb": 563.0574810441167,
+      "compute_util": 0.519833561826377,
+      "timestamp": 1764230641.934061,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 62.43599245117363,
+      "quality_score": 0.7045490863945068,
+      "memory_mb": 752.0651360266497,
+      "compute_util": 0.4304345381886046,
+      "timestamp": 1764230641.9340632,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 22.617509278940098,
+      "quality_score": 0.9466752765269181,
+      "memory_mb": 317.152449208356,
+      "compute_util": 0.20449869791456404,
+      "timestamp": 1764230641.9340658,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 15.044810708295763,
+      "quality_score": 0.6865147027463261,
+      "memory_mb": 214.4663268202278,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934068,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 22.592807381878043,
+      "quality_score": 0.7822606366049283,
+      "memory_mb": 187.1450260550439,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.93407,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 22.462088371947925,
+      "quality_score": 0.8640141413120762,
+      "memory_mb": 186.94572611931355,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9340723,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 73.50303551748259,
+      "quality_score": 0.801325872936748,
+      "memory_mb": 642.0794050249234,
+      "compute_util": 0.6896407733475507,
+      "timestamp": 1764230641.9340744,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 47.334099662114994,
+      "quality_score": 0.783358763480271,
+      "memory_mb": 765.2959057369175,
+      "compute_util": 0.3219219769996588,
+      "timestamp": 1764230641.934076,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 23.213192466241416,
+      "quality_score": 0.8175264162248396,
+      "memory_mb": 192.17816523478686,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9340782,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 18.08696823057721,
+      "quality_score": 0.8728213011936248,
+      "memory_mb": 193.48093178317814,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.93408,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 72.52240952646147,
+      "quality_score": 0.764446063969049,
+      "memory_mb": 764.2101149410651,
+      "compute_util": 0.6922047763777937,
+      "timestamp": 1764230641.9340818,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 13.383694528610548,
+      "quality_score": 0.6732566227613728,
+      "memory_mb": 202.73970263048673,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934084,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 23.995422872832766,
+      "quality_score": 0.7726105022356079,
+      "memory_mb": 211.86226438400323,
+      "compute_util": 0.2338872856459266,
+      "timestamp": 1764230641.9340856,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 27.106489060537616,
+      "quality_score": 0.8500585119486276,
+      "memory_mb": 285.6589647242284,
+      "compute_util": 0.20072021465940815,
+      "timestamp": 1764230641.9340878,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 27.494425324082798,
+      "quality_score": 0.9164395393396793,
+      "memory_mb": 274.9911018971892,
+      "compute_util": 0.27097366374701815,
+      "timestamp": 1764230641.9340894,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 14.13823689509747,
+      "quality_score": 0.769232614279136,
+      "memory_mb": 189.62232290323246,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9340916,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "instance_segmentation",
+      "success": true,
+      "latency_ms": 103.72033817343593,
+      "quality_score": 0.6593991617148798,
+      "memory_mb": 1197.9419744418963,
+      "compute_util": 0.7768875710787758,
+      "timestamp": 1764230641.9340932,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 18.957509875282597,
+      "quality_score": 0.8178769245709803,
+      "memory_mb": 310.6443963046414,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9340956,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "object_detection",
+      "success": true,
+      "latency_ms": 49.38203552955524,
+      "quality_score": 0.7269914451766709,
+      "memory_mb": 633.459910372249,
+      "compute_util": 0.4630010137587414,
+      "timestamp": 1764230641.9340973,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 19.21012510936553,
+      "quality_score": 0.842028148546658,
+      "memory_mb": 290.3133171328075,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9340992,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "semantic_segmentation",
+      "success": true,
+      "latency_ms": 71.98520133690717,
+      "quality_score": 0.7510442764515032,
+      "memory_mb": 808.4735207359886,
+      "compute_util": 0.5003335947386369,
+      "timestamp": 1764230641.9341013,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 18.98149537561982,
+      "quality_score": 0.7254037615250136,
+      "memory_mb": 209.88634790443984,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.9341033,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "pose_estimation",
+      "success": true,
+      "latency_ms": 40.10739775082844,
+      "quality_score": 0.7316089410292382,
+      "memory_mb": 765.3587500392606,
+      "compute_util": 0.33811430138396864,
+      "timestamp": 1764230641.9341054,
+      "stakes_level": "medium"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 18.263177142188994,
+      "quality_score": 0.8539978111084242,
+      "memory_mb": 280.17457944830534,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934107,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "action_recognition",
+      "success": true,
+      "latency_ms": 111.67302554892994,
+      "quality_score": 0.6408582418092014,
+      "memory_mb": 1103.4186269189709,
+      "compute_util": 0.7811235750245896,
+      "timestamp": 1764230641.9341092,
+      "stakes_level": "high"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 23.167068855362764,
+      "quality_score": 0.9222418369289127,
+      "memory_mb": 298.320565850366,
+      "compute_util": 0.20092607790208541,
+      "timestamp": 1764230641.9341109,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "image_classification",
+      "success": true,
+      "latency_ms": 32.80170670079447,
+      "quality_score": 0.8832501254626068,
+      "memory_mb": 310.8582129979825,
+      "compute_util": 0.2568879161999627,
+      "timestamp": 1764230641.934113,
+      "stakes_level": "low"
+    },
+    {
+      "task_name": "visual_attention",
+      "success": true,
+      "latency_ms": 14.62118245445227,
+      "quality_score": 0.786073039514674,
+      "memory_mb": 207.12115013525369,
+      "compute_util": 0.2,
+      "timestamp": 1764230641.934115,
+      "stakes_level": "low"
+    }
+  ]
+}

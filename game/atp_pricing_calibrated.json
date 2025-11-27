@@ -1,0 +1,11 @@
+{
+  "base_costs": {
+    "low": 10.842636402321109,
+    "medium": 34.03996298529615,
+    "high": 56.14044168777114,
+    "critical": 200
+  },
+  "latency_multiplier": 0.2336009094408953,
+  "quality_multiplier": 8.152598353649395,
+  "complexity_factor": 1.0
+}
