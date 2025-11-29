@@ -28,6 +28,32 @@ Then visit:
 
 ---
 
+## 📊 Project Status & Documentation
+
+**Current Status**: Research Prototype - Exploring Trust-Native Security for Distributed AI
+
+Web4 is **exploratory research**, not a finished product. We have:
+- **~22,000 lines** of exploratory code (much in `/game/` directory)
+- **Interesting security ideas** (signed gossip, ATP stakes, witness diversity)
+- **Working prototypes** tested at research scale (100 societies, 1000 agents)
+- **Significant gaps** (formal threat models, adversarial testing, economic validation)
+
+### Key Documentation (Read These First)
+
+| Document | What It Covers | Status |
+|----------|----------------|--------|
+| **[STATUS.md](STATUS.md)** | Honest assessment of what exists, what works, what's missing | ✅ Complete |
+| **[SECURITY.md](SECURITY.md)** | `/game/` security research - what we've learned, where gaps remain | ✅ Complete |
+| **[Whitepaper](whitepaper/)** | Conceptual foundation (LCTs, trust, MRH, federation) | ✅ Complete |
+
+**Start Here**: [`STATUS.md`](STATUS.md) - Fair evaluation criteria, Perplexity's assessment, honest gaps
+
+**For Security Evaluation**: [`SECURITY.md`](SECURITY.md) - Research prototypes, what works at research scale, what needs work
+
+**Below**: Commerce demo (one narrow application showing delegation UI)
+
+---
+
 ## What Is This?
 
 Web4 is a **production-ready system** that lets you safely delegate purchasing authority to AI agents with:
