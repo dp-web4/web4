@@ -44,11 +44,14 @@ Web4 is **exploratory research**, not a finished product. We have:
 |----------|----------------|--------|
 | **[STATUS.md](STATUS.md)** | Honest assessment of what exists, what works, what's missing | ✅ Complete |
 | **[SECURITY.md](SECURITY.md)** | `/game/` security research - what we've learned, where gaps remain | ✅ Complete |
+| **[THREAT_MODEL.md](THREAT_MODEL.md)** | Formal threat model - adversaries, assets, attack scenarios, mitigations | ✅ Complete |
 | **[Whitepaper](whitepaper/)** | Conceptual foundation (LCTs, trust, MRH, federation) | ✅ Complete |
 
 **Start Here**: [`STATUS.md`](STATUS.md) - Fair evaluation criteria, Perplexity's assessment, honest gaps
 
-**For Security Evaluation**: [`SECURITY.md`](SECURITY.md) - Research prototypes, what works at research scale, what needs work
+**For Security Evaluation**:
+- [`SECURITY.md`](SECURITY.md) - Research prototypes, what works at research scale, what needs work
+- [`THREAT_MODEL.md`](THREAT_MODEL.md) - Formal threat analysis, adversary model, attack scenarios
 
 **Below**: Commerce demo (one narrow application showing delegation UI)
 
