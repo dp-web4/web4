@@ -66,3 +66,72 @@ def get_block_signer() -> BlockSigner:
     """
 
     return _default_signer
+
+
+def set_default_signer(signer: BlockSigner) -> None:
+    """Set the default block signer for the game engine.
+
+    This allows replacing the stub signer with a real cryptographic
+    signer (e.g., SAGE-backed Ed25519) at runtime.
+
+    Args:
+        signer: A BlockSigner implementation (must have sign_block_header method)
+
+    Example:
+        from sage.federation import create_sage_block_signer_from_identity
+        sage_signer = create_sage_block_signer_from_identity("Thor", "thor_sage_lct")
+        set_default_signer(sage_signer)
+    """
+    global _default_signer
+    _default_signer = signer
+
+
+def create_sage_block_signer(platform_name: str, lct_id: str, key_path: str = None) -> BlockSigner:
+    """Create a SAGE-backed Ed25519 block signer (optional integration).
+
+    This function attempts to import and use SAGE federation cryptography.
+    If SAGE is not available, it falls back to StubBlockSigner with a warning.
+
+    Args:
+        platform_name: Platform name (e.g., "Thor", "Sprout")
+        lct_id: LCT identifier (e.g., "thor_sage_lct")
+        key_path: Optional path to Ed25519 key file
+
+    Returns:
+        BlockSigner instance (SAGE-backed if available, stub otherwise)
+
+    Example:
+        signer = create_sage_block_signer("Thor", "thor_sage_lct")
+        set_default_signer(signer)
+    """
+    try:
+        # Attempt to import SAGE federation
+        import sys
+        from pathlib import Path
+
+        # Add HRM to path if not already there
+        # Look for HRM in ../HRM (sibling to web4) or ../../HRM
+        current_file = Path(__file__).resolve()
+
+        # Try sibling directory (ai-workspace/HRM)
+        hrm_path = current_file.parent.parent.parent.parent / "HRM"
+        if not hrm_path.exists():
+            # Try parent of web4 (for different layouts)
+            hrm_path = current_file.parent.parent.parent / "HRM"
+
+        if hrm_path.exists() and str(hrm_path) not in sys.path:
+            sys.path.insert(0, str(hrm_path))
+
+        from sage.federation import create_sage_block_signer_from_identity
+
+        # Create SAGE-backed signer
+        signer = create_sage_block_signer_from_identity(platform_name, lct_id, key_path)
+        print(f"✓ SAGE Ed25519 block signer created for platform: {platform_name}")
+        return signer
+
+    except ImportError as e:
+        print(f"⚠ SAGE not available ({e}), using stub signer")
+        return StubBlockSigner(label=f"stub-{platform_name}")
+    except Exception as e:
+        print(f"⚠ Error creating SAGE signer ({e}), using stub signer")
+        return StubBlockSigner(label=f"stub-{platform_name}")
