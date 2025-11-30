@@ -16,17 +16,10 @@ from .roles import revoke_role
 from .membership import membership_revocation
 from .society_trust import update_society_trust
 from .mrh_profiles import quality_level_to_veracity
-
-
-def _lower_trust(world: World, agent_lct: str, delta: float) -> None:
-    agent = world.agents.get(agent_lct)
-    if not agent:
-        return
-    t3 = agent.trust_axes.get("T3") or {}
-    comp = float(t3.get("composite", 0.0))
-    new_comp = max(0.0, comp + delta)
-    t3["composite"] = new_comp
-    agent.trust_axes["T3"] = t3
+from .trust_client import (
+    get_agent_trust_composite,
+    record_suspicious_treasury_event,
+)
 
 
 def _suspicious_spend_trust_threshold(count: int) -> float:
@@ -75,15 +68,19 @@ def apply_simple_policies(world: World, society: Society) -> None:
     revoke_threshold = 3
 
     for initiator_lct, count in suspicious_counts.items():
-        # Lower trust proportional to suspicious behavior.
-        _lower_trust(world, initiator_lct, trust_delta_per_spend * count)
+        # Lower trust proportional to suspicious behavior via the trust client.
+        record_suspicious_treasury_event(
+            world=world,
+            society=society,
+            initiator_lct=initiator_lct,
+            count=count,
+            trust_delta_per_spend=trust_delta_per_spend,
+        )
 
         # If behavior is bad enough and trust has fallen below the
         # context-appropriate threshold, attempt to revoke treasurer
         # role and membership.
-        agent = world.agents.get(initiator_lct)
-        t3 = agent.trust_axes.get("T3") if agent and agent.trust_axes else None
-        composite = float(t3.get("composite", 0.0)) if t3 else 0.0
+        composite = get_agent_trust_composite(world, initiator_lct, default=0.0)
         threshold = _suspicious_spend_trust_threshold(count)
 
         if count >= revoke_threshold and composite < threshold:

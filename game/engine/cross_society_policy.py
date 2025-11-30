@@ -13,6 +13,10 @@ from typing import Dict, Any
 from .models import World, Society
 from .r6 import make_r6_envelope
 from .mrh_profiles import quality_level_to_veracity
+from .trust_client import (
+    get_society_trust_composite,
+    note_cross_society_trust_read,
+)
 
 
 def apply_cross_society_policies(world: World) -> None:
@@ -37,8 +41,7 @@ def apply_cross_society_policies(world: World) -> None:
     federation: Dict[str, set[str]] = {}
 
     for s in world.societies.values():
-        t_axes = (s.trust_axes or {}).get("T3") or {}
-        composite = float(t_axes.get("composite", 0.7))
+        composite = get_society_trust_composite(world, s.society_lct, default=0.7)
         society_trust[s.society_lct] = composite
 
     for edge in world.context_edges:
@@ -57,6 +60,12 @@ def apply_cross_society_policies(world: World) -> None:
             continue
         for dst_lct in neighbors:
             dst_trust = society_trust.get(dst_lct, 0.7)
+            note_cross_society_trust_read(
+                world=world,
+                src_society_lct=src_lct,
+                dst_society_lct=dst_lct,
+                trust_value=dst_trust,
+            )
             events: list[Dict[str, Any]] = []
 
             if dst_trust < throttle_threshold:

@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from typing import Dict, Any
 import hashlib
 import json
+import importlib
+import os
 
 from .models import World, Society, Agent, make_society_lct, make_agent_lct
 from .signing import get_block_signer
@@ -44,6 +46,18 @@ def get_hardware_identity() -> HardwareIdentity:
     v0 stub: returns a deterministic, software-only identity. Future
     work can replace this with real TPM / HSM / enclave bindings.
     """
+    # First, try to load a per-machine provider module if configured.
+    provider_path = os.getenv("WEB4_HW_IDENTITY_PROVIDER")
+    if provider_path:
+        try:
+            module = importlib.import_module(provider_path)
+            provider_func = getattr(module, "get_hardware_identity", None)
+            if callable(provider_func):
+                identity = provider_func()
+                if isinstance(identity, HardwareIdentity):
+                    return identity
+        except Exception as exc:  # Best-effort only, fall back to stub
+            print(f"[web4/game] WEB4_HW_IDENTITY_PROVIDER failed ({exc!r}), falling back to stub identity")
 
     # TODO: replace with real hardware key discovery / creation.
     return HardwareIdentity(
