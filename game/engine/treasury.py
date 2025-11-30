@@ -35,6 +35,43 @@ def treasury_spend(
     """
 
     mrh_profile = mrh or get_mrh_for_event_type("treasury_spend")
+
+    # Basic membership and role checks (v0 enforcement):
+    is_member = initiator_lct in society.members
+    treasurer_role_lct = f"lct:web4:role:{society.society_lct.split(':')[-1]}:treasurer"
+    has_treasurer_role = any(
+        edge.subject == initiator_lct
+        and edge.predicate == "web4:hasRole"
+        and edge.object == treasurer_role_lct
+        for edge in world.context_edges
+    )
+
+    if not (is_member and has_treasurer_role):
+        reject_reason = (
+            "treasury_spend rejected: initiator must be current member "
+            "with active treasurer role"
+        )
+        reject_event: Dict[str, Any] = {
+            "type": "treasury_spend_rejected",
+            "society_lct": society.society_lct,
+            "treasury_lct": treasury_lct,
+            "initiator_lct": initiator_lct,
+            "amount": float(amount),
+            "mrh": mrh_profile,
+            "reason": f"{reject_reason} ({reason})",
+            "r6": make_r6_envelope(
+                interaction_type="treasury_spend_rejected",
+                justification=reject_reason,
+                constraints={
+                    "mrh": mrh_profile,
+                    "max_amount": amount,
+                },
+            ),
+            "world_tick": world.tick,
+        }
+        society.pending_events.append(reject_event)
+        return
+
     atp_before = float(society.treasury.get("ATP", 0.0))
     atp_after = max(0.0, atp_before - float(amount))
     society.treasury["ATP"] = atp_after

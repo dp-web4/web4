@@ -29,6 +29,8 @@ def main() -> None:
             for err in struct["errors"]:
                 print("    -", err)
         print(f"  Signatures present: {sigs['valid']}")
+        if soc.trust_axes.get("T3"):
+            print("  T3 composite:", soc.trust_axes["T3"].get("composite"))
 
     print("\n=== MRH / LCT Context Edges ===")
     for edge in world.context_edges:

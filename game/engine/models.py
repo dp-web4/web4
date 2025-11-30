@@ -97,14 +97,32 @@ class World:
         object: str,
         mrh: Optional[Dict[str, str]] = None,
     ) -> None:
-        """Append a context edge to the world's MRH/LCT context list."""
+        """Append a context edge to the world's MRH/LCT context list.
+
+        v0 implementation performs simple deduplication: if an identical
+        edge (same subject, predicate, object, and mrh) already exists,
+        it is not appended again. This keeps participantIn-style
+        heartbeat edges from exploding the context list while preserving
+        the logical graph structure.
+        """
+
+        edge_mrh = mrh or {}
+
+        for existing in self.context_edges:
+            if (
+                existing.subject == subject
+                and existing.predicate == predicate
+                and existing.object == object
+                and existing.mrh == edge_mrh
+            ):
+                return
 
         self.context_edges.append(
             ContextEdge(
                 subject=subject,
                 predicate=predicate,
                 object=object,
-                mrh=mrh or {},
+                mrh=edge_mrh,
             )
         )
 

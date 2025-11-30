@@ -11,6 +11,13 @@ This document summarizes consistency checks between:
 
 It focuses on **inconsistencies, ambiguities, and open questions**. It does **not** implement fixes; it is an input to future design and implementation passes.
 
+### Current Status (Honest Posture)
+
+- **What this is**: A research-stage consistency review between the Web4 standard, the `/game` simulation sandbox, and the 4-Life website copy.
+- **What works**: The engine and site broadly align on LCTs, simplified MRH, T3-like trust, R6-lite envelopes, and hardware-bound root LCTs as design intent. The `/game` engine runs concrete demos (treasury abuse, two-society federation) that exercise these ideas at research scale.
+- **What is missing**: Full MRH architecture, V3 tensors, ATP/ADP metabolism, complete R6 envelopes, explicit witnessing/broadcast primitives, and production-grade threat modeling/cryptographic hardening. Several concepts are intentionally "v0" or "-lite" compared to the whitepaper.
+- **How to evaluate fairly**: Treat this as a **research prototype + consistency map**, not a production implementation. The purpose is to surface gaps honestly so code, docs, and website can converge iteratively.
+
 ---
 
 ## 1. Scope and Positioning

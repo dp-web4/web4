@@ -115,6 +115,16 @@ def main() -> None:
             for ev in block["events"]:
                 print("     ", ev)
 
+    # Simple trust summaries for tuning.
+    bob = world.agents.get(bob_lct)
+    if bob and bob.trust_axes.get("T3"):
+        print("\n=== Agent Trust (Bob) ===")
+        print("  T3 composite:", bob.trust_axes["T3"].get("composite"))
+
+    if society.trust_axes.get("T3"):
+        print("\n=== Society Trust (Home Root) ===")
+        print("  T3 composite:", society.trust_axes["T3"].get("composite"))
+
     print("\n=== MRH / LCT Context Edges ===")
     for edge in world.context_edges:
         print(
