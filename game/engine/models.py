@@ -38,6 +38,8 @@ class Society:
     last_block_time: float = 0.0
     pending_events: List[Dict[str, Any]] = field(default_factory=list)
     blocks: List[Dict[str, Any]] = field(default_factory=list)
+    # Optional minimal hardware binding metadata (v0).
+    hardware_fingerprint: str | None = None
 
 
 @dataclass

@@ -38,6 +38,21 @@ def main() -> None:
             f"  {edge.subject} --{edge.predicate}--> {edge.object} | MRH={edge.mrh}"
         )
 
+    print("\n=== Cross-Society Policy Events ===")
+    for soc in world.societies.values():
+        for block in soc.blocks:
+            for ev in block.get("events", []):
+                etype = ev.get("type")
+                if etype in {"federation_throttle", "quarantine_request"}:
+                    r6 = ev.get("r6", {})
+                    constraints = r6.get("constraints", {})
+                    print(
+                        f"  {etype} from {ev.get('from_society_lct')} to {ev.get('to_society_lct')} "
+                        f"trust={constraints.get('trust')} "
+                        f"quality={constraints.get('quality')} "
+                        f"threshold={constraints.get('threshold')}"
+                    )
+
 
 if __name__ == "__main__":
     main()

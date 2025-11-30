@@ -17,6 +17,7 @@ It focuses on **inconsistencies, ambiguities, and open questions**. It does **no
 - **What works**: The engine and site broadly align on LCTs, simplified MRH, T3-like trust, R6-lite envelopes, and hardware-bound root LCTs as design intent. The `/game` engine runs concrete demos (treasury abuse, two-society federation) that exercise these ideas at research scale.
 - **What is missing**: Full MRH architecture, V3 tensors, ATP/ADP metabolism, complete R6 envelopes, explicit witnessing/broadcast primitives, and production-grade threat modeling/cryptographic hardening. Several concepts are intentionally "v0" or "-lite" compared to the whitepaper.
 - **How to evaluate fairly**: Treat this as a **research prototype + consistency map**, not a production implementation. The purpose is to surface gaps honestly so code, docs, and website can converge iteratively.
+- **Where to look for security assumptions**: See `THREAT_MODEL_GAME.md` for a focused, research-stage threat model covering `/web4/game` microchains, MRH-aware policies, and the hardware binding MVP.
 
 ---
 

@@ -13,8 +13,11 @@ interface.
 
 from dataclasses import dataclass
 from typing import Dict, Any
+import hashlib
+import json
 
 from .models import World, Society, Agent, make_society_lct, make_agent_lct
+from .signing import get_block_signer
 
 
 @dataclass
@@ -85,6 +88,7 @@ def bootstrap_hardware_bound_world() -> BootstrapResult:
             "admission": "open",  # placeholder
             "governance": "simple-majority",
         },
+        hardware_fingerprint=hw_identity.fingerprint,
     )
     world.add_society(root_society)
 
@@ -113,11 +117,21 @@ def bootstrap_hardware_bound_world() -> BootstrapResult:
     world.add_agent(founder)
     root_society.members.append(founder_lct)
 
-    # Minimal genesis block (unsigned, v0 stub)
-    genesis_block = {
+    # Minimal genesis block (v0): hash-chained header plus stub signature.
+    header = {
         "index": 0,
         "society_lct": society_lct,
+        "previous_hash": None,
         "timestamp": 0.0,
+    }
+    header_json = json.dumps(header, sort_keys=True, separators=(",", ":"))
+    header_hash = hashlib.sha256(header_json.encode("utf-8")).hexdigest()
+
+    signer = get_block_signer()
+    signature = signer.sign_block_header(header)
+
+    genesis_block = {
+        **header,
         "events": [
             {
                 "type": "genesis",
@@ -128,7 +142,9 @@ def bootstrap_hardware_bound_world() -> BootstrapResult:
                 "policies": root_society.policies,
             }
         ],
-        # TODO: add previous_hash, block_hash, and hardware-backed signatures.
+        "header_hash": header_hash,
+        # TODO: replace with real hardware-backed signature from hw_identity.
+        "signature": signature,
     }
     root_society.blocks.append(genesis_block)
     root_society.last_block_time = 0.0

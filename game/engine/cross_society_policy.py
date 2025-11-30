@@ -12,6 +12,7 @@ from typing import Dict, Any
 
 from .models import World, Society
 from .r6 import make_r6_envelope
+from .mrh_profiles import quality_level_to_veracity
 
 
 def apply_cross_society_policies(world: World) -> None:
@@ -20,8 +21,12 @@ def apply_cross_society_policies(world: World) -> None:
     v0 heuristic:
     - For each pair of federated societies A, B, look at B's composite
       T3 trust.
-    - If B's composite < 0.4, A emits a `federation_throttle` event.
-    - If B's composite < 0.25, A additionally emits a `quarantine_request`.
+    - Map low-trust neighbors to MRH-like quality bands and convert
+      those to numeric thresholds via quality_level_to_veracity().
+    - If B's composite falls below the "high" quality band,
+      A emits a `federation_throttle` event.
+    - If B's composite falls below the "critical" quality band,
+      A additionally emits a `quarantine_request`.
 
     Federation is inferred from context edges with predicate
     `web4:federatesWith`.
@@ -40,6 +45,12 @@ def apply_cross_society_policies(world: World) -> None:
         if edge.predicate == "web4:federatesWith":
             federation.setdefault(edge.subject, set()).add(edge.object)
 
+    # MRH-informed trust thresholds for cross-society decisions.
+    throttle_quality = "high"
+    quarantine_quality = "critical"
+    throttle_threshold = quality_level_to_veracity(throttle_quality)
+    quarantine_threshold = quality_level_to_veracity(quarantine_quality)
+
     for src_lct, neighbors in federation.items():
         src_soc = world.get_society(src_lct)
         if not src_soc:
@@ -48,7 +59,7 @@ def apply_cross_society_policies(world: World) -> None:
             dst_trust = society_trust.get(dst_lct, 0.7)
             events: list[Dict[str, Any]] = []
 
-            if dst_trust < 0.4:
+            if dst_trust < throttle_threshold:
                 ev = {
                     "type": "federation_throttle",
                     "from_society_lct": src_lct,
@@ -56,13 +67,17 @@ def apply_cross_society_policies(world: World) -> None:
                     "dst_trust": dst_trust,
                     "r6": make_r6_envelope(
                         interaction_type="federation_throttle",
-                        justification="low-trust neighbor",
-                        constraints={"threshold": 0.4, "trust": dst_trust},
+                        justification="low-trust neighbor (below MRH-aware federation threshold)",
+                        constraints={
+                            "threshold": throttle_threshold,
+                            "quality": throttle_quality,
+                            "trust": dst_trust,
+                        },
                     ),
                 }
                 events.append(ev)
 
-            if dst_trust < 0.25:
+            if dst_trust < quarantine_threshold:
                 ev = {
                     "type": "quarantine_request",
                     "from_society_lct": src_lct,
@@ -70,8 +85,12 @@ def apply_cross_society_policies(world: World) -> None:
                     "dst_trust": dst_trust,
                     "r6": make_r6_envelope(
                         interaction_type="quarantine_request",
-                        justification="very low-trust neighbor",
-                        constraints={"threshold": 0.25, "trust": dst_trust},
+                        justification="very low-trust neighbor (below MRH-aware quarantine threshold)",
+                        constraints={
+                            "threshold": quarantine_threshold,
+                            "quality": quarantine_quality,
+                            "trust": dst_trust,
+                        },
                     ),
                 }
                 events.append(ev)

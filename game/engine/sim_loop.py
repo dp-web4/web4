@@ -13,6 +13,8 @@ from typing import Callable, Optional
 
 from .models import World, Agent, Society
 from .policy import apply_simple_policies
+from .signing import BlockSigner
+from .signing import get_block_signer
 from .cross_society_policy import apply_cross_society_policies
 
 
@@ -103,12 +105,15 @@ def _society_step(world: World, society: Society) -> None:
         header_json = json.dumps(header, sort_keys=True, separators=(",", ":"))
         header_hash = hashlib.sha256(header_json.encode("utf-8")).hexdigest()
 
-        # Construct full block including events and stub signature.
+        signer = get_block_signer()
+        signature = signer.sign_block_header(header)
+
+        # Construct full block including events and stub/hardware signature.
         block = {
             **header,
             "events": list(society.pending_events),
             "header_hash": header_hash,
-            "signature": "stub-signature",  # TODO: replace with TPM-backed signature
+            "signature": signature,
         }
 
         society.blocks.append(block)

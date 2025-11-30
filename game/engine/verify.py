@@ -63,6 +63,43 @@ def verify_chain_structure(society: Society) -> Dict[str, Any]:
     }
 
 
+def verify_hardware_binding(society: Society) -> Dict[str, Any]:
+    """Verify minimal hardware binding invariants for a society (v0).
+
+    Checks (best-effort, research-stage only):
+    - The society has a hardware_fingerprint set.
+    - The first block exists and contains a genesis event.
+    - The genesis event's hardware_fingerprint matches the society's.
+    """
+
+    errors: list[str] = []
+
+    if not society.hardware_fingerprint:
+        errors.append("society missing hardware_fingerprint metadata")
+        return {"valid": False, "errors": errors}
+
+    if not society.blocks:
+        errors.append("society has no blocks (missing genesis)")
+        return {"valid": False, "errors": errors}
+
+    genesis = society.blocks[0]
+    events = genesis.get("events", [])
+    if not events:
+        errors.append("genesis block has no events")
+        return {"valid": False, "errors": errors}
+
+    genesis_ev = events[0]
+    if genesis_ev.get("type") != "genesis":
+        errors.append("first event is not a genesis event")
+    if genesis_ev.get("hardware_fingerprint") != society.hardware_fingerprint:
+        errors.append("hardware_fingerprint mismatch between society and genesis event")
+
+    return {
+        "valid": not errors,
+        "errors": errors,
+    }
+
+
 def verify_stub_signatures(society: Society) -> Dict[str, Any]:
     """Placeholder signature verification.
 

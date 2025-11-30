@@ -131,6 +131,13 @@ def main() -> None:
             f"  {edge.subject} --{edge.predicate}--> {edge.object} | MRH={edge.mrh}"
         )
 
+    print("\n=== Policy and Treasury Enforcement Events ===")
+    for block in society.blocks:
+        for ev in block.get("events", []):
+            etype = ev.get("type")
+            if etype in {"treasury_spend_rejected", "role_revocation", "membership_revocation"}:
+                print("  ", etype, "-", ev.get("reason"))
+
 
 if __name__ == "__main__":
     main()
