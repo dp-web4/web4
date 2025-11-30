@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nova has provided production-ready cryptographic protocols that perfectly complement Web4's philosophical foundations. This document shows how to integrate Nova's handshake and metering protocols with our binding, pairing, witnessing, and broadcast mechanisms.
+Nova has provided research-stage cryptographic protocols that perfectly complement Web4's philosophical foundations. This document shows how to integrate Nova's handshake and metering protocols with our binding, pairing, witnessing, and broadcast mechanisms.
 
 ## 1. Protocol Layer Architecture
 

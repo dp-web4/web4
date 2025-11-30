@@ -1,6 +1,6 @@
 # Web4 Deployment Architecture
 
-**Status**: Production-Ready Reference Architecture
+**Status**: Research Prototype Reference Architecture
 **Version**: 1.0.0
 **Last Updated**: 2025-11-09
 

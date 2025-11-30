@@ -2,7 +2,7 @@
 Web4 Reputation Service - REST API Server
 =========================================
 
-Production-ready REST API server for the Web4 Reputation Service.
+Research prototype REST API server for the Web4 Reputation Service.
 
 This service provides:
 - T3/V3 reputation computation

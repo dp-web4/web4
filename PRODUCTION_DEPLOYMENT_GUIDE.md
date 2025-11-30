@@ -1,8 +1,8 @@
-# Web4 Identity Service - Production Deployment Guide
+# Web4 Identity Service - Deployment Guide
 
 **Version**: 3.0.0-phase2
 **Security Level**: Phase 2 Attack Resistance
-**Status**: Production-Ready
+**Status**: Research Prototype - Testing Only
 **Last Updated**: 2025-11-13 (Session #22)
 
 ---
@@ -759,9 +759,9 @@ sudo -u postgres psql -c "GRANT USAGE ON SCHEMA public TO web4_identity;"
 
 ---
 
-**Production Deployment Guide Version**: 1.0
+**Deployment Guide Version**: 1.0
 **Service Version**: 3.0.0-phase2
 **Security Level**: Phase 2 Attack Resistance (0% bypass rate)
-**Status**: Production-Ready
+**Status**: Research Prototype - Testing Only
 
 **Last Updated**: 2025-11-13 (Session #22)

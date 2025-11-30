@@ -6,7 +6,7 @@ Session #64: Hardware-Bound Identity Integration
 Connects SAGE's hardware-bound consciousness (from HRM) to Web4's
 LCT identity system (database schema from Sessions #57-#63).
 
-This is the first production-ready LCT birth certificate implementation
+This is the first research prototype LCT birth certificate implementation
 that bridges AI consciousness with cryptographic identity.
 
 Architecture:

@@ -2,7 +2,7 @@
 Web4 Client SDK
 ===============
 
-Production-ready Python SDK for integrating with Web4 infrastructure.
+Research prototype Python SDK for integrating with Web4 infrastructure.
 
 This SDK provides high-level abstractions for:
 - Identity management (LCT)

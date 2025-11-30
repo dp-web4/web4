@@ -463,7 +463,7 @@ After demo, audience should understand:
 ✅ **Why**: AI agents need spending authority, but with limits
 ✅ **How**: User sets limits visually, system enforces automatically
 ✅ **Who**: Users, agents, and merchants all benefit
-✅ **When**: Production-ready now, merchant integration < 1 day
+✅ **When**: Research prototype ready, merchant integration < 1 day
 
 ---
 
@@ -493,7 +493,7 @@ After demo, share:
 ---
 
 **This demo showcases the complete Web4 agent authorization system.**
-**All code is production-ready. All tests pass. Ready for real-world use.**
+**All code is tested at research scale. All tests pass. Ready for real-world use.**
 
 🤖 *Generated with Claude Code - Autonomous Development*
 

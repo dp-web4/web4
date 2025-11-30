@@ -596,7 +596,7 @@ The MVP successfully demonstrates:
 **Weeks 9-10**: Pilot merchant integration
 **Weeks 11-12**: Documentation + open source release
 
-**Total**: ~3 months to production-ready system
+**Total**: ~3 months to deployable research prototype
 
 **Autonomous sessions can accelerate**: Core development could be done in 4-6 weeks with focused autonomous building.
 

@@ -2,7 +2,7 @@
 Web4 Authorization Service - REST API Server
 ============================================
 
-Production-ready REST API server for the Web4 Authorization Service.
+Research prototype REST API server for the Web4 Authorization Service.
 
 This service provides:
 - Action authorization with LCT verification

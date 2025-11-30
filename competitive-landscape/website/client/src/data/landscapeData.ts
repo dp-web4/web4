@@ -197,7 +197,7 @@ export const collaborations: Collaboration[] = [
     feasibility: 'high',
     priority: 'high',
     timeline: '0-12 months',
-    rationale: 'Academic validation and production-ready implementation of theoretical concepts',
+    rationale: 'Academic validation and working implementation of theoretical concepts',
     benefits: {
       forWeb4: [
         'Academic credibility',
@@ -205,7 +205,7 @@ export const collaborations: Collaboration[] = [
         'Publication opportunities'
       ],
       forPartner: [
-        'Production-ready implementation',
+        'Working implementation',
         'Real-world deployment data',
         'Collaboration opportunities'
       ]

@@ -110,11 +110,11 @@ IPFS provides content-addressed, decentralized file storage that is a natural fi
 **Strategic Fit**: HIGH
 
 #### Rationale
-There is active academic research on blockchain-based IoT identity management (EBIAS, BDIDA-IoT, etc.), but limited production-ready implementations. Web4's modbatt-CAN project and hardware binding capabilities provide a practical implementation of concepts being explored in academia. Collaboration would provide research validation for Web4 and practical deployment for academic concepts.
+There is active academic research on blockchain-based IoT identity management (EBIAS, BDIDA-IoT, etc.), but limited working implementations. Web4's modbatt-CAN project and hardware binding capabilities provide a practical implementation of concepts being explored in academia. Collaboration would provide research validation for Web4 and practical deployment for academic concepts.
 
 #### Mutual Benefits
 - **For Web4**: Academic credibility, research validation, access to use cases and testbeds, publication opportunities
-- **For Researchers**: Production-ready implementation of theoretical concepts, real-world deployment data, collaboration opportunities
+- **For Researchers**: Working implementation of theoretical concepts, real-world deployment data, collaboration opportunities
 
 #### Proposed Integration
 - Joint research papers on Web4's IoT identity implementation

@@ -2,7 +2,7 @@
 Web4 Resources Service - REST API Server
 ========================================
 
-Production-ready REST API server for the Web4 Resources Service.
+Research prototype REST API server for the Web4 Resources Service.
 
 Provides ATP-based resource allocation and metering for:
 - CPU cycles

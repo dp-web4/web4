@@ -2,7 +2,7 @@
 Web4 Identity Service - REST API Server (SECURED)
 ==================================================
 
-Production-ready REST API server with Phase 1 Security Mitigations.
+Research prototype REST API server with Phase 1 Security Mitigations.
 
 Security Enhancements (Session 12):
 -----------------------------------

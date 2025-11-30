@@ -578,7 +578,7 @@ class AtomicBudgetManager:
 @dataclass
 class ProductionLCTCredential:
     """
-    Production-ready LCT credential with all P0 mitigations.
+    Research prototype LCT credential with all P0 mitigations.
 
     Combines:
     - Hardware-backed keys

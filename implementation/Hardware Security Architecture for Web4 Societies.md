@@ -729,7 +729,7 @@ The hardware security architecture needs to demonstrate both technical rigor and
 - Monitoring and compromise detection
 - Operational runbooks
 - Security audit and penetration testing
-- Deliverable: Production-ready Web4 trust substrate
+- Deliverable: Research prototype Web4 trust substrate
 
 ### 7.3 Open Questions for Code Interface Iteration
 

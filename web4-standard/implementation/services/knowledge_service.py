@@ -2,7 +2,7 @@
 Web4 Knowledge Service - REST API Server
 ========================================
 
-Production-ready REST API server for the Web4 Knowledge Service (MRH Graph).
+Research prototype REST API server for the Web4 Knowledge Service (MRH Graph).
 
 Provides:
 - RDF triple storage and queries

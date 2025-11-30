@@ -86,7 +86,7 @@ Both Web4 (LCT) and W3C DIDs address decentralized identity, but with different 
 
 **Web4 LCT (Linked Context Token)**:
 - **Scope**: Complete trust-native internet architecture (identity + witnessing + economic model + authorization)
-- **Maturity**: In development, production-ready implementation but not yet standardized
+- **Maturity**: In development, working implementation but not yet standardized
 - **Focus**: Trust through witnessed interactions, not just identity
 - **Additional Features**: 
   - ATP/ADP economic metering

@@ -1,6 +1,6 @@
 # Web4 REST API Services
 
-Production-ready REST API servers for Web4 infrastructure.
+Research prototype REST API servers for Web4 infrastructure.
 
 ## Overview
 
@@ -791,7 +791,7 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Web4 Services**: Production-ready REST APIs for trust-native coordination.
+**Web4 Services**: Research prototype REST APIs for trust-native coordination.
 
 **Status**: All 6 core services implemented and ready for deployment (Sessions 08-10).
 

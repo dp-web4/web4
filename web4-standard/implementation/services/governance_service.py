@@ -2,7 +2,7 @@
 Web4 Governance Service - REST API Server
 =========================================
 
-Production-ready REST API server for the Web4 Governance Service (Law Oracle).
+Research prototype REST API server for the Web4 Governance Service (Law Oracle).
 
 Provides:
 - Law dataset queries

@@ -12,7 +12,7 @@ setup(
     version="1.0.0",
     author="Web4 Infrastructure Team",
     author_email="dev@web4.io",
-    description="Production-ready Python SDK for Web4 infrastructure",
+    description="Research prototype Python SDK for Web4 infrastructure",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dp-web4/web4",

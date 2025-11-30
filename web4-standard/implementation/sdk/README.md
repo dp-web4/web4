@@ -1,6 +1,6 @@
 # Web4 Python SDK
 
-Production-ready Python SDK for building applications on Web4 infrastructure.
+Research prototype Python SDK for building applications on Web4 infrastructure.
 
 ## Overview
 
@@ -680,8 +680,8 @@ Contributions welcome! Please:
 - Cryptographic signing (Ed25519)
 - High-level workflow helpers
 - Comprehensive examples
-- Production-ready error handling
+- Comprehensive error handling
 
 ---
 
-**Web4 SDK**: Build trust-native applications with production-ready tools.
+**Web4 SDK**: Build trust-native applications with research prototype tools.

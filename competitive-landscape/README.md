@@ -1,6 +1,6 @@
 # Web4: AI Agent Authorization for Commerce
 
-> **Production-ready system for safely delegating purchasing authority to AI agents**
+> **Research prototype for safely delegating purchasing authority to AI agents**
 
 ---
 
@@ -30,7 +30,7 @@ Then visit:
 
 ## What Is This?
 
-Web4 is a **production-ready system** that lets you safely delegate purchasing authority to AI agents with:
+Web4 is a **research prototype** that lets you safely delegate purchasing authority to AI agents with:
 
 - ✅ **Visual Controls** - Set budgets and limits with sliders and checkboxes (2-minute setup)
 - ✅ **Strong Security** - 8 cryptographic components verify every purchase (<100ms)
@@ -109,7 +109,7 @@ System: ✅ Creates delegation with those exact limits
   ```
 - All 8 security checks automated
 - < 1 day integration time
-- Production-ready
+- Working prototype
 
 ---
 
@@ -218,7 +218,7 @@ Located in [`tests/integration/`](tests/integration/)
 
 ### Production Code
 
-**All 11 Components Production-Ready**:
+**All 11 Components Tested**:
 - Clean code structure
 - Comprehensive error handling
 - Complete documentation
@@ -246,7 +246,7 @@ Total:             13,893 lines
 
 Test Pass Rate:     100% (166/166)
 Test Coverage:      All major components
-Code Quality:       Production-ready
+Code Quality:       Research prototype
 Git Commits:        19 clean commits
 ```
 

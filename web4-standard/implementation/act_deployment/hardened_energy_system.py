@@ -3,7 +3,7 @@ Hardened Energy-Backed ATP System - Session #40
 
 Integrates Session #36 core implementation with Session #39 security mitigations.
 
-This is the production-ready, security-hardened version that combines:
+This is the research prototype, security-hardened version that combines:
 - Energy-backed ATP/ADP pools (Session #36)
 - Global energy registry (Session #39, prevents A2)
 - Device spec validation (Session #39, prevents A3)
@@ -389,7 +389,7 @@ class HardenedEnergyBackedSocietyPool:
     - Web of trust (with circular vouching detection)
     - Priority queue (with rate limiting)
 
-    This is the production-ready, security-hardened system.
+    This is the research prototype, security-hardened system.
     """
 
     def __init__(
