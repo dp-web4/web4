@@ -8,7 +8,7 @@ This demo shows:
 4. Running simulation loop (microblocks signed with Ed25519)
 5. Verifying all blocks are cryptographically signed
 
-This is a production-ready integration of SAGE federation crypto with Web4.
+This demonstrates complete SAGE federation cryptographic integration with Web4.
 """
 
 import sys
