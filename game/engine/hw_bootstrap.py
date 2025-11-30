@@ -108,6 +108,11 @@ def bootstrap_hardware_bound_world() -> BootstrapResult:
 
     # Founder agent (human-controlled)
     founder_lct = make_agent_lct("founder")
+    founder_roles = [
+        "role:web4:founder",
+        "role:web4:auditor",
+        "role:web4:law_oracle",
+    ]
     founder = Agent(
         agent_lct=founder_lct,
         name="Founder",
@@ -122,11 +127,6 @@ def bootstrap_hardware_bound_world() -> BootstrapResult:
         capabilities={"witness_general": 0.6},
         resources={"ATP": 200.0},
         memberships=[society_lct],
-        roles=[
-            "role:web4:founder",
-            "role:web4:auditor",
-            "role:web4:law_oracle",
-        ],
     )
     world.add_agent(founder)
     root_society.members.append(founder_lct)
@@ -152,7 +152,7 @@ def bootstrap_hardware_bound_world() -> BootstrapResult:
                 "society_lct": society_lct,
                 "hardware_fingerprint": hw_identity.fingerprint,
                 "founder_lct": founder_lct,
-                "roles": founder.roles,
+                "roles": founder_roles,
                 "policies": root_society.policies,
             }
         ],
