@@ -25,9 +25,12 @@ hrm_path = web4_root.parent / "HRM"
 
 if hrm_path.exists() and str(hrm_path) not in sys.path:
     sys.path.insert(0, str(hrm_path))
-    print(f"✓ Added HRM to path: {hrm_path}")
 
-from game.engine.hw_bootstrap import HardwareIdentity
+# Import from engine.hw_bootstrap (not game.engine.hw_bootstrap)
+# The web4 game imports are relative to web4/ directory
+sys.path.insert(0, str(web4_root / "game"))
+
+from engine.hw_bootstrap import HardwareIdentity
 
 
 def get_hardware_identity() -> HardwareIdentity:
