@@ -1,0 +1,16 @@
+{
+  "platform": "Legion",
+  "society_lct": "lct:web4:society:hw-stub-fingerprint",
+  "hardware_fingerprint": "stub-fingerprint",
+  "blocks": [
+    {
+      "index": 0,
+      "society_lct": "lct:web4:society:hw-stub-fingerprint",
+      "previous_hash": null,
+      "timestamp": 0.0,
+      "header_hash": "58aaaa2dfb55c89460083dac42b57ec3b21da0a2f3f5f348da688f9bca2a698d",
+      "signature_hex": "07864773ed2eabe4f64b651b177f092538e370e628652dc2cc2dc6c9d1aee8e28504267e16d1a5e676786728ce14ad7ee3555209d0fb55755d81c90ca7ae1302",
+      "events_count": 1
+    }
+  ]
+}

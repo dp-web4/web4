@@ -240,13 +240,21 @@ class ATPLedger:
         source_agent: str,
         dest_platform: str,
         dest_agent: str,
-        amount: float
+        amount: float,
+        transfer_id: Optional[str] = None
     ) -> Optional[ATPTransfer]:
         """
         Initiate cross-platform ATP transfer (Phase 1: LOCK).
 
         Locks ATP in source account and creates transfer record.
         Returns transfer record if successful, None if insufficient balance.
+
+        Args:
+            source_agent: Agent initiating transfer (LCT)
+            dest_platform: Destination platform name
+            dest_agent: Destination agent (LCT)
+            amount: ATP amount to transfer
+            transfer_id: Optional transfer ID (generated if not provided)
         """
         if amount <= 0:
             return None
@@ -262,7 +270,7 @@ class ATPLedger:
 
         # Create transfer record
         transfer = ATPTransfer(
-            transfer_id=str(uuid.uuid4()),
+            transfer_id=transfer_id or str(uuid.uuid4()),
             source_platform=self.platform_name,
             source_agent=source_agent,
             dest_platform=dest_platform,

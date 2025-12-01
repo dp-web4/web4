@@ -251,12 +251,13 @@ class ATPTransactionProcessor:
             print(f"[ATP Processor] Warning: No ledger for {tx.source_platform}")
             return False
 
-        # Initiate transfer (locks ATP)
+        # Initiate transfer (locks ATP) with specified transfer_id
         transfer = source_ledger.initiate_transfer(
             source_agent=tx.source_agent,
             dest_platform=tx.dest_platform,
             dest_agent=tx.dest_agent,
-            amount=tx.amount
+            amount=tx.amount,
+            transfer_id=tx.transfer_id
         )
 
         if transfer is None:
