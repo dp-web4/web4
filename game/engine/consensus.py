@@ -24,6 +24,13 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
 
+# Import view change protocol (Session #46)
+try:
+    from game.engine.view_change import ViewChangeManager
+    VIEW_CHANGE_AVAILABLE = True
+except ImportError:
+    VIEW_CHANGE_AVAILABLE = False
+
 
 class MessageType(Enum):
     """Consensus message types"""
@@ -250,7 +257,8 @@ class ConsensusEngine:
         platform_name: str,
         platforms: List[str],
         signing_func: Callable[[str], str],
-        verification_func: Callable[[str, str, str], bool]
+        verification_func: Callable[[str, str, str], bool],
+        enable_view_change: bool = True
     ):
         """
         Initialize consensus engine.
@@ -261,6 +269,7 @@ class ConsensusEngine:
             signing_func: Function to sign content: (content: str) -> signature: str
             verification_func: Function to verify signature:
                                (content: str, signature: str, platform: str) -> bool
+            enable_view_change: Enable view change protocol for fault recovery (default: True)
         """
         self.state = ConsensusState(
             platform_name=platform_name,
@@ -272,6 +281,25 @@ class ConsensusEngine:
         # Callbacks for external integration
         self.on_block_committed: Optional[Callable[[Block], None]] = None
         self.on_send_message: Optional[Callable[[str, Dict], None]] = None
+
+        # View change protocol (Session #46 integration)
+        self.view_change_manager: Optional[ViewChangeManager] = None
+        if enable_view_change and VIEW_CHANGE_AVAILABLE:
+            self.view_change_manager = ViewChangeManager(
+                platform_name=platform_name,
+                platforms=sorted(platforms),
+                signing_func=signing_func,
+                verification_func=verification_func,
+                on_send_message=self._send_view_change_message
+            )
+            print(f"[{platform_name}] View change protocol enabled")
+        elif enable_view_change and not VIEW_CHANGE_AVAILABLE:
+            print(f"[{platform_name}] Warning: View change requested but not available")
+
+    def _send_view_change_message(self, target: str, msg: Dict[str, Any]) -> None:
+        """Send view change message (VIEW-CHANGE or NEW-VIEW)"""
+        if self.on_send_message:
+            self.on_send_message(target, msg)
 
     def get_proposer(self, sequence: int) -> str:
         """Get proposer for given sequence (deterministic round-robin)"""
@@ -437,6 +465,10 @@ class ConsensusEngine:
         if not self.validate_pre_prepare(msg):
             return
 
+        # Update view change manager (PRE-PREPARE received)
+        if self.view_change_manager:
+            self.view_change_manager.update_pre_prepare_time()
+
         # Store PRE-PREPARE
         self.state.pre_prepare_received = msg
         self.state.phase = ConsensusPhase.PRE_PREPARED
@@ -574,16 +606,65 @@ class ConsensusEngine:
         self.handle_pre_prepare(msg)
 
     # -------------------------------------------------------------------------
-    # Timeout Handling
+    # Timeout Handling & View Change Integration (Session #47)
     # -------------------------------------------------------------------------
 
-    def check_timeout(self) -> None:
-        """Check for timeout and trigger view change if needed"""
-        if self.state.is_timeout() and self.state.phase != ConsensusPhase.IDLE:
-            # Create and broadcast VIEW-CHANGE
-            msg = self.create_view_change()
-            self._broadcast_message(msg)
-            self.handle_view_change(msg)
+    def check_timeout(self) -> bool:
+        """
+        Check for timeout and trigger view change if needed.
+
+        Returns True if view change triggered, False otherwise.
+
+        Integration with ViewChangeManager (Session #46):
+        - Delegates timeout detection to ViewChangeManager
+        - ViewChangeManager handles VIEW-CHANGE broadcast
+        - Returns True when view change initiated
+        """
+        if self.view_change_manager:
+            # Use view change manager's timeout detection
+            return self.view_change_manager.check_timeout(self.state.sequence)
+        else:
+            # Fallback: basic timeout check (no view change)
+            if self.state.is_timeout() and self.state.phase != ConsensusPhase.IDLE:
+                print(f"[{self.state.platform_name}] Timeout detected but view change disabled")
+                return True
+            return False
+
+    def handle_view_change_message(self, msg: Dict[str, Any]) -> None:
+        """
+        Handle VIEW-CHANGE or NEW-VIEW message.
+
+        Delegates to ViewChangeManager if available.
+        """
+        if not self.view_change_manager:
+            return
+
+        msg_type = msg.get("type")
+
+        if msg_type == "VIEW-CHANGE":
+            from game.engine.view_change import ViewChangeMessage
+            view_change_msg = ViewChangeMessage(
+                view=msg["view"],
+                new_view=msg["new_view"],
+                sequence=msg["sequence"],
+                prepared=msg.get("prepared", []),
+                platform=msg["platform"],
+                signature=msg.get("signature", ""),
+                timestamp=msg["timestamp"]
+            )
+            self.view_change_manager.handle_view_change(view_change_msg)
+
+        elif msg_type == "NEW-VIEW":
+            from game.engine.view_change import NewViewMessage
+            new_view_msg = NewViewMessage(
+                new_view=msg["new_view"],
+                view_change_messages=msg.get("view_change_messages", []),
+                pre_prepare=msg.get("pre_prepare"),
+                platform=msg["platform"],
+                signature=msg.get("signature", ""),
+                timestamp=msg["timestamp"]
+            )
+            self.view_change_manager.handle_new_view(new_view_msg)
 
     # -------------------------------------------------------------------------
     # Status Queries
