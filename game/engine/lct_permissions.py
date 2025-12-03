@@ -4,10 +4,13 @@ LCT Identity Permission System
 Task-based permission checking and resource limit enforcement for LCT identities.
 Implements the permission matrix from LCT_IDENTITY_SYSTEM.md Phase 3.
 
-Author: Legion Autonomous Session #49
+Now integrated with LCT Unified Permission Standard (LUPS v1.0) from Session #51.
+
+Author: Legion Autonomous Session #49 (original), #52 (LUPS integration)
 Date: 2025-12-02
-Status: Phase 3 implementation
-References: LCT_IDENTITY_SYSTEM.md, lct_identity.py, identity_registry.py
+Status: Phase 3 implementation + LUPS v1.0 integration
+References: LCT_IDENTITY_SYSTEM.md, lct_identity.py, identity_registry.py,
+           LCT_UNIFIED_PERMISSION_STANDARD.md, lct_unified_permissions.py
 
 Permission Philosophy:
 - Tasks define capabilities (what an agent can do)
@@ -20,6 +23,15 @@ Permission Categories:
 2. Federation (federation:delegate, federation:execute)
 3. Code Execution (exec:safe, exec:code, exec:network)
 4. Admin (admin:read, admin:write, admin:full)
+5. Network (network:http, network:ws, network:p2p, network:all)
+6. Storage (storage:read, storage:write, storage:delete, storage:all)
+
+Task Types (10 total, from LUPS v1.0):
+- perception, planning, planning.strategic
+- execution.safe, execution.code
+- delegation.federation
+- consciousness, consciousness.sage (NEW: for SAGE integration)
+- admin.readonly, admin.full
 """
 
 from typing import Dict, List, Set, Optional, Any, Tuple
@@ -195,10 +207,11 @@ TASK_PERMISSIONS: Dict[str, TaskPermissionDefinition] = {
         task_name="perception",
         permissions={
             ATPPermission.READ.value,
-            NetworkPermission.HTTP.value
+            NetworkPermission.HTTP.value,
+            StoragePermission.READ.value  # Added in LUPS v1.0
         },
         resource_limits=ResourceLimits(
-            atp_budget=100.0,
+            atp_budget=200.0,  # Updated to LUPS v1.0
             memory_mb=2048,
             cpu_cores=2,
             disk_mb=1024,
@@ -217,14 +230,35 @@ TASK_PERMISSIONS: Dict[str, TaskPermissionDefinition] = {
             ATPPermission.READ.value
         },
         resource_limits=ResourceLimits(
-            atp_budget=100.0,
-            memory_mb=4096,
-            cpu_cores=4,
-            disk_mb=2048,
-            network_bandwidth_mbps=5,
+            atp_budget=500.0,  # Updated to LUPS v1.0
+            memory_mb=2048,     # Updated to LUPS v1.0
+            cpu_cores=2,        # Updated to LUPS v1.0
+            disk_mb=1024,
+            network_bandwidth_mbps=0,  # No network (LUPS v1.0)
             max_tasks=10
         ),
         description="Planning and reasoning (read-only)",
+        can_delegate=False,
+        can_execute_code=False
+    ),
+
+    # Planning.strategic - Enhanced planning with external data (NEW: LUPS v1.0)
+    "planning.strategic": TaskPermissionDefinition(
+        task_name="planning.strategic",
+        permissions={
+            ATPPermission.READ.value,
+            NetworkPermission.HTTP.value,
+            StoragePermission.READ.value
+        },
+        resource_limits=ResourceLimits(
+            atp_budget=500.0,
+            memory_mb=4096,
+            cpu_cores=4,
+            disk_mb=2048,
+            network_bandwidth_mbps=10,
+            max_tasks=20
+        ),
+        description="Enhanced planning with external data",
         can_delegate=False,
         can_execute_code=False
     ),
@@ -285,14 +319,73 @@ TASK_PERMISSIONS: Dict[str, TaskPermissionDefinition] = {
         resource_limits=ResourceLimits(
             atp_budget=1000.0,
             memory_mb=4096,
-            cpu_cores=4,
-            disk_mb=4096,
+            cpu_cores=2,  # Updated to LUPS v1.0
+            disk_mb=2048,  # Updated to LUPS v1.0
             network_bandwidth_mbps=100,
             max_tasks=50
         ),
         description="Cross-platform task delegation",
         can_delegate=True,
         can_execute_code=False
+    ),
+
+    # Consciousness - Autonomous consciousness loops (NEW: LUPS v1.0 for SAGE)
+    "consciousness": TaskPermissionDefinition(
+        task_name="consciousness",
+        permissions={
+            ATPPermission.READ.value,
+            ATPPermission.WRITE.value,
+            ExecutionPermission.CODE.value,
+            ExecutionPermission.NETWORK.value,
+            NetworkPermission.HTTP.value,
+            NetworkPermission.WEBSOCKET.value,
+            NetworkPermission.P2P.value,
+            StoragePermission.READ.value,
+            StoragePermission.WRITE.value,
+            FederationPermission.DELEGATE.value,
+            FederationPermission.EXECUTE.value
+        },
+        resource_limits=ResourceLimits(
+            atp_budget=1000.0,
+            memory_mb=16384,  # 16GB
+            cpu_cores=8,
+            disk_mb=20480,  # 20GB
+            network_bandwidth_mbps=100,
+            max_tasks=100
+        ),
+        description="Autonomous consciousness loops (SAGE integration)",
+        can_delegate=True,
+        can_execute_code=True
+    ),
+
+    # Consciousness.sage - Enhanced SAGE consciousness (NEW: LUPS v1.0)
+    "consciousness.sage": TaskPermissionDefinition(
+        task_name="consciousness.sage",
+        permissions={
+            ATPPermission.READ.value,
+            ATPPermission.WRITE.value,
+            ExecutionPermission.CODE.value,
+            ExecutionPermission.NETWORK.value,
+            NetworkPermission.HTTP.value,
+            NetworkPermission.WEBSOCKET.value,
+            NetworkPermission.P2P.value,
+            StoragePermission.READ.value,
+            StoragePermission.WRITE.value,
+            StoragePermission.DELETE.value,
+            FederationPermission.DELEGATE.value,
+            FederationPermission.EXECUTE.value
+        },
+        resource_limits=ResourceLimits(
+            atp_budget=2000.0,
+            memory_mb=32768,  # 32GB
+            cpu_cores=16,
+            disk_mb=51200,  # 50GB
+            network_bandwidth_mbps=1000,  # 1Gbps
+            max_tasks=200
+        ),
+        description="Enhanced SAGE consciousness with elevated resources",
+        can_delegate=True,
+        can_execute_code=True
     ),
 
     # Admin - Full permissions
