@@ -10,7 +10,14 @@ Date: 2025-12-02
 Status: SAGE + LCT integration validation
 """
 
+import sys
+from pathlib import Path
 import time
+
+# Add web4 root to path
+_web4_root = Path(__file__).parent.parent
+if str(_web4_root) not in sys.path:
+    sys.path.insert(0, str(_web4_root))
 
 from game.engine.lct_unified_permissions import (
     UNIFIED_TASK_PERMISSIONS,

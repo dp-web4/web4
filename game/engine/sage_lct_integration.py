@@ -301,6 +301,44 @@ class SAGELCTManager:
 
         return (True, "")
 
+    def record_consciousness_operation(
+        self,
+        lct_id: str,
+        operation: str,
+        atp_cost: float
+    ) -> bool:
+        """
+        Record a consciousness operation and consume ATP
+
+        Parameters:
+        -----------
+        lct_id : str
+            SAGE LCT identity
+        operation : str
+            Operation type (e.g., "perception", "planning", "execution")
+        atp_cost : float
+            ATP cost of operation
+
+        Returns:
+        --------
+        bool
+            True if operation recorded, False if budget exceeded
+        """
+        if lct_id not in self.sage_instances:
+            return False
+
+        state = self.sage_instances[lct_id]
+
+        # Check ATP budget
+        if state.atp_spent + atp_cost > state.atp_budget:
+            return False
+
+        # Consume ATP
+        state.atp_spent += atp_cost
+        state.is_active = True
+
+        return True
+
     def get_consciousness_summary(self, lct_id: str) -> Optional[Dict[str, Any]]:
         """
         Get consciousness state summary
