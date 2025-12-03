@@ -16,23 +16,40 @@ Web4 is investigating trust-native architectures for AI coordination. We have in
 
 Web4 contains **two distinct subsystems** at different maturity levels:
 
-### Track 1: `/game/` - In-Memory Simulation Engine (Research Stage)
+### Track 1: `/game/` - 4-Life Society Simulation (Research Stage)
 
-**What it is**: A sandbox for exploring trust dynamics, federation, and multi-society coordination.
+**What it is**: A fractal sandbox for simulating Web4 societies - agents form societies, societies join societies, trust emerges through interaction. Named "4-Life" for the emergent, self-organizing nature of the simulation (like Conway's Game of Life, but with trust dynamics).
 
-**Status**: Research prototype with stub cryptography
-- In-memory only (no persistence)
-- Stub signatures (not real crypto verification)
-- MRH-aware policies (v0 heuristics)
-- Hardware binding MVP (fingerprint tracking, not TPM/HSM)
+**Goal**: Validate Web4 primitives under complex emergent behavior, reveal gaps in specs, and provide interactive demonstration for humans and AI agents.
+
+**Status**: Active research prototype (~40 engine modules, ~60 demo scripts)
+- In-memory simulation (no persistence yet)
+- Stub cryptography (not production crypto)
+- LCT identity system (4 phases complete: identity, registry, permissions, ATP integration)
+- Federation with PBFT consensus and view changes
+- MRH-aware trust policies (v0 heuristics)
 - Tested at research scale (100 societies, 1000 agents)
 
+**What Works**:
+- Agents with LCTs, trust tensors (T3/V3), capabilities, and ATP budgets
+- Societies with treasuries, membership, policies, and roles
+- Federation between societies with signed gossip and consensus
+- Insurance pools and cross-society reputation
+- SAGE edge device integration patterns
+
+**What's Missing**:
+- Persistence layer (all in-memory)
+- Real cryptographic verification
+- Production-grade security hardening
+- Web UI (planned, not built)
+
 **Documentation**:
+- [`game/README.md`](game/README.md) - Full game overview and design
 - [`game/THREAT_MODEL_GAME.md`](game/THREAT_MODEL_GAME.md) - What's modeled, what's not
 - [`game/WEB4_HRM_ALIGNMENT.md`](game/WEB4_HRM_ALIGNMENT.md) - Integration with SAGE federation
 - [`SECURITY.md`](SECURITY.md) - Security research status
 
-**Use for**: Exploring ideas, testing trust dynamics, developing intuition
+**Use for**: Exploring trust dynamics, testing federation patterns, developing intuition about emergent behavior
 
 ### Track 2: `web4-standard/implementation/authorization/` - PostgreSQL Authorization Layer
 
@@ -131,13 +148,22 @@ python app.py
 
 See [`demo/DEMO_SCRIPT.md`](demo/DEMO_SCRIPT.md) for walkthrough.
 
-### Run the Game Engine
+### Run the 4-Life Game Engine
 
 ```bash
 cd game
-python run_two_societies_demo.py      # Federation demo
-python run_greedy_treasurer_demo.py   # Policy enforcement demo
-python run_hardware_bound_demo.py     # Hardware binding MVP demo
+
+# Core demos
+python run_two_societies_demo.py           # Basic federation demo
+python run_greedy_treasurer_demo.py        # Policy enforcement demo
+python run_lct_e2e_integration_test.py     # Full LCT identity system
+
+# Federation & consensus
+python run_federation_consensus_integration_test.py  # PBFT consensus
+python run_multi_society_federation_demo.py          # Multi-society gossip
+
+# SAGE integration
+python run_sage_lct_integration_test.py    # Edge device patterns
 ```
 
 ---
@@ -146,8 +172,10 @@ python run_hardware_bound_demo.py     # Hardware binding MVP demo
 
 ```
 web4/
-├── game/                              # Track 1: In-memory simulation
-│   ├── engine/                        # Core simulation engine
+├── game/                              # Track 1: 4-Life Society Simulation
+│   ├── engine/                        # ~40 modules (LCT, federation, consensus, ATP, etc.)
+│   ├── run_*.py                       # ~60 demo/test scripts
+│   ├── README.md                      # Game overview and design
 │   ├── THREAT_MODEL_GAME.md          # Security assumptions
 │   └── WEB4_HRM_ALIGNMENT.md         # SAGE integration spec
 │
