@@ -32,6 +32,9 @@ import json
 # Import real Trust Oracle (Session: Autonomous Web4 Research 2025-12-05)
 from trust_oracle import TrustOracle as RealTrustOracle
 
+# Import real cryptographic verification (Track 2: 2025-12-05)
+from crypto_verification import verify_signature as verify_ed25519_signature
+
 # Import real Law Oracle implementation
 from law_oracle import LawOracle, RolePermissions, create_default_law_dataset
 
@@ -67,9 +70,29 @@ class LCTCredential:
     hardware_binding_hash: Optional[str] = None
 
     def verify_signature(self, message: bytes, signature: bytes) -> bool:
-        """Verify cryptographic signature (stub - needs real crypto)"""
-        # TODO: Implement proper Ed25519 signature verification
-        return True  # Placeholder
+        """
+        Verify cryptographic signature using Ed25519.
+
+        Updated: Track 2 (2025-12-05) - Real crypto verification
+        Replaced stub with actual Ed25519 signature verification.
+
+        Args:
+            message: Message that was signed
+            signature: Signature to verify
+
+        Returns:
+            True if signature is valid, False otherwise
+        """
+        try:
+            return verify_ed25519_signature(
+                public_key=self.public_key,
+                message=message,
+                signature=signature
+            )
+        except Exception as e:
+            # Log error but don't raise - return False for invalid signature
+            print(f"Signature verification error for {self.lct_id}: {e}")
+            return False
 
 
 @dataclass
