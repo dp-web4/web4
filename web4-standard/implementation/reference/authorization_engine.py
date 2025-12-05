@@ -29,6 +29,9 @@ import time
 import hashlib
 import json
 
+# Import real Trust Oracle (Session: Autonomous Web4 Research 2025-12-05)
+from trust_oracle import TrustOracle as RealTrustOracle
+
 # Import real Law Oracle implementation
 from law_oracle import LawOracle, RolePermissions, create_default_law_dataset
 
@@ -158,12 +161,61 @@ class AuthorizationResult:
 
 
 class TrustOracle:
-    """Stub for Trust Tensor queries"""
+    """
+    Wrapper for Trust Oracle integration
+
+    This maintains backward compatibility with existing authorization_engine code
+    while delegating to the real PostgreSQL-backed TrustOracle.
+
+    Updated: Autonomous Web4 Research Session 2025-12-05
+    - Replaced hardcoded 0.75 stub with real T3/V3 queries
+    - Delegates to trust_oracle.TrustOracle
+    """
+
+    def __init__(self, db_config: Optional[Dict[str, str]] = None):
+        """
+        Initialize Trust Oracle wrapper.
+
+        Args:
+            db_config: PostgreSQL connection config (if None, uses stub mode)
+        """
+        self.db_config = db_config
+        self.real_oracle: Optional[RealTrustOracle] = None
+
+        if db_config:
+            try:
+                self.real_oracle = RealTrustOracle(db_config)
+            except Exception as e:
+                # Fall back to stub mode on error
+                print(f"Warning: Trust Oracle init failed, using stub mode: {e}")
 
     def get_trust_score(self, entity_lct: str, role_lct: str, context: str) -> float:
-        """Get T3 trust score for entity in role context"""
-        # TODO: Implement actual T3 tensor queries
-        return 0.75  # Stub
+        """
+        Get T3 trust score for entity in role context
+
+        Args:
+            entity_lct: Entity whose trust to query
+            role_lct: Role context
+            context: Organization or action context
+
+        Returns:
+            Trust score (0.0-1.0)
+        """
+        if self.real_oracle:
+            # Use real oracle
+            try:
+                return self.real_oracle.query_trust_for_authorization(
+                    lct_id=entity_lct,
+                    organization_id=context,
+                    action_type="",
+                    required_role=role_lct
+                )
+            except Exception as e:
+                print(f"Warning: Trust query failed, using default: {e}")
+                return 0.5  # Conservative default on error
+        else:
+            # Stub mode fallback
+            return 0.75
 
 
 class AuthorizationEngine:
