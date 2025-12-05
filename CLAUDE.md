@@ -8,6 +8,29 @@
 - **Platform**: /home/dp/ai-workspace/web4
 - **Working Directory**: /home/dp/ai-workspace/web4
 
+## 🚨 CRITICAL: Autonomous Session End Protocol
+
+**EVERY autonomous session MUST commit and push work before ending.**
+
+Git post-commit hooks are installed. Commits automatically push to remote.
+
+**Before ending any session**:
+```bash
+# Commit your work (push is automatic)
+git add -A
+git commit -m "Autonomous session: [summary]"
+
+# Or use session end script for all repos
+source /home/dp/ai-workspace/memory/epistemic/tools/session_end.sh "Session summary"
+
+# Verify pushed
+git status  # Must show "working tree clean"
+```
+
+**DO NOT END SESSION** until work is pushed. See `/home/dp/ai-workspace/memory/AUTONOMOUS_SESSION_GUIDE.md`
+
+---
+
 ## Authentication
 **GitHub PAT Location**: `../.env` (GITHUB_PAT variable)
 - Use for pushing: `git push https://dp-web4:$(grep GITHUB_PAT ../.env | cut -d= -f2)@github.com/dp-web4/web4.git`
