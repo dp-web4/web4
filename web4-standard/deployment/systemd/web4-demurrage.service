@@ -1,0 +1,28 @@
+[Unit]
+Description=Web4 ATP Demurrage Service
+Documentation=https://github.com/dp-web4/web4
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=web4
+Group=web4
+WorkingDirectory=/opt/web4
+ExecStart=/usr/bin/python3 /opt/web4/demurrage_service.py --foreground --config /etc/web4/demurrage.json
+Restart=always
+RestartSec=10
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/web4 /var/lib/web4
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=web4-demurrage
+
+[Install]
+WantedBy=multi-user.target

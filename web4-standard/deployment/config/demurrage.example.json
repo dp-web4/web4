@@ -1,0 +1,25 @@
+{
+  "comment": "Web4 ATP Demurrage Service Configuration",
+  "interval_hours": 24,
+  "enable_persistence": true,
+  "log_level": "INFO",
+  "log_file": "/var/log/web4/demurrage.log",
+  "metrics_file": "/var/lib/web4/demurrage_metrics.json",
+  "pid_file": "/var/run/web4-demurrage.pid",
+
+  "demurrage": {
+    "society_id": "web4:main",
+    "base_rate": 0.05,
+    "grace_period_days": 7,
+    "grace_rate_multiplier": 0.1,
+    "min_velocity_per_month": 0.5,
+    "velocity_penalty_rate": 0.15,
+    "decay_calculation_interval_hours": 24,
+    "max_holding_days": 365
+  },
+
+  "comment_rates": "Decay rate presets: none=0.0, low=0.01, moderate=0.05, high=0.10, aggressive=0.20",
+  "comment_grace": "Grace period gives reduced decay for first N days after acquisition",
+  "comment_velocity": "If circulation velocity < min_velocity, apply penalty_rate instead",
+  "comment_max_holding": "Force conversion to ADP after max_holding_days"
+}

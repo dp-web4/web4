@@ -1,0 +1,11 @@
+# Web4 ATP Demurrage - Daily at 02:00 UTC
+# Add to crontab: crontab -e
+# Or install to /etc/cron.d/web4-demurrage
+
+# Run ATP decay calculation daily at 2 AM
+0 2 * * * web4 /usr/bin/python3 /opt/web4/demurrage_service.py --once --config /etc/web4/demurrage.json >> /var/log/web4/demurrage-cron.log 2>&1
+
+# Alternative schedules:
+# Every 12 hours: 0 */12 * * *
+# Every 6 hours:  0 */6 * * *
+# Weekly:         0 2 * * 0
