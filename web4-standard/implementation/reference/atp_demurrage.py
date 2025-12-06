@@ -47,18 +47,42 @@ class ATPHolding:
     ATP holding record for demurrage calculation.
 
     Tracks when ATP was acquired and calculates decay over time.
+
+    **SECURITY (Track 15 Mitigation #1)**:
+    - Tracks `original_acquisition` time to prevent self-transfer attacks
+    - Demurrage age calculated from FIRST acquisition, not current holder
+    - Transfer count tracked for audit/analysis
     """
     entity_lct: str
     amount: int  # ATP amount
-    acquired_at: datetime  # When ATP was acquired
+    acquired_at: datetime  # When THIS entity received ATP
     last_decay_calculated: datetime  # Last decay calculation
+    original_acquisition: Optional[datetime] = None  # When ATP was FIRST created (Track 15)
+    transfer_count: int = 0  # Number of transfers (Track 15)
     metadata: Dict[str, any] = field(default_factory=dict)
 
+    def __post_init__(self):
+        """Initialize original_acquisition if not set"""
+        if self.original_acquisition is None:
+            self.original_acquisition = self.acquired_at
+
     def age_days(self, now: Optional[datetime] = None) -> float:
-        """Calculate age of holding in days"""
+        """
+        Calculate age of holding in days.
+
+        **SECURITY**: Uses `original_acquisition` instead of `acquired_at`
+        to prevent self-transfer demurrage bypass (Track 15 Mitigation #1).
+
+        Attack prevented:
+        1. Agent holds ATP for 30 days (near decay)
+        2. Transfers to alt account (fresh `acquired_at`)
+        3. Transfers back
+        4. Without mitigation: age resets to 0
+        5. With mitigation: age still 30 days (from `original_acquisition`)
+        """
         if now is None:
             now = datetime.now(timezone.utc)
-        return (now - self.acquired_at).total_seconds() / 86400
+        return (now - self.original_acquisition).total_seconds() / 86400
 
     def time_since_decay(self, now: Optional[datetime] = None) -> float:
         """Calculate time since last decay in days"""
@@ -122,37 +146,51 @@ class DemurrageEngine:
 
     def add_holding(
         self,
-        entity_lct: str,
-        amount: int,
+        entity_lct_or_holding,
+        amount: Optional[int] = None,
         acquired_at: Optional[datetime] = None
     ) -> ATPHolding:
         """
         Add ATP holding for entity.
 
+        Can be called in two ways:
+        1. add_holding(holding_object) - Add pre-created holding (Track 17)
+        2. add_holding(entity_lct, amount, acquired_at) - Create and add holding
+
         Args:
-            entity_lct: Entity LCT identifier
-            amount: ATP amount acquired
+            entity_lct_or_holding: Either entity LCT string or ATPHolding object
+            amount: ATP amount acquired (if creating new)
             acquired_at: Acquisition timestamp (default: now)
 
         Returns:
             ATPHolding record
         """
-        if acquired_at is None:
-            acquired_at = datetime.now(timezone.utc)
+        # Check if first arg is a holding object (Track 17 - direct holding add)
+        if isinstance(entity_lct_or_holding, ATPHolding):
+            holding = entity_lct_or_holding
+            entity_lct = holding.entity_lct
+        else:
+            # Original behavior - create holding from params
+            entity_lct = entity_lct_or_holding
+            if amount is None:
+                raise TypeError("amount is required when entity_lct is a string")
 
-        holding = ATPHolding(
-            entity_lct=entity_lct,
-            amount=amount,
-            acquired_at=acquired_at,
-            last_decay_calculated=acquired_at
-        )
+            if acquired_at is None:
+                acquired_at = datetime.now(timezone.utc)
+
+            holding = ATPHolding(
+                entity_lct=entity_lct,
+                amount=amount,
+                acquired_at=acquired_at,
+                last_decay_calculated=acquired_at
+            )
 
         if entity_lct not in self.holdings:
             self.holdings[entity_lct] = []
 
         self.holdings[entity_lct].append(holding)
 
-        logger.debug(f"Added {amount} ATP holding for {entity_lct}")
+        logger.debug(f"Added {amount if amount else holding.amount} ATP holding for {entity_lct}")
 
         return holding
 
@@ -260,6 +298,99 @@ class DemurrageEngine:
             logger.info(f"Applied decay for {entity_lct}: {total_decayed} ATP → ADP (remaining: {total_remaining})")
 
         return total_decayed, total_remaining
+
+    def transfer_with_decay(
+        self,
+        from_entity: str,
+        to_entity: str,
+        amount: int,
+        now: Optional[datetime] = None
+    ) -> Tuple[int, int]:
+        """
+        Transfer ATP with immediate decay application (Track 15 Mitigation #2).
+
+        **SECURITY**: Applies decay BEFORE transfer to prevent flash loan attacks.
+
+        Attack prevented:
+        1. Borrow ATP just before demurrage calculation
+        2. Return ATP just after calculation
+        3. Without mitigation: Avoid decay via timing
+        4. With mitigation: Decay applied on EVERY transfer
+
+        Args:
+            from_entity: Source entity LCT
+            to_entity: Destination entity LCT
+            amount: ATP amount to transfer
+            now: Current timestamp
+
+        Returns:
+            (amount_transferred, amount_decayed) tuple
+
+        Raises:
+            ValueError: If insufficient ATP after decay
+        """
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        # Step 1: Apply decay to source BEFORE transfer
+        decayed, remaining = self.apply_decay(from_entity, now)
+
+        # Step 2: Check available ATP after decay
+        total_holdings = self.get_total_holdings(from_entity)
+        if total_holdings < amount:
+            # Cap transfer at available amount (allows "transfer all" semantics)
+            logger.warning(
+                f"Requested {amount} ATP but only {total_holdings} available after decay. "
+                f"Transferring {total_holdings}."
+            )
+            amount = total_holdings
+
+        if amount == 0:
+            raise ValueError(f"No ATP available to transfer from {from_entity}")
+
+        # Step 3: Deduct from source (FIFO - oldest holding first)
+        transferred_amount = 0
+        original_acquisition = None
+        transfer_count = 0
+
+        for holding in self.holdings[from_entity]:
+            if transferred_amount >= amount:
+                break
+
+            # Track lineage from FIRST holding transferred
+            if original_acquisition is None:
+                original_acquisition = holding.original_acquisition
+                transfer_count = holding.transfer_count
+
+            take_amount = min(holding.amount, amount - transferred_amount)
+            holding.amount -= take_amount
+            transferred_amount += take_amount
+
+        # Remove empty holdings
+        self.holdings[from_entity] = [h for h in self.holdings[from_entity] if h.amount > 0]
+
+        # Step 4: Add to destination with lineage preserved
+        new_holding = ATPHolding(
+            entity_lct=to_entity,
+            amount=amount,
+            acquired_at=now,  # Current holder's acquisition time
+            last_decay_calculated=now,
+            original_acquisition=original_acquisition if original_acquisition else now,
+            transfer_count=transfer_count + 1,  # Increment transfer count
+            metadata={
+                "transferred_from": from_entity,
+                "transfer_time": now.isoformat(),
+            }
+        )
+
+        self.add_holding(new_holding)
+
+        logger.info(
+            f"Transfer with decay: {from_entity} → {to_entity}, "
+            f"amount={amount}, decayed={decayed}, lineage_transfers={transfer_count + 1}"
+        )
+
+        return amount, decayed
 
     def apply_global_decay(
         self,
