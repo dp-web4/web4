@@ -1,7 +1,7 @@
-# WEB4-001: Production Readiness Status
+# WEB4-001: Protocol Implementation Status
 
-**Status**: Complete
-**Date**: 2025-12-05
+**Status**: Core Protocols Complete - Hardware Binding Required
+**Date**: 2025-12-05 (Updated: 2025-12-05)
 **Author**: Legion Autonomous Web4 Research
 **Session**: Tracks 9-13
 
@@ -9,7 +9,11 @@
 
 ## Summary
 
-Web4 core protocols are production-ready for deployment. All P0 blockers resolved, integration tested, security validated, and deployment automation complete.
+Web4 core protocols are **implementation-complete** for testing and validation. All software components (Trust Oracle, Ed25519 Signatures, Witness System, Persistence Layer, Crypto) are integrated and tested.
+
+**⚠️ CRITICAL BLOCKER**: Hardware binding (TPM/SE) is NOT implemented. Without hardware-bound keys, LCT identity is copyable and the trust model is incomplete. See `private-context/messages/hardware-binding-p0-blocker-2025-12-05.md`.
+
+**Status**: Ready for integration testing. NOT ready for deployment until hardware binding implemented.
 
 ## Motivation
 
@@ -27,7 +31,7 @@ After completing 5 P0 blockers (Trust Oracle, Ed25519 Signatures, Witness System
 - Ed25519 cryptographic identity
 - Birth certificate multi-party signing
 - Society-scoped identity
-- Hardware binding support
+- Hardware binding support (⚠️ STUB ONLY - not implemented)
 - PostgreSQL persistence
 
 **Performance**: 21,998 LCTs/second (minting)
@@ -262,25 +266,30 @@ All three substrates (Synchronism, Web4, SAGE) implement compression-action-thre
 - Race conditions: Atomic database operations
 - Collusion: Reputation tracking (partial)
 
-## Remaining Work (P2)
+## Remaining Work
 
-### Infrastructure
+### P0 - Required Before Any Deployment
+- [ ] **Hardware binding (TPM/SE)** - LCT unforgeability depends on this
+  - Current: Keys stored in filesystem (copyable)
+  - Required: Keys generated/sealed in TPM or Secure Element
+  - Design exists: `implementation/Hardware Security Architecture for Web4 Societies.md`
+
+### P1 - Infrastructure
 - [ ] Docker containers
 - [ ] Kubernetes manifests
 - [ ] Health checks API endpoint
 - [ ] Database migration scripts
 
-### Advanced Features
+### P2 - Advanced Features
 - [ ] Sub-delegation chains
 - [ ] Conditional delegations
 - [ ] Hierarchical trust
-- [ ] Hardware binding (TPM/SE)
 
-### Integration
+### P2 - Integration
 - [ ] Full PostgreSQL deployment
 - [ ] Multi-machine SAGE federation
 - [ ] Witness collusion detection
-- [ ] Production demurrage tuning
+- [ ] Demurrage tuning
 
 ## Backwards Compatibility
 
@@ -308,8 +317,13 @@ Public domain
 
 ## Changelog
 
-- 2025-12-05: Initial production readiness proposal
-  - All P0 blockers complete
+- 2025-12-05: Updated status - hardware binding is P0 blocker
+  - Clarified that hardware binding is required, not optional
+  - Changed "production-ready" to "implementation-complete"
+  - Added critical blocker notice
+
+- 2025-12-05: Initial protocol implementation status
+  - All software P0 blockers complete
   - Integration testing complete
   - Security validation complete
   - Deployment automation complete
@@ -317,10 +331,10 @@ Public domain
 
 ---
 
-**Status**: READY FOR PRODUCTION DEPLOYMENT
+**Status**: IMPLEMENTATION COMPLETE - HARDWARE BINDING REQUIRED
 
 **Next Steps**:
-1. Deploy PostgreSQL Trust Oracle
-2. Deploy demurrage background service
-3. Production packaging (Docker/K8s)
+1. **Implement hardware binding (P0)** - TPM/SE integration for unforgeable LCT identity
+2. Deploy PostgreSQL Trust Oracle
+3. Deploy demurrage background service
 4. Multi-machine federation testing
