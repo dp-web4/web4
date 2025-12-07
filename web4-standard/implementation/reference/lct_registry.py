@@ -186,6 +186,10 @@ class LCTRegistry:
     - Verifying birth certificates
     - Managing lifecycle (active, suspended, revoked)
     - Preventing duplicate identities
+
+    Attack Mitigations #7-8 Integrated:
+    - #7: Reputation washing prevention (entity lineage tracking)
+    - #8: Reputation inflation prevention (interaction graph analysis)
     """
 
     def __init__(self, society_id: str):
@@ -205,6 +209,16 @@ class LCTRegistry:
 
         # Counters
         self.lct_counter = 0
+
+        # Mitigation #7: Reputation washing prevention
+        # Track all LCTs ever created by each entity
+        self.entity_lineage: Dict[str, List[str]] = {}  # entity_identifier -> [lct_ids]
+        self.lct_creation_history: Dict[str, float] = {}  # lct_id -> creation_timestamp
+
+        # Mitigation #8: Reputation inflation prevention
+        # Track interaction patterns for collusion detection
+        self.interaction_graph: Dict[str, Dict[str, int]] = {}  # lct_id -> {partner_lct: count}
+        self.interaction_timestamps: Dict[Tuple[str, str], List[float]] = {}  # (lct1, lct2) -> [timestamps]
 
     def mint_lct(
         self,
@@ -290,6 +304,12 @@ class LCTRegistry:
         self.birth_certificates[birth_cert.certificate_hash] = birth_cert
         self.entity_to_lct[entity_identifier] = lct_id
         self.active_lcts.add(lct_id)
+
+        # Mitigation #7: Track entity lineage for reputation washing detection
+        if entity_identifier not in self.entity_lineage:
+            self.entity_lineage[entity_identifier] = []
+        self.entity_lineage[entity_identifier].append(lct_id)
+        self.lct_creation_history[lct_id] = birth_cert.birth_timestamp
 
         # TODO: Write to immutable ledger
 
@@ -407,6 +427,141 @@ class LCTRegistry:
         # TODO: Log to ledger (permanent record)
         return True
 
+    def record_interaction(
+        self,
+        lct_id_1: str,
+        lct_id_2: str,
+        timestamp: Optional[float] = None
+    ):
+        """
+        Record interaction between two LCTs
+
+        Attack Mitigation #8: Tracks interactions for collusion detection
+        """
+        if timestamp is None:
+            timestamp = time.time()
+
+        # Initialize interaction graph entries
+        if lct_id_1 not in self.interaction_graph:
+            self.interaction_graph[lct_id_1] = {}
+        if lct_id_2 not in self.interaction_graph:
+            self.interaction_graph[lct_id_2] = {}
+
+        # Increment counters
+        self.interaction_graph[lct_id_1][lct_id_2] = \
+            self.interaction_graph[lct_id_1].get(lct_id_2, 0) + 1
+        self.interaction_graph[lct_id_2][lct_id_1] = \
+            self.interaction_graph[lct_id_2].get(lct_id_1, 0) + 1
+
+        # Track timestamps
+        key = tuple(sorted([lct_id_1, lct_id_2]))
+        if key not in self.interaction_timestamps:
+            self.interaction_timestamps[key] = []
+        self.interaction_timestamps[key].append(timestamp)
+
+    def check_reputation_washing(
+        self,
+        lct_id: str,
+        min_age_days: float = 30.0
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Check if LCT is suspiciously new (potential reputation washing)
+
+        Attack Mitigation #7: Reputation Washing Prevention
+        Detects entities creating new identities to reset reputation after
+        accumulating negative history.
+
+        Returns:
+            (suspicious, reason) tuple
+        """
+        # Get LCT creation time
+        if lct_id not in self.lct_creation_history:
+            return False, "LCT not in creation history"
+
+        creation_time = self.lct_creation_history[lct_id]
+        age_seconds = time.time() - creation_time
+        age_days = age_seconds / 86400.0
+
+        # Check if too new
+        if age_days < min_age_days:
+            # Get entity identifier to check lineage
+            entity_id = None
+            for eid, lid in self.entity_to_lct.items():
+                if lid == lct_id:
+                    entity_id = eid
+                    break
+
+            if entity_id and entity_id in self.entity_lineage:
+                lineage = self.entity_lineage[entity_id]
+                if len(lineage) > 1:
+                    # Multiple LCTs for same entity - suspicious
+                    return True, f"Entity has {len(lineage)} LCTs, current age: {age_days:.1f} days"
+
+            return True, f"LCT age ({age_days:.1f} days) < minimum ({min_age_days} days)"
+
+        return False, None
+
+    def check_reputation_inflation(
+        self,
+        lct_id_1: str,
+        lct_id_2: str,
+        max_interaction_ratio: float = 0.8
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Check if two LCTs are colluding via excessive interactions
+
+        Attack Mitigation #8: Reputation Inflation Prevention
+        Detects collusion where two entities artificially inflate each
+        other's reputation through repeated positive interactions.
+
+        Returns:
+            (suspicious, reason) tuple
+        """
+        # Get interaction counts
+        if lct_id_1 not in self.interaction_graph:
+            return False, None
+        if lct_id_2 not in self.interaction_graph[lct_id_1]:
+            return False, None
+
+        # Count interactions between them
+        mutual_interactions = self.interaction_graph[lct_id_1].get(lct_id_2, 0)
+
+        # Count total interactions for lct_id_1
+        total_interactions = sum(self.interaction_graph[lct_id_1].values())
+
+        if total_interactions == 0:
+            return False, None
+
+        # Calculate ratio
+        interaction_ratio = mutual_interactions / total_interactions
+
+        # Check if suspiciously high
+        if interaction_ratio > max_interaction_ratio:
+            return True, f"Interaction ratio {interaction_ratio:.2%} > {max_interaction_ratio:.0%} " \
+                        f"({mutual_interactions}/{total_interactions} with {lct_id_2})"
+
+        # Check temporal clustering (rapid bursts)
+        key = tuple(sorted([lct_id_1, lct_id_2]))
+        if key in self.interaction_timestamps:
+            timestamps = self.interaction_timestamps[key]
+            if len(timestamps) >= 10:
+                # Check last 10 interactions
+                recent = timestamps[-10:]
+                time_span = recent[-1] - recent[0]
+                # If 10 interactions in less than 1 hour - suspicious
+                if time_span < 3600:
+                    return True, f"10 interactions in {time_span/60:.1f} minutes (potential burst collusion)"
+
+        return False, None
+
+    def get_entity_lineage(self, entity_identifier: str) -> List[str]:
+        """
+        Get all LCTs created by an entity
+
+        Attack Mitigation #7: Used to detect reputation washing
+        """
+        return self.entity_lineage.get(entity_identifier, [])
+
     def get_stats(self) -> Dict:
         """Get registry statistics"""
         return {
@@ -418,7 +573,10 @@ class LCTRegistry:
             "entity_types": {
                 etype.value: sum(1 for lct in self.lcts.values() if lct.entity_type == etype)
                 for etype in EntityType
-            }
+            },
+            # Mitigation stats
+            "entities_with_multiple_lcts": sum(1 for lineage in self.entity_lineage.values() if len(lineage) > 1),
+            "total_interactions_tracked": sum(sum(partners.values()) for partners in self.interaction_graph.values()) // 2
         }
 
 

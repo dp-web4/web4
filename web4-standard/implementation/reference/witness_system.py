@@ -121,12 +121,22 @@ class WitnessAttestation:
 
 @dataclass
 class WitnessRequirements:
-    """Requirements for witness validation"""
+    """
+    Requirements for witness validation
+
+    Attack Mitigation #6: Witness Shopping Prevention (Integrated)
+    - min_reputation_score: Minimum witness reputation required
+    - require_consensus: Forces witnesses to agree (prevents cherry-picking)
+    """
     required_types: Set[WitnessType]  # Required witness types
     min_witnesses: int = 1  # Minimum number of witnesses
     freshness_window_seconds: int = 300  # ±300s default
     require_consensus: bool = False  # All witnesses must agree
     allowed_witnesses: Optional[Set[str]] = None  # Whitelist of witness DIDs
+
+    # Mitigation #6: Witness shopping prevention
+    min_reputation_score: float = 0.5  # Minimum witness reputation (0.0-1.0)
+    max_witness_attempts: int = 5  # Max witnesses queried before success required
 
 
 @dataclass
@@ -144,6 +154,10 @@ class WitnessRegistry:
     Registry of trusted witnesses
 
     Manages witness public keys, reputation, and capabilities
+
+    Attack Mitigation #6: Witness Shopping Prevention (Integrated)
+    - Tracks witness attempt history per entity
+    - Enforces minimum reputation requirements
     """
 
     def __init__(self):
@@ -159,6 +173,10 @@ class WitnessRegistry:
 
         # Nonce tracking for replay protection: nonce -> expiry_time
         self.used_nonces: Dict[str, float] = {}
+
+        # Mitigation #6: Witness shopping tracking
+        # (entity_lct, event_hash) -> [list of witness_dids attempted]
+        self.witness_attempts: Dict[Tuple[str, str], List[str]] = {}
 
     def register_witness(
         self,
@@ -232,6 +250,57 @@ class WitnessRegistry:
         self.used_nonces[nonce] = now + 3600
         return True
 
+    def record_witness_attempt(
+        self,
+        entity_lct: str,
+        event_hash: str,
+        witness_did: str
+    ):
+        """
+        Record witness attempt for shopping detection
+
+        Attack Mitigation #6: Tracks which witnesses were queried
+        for a specific event by a specific entity.
+        """
+        key = (entity_lct, event_hash)
+        if key not in self.witness_attempts:
+            self.witness_attempts[key] = []
+        self.witness_attempts[key].append(witness_did)
+
+    def get_witness_attempts(
+        self,
+        entity_lct: str,
+        event_hash: str
+    ) -> int:
+        """
+        Get number of witness attempts for an event
+
+        Attack Mitigation #6: Used to detect witness shopping
+        """
+        key = (entity_lct, event_hash)
+        return len(self.witness_attempts.get(key, []))
+
+    def check_witness_shopping(
+        self,
+        entity_lct: str,
+        event_hash: str,
+        max_attempts: int
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Check if entity is witness shopping
+
+        Attack Mitigation #6: Witness Shopping Prevention
+        Detects when an entity queries excessive witnesses for same event,
+        likely searching for favorable attestation.
+
+        Returns:
+            (valid, error_message) tuple
+        """
+        attempts = self.get_witness_attempts(entity_lct, event_hash)
+        if attempts >= max_attempts:
+            return False, f"Excessive witness attempts: {attempts} >= {max_attempts}"
+        return True, None
+
 
 class WitnessSystem:
     """
@@ -300,7 +369,8 @@ class WitnessSystem:
     def verify_attestation(
         self,
         attestation: WitnessAttestation,
-        requirements: Optional[WitnessRequirements] = None
+        requirements: Optional[WitnessRequirements] = None,
+        entity_lct: Optional[str] = None  # NEW: For witness shopping detection
     ) -> Tuple[bool, Optional[str]]:
         """
         Verify single witness attestation
@@ -308,6 +378,7 @@ class WitnessSystem:
         Args:
             attestation: Attestation to verify
             requirements: Validation requirements
+            entity_lct: Entity requesting attestation (for shopping detection)
 
         Returns:
             (valid, error_message) tuple
@@ -315,6 +386,29 @@ class WitnessSystem:
         # Check witness is registered
         if not self.registry.is_witness_registered(attestation.witness_did):
             return False, f"Unknown witness: {attestation.witness_did}"
+
+        # Mitigation #6: Check witness reputation
+        if requirements and requirements.min_reputation_score > 0:
+            reputation = self.registry.get_reputation_score(attestation.witness_did)
+            if reputation < requirements.min_reputation_score:
+                return False, f"Witness reputation too low: {reputation:.2f} < {requirements.min_reputation_score:.2f}"
+
+        # Mitigation #6: Check witness shopping
+        if requirements and entity_lct and attestation.event_hash:
+            valid, error = self.registry.check_witness_shopping(
+                entity_lct,
+                attestation.event_hash,
+                requirements.max_witness_attempts
+            )
+            if not valid:
+                return False, f"Witness shopping detected: {error}"
+
+            # Record this attempt
+            self.registry.record_witness_attempt(
+                entity_lct,
+                attestation.event_hash,
+                attestation.witness_did
+            )
 
         # Check witness capability
         capabilities = self.registry.get_witness_capabilities(attestation.witness_did)
@@ -435,7 +529,8 @@ class WitnessSystem:
     def validate_witnesses(
         self,
         attestations: List[WitnessAttestation],
-        requirements: WitnessRequirements
+        requirements: WitnessRequirements,
+        entity_lct: Optional[str] = None  # NEW: For witness shopping detection
     ) -> WitnessValidationResult:
         """
         Validate multiple witness attestations
@@ -443,6 +538,7 @@ class WitnessSystem:
         Args:
             attestations: List of attestations to validate
             requirements: Validation requirements
+            entity_lct: Entity requesting attestation (for shopping detection)
 
         Returns:
             WitnessValidationResult with validation details
@@ -452,7 +548,11 @@ class WitnessSystem:
 
         # Verify each attestation
         for attestation in attestations:
-            valid, error = self.verify_attestation(attestation, requirements)
+            valid, error = self.verify_attestation(
+                attestation,
+                requirements,
+                entity_lct  # Pass for witness shopping detection
+            )
 
             if valid:
                 verified.append(attestation)

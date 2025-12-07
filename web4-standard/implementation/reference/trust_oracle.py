@@ -86,19 +86,52 @@ class TrustScore:
         return age.days > threshold_days
 
 
+@dataclass
+class CacheContext:
+    """Context-dependent cache policy for trust scores"""
+    action_type: str
+    required_role: Optional[str] = None
+
+    def get_ttl_seconds(self) -> int:
+        """
+        Get cache TTL based on action criticality
+
+        Attack Mitigation #3: Context-Dependent Cache
+        Prevents stale trust scores from being used for high-risk operations
+        """
+        # High-risk actions: Short cache TTL (30s)
+        high_risk = {"transfer_funds", "change_permissions", "delete_data", "deploy_code"}
+        if self.action_type in high_risk:
+            return 30
+
+        # Medium-risk actions: Medium cache TTL (120s = 2min)
+        medium_risk = {"write_data", "create_resource", "modify_settings"}
+        if self.action_type in medium_risk:
+            return 120
+
+        # Low-risk actions: Standard cache TTL (300s = 5min)
+        return 300
+
+
 class TrustOracle:
     """
     Trust Oracle - Query trust scores from PostgreSQL backend
 
     Provides trust assessments for authorization decisions.
-    Implements caching for performance.
+    Implements context-dependent caching for security.
+
+    Attack Mitigation #3: Context-Dependent Cache (Integrated)
+    - Short TTL for high-risk operations
+    - Medium TTL for write operations
+    - Standard TTL for read operations
     """
 
     def __init__(
         self,
         db_config: Dict[str, str],
-        cache_ttl_seconds: int = 300,  # 5 minutes
-        enable_decay: bool = True
+        cache_ttl_seconds: int = 300,  # 5 minutes (default/low-risk)
+        enable_decay: bool = True,
+        enable_context_cache: bool = True  # NEW: Enable context-dependent caching
     ):
         """
         Initialize Trust Oracle.
@@ -106,20 +139,22 @@ class TrustOracle:
         Args:
             db_config: PostgreSQL connection parameters
                 {host, port, dbname, user, password}
-            cache_ttl_seconds: Cache time-to-live (default 5 minutes)
+            cache_ttl_seconds: Default cache time-to-live (5 minutes)
             enable_decay: Apply temporal decay to scores
+            enable_context_cache: Use context-dependent cache TTL
         """
         self.db_config = db_config
         self.cache_ttl = cache_ttl_seconds
         self.enable_decay = enable_decay
+        self.enable_context_cache = enable_context_cache
 
-        # Cache: (lct_id, org_id) -> (TrustScore, timestamp)
-        self.cache: Dict[Tuple[str, str], Tuple[TrustScore, float]] = {}
+        # Cache: (lct_id, org_id, role) -> (TrustScore, timestamp, context)
+        self.cache: Dict[Tuple[str, str, Optional[str]], Tuple[TrustScore, float, Optional[CacheContext]]] = {}
 
         # Connection pool (simple implementation)
         self.connection = None
 
-        logger.info(f"Trust Oracle initialized (cache_ttl={cache_ttl_seconds}s, decay={enable_decay})")
+        logger.info(f"Trust Oracle initialized (cache_ttl={cache_ttl_seconds}s, decay={enable_decay}, context_cache={enable_context_cache})")
 
     def _get_connection(self):
         """Get database connection (with reconnection logic)"""
@@ -133,7 +168,8 @@ class TrustOracle:
         lct_id: str,
         organization_id: str,
         role_lct: Optional[str] = None,
-        use_cache: bool = True
+        use_cache: bool = True,
+        action_type: Optional[str] = None  # NEW: For context-dependent caching
     ) -> TrustScore:
         """
         Get trust score for an entity in an organization.
@@ -143,6 +179,7 @@ class TrustOracle:
             organization_id: Organization context
             role_lct: Optional role context (for role-specific trust)
             use_cache: Use cached values if available
+            action_type: Action being authorized (for context-dependent cache TTL)
 
         Returns:
             TrustScore with T3/V3 values
@@ -152,16 +189,24 @@ class TrustOracle:
         """
         cache_key = (lct_id, organization_id, role_lct)
 
+        # Determine cache TTL based on action context (Mitigation #3)
+        cache_ttl = self.cache_ttl  # Default
+        if self.enable_context_cache and action_type:
+            context = CacheContext(action_type=action_type, required_role=role_lct)
+            cache_ttl = context.get_ttl_seconds()
+        else:
+            context = None
+
         # Check cache
         if use_cache and cache_key in self.cache:
-            score, cached_at = self.cache[cache_key]
+            score, cached_at, cached_context = self.cache[cache_key]
             age = time.time() - cached_at
 
-            if age < self.cache_ttl:
-                logger.debug(f"Trust cache hit: {lct_id} (age={age:.1f}s)")
+            if age < cache_ttl:
+                logger.debug(f"Trust cache hit: {lct_id} (age={age:.1f}s, ttl={cache_ttl}s)")
                 return score
             else:
-                logger.debug(f"Trust cache expired: {lct_id} (age={age:.1f}s)")
+                logger.debug(f"Trust cache expired: {lct_id} (age={age:.1f}s, ttl={cache_ttl}s)")
 
         # Query from database
         score = self._query_trust_score(lct_id, organization_id, role_lct)
@@ -170,10 +215,10 @@ class TrustOracle:
         if self.enable_decay and score.last_updated:
             score = self._apply_decay(score)
 
-        # Cache result
-        self.cache[cache_key] = (score, time.time())
+        # Cache result with context
+        self.cache[cache_key] = (score, time.time(), context)
 
-        logger.debug(f"Trust queried: {lct_id} @ {organization_id} = {score.t3_score:.3f}")
+        logger.debug(f"Trust queried: {lct_id} @ {organization_id} = {score.t3_score:.3f} (ttl={cache_ttl}s)")
 
         return score
 
@@ -352,6 +397,8 @@ class TrustOracle:
         This is the interface called by authorization_engine.py
         to replace the hardcoded 0.75 stub.
 
+        Attack Mitigation #3: Passes action_type for context-dependent caching
+
         Args:
             lct_id: Entity requesting authorization
             organization_id: Organization context
@@ -362,7 +409,13 @@ class TrustOracle:
             Trust score (0.0-1.0) for authorization decision
         """
         try:
-            score = self.get_trust_score(lct_id, organization_id, required_role)
+            # Pass action_type for context-dependent cache TTL
+            score = self.get_trust_score(
+                lct_id,
+                organization_id,
+                required_role,
+                action_type=action_type  # NEW: Context-dependent caching
+            )
 
             # Use composite score (T3 + V3 weighted)
             return score.composite_score()

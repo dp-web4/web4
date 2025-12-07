@@ -97,7 +97,13 @@ class LCTCredential:
 
 @dataclass
 class AgentDelegation:
-    """Authority delegated from Client to Agent"""
+    """
+    Authority delegated from Client to Agent
+
+    Attack Mitigations #4-5 Integrated:
+    - #4: Budget fragmentation tracking (min_atp_per_action)
+    - #5: Delegation chain depth limits (chain_depth, parent_delegation_id)
+    """
     delegation_id: str
     client_lct: str
     agent_lct: str
@@ -110,6 +116,16 @@ class AgentDelegation:
     max_actions_per_hour: int = 100
     actions_this_hour: int = 0
     last_hour_reset: float = field(default_factory=time.time)
+
+    # Mitigation #4: Budget fragmentation prevention
+    min_atp_per_action: int = 1  # Minimum ATP cost per action (prevents dust attacks)
+    total_actions_allowed: int = 10000  # Maximum total actions (prevents fragmentation)
+    total_actions_taken: int = 0
+
+    # Mitigation #5: Delegation chain amplification detection
+    chain_depth: int = 0  # Depth in delegation chain (0 = direct delegation)
+    parent_delegation_id: Optional[str] = None  # Parent delegation (if sub-delegated)
+    max_chain_depth: int = 3  # Maximum delegation chain depth allowed
 
     def is_valid(self) -> bool:
         """Check if delegation is still valid"""
@@ -138,8 +154,51 @@ class AgentDelegation:
         return self.actions_this_hour < self.max_actions_per_hour
 
     def record_action(self):
-        """Record an action for rate limiting"""
+        """Record an action for rate limiting and fragmentation tracking"""
         self.actions_this_hour += 1
+        self.total_actions_taken += 1  # Mitigation #4: Track total actions
+
+    def check_fragmentation(self, atp_cost: int) -> Tuple[bool, Optional[str]]:
+        """
+        Check if action violates budget fragmentation limits
+
+        Attack Mitigation #4: Budget Fragmentation Prevention
+        Prevents agents from performing excessive micro-transactions to
+        circumvent rate limits or extend delegation lifetime artificially.
+
+        Returns:
+            (valid, error_message) tuple
+        """
+        # Check minimum ATP per action
+        if atp_cost < self.min_atp_per_action:
+            return False, f"ATP cost {atp_cost} below minimum {self.min_atp_per_action}"
+
+        # Check total action limit
+        if self.total_actions_taken >= self.total_actions_allowed:
+            return False, f"Total action limit reached: {self.total_actions_allowed}"
+
+        # Check fragmentation ratio (avg ATP per action)
+        if self.total_actions_taken > 0:
+            avg_atp = self.atp_spent / self.total_actions_taken
+            if avg_atp < self.min_atp_per_action * 0.5:
+                return False, f"Average ATP per action too low: {avg_atp:.2f}"
+
+        return True, None
+
+    def check_chain_depth(self) -> Tuple[bool, Optional[str]]:
+        """
+        Check if delegation chain depth is within limits
+
+        Attack Mitigation #5: Delegation Chain Amplification Detection
+        Prevents privilege escalation through deep delegation chains.
+
+        Returns:
+            (valid, error_message) tuple
+        """
+        if self.chain_depth > self.max_chain_depth:
+            return False, f"Delegation chain too deep: {self.chain_depth} > {self.max_chain_depth}"
+
+        return True, None
 
 
 @dataclass
@@ -345,6 +404,18 @@ class AuthorizationEngine:
             # Check rate limits
             if not delegation.check_rate_limit():
                 return self._deny(request, DenialReason.RATE_LIMIT_EXCEEDED)
+
+            # Mitigation #4: Check budget fragmentation
+            valid_frag, frag_error = delegation.check_fragmentation(request.atp_cost)
+            if not valid_frag:
+                logger.warning(f"Budget fragmentation detected: {frag_error}")
+                return self._deny(request, DenialReason.ATP_BUDGET_EXCEEDED)
+
+            # Mitigation #5: Check delegation chain depth
+            valid_depth, depth_error = delegation.check_chain_depth()
+            if not valid_depth:
+                logger.warning(f"Delegation chain violation: {depth_error}")
+                return self._deny(request, DenialReason.DELEGATION_EXPIRED)
 
         # Step 3: Get role permissions
         role_lct = delegation.role_lct if delegation else f"role:citizen:{credential.lct_id}"
