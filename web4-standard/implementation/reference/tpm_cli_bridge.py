@@ -189,26 +189,26 @@ class TPMCLIBridge:
             data_file = f.name
 
         try:
-            # Recreate primary context (if not persisted)
-            if not primary_ctx.exists():
-                subprocess.run([
-                    "sudo", "tpm2_createprimary",
-                    "-C", "o",
-                    "-c", str(primary_ctx),
-                    "-G", "ecc",
-                    "-g", "sha256"
-                ], capture_output=True, check=True)
+            # Always recreate primary context (transient keys, not persisted)
+            # This ensures we get the same primary handle as during key creation
+            subprocess.run([
+                "sudo", "tpm2_createprimary",
+                "-C", "o",  # Owner hierarchy
+                "-c", str(primary_ctx),
+                "-G", "ecc",
+                "-g", "sha256"
+            ], capture_output=True, check=True)
 
-            # Load key into TPM
+            # Load key into TPM under the primary context
             key_priv = key_dir / "key.priv"
             key_pub = key_dir / "key.pub"
 
             subprocess.run([
                 "sudo", "tpm2_load",
-                "-C", str(primary_ctx),
-                "-c", str(key_ctx),
-                "-u", str(key_pub),
-                "-r", str(key_priv)
+                "-C", str(primary_ctx),  # Parent context
+                "-c", str(key_ctx),       # Output: loaded key context
+                "-u", str(key_pub),       # Public part
+                "-r", str(key_priv)       # Private part (encrypted)
             ], capture_output=True, check=True)
 
             # Sign data

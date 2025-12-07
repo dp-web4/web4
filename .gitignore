@@ -10,3 +10,7 @@ dist/
 build/
 .pytest_cache/
 venv/
+# TPM keys - DO NOT COMMIT
+web4-standard/implementation/reference/tpm_cli_keys/
+# Python cache
+**/__pycache__/
