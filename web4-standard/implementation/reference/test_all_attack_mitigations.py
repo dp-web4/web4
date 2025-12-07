@@ -32,7 +32,7 @@ from witness_system import (
     WitnessType, WitnessAttestation
 )
 from lct_registry import LCTRegistry, EntityType
-from atp_demurrage import ATPSystem, ATPHolding
+from atp_demurrage import DemurrageEngine, ATPHolding, DemurrageConfig
 
 
 # Test counters
