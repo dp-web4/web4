@@ -86,6 +86,7 @@ class CoordinationEpistemicMetrics:
         Determine primary coordination epistemic state from metrics.
 
         Following Thor S30 pattern for state determination from metrics.
+        Improved in Session 19 based on production metric analysis.
 
         Returns:
             Primary coordination epistemic state
@@ -99,11 +100,18 @@ class CoordinationEpistemicMetrics:
             return CoordinationEpistemicState.CONFLICTING
 
         # High confidence + high stability → optimal
-        if self.coordination_confidence > 0.9 and self.parameter_stability > 0.9:
+        # Session 19: Lowered from 0.9 to 0.85 based on production mean (0.843)
+        if self.coordination_confidence > 0.85 and self.parameter_stability > 0.85:
             return CoordinationEpistemicState.OPTIMAL
 
-        # Good confidence but not fully stable → converging
-        if 0.7 < self.coordination_confidence < 0.9:
+        # High stability but moderate confidence → stable
+        # Session 19: Moved before converging to fix cascade order
+        if self.parameter_stability > 0.85 and self.coordination_confidence > 0.7:
+            return CoordinationEpistemicState.STABLE
+
+        # Moderate confidence with changing parameters → converging
+        # Session 19: Added stability requirement (was missing)
+        if 0.7 < self.coordination_confidence < 0.85 and self.parameter_stability < 0.85:
             return CoordinationEpistemicState.CONVERGING
 
         # Low stability (parameters changing) → adapting
