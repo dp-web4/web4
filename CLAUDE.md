@@ -8,11 +8,23 @@
 - **Platform**: /home/dp/ai-workspace/web4
 - **Working Directory**: /home/dp/ai-workspace/web4
 
-## 🚨 CRITICAL: Autonomous Session End Protocol
+## 🚨 CRITICAL: Autonomous Session Protocol (v1.2 - Dec 2025-12-12)
+
+### Session START: Run This FIRST
+
+```bash
+source /home/dp/ai-workspace/memory/epistemic/tools/session_start.sh
+```
+
+**What it does**: Pulls all repos + commits/pushes any uncommitted work from crashed previous sessions.
+
+**Why**: Safety net - even if previous session forgot to push, this catches it.
+
+### Session END: Commit and Push Everything
 
 **EVERY autonomous session MUST commit and push work before ending.**
 
-Git post-commit hooks are installed. Commits automatically push to remote.
+Git post-commit hooks installed. Commits automatically push to remote.
 
 **Before ending any session**:
 ```bash
@@ -27,7 +39,7 @@ source /home/dp/ai-workspace/memory/epistemic/tools/session_end.sh "Session summ
 git status  # Must show "working tree clean"
 ```
 
-**DO NOT END SESSION** until work is pushed. See `/home/dp/ai-workspace/memory/AUTONOMOUS_SESSION_GUIDE.md`
+**DO NOT END SESSION** until work is pushed. See `/home/dp/ai-workspace/private-context/AUTONOMOUS_SESSION_PROTOCOL.md`
 
 ---
 
