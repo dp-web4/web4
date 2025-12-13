@@ -498,12 +498,17 @@ class CoordinationLearner:
             quality_trajectory = "stable"
 
         # Confidence trajectory (if available)
-        first_conf = statistics.mean(c.get('confidence', 0) for c in first_half
-                                    if 'confidence' in c)
-        second_conf = statistics.mean(c.get('confidence', 0) for c in second_half
-                                     if 'confidence' in c)
+        # Try both 'confidence' and 'coordination_confidence' fields
+        first_conf_values = [c.get('confidence', c.get('coordination_confidence', 0))
+                            for c in first_half
+                            if 'confidence' in c or 'coordination_confidence' in c]
+        second_conf_values = [c.get('confidence', c.get('coordination_confidence', 0))
+                             for c in second_half
+                             if 'confidence' in c or 'coordination_confidence' in c]
 
-        if first_conf and second_conf:
+        if first_conf_values and second_conf_values:
+            first_conf = statistics.mean(first_conf_values)
+            second_conf = statistics.mean(second_conf_values)
             if second_conf > first_conf + 0.1:
                 confidence_trajectory = "improving"
             elif second_conf < first_conf - 0.1:
