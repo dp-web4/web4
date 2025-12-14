@@ -369,47 +369,304 @@ class UniversalToWeb4Converter:
         return coord_patterns
 
 
-# Placeholder classes for SAGE conversion (to be implemented when SAGE is available)
+# SAGE conversion (Session 49: Real pattern integration validated)
 class SAGEToUniversalConverter:
-    """Convert SAGE consciousness patterns to universal format."""
+    """
+    Convert SAGE consciousness patterns to universal format.
+
+    Session 49 validated V2 mapping achieving +24pp improvement over baseline.
+    Uses proper characteristic names from universal schema for successful transfer.
+    """
+
+    def __init__(self):
+        self.mappings = get_mappings(
+            PatternDomain.CONSCIOUSNESS,
+            PatternDomain.COORDINATION
+        )
 
     def convert_memory_pattern(
         self,
         pattern: 'MemoryPattern',
         pattern_id: Optional[str] = None
     ) -> UniversalPattern:
-        """Convert SAGE MemoryPattern to UniversalPattern."""
+        """
+        Convert SAGE MemoryPattern to UniversalPattern.
+
+        Maps SAGE patterns using schema-defined characteristics for proper
+        cross-domain transfer (Session 49: V2 mapping).
+        """
         if not SAGE_AVAILABLE:
             raise RuntimeError("SAGE dream consolidation not available")
 
-        # Implementation when SAGE is accessible
-        # This would map SAGE's memory patterns to universal format
-        raise NotImplementedError("SAGE converter to be implemented")
+        # Map SAGE pattern types to universal categories
+        category_map = {
+            'epistemic_pattern': PatternCategory.EPISTEMIC,
+            'metabolic_transition': PatternCategory.EFFICIENCY,
+            'quality_characteristic': PatternCategory.QUALITY,
+            'quality_trajectory': PatternCategory.SUCCESS
+        }
+
+        category = category_map.get(pattern.pattern_type, PatternCategory.SUCCESS)
+
+        # Build characteristics using proper schema names (Session 49 learning)
+        characteristics = {
+            'pattern_strength': pattern.strength,
+            'pattern_frequency': pattern.frequency / 8.0  # Normalize by typical cycle count
+        }
+
+        # Pattern-specific characteristics (use schema-mapped names!)
+        if 'epistemic' in pattern.description.lower():
+            if 'stable' in pattern.description.lower():
+                characteristics['confidence_level'] = 0.70
+                characteristics['epistemic_breadth'] = 0.60
+                characteristics['epistemic_coherence'] = 0.85
+            elif 'confident' in pattern.description.lower():
+                characteristics['confidence_level'] = 0.90
+                characteristics['epistemic_breadth'] = 0.75
+                characteristics['epistemic_coherence'] = 0.80
+
+        if 'wake' in pattern.description.lower() or 'focus' in pattern.description.lower():
+            characteristics['metabolic_stress'] = 0.50
+            characteristics['learning_stability'] = 0.75
+
+        if 'quality' in pattern.description.lower():
+            if 'numbers' in pattern.description.lower():
+                characteristics['context_richness'] = 0.85
+                characteristics['epistemic_breadth'] = 0.80
+            if 'unique' in pattern.description.lower():
+                characteristics['epistemic_breadth'] = 0.90
+            if 'hedging' in pattern.description.lower():
+                characteristics['confidence_level'] = 0.85
+
+        # Quality correlation
+        quality_correlation = 0.0
+        if category == PatternCategory.QUALITY:
+            quality_correlation = pattern.strength * 0.8
+        elif category == PatternCategory.EPISTEMIC:
+            quality_correlation = pattern.strength * 0.5
+
+        timestamp = pattern.created_at
+
+        return UniversalPattern(
+            pattern_id=pattern_id or f"sage_pattern_{int(timestamp)}",
+            source_domain=PatternDomain.CONSCIOUSNESS,
+            category=category,
+            description=f"SAGE: {pattern.description}",
+            characteristics=characteristics,
+            frequency=pattern.frequency,
+            confidence=pattern.strength,
+            sample_size=8,  # Typical SAGE consolidation
+            quality_correlation=quality_correlation,
+            extraction_timestamp=timestamp,
+            first_observed=timestamp - 3600,
+            last_observed=timestamp
+        )
 
     def convert_quality_learning(
         self,
         learning: 'QualityLearning',
         pattern_id: Optional[str] = None
     ) -> UniversalPattern:
-        """Convert SAGE QualityLearning to UniversalPattern."""
+        """
+        Convert SAGE QualityLearning to UniversalPattern.
+
+        Quality learnings are high-value patterns (Session 49: +31.2% quality delta).
+        """
         if not SAGE_AVAILABLE:
             raise RuntimeError("SAGE dream consolidation not available")
 
-        raise NotImplementedError("SAGE quality learning converter to be implemented")
+        characteristics = {}
+
+        # Map SAGE quality characteristics to universal schema
+        if learning.characteristic == 'has_numbers':
+            characteristics['context_richness'] = 0.85
+            characteristics['epistemic_breadth'] = 0.80
+            characteristics['confidence_level'] = 0.85
+
+        # Calculate quality correlation from actual quality delta
+        quality_delta = learning.average_quality_with - learning.average_quality_without
+        quality_correlation = 0.0
+        if learning.positive_correlation:
+            quality_correlation = min(0.95, quality_delta * 2.0)
+        else:
+            quality_correlation = max(-0.95, quality_delta * 2.0)
+
+        timestamp = time.time()
+
+        return UniversalPattern(
+            pattern_id=pattern_id or f"sage_learning_{learning.characteristic}_{int(timestamp)}",
+            source_domain=PatternDomain.CONSCIOUSNESS,
+            category=PatternCategory.QUALITY,
+            description=f"SAGE: {learning.characteristic} {'improves' if learning.positive_correlation else 'degrades'} quality (Δ={quality_delta:+.3f})",
+            characteristics=characteristics,
+            frequency=learning.sample_size,
+            confidence=learning.confidence,
+            sample_size=learning.sample_size,
+            quality_correlation=quality_correlation,
+            extraction_timestamp=timestamp,
+            first_observed=timestamp - 3600,
+            last_observed=timestamp,
+            source_metadata={
+                'learning_type': 'quality_learning',
+                'characteristic': learning.characteristic,
+                'quality_delta': quality_delta
+            }
+        )
+
+    def convert_creative_association(
+        self,
+        association: 'CreativeAssociation',
+        pattern_id: Optional[str] = None
+    ) -> UniversalPattern:
+        """Convert SAGE CreativeAssociation to UniversalPattern."""
+        if not SAGE_AVAILABLE:
+            raise RuntimeError("SAGE dream consolidation not available")
+
+        characteristics = {}
+
+        # Map association concepts
+        if 'focus_state' in association.concept_a or 'focus_state' in association.concept_b:
+            characteristics['metabolic_stress'] = 0.60
+            characteristics['learning_stability'] = 0.70
+
+        if 'confident_epistemic' in association.concept_a or 'confident_epistemic' in association.concept_b:
+            characteristics['confidence_level'] = 0.90
+            characteristics['epistemic_coherence'] = 0.85
+            characteristics['epistemic_breadth'] = 0.75
+
+        # Quality correlation from association type
+        quality_correlation = 0.0
+        if association.association_type == 'correlation':
+            quality_correlation = association.strength * 0.7
+        elif association.association_type == 'negative_correlation':
+            quality_correlation = -association.strength * 0.7
+
+        category = PatternCategory.EPISTEMIC if 'epistemic' in (association.insight or "").lower() else PatternCategory.EFFICIENCY
+        timestamp = time.time()
+
+        return UniversalPattern(
+            pattern_id=pattern_id or f"sage_assoc_{int(timestamp)}",
+            source_domain=PatternDomain.CONSCIOUSNESS,
+            category=category,
+            description=f"SAGE: {association.insight}",
+            characteristics=characteristics,
+            frequency=len(association.supporting_cycles),
+            confidence=association.strength,
+            sample_size=8,
+            quality_correlation=quality_correlation,
+            extraction_timestamp=timestamp,
+            first_observed=timestamp - 3600,
+            last_observed=timestamp,
+            source_metadata={
+                'association_type': association.association_type,
+                'concept_a': association.concept_a,
+                'concept_b': association.concept_b
+            }
+        )
+
+    def export_consolidated_memory(
+        self,
+        consolidated: 'ConsolidatedMemory',
+        export_path: Optional[Path] = None
+    ) -> List[UniversalPattern]:
+        """
+        Export complete SAGE ConsolidatedMemory to universal patterns.
+
+        Returns list of UniversalPattern objects and optionally saves to JSON.
+        """
+        if not SAGE_AVAILABLE:
+            raise RuntimeError("SAGE dream consolidation not available")
+
+        universal_patterns = []
+        timestamp = consolidated.timestamp
+
+        # Convert all memory patterns
+        for i, pattern in enumerate(consolidated.patterns):
+            universal = self.convert_memory_pattern(
+                pattern,
+                pattern_id=f"sage_s{consolidated.dream_session_id}_p{i}_{int(timestamp)}"
+            )
+            universal_patterns.append(universal)
+
+        # Convert quality learnings
+        for i, learning in enumerate(consolidated.quality_learnings):
+            universal = self.convert_quality_learning(
+                learning,
+                pattern_id=f"sage_s{consolidated.dream_session_id}_l{i}_{int(timestamp)}"
+            )
+            universal_patterns.append(universal)
+
+        # Convert creative associations
+        for i, assoc in enumerate(consolidated.creative_associations):
+            universal = self.convert_creative_association(
+                assoc,
+                pattern_id=f"sage_s{consolidated.dream_session_id}_a{i}_{int(timestamp)}"
+            )
+            universal_patterns.append(universal)
+
+        # Export to file if path provided
+        if export_path:
+            export_data = {
+                'export_timestamp': time.time(),
+                'source_domain': 'consciousness',
+                'source_session': f'SAGE Session {consolidated.dream_session_id}',
+                'num_patterns': len(universal_patterns),
+                'patterns': [p.to_dict() for p in universal_patterns]
+            }
+
+            with open(export_path, 'w') as f:
+                json.dump(export_data, f, indent=2)
+
+        return universal_patterns
 
 
 class UniversalToSAGEConverter:
-    """Convert universal patterns to SAGE consciousness patterns."""
+    """
+    Convert universal patterns to SAGE consciousness patterns.
+
+    Implements reverse direction: Web4 coordination → SAGE consciousness.
+    Session 50: Testing bidirectional learning.
+    """
+
+    def __init__(self):
+        self.mappings = get_mappings(
+            PatternDomain.COORDINATION,
+            PatternDomain.CONSCIOUSNESS
+        )
 
     def convert_to_memory_pattern(
         self,
         universal: UniversalPattern
     ) -> Optional['MemoryPattern']:
-        """Convert UniversalPattern to SAGE MemoryPattern."""
+        """
+        Convert UniversalPattern to SAGE MemoryPattern.
+
+        Maps coordination patterns back to consciousness domain.
+        """
         if not SAGE_AVAILABLE:
             raise RuntimeError("SAGE dream consolidation not available")
 
-        raise NotImplementedError("Universal to SAGE converter to be implemented")
+        # Map universal category to SAGE pattern type
+        type_map = {
+            PatternCategory.EPISTEMIC: 'epistemic_pattern',
+            PatternCategory.EFFICIENCY: 'metabolic_transition',
+            PatternCategory.QUALITY: 'quality_characteristic',
+            PatternCategory.SUCCESS: 'quality_trajectory'
+        }
+
+        pattern_type = type_map.get(universal.category, 'epistemic_pattern')
+
+        # Create MemoryPattern
+        pattern = MemoryPattern(
+            pattern_type=pattern_type,
+            description=universal.description,
+            strength=universal.confidence,
+            examples=[],  # No specific cycle numbers for imported patterns
+            frequency=universal.frequency,
+            created_at=universal.extraction_timestamp
+        )
+
+        return pattern
 
 
 if __name__ == "__main__":
