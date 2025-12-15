@@ -1,0 +1,236 @@
+{
+  "export_timestamp": 1765742551.4787714,
+  "source_domain": "consciousness",
+  "source_session": "SAGE Session 1",
+  "num_patterns": 10,
+  "patterns": [
+    {
+      "pattern_id": "sage_s1_p0_1765613043",
+      "source_domain": "consciousness",
+      "category": "epistemic",
+      "description": "SAGE: Frequent 'stable' epistemic state",
+      "characteristics": {
+        "pattern_strength": 0.625,
+        "pattern_frequency": 0.625,
+        "confidence_level": 0.7,
+        "epistemic_breadth": 0.6,
+        "epistemic_coherence": 0.85
+      },
+      "frequency": 5,
+      "confidence": 0.625,
+      "sample_size": 8,
+      "quality_correlation": 0.3125,
+      "extraction_timestamp": 1765613043.3689902,
+      "first_observed": 1765609443.3689902,
+      "last_observed": 1765613043.3689902,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_p1_1765613043",
+      "source_domain": "consciousness",
+      "category": "epistemic",
+      "description": "SAGE: Frequent 'confident' epistemic state",
+      "characteristics": {
+        "pattern_strength": 0.375,
+        "pattern_frequency": 0.375,
+        "confidence_level": 0.9,
+        "epistemic_breadth": 0.75,
+        "epistemic_coherence": 0.8
+      },
+      "frequency": 3,
+      "confidence": 0.375,
+      "sample_size": 8,
+      "quality_correlation": 0.1875,
+      "extraction_timestamp": 1765613043.3689933,
+      "first_observed": 1765609443.3689933,
+      "last_observed": 1765613043.3689933,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_p2_1765613043",
+      "source_domain": "consciousness",
+      "category": "efficiency",
+      "description": "SAGE: Common wake\u2192focus transition",
+      "characteristics": {
+        "pattern_strength": 0.42857142857142855,
+        "pattern_frequency": 0.375,
+        "metabolic_stress": 0.5,
+        "learning_stability": 0.75
+      },
+      "frequency": 3,
+      "confidence": 0.42857142857142855,
+      "sample_size": 8,
+      "quality_correlation": 0.0,
+      "extraction_timestamp": 1765613043.369004,
+      "first_observed": 1765609443.369004,
+      "last_observed": 1765613043.369004,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_p3_1765613043",
+      "source_domain": "consciousness",
+      "category": "efficiency",
+      "description": "SAGE: Common focus\u2192wake transition",
+      "characteristics": {
+        "pattern_strength": 0.42857142857142855,
+        "pattern_frequency": 0.375,
+        "metabolic_stress": 0.5,
+        "learning_stability": 0.75
+      },
+      "frequency": 3,
+      "confidence": 0.42857142857142855,
+      "sample_size": 8,
+      "quality_correlation": 0.0,
+      "extraction_timestamp": 1765613043.3690064,
+      "first_observed": 1765609443.3690064,
+      "last_observed": 1765613043.3690064,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_p4_1765613043",
+      "source_domain": "consciousness",
+      "category": "quality",
+      "description": "SAGE: High-quality responses usually have 'unique'",
+      "characteristics": {
+        "pattern_strength": 1.0,
+        "pattern_frequency": 0.5,
+        "epistemic_breadth": 0.9
+      },
+      "frequency": 4,
+      "confidence": 1.0,
+      "sample_size": 8,
+      "quality_correlation": 0.8,
+      "extraction_timestamp": 1765613043.3690138,
+      "first_observed": 1765609443.3690138,
+      "last_observed": 1765613043.3690138,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_p5_1765613043",
+      "source_domain": "consciousness",
+      "category": "quality",
+      "description": "SAGE: High-quality responses usually have 'has_numbers'",
+      "characteristics": {
+        "pattern_strength": 1.0,
+        "pattern_frequency": 0.5,
+        "context_richness": 0.85,
+        "epistemic_breadth": 0.8
+      },
+      "frequency": 4,
+      "confidence": 1.0,
+      "sample_size": 8,
+      "quality_correlation": 0.8,
+      "extraction_timestamp": 1765613043.3690152,
+      "first_observed": 1765609443.3690152,
+      "last_observed": 1765613043.3690152,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_p6_1765613043",
+      "source_domain": "consciousness",
+      "category": "quality",
+      "description": "SAGE: High-quality responses usually have 'avoids_hedging'",
+      "characteristics": {
+        "pattern_strength": 1.0,
+        "pattern_frequency": 0.5,
+        "confidence_level": 0.85
+      },
+      "frequency": 4,
+      "confidence": 1.0,
+      "sample_size": 8,
+      "quality_correlation": 0.8,
+      "extraction_timestamp": 1765613043.3690162,
+      "first_observed": 1765609443.3690162,
+      "last_observed": 1765613043.3690162,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_l0_1765613043",
+      "source_domain": "consciousness",
+      "category": "quality",
+      "description": "SAGE: has_numbers improves quality (\u0394=+0.312)",
+      "characteristics": {
+        "context_richness": 0.85,
+        "epistemic_breadth": 0.8,
+        "confidence_level": 0.85
+      },
+      "frequency": 8,
+      "confidence": 0.625,
+      "sample_size": 8,
+      "quality_correlation": 0.625,
+      "extraction_timestamp": 1765742551.4787571,
+      "first_observed": 1765738951.4787571,
+      "last_observed": 1765742551.4787571,
+      "source_metadata": {
+        "learning_type": "quality_learning",
+        "characteristic": "has_numbers",
+        "quality_delta": 0.3125
+      },
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_a0_1765613043",
+      "source_domain": "consciousness",
+      "category": "efficiency",
+      "description": "SAGE: FOCUS state does not improve quality (\u0394=-0.188)",
+      "characteristics": {
+        "metabolic_stress": 0.6,
+        "learning_stability": 0.7
+      },
+      "frequency": 4,
+      "confidence": 0.375,
+      "sample_size": 8,
+      "quality_correlation": -0.26249999999999996,
+      "extraction_timestamp": 1765742551.4787655,
+      "first_observed": 1765738951.4787655,
+      "last_observed": 1765742551.4787655,
+      "source_metadata": {
+        "association_type": "negative_correlation",
+        "concept_a": "focus_state",
+        "concept_b": "quality_score"
+      },
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_s1_a1_1765613043",
+      "source_domain": "consciousness",
+      "category": "epistemic",
+      "description": "SAGE: Confident epistemic state correlates with higher quality",
+      "characteristics": {
+        "confidence_level": 0.9,
+        "epistemic_coherence": 0.85,
+        "epistemic_breadth": 0.75
+      },
+      "frequency": 3,
+      "confidence": 0.5666666666666667,
+      "sample_size": 8,
+      "quality_correlation": 0.3966666666666666,
+      "extraction_timestamp": 1765742551.4787693,
+      "first_observed": 1765738951.4787693,
+      "last_observed": 1765742551.4787693,
+      "source_metadata": {
+        "association_type": "correlation",
+        "concept_a": "confident_epistemic_state",
+        "concept_b": "quality_score"
+      },
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    }
+  ]
+}

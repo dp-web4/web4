@@ -1,0 +1,71 @@
+{
+  "export_timestamp": 1765699377.26828,
+  "source_domain": "consciousness",
+  "num_patterns": 3,
+  "patterns": [
+    {
+      "pattern_id": "sage_quality_high_context",
+      "source_domain": "consciousness",
+      "category": "quality",
+      "description": "High context richness leads to high quality responses",
+      "characteristics": {
+        "context_richness": 0.85,
+        "confidence_level": 0.9,
+        "epistemic_breadth": 0.75
+      },
+      "frequency": 142,
+      "confidence": 0.91,
+      "sample_size": 160,
+      "quality_correlation": 0.87,
+      "extraction_timestamp": 1765612977.2682507,
+      "first_observed": 1765526577.268251,
+      "last_observed": 1765695777.2682512,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_quality_low_breadth",
+      "source_domain": "consciousness",
+      "category": "failure",
+      "description": "Low epistemic breadth correlates with lower quality",
+      "characteristics": {
+        "context_richness": 0.45,
+        "confidence_level": 0.6,
+        "epistemic_breadth": 0.25
+      },
+      "frequency": 78,
+      "confidence": 0.82,
+      "sample_size": 95,
+      "quality_correlation": -0.72,
+      "extraction_timestamp": 1765612977.2682543,
+      "first_observed": 1765526577.2682545,
+      "last_observed": 1765692177.2682545,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "sage_quality_balanced",
+      "source_domain": "consciousness",
+      "category": "success",
+      "description": "Balanced characteristics produce stable quality",
+      "characteristics": {
+        "context_richness": 0.7,
+        "confidence_level": 0.75,
+        "epistemic_breadth": 0.65,
+        "learning_stability": 0.85
+      },
+      "frequency": 203,
+      "confidence": 0.95,
+      "sample_size": 220,
+      "quality_correlation": 0.79,
+      "extraction_timestamp": 1765656177.2682571,
+      "first_observed": 1765440177.2682571,
+      "last_observed": 1765697577.2682574,
+      "source_metadata": {},
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    }
+  ]
+}

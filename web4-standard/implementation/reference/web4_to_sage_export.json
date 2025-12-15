@@ -1,0 +1,60 @@
+{
+  "export_timestamp": 1765742632.2271206,
+  "source_domain": "coordination",
+  "num_patterns": 2,
+  "patterns": [
+    {
+      "pattern_id": "web4_pattern_0_1765742632",
+      "source_domain": "coordination",
+      "category": "success",
+      "description": "High-quality coordination pattern",
+      "characteristics": {
+        "avg_network_density": 0.7144691985349654,
+        "avg_trust": 0.0,
+        "avg_priority": 0.0,
+        "network_density": 0.5,
+        "trust_score": 0.5
+      },
+      "frequency": 106,
+      "confidence": 0.53,
+      "sample_size": 106,
+      "quality_correlation": 0.53,
+      "extraction_timestamp": 1765742632.2271106,
+      "first_observed": 1765742632.2271106,
+      "last_observed": 1765742632.2271106,
+      "source_metadata": {
+        "pattern_type": "success",
+        "average_quality": 0.8359900065883675,
+        "quality_improvement": 0.0,
+        "web4_version": "1.0"
+      },
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    },
+    {
+      "pattern_id": "web4_factor_0_1765742632",
+      "source_domain": "coordination",
+      "category": "success",
+      "description": "Success factor: Network density > 0.5",
+      "characteristics": {
+        "success_with_factor": 0.7529690190172186,
+        "success_without_factor": 0.5766908330087319,
+        "correlation_strength": 0.17627818600848666
+      },
+      "frequency": 200,
+      "confidence": 0.305,
+      "sample_size": 200,
+      "quality_correlation": 0.17627818600848666,
+      "extraction_timestamp": 1765742632.227118,
+      "first_observed": 1765742632.227118,
+      "last_observed": 1765742632.2271183,
+      "source_metadata": {
+        "factor_name": "high_network_density",
+        "recommendation": "Favor high-density networks",
+        "web4_version": "1.0"
+      },
+      "transferred_to": [],
+      "transfer_effectiveness": {}
+    }
+  ]
+}

@@ -1,0 +1,152 @@
+================================================================================
+Web4 Phase 2b: Long-Duration Validation (1000 cycles)
+================================================================================
+
+Generating 1000 coordination cycles...
+✓ Generated 1000 cycles
+
+Initializing Phase 2b coordinator...
+  - Epistemic tracking: enabled
+  - Learning: enabled (updates every 100 cycles)
+  - Interventions: enabled
+
+Running 1000 coordination cycles...
+
+
+[Cycle 100] Updating learned patterns from 100 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 30.0%
+Cycle  100: Coord rate: 66.0% | Avg conf: 0.529 | Patterns:  1 | Learning acc: 30.0% | Rate: 66031.2 c/s
+
+[Cycle 200] Updating learned patterns from 200 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 50.0%
+Cycle  200: Coord rate: 60.0% | Avg conf: 0.339 | Patterns:  1 | Learning acc: 50.0% | Rate: 46175.0 c/s
+
+[Cycle 300] Updating learned patterns from 300 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 25.0%
+Cycle  300: Coord rate: 62.0% | Avg conf: 0.454 | Patterns:  1 | Learning acc: 25.0% | Rate: 41194.7 c/s
+
+[Cycle 400] Updating learned patterns from 400 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 65.0%
+Cycle  400: Coord rate: 58.8% | Avg conf: 0.255 | Patterns:  1 | Learning acc: 65.0% | Rate: 38449.9 c/s
+
+[Cycle 500] Updating learned patterns from 500 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 30.0%
+Cycle  500: Coord rate: 58.4% | Avg conf: 0.488 | Patterns:  1 | Learning acc: 30.0% | Rate: 36441.8 c/s
+
+[Cycle 600] Updating learned patterns from 600 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 45.0%
+Cycle  600: Coord rate: 58.0% | Avg conf: 0.497 | Patterns:  1 | Learning acc: 45.0% | Rate: 34740.2 c/s
+
+[Cycle 700] Updating learned patterns from 700 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 35.0%
+Cycle  700: Coord rate: 57.3% | Avg conf: 0.442 | Patterns:  1 | Learning acc: 35.0% | Rate: 33186.2 c/s
+
+[Cycle 800] Updating learned patterns from 800 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 50.0%
+Cycle  800: Coord rate: 58.0% | Avg conf: 0.301 | Patterns:  1 | Learning acc: 50.0% | Rate: 32941.1 c/s
+
+[Cycle 900] Updating learned patterns from 900 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 45.0%
+Cycle  900: Coord rate: 57.6% | Avg conf: 0.359 | Patterns:  1 | Learning acc: 45.0% | Rate: 32603.3 c/s
+
+[Cycle 1000] Updating learned patterns from 1000 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 40.0%
+Cycle 1000: Coord rate: 57.0% | Avg conf: 0.439 | Patterns:  1 | Learning acc: 40.0% | Rate: 31905.6 c/s
+
+✓ Completed 1000 cycles in 0.0s (31902.4 cycles/s)
+
+================================================================================
+RESULTS
+================================================================================
+
+Total Cycles: 1000
+Coordinations: 570 (57.0%)
+
+Epistemic State Distribution:
+  stable      :  51.1%
+  converging  :  27.9%
+  adapting    :  19.1%
+  struggling  :   1.7%
+  optimal     :   0.2%
+
+Average Epistemic Metrics:
+  Coherence:  1.000
+  Confidence: 0.439
+  Stability:  0.402
+
+Learning System:
+  Patterns extracted: 1
+  Success factors: 0
+  Network insights: 0
+  Final prediction accuracy: 40.0%
+
+Learning Evolution:
+  Initial accuracy (cycle 100): 30.0%
+  Final accuracy (cycle 1000): 40.0%
+  Improvement: +10.0pp
+
+Accuracy Trend (every 100 cycles):
+  Cycle  100: ███████████████ 30.0%
+  Cycle  200: █████████████████████████ 50.0%
+  Cycle  300: ████████████ 25.0%
+  Cycle  400: ████████████████████████████████ 65.0%
+  Cycle  500: ███████████████ 30.0%
+  Cycle  600: ██████████████████████ 45.0%
+  Cycle  700: █████████████████ 35.0%
+  Cycle  800: █████████████████████████ 50.0%
+  Cycle  900: ██████████████████████ 45.0%
+  Cycle 1000: ████████████████████ 40.0%
+
+Top Learned Patterns:
+  1. Low-quality coordination pattern
+     Frequency: 1000, Confidence: 1.000
+
+Quality Trajectory: stable
+Confidence Trajectory: stable
+
+Interventions:
+  Total triggered: 140
+  monitor: 123
+  reduce_load: 17
+
+================================================================================
+VALIDATION SUMMARY
+================================================================================
+
+✅ Learning working (1 patterns extracted)
+✅ Learning improving over time (+10.0pp)
+✅ Interventions triggered (140 times)
+✅ Healthy coordination rate (57.0%)
+
+Phase 2b validated over 1000 cycles
+

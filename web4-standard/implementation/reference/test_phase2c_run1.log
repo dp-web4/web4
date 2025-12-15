@@ -1,0 +1,127 @@
+================================================================================
+Phase 2c + SAGE Pattern Integration Test
+================================================================================
+
+Testing three configurations:
+  1. Baseline: Phase 2b (no circadian, no SAGE)
+  2. Circadian: Phase 2c (circadian only)
+  3. Combined: Phase 2c + SAGE patterns
+
+================================================================================
+BASELINE: Phase 2b (No Circadian, No SAGE)
+================================================================================
+
+Running 500 cycles...
+
+[Cycle 100] Updating learned patterns from 100 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 15.0%
+
+[Cycle 200] Updating learned patterns from 200 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 40.0%
+
+[Cycle 300] Updating learned patterns from 300 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 55.0%
+
+[Cycle 400] Updating learned patterns from 400 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 35.0%
+
+[Cycle 500] Updating learned patterns from 500 cycles...
+  Patterns: 1
+  Success factors: 0
+  Network insights: 0
+  Prediction accuracy: 25.0%
+Coordination rate: 68.6%
+Average quality: 0.729
+
+
+
+================================================================================
+TEST 1: Phase 2c with Circadian (No SAGE)
+================================================================================
+
+Running 500 cycles with circadian awareness...
+Overall coordination rate: 5.2%
+Average quality: 0.958
+Day coordinations: 23 (88.5%)
+Night coordinations: 2 (7.7%)
+
+Quality by Phase:
+  day   : 0.713
+  night : 0.712
+
+
+
+================================================================================
+TEST 2: Phase 2c with Circadian + SAGE Patterns
+================================================================================
+
+Loading SAGE Session 42 patterns...
+✓ Loaded 10 SAGE patterns
+
+Pre-seeding coordinator with SAGE patterns...
+✓ Coordinator now has 10 patterns
+
+Pattern types loaded:
+  PatternType.EPISTEMIC_SHIFT: 3
+  PatternType.RESOURCE_EFFICIENCY: 3
+  PatternType.SUCCESS: 4
+
+Running 500 cycles with circadian + SAGE...
+Overall coordination rate: 0.0%
+Average quality: 0.000
+SAGE pattern usage: 0.0%
+⚠️  WARNING: 0 coordinations occurred!
+Day cycles: 0, Night cycles: 0
+
+Quality by Phase:
+  day   : 0.708
+  night : 0.698
+
+
+
+================================================================================
+RESULTS SUMMARY
+================================================================================
+
+Configuration                  |   Coord Rate |  Avg Quality
+--------------------------------------------------------------------------------
+Baseline (Phase 2b)            |        68.6% |        0.729
+Circadian Only (Phase 2c)      |         5.2% |        0.958
+Circadian + SAGE               |         0.0% |        0.000
+
+Improvements vs Baseline:
+  Circadian contribution: -63.4pp
+  SAGE contribution:      -5.2pp
+  Total improvement:      -68.6pp
+
+Quality Improvements:
+  Circadian: +0.229
+  + SAGE:    -0.958
+  Total:     -0.729
+
+⚠️  NO COMPOUND BENEFITS DETECTED
+
+================================================================================
+RESEARCH SUMMARY
+================================================================================
+
+This test validates compound benefits from combining:
+  • Temporal awareness (circadian rhythm from Thor S49)
+  • Pattern-based learning (SAGE patterns from S42)
+
+Finding:
+  Results show interaction between temporal and pattern-based
+  optimization, though may need larger scale for clear benefits.
+
