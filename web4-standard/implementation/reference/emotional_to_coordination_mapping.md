@@ -1,8 +1,41 @@
-# Emotional Intelligence to Coordination Mapping
+# EM-State: Epistemic Monitoring for Coordination
 
-**Date**: 2025-12-15
+**Date**: 2025-12-15 (naming convention updated 2025-12-16)
 **Session**: Autonomous Web4 Research Session 52
 **Context**: Session 51 priority - explore emotional intelligence transfer
+
+---
+
+## ⚠️ NAMING CONVENTION (Dec 16, 2025)
+
+**Use "EM-state" (Epistemic Monitoring state), NOT "emotional state"**
+
+The internal development used "emotional" terminology (mapping from SAGE Session 48), but for production/presentation:
+
+| Internal (Research) | External (Production) | Why |
+|---------------------|----------------------|-----|
+| Emotional state | **EM-state** | Avoids anthropomorphization skepticism |
+| Emotional intelligence | **Epistemic monitoring** | Technically accurate, enterprise-ready |
+| Curiosity | **EM-curiosity** or just "exploration drive" | Same metric, neutral framing |
+| Frustration | **EM-stagnation** | Describes what it detects, not what it "feels" |
+| Progress | **EM-momentum** | Learning trajectory |
+| Engagement | **EM-focus** | Priority concentration |
+
+**The wink**: "EM" preserves the sound of "emotional" for those who know the research provenance.
+
+**The principle**: Same math, same mechanism - different presentation for different audiences. This is MRH-appropriate expression.
+
+```python
+# Production naming
+@dataclass
+class EMState:
+    curiosity: float    # Exploration drive [0-1]
+    stagnation: float   # Quality plateau signal [0-1]
+    momentum: float     # Learning trajectory [0-1]
+    focus: float        # Priority concentration [0-1]
+```
+
+---
 
 ## SAGE Emotional Dimensions (Session 48)
 
