@@ -10,6 +10,12 @@
 
 The internet evolved from documents (Web1) to applications (Web2) to ownership (Web3). Web4 proposes the next layer: **verifiable trust relationships** between humans, AI agents, and services that enable meaningful coordination without central control.
 
+### About "Web4"
+
+Like Web1, Web2, and Web3, "Web4" is a generational label describing capabilities needed for the agentic AI era—not a single protocol or product. Many projects are tackling various aspects of this challenge.
+
+**This project suite** focuses specifically on **trust infrastructure** for agent-agent and agent-human interactions: how agents establish identity, build reputation, delegate authority, and coordinate safely across organizational boundaries.
+
 ---
 
 ## 💡 Why This Matters
@@ -46,10 +52,12 @@ Neither addresses the core question: **How do I know this agent will behave appr
 | Step | Document | What You'll Learn |
 |------|----------|-------------------|
 | 1 | **[STATUS.md](STATUS.md)** | Honest assessment: what exists, what works, what's missing |
-| 2 | **[whitepaper/](whitepaper/)** | Conceptual foundation: LCTs, trust tensors, MRH, R6 framework |
-| 3 | **[game/README.md](game/README.md)** | Interactive simulation of Web4 societies |
-| 4 | **[SECURITY.md](SECURITY.md)** | Security research status and known gaps |
-| 5 | **[THREAT_MODEL.md](THREAT_MODEL.md)** | What we're defending against |
+| 2 | **[docs/GLOSSARY.md](docs/GLOSSARY.md)** | Quick reference for all Web4 terminology |
+| 3 | **[whitepaper/](whitepaper/)** | Conceptual foundation: LCTs, trust tensors, MRH, R6 framework |
+| 4 | **[game/README.md](game/README.md)** | Interactive simulation of Web4 societies |
+| 5 | **[SECURITY.md](SECURITY.md)** | Security research status and known gaps |
+| 6 | **[THREAT_MODEL.md](THREAT_MODEL.md)** | What we're defending against |
+| 7 | **[docs/LCT_DOCUMENTATION_INDEX.md](docs/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
 
 ---
 
@@ -209,6 +217,19 @@ Example: Agent purchasing with constraints
 - Approval thresholds
 - Instant revocation
 ```
+
+### Concept → Implementation Map
+
+| Concept | Specification | Implementation | Demo |
+|---------|--------------|----------------|------|
+| **LCT (Identity)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`game/engine/lct.py`](game/engine/lct.py), [`lct_identity.py`](game/engine/lct_identity.py) | `run_lct_e2e_integration_test.py` |
+| **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`game/engine/society_trust.py`](game/engine/society_trust.py) | `run_two_societies_demo.py` |
+| **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`game/engine/mrh_aware_trust.py`](game/engine/mrh_aware_trust.py) | - |
+| **ATP (Economics)** | [`web4-standard/core-spec/atp-adp-cycle.md`](web4-standard/core-spec/atp-adp-cycle.md) | [`game/engine/atp_metering.py`](game/engine/atp_metering.py), [`unified_atp_pricing.py`](game/engine/unified_atp_pricing.py) | `run_atp_integration_test.py` |
+| **Federation** | [`docs/SAGE_WEB4_INTEGRATION_DESIGN.md`](docs/SAGE_WEB4_INTEGRATION_DESIGN.md) | [`game/engine/signed_epidemic_gossip.py`](game/engine/signed_epidemic_gossip.py) | `run_federation_consensus_integration_test.py` |
+| **Societies** | [`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`](web4-standard/core-spec/SOCIETY_SPECIFICATION.md) | [`game/engine/membership.py`](game/engine/membership.py), [`treasury.py`](game/engine/treasury.py) | `run_greedy_treasurer_demo.py` |
+| **Authorization** | [`web4-standard/core-spec/security-framework.md`](web4-standard/core-spec/security-framework.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | `demo/` |
+| **Coordination** | [`docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) | [`web4-standard/implementation/reference/web4_phase2b_integrated_coordinator.py`](web4-standard/implementation/reference/web4_phase2b_integrated_coordinator.py) | - |
 
 ---
 
