@@ -4,6 +4,55 @@
 
 ---
 
+## 🎯 Vision
+
+**Web4 formalizes trust as a first-class primitive for distributed AI collaboration and governance—not merely data exchange.**
+
+The internet evolved from documents (Web1) to applications (Web2) to ownership (Web3). Web4 proposes the next layer: **verifiable trust relationships** between humans, AI agents, and services that enable meaningful coordination without central control.
+
+---
+
+## 💡 Why This Matters
+
+### The Problem
+
+AI agents are increasingly autonomous—browsing, transacting, coordinating with other agents. Current architectures assume either:
+- **Central control**: A platform decides who's trusted (doesn't scale, single point of failure)
+- **Cryptographic ownership**: You're trusted if you hold the right keys (insufficient—holding a key doesn't mean you'll act well)
+
+Neither addresses the core question: **How do I know this agent will behave appropriately in this context?**
+
+### How Web4 Differs from Web3
+
+| Aspect | Web3 | Web4 |
+|--------|------|------|
+| **Trust basis** | Cryptographic proof of ownership | Behavioral reputation over time |
+| **Identity** | Wallet addresses | Linked Context Tokens (LCTs) with witnessed history |
+| **Authorization** | Token-gated access | Context-dependent trust tensors |
+| **Coordination** | Smart contracts | Federated societies with emergent governance |
+| **Focus** | Asset ownership | Agent behavior and intent |
+
+### What Problems This Could Address
+
+- **AI Agent Accountability**: Every action traceable to an identity with reputation at stake
+- **Cross-Platform Coordination**: Agents from different systems interoperating through shared trust protocols
+- **Graduated Authorization**: Not just "allowed/denied" but nuanced trust based on context, history, and stakes
+- **Emergent Governance**: Societies that self-organize rules rather than requiring top-down control
+
+---
+
+## 📚 Start Here (Learning Path)
+
+| Step | Document | What You'll Learn |
+|------|----------|-------------------|
+| 1 | **[STATUS.md](STATUS.md)** | Honest assessment: what exists, what works, what's missing |
+| 2 | **[whitepaper/](whitepaper/)** | Conceptual foundation: LCTs, trust tensors, MRH, R6 framework |
+| 3 | **[game/README.md](game/README.md)** | Interactive simulation of Web4 societies |
+| 4 | **[SECURITY.md](SECURITY.md)** | Security research status and known gaps |
+| 5 | **[THREAT_MODEL.md](THREAT_MODEL.md)** | What we're defending against |
+
+---
+
 ## ⚠️ Project Status: Research Prototype
 
 **This is exploratory research, not production software.**
@@ -12,9 +61,9 @@ Web4 is investigating trust-native architectures for AI coordination. We have in
 
 ---
 
-## 🏗️ Two Development Tracks
+## 🏗️ Four Development Tracks
 
-Web4 contains **two distinct subsystems** at different maturity levels:
+Web4 contains **four development tracks** at different maturity levels:
 
 ### Track 1: `/game/` - 4-Life Society Simulation (Research Stage)
 
