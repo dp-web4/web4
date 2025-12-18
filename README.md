@@ -71,7 +71,7 @@ Web4 contains **four development tracks** at different maturity levels:
 
 **Goal**: Validate Web4 primitives under complex emergent behavior, reveal gaps in specs, and provide interactive demonstration for humans and AI agents.
 
-**Status**: Active research prototype (~40 engine modules, ~60 demo scripts)
+**Status**: Active research prototype (~60 engine modules, ~45 demo scripts)
 - In-memory simulation (no persistence yet)
 - Stub cryptography (not production crypto)
 - LCT identity system (4 phases complete: identity, registry, permissions, ATP integration)
@@ -257,8 +257,8 @@ python run_sage_lct_integration_test.py    # Edge device patterns
 ```
 web4/
 ├── game/                              # Track 1: 4-Life Society Simulation
-│   ├── engine/                        # ~40 modules (LCT, federation, consensus, ATP, etc.)
-│   ├── run_*.py                       # ~60 demo/test scripts
+│   ├── engine/                        # ~60 modules (LCT, federation, consensus, ATP, etc.)
+│   ├── run_*.py                       # ~45 demo/test scripts
 │   ├── README.md                      # Game overview and design
 │   ├── THREAT_MODEL_GAME.md          # Security assumptions
 │   └── WEB4_HRM_ALIGNMENT.md         # SAGE integration spec

@@ -1,8 +1,8 @@
 # Web4 Threat Model
-**Version**: 1.0
-**Last Updated**: November 28, 2025 (Session #86)
+**Version**: 1.1
+**Last Updated**: December 17, 2025
 **Status**: Research prototype formal threat model
-**Scope**: `/game/` security research + federation patterns
+**Scope**: `/game/` security research + federation patterns + coordination framework
 
 ---
 
@@ -27,13 +27,18 @@ This document provides a **formal threat model** for Web4's trust-native securit
 ### 1.1 What We're Protecting
 
 **Web4 Federation Security Model:**
-- Distributed AI platforms (SAGE consciousness kernels) coordinating via federation
+- Distributed AI platforms (SAGE neural MoE systems) coordinating via federation
 - Trust established through reputation, economic stakes, and witness attestation
 - Resources allocated via ATP (Attention-Time-Processing) framework
 - Tasks delegated across platforms with quality-based accountability
 
 **Key Innovation:**
 Unlike traditional access control (static ACLs), Web4 treats security as **emergent property** of incentive-aligned interactions among autonomous AI agents and platforms.
+
+**December 2025 Additions:**
+- **LCT Unified Identity**: Cross-system identity format `lct://{component}:{instance}:{role}@{network}`
+- **Coordination Framework**: Phase 2a-2d coordinators for runtime security decisions
+- **Pattern Exchange**: Secure cross-system learning transfer (SAGE ↔ Web4)
 
 ### 1.2 Architecture Layers
 
@@ -842,8 +847,8 @@ Quick reference of all enumerated threats:
 
 **Document Status:** Living document, updated as security research progresses.
 
-**Last Review:** Session #86 (November 28, 2025)
-**Next Review:** Session #90 (After Phase 2 integration testing)
+**Last Review:** December 17, 2025
+**Next Review:** March 2026 (After coordination framework integration)
 
 **Feedback:** Security researchers are encouraged to identify gaps, propose improvements, and contribute formal analysis.
 

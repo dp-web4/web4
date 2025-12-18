@@ -1,98 +1,229 @@
-# Web4 Game: Society Simulation
+# Web4 Game: 4-Life Society Simulation
+
+**Last Updated**: December 17, 2025
+**Status**: Active research prototype
+**Scale**: ~61 engine modules, ~46 demo/test scripts
+
+---
 
 ## Overview
 
-This directory contains an experimental **simulation-style game** that implements Web4 societies with real trust, economic, and knowledge primitives.
+The `/game/` directory contains an experimental **society simulation engine** implementing Web4 trust primitives. Named "4-Life" for the emergent, self-organizing nature of the simulation (like Conway's Game of Life, but with trust dynamics).
 
-The goal is to provide a **live demo and testbed** that:
+**What This Is:**
+- A fractal sandbox for simulating Web4 societies
+- Agents form societies, societies join societies, trust emerges through interaction
+- Research testbed for validating Web4 primitives under complex emergent behavior
 
-- Lets any agentic actor (human or AI) form new societies and become the first citizen.
-- Allows agents and societies to join other societies (as individuals or as societies).
-- Models periodic **capability broadcasts** for witnessing and discovery.
-- Tracks **reputation, resource allocation, and knowledge context** using Web4’s standards:
-  - Linked Context Tokens (LCTs).
-  - Trust tensors (T3, later V3).
-  - ATP/ADP style economic flows.
-  - MRH + RDF-bound LCT context graphs.
-  - Witnessing and memory lightchains.
-- Stress-tests and evolves Web4 as an open standard under simulated load.
-
-This is intended to be a **fractal, ongoing project** rather than a one-off demo.
+**What This Isn't:**
+- Production infrastructure (no persistence, stub crypto)
+- A finished game (no web UI yet)
+- A blockchain (all in-memory simulation)
 
 ---
 
-## High-Level Concept
+## Current Capabilities
 
-Think of this as a **Web4 society sandbox**:
+### LCT Identity System (4 Phases Complete)
 
-- **Agents (humans or AIs)**
-  - Each has an LCT, trust tensor, capabilities, and resources.
-  - Can found societies, join them, propose and perform work, witness events, and govern.
+| Phase | Component | Status |
+|-------|-----------|--------|
+| Phase 1 | Core identity (`lct.py`, `lct_identity.py`) | Complete |
+| Phase 2 | Registry (`identity_registry.py`, `identity_consensus.py`) | Complete |
+| Phase 3 | Permissions (`lct_permissions.py`, `lct_unified_permissions.py`) | Complete |
+| Phase 4 | ATP Integration (`atp_permissions.py`, `identity_stake_system.py`) | Complete |
 
-- **Societies**
-  - Each has its own LCT, treasury, laws/policies, and membership.
-  - Can allocate resources, set admission rules, define roles, and federate with other societies.
+### Federation & Consensus
 
-- **Economy**
-  - Uses ATP/ADP-like budgets for agents and societies.
-  - Includes simple goods/services (work units, infrastructure, knowledge artifacts).
-  - Supports task boards, bounties, and reputation-priced contracts.
+- **PBFT Consensus** (`consensus.py`) - Byzantine fault tolerant agreement
+- **View Changes** (`view_change.py`) - Leader rotation under failures
+- **Signed Gossip** (`signed_epidemic_gossip.py`) - Ed25519 authenticated reputation propagation
+- **Federation Delegation** (`signed_federation_delegation.py`) - Cross-society task routing
 
-- **Knowledge / MRH Context**
-  - Uses an LCT context graph to represent relationships between agents, societies, roles, and resources.
-  - Annotates edges with MRH profiles to capture the horizon where statements are valid.
+### Trust & Reputation
 
----
+- **MRH-Aware Trust** (`mrh_aware_trust.py`) - Context-bounded trust policies
+- **Trust Tensors** (`society_trust.py`, `multidimensional_v3.py`) - T3/V3 multi-dimensional scoring
+- **Witness Diversity** (`witness_diversity_system.py`) - Anti-collusion attestation requirements
+- **Challenge Protocol** (`reputation_challenge_protocol.py`) - Accountability enforcement
 
-## MVP Scope (v0)
+### ATP Economics
 
-The initial version focuses on a **single simulated world** with:
+- **Unified Pricing** (`unified_atp_pricing.py`) - 3D pricing model (modality × location × context)
+- **Real Edge Pricing** (`real_edge_atp_pricing.py`) - Calibrated from 200 SAGE task executions
+- **Identity Stakes** (`identity_stake_system.py`) - Economic Sybil resistance (1,200-75,000 ATP)
+- **Dynamic Premiums** (`dynamic_atp_premiums.py`) - Risk-adjusted costs
 
-- A small number of agents (some human-controlled, some AI-driven).
-- A small number of societies that agents can found/join.
-- Basic economic loop:
-  - Societies post tasks.
-  - Agents perform work and get paid from society treasuries.
-  - Trust and reputation update based on outcomes.
-- Basic MRH/LCT context tracking:
-  - Record who participates in which societies.
-  - Record which agents are relevant to which resource categories.
-- A simple web UI showing:
-  - Societies and members.
-  - Trust/reputation dashboards.
-  - MRH/LCT context views.
+### SAGE Integration
 
-The MVP will prioritize **clarity of Web4 mechanics** over graphical polish.
+- **LCT Integration** (`sage_lct_integration.py`) - Edge device identity patterns
+- **Web4 Bridge** (`sage_web4_bridge.py`) - Cross-system coordination
 
 ---
 
-## Planned Structure
+## Engine Modules (~61 files)
 
-Planned subdirectories (subject to change as the design evolves):
-
-- `design/`
-  - Design documents for game mechanics and architecture.
-- `engine/`
-  - Core simulation engine (world state, tick loop, models for agents/societies/resources).
-- `api/`
-  - FastAPI (or similar) application exposing world state and actions.
-- `ui/`
-  - Web UI for humans to interact with the simulation.
+```
+engine/
+├── Identity & LCT
+│   ├── lct.py, lct_identity.py
+│   ├── lct_permissions.py, lct_unified_permissions.py
+│   ├── identity_registry.py, identity_consensus.py
+│   └── identity_stake_system.py
+│
+├── Federation & Consensus
+│   ├── consensus.py, view_change.py
+│   ├── federation_*.py (permissions, reputation, witness)
+│   ├── signed_epidemic_gossip.py
+│   └── signed_federation_delegation.py
+│
+├── Trust & Reputation
+│   ├── society_trust.py, trust_client.py
+│   ├── mrh_aware_trust.py, mrh_profiles.py
+│   ├── witness_diversity_system.py
+│   └── reputation_challenge_protocol.py
+│
+├── ATP Economics
+│   ├── atp_*.py (ledger, metering, transactions, permissions)
+│   ├── unified_atp_pricing.py, real_edge_atp_pricing.py
+│   └── dynamic_atp_premiums.py
+│
+├── Core Simulation
+│   ├── models.py, sim_loop.py
+│   ├── membership.py, treasury.py
+│   ├── policy.py, roles.py
+│   └── scenarios.py
+│
+├── Security Research
+│   ├── challenge_evasion_defense.py
+│   ├── federation_attack_analysis.py
+│   └── integrated_security_test.py
+│
+└── SAGE Integration
+    ├── sage_lct_integration.py
+    └── sage_web4_bridge.py
+```
 
 ---
 
-## Relationship to the Rest of Web4
+## Demo Scripts (~46 files)
 
-This game is intended to **reuse and exercise** existing Web4 components:
+### Core Demos
+```bash
+python run_two_societies_demo.py           # Basic federation demo
+python run_greedy_treasurer_demo.py        # Policy enforcement demo
+python run_lct_e2e_integration_test.py     # Full LCT identity system
+```
 
-- LCT specification and identity primitives.
-- T3/V3 trust tracking (via `T3Tracker` and future extensions).
-- MRH + RDF context (via `LCTContextGraph` and related specs).
-- Memory lightchains for durable, verifiable histories.
-- ACT-style societies and treasuries (conceptually, with optional on-chain integration later).
+### Federation & Consensus
+```bash
+python run_federation_consensus_integration_test.py  # PBFT consensus
+python run_multi_society_federation_demo.py          # Multi-society gossip
+python run_signed_federation_demo.py                 # Ed25519 signatures
+```
 
-As the game evolves, it should help:
+### SAGE Integration
+```bash
+python run_sage_lct_integration_test.py    # Edge device patterns
+python run_sage_web4_bridge_demo.py        # Cross-system coordination
+```
 
-- Validate Web4 standards under complex, emergent behavior.
-- Reveal gaps or ambiguities in specs.
-- Provide a concrete, interactive demonstration of Web4 for humans and agents alike.
+### Security Testing
+```bash
+python run_signed_gossip_security_test.py      # Signature verification
+python run_witness_diversity_test.py           # Anti-collusion
+python run_challenge_protocol_test.py          # Accountability
+python run_production_scale_test.py            # 100 societies, 1000 agents
+```
+
+---
+
+## Test Results (Research Scale)
+
+| Metric | Target | Achieved | Status |
+|--------|--------|----------|--------|
+| Signature Verification | >50k/s | 88k/s | Passed |
+| Gossip Propagation (100 societies) | <10s | <5s | Passed |
+| Witness Selection (500 LCTs) | <200ms | <100ms | Passed |
+| Memory (1000 agents) | <4GB | <2GB | Passed |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Web4 Game Engine                     │
+├─────────────────────────────────────────────────────────┤
+│  Agents (LCTs)          Societies (LCTs)                │
+│  ├─ Trust Tensors       ├─ Treasury (ATP)               │
+│  ├─ Capabilities        ├─ Membership                   │
+│  ├─ ATP Budget          ├─ Policies                     │
+│  └─ MRH Profile         └─ Roles                        │
+├─────────────────────────────────────────────────────────┤
+│  Federation Layer                                        │
+│  ├─ Signed Gossip (Ed25519)                             │
+│  ├─ PBFT Consensus                                      │
+│  ├─ Witness Diversity (≥3 societies)                    │
+│  └─ Challenge-Response Protocol                         │
+├─────────────────────────────────────────────────────────┤
+│  Economics Layer                                         │
+│  ├─ ATP Metering & Pricing                              │
+│  ├─ Identity Stakes (Sybil resistance)                  │
+│  └─ Cross-Society Reputation                            │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## What's Missing
+
+- **Persistence**: All state is in-memory (no database yet)
+- **Real Crypto**: Uses stub signatures in some places (not production crypto)
+- **Web UI**: Planned but not built
+- **Real Adversaries**: All testing is synthetic
+
+---
+
+## Related Documentation
+
+- [THREAT_MODEL_GAME.md](THREAT_MODEL_GAME.md) - Security assumptions and gaps
+- [WEB4_HRM_ALIGNMENT.md](WEB4_HRM_ALIGNMENT.md) - SAGE federation integration spec
+- [../SECURITY.md](../SECURITY.md) - Overall security research status
+- [../THREAT_MODEL.md](../THREAT_MODEL.md) - Formal threat model
+
+---
+
+## Research Context
+
+This simulation was developed through autonomous AI research sessions with human oversight:
+
+- **Sessions #80-85**: Federation security patterns (~12,600 lines)
+- **LCT Phases 1-4**: Identity system implementation
+- **Scale Testing**: 100 societies, 1000 agents
+
+**Goal**: Validate Web4 primitives under complex emergent behavior, reveal gaps in specs, provide interactive demonstration.
+
+---
+
+## Quick Start
+
+```bash
+cd game
+
+# Run basic demo
+python run_two_societies_demo.py
+
+# Run full LCT integration test
+python run_lct_e2e_integration_test.py
+
+# Run federation consensus test
+python run_federation_consensus_integration_test.py
+
+# Run scale test (100 societies)
+python run_production_scale_test.py
+```
+
+---
+
+**Status**: Active research prototype - substantial implementation, in-memory only, no production deployment.
