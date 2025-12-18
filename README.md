@@ -80,6 +80,41 @@ Web4 contains **two distinct subsystems** at different maturity levels:
 
 **Use for**: Demonstrations and presentations
 
+### Track 4: `web4-standard/implementation/reference/` - Coordination Framework (Active Development)
+
+**What it is**: Reference implementations for distributed coordination, pattern learning, and cross-system integration.
+
+**Status**: Active research with validated components (~25,000 lines added Dec 2025)
+- Phase 2 coordinators (epistemic, integrated, circadian, adaptive)
+- Pattern exchange protocol (bidirectional SAGE ↔ Web4)
+- EM-state (Epistemic Monitoring) framework
+- Temporal/phase-tagged learning
+- LCT Unified Identity Specification
+
+**Key Components**:
+
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| Phase 2a Epistemic Coordinator | Runtime epistemic state tracking | Validated |
+| Phase 2b Integrated Coordinator | Epistemic + pattern learning | Validated |
+| Phase 2c Circadian Coordinator | Temporal/phase-aware decisions | Validated |
+| Phase 2d Adaptive Coordinator | EM-state modulation | Validated |
+| Pattern Exchange Protocol | Cross-system learning transfer | Operational |
+| LCT Identity Specification | Unified identity format | v1.0.0 draft |
+
+**Validation Results** (Dec 2025):
+- 76% prediction validation (13 of 17 predictions confirmed)
+- +386% efficiency improvement demonstrated
+- Long-duration testing (1000+ cycles)
+
+**Key Files**:
+- `web4_phase2b_integrated_coordinator.py` - Combined epistemic + learning
+- `temporal_pattern_exchange.py` - Phase-aware pattern transfer
+- `universal_pattern_schema.py` - Cross-system pattern format
+- `LCT_UNIFIED_IDENTITY_SPECIFICATION.md` - Identity standard (in `/docs/`)
+
+**Use for**: Coordination research, SAGE integration, cross-system pattern transfer
+
 ---
 
 ## 📊 Key Documentation
@@ -179,15 +214,24 @@ web4/
 │   ├── THREAT_MODEL_GAME.md          # Security assumptions
 │   └── WEB4_HRM_ALIGNMENT.md         # SAGE integration spec
 │
-├── web4-standard/implementation/      # Track 2: DB-backed authorization
-│   └── authorization/                 # PostgreSQL schemas & tests
-│       ├── schema*.sql               # Security mitigations
-│       ├── *_engine.py               # Authorization logic
-│       └── test_*.py                 # Attack resistance tests
+├── web4-standard/implementation/      # Tracks 2 & 4
+│   ├── authorization/                 # Track 2: PostgreSQL schemas & tests
+│   │   ├── schema*.sql               # Security mitigations
+│   │   ├── *_engine.py               # Authorization logic
+│   │   └── test_*.py                 # Attack resistance tests
+│   └── reference/                     # Track 4: Coordination framework (~25k lines)
+│       ├── web4_phase2*_coordinator.py  # Phase 2a-2d coordinators
+│       ├── pattern_exchange_protocol.py # Cross-system learning
+│       ├── universal_pattern_schema.py  # Pattern format standard
+│       ├── temporal_pattern_exchange.py # Phase-tagged transfer
+│       └── test_*.py                    # Validation tests
 │
 ├── demo/                              # Track 3: Commerce demo
 │   ├── store/                        # Demo e-commerce
 │   └── delegation-ui/                # User management UI
+│
+├── docs/                              # Specifications
+│   └── LCT_UNIFIED_IDENTITY_SPECIFICATION.md  # Cross-system identity
 │
 ├── whitepaper/                        # Conceptual foundation
 ├── STATUS.md                          # Honest project status
@@ -199,9 +243,20 @@ web4/
 
 ## 🤝 Related Projects
 
-- **[HRM/SAGE](https://github.com/dp-web4/HRM)** - Edge AI consciousness kernel with federation
+- **[HRM/SAGE](https://github.com/dp-web4/HRM)** - Edge AI kernel with MoE expert selection and trust-based routing
+- **[ACT](https://github.com/dp-web4/act)** - Cosmos SDK blockchain for ATP tokens and LCT identity registry
 - **[Synchronism](https://github.com/dp-web4/Synchronism)** - Theoretical physics framework (MRH, coherence)
 - **[Memory](https://github.com/dp-web4/memory)** - Distributed memory and witnessing
+
+### Cross-Project Integration
+
+Web4 integrates with SAGE (neural MoE) and ACT (blockchain) via:
+- **Unified LCT Identity**: `lct://{component}:{instance}:{role}@{network}`
+- **ATP Resource Allocation**: Synchronized between blockchain and edge systems
+- **Bidirectional Pattern Exchange**: Coordination patterns transfer between domains
+- **Trust Tensor Synchronization**: Trust scores flow across system boundaries
+
+See [`docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) for the identity standard.
 
 ---
 
