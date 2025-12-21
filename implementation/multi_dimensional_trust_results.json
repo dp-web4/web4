@@ -1,0 +1,22 @@
+{
+  "test_id": "multi-dimensional-trust-v1",
+  "avg_composite_score": 0.6172208369610529,
+  "avg_confidence": 0.7166666666666667,
+  "avg_dimensions_available": 2.8666666666666667,
+  "dimension_usage_pct": {
+    "internal": 100.0,
+    "conversational": 38.333333333333336,
+    "byzantine": 30.0,
+    "federation": 25.0
+  },
+  "trust_tier_distribution": {
+    "HIGH": 8,
+    "MEDIUM": 21,
+    "LOW": 1,
+    "UNKNOWN": 0
+  },
+  "single_dimension_score": 0.5611265075606482,
+  "multi_dimension_score": 0.6172208369610529,
+  "improvement_pct": 9.996734897494013,
+  "passed": true
+}
