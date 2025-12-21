@@ -1,0 +1,56 @@
+{
+  "test_id": "heterogeneous-federation-v1",
+  "societies": [
+    "thor",
+    "legion",
+    "sprout"
+  ],
+  "trust_driven_rates": {
+    "thor": 0.0,
+    "legion": 0.18888888888888888,
+    "sprout": 0.2
+  },
+  "first_activations": {
+    "thor": -1,
+    "legion": 73,
+    "sprout": 64
+  },
+  "experts_used": {
+    "thor": 90,
+    "legion": 90,
+    "sprout": 90
+  },
+  "attestations_exported": {
+    "thor": 90,
+    "legion": 90,
+    "sprout": 90
+  },
+  "attestations_imported": {
+    "thor": 0,
+    "legion": 8100,
+    "sprout": 8190
+  },
+  "attestations_rejected": {
+    "thor": 0,
+    "legion": 0,
+    "sprout": 0
+  },
+  "baseline_trust_driven_rates": {
+    "thor": 0.0,
+    "legion": 0.0,
+    "sprout": 0.0
+  },
+  "baseline_first_activations": {
+    "thor": -1,
+    "legion": -1,
+    "sprout": -1
+  },
+  "federation_benefit_pct": {
+    "thor": 0.0,
+    "legion": 18.88888888888889,
+    "sprout": 20.0
+  },
+  "avg_federation_benefit": 12.962962962962964,
+  "task_overlap_pct": 0.0,
+  "passed": true
+}
