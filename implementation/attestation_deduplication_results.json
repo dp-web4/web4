@@ -1,0 +1,46 @@
+{
+  "test_id": "attestation-deduplication-v1",
+  "attestations_exported": {
+    "thor": 90,
+    "legion": 90,
+    "sprout": 90
+  },
+  "attestations_imported": {
+    "thor": 0,
+    "legion": 179,
+    "sprout": 180
+  },
+  "duplicates_skipped": {
+    "thor": 0,
+    "legion": 7921,
+    "sprout": 8010
+  },
+  "import_efficiency_pct": {
+    "thor": 100.0,
+    "legion": 2.2098765432098766,
+    "sprout": 2.197802197802198
+  },
+  "avg_import_efficiency": 34.80255958033736,
+  "session77_imports": {
+    "thor": 0,
+    "legion": 8100,
+    "sprout": 8190
+  },
+  "reduction_pct": {
+    "thor": 0.0,
+    "legion": 97.79012345679013,
+    "sprout": 97.8021978021978
+  },
+  "trust_driven_rates": {
+    "thor": 0.0,
+    "legion": 0.18888888888888888,
+    "sprout": 0.2
+  },
+  "session77_trust_driven_rates": {
+    "thor": 0.0,
+    "legion": 0.189,
+    "sprout": 0.2
+  },
+  "trust_driven_preserved": true,
+  "passed": true
+}
