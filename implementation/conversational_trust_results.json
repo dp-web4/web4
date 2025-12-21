@@ -1,0 +1,17 @@
+{
+  "conversation_id": "sprout-frustration-dec11",
+  "engagement_count": 6,
+  "reassurance_count": 3,
+  "abandonment_count": 0,
+  "correction_count": 0,
+  "relationship_quality": 1.0,
+  "persistence_score": 1.0,
+  "correction_rate": 0.0,
+  "arc_pattern": "REPAIR_ARC",
+  "early_difficulty": true,
+  "mid_persistence": true,
+  "late_resolution": true,
+  "leak_rate": 0.4,
+  "leak_reduction": true,
+  "trust_score": 0.9999999999999999
+}
