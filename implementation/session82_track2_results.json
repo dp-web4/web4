@@ -1,0 +1,10 @@
+{
+  "total_consensus_attempts": 105,
+  "full_byzantine_validations": 18,
+  "moderate_validations": 30,
+  "sparse_validations": 56,
+  "failed_validations": 1,
+  "total_outliers_detected": 17,
+  "avg_confidence": 0.5780952380952376,
+  "avg_coverage": 0.045650795806177015
+}
