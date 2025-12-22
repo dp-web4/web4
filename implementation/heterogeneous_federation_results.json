@@ -6,12 +6,12 @@
     "sprout"
   ],
   "trust_driven_rates": {
-    "thor": 0.0,
-    "legion": 0.18888888888888888,
-    "sprout": 0.2
+    "thor": 0.18888888888888888,
+    "legion": 0.17777777777777778,
+    "sprout": 0.24444444444444444
   },
   "first_activations": {
-    "thor": -1,
+    "thor": 73,
     "legion": 73,
     "sprout": 64
   },
@@ -26,7 +26,7 @@
     "sprout": 90
   },
   "attestations_imported": {
-    "thor": 0,
+    "thor": 8010,
     "legion": 8100,
     "sprout": 8190
   },
@@ -46,11 +46,11 @@
     "sprout": -1
   },
   "federation_benefit_pct": {
-    "thor": 0.0,
-    "legion": 18.88888888888889,
-    "sprout": 20.0
+    "thor": 18.88888888888889,
+    "legion": 17.77777777777778,
+    "sprout": 24.444444444444443
   },
-  "avg_federation_benefit": 12.962962962962964,
+  "avg_federation_benefit": 20.37037037037037,
   "task_overlap_pct": 0.0,
   "passed": true
 }

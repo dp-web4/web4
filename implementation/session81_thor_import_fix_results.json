@@ -1,0 +1,21 @@
+{
+  "session": 81,
+  "date": "2025-12-22",
+  "platform": "Legion",
+  "bug": "Thor Import Anomaly",
+  "broken_version": {
+    "thor_exports": 90,
+    "thor_imports": 0,
+    "thor_trust_driven_pct": 0.0
+  },
+  "fixed_version": {
+    "thor_exports": 90,
+    "thor_imports": 8010,
+    "thor_trust_driven_pct": 72.22222222222223
+  },
+  "improvement": {
+    "imports": 8010,
+    "trust_driven_pct": 72.22222222222223
+  },
+  "status": "SUCCESS"
+}

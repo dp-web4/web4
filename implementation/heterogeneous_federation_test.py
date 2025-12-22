@@ -627,6 +627,12 @@ class HeterogeneousFederationTester:
             sprout_quality = 0.9 if expert_language_skill else 0.5
 
             # ---- THOR SOCIETY (CODING TASKS) ----
+            # Import Legion's and Sprout's attestations (Session 81 fix)
+            for attestation in legion_fed_selector.federation.accepted_attestations:
+                thor_selector.import_attestation(attestation, legion.secret_key)
+            for attestation in sprout_fed_selector.federation.accepted_attestations:
+                thor_selector.import_attestation(attestation, sprout.secret_key)
+
             # Federated
             thor_result = thor_selector.select_experts(router_logits, context_id, k=8)
             # Use the expert we selected (simulating router choice)
