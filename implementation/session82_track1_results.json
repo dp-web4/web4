@@ -1,0 +1,15 @@
+{
+  "total_costs_computed": 100,
+  "total_rewards_computed": 100,
+  "total_atp_spent": 12384,
+  "total_atp_rewarded": 2563,
+  "avg_composite_trust": 0.6348400871256726,
+  "avg_confidence": 0.3075000000000001,
+  "avg_dimensions_available": 1.2300000000000004,
+  "dimension_usage": {
+    "internal": 80,
+    "conversational": 18,
+    "byzantine": 18,
+    "federation": 7
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "set_based": {
+    "imported": 180,
+    "skipped": 8010,
+    "memory_bytes": 45000
+  },
+  "bloom_filter": {
+    "imported": 179,
+    "skipped": 8011,
+    "memory_bytes": 216,
+    "estimated_fp_rate": 0.01221001221001221
+  },
+  "comparison": {
+    "memory_reduction_pct": 99.52,
+    "memory_reduction_factor": 208.33333333333334,
+    "import_diff_pct": 0.5555555555555556
+  },
+  "optimal": {
+    "theoretical_imports": 180,
+    "set_efficiency_pct": 100.0,
+    "bloom_efficiency_pct": 99.44444444444444
+  }
+}
