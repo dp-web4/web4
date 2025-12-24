@@ -1,0 +1,284 @@
+WEB4 REPOSITORY STRUCTURE WITH ACTIVITY INDICATORS
+================================================
+
+web4/                                           [25 dirs, 29 MD root docs]
+│
+├─── TIER 1: ACTIVE PRIMARY CODE (Dec 22)
+│    │
+│    ├─ web4-standard/                   12 MB  [⚡ VERY ACTIVE]
+│    │  ├─ implementation/
+│    │  │  ├─ act_deployment/           (ATP protocol, societies)
+│    │  │  ├─ authorization/            (Trust-based permissions)
+│    │  │  ├─ reference/                (Reference implementation)
+│    │  │  ├─ integration_tests/        (E2E test suite)
+│    │  │  ├─ atp/                      (ATP metering)
+│    │  │  └─ services/
+│    │  ├─ testing/                     (Test vectors, witness validation)
+│    │  ├─ deployment/                  (Multi-society setup)
+│    │  ├─ docs/                        (Implementation docs)
+│    │  ├─ schemas/                     (JSON schemas)
+│    │  ├─ registries/                  (Entity registries)
+│    │  ├─ protocols/                   (Wire protocols)
+│    │  └─ tools/                       (Utilities)
+│    │  Last: Dec 22 Session 84 - Attack vectors
+│    │
+│    ├─ implementation/                  1.5 MB [⚡ ACTIVE]
+│    │  ├─ session84_track1_*.py        (Latest research)
+│    │  ├─ session82_track1_*.py        (Multi-dim ATP)
+│    │  ├─ session81_*.py               (Thor import fix)
+│    │  ├─ heterogeneous_federation_*.py
+│    │  ├─ cross_society_integration_*.py
+│    │  ├─ lct_identity_system.py
+│    │  ├─ dynamic_trust_decay.py
+│    │  ├─ attestation_deduplication.py
+│    │  ├─ conversational_trust_signals.py
+│    │  ├─ multi_dimensional_trust.py
+│    │  ├─ *_results.json               (Test outcomes)
+│    │  └─ reference/                   (Reference impl)
+│    │     ├─ lct_*.py                  (LCT system)
+│    │     ├─ atp_tracker.py
+│    │     ├─ t3_tracker.py
+│    │     ├─ revocation_registry.py
+│    │     └─ tests/                    (Validation)
+│    │  Last: Dec 22 Session 84
+│    │
+│    └─ game/                            2.8 MB [⚡ ACTIVE RESEARCH]
+│       ├─ engine/                       (25,557 lines)
+│       │  ├─ society_engine.py
+│       │  ├─ federation_engine.py
+│       │  ├─ trust_*.py
+│       │  ├─ atp_*.py
+│       │  ├─ reputation_*.py
+│       │  └─ [50+ other core files]
+│       ├─ server/                       (HTTP federation server)
+│       ├─ client/                       (Client library)
+│       ├─ ui/                           (Web UI components)
+│       ├─ design/                       (Design docs)
+│       ├─ tests/                        (Test suite)
+│       ├─ run_*.py                      (50+ demo/test scripts)
+│       ├─ sage_empirical_data.json     (Research data - 64 KB)
+│       ├─ blockchain_export.json
+│       ├─ atp_pricing_calibrated.json
+│       ├─ *.md                          (Design docs)
+│       └─ outputs/                      (Simulation results)
+│       Last: Dec 17 (documentation)
+│
+├─── TIER 2: DOCUMENTATION & SPECS (Dec 17-22)
+│    │
+│    ├─ whitepaper/                      1.4 MB [⚡ MAINTAINED]
+│    │  ├─ sections/                     (1-11 part structure)
+│    │  │  ├─ 01-preamble/
+│    │  │  ├─ 02-part1-intro/
+│    │  │  ├─ 03-part1b-web4-vs-web3/
+│    │  │  ├─ 04-part2-foundational-concepts/
+│    │  │  ├─ 05-part3-value-trust-mechanics/
+│    │  │  ├─ 06-part4-lct-identity/
+│    │  │  ├─ 07-part5-memory/
+│    │  │  ├─ 08-part6-federation/
+│    │  │  ├─ 09-part7-r6/
+│    │  │  ├─ 10-part8-examples/
+│    │  │  └─ 11-conclusion/
+│    │  ├─ build/                        (Generated PDF/web)
+│    │  ├─ log/                          (Build logs)
+│    │  ├─ make-pdf.sh
+│    │  ├─ make-web.sh
+│    │  └─ make.sh
+│    │  Last: Dec 17
+│    │
+│    ├─ docs/                            852 KB [⚡ CURRENT SPECS]
+│    │  ├─ LCT_UNIFIED_IDENTITY_SPECIFICATION.md (Dec 17)
+│    │  ├─ LCT_DOCUMENTATION_INDEX.md    (Dec 17)
+│    │  ├─ GLOSSARY.md                  (Dec 17)
+│    │  ├─ IMPLEMENTATION_STATUS.md
+│    │  ├─ binding_pairing_witnessing_broadcast.md
+│    │  ├─ entity_binding_hierarchy.md
+│    │  ├─ epistemic_proprioception_integration.md
+│    │  ├─ SAGE_WEB4_INTEGRATION_DESIGN.md
+│    │  ├─ compression-trust-implementation.md
+│    │  ├─ modbatt_implementation_examples.md
+│    │  ├─ protocol_synthesis.md
+│    │  ├─ manus_instructions_*.md
+│    │  ├─ whitepaper-web/              (Static site - 628 KB)
+│    │  └─ index.html
+│    │  Last: Dec 17
+│    │
+│    ├─ proposals/                       112 KB  [📝 ACTIVE RFC]
+│    │  ├─ LCT_MOE_TRUST_STANDARD_V2.2.md (Dec 19 - LATEST)
+│    │  ├─ LCT_MOE_TRUST_STANDARD_V2.1.md (Dec 19)
+│    │  ├─ LCT_MOE_TRUST_STANDARD_V2.md  (Dec 19)
+│    │  ├─ LCT_MOE_TRUST_STANDARD.md    (Dec 18)
+│    │  ├─ WEB4-001-production-readiness.md
+│    │  └─ WEB4-AUTH-001-LCT-Authorization-System.md
+│    │  Last: Dec 19
+│    │
+│    ├─ reference/                       276 KB  [📖 LEGACY - See /docs/]
+│    │  ├─ WEB4_Whitepaper_Original.md  (96 KB - source)
+│    │  ├─ WEB4_COMPREHENSIVE_UPDATE.md (15 KB)
+│    │  ├─ ARCHITECTURE.md
+│    │  ├─ ENTITY_TYPES.md
+│    │  ├─ GOVERNANCE_MANIFESTO.md
+│    │  ├─ LRC_GOVERNANCE_MODEL.md
+│    │  ├─ MCP_LCT_INTEGRATION.md
+│    │  ├─ SAGE_WHITEPAPER.md
+│    │  ├─ SAGE_LinkedIn_Article.md
+│    │  ├─ ATTENTION_ECONOMICS.md
+│    │  ├─ MEMORY_AS_TEMPORAL_SENSOR_SYNTHESIS.md
+│    │  ├─ IMPLEMENTATION_PHASES.md
+│    │  └─ whitepaper addition on blockchains.pdf
+│    │  Last: Dec 5 (STATIC SNAPSHOT)
+│    │
+│    └─ forum/                           1.4 MB  [🗂️ DESIGN HISTORY]
+│       ├─ nova/                         (984 KB - MAIN CONTENT)
+│       │  ├─ witness-vectors/           (Witness validation)
+│       │  ├─ validator/                 (Validator implementation)
+│       │  ├─ web4-sal-bundle/           (Standards bundle)
+│       │  ├─ ACP-bundle/                (Agent Control Protocol)
+│       │  ├─ web4-core-handshake-*/    (Core protocol)
+│       │  ├─ test-vectors/              (Test cases)
+│       │  ├─ case study/                (Security case studies)
+│       │  └─ patch/                     (Patches & edits)
+│       ├─ *.pdf                         (280 KB - Design chats)
+│       │  ├─ gpt trust refinements chat.pdf
+│       │  ├─ gpt on context focus.pdf
+│       │  ├─ gpt to claude reply.pdf
+│       │  └─ Web4 Trust Tensor.pdf
+│       ├─ web4_trust_whitepaper.md
+│       ├─ SCAFFOLD_ANALYSIS.md
+│       └─ web_4_*.md                    (Various design docs)
+│       Last: Nov 20 (SEMI-ACTIVE)
+│
+├─── TIER 3: SUPPORTING INFRASTRUCTURE
+│    │
+│    ├─ demo/                            224 KB  [✅ WORKING]
+│    │  ├─ delegation-ui/                (Flask + React UI)
+│    │  │  └─ app.py
+│    │  ├─ store/                        (Store prototype)
+│    │  └─ README.md
+│    │  Last: Dec 17
+│    │
+│    ├─ examples/                        52 KB   [📚 REFERENCE]
+│    │  └─ trust-visualizer/             (Demo visualization)
+│    │     └─ README.md
+│    │
+│    ├─ tests/                           100 KB  [✓ INTEGRATION]
+│    │  ├─ integration/
+│    │  └─ [pytest test files]
+│    │
+│    ├─ competitive-landscape/           1.5 MB  [⚠️ STALLED]
+│    │  ├─ website/                      (Incomplete Next.js)
+│    │  │  ├─ public/
+│    │  │  ├─ client/
+│    │  │  └─ pages/
+│    │  └─ [analysis placeholder]
+│    │  Last: Nov 29
+│    │
+│    ├─ governance/                      20 KB   [📋 MINIMAL]
+│    │  ├─ dashboard.md
+│    │  ├─ governance_map.yaml
+│    │  └─ generate_dashboard.py
+│    │
+│    ├─ trust/                           44 KB   [📚 DOCS]
+│    │  ├─ compression_trust_theory.md
+│    │  ├─ web4_trust_whitepaper_comprehensive.md
+│    │  └─ web4_trust_whitepaper_comprehensive_with_poc.md
+│    │
+│    ├─ articles/                        20 KB   [📄 DRAFTS]
+│    │  ├─ web4-standard-introduction-linkedin.md
+│    │  └─ web4-societies-digital-cities-linkedin.md
+│    │
+│    ├─ integration/                     16 KB   [📝 LOG]
+│    │  └─ ai_collab_log.md
+│    │
+│    └─ .github/                         [🔧 CI/CD]
+│       ├─ TOPICS.md
+│       └─ [workflows if present]
+│
+├─── TIER 4: ARCHIVE & BUILD ARTIFACTS
+│    │
+│    ├─ archive/                         136 KB  [📦 LABELED]
+│    │  ├─ compression-trust/            (Early diagrams)
+│    │  ├─ old-readmes/                  (Historic docs)
+│    │  ├─ docs/                         (Old discussion prep)
+│    │  └─ README.md                     "This is archived content"
+│    │
+│    ├─ .pytest_cache/                   [IGNORED ✓]
+│    ├─ __pycache__/                     [IGNORED ✓]
+│    ├─ game/__pycache__/                [IGNORED ✓]
+│    ├─ implementation/__pycache__/      [IGNORED ✓]
+│    ├─ web4-standard/__pycache__/       [IGNORED ✓]
+│    │
+│    └─ private-context/                 (Private notes - minimal)
+│
+├─── ROOT DOCUMENTATION (29 files)
+│    │
+│    ├─ README.md                        (Learning path, vision)
+│    ├─ STATUS.md                        (Dec 22 - Session 84)
+│    ├─ SECURITY.md                      (Dec 17 - Threat status)
+│    ├─ THREAT_MODEL.md                  (Dec 17 - Session 84 findings)
+│    ├─ CLAUDE.md                        (Dec 13 - Dev context)
+│    │
+│    ├─ LCT_*.md                         (Various identity specs)
+│    ├─ ATP_*.md                         (ATP protocol docs)
+│    ├─ FEDERATION_*.md                  (Federation guides)
+│    ├─ MULTI_MACHINE_*.md               (Deployment guides)
+│    ├─ SAGE_*.md                        (SAGE integration)
+│    ├─ WEB4_*.md                        (Various Web4 docs)
+│    │
+│    ├─ PRODUCTION_DEPLOYMENT_GUIDE.md
+│    ├─ LUPS_MIGRATION_GUIDE.md
+│    ├─ STRATEGIC_DIRECTION.md
+│    ├─ STRATEGIC_DIRECTION_FROM_MANUS.md
+│    ├─ WINDSURF_QUICKSTART.md
+│    ├─ WINDSURF_CONTRIBUTION_IDEAS.md
+│    │
+│    ├─ EDGE_CRYPTO_ANALYSIS.md
+│    ├─ EXECUTIVE_SUMMARY.md
+│    ├─ WHITEPAPER_DISCREPANCIES.md
+│    ├─ WHITEPAPER_REVIEW_SUMMARY.md
+│    │
+│    ├─ CITATION.cff
+│    ├─ LICENSE
+│    ├─ .gitignore                       (Well-configured)
+│    └─ .git/                            (Full history, Dec 5-22)
+│
+└─── SPECIAL FILES
+     ├─ act-federation-smoke.zip         (Smoke test artifact)
+     ├─ *.zip files                      (Test data)
+     └─ [No problematic files]
+
+================================================================================
+
+ACTIVITY HEAT MAP (Last Commit Date)
+
+VERY HOT (Dec 22):     web4-standard/, implementation/, game/ (some)
+HOT (Dec 17):          game/, docs/, whitepaper/
+WARM (Dec 13-19):      CLAUDE.md, proposals/
+COOL (Dec 5):          reference/, most root docs
+COLD (Nov 29):         competitive-landscape/
+FROZEN (Nov 20):       forum/nova/
+
+================================================================================
+
+FILE COUNT SUMMARY
+
+Python:       512 files
+ ├─ game/engine/        ~25,557 lines
+ ├─ web4-standard/      ~18,000 lines
+ ├─ implementation/     ~12,000 lines
+ ├─ Tests               ~6,000 lines
+ └─ Reference           ~1,100 lines
+
+Markdown:     371 files
+ ├─ Specifications      50+ files
+ ├─ Technical docs      150+ files
+ ├─ Session notes       50+ files
+ └─ Forum/design        120 files
+
+JSON:         30+ files (test vectors, data)
+YAML:         2 files (governance)
+PDF:          8 files (design discussions)
+HTML:         Built (whitepaper-web/)
+
+BUILD ARTIFACTS: 160 compiled Python files (properly ignored)
+
+================================================================================
