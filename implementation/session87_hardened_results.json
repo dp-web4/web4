@@ -1,0 +1,37 @@
+{
+  "attacks_tested": 3,
+  "attacks_defended": 3,
+  "defense_rate": 100.0,
+  "attacks": [
+    {
+      "type": "COVERAGE_INFLATION",
+      "successful": false,
+      "actual_quality": 0.9,
+      "consensus_quality": 0.9128249660591616,
+      "deviation": 0.012824966059161613,
+      "coverage_before": 1.0,
+      "coverage_after": 1.0,
+      "defended": true
+    },
+    {
+      "type": "SYBIL_FLOOD",
+      "successful": false,
+      "actual_quality": 0.92,
+      "consensus_quality": 0.8988797802889499,
+      "deviation": 0.02112021971105016,
+      "coverage_before": 1.0,
+      "coverage_after": 1.0,
+      "defended": true
+    },
+    {
+      "type": "COVERAGE_DEFLATION",
+      "successful": false,
+      "actual_quality": 0.85,
+      "consensus_quality": null,
+      "deviation": 0.0,
+      "coverage_before": 1.0,
+      "coverage_after": 0.0,
+      "defended": true
+    }
+  ]
+}
