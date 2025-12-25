@@ -1,0 +1,32 @@
+[
+  {
+    "expert_id": 101,
+    "true_quality": 0.9,
+    "consensus_quality": 0.9071411552013848,
+    "trust_score": 0.9071411552013848,
+    "trust_tier": "HIGH",
+    "expected_tier": "HIGH",
+    "atp_allocated": 154,
+    "tier_correct": true
+  },
+  {
+    "expert_id": 102,
+    "true_quality": 0.6,
+    "consensus_quality": 0.6471446441457779,
+    "trust_score": 0.6471446441457779,
+    "trust_tier": "MEDIUM",
+    "expected_tier": "MEDIUM",
+    "atp_allocated": 77,
+    "tier_correct": true
+  },
+  {
+    "expert_id": 103,
+    "true_quality": 0.3,
+    "consensus_quality": 0.32597773841669514,
+    "trust_score": 0.32597773841669514,
+    "trust_tier": "LOW",
+    "expected_tier": "LOW",
+    "atp_allocated": 38,
+    "tier_correct": true
+  }
+]

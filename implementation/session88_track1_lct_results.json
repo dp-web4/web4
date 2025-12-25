@@ -1,0 +1,8 @@
+{
+  "attack_type": "LCT_SYBIL_FLOOD",
+  "defended": true,
+  "deviation": 0.0006272904073760799,
+  "sybil_attempts": 100,
+  "sybil_rejected": 100,
+  "lct_verified_societies": 3
+}
