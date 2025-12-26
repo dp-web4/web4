@@ -1,0 +1,16 @@
+[
+  {
+    "attack_type": "DELEGATION_AMBIGUITY",
+    "attack_successful": false,
+    "delegations_count": 1,
+    "has_delegation": true,
+    "delegating_parent": "lct://98e4f148a007fd3f@web4.network"
+  },
+  {
+    "test": "CAPABILITY_ACCESS_CONTROL",
+    "success": true,
+    "can_attest_quality": true,
+    "can_sub_delegate": false,
+    "can_revoke": false
+  }
+]

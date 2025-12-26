@@ -1,0 +1,32 @@
+{
+  "total_attacks": 4,
+  "attacks_successful": 0,
+  "attacks_defended": 4,
+  "attack_success_rate": 0.0,
+  "defense_rate": 100.0,
+  "results": [
+    {
+      "attack_type": "DELEGATION_AMBIGUITY",
+      "attack_successful": false,
+      "fake_child_has_delegation": false,
+      "fake_child_trust": "REVOKED"
+    },
+    {
+      "attack_type": "REVOCATION_CASCADE",
+      "attack_successful": false,
+      "children_degraded": 4,
+      "children_revoked": 0,
+      "availability_impact_percent": 50
+    },
+    {
+      "attack_type": "CAPABILITY_ESCALATION",
+      "attack_successful": false,
+      "escalation_blocked": true
+    },
+    {
+      "attack_type": "EXPIRED_DELEGATION",
+      "attack_successful": false,
+      "delegation_active_after_expiry": false
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+[
+  {
+    "test": "SIMPLE_PARTITION_HEAL",
+    "success": true,
+    "converged": true,
+    "expected_societies": 6,
+    "actual_societies": 6,
+    "all_nodes_consistent": true
+  },
+  {
+    "test": "ASYMMETRIC_PARTITION",
+    "success": true,
+    "converged": true,
+    "expected_societies": 4,
+    "actual_societies": 4
+  }
+]

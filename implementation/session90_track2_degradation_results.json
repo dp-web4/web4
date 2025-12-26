@@ -1,0 +1,15 @@
+[
+  {
+    "attack_type": "REVOCATION_CASCADE",
+    "attack_successful": false,
+    "children_degraded": 4,
+    "children_revoked": 0,
+    "availability_impact_percent": 50
+  },
+  {
+    "test": "ATP_DEGRADED_ALLOCATION",
+    "success": true,
+    "degraded_multiplier": 0.5,
+    "revoked_multiplier": 0.0
+  }
+]
