@@ -1,0 +1,45 @@
+{
+  "total_attacks": 5,
+  "attacks_successful": 0,
+  "attacks_defended": 5,
+  "attack_success_rate": 0.0,
+  "defense_rate": 100.0,
+  "results": [
+    {
+      "attack_type": "CIRCULAR_DELEGATION",
+      "attack_successful": false,
+      "defense_mechanism": "visited_set_tracking"
+    },
+    {
+      "attack_type": "CHAIN_DEPTH_DOS",
+      "attack_successful": false,
+      "defense_mechanism": "max_depth_limit",
+      "attempted_depth": 11,
+      "max_allowed_depth": 10
+    },
+    {
+      "attack_type": "CAPABILITY_ESCALATION",
+      "attack_successful": false,
+      "defense_mechanism": "delegated_capability_validation",
+      "attempted_escalation": [
+        "REVOCATION"
+      ]
+    },
+    {
+      "attack_type": "CONCURRENT_REVOCATION",
+      "attack_successful": false,
+      "revoked_nodes": 2,
+      "degraded_nodes": 2,
+      "chain_length": 5,
+      "defense_mechanism": "graceful_degradation"
+    },
+    {
+      "attack_type": "CACHE_POISONING",
+      "attack_successful": false,
+      "cache_invalidated": true,
+      "status_before": "FULL",
+      "status_after": "DEGRADED",
+      "defense_mechanism": "cache_invalidation_on_revocation"
+    }
+  ]
+}
