@@ -1,0 +1,9 @@
+[
+  {
+    "test": "MULTILEVEL_TRUST_PROPAGATION",
+    "success": true,
+    "chain_depth": 4,
+    "full_trust_atp": 1.0,
+    "degraded_trust_atp": 0.25
+  }
+]
