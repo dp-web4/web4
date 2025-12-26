@@ -1,0 +1,56 @@
+[
+  {
+    "attack_type": "DEEP_DELEGATION_CHAIN",
+    "attack_successful": false,
+    "max_depth_tested": 100,
+    "time_ratio": 0.3151626499513671,
+    "results": [
+      {
+        "depth": 1,
+        "verification_time_ms": 0.021543819457292557,
+        "is_legitimate": true
+      },
+      {
+        "depth": 5,
+        "verification_time_ms": 0.008245930075645447,
+        "is_legitimate": true
+      },
+      {
+        "depth": 10,
+        "verification_time_ms": 0.0066366046667099,
+        "is_legitimate": true
+      },
+      {
+        "depth": 20,
+        "verification_time_ms": 0.0061141327023506165,
+        "is_legitimate": true
+      },
+      {
+        "depth": 50,
+        "verification_time_ms": 0.006321817636489868,
+        "is_legitimate": true
+      },
+      {
+        "depth": 100,
+        "verification_time_ms": 0.006789807230234146,
+        "is_legitimate": true
+      }
+    ]
+  },
+  {
+    "attack_type": "DELEGATION_AMBIGUITY",
+    "attack_successful": true,
+    "ambiguous": true
+  },
+  {
+    "attack_type": "REVOCATION_CASCADE",
+    "attack_successful": true,
+    "children_affected": 4,
+    "total_children": 4
+  },
+  {
+    "attack_type": "NAME_SQUATTING",
+    "attack_successful": false,
+    "impersonation_possible": false
+  }
+]
