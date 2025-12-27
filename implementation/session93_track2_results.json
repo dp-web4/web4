@@ -1,0 +1,16 @@
+{
+  "scenario_1": {
+    "status": "success",
+    "committed": true,
+    "atp_transferred": 15.0
+  },
+  "scenario_2": {
+    "status": "success",
+    "committed": false,
+    "rollback_reason": "low_quality"
+  },
+  "scenario_3": {
+    "status": "success",
+    "double_spend_prevented": true
+  }
+}
