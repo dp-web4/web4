@@ -1,0 +1,15 @@
+
+================================================================================
+SESSION 92 TRACK 1: CROSS-FEDERATION DELEGATION
+================================================================================
+================================================================================
+TEST SCENARIO 1: Simple Cross-Federation Delegation
+================================================================================
+Traceback (most recent call last):
+  File "/home/dp/ai-workspace/web4/implementation/session92_track1_cross_federation_delegation.py", line 819, in <module>
+    results["scenario_1"] = test_cross_federation_delegation()
+  File "/home/dp/ai-workspace/web4/implementation/session92_track1_cross_federation_delegation.py", line 537, in test_cross_federation_delegation
+    fedA.register_society(alice.to_lct_uri(), alice)
+  File "/home/dp/ai-workspace/web4/implementation/session90_track1_explicit_delegation.py", line 190, in register_society
+    if lct_identity.network != self.network:
+AttributeError: 'str' object has no attribute 'network'

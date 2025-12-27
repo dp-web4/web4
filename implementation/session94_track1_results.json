@@ -1,0 +1,13 @@
+{
+  "scenario_1": {
+    "status": "success",
+    "quality": 0.85,
+    "cost": 10.0
+  },
+  "scenario_2": {
+    "status": "success",
+    "settled": true,
+    "quality": 0.85,
+    "atp_transferred": 15.0
+  }
+}
