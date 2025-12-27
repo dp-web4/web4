@@ -1,0 +1,47 @@
+{
+  "scenario_1": {
+    "status": "success",
+    "delegation": {
+      "parent_lct_uri": "lct://90ad3ca044754636@fedA.network",
+      "parent_federation": "fedA.network",
+      "child_lct_uri": "lct://bob@fedB.network",
+      "child_federation": "fedB.network",
+      "source_trust_level": "FULL",
+      "target_trust_level": "VERIFIED",
+      "source_capabilities": [
+        "QUALITY_ATTESTATION",
+        "SUB_DELEGATION"
+      ],
+      "target_capabilities": [
+        "AUDIT",
+        "REVIEW",
+        "DELEGATE"
+      ],
+      "source_atp": 100.0,
+      "target_atp": 80.0,
+      "trust_policy_id": "1702596b9dcde7ee594b2dd317cac275",
+      "revoked_in_source": false,
+      "revoked_in_target": false,
+      "created_at": 1766801240.793019,
+      "delegation_id": "8e8836bbed7f5e168ba034fdc9229f75",
+      "attestation": null
+    }
+  },
+  "scenario_2": {
+    "status": "success",
+    "target_capabilities": []
+  },
+  "scenario_3": {
+    "status": "success",
+    "propagated": true
+  },
+  "scenario_4": {
+    "status": "success",
+    "propagated": false
+  },
+  "scenario_5": {
+    "status": "success",
+    "hop_1_atp": 80.0,
+    "hop_2_atp": 60.0
+  }
+}
