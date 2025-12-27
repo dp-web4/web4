@@ -1,0 +1,19 @@
+{
+  "scenario_1": {
+    "status": "success",
+    "focus_predicted": 1.0310231125415,
+    "rest_predicted": 0.395592509193,
+    "quality_ratio": 2.606275620953401
+  },
+  "scenario_2": {
+    "status": "success",
+    "selected_agent": "alice",
+    "selected_state": "focus"
+  },
+  "scenario_3": {
+    "status": "success",
+    "wake_before": 0.7605286239599999,
+    "wake_after": 0.7605286239599999,
+    "rest_final": 0.5
+  }
+}
