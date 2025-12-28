@@ -1,0 +1,14 @@
+{
+  "session": "97",
+  "track": "1",
+  "title": "Budget-Aware Attention Allocation",
+  "integration": [
+    "Session 96 Track 3",
+    "Session 132",
+    "Session 95 Track 2"
+  ],
+  "timestamp": "2025-12-28T08:07:52.056404+00:00",
+  "tests_passed": 5,
+  "tests_total": 5,
+  "success_rate": 1.0
+}

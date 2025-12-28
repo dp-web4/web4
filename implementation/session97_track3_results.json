@@ -1,0 +1,16 @@
+{
+  "session": "97",
+  "track": "3",
+  "title": "IRP Emotional Query Budgets",
+  "integration": [
+    "Session 96 Track 3",
+    "Session 97 Track 1",
+    "Session 97 Track 2",
+    "Session 95 Track 1",
+    "Session 94"
+  ],
+  "timestamp": "2025-12-28T08:11:31.156133+00:00",
+  "tests_passed": 5,
+  "tests_total": 5,
+  "success_rate": 1.0
+}
