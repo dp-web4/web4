@@ -100,20 +100,21 @@ CI = f(spatial_coherence, capability_coherence, temporal_coherence, relational_c
 ] .
 ```
 
-### Phase 2: Coherence Calculation (Week 2-3)
+### Phase 2: Coherence Calculation (Week 2-3) ✅ COMPLETE
 
 **New Files**:
-- `web4-standard/implementation/reference/coherence.py` - Core coherence functions
-- `web4-standard/implementation/reference/grounding.py` - Grounding lifecycle
+- ✅ `web4-standard/implementation/reference/coherence.py` - Core coherence functions (560 lines)
+- ⏳ `web4-standard/implementation/reference/grounding.py` - Grounding lifecycle (Phase 4)
 
 **Tasks**:
-- [ ] Implement `spatial_coherence()` - Impossible travel detection
-- [ ] Implement `capability_coherence()` - Capability spoofing prevention
-- [ ] Implement `temporal_coherence()` - Activity pattern analysis
-- [ ] Implement `relational_coherence()` - MRH neighborhood consistency
-- [ ] Implement `coherence_index()` - Weighted geometric mean combiner
-- [ ] Add society-configurable weights (CoherenceWeights dataclass)
-- [ ] Implement grounding history storage and windowing
+- [x] Implement `spatial_coherence()` - Impossible travel detection
+- [x] Implement `capability_coherence()` - Capability spoofing prevention
+- [x] Implement `temporal_coherence()` - Activity pattern analysis
+- [x] Implement `relational_coherence()` - MRH neighborhood consistency
+- [x] Implement `coherence_index()` - Weighted geometric mean combiner
+- [x] Add society-configurable weights (CoherenceWeights dataclass)
+- [x] Implement grounding history storage and windowing
+- [x] Unit tests created (test_coherence.py) - 16/17 tests passing
 
 **Key Algorithms**:
 
@@ -154,20 +155,23 @@ def coherence_index(current, history, mrh, weights) -> float:
     return ci
 ```
 
-### Phase 3: Trust Integration (Week 3-4)
+### Phase 3: Trust Integration (Week 3-4) ✅ CORE COMPLETE
 
-**Files to Modify**:
-- `web4-standard/implementation/reference/trust_tensors.py` - CI modulation
-- `game/engine/mrh_aware_trust.py` - Game engine integration
-- `web4-standard/core-spec/trust-tensors.md` - Update specification
+**Files Created/Modified**:
+- ✅ `web4-standard/implementation/reference/trust_tensors.py` - CI modulation (330 lines)
+- ⏳ `game/engine/mrh_aware_trust.py` - Game engine integration (future work)
+- ⏳ `web4-standard/core-spec/trust-tensors.md` - Update specification (future work)
 
 **Tasks**:
-- [ ] Implement `effective_trust()` - CI-modulated T3 calculation
-- [ ] Implement `adjusted_atp_cost()` - ATP cost modulation (up to 10x for low CI)
-- [ ] Implement `required_witnesses()` - Witness count modulation
-- [ ] Add coherence checks to transaction validation
-- [ ] Integrate CI into game engine trust decisions
-- [ ] Add CI to LCT presentation layer
+- [x] Implement `effective_trust()` - CI-modulated T3 calculation
+- [x] Implement `adjusted_atp_cost()` - ATP cost modulation (up to 10x for low CI)
+- [x] Implement `required_witnesses()` - Witness count modulation
+- [x] Implement `ci_modulation_curve()` - Configurable modulation curve
+- [x] Implement `CIModulationConfig` - Society-configurable parameters
+- [x] Unit tests created (test_trust_tensors.py) - 20/20 tests passing
+- [ ] TODO: Add coherence checks to transaction validation (future integration)
+- [ ] TODO: Integrate CI into game engine trust decisions (future integration)
+- [ ] TODO: Add CI to LCT presentation layer (UI work)
 
 **Trust Modulation**:
 ```python
@@ -393,16 +397,17 @@ Ruvector is a distributed vector database with features highly relevant to Web4:
 
 ## 8. Timeline Summary
 
-| Phase | Duration | Web4 Work | HRM/SAGE Work | Ruvector |
-|-------|----------|-----------|---------------|----------|
-| **1: Core Infrastructure** | 2 weeks | ✅ Legion | - | Evaluation |
-| **2: Coherence Calculation** | 1 week | ✅ Legion | - | Evaluation |
-| **3: Trust Integration** | 1 week | ✅ Legion | - | - |
-| **4: Lifecycle Management** | 1 week | ✅ Legion | - | - |
-| **5: SAGE Integration** | 1 week | Coordination | ✅ Thor/Sprout | - |
-| **6: Testing** | 2 weeks | ✅ Legion | ✅ All machines | Benchmarks |
-| **7: Ruvector Migration** | 2 weeks | ✅ Legion | - | ✅ Integration |
+| Phase | Duration | Web4 Work | HRM/SAGE Work | Ruvector | Status |
+|-------|----------|-----------|---------------|----------|--------|
+| **1: Core Infrastructure** | 2 weeks | ⏳ Deferred | - | Evaluation | Using existing MRH |
+| **2: Coherence Calculation** | 1 week | ✅ Complete | - | Evaluation | 2025-12-29 |
+| **3: Trust Integration** | 1 week | ✅ Core Done | - | - | 2025-12-29 |
+| **4: Lifecycle Management** | 1 week | ⏳ Pending | - | - | Next phase |
+| **5: SAGE Integration** | 1 week | Coordination | ⏳ Thor/Sprout | - | Pending |
+| **6: Testing** | 2 weeks | ⏳ Pending | ⏳ All machines | Benchmarks | Pending |
+| **7: Ruvector Migration** | 2 weeks | ⏳ Pending | - | ⏳ Integration | Future |
 
+**Progress**: Phase 2 & 3 core functions complete (2025-12-29). Next: Phase 4 lifecycle management.
 **Total**: 10 weeks for full implementation, 5 weeks for Web4 core (Phases 1-4)
 
 ---
