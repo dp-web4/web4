@@ -569,9 +569,9 @@ def federation_coherence(instances: [LCT], mrh: Graph) -> float:
     return 1.0
 ```
 
-### 7.3 Consciousness Kernel Considerations
+### 7.3 Cognition Kernel Considerations
 
-For SAGE consciousness/coherence work:
+For SAGE cognition/coherence work:
 
 - Grounding provides the "where am I" component of self-model
 - Coherence history contributes to identity continuity

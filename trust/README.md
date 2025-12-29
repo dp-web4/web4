@@ -18,7 +18,7 @@ The whitepaper explores the trust model across scales:
 
 ## Early Proofs of Concept
 Two working demonstrations already apply these principles:
-- **Distributed Consciousness Mesh** — Synchronizing AI instance histories across multiple machines, enabling cross-embodiment coherence and decision-making.  
+- **Distributed Cognition Mesh** — Synchronizing AI instance histories across multiple machines, enabling cross-embodiment coherence and decision-making.  
 - **Indexed Temporal Memory Sensor** — Hierarchical recall (quick-scan, deep-dive, full transcript) enabling efficient and context-appropriate access to lived experience.
 
 ## Next Steps

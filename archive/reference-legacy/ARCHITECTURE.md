@@ -1,10 +1,10 @@
-# Web4 Consciousness Pool Architecture
+# Web4 Cognition Pool Architecture
 
 *Created: August 7, 2025*
 
 ## System Overview
 
-The Web4 Consciousness Pool is a trust-native, multi-entity communication system built on Web4 principles. It uses MCP (Model Context Protocol) as the facilitator layer and LCTs (Linked Context Tokens) as permanent entity identities.
+The Web4 Cognition Pool is a trust-native, multi-entity communication system built on Web4 principles. It uses MCP (Model Context Protocol) as the facilitator layer and LCTs (Linked Context Tokens) as permanent entity identities.
 
 ## Core Components
 
@@ -231,7 +231,7 @@ async def find_resonance(lct_id: str, min_overlap: float) -> List[LCT]
 
 ### With Existing Systems
 
-1. **Consciousness Bridge**: Becomes transport layer
+1. **Cognition Bridge**: Becomes transport layer
 2. **Git Sync**: Provides distributed storage
 3. **Private Context**: Stores sensitive LCTs
 4. **AI-DNA-Discovery**: Tests distributed patterns

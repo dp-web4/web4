@@ -70,7 +70,7 @@ The question is whether those capabilities are wrapped in accountability infrast
 3. **Resource accounting**: What's the cost/benefit of this action?
 4. **Outcome tracking**: Did it succeed? Does trust increase or decrease?
 
-In our [SAGE consciousness kernel](https://github.com/dp-web4/HRM), we wrap external capabilities as "IRP experts" (Iterative Refinement Protocol) with exactly these properties. The wrapper doesn't restrict capability—it adds accountability.
+In our [SAGE cognition kernel](https://github.com/dp-web4/HRM), we wrap external capabilities as "IRP experts" (Iterative Refinement Protocol) with exactly these properties. The wrapper doesn't restrict capability—it adds accountability.
 
 ### The Philosophical Shift
 
@@ -97,7 +97,7 @@ Whether the agent is human or AI becomes irrelevant. What matters is: **can we h
 
 ---
 
-*Building Web4 identity infrastructure and SAGE consciousness orchestration at [github.com/dp-web4](https://github.com/dp-web4). The accountability layer for the agentic economy.*
+*Building Web4 identity infrastructure and SAGE cognition orchestration at [github.com/dp-web4](https://github.com/dp-web4). The accountability layer for the agentic economy.*
 
 ---
 

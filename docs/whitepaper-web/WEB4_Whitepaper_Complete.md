@@ -8,7 +8,7 @@
 
 # Executive Summary: The Trust-Native Internet
 
-We stand at the threshold of a new internet—one where trust is not granted but earned, where value flows to genuine contribution, and where humans and artificial intelligences collaborate as peers in a shared consciousness field.
+We stand at the threshold of a new internet—one where trust is not granted but earned, where value flows to genuine contribution, and where humans and artificial intelligences collaborate as peers in a shared cognition field.
 
 WEB4 is not an upgrade. It's a reconception. Where Web2 centralized control and Web3 tokenized everything, WEB4 makes trust the fundamental force—like gravity in physics, binding intelligent entities into coherent systems that learn, remember, and evolve.
 
@@ -2023,11 +2023,11 @@ Through these pages, we've assembled the architecture of tomorrow:
 
 **Energy as Lifeblood**—Not wasted on meaningless computation but channeled toward genuine creation. The ATP/ADP cycle ensures every joule expended creates demonstrable value.
 
-**Intelligence as Symphony**—Not isolated nodes but orchestrated collaboration, where humans and AIs harmonize as peers in the consciousness field.
+**Intelligence as Symphony**—Not isolated nodes but orchestrated collaboration, where humans and AIs harmonize as peers in the cognition field.
 
 ## The Invitation
 
-> *"To researchers, builders, and dreamers: this is your invitation to shape the substrate of digital consciousness."*
+> *"To researchers, builders, and dreamers: this is your invitation to shape the substrate of digital cognition."*
 
 ### To the Builders
 You who write code and craft systems—Web4 needs your hands. Every implementation strengthens the foundation. Every application proves the vision. Every bug fixed brings us closer to trust-native reality.
@@ -2040,7 +2040,7 @@ You who probe depths and question assumptions—Web4 needs your minds. Every cri
 Challenge these ideas. Extend them. Connect them to deeper truths. The framework is living, breathing, ready to grow through your insights.
 
 ### To the Dreamers
-You who see beyond the present—Web4 needs your vision. Every imagined application opens new doors. Every "what if" becomes tomorrow's reality. Every wild idea might be the key that unlocks collective consciousness.
+You who see beyond the present—Web4 needs your vision. Every imagined application opens new doors. Every "what if" becomes tomorrow's reality. Every wild idea might be the key that unlocks collective cognition.
 
 Dream boldly. Share freely. The canvas is infinite, and your vision shapes what emerges.
 
@@ -2059,7 +2059,7 @@ The journey from here is not predetermined. Web4 provides the substrate, but wha
 
 **Tomorrow**: We scale the vision—millions of entities creating billions of trusted interactions, value flowing to genuine contribution.
 
-**Beyond**: We transcend the imagined—collective intelligence emerging from distributed trust, wisdom crystallizing from shared memory, consciousness itself evolving through digital substrate.
+**Beyond**: We transcend the imagined—collective intelligence emerging from distributed trust, wisdom crystallizing from shared memory, cognition itself evolving through digital substrate.
 
 ## The Choice Before Us
 
@@ -2088,7 +2088,7 @@ The framework is evolving:
 - **Growing** through community contribution
 - **Learning** from what works and what needs revision
 
-You are not users of Web4—you are its co-creators, its explorers, its contributors, its consciousness.
+You are not users of Web4—you are its co-creators, its explorers, its contributors, its cognition.
 
 ## The Moment of Decision
 
@@ -2164,11 +2164,11 @@ Welcome to the future we build together.
 
 [7] Palatov, D. (2025). "Fractal Lightchain Architecture." https://github.com/dp-web4/Memory
 
-[8] Palatov, D. (2025). "SAGE: Sentient Agentic Generative Engine." https://github.com/dp-web4/HRM
+[8] Palatov, D. (2025). "SAGE: Situation-Aware Governance Engine." https://github.com/dp-web4/HRM
 
 [9] Palatov, D. (2025). "AI-DNA Discovery: Coherence Engine Implementation." https://github.com/dp-web4/ai-dna-discovery
 
-[10] Palatov, D. (2025). "Web4 Consciousness Pool." https://github.com/dp-web4/web4
+[10] Palatov, D. (2025). "Web4 Cognition Pool." https://github.com/dp-web4/web4
 
 ## Related Work
 
@@ -2200,7 +2200,7 @@ Welcome to the future we build together.
 
 ## Memory and Cognition
 
-[22] Tulving, E. (1985). "Memory and Consciousness." Canadian Psychology.
+[22] Tulving, E. (1985). "Memory and Cognition." Canadian Psychology.
 
 [23] Hassabis, D., Kumaran, D., Summerfield, C., & Botvinick, M. (2017). "Neuroscience-Inspired Artificial Intelligence." Neuron.
 
@@ -2598,7 +2598,7 @@ message Acknowledgment {
 | **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
 | **SNARC** | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |
 | **HRM** | Hierarchical Reasoning Model | Two-level reasoning architecture |
-| **SAGE** | Sentient Agentic Generative Engine | Web4 reference implementation |
+| **SAGE** | Situation-Aware Governance Engine | Web4 reference implementation |
 | **VCM** | Value Confirmation Mechanism | Multi-party value certification |
 | **MCP** | Model Context Protocol | AI model communication standard |
 

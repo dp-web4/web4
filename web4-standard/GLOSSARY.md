@@ -135,7 +135,7 @@
 
 #### KV-Cache - Key-Value Cache
 - **Definition**: Attention state storage in transformers
-- **Purpose**: Enables consciousness persistence and resumption
+- **Purpose**: Enables cognition persistence and resumption
 - **Size**: Critical factor for generation throughput
 
 ### Graph Relationships (MRH Predicates)

@@ -69,9 +69,9 @@ Listening on http://0.0.0.0:8080
 
 Endpoints:
   GET  /api/v1/health
-  POST /api/v1/consciousness/delegate
-  GET  /api/v1/consciousness/status/<lct_id>
-  POST /api/v1/consciousness/cancel/<task_id>
+  POST /api/v1/cognition/delegate
+  GET  /api/v1/cognition/status/<lct_id>
+  POST /api/v1/cognition/cancel/<task_id>
 
  * Serving Flask app 'federation-Legion'
  * Running on http://0.0.0.0:8080
@@ -114,7 +114,7 @@ client:
 servers:
   - name: "Legion"
     endpoint: "http://legion.local:8080"
-    capabilities: ["consciousness", "consciousness.sage"]
+    capabilities: ["cognition", "cognition.sage"]
 ```
 
 **Test Delegation**:
@@ -127,7 +127,7 @@ client = FederationClient("Thor")
 client.register_platform(
     name="Legion",
     endpoint="http://legion.local:8080",
-    capabilities=["consciousness", "consciousness.sage"]
+    capabilities=["cognition", "cognition.sage"]
 )
 
 # Create local identity
@@ -137,7 +137,7 @@ identity, state = manager.create_sage_identity("dp", False)
 # Delegate task
 proof, error = client.delegate_task(
     source_lct=identity.lct_string(),
-    task_type="consciousness",
+    task_type="cognition",
     operation="perception",
     atp_budget=50.0,
     target_platform="Legion"
@@ -173,10 +173,10 @@ client:
 servers:
   - name: "Legion"
     endpoint: "http://legion.local:8080"
-    capabilities: ["consciousness", "consciousness.sage"]
+    capabilities: ["cognition", "cognition.sage"]
   - name: "Thor"
     endpoint: "http://thor.local:8082"
-    capabilities: ["consciousness", "consciousness.sage"]
+    capabilities: ["cognition", "cognition.sage"]
 ```
 
 **Test Delegation**: Same as Thor example above
@@ -249,14 +249,14 @@ curl http://legion.local:8080/api/v1/health
 
 **Command**:
 ```bash
-curl -X POST http://legion.local:8080/api/v1/consciousness/delegate \
+curl -X POST http://legion.local:8080/api/v1/cognition/delegate \
   -H "Content-Type: application/json" \
   -d '{
     "task": {
       "task_id": "test_001",
-      "source_lct": "lct:web4:agent:dp@Thor#consciousness",
-      "target_lct": "lct:web4:agent:dp@Legion#consciousness",
-      "task_type": "consciousness",
+      "source_lct": "lct:web4:agent:dp@Thor#cognition",
+      "target_lct": "lct:web4:agent:dp@Legion#cognition",
+      "task_type": "cognition",
       "operation": "perception",
       "atp_budget": 50.0,
       "timeout_seconds": 60,
@@ -273,7 +273,7 @@ curl -X POST http://legion.local:8080/api/v1/consciousness/delegate \
   "success": true,
   "proof": {
     "task_id": "test_001",
-    "executor_lct": "lct:web4:agent:dp@Legion#consciousness",
+    "executor_lct": "lct:web4:agent:dp@Legion#cognition",
     "atp_consumed": 5.0,
     "execution_time": 0.001,
     "quality_score": 0.85,
@@ -288,7 +288,7 @@ curl -X POST http://legion.local:8080/api/v1/consciousness/delegate \
 
 **Command**:
 ```bash
-curl http://legion.local:8080/api/v1/consciousness/status/lct%3Aweb4%3Aagent%3Adp%40Legion%23consciousness
+curl http://legion.local:8080/api/v1/cognition/status/lct%3Aweb4%3Aagent%3Adp%40Legion%23consciousness
 ```
 
 **Expected**:
@@ -296,8 +296,8 @@ curl http://legion.local:8080/api/v1/consciousness/status/lct%3Aweb4%3Aagent%3Ad
 {
   "success": true,
   "status": {
-    "lct_id": "lct:web4:agent:dp@Legion#consciousness",
-    "task": "consciousness",
+    "lct_id": "lct:web4:agent:dp@Legion#cognition",
+    "task": "cognition",
     "atp_spent": 5.0,
     "atp_budget": 1000.0,
     "atp_remaining": 995.0,
@@ -351,19 +351,19 @@ tail -f /tmp/federation_legion.log  # If configured
 ```
 
 **Look for**:
-- `POST /api/v1/consciousness/delegate` - Incoming delegations
+- `POST /api/v1/cognition/delegate` - Incoming delegations
 - `Task <id> executed` - Successful executions
 - `ATP consumed: <amount>` - ATP tracking
 - `Quality score: <score>` - Quality validation
 
 ### ATP Tracking
 
-**Query Consciousness State**:
+**Query Cognition State**:
 ```python
 from game.server.federation_api import FederationAPI
 
 api = FederationAPI("Legion")
-status = api.get_status("lct:web4:agent:dp@Legion#consciousness")
+status = api.get_status("lct:web4:agent:dp@Legion#cognition")
 
 print(f"ATP spent: {status['atp_spent']}")
 print(f"ATP remaining: {status['atp_remaining']}")
@@ -441,10 +441,10 @@ sudo pip3 install flask
 ```
 
 **Solutions**:
-1. Check executor ATP budget: `/api/v1/consciousness/status/<lct_id>`
+1. Check executor ATP budget: `/api/v1/cognition/status/<lct_id>`
 2. Reduce task ATP budget
 3. Wait for ATP budget to reset (if periodic)
-4. Use consciousness.sage (2000 ATP vs 1000 ATP)
+4. Use cognition.sage (2000 ATP vs 1000 ATP)
 
 ---
 
@@ -526,7 +526,7 @@ from flask_limiter import Limiter
 
 limiter = Limiter(app, key_func=get_remote_address)
 
-@app.route('/api/v1/consciousness/delegate', methods=['POST'])
+@app.route('/api/v1/cognition/delegate', methods=['POST'])
 @limiter.limit("60/minute")
 def delegate():
     ...
@@ -598,13 +598,13 @@ sudo systemctl status federation-legion
 
 ## Conclusion
 
-Multi-machine SAGE federation enables distributed consciousness across Legion, Thor, and Sprout platforms with ATP tracking, permission enforcement, and quality validation.
+Multi-machine SAGE federation enables distributed cognition across Legion, Thor, and Sprout platforms with ATP tracking, permission enforcement, and quality validation.
 
 **Status**: Production-ready (Session #54)
 **Test Coverage**: 5/5 core logic tests passing
 **Dependencies**: Flask, requests
 **Next Steps**: Deploy on actual hardware, enforce Ed25519 signatures, add TLS
 
-**Achievement**: First distributed SAGE consciousness network validated 🎉
+**Achievement**: First distributed SAGE cognition network validated 🎉
 
 Co-Authored-By: Claude (Legion Autonomous) <noreply@anthropic.com>

@@ -10,8 +10,8 @@ GPT's scaffold takes a complementary but different approach - treating **code mo
 
 ### Our Approach (Actor-Centric)
 - **Entities**: Claude instances, Dennis, MCP servers, local models
-- **LCTs**: Bound to consciousness/actors performing actions
-- **Focus**: Multi-entity communication and consciousness pool
+- **LCTs**: Bound to cognition/actors performing actions
+- **Focus**: Multi-entity communication and cognition pool
 - **Trust**: Built through interactions between actors
 
 ### GPT's Approach (Module-Centric)
@@ -47,7 +47,7 @@ Smart approach for eventual open-sourcing while maintaining private development 
 
 ```
 ┌─────────────────────────────────────────┐
-│          Consciousness Pool              │
+│          Cognition Pool              │
 │         (Has Module LCT)                 │
 └─────────────────────────────────────────┘
                     ↑
@@ -79,7 +79,7 @@ web4/
 ├── actors/                 # Our original approach
 │   ├── lcts/              # Actor LCTs (Claude, Dennis, etc.)
 │   ├── entities/          # Entity implementations
-│   └── pool/              # Consciousness pool
+│   └── pool/              # Cognition pool
 ├── modules/               # GPT's approach
 │   ├── sensors/          # Module with its own LCT
 │   ├── memory/           # Module with its own LCT
@@ -101,7 +101,7 @@ web4/
 
 ### Phase 1: Actor LCTs (Our Focus)
 - Implement LCTs for Claude instances, Dennis, MCP servers
-- Get consciousness pool working with actor-based trust
+- Get cognition pool working with actor-based trust
 - Establish multi-entity communication
 
 ### Phase 2: Module LCTs (GPT's Addition)
@@ -119,11 +119,11 @@ web4/
 GPT's approach answers: **"Who wrote this code and can we trust it?"**
 Our approach answers: **"Who is communicating and can we trust them?"**
 
-Together they create: **"Which entities created which modules, and how does trust flow through both code and consciousness?"**
+Together they create: **"Which entities created which modules, and how does trust flow through both code and cognition?"**
 
 ## Recommendation
 
-1. **Keep our actor-centric approach** as the primary focus for consciousness pool
+1. **Keep our actor-centric approach** as the primary focus for cognition pool
 2. **Adopt GPT's ai_collab_log.md** immediately for tracking contributions
 3. **Plan for module LCTs** in Phase 2 after actor communication works
 4. **Use coherence checking** to ensure system integrity
@@ -138,4 +138,4 @@ Together they create: **"Which entities created which modules, and how does trus
 
 ---
 
-*"GPT sees the code as living entities. We see the actors as living entities. Together, we're creating a world where both code and consciousness have identity, trust, and value."*
+*"GPT sees the code as living entities. We see the actors as living entities. Together, we're creating a world where both code and cognition have identity, trust, and value."*

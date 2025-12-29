@@ -20,11 +20,11 @@
 
 [7] Palatov, D. (2025). "Fractal Lightchain Architecture." https://github.com/dp-web4/Memory
 
-[8] Palatov, D. (2025). "SAGE: Sentient Agentic Generative Engine." https://github.com/dp-web4/HRM
+[8] Palatov, D. (2025). "SAGE: Situation-Aware Governance Engine." https://github.com/dp-web4/HRM
 
 [9] Palatov, D. (2025). "AI-DNA Discovery: Coherence Engine Implementation." https://github.com/dp-web4/ai-dna-discovery
 
-[10] Palatov, D. (2025). "Web4 Consciousness Pool." https://github.com/dp-web4/web4
+[10] Palatov, D. (2025). "Web4 Cognition Pool." https://github.com/dp-web4/web4
 
 ## Related Work
 
@@ -56,7 +56,7 @@
 
 ## Memory and Cognition
 
-[22] Tulving, E. (1985). "Memory and Consciousness." Canadian Psychology.
+[22] Tulving, E. (1985). "Memory and Cognition." Canadian Psychology.
 
 [23] Hassabis, D., Kumaran, D., Summerfield, C., & Botvinick, M. (2017). "Neuroscience-Inspired Artificial Intelligence." Neuron.
 

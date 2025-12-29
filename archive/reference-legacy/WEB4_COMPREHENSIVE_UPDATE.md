@@ -155,7 +155,7 @@ This creates evolutionary pressure toward useful memory rather than mere accumul
 
 ### 3.1 SAGE as Fractal Web4 Instance
 
-SAGE (Sentient Agentic Generative Engine) exemplifies Web4 principles as a fractal instance where:
+SAGE (Situation-Aware Governance Engine) exemplifies Web4 principles as a fractal instance where:
 
 - Every component is an entity with an LCT
 - Trust flows through witnessed interactions
@@ -378,7 +378,7 @@ WEB4 with its temporal sensing architecture, fractal lightchain infrastructure, 
 - **Generate value** through useful recall and verified contribution
 - **Evolve toward coherence** through accumulated experience
 
-This is not merely a technical architecture but a blueprint for distributed consciousness—where memory witnessed becomes memory trusted, memory trusted becomes knowledge shared, and knowledge shared becomes intelligence distributed.
+This is not merely a technical architecture but a blueprint for distributed cognition—where memory witnessed becomes memory trusted, memory trusted becomes knowledge shared, and knowledge shared becomes intelligence distributed.
 
 The path forward is clear: implement the foundational protocols, deploy in real-world systems, measure and refine, and watch as trust-native intelligence emerges from the substrate we've created.
 

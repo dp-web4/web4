@@ -682,9 +682,9 @@ def delegate_task(delegating_lct: str, task: Dict):
    - Implement task routing based on capabilities
 
 3. **SAGE Integration**
-   - Give SAGE consciousness an LCT identity
-   - Implement LCT-based consciousness tracking
-   - Test multi-platform consciousness delegation
+   - Give SAGE cognition an LCT identity
+   - Implement LCT-based cognition tracking
+   - Test multi-platform cognition delegation
    - Integrate permissions with SAGE operations
 
 4. **Consensus Integration**

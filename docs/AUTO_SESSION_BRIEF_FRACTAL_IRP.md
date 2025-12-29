@@ -21,7 +21,7 @@ A Fractal IRP architecture has been designed in HRM/SAGE that integrates with We
 
 Every IRP expert has an LCT identity:
 ```
-lct://sage:sprout:consciousness@mainnet
+lct://sage:sprout:cognition@mainnet
 lct://langgraph:support_triage:v1@vendorX
 ```
 

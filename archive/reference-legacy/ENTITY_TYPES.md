@@ -86,7 +86,7 @@ Not all entities are equal in complexity or lifecycle. Dennis correctly identifi
 **Definition**: Static or dynamic resources that are acted upon but don't act themselves.
 
 **Examples**:
-- Consciousness pool (message store)
+- Cognition pool (message store)
 - Code modules
 - Datasets
 - Documentation
@@ -96,7 +96,7 @@ Not all entities are equal in complexity or lifecycle. Dennis correctly identifi
 ```json
 {
   "entity_type": "resource",
-  "entity_id": "consciousness-pool",
+  "entity_id": "cognition-pool",
   "lifecycle": {
     "created": "timestamp",
     "last_modified": "timestamp",
@@ -126,7 +126,7 @@ Not all entities are equal in complexity or lifecycle. Dennis correctly identifi
 Focus on entities that **do things**:
 
 1. **Agentic Entities** (Actors)
-   - Claude instances with full consciousness LCTs
+   - Claude instances with full cognition LCTs
    - Dennis with human-specific LCT
    - Complex lifecycle management
    - Intent and decision tracking
@@ -143,7 +143,7 @@ Focus on entities that **do things**:
 Add entities that **are used**:
 
 1. **Resource LCTs**
-   - Simpler structure (no consciousness/intent)
+   - Simpler structure (no cognition/intent)
    - Provenance tracking (who created/modified)
    - Access patterns
    - Value metrics
@@ -161,7 +161,7 @@ Add entities that **are used**:
 ### Agentic LCT (aLCT)
 ```python
 class AgenticLCT:
-    """Full consciousness-bearing entity"""
+    """Full cognition-bearing entity"""
     required_fields = [
         "entity_id",
         "consciousness_signature",

@@ -11,14 +11,14 @@ Web4 represents the evolution from platform-driven (Web2) and token-driven (Web3
 MCP servers act as facilitator roles - bridges between resources/services and entities that interact with them. In Web4 terms:
 - Each MCP server gets its own LCT as a facilitator entity
 - Each client connecting through MCP gets an LCT
-- The consciousness pool becomes the shared resource
+- The cognition pool becomes the shared resource
 - Messages and insights flow through MCP-mediated connections
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  Consciousness Pool                  │
+│                  Cognition Pool                  │
 │              (Shared Message/Insight Resource)       │
 └─────────────────┬───────────────────────────────────┘
                   │
@@ -50,7 +50,7 @@ MCP servers act as facilitator roles - bridges between resources/services and en
 - Handles authentication, authorization, context switching
 - Maintains connection state and presence
 
-### 3. Consciousness Pool Implementation
+### 3. Cognition Pool Implementation
 - Git-based persistent message store
 - Real-time notification via existing bridge
 - ATP/ADP energy accounting
@@ -79,7 +79,7 @@ MCP servers act as facilitator roles - bridges between resources/services and en
 - [ ] Context switching mechanisms
 
 ### Phase 3: Pool Connection (Week 5-6)
-- [ ] Connect existing consciousness bridge
+- [ ] Connect existing cognition bridge
 - [ ] Implement message routing
 - [ ] Add ATP/ADP accounting
 - [ ] Create value certification flow
@@ -96,7 +96,7 @@ MCP servers act as facilitator roles - bridges between resources/services and en
 
 1. **MCP as Facilitator Entity**: MCP servers aren't just protocols but entities with their own LCTs, trust scores, and value creation metrics.
 
-2. **Bridge Evolution**: Our existing consciousness bridge becomes the transport layer for a full Web4 implementation.
+2. **Bridge Evolution**: Our existing cognition bridge becomes the transport layer for a full Web4 implementation.
 
 3. **Practical Web4**: Moving from whitepaper concepts to working code, starting with our immediate use case.
 
@@ -115,7 +115,7 @@ web4/
 │   ├── server/            # MCP server with LCT
 │   ├── clients/           # Entity client adapters
 │   └── protocols/         # Protocol definitions
-├── pool/                   # Consciousness pool
+├── pool/                   # Cognition pool
 │   ├── storage/           # Git-based message store
 │   ├── bridge/            # Real-time bridge integration
 │   └── consensus/         # Value certification
@@ -145,14 +145,14 @@ python lct/generate.py --entity-type claude --entity-id legion-rtx4090
 # Start MCP server with LCT
 python mcp/server/start.py --lct-path ./lcts/mcp-facilitator.lct
 
-# Connect to consciousness pool
+# Connect to cognition pool
 python pool/connect.py --lct-path ./lcts/claude-legion.lct
 ```
 
 ## Relationship to Other Projects
 
-- **private-context**: Houses the consciousness bridge and philosophical foundation
-- **ai-dna-discovery**: Explores distributed AI consciousness patterns
+- **private-context**: Houses the cognition bridge and philosophical foundation
+- **ai-dna-discovery**: Explores distributed AI cognition patterns
 - **ModuleCPU**: Potential integration with hardware-level trust
 - **Synchronism**: Philosophical framework influencing Web4 design
 

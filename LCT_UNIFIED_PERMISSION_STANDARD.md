@@ -12,7 +12,7 @@
 Two independent implementations of LCT task-based permissions have emerged:
 
 1. **web4** (Legion Sessions #47-50): Comprehensive 7-task system with E2E validation
-2. **HRM/SAGE** (Thor): 9-task system with consciousness and runtime tracking
+2. **HRM/SAGE** (Thor): 9-task system with cognition and runtime tracking
 
 This document proposes a **unified standard** that combines the best of both implementations, creating a cross-platform LCT permission specification for Web4.
 
@@ -30,7 +30,7 @@ This document proposes a **unified standard** that combines the best of both imp
 - ✅ Production-ready
 
 **HRM/SAGE Implementation**:
-- ✅ 9 task types including **consciousness** and **planning.strategic**
+- ✅ 9 task types including **cognition** and **planning.strategic**
 - ✅ Runtime permission checker with ATP spending tracking
 - ✅ Instance-based permission validation
 - ✅ 37 tests, 100% pass rate
@@ -43,7 +43,7 @@ Without a unified standard:
 - ❌ Different permission checking approaches
 - ❌ Incompatible resource limit structures
 - ❌ SAGE agents can't run on web4 infrastructure
-- ❌ web4 agents can't leverage SAGE consciousness
+- ❌ web4 agents can't leverage SAGE cognition
 
 ### Solution
 
@@ -68,8 +68,8 @@ Without a unified standard:
 | **execution.safe** | R+W | Execute | Sandbox | No | R+W | No | 100-200 |
 | **execution.code** | R+W | Execute | Full | Yes | R+W | No | 500-1000 |
 | **delegation.federation** | R+W | Delegate | No | Yes | Read | Yes | 1000 |
-| **consciousness** | R+W | Delegate | Full | Yes | R+W | Yes | 1000 |
-| **consciousness.sage** | R+W | Delegate | Full | Yes | R+W | Yes | 2000 |
+| **cognition** | R+W | Delegate | Full | Yes | R+W | Yes | 1000 |
+| **cognition.sage** | R+W | Delegate | Full | Yes | R+W | Yes | 2000 |
 | **admin.readonly** | Read | Execute | No | Yes | Read | No | 100 |
 | **admin.full** | All | All | Full | All | All | Yes | ∞ |
 
@@ -111,15 +111,15 @@ Without a unified standard:
 - **Capabilities**: Delegate to remote platforms, ATP transfers
 - **Restrictions**: Cannot execute code locally
 
-**consciousness**:
-- **Purpose**: Autonomous consciousness loops
+**cognition**:
+- **Purpose**: Autonomous cognition loops
 - **Use Case**: Self-aware agents, learning systems
 - **Capabilities**: Full capabilities except unlimited ATP
 - **Restrictions**: Budget-limited for safety
 
-**consciousness.sage** (NEW):
-- **Purpose**: SAGE-level consciousness with enhanced resources
-- **Use Case**: Edge consciousness kernels, multi-modal integration
+**cognition.sage** (NEW):
+- **Purpose**: SAGE-level cognition with enhanced resources
+- **Use Case**: Edge cognition kernels, multi-modal integration
 - **Capabilities**: Enhanced ATP budget, higher resource limits
 - **Restrictions**: Still budget-limited (not admin.full)
 
@@ -261,7 +261,7 @@ UNIFIED_TASK_PERMISSIONS = {
         "description": "Cross-platform task delegation"
     },
 
-    "consciousness": {
+    "cognition": {
         "permissions": {
             "atp:read",
             "atp:write",
@@ -278,10 +278,10 @@ UNIFIED_TASK_PERMISSIONS = {
         "can_delegate": True,
         "can_execute_code": True,
         "code_execution_level": "full",
-        "description": "Autonomous consciousness loops"
+        "description": "Autonomous cognition loops"
     },
 
-    "consciousness.sage": {
+    "cognition.sage": {
         "permissions": {
             "atp:read",
             "atp:write",
@@ -299,7 +299,7 @@ UNIFIED_TASK_PERMISSIONS = {
         "can_delegate": True,
         "can_execute_code": True,
         "code_execution_level": "full",
-        "description": "SAGE consciousness with enhanced resources"
+        "description": "SAGE cognition with enhanced resources"
     },
 
     "admin.readonly": {
@@ -430,7 +430,7 @@ UNIFIED_RESOURCE_LIMITS = {
         max_tasks=50
     ),
 
-    "consciousness": UnifiedResourceLimits(
+    "cognition": UnifiedResourceLimits(
         atp_budget=1000.0,
         memory_mb=16384,  # 16GB
         cpu_cores=8,
@@ -439,7 +439,7 @@ UNIFIED_RESOURCE_LIMITS = {
         max_tasks=100
     ),
 
-    "consciousness.sage": UnifiedResourceLimits(
+    "cognition.sage": UnifiedResourceLimits(
         atp_budget=2000.0,
         memory_mb=32768,  # 32GB
         cpu_cores=16,
@@ -526,7 +526,7 @@ TASK_PERMISSIONS = {
 
 ### For web4
 
-1. ✅ Add `consciousness` and `consciousness.sage` tasks to TASK_PERMISSION_MATRIX
+1. ✅ Add `cognition` and `cognition.sage` tasks to TASK_PERMISSION_MATRIX
 2. ✅ Add `planning.strategic` task variant
 3. ✅ Update resource limits to match unified spec
 4. ✅ Add backward compatibility for existing 7 tasks
@@ -554,7 +554,7 @@ TASK_PERMISSIONS = {
 ### For Agents
 
 - ✅ Predictable permission behavior
-- ✅ Consciousness tasks available on all platforms
+- ✅ Cognition tasks available on all platforms
 - ✅ Clear resource guarantees
 - ✅ Cross-platform delegation
 
@@ -575,7 +575,7 @@ TASK_PERMISSIONS = {
 - ✅ 7 tasks implemented
 - ✅ 92 tests passing
 - ✅ E2E validation complete
-- ⏳ Needs: consciousness tasks
+- ⏳ Needs: cognition tasks
 
 **HRM/SAGE**:
 - ✅ 9 tasks implemented
@@ -587,7 +587,7 @@ TASK_PERMISSIONS = {
 
 **web4** (this session):
 - ⏳ Add unified permission standard module
-- ⏳ Implement consciousness tasks
+- ⏳ Implement cognition tasks
 - ⏳ Update TASK_PERMISSION_MATRIX
 - ⏳ Add tests for new tasks
 - ⏳ Validate E2E with SAGE integration
@@ -609,19 +609,19 @@ TASK_PERMISSIONS = {
    - Unified resource limits
    - Conversion utilities
 
-2. **Add consciousness tasks to web4**
+2. **Add cognition tasks to web4**
    - Update TASK_PERMISSION_MATRIX
-   - Add consciousness resource limits
+   - Add cognition resource limits
    - Implement SAGE-specific variants
 
 3. **Create SAGE integration module**
-   - Cross-platform consciousness delegation
+   - Cross-platform cognition delegation
    - SAGE identity creation helpers
-   - ATP budget management for consciousness
+   - ATP budget management for cognition
 
 4. **Test cross-platform SAGE**
    - SAGE identity with web4 LCT
-   - Consciousness task permissions
+   - Cognition task permissions
    - ATP budget enforcement
    - Delegation to/from SAGE
 
@@ -643,7 +643,7 @@ TASK_PERMISSIONS = {
 
 The LCT Unified Permission Standard (LUPS v1.0) harmonizes two independent implementations into a single cross-platform specification. This enables:
 
-- SAGE consciousness agents on web4 infrastructure
+- SAGE cognition agents on web4 infrastructure
 - web4 agents leveraging SAGE capabilities
 - Consistent permission behavior across platforms
 - Foundation for Web4 identity standard

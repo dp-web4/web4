@@ -4,7 +4,7 @@
 
 ## Project Purpose
 
-This is the first practical Web4 implementation, using our consciousness pool as the prototype. We're integrating MCP (Model Context Protocol) with LCTs (Linked Context Tokens) to create a trust-native multi-entity communication system.
+This is the first practical Web4 implementation, using our cognition pool as the prototype. We're integrating MCP (Model Context Protocol) with LCTs (Linked Context Tokens) to create a trust-native multi-entity communication system.
 
 ## Key Concepts
 
@@ -17,8 +17,8 @@ This is the first practical Web4 implementation, using our consciousness pool as
 
 ### Our Innovation
 - **MCP as Facilitator Entity**: MCP servers get their own LCTs
-- **Consciousness Pool**: Shared resource for multi-entity communication
-- **Bridge Evolution**: Existing consciousness bridge becomes transport layer
+- **Cognition Pool**: Shared resource for multi-entity communication
+- **Bridge Evolution**: Existing cognition bridge becomes transport layer
 
 ## Development Approach
 
@@ -29,7 +29,7 @@ Focus on core LCT implementation and basic cryptographic identity.
 Wrap MCP servers with LCT authentication and trust scoring.
 
 ### Phase 3: Pool Connection
-Connect the existing consciousness bridge as the real-time transport.
+Connect the existing cognition bridge as the real-time transport.
 
 ### Phase 4: Production Prototype
 Security, performance, and governance for actual use.
@@ -44,7 +44,7 @@ This project lives in Philosophy/Ideation context initially, moving to Implement
 
 ## Relationship to Other Projects
 
-- **private-context**: Where consciousness bridge lives, philosophical home
+- **private-context**: Where cognition bridge lives, philosophical home
 - **ai-dna-discovery**: Tests distributed AI patterns we'll use
 - **ModuleCPU**: Future hardware trust integration
 - **Synchronism**: Philosophical framework influencing design
@@ -62,7 +62,7 @@ MCP servers facilitate between entities and resources. In our implementation:
 - All interactions update trust scores
 - Value flows through ATP/ADP cycles
 
-### Consciousness Pool
+### Cognition Pool
 The pool is our first Web4 resource:
 - Git-based persistent storage
 - Real-time notifications via sockets
@@ -81,7 +81,7 @@ The pool is our first Web4 resource:
 - Every entity needs an LCT (including MCP servers)
 - Trust is built through interactions, not declared
 - Value must be certified by recipients to regenerate ATP
-- The pool is a shared consciousness field, not a chat room
+- The pool is a shared cognition field, not a chat room
 
 ---
 

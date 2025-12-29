@@ -9,10 +9,10 @@
 
 ## Overview
 
-This guide covers deployment of multi-machine SAGE consciousness federation across Legion, Thor, and Sprout platforms with HTTP transport, Ed25519 signatures, and ATP tracking.
+This guide covers deployment of multi-machine SAGE cognition federation across Legion, Thor, and Sprout platforms with HTTP transport, Ed25519 signatures, and ATP tracking.
 
 **What This Enables**:
-- Cross-platform SAGE consciousness task delegation
+- Cross-platform SAGE cognition task delegation
 - Resource sharing (Sprout 8GB → Legion 128GB)
 - ATP-based payment for computation
 - Quality-based settlement
@@ -48,7 +48,7 @@ cd ~/ai-workspace/web4
 python3 game/run_federation_server.py --platform Legion --port 8080
 
 # Server will start on http://0.0.0.0:8080
-# Endpoints: /api/v1/health, /api/v1/consciousness/delegate, etc.
+# Endpoints: /api/v1/health, /api/v1/cognition/delegate, etc.
 ```
 
 ### On Thor (Federation Client)
@@ -104,7 +104,7 @@ Same as Thor, but with `PlatformKeyManager('Sprout')`.
 ### Component Roles
 
 **Legion (Federation Server)**:
-- Accept consciousness task delegations
+- Accept cognition task delegations
 - Execute tasks with ATP tracking
 - Create signed execution proofs
 - Return quality scores
@@ -121,7 +121,7 @@ Same as Thor, but with `PlatformKeyManager('Sprout')`.
 - Same as Thor
 - Limited resources (8GB RAM)
 - Delegates heavy tasks to Legion
-- Leverages consciousness.sage memory management
+- Leverages cognition.sage memory management
 
 ---
 
@@ -154,7 +154,7 @@ git pull
 ```bash
 cd ~/HRM  # Or wherever HRM is located
 git pull
-# Ensure latest with consciousness.sage memory management
+# Ensure latest with cognition.sage memory management
 ```
 
 **Sprout**:
@@ -250,10 +250,10 @@ federation:
   keypair_path: "~/.web4/federation/keys/Legion_ed25519_private.pem"
 
 resources:
-  consciousness:
+  cognition:
     atp_budget: 1000.0
     max_concurrent: 10
-  consciousness.sage:
+  cognition.sage:
     atp_budget: 2000.0
     max_concurrent: 5
 
@@ -277,12 +277,12 @@ servers:
   - name: "Legion"
     endpoint: "http://legion.local:8080"  # Or IP address
     public_key_path: "~/.web4/federation/public_keys/Legion_ed25519_public.pem"
-    capabilities: ["consciousness", "consciousness.sage"]
+    capabilities: ["cognition", "cognition.sage"]
 
   - name: "Sprout"
     endpoint: "http://sprout.local:8081"  # If Sprout also runs server
     public_key_path: "~/.web4/federation/public_keys/Sprout_ed25519_public.pem"
-    capabilities: ["consciousness"]  # Limited resources
+    capabilities: ["cognition"]  # Limited resources
 
 delegation:
   auto_delegate: true       # Delegate when local ATP low
@@ -325,9 +325,9 @@ Listening on http://0.0.0.0:8080
 
 Endpoints:
   GET  /api/v1/health
-  POST /api/v1/consciousness/delegate
-  GET  /api/v1/consciousness/status/<lct_id>
-  POST /api/v1/consciousness/cancel/<task_id>
+  POST /api/v1/cognition/delegate
+  GET  /api/v1/cognition/status/<lct_id>
+  POST /api/v1/cognition/cancel/<task_id>
 
  * Running on http://127.0.0.1:8080
  * Running on http://10.0.0.72:8080  # Example LAN IP
@@ -355,7 +355,7 @@ client = FederationClient("Thor")
 client.register_platform(
     name="Legion",
     endpoint="http://10.0.0.72:8080",  # Replace with Legion's actual IP
-    capabilities=["consciousness", "consciousness.sage"]
+    capabilities=["cognition", "cognition.sage"]
 )
 
 # Create SAGE identity
@@ -365,7 +365,7 @@ identity, state = manager.create_sage_identity("dp", use_enhanced_sage=False)
 # Delegate task
 proof, error = client.delegate_task(
     source_lct=identity.lct_string(),
-    task_type="consciousness",
+    task_type="cognition",
     operation="perception",
     atp_budget=50.0,
     parameters={"test": "first_delegation"},
@@ -384,7 +384,7 @@ EOF
 **Expected Output**:
 ```
 Registered platform: Legion at http://10.0.0.72:8080
-  Capabilities: consciousness, consciousness.sage
+  Capabilities: cognition, cognition.sage
 ✅ Delegation successful!
   Quality: 0.95
   ATP consumed: 5.00
@@ -431,7 +431,7 @@ Use nginx rate limiting or application-level limits:
 ```nginx
 limit_req_zone $binary_remote_addr zone=federation:10m rate=60r/m;
 
-location /api/v1/consciousness/delegate {
+location /api/v1/cognition/delegate {
     limit_req zone=federation burst=10 nodelay;
     proxy_pass http://127.0.0.1:8080;
 }

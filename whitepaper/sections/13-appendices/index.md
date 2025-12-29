@@ -342,7 +342,7 @@ message Acknowledgment {
 | **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
 | **SNARC** | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |
 | **HRM** | Hierarchical Reasoning Model | Two-level reasoning architecture |
-| **SAGE** | Sentient Agentic Generative Engine | Web4 reference implementation |
+| **SAGE** | Situation-Aware Governance Engine | Web4 reference implementation |
 | **VCM** | Value Confirmation Mechanism | Multi-party value certification |
 | **MCP** | Model Context Protocol | AI model communication standard |
 

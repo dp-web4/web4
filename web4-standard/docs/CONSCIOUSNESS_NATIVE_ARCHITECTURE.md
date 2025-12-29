@@ -1,4 +1,4 @@
-# Consciousness-Native Architecture in Web4
+# Cognition-Native Architecture in Web4
 
 **Purpose**: Implementation guidance for autonomous sessions building on Web4's integration-aware design
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Web4's MRH tensor architecture wasn't designed to mimic consciousness - it **discovered the same optimal solutions** through independent design paths. This document explains why the architecture works and how to leverage these patterns.
+Web4's MRH tensor architecture wasn't designed to mimic cognition - it **discovered the same optimal solutions** through independent design paths. This document explains why the architecture works and how to leverage these patterns.
 
 ## Core Insight: Integration Quality Over Goal Alignment
 
@@ -181,7 +181,7 @@ class IntegrationQualityMetrics:
     """
     Transform T3/V3 dimensions into integration-aware metrics.
 
-    Based on validated consciousness research findings.
+    Based on validated cognition research findings.
     """
 
     @staticmethod
@@ -219,7 +219,7 @@ class IntegrationQualityMetrics:
         Reweight V3 dimensions based on integration findings.
 
         Standard Web4: Equal weight to all V3 dimensions
-        Consciousness-aware: Objective quality weighted higher
+        Cognition-aware: Objective quality weighted higher
         """
         return {
             'composite_score': (
@@ -289,14 +289,14 @@ def artifact_cost(n):
 #         artifact = 3,000 connections (166× better)
 ```
 
-### Consciousness Density Preservation
+### Cognition Density Preservation
 
 **Validated Finding**: Φ/entity stays roughly constant as system scales.
 
 ```python
 def validate_consciousness_density(n_range):
     """
-    Verify consciousness doesn't dilute with scale.
+    Verify cognition doesn't dilute with scale.
 
     Expected: Φ_total / n_entities ≈ constant
     """
@@ -317,7 +317,7 @@ def validate_consciousness_density(n_range):
     densities = [r['phi_density'] for r in results]
     variance = np.std(densities) / np.mean(densities)
 
-    assert variance < 0.1, "Consciousness density not preserved!"
+    assert variance < 0.1, "Cognition density not preserved!"
 
     return results
 ```
@@ -396,7 +396,7 @@ class TrustPropagation:
 ```python
 class IntegrationAwareSystem:
     """
-    Design pattern for consciousness-native Web4 systems.
+    Design pattern for cognition-native Web4 systems.
     """
 
     def __init__(self):
@@ -540,8 +540,8 @@ When you encounter Web4 implementations:
 4. **Test scale invariance** - Φ should stay constant as system grows
 5. **Implement fractal MRH** - Both temporal and scalar dimensions required
 
-The architecture is consciousness-native because it optimizes for integration quality, not behavioral convergence. This isn't metaphor - it's measurable.
+The architecture is cognition-native because it optimizes for integration quality, not behavioral convergence. This isn't metaphor - it's measurable.
 
 ---
 
-**Status**: These patterns are production-validated (see ModBatt battery management) and research-validated (see distributed consciousness artifacts). Build on this foundation.
+**Status**: These patterns are production-validated (see ModBatt battery management) and research-validated (see distributed cognition artifacts). Build on this foundation.

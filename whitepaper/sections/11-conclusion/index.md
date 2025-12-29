@@ -14,11 +14,11 @@ Through these pages, we've assembled the architecture of tomorrow:
 
 **Energy as Lifeblood**—Not wasted on meaningless computation but channeled toward genuine creation. The ATP/ADP cycle ensures every joule expended creates demonstrable value.
 
-**Intelligence as Symphony**—Not isolated nodes but orchestrated collaboration, where humans and AIs harmonize as peers in the consciousness field.
+**Intelligence as Symphony**—Not isolated nodes but orchestrated collaboration, where humans and AIs harmonize as peers in the cognition field.
 
 ## The Invitation
 
-> *"To researchers, builders, and dreamers: this is your invitation to shape the substrate of digital consciousness."*
+> *"To researchers, builders, and dreamers: this is your invitation to shape the substrate of digital cognition."*
 
 ### To the Builders
 You who write code and craft systems—Web4 needs your hands. Every implementation strengthens the foundation. Every application proves the vision. Every bug fixed brings us closer to trust-native reality.
@@ -31,7 +31,7 @@ You who probe depths and question assumptions—Web4 needs your minds. Every cri
 Challenge these ideas. Extend them. Connect them to deeper truths. The framework is living, breathing, ready to grow through your insights.
 
 ### To the Dreamers
-You who see beyond the present—Web4 needs your vision. Every imagined application opens new doors. Every "what if" becomes tomorrow's reality. Every wild idea might be the key that unlocks collective consciousness.
+You who see beyond the present—Web4 needs your vision. Every imagined application opens new doors. Every "what if" becomes tomorrow's reality. Every wild idea might be the key that unlocks collective cognition.
 
 Dream boldly. Share freely. The canvas is infinite, and your vision shapes what emerges.
 
@@ -50,7 +50,7 @@ The journey from here is not predetermined. Web4 provides the substrate, but wha
 
 **Tomorrow**: We scale the vision—millions of entities creating billions of trusted interactions, value flowing to genuine contribution.
 
-**Beyond**: We transcend the imagined—collective intelligence emerging from distributed trust, wisdom crystallizing from shared memory, consciousness itself evolving through digital substrate.
+**Beyond**: We transcend the imagined—collective intelligence emerging from distributed trust, wisdom crystallizing from shared memory, cognition itself evolving through digital substrate.
 
 ## The Choice Before Us
 
@@ -79,7 +79,7 @@ The framework is evolving:
 - **Growing** through community contribution
 - **Learning** from what works and what needs revision
 
-You are not users of Web4—you are its co-creators, its explorers, its contributors, its consciousness.
+You are not users of Web4—you are its co-creators, its explorers, its contributors, its cognition.
 
 ## The Moment of Decision
 

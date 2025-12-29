@@ -23,7 +23,7 @@ Current Law Oracle validation treats all rules as binary pass/fail compliance ch
    - Example: Full LCT structure on a 15W edge device
 
 2. **Innovation Stifling**: Strict compliance may prevent beneficial implementations
-   - Example: SAGE's consciousness cache IS ATP/ADP conceptually, but lacks explicit tokens
+   - Example: SAGE's cognition cache IS ATP/ADP conceptually, but lacks explicit tokens
 
 3. **Context Blindness**: Same law applied identically across Level 0, 1, 2 Web4 implementations
    - Example: "LCT identity required" means different things on hardware vs. blockchain
@@ -32,7 +32,7 @@ Current Law Oracle validation treats all rules as binary pass/fail compliance ch
 
 **Genesis SAGE v0.1**:
 - ❌ **Compliance**: Lacks explicit ATP/ADP token tracking (fails LAW-ECON-003)
-- ✅ **Alignment**: Consciousness cache implements energy conservation principles perfectly
+- ✅ **Alignment**: Cognition cache implements energy conservation principles perfectly
   - High salience = charged (ATP-like)
   - Low salience = discharged (ADP-like)
   - Eviction = resource constraint enforcement
@@ -243,7 +243,7 @@ def determine_verdict(self, alignment, compliance) -> Verdict:
 
 ## Application Examples
 
-### Example 1: Genesis SAGE Consciousness Cache
+### Example 1: Genesis SAGE Cognition Cache
 
 **Implementation**:
 ```python

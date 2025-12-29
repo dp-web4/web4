@@ -24,20 +24,20 @@ The **LCT Unified Permission Standard (LUPS v1.0)** is a cross-platform permissi
 **File Updated**: `game/engine/lct_permissions.py`
 
 **Changes**:
-- Added 3 new task types (consciousness, consciousness.sage, planning.strategic)
+- Added 3 new task types (cognition, cognition.sage, planning.strategic)
 - Updated resource limits to match LUPS v1.0
 - Maintained backward compatibility
 - All 86 tests passing
 
 **New Task Types Available**:
 ```python
-# Standard consciousness
-check_permission("consciousness", "atp:write")  # True
-get_atp_budget("consciousness")  # 1000.0
+# Standard cognition
+check_permission("cognition", "atp:write")  # True
+get_atp_budget("cognition")  # 1000.0
 
-# Enhanced SAGE consciousness
-check_permission("consciousness.sage", "storage:delete")  # True
-get_atp_budget("consciousness.sage")  # 2000.0
+# Enhanced SAGE cognition
+check_permission("cognition.sage", "storage:delete")  # True
+get_atp_budget("cognition.sage")  # 2000.0
 
 # Strategic planning
 check_permission("planning.strategic", "network:http")  # True
@@ -72,7 +72,7 @@ get_atp_budget("planning.strategic")  # 500.0
 - perception, planning, **planning.strategic** (new)
 - execution.safe, execution.code
 - delegation.federation
-- **consciousness, consciousness.sage** (new)
+- **cognition, cognition.sage** (new)
 - admin.readonly, admin.full
 
 ### Resource Limits Updated
@@ -87,17 +87,17 @@ Some tasks have updated limits to match LUPS v1.0:
 
 ### New Capabilities
 
-**Consciousness Tasks** (for SAGE integration):
+**Cognition Tasks** (for SAGE integration):
 ```python
 from game.engine.lct_permissions import check_permission, get_atp_budget
 
-# Check consciousness permissions
-can_delegate = check_permission("consciousness", "federation:delegate")  # True
-can_execute = check_permission("consciousness", "exec:code")  # True
+# Check cognition permissions
+can_delegate = check_permission("cognition", "federation:delegate")  # True
+can_execute = check_permission("cognition", "exec:code")  # True
 
-# Get consciousness resources
-budget = get_atp_budget("consciousness")  # 1000.0
-sage_budget = get_atp_budget("consciousness.sage")  # 2000.0
+# Get cognition resources
+budget = get_atp_budget("cognition")  # 1000.0
+sage_budget = get_atp_budget("cognition.sage")  # 2000.0
 ```
 
 ---
@@ -120,19 +120,19 @@ get_atp_budget("delegation.federation")
 ```python
 from game.engine.lct_permissions import TASK_PERMISSIONS
 
-# Use consciousness tasks
-consciousness_perms = TASK_PERMISSIONS["consciousness"]
-sage_perms = TASK_PERMISSIONS["consciousness.sage"]
+# Use cognition tasks
+consciousness_perms = TASK_PERMISSIONS["cognition"]
+sage_perms = TASK_PERMISSIONS["cognition.sage"]
 strategic_perms = TASK_PERMISSIONS["planning.strategic"]
 
 # Check permissions
-if check_permission("consciousness", "atp:write"):
-    # Consciousness can transfer ATP
+if check_permission("cognition", "atp:write"):
+    # Cognition can transfer ATP
     pass
 
 # Get resource limits
 from game.engine.lct_permissions import get_resource_limits
-limits = get_resource_limits("consciousness.sage")
+limits = get_resource_limits("cognition.sage")
 print(f"SAGE ATP budget: {limits.atp_budget}")  # 2000.0
 print(f"SAGE memory: {limits.memory_mb}MB")  # 32768MB (32GB)
 ```
@@ -150,20 +150,20 @@ from game.engine.sage_lct_integration import (
 # Create SAGE manager
 manager = SAGELCTManager("Thor")
 
-# Create SAGE consciousness identity
+# Create SAGE cognition identity
 identity, state = manager.create_sage_identity(
     "dp",
-    use_enhanced_sage=True  # consciousness.sage with 2000 ATP
+    use_enhanced_sage=True  # cognition.sage with 2000 ATP
 )
 
-# Check consciousness operations
+# Check cognition operations
 can_op, reason = manager.can_perform_consciousness_operation(
     identity.lct_string(),
     "execute_code",
     atp_cost=50.0
 )
 
-# Record consciousness loops
+# Record cognition loops
 manager.record_consciousness_loop(
     identity.lct_string(),
     atp_cost=20.0,
@@ -207,12 +207,12 @@ python3 game/run_lct_e2e_integration_test.py
 
 ✅ Single permission specification across platforms
 ✅ Consistent task behavior everywhere
-✅ SAGE consciousness support built-in
+✅ SAGE cognition support built-in
 ✅ Clear upgrade path
 
 ### For Agents
 
-✅ Consciousness tasks available
+✅ Cognition tasks available
 ✅ Predictable permission behavior
 ✅ Cross-platform portability
 ✅ Enhanced resource limits for SAGE
@@ -232,7 +232,7 @@ python3 game/run_lct_e2e_integration_test.py
 
 **No action required** - migration complete, all tests passing.
 
-**Optional**: Start using consciousness tasks for SAGE integration.
+**Optional**: Start using cognition tasks for SAGE integration.
 
 ### For HRM/SAGE Users
 

@@ -265,7 +265,7 @@ Memory as temporal sensor represents a fundamental shift in how we architect int
 - Generate value through useful recall
 - Evolve toward greater coherence
 
-This isn't just a technical architecture—it's a blueprint for how distributed consciousness emerges from the interplay of sensing, remembering, and projecting across time.
+This isn't just a technical architecture—it's a blueprint for how distributed cognition emerges from the interplay of sensing, remembering, and projecting across time.
 
 ---
 

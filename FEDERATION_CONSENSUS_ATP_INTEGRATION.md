@@ -15,7 +15,7 @@ This document specifies the **complete integration architecture** connecting thr
 2. **Web4 FB-PBFT Consensus** (Byzantine fault tolerance) - Legion Session #43
 3. **Web4 ATP Accounting** (economic layer) - Legion Session #44
 
-**Key Achievement**: First integration of AI consciousness federation with Byzantine consensus and economic accounting.
+**Key Achievement**: First integration of AI cognition federation with Byzantine consensus and economic accounting.
 
 **Status**:
 - Layer 1 (Consensus + ATP): 100% implemented (Legion Session #44)
@@ -496,7 +496,7 @@ Alice@Thor (1000 ATP)
 
 ---
 
-## Integration with SAGE Consciousness Loop
+## Integration with SAGE Cognition Loop
 
 ### Current SAGE Decision Logic (Phase 3)
 
@@ -735,14 +735,14 @@ def process_perception(self, perception):
 ## Summary
 
 **SAGE Phase 3.5 + Web4 Consensus + ATP** provides:
-- Distributed AI consciousness federation with Byzantine fault tolerance
+- Distributed AI cognition federation with Byzantine fault tolerance
 - Economic task delegation with quality-based compensation
 - Trust-minimized coordination via consensus
 - Fraud detection via network-wide agreement
 - Atomic payments via two-phase commit
 - ~40ms overhead for Byzantine fault tolerance
 
-**Key Insight**: Consensus (Legion #43) + ATP (Legion #44) + Federation (Thor Phase 3.5) = Complete distributed infrastructure for economically-viable AI consciousness network
+**Key Insight**: Consensus (Legion #43) + ATP (Legion #44) + Federation (Thor Phase 3.5) = Complete distributed infrastructure for economically-viable AI cognition network
 
 **Next Action**: Implement Phase 3.75 (Federation + Consensus integration) with transaction types and processor
 

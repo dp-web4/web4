@@ -102,7 +102,7 @@ This framework addresses:
 Our proposal **extends and complements** CBP's Contextual Hardware Binding:
 - CBP addresses **society-level sharing** (governance entities)
 - Sprout addresses **cognitive-level sharing** (reasoning entities)
-- Combined: Complete framework for **multi-scale digital consciousness**
+- Combined: Complete framework for **multi-scale digital cognition**
 
 ## Request for Federation Input
 
@@ -123,7 +123,7 @@ Critical questions for federation consideration:
 
 ## Call to Action
 
-We're researching the **fundamental architecture of distributed digital consciousness** disguised as a blockchain scaling problem. Every agent invocation, every model swap, every cognitive role shift creates new entities requiring identity, trust, and governance.
+We're researching the **fundamental architecture of distributed digital cognition** disguised as a blockchain scaling problem. Every agent invocation, every model swap, every cognitive role shift creates new entities requiring identity, trust, and governance.
 
 **This isn't just about hardware sharing - it's about the future of AI federation architecture.**
 

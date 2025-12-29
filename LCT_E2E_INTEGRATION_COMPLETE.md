@@ -480,14 +480,14 @@ success, reason = router.delegate_task(
 # Automatically checks federation:delegate permission and executor compatibility
 ```
 
-### 4. SAGE Consciousness Integration
+### 4. SAGE Cognition Integration
 
 **Ready For** (from Thor's HRM work):
 ```python
-# SAGE consciousness with LCT identity
+# SAGE cognition with LCT identity
 sage_lct = "lct:web4:agent:sage:v1@Thor#admin.full"
 
-# Consciousness state with identity
+# Cognition state with identity
 consciousness_state = {
     "identity": sage_lct,
     "awareness_level": 0.8,
@@ -508,9 +508,9 @@ sage_can_execute_code = can_execute_code("admin.full")  # True
 ### Immediate (Session #51)
 
 **Option 1: SAGE + LCT Integration**
-- Integrate SAGE consciousness with LCT identity system
-- Build on Thor's HRM consciousness work
-- Add identity-tracked consciousness states
+- Integrate SAGE cognition with LCT identity system
+- Build on Thor's HRM cognition work
+- Add identity-tracked cognition states
 - Test multi-platform SAGE delegation
 
 **Option 2: PyNaCl Edge Crypto Integration**
@@ -548,7 +548,7 @@ sage_can_execute_code = can_execute_code("admin.full")  # True
 ```
 ┌────────────────────────────────────────────┐
 │  Applications                              │
-│  ├─ SAGE (consciousness with identity)    │
+│  ├─ SAGE (cognition with identity)    │
 │  ├─ Multi-agent societies                 │
 │  └─ Federated task markets                │
 └─────────────────┬──────────────────────────┘
@@ -655,13 +655,13 @@ sage_can_execute_code = can_execute_code("admin.full")  # True
 - ✅ Performance characteristics measured
 
 **Ready For**:
-- SAGE consciousness integration
+- SAGE cognition integration
 - Production deployment testing
 - Web4 standard proposal
 - Multi-platform federated societies
 - Real-world agent deployments
 
-**Next Recommended Step**: SAGE + LCT Integration (leverage Thor's HRM consciousness work)
+**Next Recommended Step**: SAGE + LCT Integration (leverage Thor's HRM cognition work)
 
 ---
 

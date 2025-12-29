@@ -32,7 +32,7 @@
 - Plus other founding documents
 
 **Evolution**:
-- **August 2025**: MCP-focused prototype for consciousness pool
+- **August 2025**: MCP-focused prototype for cognition pool
 - **Oct-Dec 2025**: Full RFC-style standard, research sessions, simulation engine
 - Project matured from prototype to production standard
 

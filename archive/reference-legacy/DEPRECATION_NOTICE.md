@@ -10,7 +10,7 @@ Web4 has since **evolved significantly** beyond this original scope:
 
 **August 2025** (this archive):
 - Web4 as MCP-LCT integration prototype
-- Focus on consciousness pool connection
+- Focus on cognition pool connection
 - Phase 1-4 development plan
 - MCP servers as facilitator entities
 

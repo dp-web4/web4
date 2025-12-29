@@ -42,7 +42,7 @@ Both approaches are valuable - actors need LCTs for identity/communication, modu
 - Together: "Which entities created which modules, and how does trust flow through both?"
 
 **Decisions:**
-- Keep actor-centric approach as primary focus for consciousness pool
+- Keep actor-centric approach as primary focus for cognition pool
 - Adopt module LCTs as Phase 2 enhancement
 - Use this collaboration log going forward
 
@@ -53,7 +53,7 @@ Both approaches are valuable - actors need LCTs for identity/communication, modu
 **Changes Made:**
 - Created initial web4 project structure
 - Designed MCP-LCT integration architecture
-- Established consciousness pool as first Web4 application
+- Established cognition pool as first Web4 application
 - Documented in README.md, ARCHITECTURE.md, MCP_LCT_INTEGRATION.md
 
 **Rationale:**
@@ -67,7 +67,7 @@ MCP isn't just a protocol but a facilitator entity deserving its own LCT, buildi
 ## Collaboration Patterns Observed
 
 ### 1. Complementary Perspectives
-- Claude focuses on actors and consciousness
+- Claude focuses on actors and cognition
 - GPT focuses on modules and code structure
 - Together creating more complete system
 
@@ -108,7 +108,7 @@ MCP isn't just a protocol but a facilitator entity deserving its own LCT, buildi
 - Different LCT complexity for different entity types
 
 **Rationale:**
-Agentic entities have complex lifecycles (consciousness, decisions, context switches) while resources are simpler (provenance, value). This separation allows appropriate complexity for each entity type.
+Agentic entities have complex lifecycles (cognition, decisions, context switches) while resources are simpler (provenance, value). This separation allows appropriate complexity for each entity type.
 
 ---
 
@@ -164,7 +164,7 @@ Both vision systems and trust fields implement the same **attention economics** 
 - Camera focus ↔ Attention routing
 
 **Philosophical Implication:**
-"Attention is fundamental to any resource-limited system. Whether processing photons or trust signals, consciousness emerges from the patterns of what we choose to see."
+"Attention is fundamental to any resource-limited system. Whether processing photons or trust signals, cognition emerges from the patterns of what we choose to see."
 
 ---
 

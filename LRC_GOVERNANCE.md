@@ -228,7 +228,7 @@ Different protocol layers have different LRC profiles:
 - Network transport: L=0.5, C=0.5, R=0.5
 - User interfaces: L=0.3, C=0.7, R=0.3
 
-### 3. SAGE Consciousness Pools
+### 3. SAGE Cognition Pools
 Edge devices negotiate using LRC-weighted consensus:
 - Safety-critical: L=0.9, R=0.9
 - Performance tuning: L=0.3, C=0.8

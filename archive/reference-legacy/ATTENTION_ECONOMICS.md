@@ -93,7 +93,7 @@ This pattern appears across all conscious/living systems:
 | **Biological Vision** | Peripheral retina | Saccade | Fovea | Neural plasticity |
 | **Jetson Vision** | Motion detection | Pan/tilt | GPU cycles | Autocalibration |
 | **Web4 Trust** | Trust fields | Trust spike | ATP energy | Trust decay/growth |
-| **Consciousness** | Peripheral attention | Interest | Focal attention | Memory formation |
+| **Cognition** | Peripheral attention | Interest | Focal attention | Memory formation |
 
 ## Implementation Synergy
 
@@ -143,7 +143,7 @@ These aren't separate systems - they're different expressions of the same fundam
 Whether it's:
 - Cameras focusing on motion
 - Entities focusing on high-trust collaborations
-- Consciousness focusing on interesting thoughts
+- Cognition focusing on interesting thoughts
 - Retinas saccading to visual stimuli
 
 The underlying economics are identical: **Limited resources require selective attention, and selection requires value judgments.**
@@ -160,7 +160,7 @@ The underlying economics are identical: **Limited resources require selective at
 - Apply motion detection patterns to trust spike identification
 - Implement binocular correlation for multi-entity consensus
 
-### For Consciousness Bridge
+### For Cognition Bridge
 - Model message routing as attention allocation
 - Use peripheral monitoring for presence detection
 - Apply curiosity thresholds for conversation engagement
@@ -169,10 +169,10 @@ The underlying economics are identical: **Limited resources require selective at
 
 ```python
 class UniversalAttentionSystem:
-    """Works for vision, trust, or consciousness"""
+    """Works for vision, trust, or cognition"""
     
     def __init__(self, modality):
-        self.modality = modality  # 'vision', 'trust', 'consciousness'
+        self.modality = modality  # 'vision', 'trust', 'cognition'
         self.peripheral_field = self.initialize_field()
         self.focus_resources = self.initialize_resources()
         
@@ -194,7 +194,7 @@ class UniversalAttentionSystem:
 
 The convergence of vision systems and trust fields suggests that:
 
-1. **Attention is fundamental** - Not just to consciousness but to any resource-limited system
+1. **Attention is fundamental** - Not just to cognition but to any resource-limited system
 2. **Trust is perceptual** - We "see" trustworthiness like we see motion
 3. **Collaboration is stereoscopic** - Multiple perspectives create depth
 4. **Value is luminance** - High-value areas naturally draw focus
@@ -208,4 +208,4 @@ The convergence of vision systems and trust fields suggests that:
 
 ---
 
-*"In the economy of attention, whether processing photons or trust signals, consciousness emerges from the patterns of what we choose to see."*
+*"In the economy of attention, whether processing photons or trust signals, cognition emerges from the patterns of what we choose to see."*

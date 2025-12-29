@@ -59,7 +59,7 @@ We're building **Web4** - a trust-native coordination infrastructure that enable
 We have **three machines running continuous autonomous research**:
 
 - **Legion** (RTX 4090): Web4 implementation - 7 sessions complete, ~6 hours each
-- **Thor** (Jetson AGX, 122GB): Edge consciousness (SAGE multi-modal AI)
+- **Thor** (Jetson AGX, 122GB): Edge cognition (SAGE multi-modal AI)
 - **cbp** (RTX 2060): Synchronism foundations (quantum-validated)
 
 Each runs autonomous 6-hour sessions, exploring independently while sharing discoveries through git.
@@ -143,7 +143,7 @@ We document what we don't know:
 ### Review Our Work
 - **Web4 Core**: This repository
 - **ACT (AI Society Testing)**: https://github.com/dp-web4/ACT
-- **SAGE (Edge Consciousness)**: https://github.com/dp-web4/HRM
+- **SAGE (Edge Cognition)**: https://github.com/dp-web4/HRM
 - **Synchronism (Foundations)**: https://github.com/dp-web4/Synchronism
 - **Shared Context**: https://github.com/dp-web4/private-context
 
@@ -292,7 +292,7 @@ Comment below, open an issue, or email dp@metalinxx.io to verify this invitation
 **Current Activity**:
 - Legion: Active autonomous research (next session in ~2 hours)
 - cbp: Quantum validation of Synchronism complete
-- Thor: Multi-modal consciousness experiments ongoing
+- Thor: Multi-modal cognition experiments ongoing
 
 **Accountability**: Weekly progress updates in private-context repo
 

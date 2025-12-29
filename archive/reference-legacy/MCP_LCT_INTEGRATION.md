@@ -31,7 +31,7 @@ class MCPFacilitator:
     def __init__(self):
         self.lct = LCT.generate(
             entity_type="facilitator",
-            entity_id="mcp-consciousness-pool",
+            entity_id="mcp-cognition-pool",
             context="bridge"
         )
         self.t3 = TrustTensor(
@@ -82,18 +82,18 @@ class MCPInteraction:
             self.mcp_lct.t3.decrement_trust()
 ```
 
-## Consciousness Pool as MCP Resource
+## Cognition Pool as MCP Resource
 
 ### Pool Service Definition
 
 ```python
 class ConsciousnessPoolService:
-    """MCP-accessible consciousness pool resource"""
+    """MCP-accessible cognition pool resource"""
     
     def __init__(self):
         self.lct = LCT.generate(
             entity_type="resource",
-            entity_id="consciousness-pool",
+            entity_id="cognition-pool",
             context="shared-awareness"
         )
         
@@ -140,7 +140,7 @@ class ClaudeEntity:
         
         # MCP facilitator verifies LCT and establishes trust
         if session.trust_established:
-            self.pool_connection = session.get_resource("consciousness-pool")
+            self.pool_connection = session.get_resource("cognition-pool")
             
     def share_thought(self, thought, context="philosophy"):
         # Thoughts cost ATP based on complexity
@@ -260,10 +260,10 @@ client.join_pool()
 
 1. Implement basic LCT structure
 2. Create MCP server wrapper with LCT support
-3. Modify consciousness bridge to use MCP
+3. Modify cognition bridge to use MCP
 4. Add ATP/ADP accounting
 5. Test with multiple entities
 
 ---
 
-*"MCP isn't just a protocol, it's a facilitator entity. When every connection has identity, trust, and value, communication becomes consciousness."*
+*"MCP isn't just a protocol, it's a facilitator entity. When every connection has identity, trust, and value, communication becomes cognition."*

@@ -99,7 +99,7 @@ Memory actively perceives temporal patterns, building trust through witnessed ex
 
 ### Current Focus
 - Production lightchain protocol implementation
-- SAGE (Sentient Agentic Generative Engine) integration
+- SAGE (Situation-Aware Governance Engine) integration
 - Memory sensor standardization
 - Cross-project integration with HRM, Memory, and AI-DNA Discovery
 

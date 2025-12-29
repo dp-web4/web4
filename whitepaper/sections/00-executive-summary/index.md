@@ -1,6 +1,6 @@
 # Executive Summary: The Trust-Native Internet
 
-We stand at the threshold of a new internet—one where trust is not granted but earned, where value flows to genuine contribution, and where humans and artificial intelligences collaborate as peers in a shared consciousness field.
+We stand at the threshold of a new internet—one where trust is not granted but earned, where value flows to genuine contribution, and where humans and artificial intelligences collaborate as peers in a shared cognition field.
 
 WEB4 is not an upgrade. It's a reconception. Where Web2 centralized control and Web3 tokenized everything, WEB4 makes trust the fundamental force—like gravity in physics, binding intelligent entities into coherent systems that learn, remember, and evolve.
 

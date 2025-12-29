@@ -13,7 +13,7 @@ This specification documents the reference implementation of Web4, a coherence-b
 
 **Key Innovation**: Application of universal coherence function C(ρ) across all system components, creating unified dynamics from quantum to cosmic to network scales.
 
-**Production Status**: Research prototypes with validated cross-project patterns (Thor consciousness + Synchronism physics → Web4 coordination)
+**Production Status**: Research prototypes with validated cross-project patterns (Thor cognition + Synchronism physics → Web4 coordination)
 
 ---
 
@@ -69,7 +69,7 @@ C(ρ) = tanh(γ × log(ρ/ρ_crit + 1))
 | Galactic | Matter density | Gravitational coupling | Dark matter effect |
 | Cosmic | Matter density | Expansion rate | Dark energy |
 | Network | Interaction density | Trust stability | Reputation decay |
-| Consciousness | Salience | Attention threshold | Resource allocation |
+| Cognition | Salience | Attention threshold | Resource allocation |
 
 ---
 
@@ -80,13 +80,13 @@ C(ρ) = tanh(γ × log(ρ/ρ_crit + 1))
 **From Tracks 26, 29, 32**: Empirically validated authorization with metabolic state integration
 
 ```python
-def authorize(request, consciousness, trust):
-    # Step 1: Consciousness-aware criticality check
+def authorize(request, cognition, trust):
+    # Step 1: Cognition-aware criticality check
     if request.criticality == 'critical':
         can_handle = (
-            consciousness.metabolic_state == MetabolicState.FOCUS
-            and consciousness.arousal > 0.6
-            and consciousness.atp_level > 0.4
+            cognition.metabolic_state == MetabolicState.FOCUS
+            and cognition.arousal > 0.6
+            and cognition.atp_level > 0.4
         )
         if not can_handle:
             return REJECT, "System not in state to handle critical request"
@@ -94,7 +94,7 @@ def authorize(request, consciousness, trust):
     # Step 2: Multi-model trust calculation
     effective_trust = (
         trust.scalar_trust *
-        empirical_state_multipliers[consciousness.metabolic_state] *
+        empirical_state_multipliers[cognition.metabolic_state] *
         interaction_multipliers[trust.interaction_type] *
         decay_resistance_multiplier
     )
@@ -494,7 +494,7 @@ Total: 4,834 LOC production-ready reference implementations
 
 ## 8. Cross-Project Validation
 
-### 8.1 Thor (Consciousness) Validation
+### 8.1 Thor (Cognition) Validation
 
 **Sessions 10-13** validated ATP dynamics:
 - Session 10: Found 31% ceiling
@@ -525,7 +525,7 @@ Molecular:                C(T) for bonding
 Galactic (Session 96):    C(ρ) for dark matter
 Cosmic (Session 100):     C(ρ) for dark energy
 Network (Tracks 27-35):   C(ρ) for trust/reputation
-Consciousness (Thor):     C(salience) for attention
+Cognition (Thor):     C(salience) for attention
 ```
 
 ---

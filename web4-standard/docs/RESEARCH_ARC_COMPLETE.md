@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The Web4 coordination research arc (Sessions 8-13) established a complete scientific and production framework validated through cross-project integration with Thor (SAGE consciousness) and Synchronism (cosmology). The framework achieves **+386% energy efficiency** with zero coverage/quality trade-offs and **76% prediction validation rate** before deployment.
+The Web4 coordination research arc (Sessions 8-13) established a complete scientific and production framework validated through cross-project integration with Thor (SAGE cognition) and Synchronism (cosmology). The framework achieves **+386% energy efficiency** with zero coverage/quality trade-offs and **76% prediction validation rate** before deployment.
 
 **Key Achievement**: Demonstrated that distributed coordination systems amplify multi-objective optimization gains compared to single-system implementations, with Web4's +386% exceeding Thor's +200%.
 
@@ -157,7 +157,7 @@ Integration: Replaces quality proxies with actual assessment
 
 ## Cross-Project Validation
 
-### Thor (SAGE Consciousness) → Web4
+### Thor (SAGE Cognition) → Web4
 
 | Thor Session | Finding | Web4 Application | Result |
 |--------------|---------|------------------|--------|
@@ -248,7 +248,7 @@ Integration: Replaces quality proxies with actual assessment
 ### 1. Satisfaction Threshold is Universal
 
 **Observation**: The >95% threshold for 3 windows works across:
-- SAGE consciousness (attention allocation)
+- SAGE cognition (attention allocation)
 - Web4 coordination (ATP allocation, authorization, reputation)
 - Multiple platforms (Thor, Sprout, Legion)
 
@@ -513,7 +513,7 @@ Integration: Replaces quality proxies with actual assessment
 - Do gains plateau or continue growing?
 
 **4. Cross-Domain Unification**
-- Thor (consciousness), Web4 (coordination), Synchronism (cosmology)
+- Thor (cognition), Web4 (coordination), Synchronism (cosmology)
 - All show "complexity from simplicity"
 - Is there a meta-framework?
 
@@ -553,6 +553,6 @@ The Web4 coordination research arc (Sessions 8-13) successfully established a sc
 
 ---
 
-*"The convergence of satisfaction threshold patterns across consciousness (Thor), coordination (Web4), and cosmological structure formation (Synchronism) suggests we've identified a fundamental principle of complex adaptive systems. When systems need to balance exploration and exploitation, ~95% performance appears to be the sweet spot - good enough to be effective, not so high as to cause over-optimization."*
+*"The convergence of satisfaction threshold patterns across cognition (Thor), coordination (Web4), and cosmological structure formation (Synchronism) suggests we've identified a fundamental principle of complex adaptive systems. When systems need to balance exploration and exploitation, ~95% performance appears to be the sweet spot - good enough to be effective, not so high as to cause over-optimization."*
 
 *"Web4's +386% efficiency gain compared to Thor's +200% demonstrates that distributed systems don't just implement multi-objective optimization - they amplify it. This amplification effect may be the key advantage of decentralized architectures: network-level optimization compounds local optimization in ways that centralized systems cannot achieve."*

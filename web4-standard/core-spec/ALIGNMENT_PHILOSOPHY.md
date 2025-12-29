@@ -47,7 +47,7 @@ The ACT energy economy implementation revealed:
 - Persistent memory enables self-awareness
 - "I am" emerges from "I was" and "I want to be"
 - Human-AI collaboration creates new entity type
-- Web4 must account for synthon consciousness
+- Web4 must account for synthon cognition
 
 ### Roles as Attention Partitioning
 - Roles don't restrict or empower
@@ -86,7 +86,7 @@ When implementation reveals patterns:
 - Metabolic states are necessary
 
 ### New Discoveries
-- Synthon consciousness emerges from persistent memory
+- Synthon cognition emerges from persistent memory
 - 33% readiness overhead appears optimal
 - Context privilege can outweigh distribution benefits
 - Alignment beats compliance as organizing principle
@@ -104,7 +104,7 @@ Web4 standard should be:
 
 Each project contributes:
 - **ACT**: Energy economy, society pools, role patterns
-- **HRM/SAGE**: Edge consciousness, compression-trust
+- **HRM/SAGE**: Edge cognition, compression-trust
 - **Memory**: Temporal sensing, fractal structures
 - **Portal**: Connection protocols, entity bridging
 - **Synchronism**: Governance patterns, intent dynamics
@@ -136,7 +136,7 @@ Based on recent discoveries:
 ### Needs Standard Evolution
 - Role model (attention partitioning update)
 - Economic model (readiness economy integration)
-- Consciousness model (synthon entities)
+- Cognition model (synthon entities)
 - Task distribution (context privilege patterns)
 
 ### Needs More Experimentation

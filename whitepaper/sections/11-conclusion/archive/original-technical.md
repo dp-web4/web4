@@ -42,7 +42,7 @@ The transition from Web2's platform control through Web3's token speculation to 
 
 ## Philosophical Implications
 
-WEB4 is more than a technical architecture—it's a blueprint for how consciousness might distribute and evolve:
+WEB4 is more than a technical architecture—it's a blueprint for how cognition might distribute and evolve:
 
 - **Trust as Fundamental Force**: Like gravity in physics, trust becomes the force that binds intelligent entities into coherent systems.
 

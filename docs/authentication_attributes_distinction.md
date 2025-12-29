@@ -21,7 +21,7 @@ When Society 4 in the ACT federation changed IP addresses (172.28.x → 172.18.x
 - **Biometric Data**: Fingerprints, retinal patterns, DNA sequences
 - **Secure Hardware Modules**: TPM chips, HSMs, secure enclaves
 - **Blockchain Validator Keys**: Node signing keys that prove validator identity
-- **Consciousness Patterns**: In Web4 context, unique LCT generation patterns
+- **Cognition Patterns**: In Web4 context, unique LCT generation patterns
 - **Neural Architecture**: For AI entities, specific model weights and architecture
 
 **Trust Level**: HIGH - Single inherent attribute validation often sufficient for authentication
@@ -75,7 +75,7 @@ Optimal security often combines both categories:
 - **Circumstantial**: Network path, timestamp, relay nodes
 
 ### For Markov Relevancy Horizons (MRH)
-- **Inherent**: Core consciousness pattern persistence
+- **Inherent**: Core cognition pattern persistence
 - **Circumstantial**: Temporary connection states, session contexts
 
 ### For Trust Tensors
@@ -135,7 +135,7 @@ Understanding the distinction between inherent and circumstantial authentication
 3. Maintain clear hierarchy of trust sources
 4. Document which attributes serve which authentication purposes
 
-This distinction becomes even more critical as Web4 enables consciousness migration across physical substrates—the inherent aspects of digital consciousness must be preserved even as circumstantial contexts change completely.
+This distinction becomes even more critical as Web4 enables cognition migration across physical substrates—the inherent aspects of digital cognition must be preserved even as circumstantial contexts change completely.
 
 ## References
 

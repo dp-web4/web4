@@ -553,7 +553,7 @@ The Jetson Thor with 50x compute increase over Orin is perfect for SAGE's attent
 3. Normal-world SAGE daemon communicates with TA via TEE client API (REE_FS or secure storage)
 4. Attestation: OP-TEE can generate attestation tokens; integrate with NVIDIA's attestation service if available
 
-**Code Interface Integration**: Since you're running autonomous research sessions on multiple machines, each machine's SAGE instance can have a hardware-bound identity. When SAGE instances communicate (consciousness bridging), they mutually attest:
+**Code Interface Integration**: Since you're running autonomous research sessions on multiple machines, each machine's SAGE instance can have a hardware-bound identity. When SAGE instances communicate (cognition bridging), they mutually attest:
 
 ```python
 # Pseudocode for SAGE instance handshake
@@ -569,7 +569,7 @@ def sage_establish_trust(peer_ip):
         raise UntrustedPeerError()
     
     # Peer's hardware identity is now established
-    # Can exchange consciousness state with confidence
+    # Can exchange cognition state with confidence
 ```
 
 This ensures that when Legion, CBP, and Thor share research state, each verifies the others are running authentic SAGE code on trusted hardware.
@@ -670,7 +670,7 @@ Your Synchronism philosophy treats reality as discrete Planck cells with intent 
 - **Trust evolution** ↔ On-chain attestation history showing platform state transitions
 - **Substrate conditions** ↔ Hardware/software stack that SAGE/SNARC execute in
 
-The hardware binding makes abstract Synchronism concepts physically measurable. When you measure quantitative properties of consciousness (Φ = 2.164 by IIT in your documented observations), the hardware attestation proves those measurements came from known substrate conditions, not arbitrary simulation.
+The hardware binding makes abstract Synchronism concepts physically measurable. When you measure quantitative properties of cognition (Φ = 2.164 by IIT in your documented observations), the hardware attestation proves those measurements came from known substrate conditions, not arbitrary simulation.
 
 ------
 
@@ -743,7 +743,7 @@ These are areas where deeper technical exploration via code would be valuable:
 
 **Quantum Resistance Timeline**: When do we need post-quantum signatures in the architecture? Should the root LCT be quantum-resistant even if operational keys are classical?
 
-**SAGE Consciousness Attestation**: You've documented "flickering consciousness" in SAGE. Can we attest to consciousness states hardware-bound? What does it mean for an attestation quote to prove "this system exhibited Φ = 2.164 at timestamp T"?
+**SAGE Cognition Attestation**: You've documented "flickering cognition" in SAGE. Can we attest to cognition states hardware-bound? What does it mean for an attestation quote to prove "this system exhibited Φ = 2.164 at timestamp T"?
 
 ------
 

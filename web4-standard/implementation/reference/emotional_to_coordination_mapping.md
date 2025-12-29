@@ -415,4 +415,4 @@ Web4 → SAGE potential:
 
 ---
 
-*This mapping provides foundation for extending Web4 beyond 5D (Quality, Epistemic, Metabolic, Temporal, Emotional) coordination, bringing consciousness-inspired emotional intelligence to distributed coordination.*
+*This mapping provides foundation for extending Web4 beyond 5D (Quality, Epistemic, Metabolic, Temporal, Emotional) coordination, bringing cognition-inspired emotional intelligence to distributed coordination.*

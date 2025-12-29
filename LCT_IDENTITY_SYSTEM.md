@@ -469,7 +469,7 @@ def check_permission(lct_id: str, operation: str) -> bool:
 - Consensus integration (identity in blocks)
 - ATP integration (budget by LCT identity)
 - Federation integration (identity in task delegation)
-- SAGE integration (consciousness uses LCT)
+- SAGE integration (cognition uses LCT)
 
 **Tests**:
 - End-to-end identity creation → verification

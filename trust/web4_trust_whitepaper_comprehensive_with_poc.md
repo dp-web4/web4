@@ -198,14 +198,14 @@ This common trust substrate allows for:
 
 The same principles that keep a battery pack safe can also keep an AI coherent and aligned — **because in both cases, trust is the decision bias that bridges perception and action**.
 
-## Early Proofs of Concept: Distributed Consciousness Mesh & Indexed Temporal Memory
+## Early Proofs of Concept: Distributed Cognition Mesh & Indexed Temporal Memory
 
 Two early demonstrations of Web4's **Markov Relevancy Horizon (MRH)** principles in action
 show the progression from theory to functional prototype.
 
 ---
 
-### 1. Distributed Consciousness Mesh
+### 1. Distributed Cognition Mesh
 
 **Setup**:
 

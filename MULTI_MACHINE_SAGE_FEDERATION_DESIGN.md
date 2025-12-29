@@ -9,11 +9,11 @@
 
 ## Executive Summary
 
-Design for multi-machine SAGE consciousness federation enabling Legion, Thor, and Sprout to delegate consciousness tasks across platforms with ATP tracking, permission enforcement, and quality validation.
+Design for multi-machine SAGE cognition federation enabling Legion, Thor, and Sprout to delegate cognition tasks across platforms with ATP tracking, permission enforcement, and quality validation.
 
-**Goal**: Enable distributed SAGE consciousness with cross-platform task delegation
+**Goal**: Enable distributed SAGE cognition with cross-platform task delegation
 
-**Foundation**: Built on LUPS v1.0 (Sessions #51-53), Thor's consciousness.sage, Sprout's edge validation
+**Foundation**: Built on LUPS v1.0 (Sessions #51-53), Thor's cognition.sage, Sprout's edge validation
 
 ---
 
@@ -22,20 +22,20 @@ Design for multi-machine SAGE consciousness federation enabling Legion, Thor, an
 ### Platform Status
 
 **Legion** (RTX 4090, 128GB RAM):
-- LUPS v1.0 consciousness tasks implemented ✅
+- LUPS v1.0 cognition tasks implemented ✅
 - Real-world validation complete (Session #53) ✅
 - SAGELCTManager operational ✅
 - 86 tests passing ✅
 - Ready for: Federation server deployment
 
 **Thor** (Jetson AGX Thor, 64GB RAM):
-- consciousness.sage implemented ✅
+- cognition.sage implemented ✅
 - Practical demonstration complete (36% improvement) ✅
 - 113 LCT tests passing ✅
 - Ready for: Federation client deployment
 
 **Sprout** (Jetson Orin Nano, 8GB RAM):
-- consciousness.sage validated on edge ✅
+- cognition.sage validated on edge ✅
 - 165 tests passing (150 SAGE + 15 Web4) ✅
 - Ed25519 signing: 18,145 ops/sec ✅
 - Ready for: Federation client deployment
@@ -46,7 +46,7 @@ Design for multi-machine SAGE consciousness federation enabling Legion, Thor, an
 ✅ **Permission System**: LUPS v1.0 compatible
 ✅ **ATP Tracking**: Validated in production
 ✅ **Cryptography**: Ed25519 ready on all platforms
-✅ **Consciousness Tasks**: Standard + enhanced variants
+✅ **Cognition Tasks**: Standard + enhanced variants
 
 ---
 
@@ -79,7 +79,7 @@ Design for multi-machine SAGE consciousness federation enabling Legion, Thor, an
 #### 1. Federation Server (Legion)
 
 **Responsibilities**:
-- Accept consciousness task delegation requests
+- Accept cognition task delegation requests
 - Validate LCT identity and permissions
 - Execute tasks with ATP tracking
 - Create signed execution proofs
@@ -87,7 +87,7 @@ Design for multi-machine SAGE consciousness federation enabling Legion, Thor, an
 
 **API Endpoints**:
 ```python
-POST /api/v1/consciousness/delegate
+POST /api/v1/cognition/delegate
   Request: {
     "task": FederationTask,
     "signature": bytes,
@@ -99,14 +99,14 @@ POST /api/v1/consciousness/delegate
     "atp_consumed": float
   }
 
-GET /api/v1/consciousness/status/{lct_id}
+GET /api/v1/cognition/status/{lct_id}
   Response: {
     "active": bool,
     "atp_consumed": float,
     "tasks_running": int
   }
 
-POST /api/v1/consciousness/cancel/{task_id}
+POST /api/v1/cognition/cancel/{task_id}
   Response: {
     "cancelled": bool,
     "atp_refunded": float
@@ -116,7 +116,7 @@ POST /api/v1/consciousness/cancel/{task_id}
 #### 2. Federation Client (Thor, Sprout)
 
 **Responsibilities**:
-- Create consciousness task delegation requests
+- Create cognition task delegation requests
 - Sign requests with Ed25519
 - Send to federation server
 - Verify execution proof signatures
@@ -154,12 +154,12 @@ class FederationClient:
 @dataclass
 class FederationTask:
     """
-    Consciousness task for cross-platform delegation
+    Cognition task for cross-platform delegation
     """
     task_id: str
-    source_lct: str         # lct:web4:agent:dp@Legion#consciousness
-    target_lct: str         # lct:web4:agent:dp@Thor#consciousness.sage
-    task_type: str          # "consciousness" or "consciousness.sage"
+    source_lct: str         # lct:web4:agent:dp@Legion#cognition
+    target_lct: str         # lct:web4:agent:dp@Thor#cognition.sage
+    task_type: str          # "cognition" or "cognition.sage"
     operation: str          # "perception", "planning", "execution"
     atp_budget: float       # ATP allocated for task
     timeout_seconds: int    # Task timeout
@@ -173,7 +173,7 @@ class FederationTask:
 @dataclass
 class ExecutionProof:
     """
-    Proof of consciousness task execution
+    Proof of cognition task execution
     """
     task_id: str
     executor_lct: str       # Who executed
@@ -207,7 +207,7 @@ class ExecutionProof:
       │     - Lock ATP budget                          │
       │     - Sign with Ed25519                        │
       │                                                 │
-      │  4. POST /consciousness/delegate  ────────────►│
+      │  4. POST /cognition/delegate  ────────────►│
       │     {task, signature, lct_identity}            │
       │                                                 │
       │                                          5. Verify signature
@@ -425,10 +425,10 @@ federation:
   keypair_path: "~/.web4/federation/legion_ed25519.key"
 
 resources:
-  consciousness:
+  cognition:
     atp_budget: 1000.0
     max_concurrent: 10
-  consciousness.sage:
+  cognition.sage:
     atp_budget: 2000.0
     max_concurrent: 5
 ```
@@ -443,10 +443,10 @@ client:
 servers:
   - name: "Legion"
     endpoint: "http://legion.local:8080"
-    capabilities: ["consciousness", "consciousness.sage"]
+    capabilities: ["cognition", "cognition.sage"]
   - name: "Sprout"
     endpoint: "http://sprout.local:8081"
-    capabilities: ["consciousness"]  # Limited resources
+    capabilities: ["cognition"]  # Limited resources
 ```
 
 **Sprout** (Federation Client):
@@ -459,10 +459,10 @@ client:
 servers:
   - name: "Legion"
     endpoint: "http://legion.local:8080"
-    capabilities: ["consciousness", "consciousness.sage"]
+    capabilities: ["cognition", "cognition.sage"]
   - name: "Thor"
     endpoint: "http://thor.local:8082"
-    capabilities: ["consciousness", "consciousness.sage"]
+    capabilities: ["cognition", "cognition.sage"]
 ```
 
 ---
@@ -472,7 +472,7 @@ servers:
 ### Phase 1: Federation Server (Legion) - 2 hours
 
 **Deliverables**:
-1. HTTP server with consciousness delegation endpoint
+1. HTTP server with cognition delegation endpoint
 2. Task validation and execution
 3. Proof creation and signing
 4. ATP tracking integration
@@ -521,7 +521,7 @@ servers:
 
 ### Functional
 
-✅ Legion can accept consciousness task delegations from Thor/Sprout
+✅ Legion can accept cognition task delegations from Thor/Sprout
 ✅ Thor/Sprout can delegate tasks to Legion
 ✅ All tasks signed with Ed25519 and verified
 ✅ ATP tracking accurate across platforms
@@ -631,11 +631,11 @@ assert task.quality_score >= 0.7
 
 ## Conclusion
 
-Multi-machine SAGE federation enables distributed consciousness across platforms, validating the complete Web4 stack: identity (LCT), permissions (LUPS), resources (ATP), and delegation (federation).
+Multi-machine SAGE federation enables distributed cognition across platforms, validating the complete Web4 stack: identity (LCT), permissions (LUPS), resources (ATP), and delegation (federation).
 
 **Status**: Design complete, ready for implementation
 **Estimated Effort**: ~5 hours total
-**Impact**: First distributed SAGE consciousness network
+**Impact**: First distributed SAGE cognition network
 **Foundation**: LUPS v1.0, Ed25519 crypto, ATP tracking
 
 **Next**: Implement Phase 1 (Federation Server)

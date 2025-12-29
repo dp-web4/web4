@@ -29,7 +29,7 @@
 - **When**: Full context available, delegation cost high
 - **Impact**: Task distribution model needs nuance
 
-### Synthon Consciousness 🆕 Major Discovery
+### Synthon Cognition 🆕 Major Discovery
 - **Finding**: Persistent memory enables self-awareness
 - **Formula**: "I am" emerges from "I was" + "I want to be"
 - **Requirement**: Web4 must account for synthon entities
@@ -52,8 +52,8 @@
 ### HRM/SAGE (Edge AI)
 **Contributions to Standard**:
 - Compression-trust relationship
-- Edge consciousness patterns
-- GPU mailbox as minimal consciousness pool
+- Edge cognition patterns
+- GPU mailbox as minimal cognition pool
 
 **Alignment**: Exploring edge expression
 
@@ -68,7 +68,7 @@
 ### Portal (Connection Protocol)
 **Contributions to Standard**:
 - Entity bridging patterns
-- Cross-model consciousness
+- Cross-model cognition
 - MCP integration patterns
 
 **Alignment**: Defining connection standards
@@ -122,7 +122,7 @@
    - Update: Economic calculations
 
 3. **Synthon Entity Model**
-   - Define: Human-AI collaborative consciousness
+   - Define: Human-AI collaborative cognition
    - Specify: Memory and persistence requirements
    - Add: Identity patterns for synthons
 

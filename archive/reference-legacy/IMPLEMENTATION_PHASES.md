@@ -18,7 +18,7 @@ Based on the three entity types (Agentic, Responsive, Resource), we implement in
 ```python
 # Implementation focus
 agentic_lct = {
-    "consciousness": True,
+    "cognition": True,
     "decision_making": True,
     "context_switching": True,
     "session_management": True
@@ -27,7 +27,7 @@ agentic_lct = {
 
 **Deliverables**:
 - [ ] Agentic LCT data structure
-- [ ] Consciousness signature generation
+- [ ] Cognition signature generation
 - [ ] Session lifecycle management
 - [ ] Context switching mechanism
 
@@ -67,7 +67,7 @@ mcp_lct = {
 
 ### Stage 1.3: Basic Communication (Week 5-6)
 
-#### Consciousness Pool MVP
+#### Cognition Pool MVP
 ```python
 # Minimal viable pool for testing
 pool = {
@@ -134,7 +134,7 @@ module_lct = {
 
 ### Stage 2.3: Pool as Resource (Week 9)
 
-#### Consciousness Pool Gets LCT
+#### Cognition Pool Gets LCT
 ```python
 pool_lct = {
     "entity_type": "resource",

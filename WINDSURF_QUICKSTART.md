@@ -210,7 +210,7 @@ python web4-standard/mrh_rdf_implementation.py
 
 Web4 connects to:
 - **Quantum field theory** (Synchronism foundation)
-- **Distributed AI consciousness** (Thor/Sprout/CBP)
+- **Distributed AI cognition** (Thor/Sprout/CBP)
 - **Human-AI collaboration protocols** (real experiments)
 - **Trust-native infrastructure** (this repo)
 
