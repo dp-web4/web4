@@ -372,6 +372,71 @@ def required_witnesses(base_requirement: int, ci: float) -> int:
     return base_requirement + additional
 ```
 
+### 5.4 Consequence Index (CX) Gating
+
+Beyond modulating trust and costs, CI should gate *which actions are permitted*. We introduce **Consequence Index (CX)** as a complement to CI:
+
+| Index | Measures | Range |
+|-------|----------|-------|
+| **CI** | How present/coherent the entity is | 0.0 - 1.0 |
+| **CX** | How consequential the action is | 0.0 - 1.0 |
+
+**Gating Rule**: An entity should not perform high-consequence actions when not fully coherent.
+
+```python
+def ci_threshold_for_cx(cx: float) -> float:
+    """Higher consequence → higher coherence required."""
+    return 0.3 + (cx * 0.6)  # Range: 0.3 (trivial) to 0.9 (critical)
+
+def can_execute_action(entity: LCT, action: Action, ci: float) -> bool:
+    """Gate actions by coherence × consequence."""
+    required_ci = ci_threshold_for_cx(action.cx)
+    if ci < required_ci:
+        return False  # Not just expensive - BLOCKED
+    return True
+```
+
+**CX Classification Examples:**
+
+| CX Level | Example Actions | Required CI |
+|----------|-----------------|-------------|
+| 0.0 - 0.2 | Read-only queries, logging | 0.3+ |
+| 0.2 - 0.5 | State modifications, API calls | 0.5+ |
+| 0.5 - 0.7 | Financial transactions, deployments | 0.6+ |
+| 0.7 - 0.9 | Irreversible actions, deletions | 0.75+ |
+| 0.9 - 1.0 | Critical infrastructure, safety-relevant | 0.9+ |
+
+**Human Parallel**: "Don't operate machinery while impaired."
+
+**Natural Escalation Paths** when CI < required threshold:
+1. **Delegate**: Find higher-CI entity to perform action
+2. **Wait**: Let coherence improve (grounding refreshes)
+3. **Reduce scope**: Break high-CX action into lower-CX steps
+4. **Co-sign**: Multiple entities jointly meet threshold
+
+### 5.5 R6 Integration
+
+CX integrates with the R6 action framework:
+
+```python
+class R6Request:
+    intent: str
+    cx: float  # Consequence level
+    urgency: float
+    estimated_cost: ATP
+
+class R6Role:
+    capabilities: Set[Capability]
+    cx_ceiling: float  # Max consequence this role permits
+
+class R6Result:
+    outcome: Any
+    ci_at_execution: float  # For audit trail
+    cx_actual: float  # Realized consequence (for learning)
+```
+
+Recording `ci_at_execution` enables post-hoc accountability and dispute resolution.
+
 ---
 
 ## 6. Grounding Lifecycle
