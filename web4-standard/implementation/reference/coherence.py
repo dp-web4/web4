@@ -36,6 +36,11 @@ class CoherenceWeights:
 
     Default weights emphasize spatial and capability coherence (core security concerns)
     while treating temporal and relational as secondary signals.
+
+    Aggregation Strategy (Session 104 improvement):
+    - 'geometric': Weighted geometric mean (legacy, lenient)
+    - 'min-weighted-critical': Min of weighted avg and critical floor (RECOMMENDED)
+        Critical dims (spatial, capability) floor overall CI for security
     """
     spatial: float = 0.3      # Impossible travel is critical security concern
     capability: float = 0.3   # Capability spoofing is critical security concern
@@ -46,11 +51,17 @@ class CoherenceWeights:
     spatial_window: timedelta = field(default_factory=lambda: timedelta(days=7))
     temporal_window: timedelta = field(default_factory=lambda: timedelta(days=90))
 
+    # Aggregation strategy (Session 104)
+    aggregation_strategy: str = 'min-weighted-critical'  # 'geometric' or 'min-weighted-critical'
+
     def __post_init__(self):
         """Validate weights sum to 1.0"""
         total = self.spatial + self.capability + self.temporal + self.relational
         if not math.isclose(total, 1.0, abs_tol=0.01):
             raise ValueError(f"Weights must sum to 1.0, got {total}")
+
+        if self.aggregation_strategy not in ['geometric', 'min-weighted-critical']:
+            raise ValueError(f"Invalid aggregation strategy: {self.aggregation_strategy}")
 
 
 @dataclass
@@ -491,14 +502,53 @@ def coherence_index(
         mrh_graph
     )
 
-    # Weighted geometric mean (multiplicative)
-    # One low dimension tanks the whole score (security property)
-    ci = (
-        spatial ** weights.spatial *
-        capability ** weights.capability *
-        temporal ** weights.temporal *
-        relational ** weights.relational
-    ) ** (1 / 1.0)  # Normalize by sum of weights (always 1.0)
+    # Aggregate coherence dimensions using configured strategy
+    if weights.aggregation_strategy == 'geometric':
+        # Legacy: Weighted geometric mean (lenient - one low score doesn't tank enough)
+        ci = (
+            spatial ** weights.spatial *
+            capability ** weights.capability *
+            temporal ** weights.temporal *
+            relational ** weights.relational
+        ) ** (1 / 1.0)  # Normalize by sum of weights (always 1.0)
+
+    elif weights.aggregation_strategy == 'min-weighted-critical':
+        # Session 104 improved strategy: Min of weighted avg and critical floor
+        # Security property: Critical dimensions (spatial, capability) floor overall CI
+        #
+        # Rationale: Impossible travel or capability spoofing should SEVERELY penalize
+        # CI regardless of how coherent temporal/relational dimensions are.
+        #
+        # Example:
+        #   spatial=0.1 (impossible), capability=0.9, temporal=0.9, relational=0.9
+        #   weighted_avg = 0.3*0.1 + 0.3*0.9 + 0.2*0.9 + 0.2*0.9 = 0.48
+        #   critical_floor = min(0.1, 0.9) = 0.1
+        #   CI = min(0.48, 0.1) = 0.1  ← SEVERE penalty!
+        #
+        # This ensures one incoherent critical dimension tanks overall CI.
+
+        # Weighted average of all dimensions
+        weighted_avg = (
+            weights.spatial * spatial +
+            weights.capability * capability +
+            weights.temporal * temporal +
+            weights.relational * relational
+        )
+
+        # Critical dimensions floor (spatial and capability are security-critical)
+        critical_floor = min(spatial, capability)
+
+        # Overall CI cannot exceed lowest critical dimension
+        ci = min(weighted_avg, critical_floor)
+
+    else:
+        # Fallback to geometric if unknown strategy
+        ci = (
+            spatial ** weights.spatial *
+            capability ** weights.capability *
+            temporal ** weights.temporal *
+            relational ** weights.relational
+        ) ** (1 / 1.0)
 
     return ci
 
