@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from multi_life_home_society import run_multi_life
+from closed_loop_multi_life import run_closed_loop_multi_life
 
 
 def _import_hrm_policy() -> Any:
@@ -47,7 +47,7 @@ def run_multi_life_with_policy(
 ) -> Dict[str, Any]:
     """Run multiple lives and attach a per-life HRM action proposal."""
 
-    multi = run_multi_life(
+    multi = run_closed_loop_multi_life(
         num_lives=num_lives,
         steps_per_life=steps_per_life,
         termination_t3_threshold=termination_t3_threshold,
