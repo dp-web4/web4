@@ -58,6 +58,26 @@ class ContextEdge:
 
 
 @dataclass
+class LifeRecord:
+    life_id: str
+    agent_lct: str
+    start_tick: int
+    end_tick: int
+    life_state: str
+    termination_reason: str
+    t3_history: List[float] = field(default_factory=list)
+    atp_history: List[float] = field(default_factory=list)
+
+    @property
+    def final_t3(self) -> float:
+        return float(self.t3_history[-1]) if self.t3_history else 0.0
+
+    @property
+    def final_atp(self) -> float:
+        return float(self.atp_history[-1]) if self.atp_history else 0.0
+
+
+@dataclass
 class World:
     """Top-level simulation state for a single world instance."""
 
@@ -70,6 +90,10 @@ class World:
     lct_registry: Dict[str, Dict] = field(default_factory=dict)  # lct_id -> lct_dict
     # Federation structure (Session #70+ federation work)
     federation: Dict[str, List[str]] = field(default_factory=dict)  # society_lct -> [connected_society_lcts]
+
+    # Multi-life tracking (v0): per-agent lineage and coarse state machine.
+    life_lineage: Dict[str, List[LifeRecord]] = field(default_factory=dict)  # agent_lct -> [LifeRecord, ...]
+    life_state: Dict[str, Dict[str, str]] = field(default_factory=dict)  # agent_lct -> {status, life_id}
 
     def add_agent(self, agent: Agent) -> None:
         self.agents[agent.agent_lct] = agent
