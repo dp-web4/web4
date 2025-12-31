@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-12-31T06:06:57.672210",
+  "hardware": "Legion RTX 4090",
+  "component": "Web4 Multi-EP Security Coordinator",
+  "results": [
+    {
+      "test_name": "Consensus (all proceed)",
+      "iterations": 100000,
+      "total_time_seconds": 0.3722074031829834,
+      "throughput_per_second": 268667.41269742645,
+      "avg_latency_ms": 0.0036174832843244077,
+      "avg_latency_us": 3.6174832843244076,
+      "min_latency_ms": 0.0032410025596618652,
+      "max_latency_ms": 0.02159085124731064,
+      "notes": "All 3 EPs agree to proceed"
+    },
+    {
+      "test_name": "Conflict Resolution",
+      "iterations": 100000,
+      "total_time_seconds": 0.31157732009887695,
+      "throughput_per_second": 320947.6221448521,
+      "avg_latency_ms": 0.003024202464148402,
+      "avg_latency_us": 3.024202464148402,
+      "min_latency_ms": 0.002716667950153351,
+      "max_latency_ms": 0.007165595889091492,
+      "notes": "Grounding rejects, Relationship proceeds - priority resolution"
+    },
+    {
+      "test_name": "Cascade Detection",
+      "iterations": 100000,
+      "total_time_seconds": 0.3718087673187256,
+      "throughput_per_second": 268955.4652547421,
+      "avg_latency_ms": 0.003622851129621267,
+      "avg_latency_us": 3.6228511296212673,
+      "min_latency_ms": 0.003335997462272644,
+      "max_latency_ms": 0.007933937013149261,
+      "notes": "2 severe predictions triggering cascade"
+    },
+    {
+      "test_name": "Mixed Scenarios",
+      "iterations": 50000,
+      "total_time_seconds": 0.18853425979614258,
+      "throughput_per_second": 265203.78871226776,
+      "avg_latency_ms": 0.0035625250078737737,
+      "avg_latency_us": 3.5625250078737736,
+      "min_latency_ms": 0.0028498470783233643,
+      "max_latency_ms": 0.011579133570194244,
+      "notes": "4 scenario types rotated. Decisions: proceed=12500, adjust=12500, reject=25000. Cascades: 12500, Conflicts: 12500"
+    }
+  ],
+  "comparison_to_edge": {
+    "edge_hardware": "Jetson Orin Nano 8GB (Sprout)",
+    "edge_throughput": 97204,
+    "edge_latency_us": 10.29
+  }
+}
