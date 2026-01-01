@@ -1,0 +1,675 @@
+{
+  "session": 112,
+  "framework": "Web4 Five-Domain EP Multi-Life",
+  "based_on": [
+    "Thor Session 143",
+    "Cascade Multi-Life",
+    "Legion Session 111"
+  ],
+  "timestamp": "2025-12-31T18:03:38.000033",
+  "lives": [
+    {
+      "life_id": "life:lct:web4:agent:alice:0",
+      "life_index": 0,
+      "state": "completed",
+      "termination_reason": "natural",
+      "duration_ticks": 20,
+      "initial_t3": 0.6,
+      "final_t3": 0.6,
+      "initial_atp": 100.0,
+      "final_atp": 30.0,
+      "interactions_count": 20,
+      "t3_history": [
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6
+      ],
+      "atp_history": [
+        100.0,
+        95.0,
+        90.0,
+        85.0,
+        80.0,
+        75.0,
+        70.0,
+        65.0,
+        60.0,
+        57.5,
+        55.0,
+        52.5,
+        50.0,
+        47.5,
+        45.0,
+        42.5,
+        40.0,
+        37.5,
+        35.0,
+        32.5
+      ],
+      "interactions": [
+        {
+          "tick": 1,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 2,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 3,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 4,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 5,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 6,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 7,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 8,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 9,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 10,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 11,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 12,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 13,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 14,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 15,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 16,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 17,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 18,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 19,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 20,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        }
+      ]
+    },
+    {
+      "life_id": "life:lct:web4:agent:alice:1",
+      "life_index": 1,
+      "state": "completed",
+      "termination_reason": "natural",
+      "duration_ticks": 20,
+      "initial_t3": 0.55,
+      "final_t3": 0.55,
+      "initial_atp": 100.0,
+      "final_atp": 30.0,
+      "interactions_count": 20,
+      "t3_history": [
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55
+      ],
+      "atp_history": [
+        100.0,
+        95.0,
+        90.0,
+        85.0,
+        80.0,
+        75.0,
+        70.0,
+        65.0,
+        60.0,
+        57.5,
+        55.0,
+        52.5,
+        50.0,
+        47.5,
+        45.0,
+        42.5,
+        40.0,
+        37.5,
+        35.0,
+        32.5
+      ],
+      "interactions": [
+        {
+          "tick": 21,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 22,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 23,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 24,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 25,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 26,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 27,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 28,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 29,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 30,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 31,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 32,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 33,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 34,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 35,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 36,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 37,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 38,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 39,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 40,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        }
+      ]
+    },
+    {
+      "life_id": "life:lct:web4:agent:alice:2",
+      "life_index": 2,
+      "state": "completed",
+      "termination_reason": "natural",
+      "duration_ticks": 20,
+      "initial_t3": 0.55,
+      "final_t3": 0.55,
+      "initial_atp": 100.0,
+      "final_atp": 30.0,
+      "interactions_count": 20,
+      "t3_history": [
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55
+      ],
+      "atp_history": [
+        100.0,
+        95.0,
+        90.0,
+        85.0,
+        80.0,
+        75.0,
+        70.0,
+        65.0,
+        60.0,
+        57.5,
+        55.0,
+        52.5,
+        50.0,
+        47.5,
+        45.0,
+        42.5,
+        40.0,
+        37.5,
+        35.0,
+        32.5
+      ],
+      "interactions": [
+        {
+          "tick": 41,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 42,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 43,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 44,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 45,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 46,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 47,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 48,
+          "type": "small_spend",
+          "decision": "adjust",
+          "atp_cost_proposed": 10.0,
+          "atp_cost_actual": 5.0,
+          "success": true
+        },
+        {
+          "tick": 49,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 50,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 51,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 52,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 53,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 54,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 55,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 56,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 57,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 58,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 59,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        },
+        {
+          "tick": 60,
+          "type": "conservative_audit",
+          "decision": "adjust",
+          "atp_cost_proposed": 5.0,
+          "atp_cost_actual": 2.5,
+          "success": true
+        }
+      ]
+    }
+  ],
+  "ep_stats": {
+    "total_predictions": 60,
+    "pattern_corpus_size": 60
+  },
+  "comparison": {
+    "session_111": "Simple heuristic EP - Bob died (ATP=0)",
+    "session_143": "SAGE five-domain EP - Both alive (Alice ATP=71, Bob ATP=35)",
+    "session_112": "Web4 five-domain EP multi-life - Validates karma carry-forward"
+  }
+}
