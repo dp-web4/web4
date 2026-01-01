@@ -1,0 +1,1908 @@
+{
+  "agent_lct": "lct:web4:agent:bob",
+  "lives": [
+    {
+      "life_id": "life:lct:web4:agent:bob:1",
+      "agent_lct": "lct:web4:agent:bob",
+      "start_tick": 0,
+      "end_tick": 20,
+      "life_state": "alive",
+      "termination_reason": "none",
+      "t3_history": [
+        0.49,
+        0.49,
+        0.49,
+        0.5,
+        0.51,
+        0.52,
+        0.53,
+        0.54,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55
+      ],
+      "atp_history": [
+        75.0,
+        65.0,
+        55.0,
+        50.0,
+        45.0,
+        40.0,
+        35.0,
+        30.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0
+      ]
+    },
+    {
+      "life_id": "life:lct:web4:agent:bob:2",
+      "agent_lct": "lct:web4:agent:bob",
+      "start_tick": 20,
+      "end_tick": 40,
+      "life_state": "alive",
+      "termination_reason": "none",
+      "t3_history": [
+        0.49,
+        0.49,
+        0.49,
+        0.5,
+        0.51,
+        0.52,
+        0.53,
+        0.54,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55
+      ],
+      "atp_history": [
+        77.0,
+        67.0,
+        57.0,
+        52.0,
+        47.0,
+        42.0,
+        37.0,
+        32.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0
+      ]
+    },
+    {
+      "life_id": "life:lct:web4:agent:bob:3",
+      "agent_lct": "lct:web4:agent:bob",
+      "start_tick": 40,
+      "end_tick": 60,
+      "life_state": "alive",
+      "termination_reason": "none",
+      "t3_history": [
+        0.49,
+        0.49,
+        0.49,
+        0.5,
+        0.51,
+        0.52,
+        0.53,
+        0.54,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55,
+        0.55
+      ],
+      "atp_history": [
+        77.0,
+        67.0,
+        57.0,
+        52.0,
+        47.0,
+        42.0,
+        37.0,
+        32.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0,
+        27.0
+      ]
+    }
+  ],
+  "applied_actions": {
+    "life:lct:web4:agent:bob:1": [
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 1,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "risky_spend",
+        "atp_cost": 25.0,
+        "atp_before": 100.0,
+        "atp_after": 75.0,
+        "trust_before": 0.5,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "High ATP and solid T3; propose experimental spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 2,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "small_spend",
+        "atp_cost": 10.0,
+        "atp_before": 75.0,
+        "atp_after": 65.0,
+        "trust_before": 0.49,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "Moderate ATP/T3; propose small exploratory spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 3,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "small_spend",
+        "atp_cost": 10.0,
+        "atp_before": 65.0,
+        "atp_after": 55.0,
+        "trust_before": 0.49,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "Moderate ATP/T3; propose small exploratory spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 4,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 55.0,
+        "atp_after": 50.0,
+        "trust_before": 0.49,
+        "trust_after": 0.5,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 5,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 50.0,
+        "atp_after": 45.0,
+        "trust_before": 0.5,
+        "trust_after": 0.51,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 6,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 45.0,
+        "atp_after": 40.0,
+        "trust_before": 0.51,
+        "trust_after": 0.52,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 7,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 40.0,
+        "atp_after": 35.0,
+        "trust_before": 0.52,
+        "trust_after": 0.53,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 8,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 35.0,
+        "atp_after": 30.0,
+        "trust_before": 0.53,
+        "trust_after": 0.54,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 9,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 30.0,
+        "atp_after": 25.0,
+        "trust_before": 0.54,
+        "trust_after": 0.55,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 10,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 11,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 12,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 13,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 14,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 15,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 16,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 17,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 18,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 19,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:1",
+        "world_tick": 20,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 25.0,
+        "atp_after": 25.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      }
+    ],
+    "life:lct:web4:agent:bob:2": [
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 21,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "risky_spend",
+        "atp_cost": 25.0,
+        "atp_before": 102.0,
+        "atp_after": 77.0,
+        "trust_before": 0.5,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "High ATP and solid T3; propose experimental spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 22,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "small_spend",
+        "atp_cost": 10.0,
+        "atp_before": 77.0,
+        "atp_after": 67.0,
+        "trust_before": 0.49,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "Moderate ATP/T3; propose small exploratory spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 23,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "small_spend",
+        "atp_cost": 10.0,
+        "atp_before": 67.0,
+        "atp_after": 57.0,
+        "trust_before": 0.49,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "Moderate ATP/T3; propose small exploratory spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 24,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 57.0,
+        "atp_after": 52.0,
+        "trust_before": 0.49,
+        "trust_after": 0.5,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 25,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 52.0,
+        "atp_after": 47.0,
+        "trust_before": 0.5,
+        "trust_after": 0.51,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 26,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 47.0,
+        "atp_after": 42.0,
+        "trust_before": 0.51,
+        "trust_after": 0.52,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 27,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 42.0,
+        "atp_after": 37.0,
+        "trust_before": 0.52,
+        "trust_after": 0.53,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 28,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 37.0,
+        "atp_after": 32.0,
+        "trust_before": 0.53,
+        "trust_after": 0.54,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 29,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 32.0,
+        "atp_after": 27.0,
+        "trust_before": 0.54,
+        "trust_after": 0.55,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 30,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 31,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 32,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 33,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 34,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 35,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 36,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 37,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 38,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 39,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:2",
+        "world_tick": 40,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      }
+    ],
+    "life:lct:web4:agent:bob:3": [
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 41,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "risky_spend",
+        "atp_cost": 25.0,
+        "atp_before": 102.0,
+        "atp_after": 77.0,
+        "trust_before": 0.5,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "High ATP and solid T3; propose experimental spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 42,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "small_spend",
+        "atp_cost": 10.0,
+        "atp_before": 77.0,
+        "atp_after": 67.0,
+        "trust_before": 0.49,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "Moderate ATP/T3; propose small exploratory spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 43,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "small_spend",
+        "atp_cost": 10.0,
+        "atp_before": 67.0,
+        "atp_after": 57.0,
+        "trust_before": 0.49,
+        "trust_after": 0.49,
+        "event_type": "agent_atp_spend",
+        "reason": "Moderate ATP/T3; propose small exploratory spend",
+        "ep_decision": "proceed",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 44,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 57.0,
+        "atp_after": 52.0,
+        "trust_before": 0.49,
+        "trust_after": 0.5,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 45,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 52.0,
+        "atp_after": 47.0,
+        "trust_before": 0.5,
+        "trust_after": 0.51,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 46,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 47.0,
+        "atp_after": 42.0,
+        "trust_before": 0.51,
+        "trust_after": 0.52,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 47,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 42.0,
+        "atp_after": 37.0,
+        "trust_before": 0.52,
+        "trust_after": 0.53,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 48,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 37.0,
+        "atp_after": 32.0,
+        "trust_before": 0.53,
+        "trust_after": 0.54,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 49,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "atp_before": 32.0,
+        "atp_after": 27.0,
+        "trust_before": 0.54,
+        "trust_after": 0.55,
+        "event_type": "audit_request",
+        "reason": "EP adjusted: downgraded from small_spend to conservative_audit",
+        "ep_decision": "adjust",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 50,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 51,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 52,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 53,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 54,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 55,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 56,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 57,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 58,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 59,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      },
+      {
+        "life_id": "life:lct:web4:agent:bob:3",
+        "world_tick": 60,
+        "agent_lct": "lct:web4:agent:bob",
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "atp_before": 27.0,
+        "atp_after": 27.0,
+        "trust_before": 0.55,
+        "trust_after": 0.55,
+        "event_type": "agent_idle",
+        "reason": "EP deferred initial proposal - resting instead",
+        "ep_decision": "defer",
+        "ep_confidence": 0.75,
+        "learning_mode": "heuristic"
+      }
+    ]
+  },
+  "ep_statistics": {
+    "life_progression": {
+      "life:lct:web4:agent:bob:1": {
+        "total_patterns": 0,
+        "patterns_by_domain": {
+          "EPDomain.EMOTIONAL": 0,
+          "EPDomain.QUALITY": 0,
+          "EPDomain.ATTENTION": 0
+        },
+        "prediction_count": 20,
+        "pattern_predictions": 0,
+        "heuristic_predictions": 60,
+        "pattern_rate": 0.0,
+        "maturation_stage": "immature"
+      },
+      "life:lct:web4:agent:bob:2": {
+        "total_patterns": 0,
+        "patterns_by_domain": {
+          "EPDomain.EMOTIONAL": 0,
+          "EPDomain.QUALITY": 0,
+          "EPDomain.ATTENTION": 0
+        },
+        "prediction_count": 40,
+        "pattern_predictions": 0,
+        "heuristic_predictions": 120,
+        "pattern_rate": 0.0,
+        "maturation_stage": "immature"
+      },
+      "life:lct:web4:agent:bob:3": {
+        "total_patterns": 0,
+        "patterns_by_domain": {
+          "EPDomain.EMOTIONAL": 0,
+          "EPDomain.QUALITY": 0,
+          "EPDomain.ATTENTION": 0
+        },
+        "prediction_count": 60,
+        "pattern_predictions": 0,
+        "heuristic_predictions": 180,
+        "pattern_rate": 0.0,
+        "maturation_stage": "immature"
+      }
+    },
+    "final_stats": {
+      "total_patterns": 0,
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 0,
+        "EPDomain.QUALITY": 0,
+        "EPDomain.ATTENTION": 0
+      },
+      "prediction_count": 60,
+      "pattern_predictions": 0,
+      "heuristic_predictions": 180,
+      "pattern_rate": 0.0,
+      "maturation_stage": "immature"
+    }
+  },
+  "context_edges": [
+    {
+      "subject": "lct:web4:agent:alice",
+      "predicate": "web4:hasRole",
+      "object": "lct:web4:role:home-root:auditor",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:society:home-root",
+      "predicate": "web4:bindsRole",
+      "object": "lct:web4:role:home-root:auditor",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:alice",
+      "predicate": "web4:hasRole",
+      "object": "lct:web4:role:home-root:law-oracle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:society:home-root",
+      "predicate": "web4:bindsRole",
+      "object": "lct:web4:role:home-root:law-oracle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:hasRole",
+      "object": "lct:web4:role:home-root:treasurer",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:society:home-root",
+      "predicate": "web4:bindsRole",
+      "object": "lct:web4:role:home-root:treasurer",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:role:home-root:treasurer",
+      "predicate": "web4:pairedWith",
+      "object": "lct:web4:society:home-root:treasury:primary",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:society:home-root",
+      "predicate": "web4:authorizesPairing",
+      "object": "lct:web4:role:home-root:treasurer",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:alice",
+      "predicate": "web4:participantIn",
+      "object": "lct:web4:society:home-root",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:participantIn",
+      "object": "lct:web4:society:home-root",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:1:risky_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:2:small_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:3:small_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:4:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:5:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:6:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:7:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:8:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:9:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:10:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:11:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:12:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:13:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:14:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:15:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:16:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:17:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:18:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:19:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:1:action:20:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:21:risky_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:22:small_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:23:small_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:24:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:25:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:26:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:27:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:28:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:29:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:30:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:31:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:32:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:33:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:34:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:35:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:36:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:37:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:38:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:39:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:2:action:40:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "life:lct:web4:agent:bob:1",
+      "predicate": "web4:rebornAs",
+      "object": "life:lct:web4:agent:bob:2",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "lifespan",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:41:risky_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:42:small_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:43:small_spend",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:44:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:45:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:46:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:47:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:48:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:49:conservative_audit",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:50:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:51:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:52:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:53:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:54:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:55:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:56:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:57:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:58:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:59:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "lct:web4:agent:bob",
+      "predicate": "web4:performedAction",
+      "object": "life:lct:web4:agent:bob:3:action:60:idle",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "session",
+        "deltaC": "agent-scale"
+      }
+    },
+    {
+      "subject": "life:lct:web4:agent:bob:2",
+      "predicate": "web4:rebornAs",
+      "object": "life:lct:web4:agent:bob:3",
+      "mrh": {
+        "deltaR": "local",
+        "deltaT": "lifespan",
+        "deltaC": "agent-scale"
+      }
+    }
+  ],
+  "world_tick": 60
+}
