@@ -2,7 +2,9 @@
 """
 EP-Driven Policy for Web4 Closed-Loop Multi-Life
 
-Session 114: Legion autonomous research
+Session 114-115: Legion autonomous research
+- Session 114: EP-driven policy with safety layer (100% survival)
+- Session 115: Pattern learning integration (maturation demonstration)
 Integrates:
 - Session 113: Learning EP with pattern matching (maturation IMMATURE→LEARNING→MATURE)
 - Session 112: Five-domain EP contexts (Emotional, Quality, Attention, Grounding, Authorization)
@@ -406,8 +408,23 @@ class EPDrivenPolicy:
             )
 
             if matches:
-                pred = self._predict_from_patterns(domain, context, matches)
-                self.pattern_predictions += 1
+                # Pattern-based prediction
+                pattern_pred = self._predict_from_patterns(domain, context, matches)
+
+                # SAFETY OVERRIDE: For Attention domain, check heuristic for critical ATP situations
+                if domain == EPDomain.ATTENTION:
+                    heuristic_pred = self._predict_heuristic(domain, context)
+                    # If heuristic says defer/adjust but patterns say proceed, use more conservative
+                    if heuristic_pred.recommendation in ["defer", "adjust"] and pattern_pred.recommendation == "proceed":
+                        # Override with heuristic (safety first)
+                        pred = heuristic_pred
+                        self.heuristic_predictions += 1
+                    else:
+                        pred = pattern_pred
+                        self.pattern_predictions += 1
+                else:
+                    pred = pattern_pred
+                    self.pattern_predictions += 1
             else:
                 pred = self._predict_heuristic(domain, context)
                 self.heuristic_predictions += 1
@@ -435,7 +452,10 @@ class EPDrivenPolicy:
             },
             "pattern_matches": pattern_matches,
             "learning_mode": "pattern" if sum(pattern_matches.values()) > 0 else "heuristic",
-            "maturation_stage": self._determine_maturation_stage()
+            "maturation_stage": self._determine_maturation_stage(),
+            # Store for pattern collection
+            "contexts": contexts,
+            "predictions": domain_predictions
         }
 
     def _predict_from_patterns(
@@ -585,22 +605,41 @@ class EPDrivenPolicy:
         self,
         life_id: str,
         tick: int,
-        action: Dict[str, Any],
-        assessment: Dict[str, Any],
-        outcome_success: bool
+        contexts: Dict[EPDomain, Dict[str, Any]],
+        predictions: Dict[EPDomain, EPPrediction],
+        action_taken: Dict[str, Any],
+        outcome: Dict[str, Any]
     ) -> None:
-        """Record interaction outcome as pattern for learning."""
+        """
+        Record interaction outcome as pattern for learning.
 
-        # Extract contexts from assessment (would need to store them)
-        # For now, simplified: just record the outcome
+        This is how the EP system learns from experience and matures over time.
+        """
+        timestamp = datetime.now().isoformat()
 
-        # In full implementation, would extract:
-        # - contexts used for prediction
-        # - predictions made
-        # - actual outcome
-        # - store as InteractionPattern for each domain
+        for domain in [EPDomain.EMOTIONAL, EPDomain.QUALITY, EPDomain.ATTENTION]:
+            if domain not in contexts or domain not in predictions:
+                continue
 
-        pass
+            # Create pattern from this interaction
+            pattern = InteractionPattern(
+                pattern_id=f"{life_id}_tick{tick}_{str(domain).split('.')[-1].lower()}",
+                life_id=life_id,
+                tick=tick,
+                domain=domain,
+                context=contexts[domain],
+                prediction={
+                    "outcome_probability": predictions[domain].outcome_probability,
+                    "confidence": predictions[domain].confidence,
+                    "severity": predictions[domain].severity,
+                    "recommendation": predictions[domain].recommendation,
+                },
+                outcome=outcome,
+                timestamp=timestamp
+            )
+
+            # Add to domain's pattern matcher
+            self.matchers[domain].add_pattern(pattern)
 
     def _determine_maturation_stage(self) -> str:
         """Determine current EP maturation stage."""
@@ -663,10 +702,85 @@ def run_ep_policy_once(
     }
 
 
+# ============================================================================
+# Pattern Corpus Loader (Thor's Sessions 144-145)
+# ============================================================================
+
+class ThorPatternCorpusLoader:
+    """Loads Thor's 100-pattern corpus organized by domain."""
+
+    @staticmethod
+    def load_domain_patterns(hrm_path: Path, domain: EPDomain) -> List[InteractionPattern]:
+        """Load patterns for a specific domain from Thor's corpus."""
+        domain_name = str(domain).split(".")[-1].lower()  # EPDomain.EMOTIONAL -> "emotional"
+        pattern_file = hrm_path / "sage" / "experiments" / "ep_patterns_by_domain" / f"{domain_name}_ep_patterns.json"
+
+        if not pattern_file.exists():
+            return []
+
+        with open(pattern_file, 'r') as f:
+            data = json.load(f)
+
+        patterns = []
+        for p in data.get("patterns", []):
+            # Convert Thor's pattern format to InteractionPattern
+            pattern = InteractionPattern(
+                pattern_id=f"thor_{p['scenario_id']}",
+                life_id="thor_corpus",  # From Thor's corpus, not a specific life
+                tick=0,
+                domain=domain,
+                context=p["context"].get(domain_name, {}),
+                prediction=p["ep_predictions"].get(domain_name, {}),
+                outcome={
+                    "final_decision": p["coordinated_decision"]["final_decision"],
+                    "success": p.get("outcome", {}).get("success", True)
+                },
+                timestamp=p.get("timestamp", "")
+            )
+            patterns.append(pattern)
+
+        return patterns
+
+    @staticmethod
+    def load_all_patterns(hrm_path: Path) -> Dict[EPDomain, List[InteractionPattern]]:
+        """Load all patterns from Thor's corpus."""
+        patterns_by_domain = {}
+
+        for domain in [EPDomain.EMOTIONAL, EPDomain.QUALITY, EPDomain.ATTENTION]:
+            patterns = ThorPatternCorpusLoader.load_domain_patterns(hrm_path, domain)
+            patterns_by_domain[domain] = patterns
+
+        return patterns_by_domain
+
+
+def create_policy_with_thor_patterns(hrm_path: Optional[Path] = None) -> EPDrivenPolicy:
+    """
+    Create EP-driven policy pre-loaded with Thor's pattern corpus.
+
+    This creates a LEARNING-stage policy (vs IMMATURE with 0 patterns).
+    """
+    if hrm_path is None:
+        # Default: HRM repo location relative to web4
+        hrm_path = Path(__file__).parent.parent.parent / "HRM"
+
+    policy = EPDrivenPolicy()
+
+    # Load Thor's patterns
+    patterns_by_domain = ThorPatternCorpusLoader.load_all_patterns(hrm_path)
+
+    # Add to policy's matchers
+    for domain, patterns in patterns_by_domain.items():
+        for pattern in patterns:
+            policy.matchers[domain].add_pattern(pattern)
+
+    return policy
+
+
 if __name__ == "__main__":
     print("EP-Driven Policy for Web4 Closed-Loop Multi-Life")
     print("=" * 80)
     print("\nThis module provides EP-based action proposals with pattern learning.")
     print("\nIntegration:")
     print("  from ep_driven_policy import run_ep_policy_once, EPDrivenPolicy")
-    print("\nSession 114: Learning EP + Closed-Loop Policy")
+    print("  from ep_driven_policy import create_policy_with_thor_patterns")
+    print("\nSession 114-115: Learning EP + Closed-Loop Policy + Thor's Patterns")
