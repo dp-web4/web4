@@ -1,0 +1,571 @@
+{
+  "session": 113,
+  "framework": "Learning Multi-Agent EP",
+  "timestamp": "2026-01-01T00:02:50.929277",
+  "lives": [
+    {
+      "life_index": 0,
+      "patterns_collected": 40,
+      "maturation_stats": {
+        "total_predictions": 0,
+        "heuristic_predictions": 0,
+        "pattern_predictions": 0,
+        "pattern_rate": 0.0,
+        "pattern_corpus_sizes": {
+          "emotional": 0,
+          "quality": 0,
+          "attention": 0,
+          "grounding": 0,
+          "authorization": 0
+        },
+        "maturation_stage": "immature"
+      }
+    },
+    {
+      "life_index": 1,
+      "patterns_collected": 40,
+      "maturation_stats": {
+        "total_predictions": 40,
+        "heuristic_predictions": 2,
+        "pattern_predictions": 38,
+        "pattern_rate": 0.95,
+        "pattern_corpus_sizes": {
+          "emotional": 20,
+          "quality": 0,
+          "attention": 20,
+          "grounding": 0,
+          "authorization": 0
+        },
+        "maturation_stage": "learning"
+      }
+    },
+    {
+      "life_index": 2,
+      "patterns_collected": 40,
+      "maturation_stats": {
+        "total_predictions": 80,
+        "heuristic_predictions": 2,
+        "pattern_predictions": 78,
+        "pattern_rate": 0.975,
+        "pattern_corpus_sizes": {
+          "emotional": 40,
+          "quality": 0,
+          "attention": 40,
+          "grounding": 0,
+          "authorization": 0
+        },
+        "maturation_stage": "mature"
+      }
+    }
+  ],
+  "final_maturation": {
+    "total_predictions": 120,
+    "heuristic_predictions": 2,
+    "pattern_predictions": 118,
+    "pattern_rate": 0.9833333333333333,
+    "pattern_corpus_sizes": {
+      "emotional": 60,
+      "quality": 0,
+      "attention": 60,
+      "grounding": 0,
+      "authorization": 0
+    },
+    "maturation_stage": "mature"
+  },
+  "all_patterns": [
+    {
+      "pattern_id": "life0_tick0_emotional",
+      "life_id": "life_0",
+      "tick": 0,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.75,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Heuristic: risk=0.25",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 5.0
+      },
+      "timestamp": "2026-01-01T00:02:50.887809"
+    },
+    {
+      "pattern_id": "life0_tick0_attention",
+      "life_id": "life_0",
+      "tick": 0,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 5.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.85,
+        "severity": 0.2,
+        "recommendation": "proceed",
+        "reasoning": "ATP: 75.0 after cost",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 5.0
+      },
+      "timestamp": "2026-01-01T00:02:50.887867"
+    },
+    {
+      "pattern_id": "life0_tick1_emotional",
+      "life_id": "life_0",
+      "tick": 1,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (1 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 10.0
+      },
+      "timestamp": "2026-01-01T00:02:50.888104"
+    },
+    {
+      "pattern_id": "life0_tick1_attention",
+      "life_id": "life_0",
+      "tick": 1,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 10.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.9898374068810287,
+        "severity": 0.2,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (1 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 10.0
+      },
+      "timestamp": "2026-01-01T00:02:50.888153"
+    },
+    {
+      "pattern_id": "life0_tick2_emotional",
+      "life_id": "life_0",
+      "tick": 2,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (2 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 15.0
+      },
+      "timestamp": "2026-01-01T00:02:50.888351"
+    },
+    {
+      "pattern_id": "life0_tick2_attention",
+      "life_id": "life_0",
+      "tick": 2,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 15.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.989842039936063,
+        "severity": 0.2,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (2 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 15.0
+      },
+      "timestamp": "2026-01-01T00:02:50.888398"
+    },
+    {
+      "pattern_id": "life0_tick3_emotional",
+      "life_id": "life_0",
+      "tick": 3,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 5.0
+      },
+      "timestamp": "2026-01-01T00:02:50.888593"
+    },
+    {
+      "pattern_id": "life0_tick3_attention",
+      "life_id": "life_0",
+      "tick": 3,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 5.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.20000000000000004,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 5.0
+      },
+      "timestamp": "2026-01-01T00:02:50.888639"
+    },
+    {
+      "pattern_id": "life0_tick4_emotional",
+      "life_id": "life_0",
+      "tick": 4,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 10.0
+      },
+      "timestamp": "2026-01-01T00:02:50.888974"
+    },
+    {
+      "pattern_id": "life0_tick4_attention",
+      "life_id": "life_0",
+      "tick": 4,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 10.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.20000000000000004,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 10.0
+      },
+      "timestamp": "2026-01-01T00:02:50.889020"
+    },
+    {
+      "pattern_id": "life0_tick5_emotional",
+      "life_id": "life_0",
+      "tick": 5,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 15.0
+      },
+      "timestamp": "2026-01-01T00:02:50.889247"
+    },
+    {
+      "pattern_id": "life0_tick5_attention",
+      "life_id": "life_0",
+      "tick": 5,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 15.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.20000000000000004,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 15.0
+      },
+      "timestamp": "2026-01-01T00:02:50.889296"
+    },
+    {
+      "pattern_id": "life0_tick6_emotional",
+      "life_id": "life_0",
+      "tick": 6,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 5.0
+      },
+      "timestamp": "2026-01-01T00:02:50.889542"
+    },
+    {
+      "pattern_id": "life0_tick6_attention",
+      "life_id": "life_0",
+      "tick": 6,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 5.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.20000000000000004,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 5.0
+      },
+      "timestamp": "2026-01-01T00:02:50.889588"
+    },
+    {
+      "pattern_id": "life0_tick7_emotional",
+      "life_id": "life_0",
+      "tick": 7,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 10.0
+      },
+      "timestamp": "2026-01-01T00:02:50.889847"
+    },
+    {
+      "pattern_id": "life0_tick7_attention",
+      "life_id": "life_0",
+      "tick": 7,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 10.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.20000000000000004,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 10.0
+      },
+      "timestamp": "2026-01-01T00:02:50.889892"
+    },
+    {
+      "pattern_id": "life0_tick8_emotional",
+      "life_id": "life_0",
+      "tick": 8,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 15.0
+      },
+      "timestamp": "2026-01-01T00:02:50.890174"
+    },
+    {
+      "pattern_id": "life0_tick8_attention",
+      "life_id": "life_0",
+      "tick": 8,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 15.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.20000000000000004,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 15.0
+      },
+      "timestamp": "2026-01-01T00:02:50.890221"
+    },
+    {
+      "pattern_id": "life0_tick9_emotional",
+      "life_id": "life_0",
+      "tick": 9,
+      "domain": "EPDomain.EMOTIONAL",
+      "context": {
+        "current_frustration": 0.2,
+        "interaction_complexity": 0.3
+      },
+      "prediction": {
+        "domain": "EPDomain.EMOTIONAL",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.25,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 5.0
+      },
+      "timestamp": "2026-01-01T00:02:50.890520"
+    },
+    {
+      "pattern_id": "life0_tick9_attention",
+      "life_id": "life_0",
+      "tick": 9,
+      "domain": "EPDomain.ATTENTION",
+      "context": {
+        "atp_available": 80.0,
+        "atp_cost": 5.0,
+        "atp_reserve_needed": 20.0
+      },
+      "prediction": {
+        "domain": "EPDomain.ATTENTION",
+        "outcome_probability": 0.75,
+        "confidence": 0.99,
+        "severity": 0.20000000000000004,
+        "recommendation": "proceed",
+        "reasoning": "Pattern-based (3 matches, sim=1.00)",
+        "adjustment_strategy": null
+      },
+      "outcome": {
+        "success": true,
+        "atp_consumed": 5.0
+      },
+      "timestamp": "2026-01-01T00:02:50.890567"
+    }
+  ],
+  "comparison": {
+    "session_112": "Five-domain EP (heuristic-based, 0% termination)",
+    "session_113": "Learning EP (pattern-based maturation, multi-agent)"
+  }
+}
