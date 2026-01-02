@@ -1,0 +1,95 @@
+================================================================================
+WEB4 LONG-TERM MATURATION STUDY
+================================================================================
+Scenarios: 100
+Initial pattern source: web4
+
+[Web4 Patterns] Loaded 300 Web4-native patterns
+  EMOTIONAL: 100 patterns
+  QUALITY: 100 patterns
+  ATTENTION: 100 patterns
+Loaded 300 Web4-native patterns
+Initial maturation: learning
+Initial corpus: 300 patterns
+
+Scenario 10/100:
+  Corpus: 330 patterns
+  Maturation: mature
+  Survival: 10/10 (100.0%)
+  Domains: EMO:110, QUA:110, ATT:110
+Scenario 20/100:
+  Corpus: 360 patterns
+  Maturation: mature
+  Survival: 20/20 (100.0%)
+  Domains: EMO:120, QUA:120, ATT:120
+Scenario 30/100:
+  Corpus: 390 patterns
+  Maturation: mature
+  Survival: 30/30 (100.0%)
+  Domains: EMO:130, QUA:130, ATT:130
+Scenario 40/100:
+  Corpus: 420 patterns
+  Maturation: mature
+  Survival: 40/40 (100.0%)
+  Domains: EMO:140, QUA:140, ATT:140
+Scenario 50/100:
+  Corpus: 450 patterns
+  Maturation: mature
+  Survival: 50/50 (100.0%)
+  Domains: EMO:150, QUA:150, ATT:150
+Scenario 60/100:
+  Corpus: 480 patterns
+  Maturation: mature
+  Survival: 60/60 (100.0%)
+  Domains: EMO:160, QUA:160, ATT:160
+Scenario 70/100:
+  Corpus: 510 patterns
+  Maturation: mature
+  Survival: 70/70 (100.0%)
+  Domains: EMO:170, QUA:170, ATT:170
+Scenario 80/100:
+  Corpus: 540 patterns
+  Maturation: mature
+  Survival: 80/80 (100.0%)
+  Domains: EMO:180, QUA:180, ATT:180
+Scenario 90/100:
+  Corpus: 570 patterns
+  Maturation: mature
+  Survival: 90/90 (100.0%)
+  Domains: EMO:190, QUA:190, ATT:190
+Scenario 100/100:
+  Corpus: 600 patterns
+  Maturation: mature
+  Survival: 100/100 (100.0%)
+  Domains: EMO:200, QUA:200, ATT:200
+
+================================================================================
+STUDY COMPLETE
+================================================================================
+
+Final Corpus: 600 patterns
+Growth: +300 patterns
+Survival Rate: 100.0%
+
+Domain Distribution:
+  EMOTIONAL   : 100 → 200 (+100, 100.0% of growth)
+  QUALITY     : 100 → 200 (+100, 100.0% of growth)
+  ATTENTION   : 100 → 200 (+100, 100.0% of growth)
+Traceback (most recent call last):
+  File "/home/dp/ai-workspace/web4/game/session118_long_term_maturation_web4.py", line 364, in <module>
+    main()
+  File "/home/dp/ai-workspace/web4/game/session118_long_term_maturation_web4.py", line 358, in main
+    json.dump(results, f, indent=2)
+  File "/usr/lib/python3.10/json/__init__.py", line 179, in dump
+    for chunk in iterable:
+  File "/usr/lib/python3.10/json/encoder.py", line 431, in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+  File "/usr/lib/python3.10/json/encoder.py", line 405, in _iterencode_dict
+    yield from chunks
+  File "/usr/lib/python3.10/json/encoder.py", line 325, in _iterencode_list
+    yield from chunks
+  File "/usr/lib/python3.10/json/encoder.py", line 405, in _iterencode_dict
+    yield from chunks
+  File "/usr/lib/python3.10/json/encoder.py", line 376, in _iterencode_dict
+    raise TypeError(f'keys must be str, int, float, bool or None, '
+TypeError: keys must be str, int, float, bool or None, not EPDomain

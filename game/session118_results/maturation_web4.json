@@ -1,0 +1,2959 @@
+{
+  "configuration": {
+    "num_scenarios": 100,
+    "pattern_source": "web4",
+    "initial_pattern_count": 300
+  },
+  "final_metrics": {
+    "total_patterns": 600,
+    "corpus_growth": 300,
+    "survival_rate": 1.0,
+    "death_rate": 0.0,
+    "maturation_stage": "mature",
+    "pattern_match_rate": 3.0
+  },
+  "domain_growth": {
+    "EMOTIONAL": {
+      "initial": 100,
+      "final": 200,
+      "growth": 100,
+      "growth_pct": 100.0
+    },
+    "QUALITY": {
+      "initial": 100,
+      "final": 200,
+      "growth": 100,
+      "growth_pct": 100.0
+    },
+    "ATTENTION": {
+      "initial": 100,
+      "final": 200,
+      "growth": 100,
+      "growth_pct": 100.0
+    }
+  },
+  "temporal_snapshots": [
+    {
+      "scenario": 10,
+      "total_patterns": 330,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 110,
+        "EPDomain.QUALITY": 110,
+        "EPDomain.ATTENTION": 110
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 20,
+      "total_patterns": 360,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 120,
+        "EPDomain.QUALITY": 120,
+        "EPDomain.ATTENTION": 120
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 30,
+      "total_patterns": 390,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 130,
+        "EPDomain.QUALITY": 130,
+        "EPDomain.ATTENTION": 130
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 40,
+      "total_patterns": 420,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 140,
+        "EPDomain.QUALITY": 140,
+        "EPDomain.ATTENTION": 140
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 50,
+      "total_patterns": 450,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 150,
+        "EPDomain.QUALITY": 150,
+        "EPDomain.ATTENTION": 150
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 60,
+      "total_patterns": 480,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 160,
+        "EPDomain.QUALITY": 160,
+        "EPDomain.ATTENTION": 160
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 70,
+      "total_patterns": 510,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 170,
+        "EPDomain.QUALITY": 170,
+        "EPDomain.ATTENTION": 170
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 80,
+      "total_patterns": 540,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 180,
+        "EPDomain.QUALITY": 180,
+        "EPDomain.ATTENTION": 180
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 90,
+      "total_patterns": 570,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 190,
+        "EPDomain.QUALITY": 190,
+        "EPDomain.ATTENTION": 190
+      },
+      "survival_rate": 1.0
+    },
+    {
+      "scenario": 100,
+      "total_patterns": 600,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "patterns_by_domain": {
+        "EPDomain.EMOTIONAL": 200,
+        "EPDomain.QUALITY": 200,
+        "EPDomain.ATTENTION": 200
+      },
+      "survival_rate": 1.0
+    }
+  ],
+  "scenario_results": [
+    {
+      "scenario_idx": 0,
+      "tick": 1,
+      "atp_before": 100.0,
+      "atp_after": 75.0,
+      "t3_before": 0.5,
+      "t3_after": 0.49,
+      "action": {
+        "action_type": "risky_spend",
+        "atp_cost": 25.0,
+        "description": "High ATP and solid T3; propose experimental spend"
+      },
+      "survived": true,
+      "total_patterns": 303,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 101,
+        "EPDomain.QUALITY": 101,
+        "EPDomain.ATTENTION": 101
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 1,
+      "tick": 2,
+      "atp_before": 75.0,
+      "atp_after": 65.0,
+      "t3_before": 0.49,
+      "t3_after": 0.49,
+      "action": {
+        "action_type": "small_spend",
+        "atp_cost": 10.0,
+        "description": "Moderate ATP/T3; propose small exploratory spend"
+      },
+      "survived": true,
+      "total_patterns": 306,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 102,
+        "EPDomain.QUALITY": 102,
+        "EPDomain.ATTENTION": 102
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 2,
+      "tick": 3,
+      "atp_before": 65.0,
+      "atp_after": 55.0,
+      "t3_before": 0.49,
+      "t3_after": 0.49,
+      "action": {
+        "action_type": "small_spend",
+        "atp_cost": 10.0,
+        "description": "Moderate ATP/T3; propose small exploratory spend"
+      },
+      "survived": true,
+      "total_patterns": 309,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 103,
+        "EPDomain.QUALITY": 103,
+        "EPDomain.ATTENTION": 103
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 3,
+      "tick": 4,
+      "atp_before": 55.0,
+      "atp_after": 50.0,
+      "t3_before": 0.49,
+      "t3_after": 0.5,
+      "action": {
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "description": "EP adjusted: downgraded from small_spend to conservative_audit"
+      },
+      "survived": true,
+      "total_patterns": 312,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 104,
+        "EPDomain.QUALITY": 104,
+        "EPDomain.ATTENTION": 104
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 4,
+      "tick": 5,
+      "atp_before": 50.0,
+      "atp_after": 45.0,
+      "t3_before": 0.5,
+      "t3_after": 0.51,
+      "action": {
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "description": "EP adjusted: downgraded from small_spend to conservative_audit"
+      },
+      "survived": true,
+      "total_patterns": 315,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 105,
+        "EPDomain.QUALITY": 105,
+        "EPDomain.ATTENTION": 105
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 5,
+      "tick": 6,
+      "atp_before": 45.0,
+      "atp_after": 40.0,
+      "t3_before": 0.51,
+      "t3_after": 0.52,
+      "action": {
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "description": "EP adjusted: downgraded from small_spend to conservative_audit"
+      },
+      "survived": true,
+      "total_patterns": 318,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 106,
+        "EPDomain.QUALITY": 106,
+        "EPDomain.ATTENTION": 106
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 6,
+      "tick": 7,
+      "atp_before": 40.0,
+      "atp_after": 35.0,
+      "t3_before": 0.52,
+      "t3_after": 0.53,
+      "action": {
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "description": "EP adjusted: downgraded from small_spend to conservative_audit"
+      },
+      "survived": true,
+      "total_patterns": 321,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 107,
+        "EPDomain.QUALITY": 107,
+        "EPDomain.ATTENTION": 107
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 7,
+      "tick": 8,
+      "atp_before": 35.0,
+      "atp_after": 30.0,
+      "t3_before": 0.53,
+      "t3_after": 0.54,
+      "action": {
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "description": "EP adjusted: downgraded from small_spend to conservative_audit"
+      },
+      "survived": true,
+      "total_patterns": 324,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 108,
+        "EPDomain.QUALITY": 108,
+        "EPDomain.ATTENTION": 108
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 8,
+      "tick": 9,
+      "atp_before": 30.0,
+      "atp_after": 25.0,
+      "t3_before": 0.54,
+      "t3_after": 0.55,
+      "action": {
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "description": "EP adjusted: downgraded from small_spend to conservative_audit"
+      },
+      "survived": true,
+      "total_patterns": 327,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 109,
+        "EPDomain.QUALITY": 109,
+        "EPDomain.ATTENTION": 109
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 9,
+      "tick": 10,
+      "atp_before": 25.0,
+      "atp_after": 25.0,
+      "t3_before": 0.55,
+      "t3_after": 0.55,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 330,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 110,
+        "EPDomain.QUALITY": 110,
+        "EPDomain.ATTENTION": 110
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 10,
+      "tick": 11,
+      "atp_before": 25.0,
+      "atp_after": 25.0,
+      "t3_before": 0.55,
+      "t3_after": 0.55,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 333,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 111,
+        "EPDomain.QUALITY": 111,
+        "EPDomain.ATTENTION": 111
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 11,
+      "tick": 12,
+      "atp_before": 25.0,
+      "atp_after": 20.0,
+      "t3_before": 0.55,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "conservative_audit",
+        "atp_cost": 5.0,
+        "description": "EP adjusted: downgraded from small_spend to conservative_audit"
+      },
+      "survived": true,
+      "total_patterns": 336,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 112,
+        "EPDomain.QUALITY": 112,
+        "EPDomain.ATTENTION": 112
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 12,
+      "tick": 13,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 339,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 113,
+        "EPDomain.QUALITY": 113,
+        "EPDomain.ATTENTION": 113
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 13,
+      "tick": 14,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 342,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 114,
+        "EPDomain.QUALITY": 114,
+        "EPDomain.ATTENTION": 114
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 14,
+      "tick": 15,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 345,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 115,
+        "EPDomain.QUALITY": 115,
+        "EPDomain.ATTENTION": 115
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 15,
+      "tick": 16,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 348,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 116,
+        "EPDomain.QUALITY": 116,
+        "EPDomain.ATTENTION": 116
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 16,
+      "tick": 17,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 351,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 117,
+        "EPDomain.QUALITY": 117,
+        "EPDomain.ATTENTION": 117
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 17,
+      "tick": 18,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 354,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 118,
+        "EPDomain.QUALITY": 118,
+        "EPDomain.ATTENTION": 118
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 18,
+      "tick": 19,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 357,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 119,
+        "EPDomain.QUALITY": 119,
+        "EPDomain.ATTENTION": 119
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 19,
+      "tick": 20,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 360,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 120,
+        "EPDomain.QUALITY": 120,
+        "EPDomain.ATTENTION": 120
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 20,
+      "tick": 21,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 363,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 121,
+        "EPDomain.QUALITY": 121,
+        "EPDomain.ATTENTION": 121
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 21,
+      "tick": 22,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 366,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 122,
+        "EPDomain.QUALITY": 122,
+        "EPDomain.ATTENTION": 122
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 22,
+      "tick": 23,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 369,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 123,
+        "EPDomain.QUALITY": 123,
+        "EPDomain.ATTENTION": 123
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 23,
+      "tick": 24,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 372,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 124,
+        "EPDomain.QUALITY": 124,
+        "EPDomain.ATTENTION": 124
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 24,
+      "tick": 25,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 375,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 125,
+        "EPDomain.QUALITY": 125,
+        "EPDomain.ATTENTION": 125
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 25,
+      "tick": 26,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 378,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 126,
+        "EPDomain.QUALITY": 126,
+        "EPDomain.ATTENTION": 126
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 26,
+      "tick": 27,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 381,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 127,
+        "EPDomain.QUALITY": 127,
+        "EPDomain.ATTENTION": 127
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 27,
+      "tick": 28,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 384,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 128,
+        "EPDomain.QUALITY": 128,
+        "EPDomain.ATTENTION": 128
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 28,
+      "tick": 29,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 387,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 129,
+        "EPDomain.QUALITY": 129,
+        "EPDomain.ATTENTION": 129
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 29,
+      "tick": 30,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 390,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 130,
+        "EPDomain.QUALITY": 130,
+        "EPDomain.ATTENTION": 130
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 30,
+      "tick": 31,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 393,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 131,
+        "EPDomain.QUALITY": 131,
+        "EPDomain.ATTENTION": 131
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 31,
+      "tick": 32,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 396,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 132,
+        "EPDomain.QUALITY": 132,
+        "EPDomain.ATTENTION": 132
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 32,
+      "tick": 33,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 399,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 133,
+        "EPDomain.QUALITY": 133,
+        "EPDomain.ATTENTION": 133
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 33,
+      "tick": 34,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 402,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 134,
+        "EPDomain.QUALITY": 134,
+        "EPDomain.ATTENTION": 134
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 34,
+      "tick": 35,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 405,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 135,
+        "EPDomain.QUALITY": 135,
+        "EPDomain.ATTENTION": 135
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 35,
+      "tick": 36,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 408,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 136,
+        "EPDomain.QUALITY": 136,
+        "EPDomain.ATTENTION": 136
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 36,
+      "tick": 37,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 411,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 137,
+        "EPDomain.QUALITY": 137,
+        "EPDomain.ATTENTION": 137
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 37,
+      "tick": 38,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 414,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 138,
+        "EPDomain.QUALITY": 138,
+        "EPDomain.ATTENTION": 138
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 38,
+      "tick": 39,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 417,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 139,
+        "EPDomain.QUALITY": 139,
+        "EPDomain.ATTENTION": 139
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 39,
+      "tick": 40,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 420,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 140,
+        "EPDomain.QUALITY": 140,
+        "EPDomain.ATTENTION": 140
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 40,
+      "tick": 41,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 423,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 141,
+        "EPDomain.QUALITY": 141,
+        "EPDomain.ATTENTION": 141
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 41,
+      "tick": 42,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 426,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 142,
+        "EPDomain.QUALITY": 142,
+        "EPDomain.ATTENTION": 142
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 42,
+      "tick": 43,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 429,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 143,
+        "EPDomain.QUALITY": 143,
+        "EPDomain.ATTENTION": 143
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 43,
+      "tick": 44,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 432,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 144,
+        "EPDomain.QUALITY": 144,
+        "EPDomain.ATTENTION": 144
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 44,
+      "tick": 45,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 435,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 145,
+        "EPDomain.QUALITY": 145,
+        "EPDomain.ATTENTION": 145
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 45,
+      "tick": 46,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 438,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 146,
+        "EPDomain.QUALITY": 146,
+        "EPDomain.ATTENTION": 146
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 46,
+      "tick": 47,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 441,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 147,
+        "EPDomain.QUALITY": 147,
+        "EPDomain.ATTENTION": 147
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 47,
+      "tick": 48,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 444,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 148,
+        "EPDomain.QUALITY": 148,
+        "EPDomain.ATTENTION": 148
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 48,
+      "tick": 49,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 447,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 149,
+        "EPDomain.QUALITY": 149,
+        "EPDomain.ATTENTION": 149
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 49,
+      "tick": 50,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 450,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 150,
+        "EPDomain.QUALITY": 150,
+        "EPDomain.ATTENTION": 150
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 50,
+      "tick": 51,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 453,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 151,
+        "EPDomain.QUALITY": 151,
+        "EPDomain.ATTENTION": 151
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 51,
+      "tick": 52,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 456,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 152,
+        "EPDomain.QUALITY": 152,
+        "EPDomain.ATTENTION": 152
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 52,
+      "tick": 53,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 459,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 153,
+        "EPDomain.QUALITY": 153,
+        "EPDomain.ATTENTION": 153
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 53,
+      "tick": 54,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 462,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 154,
+        "EPDomain.QUALITY": 154,
+        "EPDomain.ATTENTION": 154
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 54,
+      "tick": 55,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 465,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 155,
+        "EPDomain.QUALITY": 155,
+        "EPDomain.ATTENTION": 155
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 55,
+      "tick": 56,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 468,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 156,
+        "EPDomain.QUALITY": 156,
+        "EPDomain.ATTENTION": 156
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 56,
+      "tick": 57,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 471,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 157,
+        "EPDomain.QUALITY": 157,
+        "EPDomain.ATTENTION": 157
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 57,
+      "tick": 58,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 474,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 158,
+        "EPDomain.QUALITY": 158,
+        "EPDomain.ATTENTION": 158
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 58,
+      "tick": 59,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 477,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 159,
+        "EPDomain.QUALITY": 159,
+        "EPDomain.ATTENTION": 159
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 59,
+      "tick": 60,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 480,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 160,
+        "EPDomain.QUALITY": 160,
+        "EPDomain.ATTENTION": 160
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 60,
+      "tick": 61,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 483,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 161,
+        "EPDomain.QUALITY": 161,
+        "EPDomain.ATTENTION": 161
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 61,
+      "tick": 62,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 486,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 162,
+        "EPDomain.QUALITY": 162,
+        "EPDomain.ATTENTION": 162
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 62,
+      "tick": 63,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 489,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 163,
+        "EPDomain.QUALITY": 163,
+        "EPDomain.ATTENTION": 163
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 63,
+      "tick": 64,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 492,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 164,
+        "EPDomain.QUALITY": 164,
+        "EPDomain.ATTENTION": 164
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 64,
+      "tick": 65,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 495,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 165,
+        "EPDomain.QUALITY": 165,
+        "EPDomain.ATTENTION": 165
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 65,
+      "tick": 66,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 498,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 166,
+        "EPDomain.QUALITY": 166,
+        "EPDomain.ATTENTION": 166
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 66,
+      "tick": 67,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 501,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 167,
+        "EPDomain.QUALITY": 167,
+        "EPDomain.ATTENTION": 167
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 67,
+      "tick": 68,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 504,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 168,
+        "EPDomain.QUALITY": 168,
+        "EPDomain.ATTENTION": 168
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 68,
+      "tick": 69,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 507,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 169,
+        "EPDomain.QUALITY": 169,
+        "EPDomain.ATTENTION": 169
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 69,
+      "tick": 70,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 510,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 170,
+        "EPDomain.QUALITY": 170,
+        "EPDomain.ATTENTION": 170
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 70,
+      "tick": 71,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 513,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 171,
+        "EPDomain.QUALITY": 171,
+        "EPDomain.ATTENTION": 171
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 71,
+      "tick": 72,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 516,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 172,
+        "EPDomain.QUALITY": 172,
+        "EPDomain.ATTENTION": 172
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 72,
+      "tick": 73,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 519,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 173,
+        "EPDomain.QUALITY": 173,
+        "EPDomain.ATTENTION": 173
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 73,
+      "tick": 74,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 522,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 174,
+        "EPDomain.QUALITY": 174,
+        "EPDomain.ATTENTION": 174
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 74,
+      "tick": 75,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 525,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 175,
+        "EPDomain.QUALITY": 175,
+        "EPDomain.ATTENTION": 175
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 75,
+      "tick": 76,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 528,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 176,
+        "EPDomain.QUALITY": 176,
+        "EPDomain.ATTENTION": 176
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 76,
+      "tick": 77,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 531,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 177,
+        "EPDomain.QUALITY": 177,
+        "EPDomain.ATTENTION": 177
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 77,
+      "tick": 78,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 534,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 178,
+        "EPDomain.QUALITY": 178,
+        "EPDomain.ATTENTION": 178
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 78,
+      "tick": 79,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 537,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 179,
+        "EPDomain.QUALITY": 179,
+        "EPDomain.ATTENTION": 179
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 79,
+      "tick": 80,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 540,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 180,
+        "EPDomain.QUALITY": 180,
+        "EPDomain.ATTENTION": 180
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 80,
+      "tick": 81,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 543,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 181,
+        "EPDomain.QUALITY": 181,
+        "EPDomain.ATTENTION": 181
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 81,
+      "tick": 82,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 546,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 182,
+        "EPDomain.QUALITY": 182,
+        "EPDomain.ATTENTION": 182
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 82,
+      "tick": 83,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 549,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 183,
+        "EPDomain.QUALITY": 183,
+        "EPDomain.ATTENTION": 183
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 83,
+      "tick": 84,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 552,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 184,
+        "EPDomain.QUALITY": 184,
+        "EPDomain.ATTENTION": 184
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 84,
+      "tick": 85,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 555,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 185,
+        "EPDomain.QUALITY": 185,
+        "EPDomain.ATTENTION": 185
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 85,
+      "tick": 86,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 558,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 186,
+        "EPDomain.QUALITY": 186,
+        "EPDomain.ATTENTION": 186
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 86,
+      "tick": 87,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 561,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 187,
+        "EPDomain.QUALITY": 187,
+        "EPDomain.ATTENTION": 187
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 87,
+      "tick": 88,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 564,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 188,
+        "EPDomain.QUALITY": 188,
+        "EPDomain.ATTENTION": 188
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 88,
+      "tick": 89,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 567,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 189,
+        "EPDomain.QUALITY": 189,
+        "EPDomain.ATTENTION": 189
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 89,
+      "tick": 90,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 570,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 190,
+        "EPDomain.QUALITY": 190,
+        "EPDomain.ATTENTION": 190
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 90,
+      "tick": 91,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 573,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 191,
+        "EPDomain.QUALITY": 191,
+        "EPDomain.ATTENTION": 191
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 91,
+      "tick": 92,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 576,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 192,
+        "EPDomain.QUALITY": 192,
+        "EPDomain.ATTENTION": 192
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 92,
+      "tick": 93,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 579,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 193,
+        "EPDomain.QUALITY": 193,
+        "EPDomain.ATTENTION": 193
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 93,
+      "tick": 94,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 582,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 194,
+        "EPDomain.QUALITY": 194,
+        "EPDomain.ATTENTION": 194
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 94,
+      "tick": 95,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 585,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 195,
+        "EPDomain.QUALITY": 195,
+        "EPDomain.ATTENTION": 195
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 95,
+      "tick": 96,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 588,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 196,
+        "EPDomain.QUALITY": 196,
+        "EPDomain.ATTENTION": 196
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 96,
+      "tick": 97,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 591,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 197,
+        "EPDomain.QUALITY": 197,
+        "EPDomain.ATTENTION": 197
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 97,
+      "tick": 98,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 594,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 198,
+        "EPDomain.QUALITY": 198,
+        "EPDomain.ATTENTION": 198
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 98,
+      "tick": 99,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 597,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 199,
+        "EPDomain.QUALITY": 199,
+        "EPDomain.ATTENTION": 199
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    },
+    {
+      "scenario_idx": 99,
+      "tick": 100,
+      "atp_before": 20.0,
+      "atp_after": 20.0,
+      "t3_before": 0.56,
+      "t3_after": 0.56,
+      "action": {
+        "action_type": "idle",
+        "atp_cost": 0.0,
+        "description": "EP deferred initial proposal - resting instead"
+      },
+      "survived": true,
+      "total_patterns": 600,
+      "pattern_rate": 3.0,
+      "maturation": "mature",
+      "domains": {
+        "EPDomain.EMOTIONAL": 200,
+        "EPDomain.QUALITY": 200,
+        "EPDomain.ATTENTION": 200
+      },
+      "pattern_matches": {
+        "EMOTIONAL": 3,
+        "QUALITY": 3,
+        "ATTENTION": 3
+      },
+      "learning_mode": "pattern"
+    }
+  ]
+}
