@@ -1,0 +1,55 @@
+Pattern Source: NONE
+
+================================================================================
+EP MATURATION DEMONSTRATION: IMMATURE → LEARNING → MATURE
+================================================================================
+Lives: 3, Steps per life: 20
+Agent: lct:web4:agent:bob
+
+Life 1: IMMATURE - Starting with 0 patterns
+  Maturation: IMMATURE
+  Patterns: 0
+
+Life 1 Complete:
+  State: alive
+  Final T3: 0.550, ATP: 15.0
+  Actions: 20
+  Patterns collected this life: 60
+  Pattern prediction rate: 275.0%
+  Maturation: mature
+
+Life 2: LEARNING - Loaded 60 patterns (no external corpus + Life 1)
+  Maturation: LEARNING
+  Patterns: 60
+
+Life 2 Complete:
+  State: alive
+  Final T3: 0.550, ATP: 17.0
+  Actions: 20
+  Patterns collected this life: 60
+  Pattern prediction rate: 300.0%
+  Maturation: mature
+
+Life 3: MATURE - Continuing with 120 patterns from Life 2
+  Maturation: MATURE
+  Patterns: 120
+
+Life 3 Complete:
+  State: alive
+  Final T3: 0.550, ATP: 17.0
+  Actions: 20
+  Patterns collected this life: 60
+  Pattern prediction rate: 300.0%
+  Maturation: mature
+
+================================================================================
+MATURATION DEMONSTRATION COMPLETE
+================================================================================
+
+Final EP State:
+  Maturation: MATURE
+  Total Patterns: 180
+  Pattern Prediction Rate: 300.0%
+
+Results saved to: maturation_demo_results_none.json
+

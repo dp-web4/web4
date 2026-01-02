@@ -33,7 +33,7 @@ from engine.models import Agent, Society, World, LifeRecord
 from engine.scenarios import bootstrap_home_society_world
 from engine.sim_loop import tick_world
 from engine.agent_actions import apply_policy_action, applied_action_to_dict
-from ep_driven_policy import EPDrivenPolicy, create_policy_with_thor_patterns
+from ep_driven_policy import EPDrivenPolicy, create_policy_with_thor_patterns, create_policy_with_web4_patterns
 
 
 def _select_research_agent(world: World) -> Optional[Agent]:
@@ -119,14 +119,20 @@ def run_maturation_demo(
     num_lives: int = 3,
     steps_per_life: int = 20,
     termination_t3_threshold: float = 0.2,
+    pattern_source: str = "web4",  # "web4", "thor", or "none"
     verbose: bool = True
 ) -> Dict[str, Any]:
     """
     Run maturation demonstration across 3 lives.
 
     Life 1: IMMATURE (0 patterns)
-    Life 2: LEARNING (65 Thor patterns)
-    Life 3: MATURE (65 Thor + ~20 Life 2 patterns)
+    Life 2: LEARNING (patterns from corpus)
+    Life 3: MATURE (corpus + Life 2 patterns)
+
+    Args:
+        pattern_source: "web4" for Web4-native patterns (Session 116),
+                       "thor" for Thor's SAGE patterns (Session 115),
+                       "none" for heuristic-only baseline
     """
 
     # Initialize world
@@ -174,9 +180,18 @@ def run_maturation_demo(
             if verbose:
                 print("Life 1: IMMATURE - Starting with 0 patterns")
         elif idx == 2:
-            # Life 2: LEARNING (load Thor's patterns + Life 1 patterns)
-            hrm_path = Path("/home/dp/ai-workspace/HRM")
-            policy = create_policy_with_thor_patterns(hrm_path)
+            # Life 2: LEARNING (load corpus patterns + Life 1 patterns)
+            if pattern_source == "thor":
+                hrm_path = Path("/home/dp/ai-workspace/HRM")
+                policy = create_policy_with_thor_patterns(hrm_path)
+                source_desc = "Thor's SAGE corpus"
+            elif pattern_source == "web4":
+                policy = create_policy_with_web4_patterns()
+                source_desc = "Web4-native ATP corpus"
+            else:  # pattern_source == "none"
+                policy = EPDrivenPolicy()
+                source_desc = "no external corpus"
+
             # Add Life 1's collected patterns
             if policies:
                 for domain, matcher in policies[0].matchers.items():
@@ -184,7 +199,7 @@ def run_maturation_demo(
                         policy.matchers[domain].add_pattern(pattern)
             if verbose:
                 stats = policy.get_learning_stats()
-                print(f"Life 2: LEARNING - Loaded {stats['total_patterns']} patterns (Thor's corpus + Life 1)")
+                print(f"Life 2: LEARNING - Loaded {stats['total_patterns']} patterns ({source_desc} + Life 1)")
         else:
             # Life 3: MATURE (continue from Life 2)
             policy = policies[1]  # Reuse Life 2 policy with accumulated patterns
@@ -356,15 +371,26 @@ def run_maturation_demo(
 
 
 if __name__ == "__main__":
+    import sys
+
+    # Parse CLI arguments
+    pattern_source = "web4"  # Default to Web4-native patterns (Session 116)
+    if len(sys.argv) > 1:
+        pattern_source = sys.argv[1]  # "web4", "thor", or "none"
+
+    print(f"Pattern Source: {pattern_source.upper()}")
+    print()
+
     # Run maturation demonstration
     results = run_maturation_demo(
         num_lives=3,
         steps_per_life=20,
+        pattern_source=pattern_source,
         verbose=True
     )
 
     # Save results
-    output_file = Path(__file__).parent / "maturation_demo_results.json"
+    output_file = Path(__file__).parent / f"maturation_demo_results_{pattern_source}.json"
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
 

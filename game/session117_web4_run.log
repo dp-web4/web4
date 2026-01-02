@@ -1,0 +1,59 @@
+Pattern Source: WEB4
+
+================================================================================
+EP MATURATION DEMONSTRATION: IMMATURE → LEARNING → MATURE
+================================================================================
+Lives: 3, Steps per life: 20
+Agent: lct:web4:agent:bob
+
+Life 1: IMMATURE - Starting with 0 patterns
+  Maturation: IMMATURE
+  Patterns: 0
+
+Life 1 Complete:
+  State: alive
+  Final T3: 0.550, ATP: 15.0
+  Actions: 20
+  Patterns collected this life: 60
+  Pattern prediction rate: 275.0%
+  Maturation: mature
+
+[Web4 Patterns] Loaded 300 Web4-native patterns
+  EMOTIONAL: 100 patterns
+  QUALITY: 100 patterns
+  ATTENTION: 100 patterns
+Life 2: LEARNING - Loaded 360 patterns (Web4-native ATP corpus + Life 1)
+  Maturation: LEARNING
+  Patterns: 360
+
+Life 2 Complete:
+  State: alive
+  Final T3: 0.570, ATP: 17.0
+  Actions: 20
+  Patterns collected this life: 360
+  Pattern prediction rate: 300.0%
+  Maturation: mature
+
+Life 3: MATURE - Continuing with 420 patterns from Life 2
+  Maturation: MATURE
+  Patterns: 420
+
+Life 3 Complete:
+  State: alive
+  Final T3: 0.570, ATP: 17.8
+  Actions: 20
+  Patterns collected this life: 60
+  Pattern prediction rate: 300.0%
+  Maturation: mature
+
+================================================================================
+MATURATION DEMONSTRATION COMPLETE
+================================================================================
+
+Final EP State:
+  Maturation: MATURE
+  Total Patterns: 480
+  Pattern Prediction Rate: 300.0%
+
+Results saved to: maturation_demo_results_web4.json
+

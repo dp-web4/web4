@@ -776,6 +776,97 @@ def create_policy_with_thor_patterns(hrm_path: Optional[Path] = None) -> EPDrive
     return policy
 
 
+def create_policy_with_web4_patterns(web4_pattern_path: Optional[Path] = None) -> EPDrivenPolicy:
+    """
+    Create EP-driven policy pre-loaded with Web4-native ATP pattern corpus.
+
+    Session 116: Web4-native patterns generated to address Session 115's
+    finding that Thor's SAGE patterns don't transfer to ATP management.
+
+    This creates a LEARNING-stage policy with domain-specific patterns.
+
+    Args:
+        web4_pattern_path: Path to ep_pattern_corpus_web4_native.json
+                          Defaults to web4/game/ep_pattern_corpus_web4_native.json
+    """
+    if web4_pattern_path is None:
+        # Default: web4/game/ep_pattern_corpus_web4_native.json
+        web4_pattern_path = Path(__file__).parent / "ep_pattern_corpus_web4_native.json"
+
+    if not web4_pattern_path.exists():
+        raise FileNotFoundError(f"Web4 pattern corpus not found: {web4_pattern_path}")
+
+    policy = EPDrivenPolicy()
+
+    # Load Web4 patterns
+    with open(web4_pattern_path, 'r') as f:
+        corpus_data = json.load(f)
+
+    patterns_list = corpus_data.get("patterns", [])
+
+    # Convert Web4 patterns to EPPattern format and add to policy
+    for web4_pattern in patterns_list:
+        # Web4 patterns already have the right structure (context + ep_predictions + outcome)
+        # Convert to EPPattern for each domain prediction
+
+        context = web4_pattern.get("context", {})
+        ep_predictions = web4_pattern.get("ep_predictions", {})
+        outcome = web4_pattern.get("outcome", {})
+
+        # Create EPPattern for each domain that has a prediction
+        for domain_str in ["emotional", "quality", "attention"]:
+            if domain_str not in ep_predictions:
+                continue
+
+            prediction = ep_predictions[domain_str]
+
+            # Map domain string to EPDomain enum
+            if domain_str == "emotional":
+                domain = EPDomain.EMOTIONAL
+            elif domain_str == "quality":
+                domain = EPDomain.QUALITY
+            elif domain_str == "attention":
+                domain = EPDomain.ATTENTION
+            else:
+                continue
+
+            # Create InteractionPattern
+            ep_pattern = InteractionPattern(
+                pattern_id=web4_pattern.get("pattern_id", f"web4_{domain_str}_unknown"),
+                life_id="web4_corpus",  # Mark as coming from Web4 corpus
+                tick=0,  # Pre-generated patterns don't have tick
+                domain=domain,
+                context=context.get(domain_str, {}),  # Get domain-specific context
+                prediction={
+                    "outcome_probability": prediction.get("outcome_probability", 0.5),
+                    "confidence": prediction.get("confidence", 0.5),
+                    "severity": prediction.get("severity", 0.5),
+                    "recommendation": prediction.get("recommendation", "adjust"),
+                    "reasoning": prediction.get("reasoning", "Web4-native pattern")
+                },
+                outcome={
+                    "success": outcome.get("success", False),
+                    "atp_before": outcome.get("atp_before", 0.0),
+                    "atp_after": outcome.get("atp_after", 0.0),
+                    "t3_before": outcome.get("t3_before", 0.0),
+                    "t3_after": outcome.get("t3_after", 0.0),
+                    "survived": outcome.get("survived", True)
+                },
+                timestamp=web4_pattern.get("timestamp", "2026-01-01T00:00:00")
+            )
+
+            # Add to appropriate matcher
+            policy.matchers[domain].add_pattern(ep_pattern)
+
+    # Log loaded patterns
+    total_loaded = sum(len(matcher.patterns) for matcher in policy.matchers.values())
+    print(f"[Web4 Patterns] Loaded {total_loaded} Web4-native patterns")
+    for domain, matcher in policy.matchers.items():
+        print(f"  {domain.name}: {len(matcher.patterns)} patterns")
+
+    return policy
+
+
 if __name__ == "__main__":
     print("EP-Driven Policy for Web4 Closed-Loop Multi-Life")
     print("=" * 80)
