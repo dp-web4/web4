@@ -150,6 +150,10 @@ class T3Tensor:
     stub: bool = False
     reason: Optional[str] = None
 
+    # Trust ceiling for software-bound vs hardware-bound entities
+    trust_ceiling: Optional[float] = None        # Max trust (1.0 for hardware, 0.85 for software)
+    trust_ceiling_reason: Optional[str] = None   # Why ceiling exists (e.g., "software_binding")
+
     def recompute_composite(self) -> float:
         """Recompute composite score from dimensions."""
         dims = [
@@ -183,7 +187,11 @@ class T3Tensor:
         return cls(stub=True, reason=reason)
 
     @classmethod
-    def create_minimal(cls) -> 'T3Tensor':
+    def create_minimal(
+        cls,
+        trust_ceiling: Optional[float] = None,
+        trust_ceiling_reason: Optional[str] = None
+    ) -> 'T3Tensor':
         """Create minimal T3 tensor for Level 1."""
         t3 = cls(
             technical_competence=0.1,
@@ -192,7 +200,9 @@ class T3Tensor:
             witness_count=0.0,
             lineage_depth=0.0,
             context_alignment=0.1,
-            stub=False
+            stub=False,
+            trust_ceiling=trust_ceiling,
+            trust_ceiling_reason=trust_ceiling_reason
         )
         t3.recompute_composite()
         return t3
