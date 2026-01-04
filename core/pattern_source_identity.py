@@ -1,20 +1,36 @@
 #!/usr/bin/env python3
 """
-Web4 LCT (Lifecycle-Continuous Trust) Identity System
+Web4 Pattern Source Identity (PSI) System
 
-Provides cryptographic identity for AI agents with accumulated trust.
+CORRECTION NOTICE (2026-01-03):
+This file was originally named "lct_identity.py" and used "LCT" to mean
+"Lifecycle-Continuous Trust". This was INCORRECT.
 
-Phase 1 Implementation (Session 121):
-- Core LCTIdentity class
+In Web4, LCT = Linked Context Token (the foundational identity primitive).
+See: web4-standard/core-spec/LCT-linked-context-token.md
+
+This module has been renamed to "Pattern Source Identity (PSI)" to avoid
+collision with the real LCT terminology. The class has been renamed from
+LCTIdentity to PatternSourceIdentity.
+
+RECOMMENDED: Refactor this module to use real LCT infrastructure:
+- Use LCT binding for cryptographic identity
+- Use T3 tensor for trust (instead of simple trust_score)
+- Use MRH witnessing for attestations
+
+See: proposals/PATTERN_SOURCE_IDENTITY.md for migration path.
+
+Original Phase 1 Implementation (Session 121):
+- Core PatternSourceIdentity class (formerly LCTIdentity)
 - Key generation and management
 - Trust score calculation
 - Pattern signing/verification
 - Basic cryptographic operations
 
 Future Phases:
-- Phase 2: Trust attestation network
-- Phase 3: Pattern federation security integration
-- Phase 4: Multi-agent testing in ACT
+- Integrate with real LCT infrastructure
+- Use T3 tensors instead of simple trust_score
+- Connect to society-based attestation via MRH
 """
 
 import json

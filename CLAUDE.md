@@ -56,6 +56,28 @@ Web4 is a trust-native distributed intelligence architecture that implements:
 - **Markov Relevancy Horizons (MRH)**: Context boundaries for entities
 - **R6 Action Framework**: Intent to reality transformation
 
+## 🚨 TERMINOLOGY PROTECTION
+
+**DO NOT redefine these foundational terms:**
+
+| Term | Meaning | Specification |
+|------|---------|---------------|
+| **LCT** | Linked Context Token | `web4-standard/core-spec/LCT-linked-context-token.md` |
+| **MRH** | Markov Relevancy Horizon | `web4-standard/core-spec/mrh-tensors.md` |
+| **T3** | Trust Tensor (6 dimensions) | `web4-standard/core-spec/t3-v3-tensors.md` |
+| **V3** | Value Tensor (6 dimensions) | `web4-standard/core-spec/t3-v3-tensors.md` |
+| **ATP/ADP** | Alignment Transfer Protocol | `web4-standard/core-spec/atp-adp-cycle.md` |
+| **R6** | Rules/Role/Request/Reference/Resource/Result | `web4-standard/core-spec/r6-framework.md` |
+
+**Before creating new identity/trust systems:**
+1. Check the glossary: `whitepaper/sections/02-glossary/index.md`
+2. Check if existing infrastructure can be extended
+3. NEVER create new meanings for established acronyms
+
+**Example of what NOT to do:**
+- ❌ "LCT = Lifecycle-Continuous Trust" (WRONG - LCT already means Linked Context Token)
+- ✅ Use existing LCT for pattern signing, T3 for trust scores
+
 ## Whitepaper Status
 
 The Web4 whitepaper is actively evolving with:
