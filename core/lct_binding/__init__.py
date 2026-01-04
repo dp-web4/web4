@@ -39,18 +39,13 @@ from .platform_detection import (
 )
 from .software_provider import SoftwareProvider
 
-# Import hardware providers if available
-try:
-    from .tpm2_provider import TPM2Provider
-    HAS_TPM2 = True
-except ImportError:
-    HAS_TPM2 = False
+# Import hardware providers
+# These are always importable but may fallback to simulation if hardware unavailable
+from .tpm2_provider import TPM2Provider
+from .trustzone_provider import TrustZoneProvider
 
-try:
-    from .trustzone_provider import TrustZoneProvider
-    HAS_TRUSTZONE = True
-except ImportError:
-    HAS_TRUSTZONE = False
+HAS_TPM2 = True
+HAS_TRUSTZONE = True
 
 
 def get_provider() -> LCTBindingProvider:
@@ -113,8 +108,12 @@ __all__ = [
     'PlatformInfo',
     'BindingResult',
     'SoftwareProvider',
+    'TPM2Provider',
+    'TrustZoneProvider',
     'detect_platform',
     'get_platform_info',
     'get_provider',
     'create_bound_lct',
+    'HAS_TPM2',
+    'HAS_TRUSTZONE',
 ]
