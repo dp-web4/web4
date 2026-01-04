@@ -2,6 +2,13 @@
 """
 Session 121: Secure Pattern Federation with LCT Identity
 
+NOTE (2026-01-03): This file now uses PatternSourceIdentity (PSI) from
+core/pattern_source_identity.py, which properly integrates with Web4's
+real LCT (Linked Context Token) infrastructure including T3/V3 tensors
+and MRH witnessing. The LCTIdentity alias is maintained for compatibility.
+
+See: proposals/PATTERN_SOURCE_IDENTITY.md for migration details.
+
 Integrates Session 120's pattern federation with Session 121's LCT identity
 system to implement P0 security mitigations:
 
@@ -45,18 +52,18 @@ except ImportError as e:
 # Import Session 121 LCT identity
 try:
     sys.path.insert(0, str(web4_root))
-    from core.lct_identity import LCTIdentity
+    from core.pattern_source_identity import PatternSourceIdentity as LCTIdentity
     print("LCT Identity imported successfully")
 except ImportError as e:
     print(f"Warning: LCT identity not available: {e}")
     # Try alternate import
     try:
         import importlib.util
-        spec = importlib.util.spec_from_file_location("lct_identity", web4_root / "core" / "lct_identity.py")
-        lct_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(lct_module)
-        LCTIdentity = lct_module.LCTIdentity
-        print("LCT Identity imported via alternate method")
+        spec = importlib.util.spec_from_file_location("pattern_source_identity", web4_root / "core" / "pattern_source_identity.py")
+        psi_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(psi_module)
+        LCTIdentity = psi_module.PatternSourceIdentity  # Alias for backward compatibility
+        print("Pattern Source Identity imported via alternate method")
     except Exception as e2:
         print(f"ERROR: Could not import LCT identity: {e2}")
         LCTIdentity = None
