@@ -1,0 +1,10 @@
+{
+  "software_creation_ms": 12.912750244140625,
+  "tpm2_creation_ms": 600.0611782073975,
+  "software_signing_ms": 0.043392181396484375,
+  "tpm2_signing_ms": 0.020742416381835938,
+  "software_ceiling": 0.85,
+  "tpm2_ceiling": 1.0,
+  "software_trust": 0.5166666666666667,
+  "tpm2_trust": 0.5166666666666667
+}

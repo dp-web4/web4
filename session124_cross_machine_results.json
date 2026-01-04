@@ -1,0 +1,10 @@
+{
+  "thor_patterns_loaded": 450,
+  "patterns_signed": 10,
+  "patterns_verified": 10,
+  "signing_time_ms": 0.11134147644042969,
+  "per_pattern_ms": 0.011134147644042969,
+  "verification_success_rate": 1.0,
+  "legion_binding": "tpm2",
+  "legion_ceiling": 1.0
+}
