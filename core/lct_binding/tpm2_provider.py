@@ -302,6 +302,53 @@ class TPM2Provider(LCTBindingProvider):
                 error=str(e)
             )
 
+    def _tpm_signature_to_der(self, tpm_sig: bytes) -> bytes:
+        """
+        Convert TPM TPMT_SIGNATURE format to DER format for Python cryptography.
+
+        TPM format:
+        - 2 bytes: sigAlg (0x0018 = TPM_ALG_ECDSA)
+        - 2 bytes: hashAlg (0x000b = TPM_ALG_SHA256)
+        - 2 bytes: R size
+        - R bytes (32 bytes for P-256)
+        - 2 bytes: S size
+        - S bytes (32 bytes for P-256)
+
+        DER format (for ECDSA):
+        - SEQUENCE tag + length
+        - INTEGER tag + length + R (with padding if high bit set)
+        - INTEGER tag + length + S (with padding if high bit set)
+        """
+        # Skip sigAlg and hashAlg (first 4 bytes)
+        offset = 4
+
+        # Extract R
+        r_size = int.from_bytes(tpm_sig[offset:offset+2], 'big')
+        offset += 2
+        r = tpm_sig[offset:offset+r_size]
+        offset += r_size
+
+        # Extract S
+        s_size = int.from_bytes(tpm_sig[offset:offset+2], 'big')
+        offset += 2
+        s = tpm_sig[offset:offset+s_size]
+
+        # Convert to DER
+        # DER INTEGER: if high bit is set, prepend 0x00 to indicate positive
+        def encode_der_integer(value: bytes) -> bytes:
+            if value[0] & 0x80:
+                value = b'\x00' + value
+            return bytes([0x02, len(value)]) + value
+
+        r_der = encode_der_integer(r)
+        s_der = encode_der_integer(s)
+
+        # DER SEQUENCE
+        sequence_content = r_der + s_der
+        sequence = bytes([0x30, len(sequence_content)]) + sequence_content
+
+        return sequence
+
     def _tpm_sign(
         self,
         handle: str,
@@ -367,11 +414,13 @@ class TPM2Provider(LCTBindingProvider):
                 signature_b64 = self._tpm_sign(handle, data, tmpdir)
 
                 if signature_b64:
-                    signature = base64.b64decode(signature_b64)
+                    tpm_signature = base64.b64decode(signature_b64)
+                    # Convert TPM TPMT_SIGNATURE to DER format for compatibility
+                    der_signature = self._tpm_signature_to_der(tpm_signature)
                     return SignatureResult(
                         success=True,
-                        signature=signature,
-                        signature_b64=signature_b64,
+                        signature=der_signature,  # Store in DER format
+                        signature_b64=base64.b64encode(der_signature).decode('utf-8'),
                         algorithm="ECDSA-P256-SHA256"
                     )
                 else:
@@ -393,18 +442,23 @@ class TPM2Provider(LCTBindingProvider):
         signature: bytes
     ) -> bool:
         """
-        Verify signature using TPM.
+        Verify ECDSA signature.
 
         Args:
             public_key: Public key (PEM format)
             data: Original data
-            signature: Signature to verify
+            signature: Signature to verify (DER format)
 
         Returns:
             True if valid
+
+        Note: Since we convert TPM signatures to DER format for consistency,
+        we always use software verification (which expects DER).
         """
-        if not self._tpm_available:
-            # Fallback to software verification
+        # Always use software verification for DER signatures
+        # (TPM tools expect TPMT_SIGNATURE format, not DER)
+        if True:  # Simplified - always use software path for DER
+            # Software verification
             try:
                 from cryptography.hazmat.primitives import hashes, serialization
                 from cryptography.hazmat.primitives.asymmetric import ec
@@ -415,8 +469,9 @@ class TPM2Provider(LCTBindingProvider):
                     backend=default_backend()
                 )
 
-                data_hash = hashlib.sha256(data).digest()
-                public_key_obj.verify(signature, data_hash, ec.ECDSA(hashes.SHA256()))
+                # ECDSA.verify() expects the original data, not the hash
+                # The library will hash it internally with the specified algorithm
+                public_key_obj.verify(signature, data, ec.ECDSA(hashes.SHA256()))
                 return True
             except Exception:
                 return False

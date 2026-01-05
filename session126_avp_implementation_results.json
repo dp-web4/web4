@@ -1,0 +1,44 @@
+{
+  "test_date": "2026-01-05T08:10:04.449699+00:00",
+  "tests": {
+    "challenge_creation": {
+      "success": true,
+      "challenge_id": "b0fb3440-0a2f-4615-ab50-d0635f4b00d7",
+      "nonce_length": 32,
+      "payload_length": 32
+    },
+    "software_proof_generation": {
+      "success": true,
+      "hardware_type": "none",
+      "signature_length": 64,
+      "generation_time_ms": 0.12302398681640625
+    },
+    "tpm2_proof_generation": {
+      "success": true,
+      "hardware_type": "tpm2",
+      "signature_length": 72,
+      "generation_time_ms": 58.302879333496094
+    },
+    "software_verification": {
+      "success": true,
+      "continuity_score": 1.0,
+      "content_score": 1.0,
+      "failure_type": "none",
+      "verification_time_ms": 0.8096694946289062
+    },
+    "tpm2_verification": {
+      "success": true,
+      "continuity_score": 1.0,
+      "content_score": 1.0,
+      "failure_type": "none",
+      "verification_time_ms": 0.7545948028564453
+    },
+    "cross_entity_verification": {
+      "success": true,
+      "verifier": "Software",
+      "prover": "TPM2",
+      "continuity_score": 1.0,
+      "content_score": 1.0
+    }
+  }
+}

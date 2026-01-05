@@ -242,6 +242,9 @@ class SoftwareProvider(LCTBindingProvider):
             True if valid
         """
         try:
+            from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.asymmetric import ec, ed25519
+
             # Load public key from PEM
             if isinstance(public_key, str):
                 public_key_obj = serialization.load_pem_public_key(
@@ -251,8 +254,17 @@ class SoftwareProvider(LCTBindingProvider):
             else:
                 public_key_obj = public_key
 
-            # Verify
-            public_key_obj.verify(signature, data)
+            # Auto-detect key type and verify accordingly
+            if isinstance(public_key_obj, ed25519.Ed25519PublicKey):
+                # Ed25519: verify(signature, data)
+                public_key_obj.verify(signature, data)
+            elif isinstance(public_key_obj, ec.EllipticCurvePublicKey):
+                # ECDSA: verify(signature, data, algorithm)
+                public_key_obj.verify(signature, data, ec.ECDSA(hashes.SHA256()))
+            else:
+                # Unknown key type - try generic verification
+                public_key_obj.verify(signature, data)
+
             return True
 
         except Exception:
@@ -374,6 +386,29 @@ class SoftwareProvider(LCTBindingProvider):
 
         # Cache
         self._keys[key_id] = (private_key, public_key, metadata)
+
+    def _get_public_key(self, key_id: str) -> str:
+        """
+        Get public key PEM for a stored key.
+
+        Overrides base class to retrieve from software storage.
+        """
+        # Check cache first
+        if key_id in self._keys:
+            _, _, metadata = self._keys[key_id]
+            return metadata.get("public_key_pem")
+
+        # Load from disk
+        safe_id = self._safe_filename(key_id)
+        meta_file = self.storage_dir / f"{safe_id}.json"
+
+        if not meta_file.exists():
+            raise ValueError(f"Key {key_id} not found")
+
+        with open(meta_file, 'r') as f:
+            metadata = json.load(f)
+
+        return metadata.get("public_key_pem")
 
     def _safe_filename(self, key_id: str) -> str:
         """Convert key ID to safe filename."""
