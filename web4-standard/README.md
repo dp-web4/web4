@@ -22,7 +22,7 @@ Web4 = Societies + LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionari
 - **SAL** (Society-Authority-Law): Governance framework with birth certificates, law oracles, and authority delegation
 - **AGY** (Agency Delegation): Formal mechanism for Client entities to delegate authority to Agent entities
 - **ACP** (Agentic Context Protocol): Enables autonomous agent operation with planning, decision-making, and execution
-- **ATP** (Alignment Transfer Protocol): Energy-based economy where value flows through work, not accumulation
+- **ATP** (Allocation Transfer Packet): Resource-based economy where value flows through work, not accumulation
 - **Dictionaries**: Living semantic bridges managing compression-trust relationships across domains
 
 ## Quick Navigation

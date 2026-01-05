@@ -6,11 +6,11 @@
 
 This section explores the beating heart of Web4—the mechanisms that transform energy into value, capability into trust, and contribution into reward. Here, biological metaphors become digital reality, creating an economy where genuine work generates genuine worth.
 
-## 3.1. Alignment Transfer Protocol (ATP): The Lifeblood of Value
+## 3.1. Allocation Transfer Packet (ATP): The Lifeblood of Value
 
-> *"Energy is the blood of the system; value is its heartbeat."*
+> *"Allocation flows through work. Packets carry the proof."*
 
-The Alignment Transfer Protocol (ATP) revolutionizes how we track and reward contribution. No more mining meaningless hashes. No more staking for the sake of staking. In Web4, energy expended creates value recognized, and value recognized generates new energy—a perpetual cycle of meaningful work.
+The Allocation Transfer Packet (ATP) revolutionizes how we track and reward contribution. No more mining meaningless hashes. No more staking for the sake of staking. In Web4, resources allocated become work performed, and work performed generates new allocation—a perpetual cycle of meaningful contribution.
 
 ### 3.1.1. The ATP/ADP Cycle: Biology Made Digital
 

@@ -59,8 +59,8 @@ The modbatt-CAN project demonstrates Web4 in production:
 ## Economic Model
 
 Web4 introduces **trust as economic force**:
-- **ATP (Alignment Transfer Protocol)**: Issues credits for resource use
-- **ADP (Alignment Delivery Proof)**: Proves value delivery
+- **ATP (Allocation Transfer Packet)**: Issues credits for resource use
+- **ADP (Allocation Discharge Packet)**: Proves value delivery with ephemeral metadata
 - Every exchange is witnessed, creating reputation
 - Trust directly impacts economic opportunities
 
