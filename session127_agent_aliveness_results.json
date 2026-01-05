@@ -1,0 +1,26 @@
+{
+  "test_date": "2026-01-05T14:05:18.799499+00:00",
+  "tests": {
+    "software_session_continuity": {
+      "success": true,
+      "session_continuity": 1.0,
+      "inferred_state": "active"
+    },
+    "tpm2_session_continuity": {
+      "success": true,
+      "session_continuity": 1.0,
+      "inferred_state": "active"
+    },
+    "software_epistemic_continuity": {
+      "detect_unchanged": true,
+      "detect_modified": true
+    },
+    "tpm2_epistemic_continuity": {
+      "detect_unchanged": true,
+      "detect_modified": true
+    },
+    "state_inference": {
+      "success": true
+    }
+  }
+}
