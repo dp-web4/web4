@@ -2,7 +2,9 @@
 
 ## Overview
 
-The ATP/ADP (Alignment Transfer Protocol / Alignment Discharge Protocol) cycle is Web4's fundamental value mechanism, inspired by the biological ATP/ADP energy cycle that powers all living cells. ATP tokens are the reification of value itself—semifungible tokens that exist in either charged (ATP) or discharged (ADP) states, managed by societies as their native currency.
+The ATP/ADP (Allocation Transfer Packet / Allocation Discharge Packet) cycle is Web4's fundamental value mechanism, inspired by the biological ATP/ADP energy cycle that powers all living cells. ATP packets are the reification of allocated resources—semifungible tokens that exist in either charged (ATP) or discharged (ADP) states, managed by societies as their native currency.
+
+**Terminology Note**: "Allocation" covers all resource types: energy, attention, work, compute, trust budgets. "Packet" reflects that these are units of value that can be implemented as blockchain tokens, local ledger entries, or other locally appropriate means. The discharged state (ADP) carries ephemeral metadata about how resources were consumed, which is cleared on recharge.
 
 ## 1. Core Concepts
 

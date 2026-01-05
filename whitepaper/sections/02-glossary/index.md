@@ -12,10 +12,12 @@
 
 The reification of presence itself. LCTs are permanently and immutably bound to a single entity (human, AI, organization, role, task, or resource) and are non-transferable. They serve as a cryptographic root identity that cannot be stolen, sold, or faked. If the entity ceases to exist, its LCT is marked void or slashed. LCTs form malleable links to create trust webs, delegation chains, and historical records—the nervous system of Web4.
 
-### Alignment Transfer Protocol (ATP/ADP)
-> *"Energy is the blood of the system; value is its heartbeat."*
+### Allocation Transfer Packet / Allocation Discharge Packet (ATP/ADP)
+> *"Allocation flows through work. Packets carry the proof."*
 
-A biological metaphor made digital. ATP tokens exist in "charged" (potential energy) or "discharged" (ADP - expended energy) states, mirroring cellular energy cycles. Work consumes ATP creating ADP, which when certified as valuable by recipients, converts back to ATP. This creates an auditable trail where genuine contribution generates genuine value—not mining, not staking, but real work recognized.
+A biological metaphor made digital. ATP packets exist in "charged" (resources allocated, ready for use) or "discharged" (ADP - work performed, delivery confirmed) states, mirroring cellular energy cycles. Work consumes ATP creating ADP, which carries ephemeral metadata about what work was done and who benefited. When certified as valuable, ADP converts back to ATP with metadata cleared for fresh allocation. This creates an auditable trail where genuine contribution generates genuine value—not mining, not staking, but real work recognized.
+
+**Implementation**: Packets are semifungible tokens that can be implemented as blockchain tokens, local ledger entries, or other locally appropriate means. "Allocation" covers all resource types: energy, attention, work, compute, trust budgets.
 
 ### T3 Tensor (Trust Tensor)
 > *"Trust emerges from capability demonstrated over time."*

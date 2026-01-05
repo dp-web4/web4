@@ -66,7 +66,7 @@ Web4 is a trust-native distributed intelligence architecture that implements:
 | **MRH** | Markov Relevancy Horizon | `web4-standard/core-spec/mrh-tensors.md` |
 | **T3** | Trust Tensor (6 dimensions) | `web4-standard/core-spec/t3-v3-tensors.md` |
 | **V3** | Value Tensor (6 dimensions) | `web4-standard/core-spec/t3-v3-tensors.md` |
-| **ATP/ADP** | Alignment Transfer Protocol | `web4-standard/core-spec/atp-adp-cycle.md` |
+| **ATP/ADP** | Allocation Transfer Packet / Allocation Discharge Packet | `web4-standard/core-spec/atp-adp-cycle.md` |
 | **R6** | Rules/Role/Request/Reference/Resource/Result | `web4-standard/core-spec/r6-framework.md` |
 
 **Before creating new identity/trust systems:**
