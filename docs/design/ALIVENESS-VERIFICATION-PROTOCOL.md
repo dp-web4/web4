@@ -1,6 +1,6 @@
 # Aliveness Verification Protocol (AVP)
 
-**Version**: 1.1.0
+**Version**: 1.2.0
 **Date**: 2026-01-04
 **Status**: Draft
 **Authors**: dp (human), Claude Opus 4.5, Nova (Cascade)
@@ -102,15 +102,22 @@ class AlivenessChallenge:
 
 #### AlivenessProof
 
+> **SECURITY REQUIREMENT**: Verifiers MUST ignore `proof.public_key` for trust decisions
+> and MUST verify against the public key bound in the target LCT. The `public_key` field
+> exists only for debugging/logging purposes. Trusting the proof's own public_key is a
+> critical vulnerability that allows key substitution attacks.
+
 ```python
 @dataclass
 class AlivenessProof:
     """Proof returned by prover demonstrating hardware access."""
     challenge_id: str         # Correlates to challenge
-    signature: bytes          # Nonce signed by hardware-bound key
-    public_key: str           # PEM-encoded public key (must match LCT)
+    signature: bytes          # Canonical payload signed by hardware-bound key
     hardware_type: str        # "tpm2", "trustzone", or "software"
     timestamp: datetime       # When proof was generated
+
+    # DEPRECATED - for debugging only, MUST be ignored by verifiers
+    _public_key_debug: Optional[str] = None
 
     # Optional attestation
     attestation_quote: str    # TPM quote or TrustZone attestation (optional)
@@ -124,14 +131,27 @@ class AlivenessProof:
 class AlivenessVerificationResult:
     """Result of verifying an aliveness proof."""
     valid: bool                      # Signature verified correctly
-    public_key_matches_lct: bool     # Public key matches LCT binding
     hardware_type: str               # Type of hardware that signed
     challenge_fresh: bool            # Challenge not expired
 
-    # For verifier's trust decision
-    trust_recommendation: float      # 0.0-1.0 based on verification
-    degradation_reason: Optional[str] # Why trust might be reduced
+    # Failure classification (see AlivenessFailureType)
+    failure_type: AlivenessFailureType = AlivenessFailureType.NONE
+
+    # Dual-axis trust signals (NOT recommendations - verifier decides policy)
+    continuity_score: float = 0.0    # Hardware binding verified (0.0-1.0)
+    content_score: float = 0.0       # Data provenance verified (0.0-1.0)
+
+    # PCR status for embodiment verification
+    pcr_status: Optional[str] = None      # "match", "drift_expected", "drift_unexpected"
+    attestation_verified: bool = False
+
+    # Error details
+    error: Optional[str] = None
 ```
+
+> **Note**: `continuity_score` and `content_score` are **signals**, not recommendations.
+> They indicate what was verified, not what trust level to assign. The verifier's
+> `TrustDegradationPolicy` determines how to interpret these signals.
 
 ### 2.3 Verification Flow
 
@@ -139,16 +159,18 @@ class AlivenessVerificationResult:
 def verify_aliveness(
     challenge: AlivenessChallenge,
     proof: AlivenessProof,
-    expected_lct: LCT
+    expected_public_key: str  # From LCT, NOT from proof
 ) -> AlivenessVerificationResult:
     """
     Verify an aliveness proof against expected LCT.
 
+    CRITICAL: Use expected_public_key from the LCT, never from the proof itself.
+
     Steps:
     1. Check challenge not expired
-    2. Verify proof.public_key matches expected_lct.binding.public_key
-    3. Verify signature over nonce using public_key
-    4. (Optional) Verify attestation quote
+    2. Compute canonical signing payload
+    3. Verify signature over canonical payload using expected_public_key
+    4. (Optional) Verify attestation quote and PCR status
     """
 
     # 1. Freshness check
@@ -156,38 +178,47 @@ def verify_aliveness(
         return AlivenessVerificationResult(
             valid=False,
             challenge_fresh=False,
-            degradation_reason="challenge_expired"
+            failure_type=AlivenessFailureType.CHALLENGE_EXPIRED,
+            error="challenge_expired"
         )
 
-    # 2. Public key match
-    if proof.public_key != expected_lct.binding.public_key:
-        return AlivenessVerificationResult(
-            valid=False,
-            public_key_matches_lct=False,
-            degradation_reason="public_key_mismatch"
-        )
+    # 2. Compute canonical payload (includes expires_at for replay protection)
+    canonical_payload = challenge.get_signing_payload()
 
-    # 3. Signature verification
+    # 3. Signature verification against EXPECTED key (from LCT)
     signature_valid = verify_signature(
-        public_key=proof.public_key,
-        data=challenge.nonce,
+        public_key=expected_public_key,  # NOT proof.public_key
+        data=canonical_payload,
         signature=proof.signature
     )
 
     if not signature_valid:
         return AlivenessVerificationResult(
             valid=False,
-            degradation_reason="signature_invalid"
+            failure_type=AlivenessFailureType.SIGNATURE_INVALID,
+            continuity_score=0.0,
+            content_score=0.5,  # Data may still be valid
+            error="signature_invalid"
         )
 
-    # 4. Success - recommend full trust
-    return AlivenessVerificationResult(
-        valid=True,
-        public_key_matches_lct=True,
-        hardware_type=proof.hardware_type,
-        challenge_fresh=True,
-        trust_recommendation=1.0
-    )
+    # 4. Success - return verification signals
+    # Hardware binding gives continuity; software gives content only
+    if proof.hardware_type == "software":
+        return AlivenessVerificationResult(
+            valid=True,
+            hardware_type=proof.hardware_type,
+            challenge_fresh=True,
+            continuity_score=0.0,   # Software cannot prove continuity
+            content_score=0.85      # Content authenticity verified
+        )
+    else:
+        return AlivenessVerificationResult(
+            valid=True,
+            hardware_type=proof.hardware_type,
+            challenge_fresh=True,
+            continuity_score=1.0,   # Hardware binding verified
+            content_score=1.0       # Content authenticity verified
+        )
 ```
 
 ---
@@ -547,11 +578,16 @@ class KeyNotFoundError(AlivenessError):
 - Recommended expiration: 30-60 seconds
 - Network latency should be accounted for in expiration
 
-### 6.3 Hardware Compromise
+### 6.3 Hardware Compromise and PCR Drift
 
 - TPM PCR values can detect boot tampering
 - Attestation quotes provide additional assurance
 - Verifiers can require attestation for high-value operations
+
+> **PCR Drift Handling**: PCR drift may reflect legitimate updates (kernel patches,
+> firmware upgrades, configuration changes). Verifiers SHOULD evaluate drift against
+> an allowed reference window, not exact matches. Use `AlivenessFailureType.PCR_DRIFT_EXPECTED`
+> for known-good transitions and `PCR_DRIFT_UNEXPECTED` for potential compromise.
 
 ### 6.4 Denial of Service
 
@@ -810,22 +846,52 @@ class DualAxisTrust:
 class AlivenessFailureType(Enum):
     """Types of aliveness failure with different trust implications."""
 
-    NO_RESPONSE = "no_response"
-    # Unknown state (network/offline)
+    NONE = "none"
+    # Verification succeeded
+
+    TIMEOUT = "timeout"
+    # No response within timeout window
     # → Partial decay, benefit of doubt
+
+    UNREACHABLE = "unreachable"
+    # Network/connectivity failure (known unreachable)
+    # → Similar to timeout but with confirmed connectivity issue
+
+    PROOF_STALE = "proof_stale"
+    # Proof timestamp too old
+    # → Reject, request fresh proof
+
+    HARDWARE_ACCESS_ERROR = "hardware_access_error"
+    # Target reports hardware inaccessible
+    # → Temporary suspension, may recover
+
+    HARDWARE_COMPROMISED = "hardware_compromised"
+    # Attestation indicates tampering
+    # → Hard drop, require investigation
 
     SIGNATURE_INVALID = "signature_invalid"
     # Likely fork/clone/tamper
     # → Hard drop on continuity, content may survive
 
-    QUOTE_PCR_DRIFT = "quote_pcr_drift"
-    # Same body, different mind (software changed)
-    # → Treat as new witness with inherited DNA
-    # → Reset relationships, preserve content trust
-
     KEY_MISMATCH = "key_mismatch"
     # Different hardware entirely
     # → Full reset, potential successor scenario
+
+    PCR_DRIFT_EXPECTED = "pcr_drift_expected"
+    # Same body, known-good software change (updates, config)
+    # → Partial continuity, preserve content trust
+
+    PCR_DRIFT_UNEXPECTED = "pcr_drift_unexpected"
+    # Same body, unknown software change (potential compromise)
+    # → Lower continuity than expected drift, investigate
+
+    CHALLENGE_EXPIRED = "challenge_expired"
+    # Challenge past expiration time
+    # → Reject, request new challenge
+
+    CHALLENGE_ID_MISMATCH = "challenge_id_mismatch"
+    # Proof doesn't match issued challenge
+    # → Reject, possible relay attack
 ```
 
 ### 10.5 Degradation Based on Failure Type
@@ -838,11 +904,22 @@ def degrade_trust_by_failure_type(
 ) -> DualAxisTrust:
     """Apply different degradation based on why verification failed."""
 
-    if failure_type == AlivenessFailureType.NO_RESPONSE:
-        # Network/offline - partial decay
+    if failure_type == AlivenessFailureType.NONE:
+        # Success - no degradation
+        return current_trust
+
+    elif failure_type in (AlivenessFailureType.TIMEOUT, AlivenessFailureType.UNREACHABLE):
+        # Network/offline - partial decay, benefit of doubt
         return DualAxisTrust(
             continuity_trust=current_trust.continuity_trust * 0.5,
             content_trust=current_trust.content_trust * 0.9
+        )
+
+    elif failure_type == AlivenessFailureType.HARDWARE_ACCESS_ERROR:
+        # Temporary hardware issue - may recover
+        return DualAxisTrust(
+            continuity_trust=current_trust.continuity_trust * 0.3,
+            content_trust=current_trust.content_trust * 0.8
         )
 
     elif failure_type == AlivenessFailureType.SIGNATURE_INVALID:
@@ -852,11 +929,18 @@ def degrade_trust_by_failure_type(
             content_trust=current_trust.content_trust * 0.5
         )
 
-    elif failure_type == AlivenessFailureType.QUOTE_PCR_DRIFT:
-        # Same body, different mind - reset relationships
+    elif failure_type == AlivenessFailureType.PCR_DRIFT_EXPECTED:
+        # Same hardware, known-good software change
         return DualAxisTrust(
-            continuity_trust=0.3,  # Partial - same hardware
+            continuity_trust=0.7,  # High - same hardware, acceptable change
             content_trust=current_trust.content_trust  # Preserved
+        )
+
+    elif failure_type == AlivenessFailureType.PCR_DRIFT_UNEXPECTED:
+        # Same hardware, unknown software change - potential compromise
+        return DualAxisTrust(
+            continuity_trust=0.3,  # Lower - needs investigation
+            content_trust=current_trust.content_trust * 0.7
         )
 
     elif failure_type == AlivenessFailureType.KEY_MISMATCH:
@@ -864,6 +948,20 @@ def degrade_trust_by_failure_type(
         return DualAxisTrust(
             continuity_trust=0.0,
             content_trust=0.0  # Must re-establish everything
+        )
+
+    elif failure_type == AlivenessFailureType.HARDWARE_COMPROMISED:
+        # Attestation indicates tampering - hard reject
+        return DualAxisTrust(
+            continuity_trust=0.0,
+            content_trust=0.0
+        )
+
+    else:
+        # Unknown failure type - conservative
+        return DualAxisTrust(
+            continuity_trust=0.0,
+            content_trust=current_trust.content_trust * 0.5
         )
 ```
 
@@ -923,33 +1021,53 @@ class WitnessSignature:
 3. New instance presents certificate + proves new hardware binding
 4. Verifiers grant bounded initial trust (never full) under defined MRHs
 
-### 10.7 Cryptographic Nonce Binding
+### 10.7 Cryptographic Nonce Binding (Canonical Payload)
 
-Include verifier identity in the signed payload to prevent relay attacks:
+Include verifier identity and expiration in the signed payload to prevent relay attacks:
 
 ```python
 @dataclass
-class BoundAlivenessChallenge(AlivenessChallenge):
+class AlivenessChallenge:
     """Challenge with cryptographic binding to verifier and context."""
 
-    # Additional binding fields
-    verifier_public_key: str      # Verifier's identity
-    session_id: str               # Unique session
-    intended_action_hash: str     # Hash of what this proof authorizes
+    nonce: bytes                  # 32 random bytes
+    challenge_id: str             # UUID for correlation
+    expires_at: datetime          # Challenge expiration
+
+    # Binding context (prevents relay attacks)
+    verifier_lct_id: Optional[str] = None  # Who is asking
+    session_id: Optional[str] = None       # Unique session
+    intended_action_hash: Optional[str] = None  # Hash of what this proof authorizes
+    purpose: Optional[str] = None
 
     def get_signing_payload(self) -> bytes:
         """
-        Payload that must be signed.
+        Canonical payload that MUST be signed.
 
-        Binds the proof to this specific verifier, session, and action.
+        Binds the proof to this specific verifier, session, action, AND expiration.
+        Including expires_at prevents replay within expiration window if verifier
+        screws up nonce tracking.
         """
-        return hashlib.sha256(
-            self.nonce +
-            self.verifier_lct_id.encode() +
-            self.session_id.encode() +
-            bytes.fromhex(self.intended_action_hash)
-        ).digest()
+        components = [
+            AVP_PROTOCOL_VERSION,         # Protocol version binding
+            self.challenge_id.encode('utf-8'),
+            self.nonce,
+            (self.verifier_lct_id or "").encode('utf-8'),
+            self.expires_at.isoformat().encode('utf-8'),  # CRITICAL: prevents replay
+            (self.session_id or "").encode('utf-8'),
+            bytes.fromhex(self.intended_action_hash) if self.intended_action_hash else b"",
+            (self.purpose or "").encode('utf-8'),
+        ]
+        hasher = hashlib.sha256()
+        for component in components:
+            hasher.update(component)
+        return hasher.digest()
 ```
+
+> **Why include `expires_at`?** Without it, a captured proof could be replayed within
+> the expiration window in a different context if the verifier fails to track used nonces.
+> Binding expiration into the signed payload makes each proof cryptographically unique
+> to its time window. Cheap insurance.
 
 ### 10.8 Mutual Authentication
 
