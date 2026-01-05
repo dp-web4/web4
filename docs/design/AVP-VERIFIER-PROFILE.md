@@ -286,11 +286,69 @@ def handle_succession(
 
 ---
 
+## 11. Agent/Consciousness Extensions
+
+For AI agents, the two-axis model may be insufficient. Extend to **three axes**:
+
+| Axis | Question | Verified By |
+|------|----------|-------------|
+| **Hardware** | Same device? | Signature + LCT key |
+| **Session** | Same activation? | `session_id` match |
+| **Epistemic** | Same knowledge? | `corpus_hash` match |
+
+### Quick Reference
+
+```python
+# Agent-specific challenge
+challenge = AgentAlivenessChallenge(
+    nonce=os.urandom(32),
+    expires_at=now + timedelta(seconds=60),
+    expected_session_id="abc123...",      # Detect reboots
+    expected_corpus_hash="def456...",     # Detect tampering
+)
+
+# Agent-specific result
+result = AgentAlivenessResult(
+    valid=True,
+    continuity_score=1.0,      # Hardware axis
+    session_continuity=1.0,    # Session axis (new)
+    epistemic_continuity=1.0,  # Knowledge axis (new)
+)
+
+# Combined metric
+full_trust = result.full_continuity  # Geometric mean of all three
+```
+
+### Agent Policy Templates
+
+| Policy | Hardware | Session | Epistemic | Use Case |
+|--------|----------|---------|-----------|----------|
+| `strict_continuity()` | Required | Required | Required | Financial agents |
+| `hardware_only()` | Required | — | — | Edge devices |
+| `migration_allowed()` | — | — | Required | Device migration |
+| `permissive()` | — | — | — | Public services |
+
+### State Inference
+
+```python
+inferred = infer_agent_state(result)
+# ACTIVE: hardware + session verified
+# DORMANT: hardware only (not running)
+# MIGRATED: different hardware, same knowledge
+# ARCHIVED: no active binding
+# UNCERTAIN: can't determine
+```
+
+**Key insight**: *"Service aliveness asks 'are you responding?' Consciousness aliveness asks 'are you the same you?'"*
+
+---
+
 ## References
 
-- [Full AVP Specification](./ALIVENESS-VERIFICATION-PROTOCOL.md)
+- [Full AVP Specification](./ALIVENESS-VERIFICATION-PROTOCOL.md) (Section 11 for agent details)
 - [Hardware Binding Architecture](./HARDWARE-BINDING-IMPLEMENTATION-PLAN.md)
 - [LCT Binding Module](../../core/lct_binding/)
+- [SAGE Implementation](../../../HRM/sage/experiments/session162_sage_aliveness_verification.py)
 
 ---
 

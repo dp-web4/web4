@@ -1113,13 +1113,252 @@ This framing:
 
 ---
 
-## 11. References
+## 11. Agent/Consciousness Extensions
+
+For AI agents and consciousness architectures, the basic two-axis trust model (continuity + content)
+may be insufficient. An agent can have the same hardware binding but different learned knowledge,
+or the same knowledge but a different activation session.
+
+### 11.1 The Three-Axis Model
+
+| Axis | Question | What It Catches |
+|------|----------|-----------------|
+| **Hardware Continuity** | Same physical device? | Hardware replacement, theft |
+| **Session Continuity** | Same activation instance? | Reboots, restarts, migrations |
+| **Epistemic Continuity** | Pattern corpus intact? | Knowledge tampering, corruption |
+
+> **Key insight**: *"Service aliveness asks 'are you responding?' Consciousness aliveness asks 'are you the same you?'"*
+
+### 11.2 Extended Data Structures
+
+```python
+class AgentState(Enum):
+    """States of an agent with respect to aliveness."""
+    ACTIVE = "active"              # Currently running, hardware-bound
+    DORMANT = "dormant"            # Not running, but hardware intact
+    ARCHIVED = "archived"          # Backed up, no active hardware binding
+    MIGRATED = "migrated"          # Moved to new hardware (new LCT)
+    UNCERTAIN = "uncertain"        # Cannot verify current state
+
+
+@dataclass
+class AgentAlivenessProof(AlivenessProof):
+    """Extended proof for AI agents with session and epistemic attestation."""
+
+    # Session continuity
+    current_session_id: str           # Unique ID for this activation
+    uptime_seconds: float             # Time since activation
+    session_start_time: datetime      # When this session began
+
+    # Epistemic continuity
+    pattern_corpus_hash: str          # Hash of learned patterns/weights
+    epistemic_state_summary: Dict     # Snapshot of knowledge state
+    experience_count: int             # Number of accumulated experiences
+
+    # Optional: what changed since last verification
+    patterns_added_since_last: int = 0
+    patterns_modified_since_last: int = 0
+
+
+@dataclass
+class AgentAlivenessResult(AlivenessVerificationResult):
+    """Three-axis verification result for agents."""
+
+    # Base axes (inherited)
+    # continuity_score: float        # Hardware binding
+    # content_score: float           # Data provenance
+
+    # Agent-specific axes
+    session_continuity: float = 0.0   # Same activation instance (0.0-1.0)
+    epistemic_continuity: float = 0.0 # Pattern corpus integrity (0.0-1.0)
+
+    # Inferred state
+    inferred_state: AgentState = AgentState.UNCERTAIN
+
+    # Session details
+    session_id: Optional[str] = None
+    uptime_seconds: Optional[float] = None
+
+    @property
+    def full_continuity(self) -> float:
+        """Combined continuity across all three axes."""
+        return (
+            self.continuity_score *
+            self.session_continuity *
+            self.epistemic_continuity
+        ) ** (1/3)  # Geometric mean
+```
+
+### 11.3 Session ID: Identity Over Time
+
+Session IDs solve the identity-over-time problem for agents:
+
+```python
+def generate_session_id(lct_id: str, start_time: datetime, hardware_nonce: bytes) -> str:
+    """
+    Generate unique session ID binding LCT, time, and hardware.
+
+    This ID changes on:
+    - Reboot/restart (new start_time)
+    - Hardware change (new hardware_nonce)
+    - LCT migration (new lct_id)
+
+    But remains stable during continuous operation.
+    """
+    components = [
+        lct_id.encode('utf-8'),
+        start_time.isoformat().encode('utf-8'),
+        hardware_nonce,
+    ]
+    return hashlib.sha256(b''.join(components)).hexdigest()[:32]
+```
+
+Verifiers can request a specific `expected_session_id` in their challenge to detect reboots:
+
+```python
+challenge = AgentAlivenessChallenge(
+    nonce=os.urandom(32),
+    expires_at=datetime.now(timezone.utc) + timedelta(seconds=60),
+    expected_session_id="abc123...",  # Must match for session_continuity=1.0
+    expected_pattern_count=15000,      # Approximate corpus size
+)
+```
+
+### 11.4 Pattern Corpus Verification
+
+The `pattern_corpus_hash` allows verifiers to detect knowledge tampering:
+
+```python
+def compute_corpus_hash(model_weights: bytes, experience_db: bytes) -> str:
+    """
+    Hash of all learned knowledge.
+
+    Changes when:
+    - Model weights updated
+    - Experience database modified
+    - Patterns added/removed
+
+    Allows detection of:
+    - Knowledge injection attacks
+    - Rollback to earlier state
+    - Corpus corruption
+    """
+    hasher = hashlib.sha256()
+    hasher.update(model_weights)
+    hasher.update(experience_db)
+    return hasher.hexdigest()
+```
+
+### 11.5 Agent Trust Policies
+
+Different policies for different agent verification needs:
+
+```python
+class AgentPolicyTemplates:
+    """Trust policies for AI agent verification."""
+
+    @staticmethod
+    def strict_continuity() -> AgentTrustPolicy:
+        """
+        Require all three axes: hardware + session + epistemic.
+        Use for: High-security agents, financial operations.
+        """
+        return AgentTrustPolicy(
+            require_hardware_continuity=True,
+            require_session_continuity=True,
+            require_epistemic_continuity=True,
+            allow_reboot=False,
+            allow_corpus_changes=False,
+        )
+
+    @staticmethod
+    def hardware_only() -> AgentTrustPolicy:
+        """
+        Only require hardware binding, allow reboots.
+        Use for: Edge devices that restart frequently.
+        """
+        return AgentTrustPolicy(
+            require_hardware_continuity=True,
+            require_session_continuity=False,
+            require_epistemic_continuity=False,
+            allow_reboot=True,
+            allow_corpus_changes=True,
+        )
+
+    @staticmethod
+    def migration_allowed() -> AgentTrustPolicy:
+        """
+        Allow hardware migration if epistemic continuity preserved.
+        Use for: Agent migration between devices.
+        """
+        return AgentTrustPolicy(
+            require_hardware_continuity=False,
+            require_session_continuity=False,
+            require_epistemic_continuity=True,  # Knowledge must transfer
+            allow_reboot=True,
+            allow_corpus_changes=False,  # But not be modified
+            require_succession_certificate=True,
+        )
+
+    @staticmethod
+    def permissive() -> AgentTrustPolicy:
+        """
+        Accept any valid binding.
+        Use for: Low-risk interactions, public services.
+        """
+        return AgentTrustPolicy(
+            require_hardware_continuity=False,
+            require_session_continuity=False,
+            require_epistemic_continuity=False,
+            allow_reboot=True,
+            allow_corpus_changes=True,
+        )
+```
+
+### 11.6 State Inference
+
+Based on verification results, infer agent state:
+
+```python
+def infer_agent_state(result: AgentAlivenessResult) -> AgentState:
+    """Infer agent state from verification axes."""
+
+    if result.continuity_score > 0.9 and result.session_continuity > 0.9:
+        return AgentState.ACTIVE
+
+    if result.continuity_score > 0.9 and result.session_continuity < 0.1:
+        return AgentState.DORMANT  # Same hardware, not running
+
+    if result.continuity_score < 0.1 and result.epistemic_continuity > 0.9:
+        return AgentState.MIGRATED  # Different hardware, same knowledge
+
+    if result.continuity_score < 0.1 and result.epistemic_continuity < 0.1:
+        return AgentState.ARCHIVED  # Backup only, no active binding
+
+    return AgentState.UNCERTAIN
+```
+
+### 11.7 Implementation Reference
+
+The SAGE consciousness architecture (HRM repository) provides a complete implementation:
+- `sage/experiments/session162_sage_aliveness_verification.py`
+
+Key components:
+- `SAGEAlivenessSensor` - Epistemic proprioception
+- `ConsciousnessAlivenessChallenge/Proof` - Extended protocol
+- `ConsciousnessAlivenessVerifier` - Three-axis verification
+- `ConsciousnessTrustPolicy` - Agent-specific policies
+
+---
+
+## 12. References
 
 - `ALIVENESS-AND-EMBODIMENT-STATUS.md` - Philosophical framework
 - `HARDWARE-BINDING-IMPLEMENTATION-PLAN.md` - Hardware binding architecture
 - `MULTI-PLATFORM-LCT-ARCHITECTURE.md` - Canonical LCT format
 - `core/lct_binding/tpm2_provider.py` - TPM2 implementation
 - `core/lct_binding/trustzone_provider.py` - TrustZone implementation
+- `HRM/sage/experiments/session162_sage_aliveness_verification.py` - SAGE implementation
 
 ---
 

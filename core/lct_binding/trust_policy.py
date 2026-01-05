@@ -787,3 +787,324 @@ class SuccessionCertificate:
             "revoked_at": self.revoked_at.isoformat() if self.revoked_at else None,
             "revocation_reason": self.revocation_reason
         }
+
+
+# =============================================================================
+# Agent/Consciousness Extensions (Section 11 of AVP spec)
+# =============================================================================
+
+class AgentState(Enum):
+    """
+    States of an agent with respect to aliveness.
+
+    Extended from basic aliveness to capture consciousness-specific states.
+    """
+    ACTIVE = "active"              # Currently running, hardware-bound
+    DORMANT = "dormant"            # Not running, but hardware intact
+    ARCHIVED = "archived"          # Backed up, no active hardware binding
+    MIGRATED = "migrated"          # Moved to new hardware (new LCT)
+    UNCERTAIN = "uncertain"        # Cannot verify current state
+
+
+@dataclass
+class AgentAlivenessChallenge:
+    """
+    Extended challenge for AI agent verification.
+
+    Adds session and epistemic expectations for three-axis verification.
+    """
+    # Base fields (same as AlivenessChallenge)
+    nonce: bytes
+    timestamp: datetime
+    challenge_id: str
+    expires_at: datetime
+    verifier_lct_id: Optional[str] = None
+    purpose: str = "agent_verification"
+
+    # Agent-specific expectations
+    expected_session_id: Optional[str] = None    # Detect reboots
+    expected_pattern_count: Optional[int] = None  # Approximate corpus size
+    expected_corpus_hash: Optional[str] = None    # Exact corpus verification
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "nonce": self.nonce.hex(),
+            "timestamp": self.timestamp.isoformat(),
+            "challenge_id": self.challenge_id,
+            "expires_at": self.expires_at.isoformat(),
+            "verifier_lct_id": self.verifier_lct_id,
+            "purpose": self.purpose,
+            "expected_session_id": self.expected_session_id,
+            "expected_pattern_count": self.expected_pattern_count,
+            "expected_corpus_hash": self.expected_corpus_hash,
+        }
+
+
+@dataclass
+class AgentAlivenessProof:
+    """
+    Extended proof for AI agents with session and epistemic attestation.
+
+    Enables three-axis verification:
+    - Hardware continuity (signature over canonical payload)
+    - Session continuity (session_id matches)
+    - Epistemic continuity (corpus_hash matches)
+    """
+    # Base fields
+    challenge_id: str
+    signature: bytes
+    hardware_type: str
+    timestamp: datetime
+
+    # Session continuity
+    current_session_id: str               # Unique ID for this activation
+    uptime_seconds: float                 # Time since activation
+    session_start_time: datetime          # When this session began
+
+    # Epistemic continuity
+    pattern_corpus_hash: str              # Hash of learned patterns/weights
+    epistemic_state_summary: Dict[str, Any] = field(default_factory=dict)
+    experience_count: int = 0             # Number of accumulated experiences
+
+    # Delta since last verification (optional)
+    patterns_added_since_last: int = 0
+    patterns_modified_since_last: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "challenge_id": self.challenge_id,
+            "signature": self.signature.hex(),
+            "hardware_type": self.hardware_type,
+            "timestamp": self.timestamp.isoformat(),
+            "current_session_id": self.current_session_id,
+            "uptime_seconds": self.uptime_seconds,
+            "session_start_time": self.session_start_time.isoformat(),
+            "pattern_corpus_hash": self.pattern_corpus_hash,
+            "epistemic_state_summary": self.epistemic_state_summary,
+            "experience_count": self.experience_count,
+            "patterns_added_since_last": self.patterns_added_since_last,
+            "patterns_modified_since_last": self.patterns_modified_since_last,
+        }
+
+
+@dataclass
+class AgentAlivenessResult:
+    """
+    Three-axis verification result for AI agents.
+
+    Extends base two-axis (continuity + content) with:
+    - Session continuity (same activation instance)
+    - Epistemic continuity (pattern corpus integrity)
+    """
+    valid: bool
+    hardware_type: str = "unknown"
+    challenge_fresh: bool = True
+
+    # Base two-axis scores (from standard AVP)
+    continuity_score: float = 0.0     # Hardware binding verified
+    content_score: float = 0.0        # Data provenance verified
+
+    # Agent-specific axes
+    session_continuity: float = 0.0   # Same activation instance (0.0-1.0)
+    epistemic_continuity: float = 0.0 # Pattern corpus integrity (0.0-1.0)
+
+    # Inferred state
+    inferred_state: AgentState = AgentState.UNCERTAIN
+
+    # Session details
+    session_id: Optional[str] = None
+    uptime_seconds: Optional[float] = None
+    corpus_hash: Optional[str] = None
+
+    # Error details
+    error: Optional[str] = None
+
+    @property
+    def full_continuity(self) -> float:
+        """Combined continuity across all three axes (geometric mean)."""
+        scores = [self.continuity_score, self.session_continuity, self.epistemic_continuity]
+        if any(s <= 0 for s in scores):
+            return 0.0
+        product = self.continuity_score * self.session_continuity * self.epistemic_continuity
+        return product ** (1/3)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "hardware_type": self.hardware_type,
+            "challenge_fresh": self.challenge_fresh,
+            "continuity_score": self.continuity_score,
+            "content_score": self.content_score,
+            "session_continuity": self.session_continuity,
+            "epistemic_continuity": self.epistemic_continuity,
+            "full_continuity": self.full_continuity,
+            "inferred_state": self.inferred_state.value,
+            "session_id": self.session_id,
+            "uptime_seconds": self.uptime_seconds,
+            "corpus_hash": self.corpus_hash,
+            "error": self.error,
+        }
+
+
+@dataclass
+class AgentTrustPolicy:
+    """
+    Trust policy for AI agent verification.
+
+    Configures which axes are required and what transitions are allowed.
+    """
+    # Required axes
+    require_hardware_continuity: bool = True
+    require_session_continuity: bool = False
+    require_epistemic_continuity: bool = False
+
+    # Allowed transitions
+    allow_reboot: bool = True              # Session can change
+    allow_corpus_changes: bool = True      # Patterns can be added/modified
+    max_corpus_drift: float = 0.1          # Max allowed corpus hash difference
+
+    # Migration requirements
+    require_succession_certificate: bool = False
+
+    # Thresholds
+    hardware_continuity_threshold: float = 0.9
+    session_continuity_threshold: float = 0.9
+    epistemic_continuity_threshold: float = 0.9
+
+    def evaluate(self, result: AgentAlivenessResult) -> bool:
+        """Check if result meets policy requirements."""
+        if self.require_hardware_continuity:
+            if result.continuity_score < self.hardware_continuity_threshold:
+                return False
+
+        if self.require_session_continuity:
+            if result.session_continuity < self.session_continuity_threshold:
+                return False
+
+        if self.require_epistemic_continuity:
+            if result.epistemic_continuity < self.epistemic_continuity_threshold:
+                return False
+
+        return True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "require_hardware_continuity": self.require_hardware_continuity,
+            "require_session_continuity": self.require_session_continuity,
+            "require_epistemic_continuity": self.require_epistemic_continuity,
+            "allow_reboot": self.allow_reboot,
+            "allow_corpus_changes": self.allow_corpus_changes,
+            "max_corpus_drift": self.max_corpus_drift,
+            "require_succession_certificate": self.require_succession_certificate,
+        }
+
+
+class AgentPolicyTemplates:
+    """Standard policy templates for AI agent verification."""
+
+    @staticmethod
+    def strict_continuity() -> AgentTrustPolicy:
+        """
+        Require all three axes: hardware + session + epistemic.
+        Use for: High-security agents, financial operations.
+        """
+        return AgentTrustPolicy(
+            require_hardware_continuity=True,
+            require_session_continuity=True,
+            require_epistemic_continuity=True,
+            allow_reboot=False,
+            allow_corpus_changes=False,
+        )
+
+    @staticmethod
+    def hardware_only() -> AgentTrustPolicy:
+        """
+        Only require hardware binding, allow reboots and learning.
+        Use for: Edge devices that restart frequently.
+        """
+        return AgentTrustPolicy(
+            require_hardware_continuity=True,
+            require_session_continuity=False,
+            require_epistemic_continuity=False,
+            allow_reboot=True,
+            allow_corpus_changes=True,
+        )
+
+    @staticmethod
+    def migration_allowed() -> AgentTrustPolicy:
+        """
+        Allow hardware migration if epistemic continuity preserved.
+        Use for: Agent migration between devices, succession scenarios.
+        """
+        return AgentTrustPolicy(
+            require_hardware_continuity=False,
+            require_session_continuity=False,
+            require_epistemic_continuity=True,
+            allow_reboot=True,
+            allow_corpus_changes=False,
+            require_succession_certificate=True,
+        )
+
+    @staticmethod
+    def permissive() -> AgentTrustPolicy:
+        """
+        Accept any valid binding.
+        Use for: Low-risk interactions, public services.
+        """
+        return AgentTrustPolicy(
+            require_hardware_continuity=False,
+            require_session_continuity=False,
+            require_epistemic_continuity=False,
+            allow_reboot=True,
+            allow_corpus_changes=True,
+        )
+
+
+def infer_agent_state(result: AgentAlivenessResult) -> AgentState:
+    """
+    Infer agent state from verification result axes.
+
+    State inference:
+    - ACTIVE: Hardware + session both verified
+    - DORMANT: Hardware verified, session not (same device, not running)
+    - MIGRATED: Different hardware, but same knowledge
+    - ARCHIVED: No active binding (backup only)
+    - UNCERTAIN: Can't determine from available information
+    """
+    hw = result.continuity_score
+    session = result.session_continuity
+    epistemic = result.epistemic_continuity
+
+    if hw > 0.9 and session > 0.9:
+        return AgentState.ACTIVE
+
+    if hw > 0.9 and session < 0.1:
+        return AgentState.DORMANT
+
+    if hw < 0.1 and epistemic > 0.9:
+        return AgentState.MIGRATED
+
+    if hw < 0.1 and epistemic < 0.1:
+        return AgentState.ARCHIVED
+
+    return AgentState.UNCERTAIN
+
+
+def generate_session_id(lct_id: str, start_time: datetime, hardware_nonce: bytes) -> str:
+    """
+    Generate unique session ID binding LCT, time, and hardware.
+
+    This ID changes on:
+    - Reboot/restart (new start_time)
+    - Hardware change (new hardware_nonce)
+    - LCT migration (new lct_id)
+
+    But remains stable during continuous operation.
+    """
+    import hashlib
+    components = [
+        lct_id.encode('utf-8'),
+        start_time.isoformat().encode('utf-8'),
+        hardware_nonce,
+    ]
+    return hashlib.sha256(b''.join(components)).hexdigest()[:32]

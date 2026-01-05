@@ -91,6 +91,15 @@ from .trust_policy import (
     RevocationPolicy,
     SuccessionCertificate,
     WitnessSignature,
+    # Agent/Consciousness Extensions (Section 11)
+    AgentState,
+    AgentAlivenessChallenge,
+    AgentAlivenessProof,
+    AgentAlivenessResult,
+    AgentTrustPolicy,
+    AgentPolicyTemplates,
+    infer_agent_state,
+    generate_session_id,
 )
 from .software_provider import SoftwareProvider
 
@@ -210,4 +219,13 @@ __all__ = [
     'RevocationPolicy',
     'SuccessionCertificate',
     'WitnessSignature',
+    # Agent/Consciousness Extensions (Section 11)
+    'AgentState',
+    'AgentAlivenessChallenge',
+    'AgentAlivenessProof',
+    'AgentAlivenessResult',
+    'AgentTrustPolicy',
+    'AgentPolicyTemplates',
+    'infer_agent_state',
+    'generate_session_id',
 ]
