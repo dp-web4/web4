@@ -637,6 +637,22 @@ class TPM2Provider(LCTBindingProvider):
 
         self._keys[key_id] = metadata
 
+    def _get_public_key(self, key_id: str) -> str:
+        """
+        Get public key for a stored key.
+
+        Required for Aliveness Verification Protocol.
+        """
+        if key_id not in self._keys:
+            self._load_metadata(key_id)
+
+        metadata = self._keys.get(key_id)
+        if not metadata:
+            from .provider import KeyNotFoundError
+            raise KeyNotFoundError(f"Key {key_id} not found")
+
+        return metadata.get("public_key_pem", "")
+
     def _safe_filename(self, key_id: str) -> str:
         """Convert key ID to safe filename."""
         safe = key_id.replace('/', '_').replace('\\', '_')

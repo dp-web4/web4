@@ -9,11 +9,17 @@ Supports:
 - Level 5: TPM2 binding (Linux with TPM)
 - Level 5: TrustZone binding (ARM64 with OP-TEE)
 
+Includes Aliveness Verification Protocol (AVP) for proving
+current hardware access - separating identity persistence (DNA)
+from aliveness proof (current hardware binding).
+
 Usage:
     from web4.core.lct_binding import (
         create_bound_lct,
         get_provider,
-        get_platform_info
+        get_platform_info,
+        AlivenessChallenge,
+        TrustDegradationPolicy,
     )
 
     # Auto-detect best available binding
@@ -26,16 +32,52 @@ Usage:
     # Check what we got
     print(f"Level: {lct.capability_level.name}")
     print(f"Hardware: {lct.binding.hardware_anchor is not None}")
+
+    # Create aliveness challenge
+    challenge = AlivenessChallenge.create(purpose="trust_verification")
+
+    # Prove aliveness (signs nonce with hardware-bound key)
+    proof = provider.prove_aliveness(key_id, challenge)
+
+    # Verify proof (any entity can do this with public key)
+    result = provider.verify_aliveness_proof(challenge, proof, lct.binding.public_key)
 """
 
 from .provider import (
     LCTBindingProvider,
     PlatformInfo,
     BindingResult,
+    SignatureResult,
+    AttestationResult,
+    # Aliveness Verification Protocol
+    AlivenessChallenge,
+    AlivenessProof,
+    AlivenessVerificationResult,
+    # Exceptions
+    AlivenessError,
+    HardwareAccessError,
+    HardwareCompromisedError,
+    ChallengeExpiredError,
+    KeyNotFoundError,
 )
 from .platform_detection import (
     detect_platform,
     get_platform_info,
+)
+from .trust_policy import (
+    # Trust Actions
+    TrustAction,
+    RelationshipAction,
+    RelationshipState,
+    RelationshipType,
+    # Policy structures
+    TrustDegradationPolicy,
+    PolicyTemplates,
+    RelationshipAlivenessPolicy,
+    MutualTrustRecord,
+    LCTReference,
+    RelationshipLCT,
+    RestorationContext,
 )
 from .software_provider import SoftwareProvider
 
@@ -104,16 +146,42 @@ def create_bound_lct(
 
 
 __all__ = [
+    # Provider base
     'LCTBindingProvider',
     'PlatformInfo',
     'BindingResult',
+    'SignatureResult',
+    'AttestationResult',
+    # Providers
     'SoftwareProvider',
     'TPM2Provider',
     'TrustZoneProvider',
+    # Platform detection
     'detect_platform',
     'get_platform_info',
     'get_provider',
     'create_bound_lct',
     'HAS_TPM2',
     'HAS_TRUSTZONE',
+    # Aliveness Verification Protocol
+    'AlivenessChallenge',
+    'AlivenessProof',
+    'AlivenessVerificationResult',
+    'AlivenessError',
+    'HardwareAccessError',
+    'HardwareCompromisedError',
+    'ChallengeExpiredError',
+    'KeyNotFoundError',
+    # Trust Policy
+    'TrustAction',
+    'RelationshipAction',
+    'RelationshipState',
+    'RelationshipType',
+    'TrustDegradationPolicy',
+    'PolicyTemplates',
+    'RelationshipAlivenessPolicy',
+    'MutualTrustRecord',
+    'LCTReference',
+    'RelationshipLCT',
+    'RestorationContext',
 ]
