@@ -50,9 +50,11 @@ from .provider import (
     SignatureResult,
     AttestationResult,
     # Aliveness Verification Protocol
+    AVP_PROTOCOL_VERSION,
     AlivenessChallenge,
     AlivenessProof,
     AlivenessVerificationResult,
+    AlivenessFailureType,
     # Exceptions
     AlivenessError,
     HardwareAccessError,
@@ -78,6 +80,13 @@ from .trust_policy import (
     LCTReference,
     RelationshipLCT,
     RestorationContext,
+    # Verification protocol
+    VerificationInitiator,
+    CostResponsibility,
+    # Succession and revocation
+    RevocationPolicy,
+    SuccessionCertificate,
+    WitnessSignature,
 )
 from .software_provider import SoftwareProvider
 
@@ -164,9 +173,11 @@ __all__ = [
     'HAS_TPM2',
     'HAS_TRUSTZONE',
     # Aliveness Verification Protocol
+    'AVP_PROTOCOL_VERSION',
     'AlivenessChallenge',
     'AlivenessProof',
     'AlivenessVerificationResult',
+    'AlivenessFailureType',
     'AlivenessError',
     'HardwareAccessError',
     'HardwareCompromisedError',
@@ -184,4 +195,11 @@ __all__ = [
     'LCTReference',
     'RelationshipLCT',
     'RestorationContext',
+    # Verification protocol
+    'VerificationInitiator',
+    'CostResponsibility',
+    # Succession and revocation
+    'RevocationPolicy',
+    'SuccessionCertificate',
+    'WitnessSignature',
 ]

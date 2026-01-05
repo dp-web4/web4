@@ -103,6 +103,12 @@ class AttestationResult:
 # Aliveness Verification Protocol (AVP) Data Structures
 # =============================================================================
 
+import hashlib
+
+# AVP Protocol version for payload binding
+AVP_PROTOCOL_VERSION = b"AVP-1.1"
+
+
 @dataclass
 class AlivenessChallenge:
     """
@@ -110,21 +116,29 @@ class AlivenessChallenge:
 
     External entities send this to request proof that the target LCT
     currently has access to its bound hardware.
+
+    IMPORTANT: The prover signs the CANONICAL PAYLOAD, not just the nonce.
+    This binds the proof to a specific verifier, session, and action,
+    preventing relay and rebind attacks.
     """
     nonce: bytes                    # 32 random bytes
     timestamp: datetime             # When challenge was created
     challenge_id: str               # UUID for correlation
     expires_at: datetime            # Challenge expiration
 
-    # Optional context
-    verifier_lct_id: Optional[str] = None  # Who is asking
-    purpose: Optional[str] = None          # Why verification is requested
+    # Binding context (prevents relay attacks)
+    verifier_lct_id: Optional[str] = None  # Who is asking (bound into signature)
+    session_id: Optional[str] = None       # Unique session ID
+    intended_action_hash: Optional[str] = None  # Hash of what this proof authorizes
+    purpose: Optional[str] = None          # Human-readable purpose
 
     @classmethod
     def create(
         cls,
         verifier_lct_id: Optional[str] = None,
         purpose: Optional[str] = None,
+        session_id: Optional[str] = None,
+        intended_action_hash: Optional[str] = None,
         ttl_seconds: int = 60
     ) -> "AlivenessChallenge":
         """Create a new aliveness challenge with random nonce."""
@@ -135,8 +149,43 @@ class AlivenessChallenge:
             challenge_id=str(uuid.uuid4()),
             expires_at=now + timedelta(seconds=ttl_seconds),
             verifier_lct_id=verifier_lct_id,
+            session_id=session_id or str(uuid.uuid4()),
+            intended_action_hash=intended_action_hash,
             purpose=purpose
         )
+
+    def get_signing_payload(self) -> bytes:
+        """
+        Get the canonical payload that must be signed.
+
+        This binds the proof to:
+        - Protocol version (prevents cross-version attacks)
+        - Challenge ID (correlation)
+        - Nonce (freshness)
+        - Verifier identity (prevents relay to different verifier)
+        - Expiration (time-bounds the proof)
+        - Session and action (prevents reuse in different context)
+
+        Provers MUST sign this payload, NOT just the nonce.
+        """
+        # Build canonical payload
+        components = [
+            AVP_PROTOCOL_VERSION,
+            self.challenge_id.encode('utf-8'),
+            self.nonce,
+            (self.verifier_lct_id or "").encode('utf-8'),
+            self.expires_at.isoformat().encode('utf-8'),
+            (self.session_id or "").encode('utf-8'),
+            bytes.fromhex(self.intended_action_hash) if self.intended_action_hash else b"",
+            (self.purpose or "").encode('utf-8'),
+        ]
+
+        # Hash all components together
+        hasher = hashlib.sha256()
+        for component in components:
+            hasher.update(component)
+
+        return hasher.digest()
 
     def is_expired(self) -> bool:
         """Check if challenge has expired."""
@@ -150,6 +199,8 @@ class AlivenessChallenge:
             "challenge_id": self.challenge_id,
             "expires_at": self.expires_at.isoformat(),
             "verifier_lct_id": self.verifier_lct_id,
+            "session_id": self.session_id,
+            "intended_action_hash": self.intended_action_hash,
             "purpose": self.purpose
         }
 
@@ -162,6 +213,8 @@ class AlivenessChallenge:
             challenge_id=data["challenge_id"],
             expires_at=datetime.fromisoformat(data["expires_at"]),
             verifier_lct_id=data.get("verifier_lct_id"),
+            session_id=data.get("session_id"),
+            intended_action_hash=data.get("intended_action_hash"),
             purpose=data.get("purpose")
         )
 
@@ -173,12 +226,20 @@ class AlivenessProof:
 
     The signature proves the entity currently has access to the
     hardware-bound private key.
+
+    SECURITY NOTE: Verifiers MUST use expected_public_key from the LCT,
+    NOT any key provided by the prover. The public_key field is deprecated
+    and included only for debugging/logging. Trusting prover-supplied keys
+    is a critical vulnerability.
     """
     challenge_id: str               # Correlates to challenge
-    signature: bytes                # Nonce signed by hardware-bound key
-    public_key: str                 # PEM-encoded public key (must match LCT)
+    signature: bytes                # Signature over canonical payload
     hardware_type: str              # "tpm2", "trustzone", or "software"
     timestamp: datetime             # When proof was generated
+
+    # DEPRECATED: Verifiers MUST ignore this and use LCT.binding.public_key
+    # Included only for debugging/audit trails
+    _public_key_debug: Optional[str] = None
 
     # Optional attestation (for additional assurance)
     attestation_quote: Optional[str] = None  # TPM quote or TrustZone attestation
@@ -189,11 +250,12 @@ class AlivenessProof:
         return {
             "challenge_id": self.challenge_id,
             "signature": self.signature.hex(),
-            "public_key": self.public_key,
             "hardware_type": self.hardware_type,
             "timestamp": self.timestamp.isoformat(),
             "attestation_quote": self.attestation_quote,
-            "pcr_values": self.pcr_values
+            "pcr_values": self.pcr_values,
+            # Debug only - verifiers must not trust this
+            "_public_key_debug": self._public_key_debug
         }
 
     @classmethod
@@ -202,12 +264,44 @@ class AlivenessProof:
         return cls(
             challenge_id=data["challenge_id"],
             signature=bytes.fromhex(data["signature"]),
-            public_key=data["public_key"],
             hardware_type=data["hardware_type"],
             timestamp=datetime.fromisoformat(data["timestamp"]),
             attestation_quote=data.get("attestation_quote"),
-            pcr_values=data.get("pcr_values")
+            pcr_values=data.get("pcr_values"),
+            _public_key_debug=data.get("_public_key_debug") or data.get("public_key")
         )
+
+
+class AlivenessFailureType(Enum):
+    """
+    Types of aliveness failure with different trust implications.
+
+    Verifiers use this to apply appropriate degradation based on WHY
+    verification failed, not just that it failed.
+    """
+    # Success case
+    NONE = "none"
+
+    # Network/reachability issues
+    TIMEOUT = "timeout"              # Challenge expired before response (network jitter)
+    UNREACHABLE = "unreachable"      # Transport failure (no route, refused, offline)
+    PROOF_STALE = "proof_stale"      # Prover responded after expiry
+
+    # Hardware issues
+    HARDWARE_ACCESS_ERROR = "hardware_access_error"  # Prover reports hardware inaccessible
+    HARDWARE_COMPROMISED = "hardware_compromised"    # PCR mismatch outside policy window
+
+    # Cryptographic failures
+    SIGNATURE_INVALID = "signature_invalid"  # Signature doesn't verify (fork/clone/tamper)
+    KEY_MISMATCH = "key_mismatch"            # Different hardware entirely
+
+    # PCR drift (not necessarily compromise)
+    PCR_DRIFT_EXPECTED = "pcr_drift_expected"    # Within policy window (OS update, etc.)
+    PCR_DRIFT_UNEXPECTED = "pcr_drift_unexpected"  # Outside window, treat as suspicious
+
+    # Challenge issues
+    CHALLENGE_EXPIRED = "challenge_expired"      # Verifier-side expiry
+    CHALLENGE_ID_MISMATCH = "challenge_id_mismatch"
 
 
 @dataclass
@@ -215,16 +309,30 @@ class AlivenessVerificationResult:
     """
     Result of verifying an aliveness proof.
 
-    External entities use this to make trust decisions.
+    External entities use this to make trust decisions. This structure
+    provides the raw facts; the verifier's TrustDegradationPolicy computes
+    any trust scores.
+
+    NOTE: We do NOT return a trust_recommendation float. That would blur
+    the boundary of verifier autonomy. Instead, we return scores and
+    failure_type, letting the policy compute trust.
     """
     valid: bool                              # Signature verified correctly
-    public_key_matches_lct: bool = True      # Public key matches expected LCT
-    hardware_type: str = "unknown"           # Type of hardware that signed
     challenge_fresh: bool = True             # Challenge not expired
+    hardware_type: str = "unknown"           # Type of hardware that signed
 
-    # For verifier's trust decision
-    trust_recommendation: float = 0.0        # 0.0-1.0 based on verification
-    degradation_reason: Optional[str] = None # Why trust might be reduced
+    # Failure classification (for policy-based degradation)
+    failure_type: AlivenessFailureType = AlivenessFailureType.NONE
+
+    # Two-axis trust scores (raw, before policy)
+    # Continuity: "Are you still the embodied instance?"
+    # Content: "Is the data consistent and signed?"
+    continuity_score: float = 0.0    # 0.0 = no continuity, 1.0 = verified
+    content_score: float = 0.0       # 0.0 = no content trust, 1.0 = verified
+
+    # Attestation details (if Quote was used)
+    pcr_status: Optional[str] = None  # "match", "drift_expected", "drift_unexpected"
+    attestation_verified: bool = False
 
     # Details
     error: Optional[str] = None
@@ -232,11 +340,13 @@ class AlivenessVerificationResult:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "valid": self.valid,
-            "public_key_matches_lct": self.public_key_matches_lct,
-            "hardware_type": self.hardware_type,
             "challenge_fresh": self.challenge_fresh,
-            "trust_recommendation": self.trust_recommendation,
-            "degradation_reason": self.degradation_reason,
+            "hardware_type": self.hardware_type,
+            "failure_type": self.failure_type.value,
+            "continuity_score": self.continuity_score,
+            "content_score": self.content_score,
+            "pcr_status": self.pcr_status,
+            "attestation_verified": self.attestation_verified,
             "error": self.error
         }
 
@@ -423,18 +533,21 @@ class LCTBindingProvider(ABC):
         challenge: AlivenessChallenge
     ) -> AlivenessProof:
         """
-        Prove aliveness by signing a challenge nonce.
+        Prove aliveness by signing the canonical challenge payload.
 
         This method proves that the entity currently has access to the
         hardware-bound private key. If hardware is lost or inaccessible,
         this will raise HardwareAccessError.
+
+        IMPORTANT: Signs the CANONICAL PAYLOAD (includes verifier, session,
+        action hash), not just the nonce. This prevents relay attacks.
 
         Args:
             key_id: The key to sign with
             challenge: The challenge from verifier
 
         Returns:
-            AlivenessProof with signed nonce
+            AlivenessProof with signed canonical payload
 
         Raises:
             HardwareAccessError: If hardware is not accessible
@@ -447,23 +560,24 @@ class LCTBindingProvider(ABC):
                 f"Challenge {challenge.challenge_id} expired at {challenge.expires_at}"
             )
 
-        # Sign the nonce
-        sign_result = self.sign_data(key_id, challenge.nonce)
+        # Sign the CANONICAL PAYLOAD, not just the nonce
+        signing_payload = challenge.get_signing_payload()
+        sign_result = self.sign_data(key_id, signing_payload)
 
         if not sign_result.success:
             raise HardwareAccessError(
                 f"Failed to sign challenge: {sign_result.error}"
             )
 
-        # Get public key from stored metadata
+        # Get public key for debug/audit only (verifiers must not trust this)
         public_key = self._get_public_key(key_id)
 
         return AlivenessProof(
             challenge_id=challenge.challenge_id,
             signature=sign_result.signature,
-            public_key=public_key,
             hardware_type=self.hardware_type.value,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
+            _public_key_debug=public_key  # Debug only - verifiers must ignore
         )
 
     def verify_aliveness_proof(
@@ -478,21 +592,26 @@ class LCTBindingProvider(ABC):
         Can be called by any entity to verify another's proof.
         Does not require hardware access (uses public key only).
 
+        SECURITY: Uses expected_public_key from LCT binding, NOT any key
+        provided by the prover. The proof._public_key_debug field is
+        intentionally ignored.
+
         Args:
             challenge: Original challenge
             proof: Proof to verify
-            expected_public_key: Public key from target's LCT
+            expected_public_key: Public key from target's LCT (TRUST THIS ONLY)
 
         Returns:
-            AlivenessVerificationResult
+            AlivenessVerificationResult with failure_type and scores
         """
         # 1. Check challenge freshness
         if challenge.is_expired():
             return AlivenessVerificationResult(
                 valid=False,
                 challenge_fresh=False,
-                trust_recommendation=0.0,
-                degradation_reason="challenge_expired",
+                failure_type=AlivenessFailureType.CHALLENGE_EXPIRED,
+                continuity_score=0.0,
+                content_score=0.0,
                 error=f"Challenge expired at {challenge.expires_at}"
             )
 
@@ -500,55 +619,54 @@ class LCTBindingProvider(ABC):
         if challenge.challenge_id != proof.challenge_id:
             return AlivenessVerificationResult(
                 valid=False,
-                trust_recommendation=0.0,
-                degradation_reason="challenge_id_mismatch",
+                failure_type=AlivenessFailureType.CHALLENGE_ID_MISMATCH,
+                continuity_score=0.0,
+                content_score=0.0,
                 error="Proof does not match challenge"
             )
 
-        # 3. Check public key matches expected
-        # Normalize keys for comparison (remove whitespace differences)
-        expected_normalized = expected_public_key.strip()
-        proof_normalized = proof.public_key.strip()
-
-        if expected_normalized != proof_normalized:
-            return AlivenessVerificationResult(
-                valid=False,
-                public_key_matches_lct=False,
-                hardware_type=proof.hardware_type,
-                trust_recommendation=0.0,
-                degradation_reason="public_key_mismatch",
-                error="Proof public key does not match expected LCT binding"
-            )
-
-        # 4. Verify signature
+        # 3. Verify signature over CANONICAL PAYLOAD using expected_public_key
+        # NOTE: We use expected_public_key (from LCT), NOT proof._public_key_debug
+        signing_payload = challenge.get_signing_payload()
         signature_valid = self.verify_signature(
-            public_key=proof.public_key,
-            data=challenge.nonce,
+            public_key=expected_public_key,  # ALWAYS use LCT's key
+            data=signing_payload,
             signature=proof.signature
         )
 
         if not signature_valid:
             return AlivenessVerificationResult(
                 valid=False,
-                public_key_matches_lct=True,
                 hardware_type=proof.hardware_type,
-                trust_recommendation=0.0,
-                degradation_reason="signature_invalid",
+                failure_type=AlivenessFailureType.SIGNATURE_INVALID,
+                continuity_score=0.0,
+                content_score=0.5,  # Content may still be valid
                 error="Signature verification failed"
             )
 
-        # 5. Success - determine trust recommendation based on hardware type
-        trust_rec = 1.0
+        # 4. Success - determine scores based on hardware type
+        # Hardware binding provides continuity trust
+        # Software binding only provides content trust
         if proof.hardware_type == "software":
-            trust_rec = 0.85  # Software binding ceiling
-
-        return AlivenessVerificationResult(
-            valid=True,
-            public_key_matches_lct=True,
-            hardware_type=proof.hardware_type,
-            challenge_fresh=True,
-            trust_recommendation=trust_rec
-        )
+            # Software can verify content, but not embodiment continuity
+            return AlivenessVerificationResult(
+                valid=True,
+                hardware_type=proof.hardware_type,
+                challenge_fresh=True,
+                failure_type=AlivenessFailureType.NONE,
+                continuity_score=0.0,   # Software cannot prove continuity
+                content_score=0.85      # Can prove content authenticity
+            )
+        else:
+            # Hardware binding proves both continuity and content
+            return AlivenessVerificationResult(
+                valid=True,
+                hardware_type=proof.hardware_type,
+                challenge_fresh=True,
+                failure_type=AlivenessFailureType.NONE,
+                continuity_score=1.0,   # Hardware proves embodiment
+                content_score=1.0       # And content authenticity
+            )
 
     def _get_public_key(self, key_id: str) -> str:
         """

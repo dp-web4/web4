@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from enum import Enum
+import uuid
 
 
 # =============================================================================
@@ -266,6 +267,22 @@ class PolicyTemplates:
 # Relationship Aliveness Policy
 # =============================================================================
 
+class VerificationInitiator(Enum):
+    """Who initiates periodic aliveness verification."""
+    EITHER = "either"         # Either party can initiate
+    PARTY_A_ONLY = "a_only"   # Only party A initiates
+    PARTY_B_ONLY = "b_only"   # Only party B initiates
+    ROLE_BASED = "role_based" # Based on relationship type (e.g., parent initiates)
+
+
+class CostResponsibility(Enum):
+    """Who pays the compute/energy cost of verification."""
+    INITIATOR = "initiator"   # Whoever initiates pays
+    SPLIT = "split"           # Both parties share cost
+    POLICY = "policy"         # Determined by relationship policy
+    PROVER = "prover"         # Prover always pays (common)
+
+
 @dataclass
 class RelationshipAlivenessPolicy:
     """How aliveness affects a specific relationship."""
@@ -273,6 +290,10 @@ class RelationshipAlivenessPolicy:
     # Verification requirements
     require_mutual_aliveness: bool = True    # Both parties must verify
     verification_interval: timedelta = timedelta(hours=24)
+
+    # Who initiates and pays (matters for compute/energy budgets)
+    verification_initiator: VerificationInitiator = VerificationInitiator.EITHER
+    cost_responsibility: CostResponsibility = CostResponsibility.INITIATOR
 
     # What happens on aliveness failure for each party
     on_party_a_failure: RelationshipAction = RelationshipAction.SUSPEND
@@ -292,6 +313,8 @@ class RelationshipAlivenessPolicy:
         return {
             "require_mutual_aliveness": self.require_mutual_aliveness,
             "verification_interval_seconds": self.verification_interval.total_seconds(),
+            "verification_initiator": self.verification_initiator.value,
+            "cost_responsibility": self.cost_responsibility.value,
             "on_party_a_failure": self.on_party_a_failure.value,
             "on_party_b_failure": self.on_party_b_failure.value,
             "on_both_failure": self.on_both_failure.value,
@@ -579,3 +602,151 @@ class RestorationContext:
     restoration_requested_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+
+
+# =============================================================================
+# Succession Certificate (with Revocation)
+# =============================================================================
+
+@dataclass
+class WitnessSignature:
+    """Witness attestation for succession."""
+    witness_lct_id: str
+    signature: bytes
+    timestamp: datetime
+    scope: str  # What the witness is attesting to
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "witness_lct_id": self.witness_lct_id,
+            "signature": self.signature.hex(),
+            "timestamp": self.timestamp.isoformat(),
+            "scope": self.scope
+        }
+
+
+class RevocationPolicy(Enum):
+    """How succession can be revoked."""
+    PREDECESSOR_ONLY = "predecessor_only"    # Only predecessor can revoke
+    WITNESS_MAJORITY = "witness_majority"    # Majority of witnesses
+    GOVERNANCE = "governance"                # Governance LCT decides
+    IRREVOCABLE = "irrevocable"             # Cannot be revoked (dangerous)
+
+
+@dataclass
+class SuccessionCertificate:
+    """
+    Signed handoff from embodied entity to successor.
+
+    Enables "inheritance with accountability" rather than resurrection.
+    The predecessor (while still alive/embodied) signs a certificate
+    authorizing a successor to inherit specified attributes.
+
+    REVOCATION: Certificates can be revoked if the predecessor is
+    compromised after issuing, or if governance determines fraud.
+    """
+
+    # The predecessor (must be currently alive to sign)
+    predecessor_lct_id: str
+    predecessor_signature: bytes
+
+    # The successor (new hardware binding)
+    successor_lct_id: str
+    successor_public_key: str
+
+    # Terms of succession
+    inheritance_scope: List[str] = field(default_factory=lambda: ["experience", "skills"])
+    excluded_scope: List[str] = field(default_factory=lambda: ["relationships", "trust_scores"])
+
+    # Limits on inherited trust
+    max_inherited_trust: float = 0.5  # Never full trust
+    trust_earning_required: bool = True
+
+    # Witnesses (optional - higher-trust parent or governance)
+    witness_signatures: List[WitnessSignature] = field(default_factory=list)
+
+    # Validity window
+    issued_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: Optional[datetime] = None  # None = no expiry (use with caution)
+
+    # === REVOCATION SUPPORT ===
+    # Unique ID for revocation checking
+    revocation_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+    # How this certificate can be revoked
+    revocation_policy: RevocationPolicy = RevocationPolicy.PREDECESSOR_ONLY
+
+    # Optional: witnesses who can participate in revocation
+    revocation_witnesses: List[str] = field(default_factory=list)
+
+    # Revocation status (set externally when revoked)
+    revoked: bool = False
+    revoked_at: Optional[datetime] = None
+    revocation_reason: Optional[str] = None
+
+    def is_valid(self, current_time: Optional[datetime] = None) -> bool:
+        """Check if succession is still valid (not expired, not revoked)."""
+        if current_time is None:
+            current_time = datetime.now(timezone.utc)
+
+        # Check revocation first
+        if self.revoked:
+            return False
+
+        # Check expiry
+        if self.expires_at and current_time > self.expires_at:
+            return False
+
+        # Check issued (should be in the past)
+        if current_time < self.issued_at:
+            return False
+
+        return True
+
+    def revoke(self, reason: str, revoker_lct_id: str) -> bool:
+        """
+        Attempt to revoke this certificate.
+
+        Args:
+            reason: Why the certificate is being revoked
+            revoker_lct_id: Who is revoking
+
+        Returns:
+            True if revocation succeeded, False if not authorized
+        """
+        # Check authorization based on policy
+        if self.revocation_policy == RevocationPolicy.IRREVOCABLE:
+            return False
+
+        if self.revocation_policy == RevocationPolicy.PREDECESSOR_ONLY:
+            if revoker_lct_id != self.predecessor_lct_id:
+                return False
+
+        # For WITNESS_MAJORITY and GOVERNANCE, external logic needed
+        # This is a simplified single-revoker implementation
+
+        self.revoked = True
+        self.revoked_at = datetime.now(timezone.utc)
+        self.revocation_reason = reason
+        return True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "predecessor_lct_id": self.predecessor_lct_id,
+            "predecessor_signature": self.predecessor_signature.hex(),
+            "successor_lct_id": self.successor_lct_id,
+            "successor_public_key": self.successor_public_key,
+            "inheritance_scope": self.inheritance_scope,
+            "excluded_scope": self.excluded_scope,
+            "max_inherited_trust": self.max_inherited_trust,
+            "trust_earning_required": self.trust_earning_required,
+            "witness_signatures": [w.to_dict() for w in self.witness_signatures],
+            "issued_at": self.issued_at.isoformat(),
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "revocation_id": self.revocation_id,
+            "revocation_policy": self.revocation_policy.value,
+            "revocation_witnesses": self.revocation_witnesses,
+            "revoked": self.revoked,
+            "revoked_at": self.revoked_at.isoformat() if self.revoked_at else None,
+            "revocation_reason": self.revocation_reason
+        }
