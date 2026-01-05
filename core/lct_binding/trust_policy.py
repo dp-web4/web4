@@ -262,6 +262,35 @@ class PolicyTemplates:
             grace_period=timedelta(days=1)
         )
 
+    @staticmethod
+    def intra_synthon() -> TrustDegradationPolicy:
+        """
+        Intra-synthon policy (the four SAGE machines).
+
+        For relationships between machines in the same synthon
+        (Legion native, Legion WSL, desktop, server).
+
+        - High baseline trust between synthon members
+        - Very patient with temporary failures
+        - But requires aliveness for critical operations:
+          - federation_sync: Synchronizing state across machines
+          - trust_propagation: Propagating trust changes to other members
+        - Long grace periods (machines may be offline)
+        """
+        return TrustDegradationPolicy(
+            on_success=TrustAction.FULL_TRUST,
+            on_failure=TrustAction.REDUCED_TRUST,
+            on_timeout=TrustAction.REDUCED_TRUST,
+            on_unsupported=TrustAction.LEGACY_TRUST,
+            failure_trust_ceiling=0.4,   # Still some trust even on failure
+            timeout_trust_ceiling=0.6,   # Higher timeout tolerance
+            software_trust_ceiling=0.9,  # Trust software binding within synthon
+            require_aliveness_for=["federation_sync", "trust_propagation"],
+            aliveness_cache_duration=timedelta(hours=4),  # Long cache
+            max_consecutive_failures=20,  # Very patient
+            grace_period=timedelta(hours=24)  # Full day grace
+        )
+
 
 # =============================================================================
 # Relationship Aliveness Policy
@@ -654,6 +683,12 @@ class SuccessionCertificate:
     successor_lct_id: str
     successor_public_key: str
 
+    # DNA inheritance verification
+    # Hash of the MRH (experience bundle) the successor claims to load
+    # Allows verifiers to confirm "this is the predecessor's knowledge"
+    dna_inheritance_hash: Optional[str] = None  # SHA-256 of experience bundle
+    dna_hash_algorithm: str = "sha256"
+
     # Terms of succession
     inheritance_scope: List[str] = field(default_factory=lambda: ["experience", "skills"])
     excluded_scope: List[str] = field(default_factory=lambda: ["relationships", "trust_scores"])
@@ -736,6 +771,8 @@ class SuccessionCertificate:
             "predecessor_signature": self.predecessor_signature.hex(),
             "successor_lct_id": self.successor_lct_id,
             "successor_public_key": self.successor_public_key,
+            "dna_inheritance_hash": self.dna_inheritance_hash,
+            "dna_hash_algorithm": self.dna_hash_algorithm,
             "inheritance_scope": self.inheritance_scope,
             "excluded_scope": self.excluded_scope,
             "max_inherited_trust": self.max_inherited_trust,

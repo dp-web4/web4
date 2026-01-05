@@ -18,6 +18,33 @@ import os
 import uuid
 
 
+# =============================================================================
+# SAGE PCR Selection (Standardized Embodiment Checks)
+# =============================================================================
+
+# Recommended PCR set for SAGE (Synthon AGent Embodiment) verification
+# These PCRs measure the boot chain and provide embodiment attestation
+SAGE_PCR_SELECTION = {
+    # Boot chain PCRs (0-7) - measure firmware through kernel
+    0: "BIOS/UEFI firmware",
+    1: "BIOS configuration",
+    2: "Option ROMs",
+    3: "Option ROM configuration",
+    4: "MBR/bootloader",
+    5: "MBR configuration/GPT",
+    6: "Platform state transitions",
+    7: "Secure Boot state",
+    # NV counter PCR
+    11: "Hash of NV indices (monotonic counters)",
+}
+
+# Minimal set for quick checks (just boot integrity)
+SAGE_PCR_MINIMAL = {0, 4, 7}  # BIOS, bootloader, Secure Boot
+
+# Full set for complete embodiment attestation
+SAGE_PCR_FULL = set(SAGE_PCR_SELECTION.keys())
+
+
 class HardwareType(str, Enum):
     """Types of hardware security modules."""
     NONE = "none"

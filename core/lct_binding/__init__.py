@@ -49,6 +49,10 @@ from .provider import (
     BindingResult,
     SignatureResult,
     AttestationResult,
+    # SAGE PCR Selection (standardized embodiment checks)
+    SAGE_PCR_SELECTION,
+    SAGE_PCR_MINIMAL,
+    SAGE_PCR_FULL,
     # Aliveness Verification Protocol
     AVP_PROTOCOL_VERSION,
     AlivenessChallenge,
@@ -172,6 +176,10 @@ __all__ = [
     'create_bound_lct',
     'HAS_TPM2',
     'HAS_TRUSTZONE',
+    # SAGE PCR Selection
+    'SAGE_PCR_SELECTION',
+    'SAGE_PCR_MINIMAL',
+    'SAGE_PCR_FULL',
     # Aliveness Verification Protocol
     'AVP_PROTOCOL_VERSION',
     'AlivenessChallenge',
