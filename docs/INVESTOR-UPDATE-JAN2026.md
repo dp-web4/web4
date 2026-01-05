@@ -52,9 +52,11 @@ Formalized the value transfer mechanism:
 | Commits | 157 | 366 | **523** |
 | Files changed | 558 | 1,165 | 1,723 |
 | Lines added | 215K | 1.2M* | ~1.4M |
-| Sessions completed | 9 | 23 | **32** |
+| Autonomous sessions | 64 | 139 | **203** |
 
 *HRM includes experiment data, training results, and validation outputs
+
+**~8 autonomous sessions per day** across multiple machines (Thor, Sprout, Legion)
 
 ---
 
@@ -99,4 +101,7 @@ This is not AI control. This is AI accountability infrastructure.
 ---
 
 **Contact**: [dp]
-**Repositories**: Web4, HRM (private)
+
+**Open Source Repositories** (AGPL-3.0):
+- **Web4**: https://github.com/dp-web4/web4
+- **HRM**: https://github.com/dp-web4/HRM
