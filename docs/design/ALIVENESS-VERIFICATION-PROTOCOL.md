@@ -1,9 +1,9 @@
 # Aliveness Verification Protocol (AVP)
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Date**: 2026-01-04
 **Status**: Draft
-**Authors**: dp (human), Claude Opus 4.5
+**Authors**: dp (human), Claude Opus 4.5, Nova (Cascade)
 
 ---
 
@@ -721,7 +721,281 @@ class QuorumAlivenessPolicy:
 
 ---
 
-## 10. References
+## 10. Enhanced Aliveness: Key Access vs Embodiment State (Nova Insights)
+
+The basic nonce-signature protocol proves **key access** but not necessarily **good state**.
+For full embodiment verification, we need to prove both.
+
+### 10.1 The Distinction
+
+| Level | Proves | Method | Trust Implication |
+|-------|--------|--------|-------------------|
+| **Key Access** | "I possess the private key" | Nonce signature | Continuity of binding |
+| **Embodiment State** | "I'm in an acceptable measured state" | TPM Quote with PCRs | Integrity of substrate |
+
+### 10.2 Option A: Policy-Bound Signing
+
+Bind the key's use to TPM policies:
+
+```python
+@dataclass
+class PolicyBoundKey:
+    """Key that can only sign when policies are satisfied."""
+    key_handle: str
+
+    # TPM2 policies that must be satisfied
+    policy_pcr: List[int]        # Required PCR values (boot integrity)
+    policy_auth: bool            # Require user presence/PIN
+    policy_counter: bool         # Anti-rollback via NV counter
+
+    # Result: LCT can't sign unless in correct state
+```
+
+**Effect**: If boot chain is tampered, signing fails automatically.
+
+### 10.3 Option B: TPM Quote (Recommended for High-Trust)
+
+Use `TPM2_Quote` instead of raw signing for full attestation:
+
+```python
+@dataclass
+class AttestationAlivenessProof(AlivenessProof):
+    """Extended proof with TPM Quote for embodiment state."""
+
+    # Standard fields inherited from AlivenessProof
+    # ...
+
+    # Attestation-specific
+    quote_data: bytes            # TPM2_Quote output
+    quote_signature: bytes       # Signed by Attestation Key (AK)
+    selected_pcrs: List[int]     # Which PCRs were measured
+    pcr_digest: str              # Hash of PCR values at signing time
+
+    # Verifier checks:
+    # 1. Signature validates under AK public key in LCT
+    # 2. Nonce freshness (bound into quote)
+    # 3. PCR values match approved reference (or acceptable window)
+```
+
+**Canonical flow**:
+1. External party sends nonce
+2. Device returns `TPM2_Quote` over selected PCRs + nonce, signed by AK
+3. Verifier checks signature, nonce, and PCR acceptability
+
+### 10.4 Two-Axis Trust Model
+
+Split trust evaluation into orthogonal axes:
+
+```python
+@dataclass
+class DualAxisTrust:
+    """
+    Two-axis trust model for aliveness verification.
+
+    Continuity: "Are you still the embodied instance?"
+    Content: "Is the data consistent, signed, and internally coherent?"
+    """
+
+    continuity_trust: float = 0.0   # Hardware binding verified
+    content_trust: float = 0.0      # Data provenance verified
+
+    @property
+    def combined_trust(self) -> float:
+        """Geometric mean of both axes."""
+        if self.continuity_trust <= 0 or self.content_trust <= 0:
+            return 0.0
+        return (self.continuity_trust * self.content_trust) ** 0.5
+
+
+class AlivenessFailureType(Enum):
+    """Types of aliveness failure with different trust implications."""
+
+    NO_RESPONSE = "no_response"
+    # Unknown state (network/offline)
+    # → Partial decay, benefit of doubt
+
+    SIGNATURE_INVALID = "signature_invalid"
+    # Likely fork/clone/tamper
+    # → Hard drop on continuity, content may survive
+
+    QUOTE_PCR_DRIFT = "quote_pcr_drift"
+    # Same body, different mind (software changed)
+    # → Treat as new witness with inherited DNA
+    # → Reset relationships, preserve content trust
+
+    KEY_MISMATCH = "key_mismatch"
+    # Different hardware entirely
+    # → Full reset, potential successor scenario
+```
+
+### 10.5 Degradation Based on Failure Type
+
+```python
+def degrade_trust_by_failure_type(
+    current_trust: DualAxisTrust,
+    failure_type: AlivenessFailureType,
+    policy: TrustDegradationPolicy
+) -> DualAxisTrust:
+    """Apply different degradation based on why verification failed."""
+
+    if failure_type == AlivenessFailureType.NO_RESPONSE:
+        # Network/offline - partial decay
+        return DualAxisTrust(
+            continuity_trust=current_trust.continuity_trust * 0.5,
+            content_trust=current_trust.content_trust * 0.9
+        )
+
+    elif failure_type == AlivenessFailureType.SIGNATURE_INVALID:
+        # Likely fork/clone - hard drop on continuity
+        return DualAxisTrust(
+            continuity_trust=0.0,
+            content_trust=current_trust.content_trust * 0.5
+        )
+
+    elif failure_type == AlivenessFailureType.QUOTE_PCR_DRIFT:
+        # Same body, different mind - reset relationships
+        return DualAxisTrust(
+            continuity_trust=0.3,  # Partial - same hardware
+            content_trust=current_trust.content_trust  # Preserved
+        )
+
+    elif failure_type == AlivenessFailureType.KEY_MISMATCH:
+        # Different hardware - successor scenario
+        return DualAxisTrust(
+            continuity_trust=0.0,
+            content_trust=0.0  # Must re-establish everything
+        )
+```
+
+### 10.6 Succession Certificates
+
+Explicit mechanism for sanctioned successors:
+
+```python
+@dataclass
+class SuccessionCertificate:
+    """
+    Signed handoff from embodied entity to successor.
+
+    Enables "inheritance with accountability" rather than resurrection.
+    """
+
+    # The predecessor (must be currently alive to sign)
+    predecessor_lct_id: str
+    predecessor_signature: bytes
+
+    # The successor (new hardware binding)
+    successor_lct_id: str
+    successor_public_key: str
+
+    # Terms of succession
+    inheritance_scope: List[str]  # What transfers: ["experience", "skills"]
+    excluded_scope: List[str]     # What doesn't: ["relationships", "trust_scores"]
+
+    # Limits on inherited trust
+    max_inherited_trust: float = 0.5  # Never full trust
+    trust_earning_required: bool = True
+
+    # Witnesses (optional - higher-trust parent or governance)
+    witness_signatures: List[WitnessSignature] = field(default_factory=list)
+
+    # Validity
+    issued_at: datetime
+    expires_at: datetime  # Succession window
+
+    def is_valid(self, current_time: datetime) -> bool:
+        """Check if succession is still valid."""
+        return self.issued_at <= current_time <= self.expires_at
+
+
+@dataclass
+class WitnessSignature:
+    """Witness attestation for succession."""
+    witness_lct_id: str
+    signature: bytes
+    timestamp: datetime
+    scope: str  # What the witness is attesting to
+```
+
+**Succession flow**:
+1. Old embodied entity signs succession certificate (while still alive)
+2. Optional: governance/parent entity co-signs
+3. New instance presents certificate + proves new hardware binding
+4. Verifiers grant bounded initial trust (never full) under defined MRHs
+
+### 10.7 Cryptographic Nonce Binding
+
+Include verifier identity in the signed payload to prevent relay attacks:
+
+```python
+@dataclass
+class BoundAlivenessChallenge(AlivenessChallenge):
+    """Challenge with cryptographic binding to verifier and context."""
+
+    # Additional binding fields
+    verifier_public_key: str      # Verifier's identity
+    session_id: str               # Unique session
+    intended_action_hash: str     # Hash of what this proof authorizes
+
+    def get_signing_payload(self) -> bytes:
+        """
+        Payload that must be signed.
+
+        Binds the proof to this specific verifier, session, and action.
+        """
+        return hashlib.sha256(
+            self.nonce +
+            self.verifier_lct_id.encode() +
+            self.session_id.encode() +
+            bytes.fromhex(self.intended_action_hash)
+        ).digest()
+```
+
+### 10.8 Mutual Authentication
+
+For symmetric relationships, both parties prove aliveness:
+
+```python
+@dataclass
+class MutualAlivenessExchange:
+    """
+    Bidirectional aliveness verification.
+
+    Prevents relay attacks and adds symmetry to the protocol.
+    """
+
+    # Party A challenges Party B
+    a_to_b_challenge: BoundAlivenessChallenge
+    b_proof: AlivenessProof
+
+    # Party B challenges Party A
+    b_to_a_challenge: BoundAlivenessChallenge
+    a_proof: AlivenessProof
+
+    # Both verified
+    mutual_verification_time: datetime
+
+    @property
+    def both_alive(self) -> bool:
+        """True if both parties verified successfully."""
+        return (
+            self.b_proof is not None and
+            self.a_proof is not None
+        )
+```
+
+### 10.9 The Core Insight
+
+> **"LCT continuity is a claim; aliveness is the evidence. Relationships are contracts conditioned on evidence, not artifacts conditioned on secrecy."**
+
+This framing:
+- Makes third parties the arbiters (as they should be)
+- Supports "DNA survives" without pretending "trust survives"
+- Avoids over-centralizing the TPM as the entity itself (it's an anchor, not the being)
+
+---
+
+## 11. References
 
 - `ALIVENESS-AND-EMBODIMENT-STATUS.md` - Philosophical framework
 - `HARDWARE-BINDING-IMPLEMENTATION-PLAN.md` - Hardware binding architecture
