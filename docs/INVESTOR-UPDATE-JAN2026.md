@@ -50,9 +50,11 @@ Formalized the value transfer mechanism:
 | Metric | Web4 | HRM | Combined |
 |--------|------|-----|----------|
 | Commits | 157 | 366 | **523** |
-| Files changed | 558 | 2,478 | 3,036 |
-| Lines of code | 215K+ | 47M+ | — |
+| Files changed | 558 | 1,165 | 1,723 |
+| Lines added | 215K | 1.2M* | ~1.4M |
 | Sessions completed | 9 | 23 | **32** |
+
+*HRM includes experiment data, training results, and validation outputs
 
 ---
 
