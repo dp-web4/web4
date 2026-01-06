@@ -259,9 +259,20 @@ class ConsciousnessAlivenessSensor:
             timestamp=proof.timestamp
         )
 
-        # Verify hardware signature (use stored challenge - Session 127 fix)
+        # Reconstruct basic challenge from agent challenge for verification
+        # This enables cross-machine federation where verifier != prover
+        basic_challenge_for_verify = AlivenessChallenge(
+            nonce=challenge.nonce,
+            timestamp=challenge.timestamp,
+            challenge_id=challenge.challenge_id,
+            expires_at=challenge.expires_at,
+            verifier_lct_id=challenge.verifier_lct_id,
+            purpose=challenge.purpose
+        )
+
+        # Verify hardware signature
         basic_result = self.provider.verify_aliveness_proof(
-            self._last_basic_challenge,
+            basic_challenge_for_verify,
             basic_proof_for_verify,
             expected_public_key
         )
