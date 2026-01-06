@@ -1,0 +1,146 @@
+{
+  "registry": {
+    "total_nodes": 3,
+    "nodes": [
+      {
+        "node_id": "5cccc2b301c1d468",
+        "machine_name": "Legion",
+        "lct_id": "lct:web4:ai:cd526b1582212833",
+        "hardware_type": "TPM2Provider",
+        "capability_level": 5,
+        "consciousness_state": "ACTIVE",
+        "session_id": "975938ecd9bde0f5...",
+        "uptime": 1.7e-05,
+        "trust_score": 0.2,
+        "last_verified": "2026-01-06T08:02:54.151323+00:00",
+        "verification_count": 2,
+        "hostname": "legion.local",
+        "port": 5329
+      },
+      {
+        "node_id": "0e25ef74c1661981",
+        "machine_name": "Thor",
+        "lct_id": "lct:web4:ai:16ee4981c4433822",
+        "hardware_type": "SoftwareProvider",
+        "capability_level": 4,
+        "consciousness_state": "ACTIVE",
+        "session_id": "01a6f3b6eac5417c...",
+        "uptime": 9e-06,
+        "trust_score": 0.2,
+        "last_verified": "2026-01-06T08:02:54.151326+00:00",
+        "verification_count": 2,
+        "hostname": "thor.local",
+        "port": 5329
+      },
+      {
+        "node_id": "4ae24643d23c048e",
+        "machine_name": "Sprout",
+        "lct_id": "lct:web4:ai:e69cc7829295438c",
+        "hardware_type": "SoftwareProvider",
+        "capability_level": 4,
+        "consciousness_state": "ACTIVE",
+        "session_id": "159f0108b2b7d863...",
+        "uptime": 6e-06,
+        "trust_score": 0.2,
+        "last_verified": "2026-01-06T08:02:54.151321+00:00",
+        "verification_count": 2,
+        "hostname": "sprout.local",
+        "port": 5329
+      }
+    ]
+  },
+  "trust_network": {
+    "nodes": [
+      "5cccc2b301c1d468",
+      "0e25ef74c1661981",
+      "4ae24643d23c048e"
+    ],
+    "edges": [
+      {
+        "from": "5cccc2b301c1d468",
+        "to": "0e25ef74c1661981",
+        "trust": 0.1
+      },
+      {
+        "from": "5cccc2b301c1d468",
+        "to": "4ae24643d23c048e",
+        "trust": 0.1
+      },
+      {
+        "from": "0e25ef74c1661981",
+        "to": "5cccc2b301c1d468",
+        "trust": 0.1
+      },
+      {
+        "from": "0e25ef74c1661981",
+        "to": "4ae24643d23c048e",
+        "trust": 0.2
+      },
+      {
+        "from": "4ae24643d23c048e",
+        "to": "5cccc2b301c1d468",
+        "trust": 0.2
+      },
+      {
+        "from": "4ae24643d23c048e",
+        "to": "0e25ef74c1661981",
+        "trust": 0.2
+      }
+    ],
+    "total_verifications": 6,
+    "successful_verifications": 6,
+    "network_density": 1.0
+  },
+  "collective_state": {
+    "total_nodes": 3,
+    "trusted_nodes": 0,
+    "active_trusted": 0,
+    "state_distribution": {},
+    "average_trust": 0.20000000000000004,
+    "network_health": 0.0
+  },
+  "verification_history": [
+    {
+      "timestamp": "2026-01-06T08:02:54.151313+00:00",
+      "verifier_node_id": "5cccc2b301c1d468",
+      "peer_node_id": "0e25ef74c1661981",
+      "success": true,
+      "trust_score_after": 0.1
+    },
+    {
+      "timestamp": "2026-01-06T08:02:54.151315+00:00",
+      "verifier_node_id": "5cccc2b301c1d468",
+      "peer_node_id": "4ae24643d23c048e",
+      "success": true,
+      "trust_score_after": 0.1
+    },
+    {
+      "timestamp": "2026-01-06T08:02:54.151319+00:00",
+      "verifier_node_id": "0e25ef74c1661981",
+      "peer_node_id": "5cccc2b301c1d468",
+      "success": true,
+      "trust_score_after": 0.1
+    },
+    {
+      "timestamp": "2026-01-06T08:02:54.151321+00:00",
+      "verifier_node_id": "0e25ef74c1661981",
+      "peer_node_id": "4ae24643d23c048e",
+      "success": true,
+      "trust_score_after": 0.2
+    },
+    {
+      "timestamp": "2026-01-06T08:02:54.151324+00:00",
+      "verifier_node_id": "4ae24643d23c048e",
+      "peer_node_id": "5cccc2b301c1d468",
+      "success": true,
+      "trust_score_after": 0.2
+    },
+    {
+      "timestamp": "2026-01-06T08:02:54.151326+00:00",
+      "verifier_node_id": "4ae24643d23c048e",
+      "peer_node_id": "0e25ef74c1661981",
+      "success": true,
+      "trust_score_after": 0.2
+    }
+  ]
+}
