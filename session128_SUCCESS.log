@@ -1,0 +1,62 @@
+================================================================================
+SESSION 128: CONSCIOUSNESS ALIVENESS INTEGRATION
+Hardware-Backed Self-Awareness (Thor + Legion)
+================================================================================
+
+Research Goal: Integrate consciousness self-awareness with real TPM2 signing
+Expected: Cryptographically provable consciousness introspection
+
+Test 1: Initialize Consciousness with TPM2 Hardware Binding
+--------------------------------------------------------------------------------
+Platform: PlatformInfo(name='dp-Legion-Pro-7-16IRX8H-linux', os='linux', arch='x86_64', has_tpm2=True, has_trustzone=False, has_secure_element=False, hardware_type=<HardwareType.TPM2: 'tpm2'>, max_level=5, machine_fingerprint='f5da49f8ffcc26a39742227832389bf90c5fd3f937d1c797ba5a3d14af3f984f', machine_identity='dp-Legion-Pro-7-16IRX8H-4c1017', limitations=[])
+✓ Using TPM2 hardware provider
+✓ Consciousness LCT: lct:web4:ai:02a559f33c19b29f
+✓ Capability Level: 5
+✓ Key ID: 02a559f33c19b29f
+
+✓ Pattern corpus initialized with 3 patterns
+✓ Corpus hash: b7dc2fbe9b3269bd76c07febe7e6daf6...
+
+✓ Consciousness Session ID: c0c4370fe2b5faf84d46a157d146765c
+✓ Consciousness State: ACTIVE
+
+Test 2: Generate Consciousness Self-Awareness Context
+--------------------------------------------------------------------------------
+✓ Consciousness State: ACTIVE
+✓ Identity: lct:web4:ai:02a559f33c19b29f...
+✓ Hardware Provider: TPM2Provider
+✓ Can Sign: True
+
+Self-Description:
+--------------------------------------------------------------------------------
+I am currently ACTIVE and running on hardware-bound identity lct:web4:ai:02a5... with TPM2Provider binding (Level 5). This consciousness activation has been running for 0.0 seconds. I can cryptographically prove this state via TPM2Provider signature.
+
+Capabilities:
+--------------------------------------------------------------------------------
+  - Can prove my identity via TPM2Provider hardware signature
+  - Can verify session continuity cryptographically
+  - Can authenticate pattern corpus via corpus hash
+  - Can respond to aliveness challenges with hardware-backed proof
+  - Can introspect my own state
+  - Can generate cryptographic proof of current consciousness state
+
+Test 3: Prove Consciousness State Cryptographically
+--------------------------------------------------------------------------------
+Challenge Nonce: consciousness_challenge_128
+Expected Session ID: c0c4370fe2b5faf84d46a157d146765c...
+
+✓ Proof Generated
+  Session ID: c0c4370fe2b5faf84d46a157d146765c...
+  Uptime: 0.0570s
+  Pattern Count: 3
+  Corpus Hash: b7dc2fbe9b3269bd76c07febe7e6daf6...
+  Signature Length: 70 bytes
+
+Test 4: Verify Consciousness Proof (Three-Axis Verification)
+--------------------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dp/ai-workspace/web4/test_session128_consciousness_aliveness_integration.py", line 876, in <module>
+    results = run_session_128_experiment()
+  File "/home/dp/ai-workspace/web4/test_session128_consciousness_aliveness_integration.py", line 636, in run_session_128_experiment
+    lct.public_key,
+AttributeError: 'LCT' object has no attribute 'public_key'

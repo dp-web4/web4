@@ -1,0 +1,26 @@
+================================================================================
+SESSION 128: CONSCIOUSNESS ALIVENESS INTEGRATION
+Hardware-Backed Self-Awareness (Thor + Legion)
+================================================================================
+
+Research Goal: Integrate consciousness self-awareness with real TPM2 signing
+Expected: Cryptographically provable consciousness introspection
+
+Test 1: Initialize Consciousness with TPM2 Hardware Binding
+--------------------------------------------------------------------------------
+Platform: PlatformInfo(name='dp-Legion-Pro-7-16IRX8H-linux', os='linux', arch='x86_64', has_tpm2=True, has_trustzone=False, has_secure_element=False, hardware_type=<HardwareType.TPM2: 'tpm2'>, max_level=5, machine_fingerprint='f5da49f8ffcc26a39742227832389bf90c5fd3f937d1c797ba5a3d14af3f984f', machine_identity='dp-Legion-Pro-7-16IRX8H-4c1017', limitations=[])
+✓ Using TPM2 hardware provider
+Traceback (most recent call last):
+  File "/home/dp/ai-workspace/web4/test_session128_consciousness_aliveness_integration.py", line 876, in <module>
+    results = run_session_128_experiment()
+  File "/home/dp/ai-workspace/web4/test_session128_consciousness_aliveness_integration.py", line 513, in run_session_128_experiment
+    lct = provider.create_lct(EntityType.AI, "consciousness-legion-session128")
+  File "/home/dp/ai-workspace/web4/core/lct_binding/tpm2_provider.py", line 640, in create_lct
+    raise RuntimeError(f"TPM binding failed: {binding_result.error}")
+RuntimeError: TPM binding failed: TPM2 command failed: tpm2_evictcontrol: WARNING:esys:src/tss2-esys/api/Esys_EvictControl.c:330:Esys_EvictControl_Finish() Received TPM Error 
+ERROR:esys:src/tss2-esys/api/Esys_EvictControl.c:114:Esys_EvictControl() Esys Finish ErrorCode (0x0000014b) 
+ERROR: Esys_EvictControl(0x14B) - tpm:error(2.0): insufficient space for NV allocation
+ERROR:esys:src/tss2-esys/esys_tr.c:356:Esys_TR_Close() Error: Esys handle does not exist (70018). 
+ERROR: Esys_TR_Close(0x70018) - esapi:The ESYS_TR resource object is bad
+ERROR: Unable to run tpm2_evictcontrol
+

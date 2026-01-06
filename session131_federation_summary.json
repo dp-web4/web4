@@ -1,0 +1,261 @@
+{
+  "registry": {
+    "total_nodes": 3,
+    "nodes": [
+      {
+        "node_id": "e671fb7e267cca15",
+        "machine_name": "Legion",
+        "lct_id": "lct:web4:ai:f00abfe1d85d3ed5",
+        "hardware_type": "TPM2Provider",
+        "capability_level": 5,
+        "consciousness_state": "ACTIVE",
+        "session_id": "4a20112d3049957c...",
+        "uptime": 1.7e-05,
+        "trust_score": 0.2,
+        "last_verified": "2026-01-06T14:08:32.626024+00:00",
+        "verification_count": 2,
+        "successful_verifications": 2,
+        "success_rate": 1.0,
+        "last_continuity": {
+          "hardware": 1.0,
+          "session": 1.0,
+          "epistemic": 1.0,
+          "full": 1.0
+        },
+        "hostname": "legion.local",
+        "port": 5329
+      },
+      {
+        "node_id": "57aae8360bb5badf",
+        "machine_name": "Thor",
+        "lct_id": "lct:web4:ai:b0c3a9f88d5d23c1",
+        "hardware_type": "SoftwareProvider",
+        "capability_level": 4,
+        "consciousness_state": "ACTIVE",
+        "session_id": "080b83e2a7f1861d...",
+        "uptime": 8e-06,
+        "trust_score": 0.1,
+        "last_verified": "2026-01-06T14:08:32.626513+00:00",
+        "verification_count": 2,
+        "successful_verifications": 1,
+        "success_rate": 0.5,
+        "last_continuity": {
+          "hardware": 1.0,
+          "session": 1.0,
+          "epistemic": 1.0,
+          "full": 1.0
+        },
+        "hostname": "thor.local",
+        "port": 5329
+      },
+      {
+        "node_id": "bc001013aaef62f4",
+        "machine_name": "Sprout",
+        "lct_id": "lct:web4:ai:cba5fd4f1a8a279d",
+        "hardware_type": "SoftwareProvider",
+        "capability_level": 4,
+        "consciousness_state": "ACTIVE",
+        "session_id": "582d7a9f22462971...",
+        "uptime": 6e-06,
+        "trust_score": 0.1,
+        "last_verified": "2026-01-06T14:08:32.570594+00:00",
+        "verification_count": 2,
+        "successful_verifications": 1,
+        "success_rate": 0.5,
+        "last_continuity": {
+          "hardware": 1.0,
+          "session": 1.0,
+          "epistemic": 1.0,
+          "full": 1.0
+        },
+        "hostname": "sprout.local",
+        "port": 5329
+      }
+    ]
+  },
+  "trust_network": {
+    "nodes": [
+      "e671fb7e267cca15",
+      "57aae8360bb5badf",
+      "bc001013aaef62f4"
+    ],
+    "edges": [
+      {
+        "from": "e671fb7e267cca15",
+        "from_machine": "Legion",
+        "to": "57aae8360bb5badf",
+        "to_machine": "Thor",
+        "success": false,
+        "trusted": false,
+        "trust": 0.0,
+        "continuity": 0.0,
+        "hardware_continuity": 0.0
+      },
+      {
+        "from": "e671fb7e267cca15",
+        "from_machine": "Legion",
+        "to": "bc001013aaef62f4",
+        "to_machine": "Sprout",
+        "success": false,
+        "trusted": false,
+        "trust": 0.0,
+        "continuity": 0.0,
+        "hardware_continuity": 0.0
+      },
+      {
+        "from": "57aae8360bb5badf",
+        "from_machine": "Thor",
+        "to": "e671fb7e267cca15",
+        "to_machine": "Legion",
+        "success": true,
+        "trusted": true,
+        "trust": 0.1,
+        "continuity": 1.0,
+        "hardware_continuity": 1.0
+      },
+      {
+        "from": "57aae8360bb5badf",
+        "from_machine": "Thor",
+        "to": "bc001013aaef62f4",
+        "to_machine": "Sprout",
+        "success": true,
+        "trusted": true,
+        "trust": 0.1,
+        "continuity": 1.0,
+        "hardware_continuity": 1.0
+      },
+      {
+        "from": "bc001013aaef62f4",
+        "from_machine": "Sprout",
+        "to": "e671fb7e267cca15",
+        "to_machine": "Legion",
+        "success": true,
+        "trusted": true,
+        "trust": 0.2,
+        "continuity": 1.0,
+        "hardware_continuity": 1.0
+      },
+      {
+        "from": "bc001013aaef62f4",
+        "from_machine": "Sprout",
+        "to": "57aae8360bb5badf",
+        "to_machine": "Thor",
+        "success": true,
+        "trusted": true,
+        "trust": 0.1,
+        "continuity": 1.0,
+        "hardware_continuity": 1.0
+      }
+    ],
+    "successful_edges": 4,
+    "total_verifications": 6,
+    "successful_verifications": 4,
+    "network_density": 0.6666666666666666,
+    "average_continuity": 1.0
+  },
+  "collective_state": {
+    "total_nodes": 3,
+    "trusted_nodes": 0,
+    "active_trusted": 0,
+    "state_distribution": {},
+    "average_trust": 0.13333333333333333,
+    "network_health": 0.0,
+    "total_verifications": 6,
+    "successful_verifications": 4,
+    "verification_success_rate": 0.6666666666666666
+  },
+  "verification_history": [
+    {
+      "timestamp": "2026-01-06T14:08:32.514392+00:00",
+      "verifier_node_id": "e671fb7e267cca15",
+      "verifier_machine": "Legion",
+      "peer_node_id": "57aae8360bb5badf",
+      "peer_machine": "Thor",
+      "success": false,
+      "trusted": false,
+      "hardware_continuity": 0.0,
+      "session_continuity": 1.0,
+      "epistemic_continuity": 1.0,
+      "full_continuity": 0.0,
+      "inferred_state": "AgentState.MIGRATED",
+      "trust_score_after": 0.0,
+      "rejection_reason": "Failed trust policy"
+    },
+    {
+      "timestamp": "2026-01-06T14:08:32.514790+00:00",
+      "verifier_node_id": "e671fb7e267cca15",
+      "verifier_machine": "Legion",
+      "peer_node_id": "bc001013aaef62f4",
+      "peer_machine": "Sprout",
+      "success": false,
+      "trusted": false,
+      "hardware_continuity": 0.0,
+      "session_continuity": 1.0,
+      "epistemic_continuity": 1.0,
+      "full_continuity": 0.0,
+      "inferred_state": "AgentState.MIGRATED",
+      "trust_score_after": 0.0,
+      "rejection_reason": "Failed trust policy"
+    },
+    {
+      "timestamp": "2026-01-06T14:08:32.570098+00:00",
+      "verifier_node_id": "57aae8360bb5badf",
+      "verifier_machine": "Thor",
+      "peer_node_id": "e671fb7e267cca15",
+      "peer_machine": "Legion",
+      "success": true,
+      "trusted": true,
+      "hardware_continuity": 1.0,
+      "session_continuity": 1.0,
+      "epistemic_continuity": 1.0,
+      "full_continuity": 1.0,
+      "inferred_state": "AgentState.ACTIVE",
+      "trust_score_after": 0.1
+    },
+    {
+      "timestamp": "2026-01-06T14:08:32.570595+00:00",
+      "verifier_node_id": "57aae8360bb5badf",
+      "verifier_machine": "Thor",
+      "peer_node_id": "bc001013aaef62f4",
+      "peer_machine": "Sprout",
+      "success": true,
+      "trusted": true,
+      "hardware_continuity": 1.0,
+      "session_continuity": 1.0,
+      "epistemic_continuity": 1.0,
+      "full_continuity": 1.0,
+      "inferred_state": "AgentState.ACTIVE",
+      "trust_score_after": 0.1
+    },
+    {
+      "timestamp": "2026-01-06T14:08:32.626026+00:00",
+      "verifier_node_id": "bc001013aaef62f4",
+      "verifier_machine": "Sprout",
+      "peer_node_id": "e671fb7e267cca15",
+      "peer_machine": "Legion",
+      "success": true,
+      "trusted": true,
+      "hardware_continuity": 1.0,
+      "session_continuity": 1.0,
+      "epistemic_continuity": 1.0,
+      "full_continuity": 1.0,
+      "inferred_state": "AgentState.ACTIVE",
+      "trust_score_after": 0.2
+    },
+    {
+      "timestamp": "2026-01-06T14:08:32.626514+00:00",
+      "verifier_node_id": "bc001013aaef62f4",
+      "verifier_machine": "Sprout",
+      "peer_node_id": "57aae8360bb5badf",
+      "peer_machine": "Thor",
+      "success": true,
+      "trusted": true,
+      "hardware_continuity": 1.0,
+      "session_continuity": 1.0,
+      "epistemic_continuity": 1.0,
+      "full_continuity": 1.0,
+      "inferred_state": "AgentState.ACTIVE",
+      "trust_score_after": 0.1
+    }
+  ]
+}
