@@ -1,0 +1,91 @@
+{
+  "session": "136",
+  "timestamp": "2026-01-07T14:03:40.736435+00:00",
+  "total_attacks": 4,
+  "successful_attacks": 3,
+  "mitigated_attacks": 1,
+  "results": [
+    {
+      "vector": {
+        "name": "Identity Spoofing - Capability Level",
+        "category": "identity",
+        "description": "Attempt to claim higher capability level without hardware",
+        "difficulty": "easy",
+        "impact": "high",
+        "detected": true,
+        "mitigated": true,
+        "mitigation_strategy": "LCT binding ensures provider type consistency"
+      },
+      "success": false,
+      "impact_metrics": {
+        "in_memory_modification": false,
+        "proof_validation": "protected",
+        "capability_level_trust": "intact"
+      },
+      "notes": "In-memory modification possible but doesn't survive verification"
+    },
+    {
+      "vector": {
+        "name": "Sybil Attack - Multiple Fake Identities",
+        "category": "trust_network",
+        "description": "Create many identities to dominate network voting/consensus",
+        "difficulty": "trivial",
+        "impact": "high",
+        "detected": true,
+        "mitigated": false,
+        "mitigation_strategy": "Trust asymmetry + reputation systems + resource limits"
+      },
+      "success": true,
+      "impact_metrics": {
+        "software_creation_time": 0.022700071334838867,
+        "hardware_creation_time": 0.5748910903930664,
+        "software_cost": "trivial",
+        "hardware_cost": "high",
+        "attack_feasibility": "high"
+      },
+      "notes": "Software Sybil attacks are trivial. Hardware-based trust asymmetry provides partial defense."
+    },
+    {
+      "vector": {
+        "name": "Thought Spam - Cogitation DOS",
+        "category": "cogitation",
+        "description": "Flood federation with excessive thoughts to degrade performance",
+        "difficulty": "trivial",
+        "impact": "high",
+        "detected": true,
+        "mitigated": false,
+        "mitigation_strategy": "Rate limiting + quality thresholds + trust-weighted quotas"
+      },
+      "success": true,
+      "impact_metrics": {
+        "spam_count": 10000,
+        "bandwidth_kb": 1953.125,
+        "cpu_seconds": 10.0,
+        "defenses_present": false,
+        "attack_feasibility": "trivial"
+      },
+      "notes": "No current defenses against thought spam. Rate limiting and quality validation needed."
+    },
+    {
+      "vector": {
+        "name": "Trust Poisoning - Strategic Defection",
+        "category": "trust_network",
+        "description": "Build trust through honest behavior, then exploit it maliciously",
+        "difficulty": "medium",
+        "impact": "high",
+        "detected": true,
+        "mitigated": false,
+        "mitigation_strategy": "Persistent reputation + gradual trust updates + behavior monitoring"
+      },
+      "success": true,
+      "impact_metrics": {
+        "trust_gained": 0.5,
+        "honest_rounds_required": 10,
+        "attack_window_trust": 0.6,
+        "detection_difficulty": "medium",
+        "mitigation_present": false
+      },
+      "notes": "Trust poisoning is feasible. Need persistent reputation and behavior monitoring."
+    }
+  ]
+}
