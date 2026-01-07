@@ -389,7 +389,7 @@ class TPM2Provider(LCTBindingProvider):
         Sign data with TPM-stored key.
 
         Args:
-            key_id: Identifier of signing key
+            key_id: Identifier of signing key (full LCT ID or just hash)
             data: Bytes to sign
 
         Returns:
@@ -402,11 +402,14 @@ class TPM2Provider(LCTBindingProvider):
             )
 
         try:
-            # Load metadata if needed
-            if key_id not in self._keys:
-                self._load_metadata(key_id)
+            # Normalize key_id (extract hash if full LCT ID)
+            normalized_key_id = self._normalize_key_id(key_id)
 
-            metadata = self._keys[key_id]
+            # Load metadata if needed
+            if normalized_key_id not in self._keys:
+                self._load_metadata(normalized_key_id)
+
+            metadata = self._keys[normalized_key_id]
             handle = metadata["persistent_handle"]
 
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -715,6 +718,21 @@ class TPM2Provider(LCTBindingProvider):
         safe = safe.replace(' ', '_')
         return safe
 
+    def _normalize_key_id(self, key_id: str) -> str:
+        """
+        Normalize key_id by extracting hash if it's a full LCT ID.
+
+        Args:
+            key_id: Either full lct_id (e.g. "lct:web4:ai:abc123")
+                    or just hash (e.g. "abc123")
+
+        Returns:
+            Just the hash part
+        """
+        if ':' in key_id:
+            return key_id.split(':')[-1]  # Extract hash
+        return key_id
+
     def list_keys(self) -> list:
         """List all stored keys."""
         keys = []
@@ -728,6 +746,23 @@ class TPM2Provider(LCTBindingProvider):
                 "created_at": metadata.get("created_at")
             })
         return keys
+
+    def get_public_key(self, key_id: str) -> str:
+        """
+        Get public key PEM for a stored key.
+
+        Args:
+            key_id: Either full lct_id (e.g. "lct:web4:ai:abc123")
+                    or just hash (e.g. "abc123")
+
+        Returns:
+            Public key in PEM format
+        """
+        # Normalize key_id (extract hash if full LCT ID)
+        if ':' in key_id:
+            key_id = key_id.split(':')[-1]
+
+        return self._get_public_key(key_id)
 
 
 # Quick test when run directly
