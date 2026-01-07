@@ -270,10 +270,10 @@ class TrustZoneProvider(LCTBindingProvider):
                         backend=default_backend()
                     )
 
-                    # Hash and sign
-                    data_hash = hashlib.sha256(data).digest()
+                    # Sign with ECDSA (library handles hashing automatically)
+                    # Fix: Remove manual hashing to avoid double-hash bug
                     signature = private_key.sign(
-                        data_hash,
+                        data,
                         ec.ECDSA(hashes.SHA256())
                     )
 
@@ -398,15 +398,18 @@ class TrustZoneProvider(LCTBindingProvider):
         Sign data with TrustZone-stored key.
 
         Args:
-            key_id: Identifier of signing key
+            key_id: Identifier of signing key (can be full lct_id or just hash)
             data: Bytes to sign
 
         Returns:
             SignatureResult with signature
         """
         try:
+            # Normalize key_id (extract hash if it's a full LCT ID)
+            normalized_key_id = self._normalize_key_id(key_id)
+
             result = self._invoke_ta(2, {
-                "key_id": key_id,
+                "key_id": normalized_key_id,
                 "data_b64": base64.b64encode(data).decode()
             })
 
@@ -431,6 +434,26 @@ class TrustZoneProvider(LCTBindingProvider):
                 success=False,
                 error=str(e)
             )
+
+    def get_public_key(self, key_id: str) -> str:
+        """
+        Get public key for a key_id.
+
+        Args:
+            key_id: Identifier of key (can be full lct_id or just hash)
+
+        Returns:
+            Public key in PEM format
+        """
+        # Normalize key_id (extract hash if it's a full LCT ID)
+        normalized_key_id = self._normalize_key_id(key_id)
+
+        # Load metadata if needed
+        if normalized_key_id not in self._keys:
+            self._load_metadata(normalized_key_id)
+
+        metadata = self._keys[normalized_key_id]
+        return metadata["public_key_pem"]
 
     def verify_signature(
         self,
@@ -572,6 +595,21 @@ class TrustZoneProvider(LCTBindingProvider):
         )
 
         return lct
+
+    def _normalize_key_id(self, key_id: str) -> str:
+        """
+        Normalize key_id by extracting hash if it's a full LCT ID.
+
+        Args:
+            key_id: Either full lct_id (e.g. "lct:web4:ai:abc123") or just hash (e.g. "abc123")
+
+        Returns:
+            Just the hash part
+        """
+        if ':' in key_id:
+            # It's a full LCT ID - extract the hash part
+            return key_id.split(':')[-1]
+        return key_id
 
     def _save_metadata(self, key_id: str, metadata: Dict[str, Any]):
         """Save key metadata to disk."""

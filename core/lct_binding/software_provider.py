@@ -194,18 +194,21 @@ class SoftwareProvider(LCTBindingProvider):
         Sign data with stored key.
 
         Args:
-            key_id: Identifier of signing key
+            key_id: Identifier of signing key (can be full lct_id or just hash)
             data: Bytes to sign
 
         Returns:
             SignatureResult with signature
         """
         try:
-            # Load key if needed
-            if key_id not in self._keys:
-                self._load_key(key_id)
+            # Normalize key_id (extract hash if it's a full LCT ID)
+            normalized_key_id = self._normalize_key_id(key_id)
 
-            private_key = self._keys[key_id][0]
+            # Load key if needed
+            if normalized_key_id not in self._keys:
+                self._load_key(normalized_key_id)
+
+            private_key = self._keys[normalized_key_id][0]
 
             # Sign
             signature = private_key.sign(data)
@@ -386,6 +389,34 @@ class SoftwareProvider(LCTBindingProvider):
 
         # Cache
         self._keys[key_id] = (private_key, public_key, metadata)
+
+    def _normalize_key_id(self, key_id: str) -> str:
+        """
+        Normalize key_id by extracting hash if it's a full LCT ID.
+
+        Args:
+            key_id: Either full lct_id (e.g. "lct:web4:ai:abc123") or just hash (e.g. "abc123")
+
+        Returns:
+            Just the hash part
+        """
+        if ':' in key_id:
+            # It's a full LCT ID - extract the hash part
+            return key_id.split(':')[-1]
+        return key_id
+
+    def get_public_key(self, key_id: str) -> str:
+        """
+        Get public key PEM for a stored key.
+
+        Args:
+            key_id: Identifier of key (can be full lct_id or just hash)
+
+        Returns:
+            Public key in PEM format
+        """
+        normalized_key_id = self._normalize_key_id(key_id)
+        return self._get_public_key(normalized_key_id)
 
     def _get_public_key(self, key_id: str) -> str:
         """
