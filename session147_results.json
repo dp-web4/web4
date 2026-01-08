@@ -1,0 +1,35 @@
+{
+  "session": "147",
+  "title": "Eclipse Defense + Consensus Checkpoints",
+  "date": "2026-01-08 12:03:10",
+  "status": "COMPLETE",
+  "tests_passed": 3,
+  "tests_failed": 0,
+  "phase": "Phase 1 Critical Security",
+  "results": {
+    "eclipse_defense": {
+      "attempts_detected": 1,
+      "view_validations": 1
+    },
+    "consensus_checkpoints": {
+      "checkpoints_created": 2,
+      "checkpoints_validated": 2,
+      "quorum_failures": 0
+    },
+    "integrated": {
+      "eclipse_defense": {
+        "eclipse_attempts_detected": 0,
+        "diversity_violations": 0,
+        "view_validations": 1,
+        "current_peer_count": 5
+      },
+      "checkpoint_protocol": {
+        "checkpoints_created": 1,
+        "checkpoints_validated": 1,
+        "quorum_failures": 0,
+        "transaction_count": 5,
+        "latest_checkpoint": "checkpoint_0_1767902590"
+      }
+    }
+  }
+}
