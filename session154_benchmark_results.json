@@ -1,0 +1,74 @@
+{
+  "10_nodes": {
+    "test_duration_seconds": 20.00451159477234,
+    "throughput": {
+      "total_thoughts_submitted": 1928,
+      "total_thoughts_accepted": 0,
+      "thoughts_per_second": 96.37825901752247,
+      "acceptance_rate": 0.0
+    },
+    "latency_ms": {
+      "avg": 0.06073416515999315,
+      "min": 0.04291534423828125,
+      "max": 0.2918243408203125,
+      "p50": 0.04935264587402344,
+      "p95": 0.12540817260742188,
+      "p99": 0.1590251922607422
+    },
+    "network": {
+      "total_messages_sent": 150,
+      "total_messages_received": 0,
+      "messages_per_second": 7.498308533520939
+    },
+    "resources": {
+      "peak_memory_mb": 0.7485771179199219,
+      "avg_cpu_percent": 1.4279300364583334
+    },
+    "economics": {
+      "total_atp_earned": 0.0,
+      "total_atp_lost": 9640.0,
+      "network_atp_balance": 0.0
+    },
+    "security": {
+      "total_violations": 100,
+      "eclipse_attempts": 0,
+      "consensus_checkpoints": 0
+    }
+  },
+  "20_nodes": {
+    "test_duration_seconds": 15.00688886642456,
+    "throughput": {
+      "total_thoughts_submitted": 1444,
+      "total_thoughts_accepted": 0,
+      "thoughts_per_second": 96.2224757478355,
+      "acceptance_rate": 0.0
+    },
+    "latency_ms": {
+      "avg": 0.06697415645102715,
+      "min": 0.04315376281738281,
+      "max": 0.3361701965332031,
+      "p50": 0.0553131103515625,
+      "p95": 0.1285076141357422,
+      "p99": 0.16188621520996094
+    },
+    "network": {
+      "total_messages_sent": 300,
+      "total_messages_received": 0,
+      "messages_per_second": 19.990819061184663
+    },
+    "resources": {
+      "peak_memory_mb": 0.5645751953125,
+      "avg_cpu_percent": 4.197990694444444
+    },
+    "economics": {
+      "total_atp_earned": 0.0,
+      "total_atp_lost": 7220.0,
+      "network_atp_balance": 0.0
+    },
+    "security": {
+      "total_violations": 200,
+      "eclipse_attempts": 0,
+      "consensus_checkpoints": 0
+    }
+  }
+}
