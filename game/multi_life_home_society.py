@@ -91,12 +91,14 @@ def run_multi_life(
     world.life_lineage.setdefault(agent_lct, [])
 
     prev_life: Optional[LifeRecord] = None
+    carry_forward: Dict[str, Dict[str, Any]] = {}
 
     for idx in range(1, num_lives + 1):
         life_id = _life_id(agent_lct, idx)
         world.life_state[agent_lct] = {"status": "alive", "life_id": life_id}
 
         init = carry_forward_state(prev_life)
+        carry_forward[life_id] = dict(init)
         _set_agent_initial_conditions(
             research_agent,
             initial_t3=float(init["initial_t3"]),
@@ -156,6 +158,7 @@ def run_multi_life(
     return {
         "agent_lct": agent_lct,
         "lives": [asdict(l) for l in world.life_lineage.get(agent_lct, [])],
+        "carry_forward": carry_forward,
         "context_edges": [
             {
                 "subject": e.subject,

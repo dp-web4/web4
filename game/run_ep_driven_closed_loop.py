@@ -151,6 +151,7 @@ def run_ep_driven_closed_loop_multi_life(
     prev_life: Optional[LifeRecord] = None
     life_action_logs: Dict[str, List[Dict[str, Any]]] = {}
     life_ep_stats: Dict[str, Dict[str, Any]] = {}
+    carry_forward: Dict[str, Dict[str, Any]] = {}
 
     if verbose:
         print("=" * 80)
@@ -166,6 +167,7 @@ def run_ep_driven_closed_loop_multi_life(
 
         # Carry forward karma
         init = carry_forward_state(prev_life)
+        carry_forward[life_id] = dict(init)
         _set_agent_initial_conditions(
             research_agent,
             initial_t3=float(init["initial_t3"]),
@@ -299,6 +301,7 @@ def run_ep_driven_closed_loop_multi_life(
         "agent_lct": agent_lct,
         "lives": [asdict(l) for l in world.life_lineage.get(agent_lct, [])],
         "applied_actions": life_action_logs,
+        "carry_forward": carry_forward,
         "ep_statistics": {
             "life_progression": life_ep_stats,
             "final_stats": policy.get_learning_stats()
