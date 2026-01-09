@@ -1,0 +1,155 @@
+
+================================================================================
+SESSION 157: OPTIMIZED INTERNAL VERIFICATION
+================================================================================
+Goal: Improve verification quality from 0.28 to >0.5
+================================================================================
+
+================================================================================
+TEST: Optimized Internal Verification
+================================================================================
+Target: Improve avg quality from 0.28 (Session 156) to >0.5
+================================================================================
+
+[TEST] Creating optimized verification node...
+[legion] Registered with PoW ✅
+[legion] Initial ATP balance: 100.0
+[legion] Advanced security layers initialized ✅
+[legion] Eclipse defense: min_peers=3
+[legion] Consensus: checkpoint_interval=10
+[legion] ATP-enhanced internal cogitation initialized ✅
+[legion] Internal ATP balance: 100.0
+[legion] Verification reward: +0.5 ATP
+[legion] Error penalty: -1.0 ATP
+[legion] Optimized verification initialized ✅
+[legion] Domain knowledge categories: 3
+[legion] Claim pattern types: 5
+
+[TEST] Starting node...
+[legion] Starting federation node...
+[legion] Hardware: tpm2
+[legion] Listen: 0.0.0.0:8888
+[legion] Federation node started ✅
+
+[TEST] Test 1: High-quality thought (Session 156: quality 0.612)...
+
+[legion] Submitting thought with internal verification...
+[legion] Mode: verifying
+[legion] Internal verification ATP: +0.50 (balance: 100.50)
+[legion] Internal verification complete:
+[legion]   Quality score: 0.857
+[legion]   Epistemic confidence: 0.690
+[legion]   Contradictions: 0
+[legion]   Claims verified: 0
+[legion]   Claims ungrounded: 0
+[legion] Submitting thought (mode: verifying): 'Legion verifying cogitation convergence architectu...'
+[legion] Thought rejected: Layer 3: Low coherence (0.13 < 0.3). Penalized 5.0 ATP (balance: 95.0)
+[legion] ATP change: -5.0
+[legion] ❌ Thought rejected by federation
+
+[TEST] Test 2: Technical thought with claims...
+
+[legion] Submitting thought with internal verification...
+[legion] Mode: integrating
+[legion] Internal verification complete:
+[legion]   Quality score: 0.562
+[legion]   Epistemic confidence: 0.706
+[legion]   Contradictions: 0
+[legion]   Claims verified: 1
+[legion]   Claims ungrounded: 0
+[legion] Submitting thought (mode: integrating): 'Session 156 demonstrates that ATP economics work a...'
+[legion] Thought rejected: Layer 3: Low coherence (0.16 < 0.3). Penalized 5.0 ATP (balance: 90.0)
+[legion] ATP change: -5.0
+[legion] ❌ Thought rejected by federation
+
+[TEST] Test 3: Research insight thought...
+
+[legion] Submitting thought with internal verification...
+[legion] Mode: verifying
+[legion] Internal verification ATP: +0.50 (balance: 101.00)
+[legion] Internal verification complete:
+[legion]   Quality score: 0.993
+[legion]   Epistemic confidence: 0.811
+[legion]   Contradictions: 0
+[legion]   Claims verified: 1
+[legion]   Claims ungrounded: 0
+[legion] Submitting thought (mode: verifying): 'Cogitation convergence analysis shows federation a...'
+[legion] Thought rejected: Layer 3: Low coherence (0.16 < 0.3). Penalized 5.0 ATP (balance: 85.0)
+[legion] ATP change: -5.0
+[legion] ❌ Thought rejected by federation
+
+[TEST] Test 4: Speculative thought...
+
+[legion] Submitting thought with internal verification...
+[legion] Mode: exploring
+[legion] Internal verification ATP: -3.00 (balance: 98.00)
+[legion] Internal verification complete:
+[legion]   Quality score: 0.237
+[legion]   Epistemic confidence: 0.290
+[legion]   Contradictions: 0
+[legion]   Claims verified: 0
+[legion]   Claims ungrounded: 2
+[legion] ❌ Thought rejected by internal verification (quality too low)
+
+[TEST] Test 5: Short low-quality thought (should still be penalized)...
+
+[legion] Submitting thought with internal verification...
+[legion] Mode: general
+[legion] Internal verification complete:
+[legion]   Quality score: 0.420
+[legion]   Epistemic confidence: 0.566
+[legion]   Contradictions: 0
+[legion]   Claims verified: 0
+[legion]   Claims ungrounded: 0
+[legion] Submitting thought (mode: general): 'spam...'
+[legion] Thought rejected: Layer 3: Too short (4 < 10). Penalized 5.0 ATP (balance: 80.0)
+[legion] ATP change: -5.0
+[legion] ❌ Thought rejected by federation
+
+[TEST] Test 6: Final metrics...
+
+=== OPTIMIZED VERIFICATION METRICS ===
+{
+  "internal_atp_balance": 98.0,
+  "total_internal_cogitations": 5,
+  "verifications_passed": 2,
+  "contradictions_detected": 0,
+  "claims_verified": 2,
+  "claims_ungrounded": 2,
+  "mode_activations": {
+    "identity_grounding": 5,
+    "contradiction_detection": 5,
+    "claim_verification": 5,
+    "self_questioning": 5,
+    "epistemic_calibration": 5
+  },
+  "mode_effectiveness": {
+    "identity_grounding": 0.6137957771347501,
+    "contradiction_detection": 0.6137957771347501,
+    "claim_verification": 0.6137957771347501,
+    "self_questioning": 0.6137957771347501,
+    "epistemic_calibration": 0.6137957771347501
+  },
+  "avg_verification_quality": 0.6137957771347501,
+  "avg_epistemic_confidence": 0.6126525904491665
+}
+
+=== COMPARISON TO SESSION 156 ===
+Session 156 avg quality: 0.2845
+Session 157 avg quality: 0.6138
+Improvement: +0.3293 (+115.7%)
+✅ TARGET ACHIEVED: Quality >0.5
+
+[TEST] Stopping node...
+[legion] Stopping federation node...
+[legion] Federation node stopped
+
+================================================================================
+TEST COMPLETE
+================================================================================
+
+================================================================================
+SESSION 157 COMPLETE
+================================================================================
+Check: Did average quality improve to >0.5?
+================================================================================
