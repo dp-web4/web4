@@ -1,0 +1,70 @@
+{
+  "total_tests": 5,
+  "tests_passed": 4,
+  "tests_failed": 1,
+  "success_rate": 0.8,
+  "test_results": [
+    {
+      "test_name": "end_to_end_workflow",
+      "passed": false,
+      "duration_seconds": 3.32031512260437,
+      "details": {
+        "nodes_created": 3
+      },
+      "error_message": "test_node0 has insufficient peers"
+    },
+    {
+      "test_name": "all_defense_layers",
+      "passed": true,
+      "duration_seconds": 3.166139602661133,
+      "details": {
+        "layers_tested": [
+          "Layer 1: PoW \u2713",
+          "Layers 2-8: Core security \u2713",
+          "Layer 9: ATP Economics \u2713",
+          "Layer 10a: Eclipse Defense \u2713",
+          "Layer 10b: Consensus Checkpoints \u2713",
+          "Layer 11: Resource Quotas \u2713"
+        ]
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "economic_incentives",
+      "passed": true,
+      "duration_seconds": 3.416288375854492,
+      "details": {
+        "initial_balance": 100.0,
+        "after_spam_balance": 95.0,
+        "atp_penalty_applied": true,
+        "final_balance": 90.0
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "cross_platform_compatibility",
+      "passed": true,
+      "duration_seconds": 3.3217246532440186,
+      "details": {
+        "tpm2_peers": 2,
+        "trustzone_peers": 1,
+        "software_peers": 0,
+        "all_peers_verified": true
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "attack_resistance",
+      "passed": true,
+      "duration_seconds": 3.109374761581421,
+      "details": {
+        "spam_attempts": 10,
+        "initial_atp": 100.0,
+        "final_atp": 50.0,
+        "atp_lost": 50.0,
+        "defense_effective": true
+      },
+      "error_message": null
+    }
+  ]
+}
