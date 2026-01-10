@@ -166,7 +166,7 @@ class DynamicDepthCogitationNode(OptimizedVerificationNode):
                 quality_threshold=0.4,  # Higher threshold
                 claim_verification_enabled=True,
                 contradiction_detection_sensitivity=1.0,
-                identity_grounding_required=True,  # Stricter
+                identity_grounding_required=False,  # FIX: Bonus not gate (Session 160 finding)
             ),
             CogitationDepth.THOROUGH: DepthConfiguration(
                 depth=CogitationDepth.THOROUGH,
@@ -180,7 +180,7 @@ class DynamicDepthCogitationNode(OptimizedVerificationNode):
                 quality_threshold=0.5,  # Highest threshold
                 claim_verification_enabled=True,
                 contradiction_detection_sensitivity=1.0,
-                identity_grounding_required=True,
+                identity_grounding_required=False,  # FIX: Bonus not gate (Session 160 finding)
                 # Would add: cross-reference with historical claims, etc.
             ),
         }
