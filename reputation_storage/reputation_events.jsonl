@@ -1,0 +1,11 @@
+{"event_id": "7d2eeea5b22936e4", "lct_id": "lct:web4:ai:legion", "event_type": "contribution", "impact": 1.0, "timestamp": 1768032244.9463286, "context": {"type": "quality_thought"}}
+{"event_id": "1b5476d9c87a87fd", "lct_id": "lct:web4:ai:legion", "event_type": "contribution", "impact": 0.8, "timestamp": 1768032244.9464307, "context": {"type": "quality_thought"}}
+{"event_id": "770900e74ecdecb6", "lct_id": "lct:web4:ai:legion", "event_type": "verification", "impact": 0.5, "timestamp": 1768032244.9465065, "context": {"verified_node": "thor"}}
+{"event_id": "caa9a40ac58d0a9a", "lct_id": "lct:web4:ai:legion", "event_type": "contribution", "impact": 1.0, "timestamp": 1768032244.9466434, "context": {"type": "quality_thought"}}
+{"event_id": "740b2a17f1070dbe", "lct_id": "lct:web4:ai:thor", "event_type": "contribution", "impact": 0.7, "timestamp": 1768032244.9467752, "context": {"type": "quality_thought"}}
+{"event_id": "6faec57a68d3b71f", "lct_id": "lct:web4:ai:thor", "event_type": "violation", "impact": -0.3, "timestamp": 1768032244.9468665, "context": {"type": "minor_spam"}}
+{"event_id": "aa73a76eaf06ff5d", "lct_id": "lct:web4:ai:thor", "event_type": "contribution", "impact": 0.9, "timestamp": 1768032244.946951, "context": {"type": "quality_thought"}}
+{"event_id": "ca21cbef4c7d1501", "lct_id": "lct:web4:ai:sprout", "event_type": "contribution", "impact": 0.5, "timestamp": 1768032244.947021, "context": {"type": "basic_contribution"}}
+{"event_id": "c2eab98b31cb28ac", "lct_id": "lct:web4:ai:malicious", "event_type": "violation", "impact": -1.0, "timestamp": 1768032244.9471002, "context": {"type": "spam_attack"}}
+{"event_id": "4d463f46313e3d66", "lct_id": "lct:web4:ai:malicious", "event_type": "violation", "impact": -1.0, "timestamp": 1768032244.9471931, "context": {"type": "spam_attack"}}
+{"event_id": "1322dd5db635d6d5", "lct_id": "lct:web4:ai:malicious", "event_type": "violation", "impact": -0.8, "timestamp": 1768032244.9472892, "context": {"type": "contradiction"}}

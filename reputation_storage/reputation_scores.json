@@ -1,0 +1,54 @@
+{
+  "lct:web4:ai:legion": {
+    "lct_id": "lct:web4:ai:legion",
+    "total_score": 3.3,
+    "event_count": 4,
+    "last_updated": 1768032244.9466631,
+    "positive_events": 4,
+    "negative_events": 0,
+    "verification_count": 1,
+    "violation_count": 0,
+    "average_score": 0.825,
+    "positive_ratio": 1.0,
+    "trust_level": "neutral"
+  },
+  "lct:web4:ai:thor": {
+    "lct_id": "lct:web4:ai:thor",
+    "total_score": 1.3,
+    "event_count": 3,
+    "last_updated": 1768032244.9469702,
+    "positive_events": 2,
+    "negative_events": 1,
+    "verification_count": 0,
+    "violation_count": 1,
+    "average_score": 0.43333333333333335,
+    "positive_ratio": 0.6666666666666666,
+    "trust_level": "neutral"
+  },
+  "lct:web4:ai:sprout": {
+    "lct_id": "lct:web4:ai:sprout",
+    "total_score": 0.5,
+    "event_count": 1,
+    "last_updated": 1768032244.947041,
+    "positive_events": 1,
+    "negative_events": 0,
+    "verification_count": 0,
+    "violation_count": 0,
+    "average_score": 0.5,
+    "positive_ratio": 1.0,
+    "trust_level": "neutral"
+  },
+  "lct:web4:ai:malicious": {
+    "lct_id": "lct:web4:ai:malicious",
+    "total_score": -2.8,
+    "event_count": 3,
+    "last_updated": 1768032244.9473088,
+    "positive_events": 0,
+    "negative_events": 3,
+    "verification_count": 0,
+    "violation_count": 3,
+    "average_score": -0.9333333333333332,
+    "positive_ratio": 0.0,
+    "trust_level": "poor"
+  }
+}
