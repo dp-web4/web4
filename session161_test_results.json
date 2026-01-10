@@ -1,0 +1,62 @@
+{
+  "session_1": {
+    "in_memory_patterns": 5,
+    "insights_count": 4,
+    "depth_adjustments": 0,
+    "persistent_patterns": 5,
+    "session_count": 1,
+    "learning_age_days": 8.007994404545537e-09
+  },
+  "session_2": {
+    "in_memory_patterns": 10,
+    "insights_count": 4,
+    "depth_adjustments": 0,
+    "persistent_patterns": 10,
+    "session_count": 2,
+    "learning_age_days": 2.2220639167008578e-06
+  },
+  "session_3": {
+    "in_memory_patterns": 10,
+    "insights_count": 4,
+    "depth_adjustments": 0,
+    "persistent_patterns": 10,
+    "session_count": 3,
+    "learning_age_days": 3.5565015342500475e-06
+  },
+  "insights": [
+    {
+      "type": "optimal_depth",
+      "description": "Depth standard produces highest average quality (0.480)",
+      "evidence": 10,
+      "confidence": 1.0,
+      "recommendation": "Prefer standard depth when ATP allows"
+    },
+    {
+      "type": "success_rate",
+      "description": "Depth standard has highest success rate (100.0%)",
+      "evidence": 10,
+      "confidence": 1.0,
+      "recommendation": "Use standard for critical verifications"
+    },
+    {
+      "type": "optimal_mode",
+      "description": "Mode integrating produces highest quality (0.480)",
+      "evidence": 10,
+      "confidence": 1.0,
+      "recommendation": "Encourage integrating mode for quality contributions"
+    },
+    {
+      "type": "atp_efficiency",
+      "description": "ATP efficiency rate: 0.0% of verifications maintain/gain ATP",
+      "evidence": 10,
+      "confidence": 0.5,
+      "recommendation": "Need to reduce ATP consumption"
+    }
+  ],
+  "validation": {
+    "patterns_accumulated": 10,
+    "sessions_simulated": 3,
+    "learning_persisted": true,
+    "depth_adjustments": 0
+  }
+}
