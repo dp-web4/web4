@@ -1,0 +1,37 @@
+{
+  "phase_1": {
+    "reputation": {
+      "score": 23.5,
+      "level": "good",
+      "events": 5,
+      "positive_ratio": 1.0,
+      "learning_weight": 1.5,
+      "confidence_bonus": 0.1
+    },
+    "insights_count": 4,
+    "avg_confidence": 0.7
+  },
+  "phase_2": {
+    "reputation": {
+      "score": 48.50000000000001,
+      "level": "good",
+      "events": 10,
+      "positive_ratio": 1.0,
+      "learning_weight": 1.5,
+      "confidence_bonus": 0.1
+    },
+    "insights_count": 4,
+    "avg_confidence": 1.0
+  },
+  "convergence_validated": {
+    "session_160_161": "meta-learning with persistence",
+    "session_179": "reputation-aware depth (cognitive credit)",
+    "session_162": "reputation-aware meta-learning (epistemic confidence)"
+  },
+  "key_findings": [
+    "Reputation increases learning weight (1.0x \u2192 1.5x+)",
+    "High reputation adds confidence bonus to insights",
+    "Quality work creates virtuous learning cycle",
+    "System learns faster from high-reputation patterns"
+  ]
+}
