@@ -1126,6 +1126,23 @@
       }
     ]
   },
+  "carry_forward": {
+    "life:lct:web4:agent:bob:1": {
+      "initial_t3": 0.5,
+      "initial_atp": 100.0,
+      "role_hint": "research_assistant"
+    },
+    "life:lct:web4:agent:bob:2": {
+      "initial_t3": 0.5,
+      "initial_atp": 102.0,
+      "role_hint": "research_assistant"
+    },
+    "life:lct:web4:agent:bob:3": {
+      "initial_t3": 0.5,
+      "initial_atp": 102.0,
+      "role_hint": "research_assistant"
+    }
+  },
   "ep_statistics": {
     "life_progression": {
       "life:lct:web4:agent:bob:1": {
