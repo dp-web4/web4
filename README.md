@@ -1,5 +1,36 @@
 # Web4: Trust-Native Distributed Intelligence Architecture
 
+<!-- SUMMARIZER BLOCK: Consistent headers for AI-to-human relay -->
+## Status Snapshot (2026-01-13)
+
+### Highlights
+- **Sessions 176-180**: Causality verification, information theory, consciousness-aware attestation integrated
+- **Existence threshold detection**: Session 180 adds C > 0 checks for entity presence
+- **ATP economics coherence**: Phase transition detector for trust dynamics
+- **Federation reputation DB**: Per-node reputation tracking (Legion, Thor, Peer1, Peer2)
+
+### Validations
+- EP closed-loop simulation: 3+ lives with carry-forward state working
+- Federation patterns: 1000+ patterns in corpus, validated on edge (Jetson)
+- Trust tensor calculations: T3 composite scores stable across simulation runs
+
+### Risks / Gaps
+- **P0 Blocker**: Hardware binding (TPM/SE) NOT implemented - LCT identity currently copyable
+- No formal threat model or adversarial testing
+- Consciousness-aware attestation is theoretical (no empirical grounding yet)
+
+### Open Questions
+- How to implement hardware-bound keys without TPM on all platforms?
+- Can trust dynamics predict cascade failures before they occur?
+- What's the minimal viable Web4 for production pilot?
+
+### Next
+- Hardware binding investigation (TPM, Secure Enclave options)
+- Integration with HRM nine-domain coherence framework
+- Pattern corpus browser from 4-life for EP visualization
+
+---
+
 > **Research prototype exploring trust, identity, and authorization for AI agents**
 
 ---
