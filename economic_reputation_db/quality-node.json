@@ -1,0 +1,24 @@
+{
+  "node_id": "quality-node",
+  "lct_id": "lct:web4:ai:quality001",
+  "trust_score": 0.11500000000000002,
+  "total_contributions": 2,
+  "quality_sum": 1.5,
+  "violations": 0,
+  "first_seen": "2026-01-08T08:03:00.963547+00:00",
+  "last_seen": "2026-01-08T08:03:00.963707+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-08T08:03:00.963622+00:00",
+      "event": "contribution",
+      "quality": 0.9,
+      "trust_after": 0.10900000000000001
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.963707+00:00",
+      "event": "contribution",
+      "quality": 0.6,
+      "trust_after": 0.11500000000000002
+    }
+  ]
+}

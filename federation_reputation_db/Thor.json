@@ -1,0 +1,36 @@
+{
+  "node_id": "Thor",
+  "lct_id": "lct:web4:ai:ba5323c2d9430530",
+  "trust_score": 0.13600000000000004,
+  "total_contributions": 4,
+  "quality_sum": 3.6,
+  "violations": 0,
+  "first_seen": "2026-01-07T20:13:31.652983+00:00",
+  "last_seen": "2026-01-07T20:15:24.522664+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-07T20:13:31.660559+00:00",
+      "event": "contribution",
+      "quality": 0.9,
+      "trust_after": 0.10900000000000001
+    },
+    {
+      "timestamp": "2026-01-07T20:14:02.239110+00:00",
+      "event": "contribution",
+      "quality": 0.9,
+      "trust_after": 0.11800000000000002
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.412751+00:00",
+      "event": "contribution",
+      "quality": 0.9,
+      "trust_after": 0.12700000000000003
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.522665+00:00",
+      "event": "contribution",
+      "quality": 0.9,
+      "trust_after": 0.13600000000000004
+    }
+  ]
+}

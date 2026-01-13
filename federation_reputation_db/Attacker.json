@@ -1,0 +1,612 @@
+{
+  "node_id": "Attacker",
+  "lct_id": "lct:web4:ai:faeb8bf212afcc6b",
+  "trust_score": 0.0,
+  "total_contributions": 0,
+  "quality_sum": 0.0,
+  "violations": 200,
+  "first_seen": "2026-01-07T20:13:31.661063+00:00",
+  "last_seen": "2026-01-07T20:15:24.546711+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-07T20:15:07.413265+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.413621+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.422347+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.422675+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.423001+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.423319+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.423644+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.423961+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.424285+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.424836+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.425580+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.425949+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.426266+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.426677+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.427001+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.427313+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.427631+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.427942+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.428208+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.428470+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.428791+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.429100+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.429419+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.429732+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.430041+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.430404+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.430673+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.430955+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.431223+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.431503+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.431772+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.432039+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.432362+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.432626+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.432892+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.433153+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.433440+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.433702+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.433980+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.434242+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.434523+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.434786+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.435053+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.435318+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.435587+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.435863+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.436133+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.436404+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.436688+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.436964+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.523195+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.523528+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.532323+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.532728+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.533086+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.533451+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.533775+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.534098+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.534423+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.534740+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.535491+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.535861+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.536198+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.536517+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.536795+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.537112+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.537439+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.537755+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.538070+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.538346+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.538642+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.538918+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.539204+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.539478+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.539763+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.540034+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.540311+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.540589+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.540872+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.541144+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.541432+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.541709+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.542016+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.542310+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.542584+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.542857+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.543140+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.543417+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.543691+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.543961+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.544235+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.544506+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.544781+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.545059+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.545336+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.545608+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.545883+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.546164+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.546440+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.546711+00:00",
+      "event": "violation",
+      "type": "quality",
+      "trust_after": 0.0
+    }
+  ]
+}

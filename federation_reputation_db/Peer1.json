@@ -1,0 +1,36 @@
+{
+  "node_id": "Peer1",
+  "lct_id": "lct:web4:ai:01ce91227caeb3ef",
+  "trust_score": 0.13000000000000003,
+  "total_contributions": 4,
+  "quality_sum": 3.0,
+  "violations": 0,
+  "first_seen": "2026-01-07T20:13:31.653931+00:00",
+  "last_seen": "2026-01-07T20:15:24.522733+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-07T20:13:31.660615+00:00",
+      "event": "contribution",
+      "quality": 0.75,
+      "trust_after": 0.10750000000000001
+    },
+    {
+      "timestamp": "2026-01-07T20:14:02.239166+00:00",
+      "event": "contribution",
+      "quality": 0.75,
+      "trust_after": 0.11500000000000002
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.412812+00:00",
+      "event": "contribution",
+      "quality": 0.75,
+      "trust_after": 0.12250000000000003
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.522734+00:00",
+      "event": "contribution",
+      "quality": 0.75,
+      "trust_after": 0.13000000000000003
+    }
+  ]
+}

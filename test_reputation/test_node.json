@@ -1,0 +1,54 @@
+{
+  "node_id": "test_node",
+  "lct_id": "lct:web4:ai:test",
+  "trust_score": 0.040000000000000036,
+  "total_contributions": 5,
+  "quality_sum": 4.0,
+  "violations": 2,
+  "first_seen": "2026-01-07T20:02:16.900060+00:00",
+  "last_seen": "2026-01-07T20:02:16.900842+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-07T20:02:16.900120+00:00",
+      "event": "contribution",
+      "quality": 0.7,
+      "trust_after": 0.10700000000000001
+    },
+    {
+      "timestamp": "2026-01-07T20:02:16.900178+00:00",
+      "event": "contribution",
+      "quality": 0.75,
+      "trust_after": 0.11450000000000002
+    },
+    {
+      "timestamp": "2026-01-07T20:02:16.900523+00:00",
+      "event": "contribution",
+      "quality": 0.7999999999999999,
+      "trust_after": 0.12250000000000003
+    },
+    {
+      "timestamp": "2026-01-07T20:02:16.900624+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.13100000000000003
+    },
+    {
+      "timestamp": "2026-01-07T20:02:16.900723+00:00",
+      "event": "contribution",
+      "quality": 0.8999999999999999,
+      "trust_after": 0.14000000000000004
+    },
+    {
+      "timestamp": "2026-01-07T20:02:16.900782+00:00",
+      "event": "violation",
+      "type": "spam",
+      "trust_after": 0.09000000000000004
+    },
+    {
+      "timestamp": "2026-01-07T20:02:16.900843+00:00",
+      "event": "violation",
+      "type": "spam",
+      "trust_after": 0.040000000000000036
+    }
+  ]
+}

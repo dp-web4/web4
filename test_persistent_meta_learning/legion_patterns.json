@@ -1,0 +1,112 @@
+[
+  {
+    "pattern_id": "legion_0",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.4,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.3633568
+  },
+  {
+    "pattern_id": "legion_1",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.42000000000000004,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.3634331
+  },
+  {
+    "pattern_id": "legion_2",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.44,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.3636599
+  },
+  {
+    "pattern_id": "legion_3",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.46,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.3637407
+  },
+  {
+    "pattern_id": "legion_4",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.48000000000000004,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.3638458
+  },
+  {
+    "pattern_id": "legion_5",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.48,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.5548584
+  },
+  {
+    "pattern_id": "legion_6",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.5,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.554938
+  },
+  {
+    "pattern_id": "legion_7",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.52,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.5550137
+  },
+  {
+    "pattern_id": "legion_8",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.54,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.5550897
+  },
+  {
+    "pattern_id": "legion_9",
+    "cogitation_mode": "integrating",
+    "depth_used": "standard",
+    "outcome_quality": 0.5599999999999999,
+    "outcome_confidence": 0.8,
+    "atp_before": 100.0,
+    "atp_after": 95.0,
+    "success": true,
+    "timestamp": 1768075407.5551765
+  }
+]

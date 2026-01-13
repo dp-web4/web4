@@ -1,0 +1,132 @@
+{
+  "node_id": "attacker",
+  "lct_id": "lct:web4:ai:attack001",
+  "trust_score": 0.0,
+  "total_contributions": 0,
+  "quality_sum": 0.0,
+  "violations": 20,
+  "first_seen": "2026-01-08T08:03:00.965860+00:00",
+  "last_seen": "2026-01-08T08:03:00.967081+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-08T08:03:00.965906+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.05
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.965950+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966009+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966052+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966095+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966141+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966190+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966241+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966299+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966356+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966432+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966494+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966558+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966626+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966696+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966770+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966841+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966920+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.966999+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.967082+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.0
+    }
+  ]
+}

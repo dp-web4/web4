@@ -1,0 +1,102 @@
+{
+  "node_id": "rich-node",
+  "lct_id": "lct:web4:ai:rich001",
+  "trust_score": 0.22750000000000012,
+  "total_contributions": 15,
+  "quality_sum": 12.749999999999996,
+  "violations": 0,
+  "first_seen": "2026-01-08T08:03:00.963988+00:00",
+  "last_seen": "2026-01-08T08:03:00.965584+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-08T08:03:00.964022+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.10850000000000001
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.964071+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.11700000000000002
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.964185+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.12550000000000003
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.964292+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.13400000000000004
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.964629+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.14250000000000004
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.964716+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.15100000000000005
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.964845+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.15950000000000006
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.964910+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.16800000000000007
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.964977+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.17650000000000007
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.965046+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.18500000000000008
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.965116+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.1935000000000001
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.965186+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.2020000000000001
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.965269+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.2105000000000001
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.965346+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.2190000000000001
+    },
+    {
+      "timestamp": "2026-01-08T08:03:00.965586+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.22750000000000012
+    }
+  ]
+}

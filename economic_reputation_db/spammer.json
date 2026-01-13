@@ -1,0 +1,18 @@
+{
+  "node_id": "spammer",
+  "lct_id": "lct:web4:ai:spam001",
+  "trust_score": 0.05,
+  "total_contributions": 0,
+  "quality_sum": 0.0,
+  "violations": 1,
+  "first_seen": "2026-01-08T08:03:00.963852+00:00",
+  "last_seen": "2026-01-08T08:03:00.963938+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-08T08:03:00.963939+00:00",
+      "event": "violation",
+      "type": "Coherence too low (0.10 < 0.30)",
+      "trust_after": 0.05
+    }
+  ]
+}

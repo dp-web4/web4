@@ -1,0 +1,36 @@
+{
+  "node_id": "Legion",
+  "lct_id": "lct:web4:ai:5c41c111a94b7283",
+  "trust_score": 0.13400000000000004,
+  "total_contributions": 4,
+  "quality_sum": 3.4,
+  "violations": 0,
+  "first_seen": "2026-01-07T20:13:31.639618+00:00",
+  "last_seen": "2026-01-07T20:15:24.522535+00:00",
+  "behavior_history": [
+    {
+      "timestamp": "2026-01-07T20:13:31.660458+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.10850000000000001
+    },
+    {
+      "timestamp": "2026-01-07T20:14:02.239009+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.11700000000000002
+    },
+    {
+      "timestamp": "2026-01-07T20:15:07.412636+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.12550000000000003
+    },
+    {
+      "timestamp": "2026-01-07T20:15:24.522537+00:00",
+      "event": "contribution",
+      "quality": 0.85,
+      "trust_after": 0.13400000000000004
+    }
+  ]
+}
