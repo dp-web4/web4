@@ -5,6 +5,7 @@
 
 ### Highlights
 - **Sessions 176-180**: Causality verification, information theory, consciousness-aware attestation integrated
+- **Multi-device LCT binding spec**: Hardware anchor protocol for phone SE, FIDO2, TPM (Session 181)
 - **Existence threshold detection**: Session 180 adds C > 0 checks for entity presence
 - **ATP economics coherence**: Phase transition detector for trust dynamics
 - **Federation reputation DB**: Per-node reputation tracking (Legion, Thor, Peer1, Peer2)
@@ -15,7 +16,7 @@
 - Trust tensor calculations: T3 composite scores stable across simulation runs
 
 ### Risks / Gaps
-- **P0 Blocker**: Hardware binding (TPM/SE) NOT implemented - LCT identity currently copyable
+- **P0 Blocker (spec complete)**: Hardware binding spec complete - [`multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) - implementation pending
 - No formal threat model or adversarial testing
 - Consciousness-aware attestation is theoretical (no empirical grounding yet)
 
@@ -25,7 +26,7 @@
 - What's the minimal viable Web4 for production pilot?
 
 ### Next
-- Hardware binding investigation (TPM, Secure Enclave options)
+- Multi-device binding implementation (iOS/Android/WebAuthn reference)
 - Integration with HRM nine-domain coherence framework
 - Pattern corpus browser from 4-life for EP visualization
 
@@ -254,6 +255,7 @@ Example: Agent purchasing with constraints
 | Concept | Specification | Implementation | Demo |
 |---------|--------------|----------------|------|
 | **LCT (Identity)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`game/engine/lct.py`](game/engine/lct.py), [`lct_identity.py`](game/engine/lct_identity.py) | `run_lct_e2e_integration_test.py` |
+| **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | (spec only - implementation pending) | - |
 | **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`game/engine/society_trust.py`](game/engine/society_trust.py) | `run_two_societies_demo.py` |
 | **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`game/engine/mrh_aware_trust.py`](game/engine/mrh_aware_trust.py) | - |
 | **ATP (Economics)** | [`web4-standard/core-spec/atp-adp-cycle.md`](web4-standard/core-spec/atp-adp-cycle.md) | [`game/engine/atp_metering.py`](game/engine/atp_metering.py), [`unified_atp_pricing.py`](game/engine/unified_atp_pricing.py) | `run_atp_integration_test.py` |

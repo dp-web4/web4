@@ -1,6 +1,6 @@
 # LCT Documentation Index
 
-**Last Updated**: December 17, 2025
+**Last Updated**: January 13, 2026
 
 LCT (Linked Context Token) documentation is distributed across multiple files. This index provides a roadmap.
 
@@ -22,6 +22,7 @@ LCT (Linked Context Token) documentation is distributed across multiple files. T
 | File | Description |
 |------|-------------|
 | [`web4-standard/core-spec/LCT-linked-context-token.md`](../web4-standard/core-spec/LCT-linked-context-token.md) | Original LCT specification |
+| [`web4-standard/core-spec/multi-device-lct-binding.md`](../web4-standard/core-spec/multi-device-lct-binding.md) | **Multi-device binding protocol** (Jan 2026) |
 | [`docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](LCT_UNIFIED_IDENTITY_SPECIFICATION.md) | Cross-system identity format (Dec 2025) |
 | [`web4-standard/implementation/act_deployment/LCT_SPECIFICATION.md`](../web4-standard/implementation/act_deployment/LCT_SPECIFICATION.md) | ACT blockchain integration spec |
 
