@@ -1,0 +1,33 @@
+{
+  "trajectory_summary": {
+    "n_sessions": 9,
+    "min_score": 0.4,
+    "max_score": 1.0,
+    "mean_score": 0.7555555555555555,
+    "final_score": 0.8
+  },
+  "coherence_analysis": {
+    "coherence_trajectory": [
+      0.8,
+      1.0,
+      0.6,
+      0.4,
+      0.4,
+      1.0,
+      1.0,
+      0.8,
+      0.8
+    ],
+    "ncorr_measured": 1.2839506172839508,
+    "gamma_measured": 1.7650452162436563,
+    "min_coherence": 0.4,
+    "max_coherence": 1.0,
+    "crossed_c_threshold": true
+  },
+  "phase_transitions": [
+    {
+      "from_session": 0,
+      "to_session": 1,
+      "coherence_change": 0.19999999999999996,
+      "type": "jump",
+      "crossed_threshold": 
