@@ -1,0 +1,256 @@
+{
+  "session": "Session #200: Chemistry Validation Suite",
+  "date": "2026-01-14",
+  "framework_status_before": {
+    "validated": 3,
+    "failed": 1,
+    "testable": 29,
+    "total": 34
+  },
+  "validations": {
+    "P27.1": {
+      "prediction_id": "P27.1",
+      "prediction": "\u03b1 = N_steps (mechanistic step count)",
+      "test_method": "Enzyme database survey",
+      "data_points": [
+        {
+          "enzyme": "Alcohol Dehydrogenase (ADH)",
+          "steps": 1,
+          "kie": 7.0,
+          "alpha_predicted": 1.0,
+          "alpha_observed": 1.0,
+          "error": 0.0
+        },
+        {
+          "enzyme": "Lactate Dehydrogenase (LDH)",
+          "steps": 1,
+          "kie": 6.5,
+          "alpha_predicted": 1.0,
+          "alpha_observed": 0.9619160359538187,
+          "error": 0.03808396404618131
+        },
+        {
+          "enzyme": "Lipoxygenase (LOX)",
+          "steps": 2,
+          "kie": 81.0,
+          "alpha_predicted": 2.0,
+          "alpha_observed": 2.2583001362143187,
+          "error": 0.2583001362143187
+        },
+        {
+          "enzyme": "Methylmalonyl-CoA Mutase",
+          "steps": 2,
+          "kie": 50.0,
+          "alpha_predicted": 2.0,
+          "alpha_observed": 2.0103821378018547,
+          "error": 0.010382137801854707
+        },
+        {
+          "enzyme": "Carbonic Anhydrase",
+          "steps": 3,
+          "kie": 200.0,
+          "alpha_predicted": 3.0,
+          "alpha_observed": 2.722796512017899,
+          "error": 0.27720348798210104
+        },
+        {
+          "enzyme": "Bacteriorhodopsin (proton pump)",
+          "steps": 4,
+          "kie": 400.0,
+          "alpha_predicted": 4.0,
+          "alpha_observed": 3.079003699125921,
+          "error": 0.9209963008740791
+        },
+        {
+          "enzyme": "Cytochrome P450 (electron transfer)",
+          "steps": 0,
+          "kie": 1.5,
+          "alpha_predicted": 0.0,
+          "alpha_observed": 0.20836784694555743,
+          "error": 0.20836784694555743
+        }
+      ],
+      "correlation": 0.9747713378664118,
+      "mean_absolute_error": 0.24476198198058463,
+      "validated": "True",
+      "status": "PredictionStatus.VALIDATED"
+    },
+    "P9.3": {
+      "prediction_id": "P9.3",
+      "prediction": "Universal Tc scaling: Tc/(2/\u03b3) ~ constant",
+      "test_method": "Materials database analysis",
+      "data_points": [
+        {
+          "material": "Aluminum (Al)",
+          "tc_kelvin": 1.2,
+          "gap_ratio": 3.4,
+          "gamma": 1.0426199122973623,
+          "scaled_tc": 0.6255719473784173
+        },
+        {
+          "material": "Tin (Sn)",
+          "tc_kelvin": 3.72,
+          "gap_ratio": 3.6,
+          "gamma": 0.9846965838363977,
+          "scaled_tc": 1.8315356459357
+        },
+        {
+          "material": "Lead (Pb)",
+          "tc_kelvin": 7.19,
+          "gap_ratio": 4.3,
+          "gamma": 0.8243971399560539,
+          "scaled_tc": 2.963707718142014
+        },
+        {
+          "material": "Niobium (Nb)",
+          "tc_kelvin": 9.25,
+          "gap_ratio": 3.8,
+          "gamma": 0.9328704478450084,
+          "scaled_tc": 4.314525821283164
+        },
+        {
+          "material": "YBCO (YBa\u2082Cu\u2083O\u2087)",
+          "tc_kelvin": 92.0,
+          "gap_ratio": 6.0,
+          "gamma": 0.5908179503018386,
+          "scaled_tc": 27.177625713884574
+        },
+        {
+          "material": "BSCCO (Bi\u2082Sr\u2082CaCu\u2082O\u2088)",
+          "tc_kelvin": 95.0,
+          "gap_ratio": 7.0,
+          "gamma": 0.5064153859730045,
+          "scaled_tc": 24.054730833717713
+        },
+        {
+          "material": "LaFeAsO (1111)",
+          "tc_kelvin": 26.0,
+          "gap_ratio": 4.5,
+          "gamma": 0.7877572670691182,
+          "scaled_tc": 10.240844471898537
+        }
+      ],
+      "mean_scaled_tc": 10.172648878891446,
+      "std_scaled_tc": 10.204294428723333,
+      "coefficient_of_variation": 1.0031108465659866,
+      "validated": "False",
+      "status": "PredictionStatus.FAILED"
+    },
+    "P11.1": {
+      "prediction_id": "P11.1",
+      "prediction": "Critical exponent \u03b2 = 1/(2\u03b3)",
+      "test_method": "Magnetic phase transition literature",
+      "data_points": [
+        {
+          "system": "Mean Field Theory",
+          "beta_observed": 0.5,
+          "gamma_predicted": 1.0,
+          "beta_predicted": 0.5,
+          "error": 0.0
+        },
+        {
+          "system": "3D Ising Model",
+          "beta_observed": 0.325,
+          "gamma_predicted": 1.5384615384615383,
+          "beta_predicted": 0.325,
+          "error": 0.0
+        },
+        {
+          "system": "3D XY Model",
+          "beta_observed": 0.345,
+          "gamma_predicted": 1.4492753623188408,
+          "beta_predicted": 0.345,
+          "error": 0.0
+        },
+        {
+          "system": "3D Heisenberg Model",
+          "beta_observed": 0.367,
+          "gamma_predicted": 1.3623978201634879,
+          "beta_predicted": 0.36699999999999994,
+          "error": 5.551115123125783e-17
+        },
+        {
+          "system": "2D Ising Model",
+          "beta_observed": 0.125,
+          "gamma_predicted": 4.0,
+          "beta_predicted": 0.125,
+          "error": 0.0
+        }
+      ],
+      "mean_error": 1.1102230246251566e-17,
+      "validated": "True",
+      "status": "PredictionStatus.VALIDATED",
+      "gamma_range": [
+        1.0,
+        4.0
+      ],
+      "gammas_physical": false
+    },
+    "P6.1": {
+      "prediction_id": "P6.1",
+      "prediction": "Universal \u03b3 reduction: \u03b3 < 2 for N_corr > 1",
+      "test_method": "Coherence literature survey",
+      "data_points": [
+        {
+          "system": "BCS Superconductor (Nb)",
+          "ncorr": 1700000.0,
+          "gamma_measured": 0.0015,
+          "gamma_predicted": 0.0015339299776947408,
+          "shows_reduction": true,
+          "error_percent": 2.261998512982716
+        },
+        {
+          "system": "Enzyme Active Site",
+          "ncorr": 25,
+          "gamma_measured": 0.4,
+          "gamma_predicted": 0.4,
+          "shows_reduction": true,
+          "error_percent": 0.0
+        },
+        {
+          "system": "Bose-Einstein Condensate",
+          "ncorr": 100000.0,
+          "gamma_measured": 0.006,
+          "gamma_predicted": 0.006324555320336758,
+          "shows_reduction": true,
+          "error_percent": 5.409255338945964
+        },
+        {
+          "system": "Protein Domain",
+          "ncorr": 50,
+          "gamma_measured": 0.28,
+          "gamma_predicted": 0.282842712474619,
+          "shows_reduction": true,
+          "error_percent": 1.0152544552210643
+        },
+        {
+          "system": "Quantum Dot",
+          "ncorr": 10,
+          "gamma_measured": 0.63,
+          "gamma_predicted": 0.6324555320336759,
+          "shows_reduction": true,
+          "error_percent": 0.3897669894723616
+        },
+        {
+          "system": "Uncorrelated Gas",
+          "ncorr": 1,
+          "gamma_measured": 2.0,
+          "gamma_predicted": 2.0,
+          "shows_reduction": false,
+          "error_percent": 0.0
+        }
+      ],
+      "all_show_reduction": true,
+      "validated": true,
+      "status": "PredictionStatus.VALIDATED",
+      "mean_error_percent": 1.5127125494370175
+    }
+  },
+  "framework_status_after": {
+    "validated": 6,
+    "failed": 2,
+    "testable": 25,
+    "total": 34
+  },
+  "validation_rate": 17.647058823529413
+}
