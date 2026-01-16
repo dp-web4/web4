@@ -1,0 +1,9 @@
+{
+  "baseline_avg_cooperation": 0.577156265854896,
+  "baseline_avg_atp": 6.5763686667591115,
+  "coherence_avg_cooperation": 0.5405038852839862,
+  "coherence_avg_atp": 6.981374595208827,
+  "cooperation_change_pct": -6.350512458981888,
+  "atp_cost_change_pct": 6.158504016005928,
+  "timestamp": "20260116_060231"
+}
