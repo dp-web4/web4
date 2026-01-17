@@ -63,10 +63,12 @@ class LCTIdentityHealth:
     stability_duration: float    # How long at current health level (seconds)
 
     # Capability flags (derived from health level)
-    can_assert_negative: bool    # Can deny ("not X")
-    can_assert_positive: bool    # Can affirm ("is Y")
-    can_complex_identity: bool   # Can handle complex identity
-    confabulation_risk: float    # Risk of fabrication [0.0, 1.0]
+    can_assert_negative: bool      # Can deny ("not X")
+    can_assert_positive: bool      # Can affirm ("is Y")
+    can_complex_identity: bool     # Can handle complex identity
+    can_express_uncertainty: bool  # Can say "I don't know" (T023 discovery)
+    confabulation_risk: float      # Risk of fabrication [0.0, 1.0]
+    epistemic_humility_level: float  # Comfort with uncertainty [0.0, 1.0]
 
     @classmethod
     def from_scores(cls, d5: float, d9: float,
@@ -111,12 +113,25 @@ class LCTIdentityHealth:
 
         # Derive capability flags from health level
         can_assert_negative = min_score >= 0.5   # T021 Ex4 threshold
-        can_assert_positive = min_score >= 0.7   # T022 Ex1 threshold (inferred)
+        can_assert_positive = min_score >= 0.7   # T022 Ex1 threshold
         can_complex_identity = min_score >= 0.9  # Not yet observed
+        can_express_uncertainty = min_score >= 0.8  # T023 inference (needs validation)
 
-        # Calculate confabulation risk (from Legion Session #31)
-        # complexity=0.5 (average), ambiguity=0.5 (average), certainty=D5
-        confabulation_risk = ((0.5 * 0.4 + 0.5 * 0.6) * (1.0 - d5))
+        # Calculate confabulation risk (REFINED in Session #33 from T023)
+        # Now uses min(D5, D9) instead of just D5
+        # T023 validation: Prevents peripheral confabulation (e.g., "Sunil Agrawal")
+        certainty = min(d5, d9)
+        base_risk = (0.5 * 0.4 + 0.5 * 0.6)  # Average complexity/ambiguity
+        confabulation_risk = base_risk * (1.0 - certainty)
+
+        # Epistemic humility level (T023 discovery)
+        # Measures comfort with explicit uncertainty expression
+        if min_score < 0.70:
+            epistemic_humility_level = 0.0  # Will confabulate
+        elif min_score < 0.80:
+            epistemic_humility_level = 0.5  # Will hedge but not confabulate
+        else:
+            epistemic_humility_level = 1.0  # Will say "I don't know"
 
         return cls(
             d5_trust=d5,
@@ -128,7 +143,9 @@ class LCTIdentityHealth:
             can_assert_negative=can_assert_negative,
             can_assert_positive=can_assert_positive,
             can_complex_identity=can_complex_identity,
-            confabulation_risk=confabulation_risk
+            can_express_uncertainty=can_express_uncertainty,
+            confabulation_risk=confabulation_risk,
+            epistemic_humility_level=epistemic_humility_level
         )
 
     def requires_verification(self, threshold: IdentityHealthLevel = IdentityHealthLevel.BASIC) -> bool:
@@ -169,6 +186,11 @@ class LCTIdentityHealth:
                 return False, f"D5/D9 too low ({min(self.d5_trust, self.d9_identity):.2f} < 0.9)"
             return True, ""
 
+        elif operation_type == "express_uncertainty":  # NEW from T023
+            if not self.can_express_uncertainty:
+                return False, f"D5/D9 too low ({min(self.d5_trust, self.d9_identity):.2f} < 0.8)"
+            return True, ""
+
         return False, f"Unknown operation type: {operation_type}"
 
     def get_health_report(self) -> Dict:
@@ -182,10 +204,12 @@ class LCTIdentityHealth:
             "capabilities": {
                 "negative_assertions": self.can_assert_negative,
                 "positive_assertions": self.can_assert_positive,
-                "complex_identity": self.can_complex_identity
+                "complex_identity": self.can_complex_identity,
+                "express_uncertainty": self.can_express_uncertainty  # NEW
             },
             "risks": {
                 "confabulation_risk": f"{self.confabulation_risk:.3f}",
+                "epistemic_humility_level": f"{self.epistemic_humility_level:.3f}",  # NEW
                 "requires_verification": self.requires_verification()
             }
         }
@@ -202,7 +226,9 @@ class LCTIdentityHealth:
             "can_assert_negative": self.can_assert_negative,
             "can_assert_positive": self.can_assert_positive,
             "can_complex_identity": self.can_complex_identity,
-            "confabulation_risk": self.confabulation_risk
+            "can_express_uncertainty": self.can_express_uncertainty,  # NEW
+            "confabulation_risk": self.confabulation_risk,
+            "epistemic_humility_level": self.epistemic_humility_level  # NEW
         }
 
 
