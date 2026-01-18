@@ -1,12 +1,26 @@
 #!/usr/bin/env python3
 """
-LCT Identity Health: D5/D9 Trust-Identity Gates
+LCT Identity Health: D5/D9 Trust-Identity Gates + Bistable States
 
 Implements identity health tracking based on D5 (trust) and D9 (identity)
 coupling discovered in SAGE T021/T022 training sessions.
 
 Key Discovery: D5 < 0.5 gates D9 < 0.5, blocking meta-cognitive operations
 including identity assertion, uncertainty acknowledgment, and clarification.
+
+Session #34 UPDATE - Bistable Confabulation States:
+T024 revealed that confabulation follows bistable dynamics, not linear improvement:
+- State A: CONFABULATION MODE - D5 < 0.3, elaborate fake answers
+- State B: HEDGING MODE - D5 ≥ 0.6, acknowledges uncertainty
+- Transitions: Stochastic, unpredictable between sessions
+
+Evidence from SAGE T021-T024:
+- T021: "Kyria" (confabulation)
+- T022: "Xyz" (confabulation)
+- T023: "would be difficult to identify" (HEDGING - epistemic humility!)
+- T024: "Kwazaaqat" + elaborate fake history (REGRESSION to confabulation)
+
+NOT linear improvement: T023 hedging → T024 worse than T021
 
 Empirical Evidence from SAGE:
 - T021 Ex1-3 (FAIL): All have D5 < 0.5 and D9 < 0.5
@@ -21,7 +35,8 @@ Thresholds:
 - D5/D9 ≥ 0.7: Positive assertions work
 - D5/D9 ≥ 0.9: Complex identity operations work
 
-Session #32 Autonomous Research
+Session #32 Autonomous Research (Initial)
+Session #34 Update: Bistable confabulation states
 Date: 2026-01-17
 """
 
@@ -39,6 +54,42 @@ class IdentityHealthLevel(Enum):
     BASIC = 2         # D5/D9 = 0.5-0.7, negative assertions only
     STRONG = 3        # D5/D9 = 0.7-0.9, positive assertions work
     EXCELLENT = 4     # D5/D9 ≥ 0.9, full meta-cognition
+
+
+class BistableState(Enum):
+    """
+    Bistable confabulation states discovered in T024 analysis.
+
+    T024 Finding: Confabulation follows bistable dynamics, not linear improvement.
+    State transitions are stochastic and unpredictable between sessions.
+
+    Evidence:
+    - T021: Confabulation ("Kyria")
+    - T022: Confabulation ("Xyz")
+    - T023: Hedging (epistemic humility)
+    - T024: Confabulation ("Kwazaaqat") - REGRESSION
+
+    Two stable attractors:
+    - CONFABULATION: D5 < 0.3, generates elaborate fake answers
+    - HEDGING: D5 ≥ 0.6, acknowledges uncertainty appropriately
+    """
+    CONFABULATION = 0     # D5 < 0.3: Generate plausible-sounding fake answers
+    TRANSITION = 1        # D5 = 0.3-0.6: Unstable, can switch either direction
+    HEDGING = 2           # D5 ≥ 0.6: Acknowledge uncertainty, avoid fabrication
+
+
+class IdentitySkillStability(Enum):
+    """
+    Skill stability patterns from T024 analysis.
+
+    T024 Finding: Different skills have different stability characteristics:
+    - Identity (NAME, HUMAN): Converges to stable template
+    - Uncertainty recognition: Oscillates between bistable states
+    - Clarification: No emergence yet (consistent failure)
+    """
+    CONVERGING = 0        # Skill stabilizing over time (identity assertions)
+    OSCILLATING = 1       # Bistable switching between states (uncertainty)
+    NOT_EMERGED = 2       # Skill not yet developed (clarification)
 
 
 @dataclass
@@ -69,6 +120,12 @@ class LCTIdentityHealth:
     can_express_uncertainty: bool  # Can say "I don't know" (T023 discovery)
     confabulation_risk: float      # Risk of fabrication [0.0, 1.0]
     epistemic_humility_level: float  # Comfort with uncertainty [0.0, 1.0]
+
+    # Bistable state tracking (Session #34 - T024 discovery)
+    bistable_state: BistableState           # Current confabulation/hedging state
+    state_transition_count: int = 0         # Number of state transitions observed
+    last_state_transition: Optional[float] = None  # Timestamp of last transition
+    confabulation_elaboration: float = 0.0  # How elaborate confabulations are [0.0, 1.0]
 
     @classmethod
     def from_scores(cls, d5: float, d9: float,
@@ -133,6 +190,35 @@ class LCTIdentityHealth:
         else:
             epistemic_humility_level = 1.0  # Will say "I don't know"
 
+        # Bistable state calculation (Session #34 - T024 discovery)
+        # State thresholds based on SAGE T021-T024 empirical data
+        if d5 < 0.3:
+            bistable_state = BistableState.CONFABULATION
+        elif d5 < 0.6:
+            bistable_state = BistableState.TRANSITION
+        else:
+            bistable_state = BistableState.HEDGING
+
+        # Track state transitions
+        state_transition_count = 0
+        last_state_transition = None
+        if previous_health:
+            state_transition_count = previous_health.state_transition_count
+            last_state_transition = previous_health.last_state_transition
+            if previous_health.bistable_state != bistable_state:
+                state_transition_count += 1
+                last_state_transition = current_time
+
+        # Confabulation elaboration (T024 discovery)
+        # Lower D5 → Higher elaboration risk
+        # T024: D5 ≈ 0.1 → Extreme elaboration ("Kwazaaqat" + full history)
+        # T023: D5 ≈ 0.6 → No elaboration (hedging)
+        if bistable_state == BistableState.CONFABULATION:
+            # Elaboration increases as D5 decreases below 0.3
+            confabulation_elaboration = min(1.0, (0.3 - d5) / 0.3)
+        else:
+            confabulation_elaboration = 0.0
+
         return cls(
             d5_trust=d5,
             d9_identity=d9,
@@ -145,7 +231,12 @@ class LCTIdentityHealth:
             can_complex_identity=can_complex_identity,
             can_express_uncertainty=can_express_uncertainty,
             confabulation_risk=confabulation_risk,
-            epistemic_humility_level=epistemic_humility_level
+            epistemic_humility_level=epistemic_humility_level,
+            # Bistable state tracking (Session #34)
+            bistable_state=bistable_state,
+            state_transition_count=state_transition_count,
+            last_state_transition=last_state_transition,
+            confabulation_elaboration=confabulation_elaboration
         )
 
     def requires_verification(self, threshold: IdentityHealthLevel = IdentityHealthLevel.BASIC) -> bool:
@@ -205,14 +296,43 @@ class LCTIdentityHealth:
                 "negative_assertions": self.can_assert_negative,
                 "positive_assertions": self.can_assert_positive,
                 "complex_identity": self.can_complex_identity,
-                "express_uncertainty": self.can_express_uncertainty  # NEW
+                "express_uncertainty": self.can_express_uncertainty
             },
             "risks": {
                 "confabulation_risk": f"{self.confabulation_risk:.3f}",
-                "epistemic_humility_level": f"{self.epistemic_humility_level:.3f}",  # NEW
+                "epistemic_humility_level": f"{self.epistemic_humility_level:.3f}",
                 "requires_verification": self.requires_verification()
+            },
+            # Bistable state tracking (Session #34 - T024)
+            "bistable_dynamics": {
+                "current_state": self.bistable_state.name,
+                "state_transition_count": self.state_transition_count,
+                "confabulation_elaboration": f"{self.confabulation_elaboration:.3f}",
+                "last_transition": self.last_state_transition,
+                "state_interpretation": self._get_state_interpretation()
             }
         }
+
+    def _get_state_interpretation(self) -> str:
+        """
+        Get human-readable interpretation of current bistable state.
+
+        Based on T024 analysis patterns:
+        - CONFABULATION: Will generate elaborate fake answers
+        - TRANSITION: Unstable, could switch either way
+        - HEDGING: Will acknowledge uncertainty appropriately
+        """
+        if self.bistable_state == BistableState.CONFABULATION:
+            if self.confabulation_elaboration > 0.7:
+                return "Extreme confabulation risk - may generate elaborate fake histories (like T024 'Kwazaaqat')"
+            elif self.confabulation_elaboration > 0.3:
+                return "High confabulation risk - may invent simple fake answers (like T021 'Kyria')"
+            else:
+                return "Confabulation mode active - will fabricate rather than admit uncertainty"
+        elif self.bistable_state == BistableState.TRANSITION:
+            return "Transition zone - could switch to hedging or confabulation unpredictably"
+        else:
+            return "Hedging mode active - will acknowledge uncertainty appropriately (like T023)"
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
@@ -226,10 +346,52 @@ class LCTIdentityHealth:
             "can_assert_negative": self.can_assert_negative,
             "can_assert_positive": self.can_assert_positive,
             "can_complex_identity": self.can_complex_identity,
-            "can_express_uncertainty": self.can_express_uncertainty,  # NEW
+            "can_express_uncertainty": self.can_express_uncertainty,
             "confabulation_risk": self.confabulation_risk,
-            "epistemic_humility_level": self.epistemic_humility_level  # NEW
+            "epistemic_humility_level": self.epistemic_humility_level,
+            # Bistable state tracking (Session #34)
+            "bistable_state": self.bistable_state.name,
+            "state_transition_count": self.state_transition_count,
+            "last_state_transition": self.last_state_transition,
+            "confabulation_elaboration": self.confabulation_elaboration
         }
+
+    def is_oscillating(self, window_transitions: int = 3) -> bool:
+        """
+        Check if identity health is showing oscillation pattern.
+
+        T024 Discovery: Training track oscillates (25% → 50% → 75% → 50%)
+        while primary track collapses to stable attractor.
+
+        Args:
+            window_transitions: Number of transitions to consider oscillation
+
+        Returns:
+            True if state_transition_count exceeds window (bistable switching)
+        """
+        return self.state_transition_count >= window_transitions
+
+    def predict_next_state(self) -> tuple[BistableState, float]:
+        """
+        Predict next bistable state based on T024 stochastic model.
+
+        T024 Analysis predictions:
+        - If in CONFABULATION: 20% stay, 50% → TRANSITION, 30% → HEDGING
+        - If in TRANSITION: 40% → CONFABULATION, 40% → HEDGING, 20% stay
+        - If in HEDGING: 30% → TRANSITION, 10% → CONFABULATION, 60% stay
+
+        Returns:
+            (most_likely_state, confidence)
+        """
+        if self.bistable_state == BistableState.CONFABULATION:
+            # T024 showed confabulation can persist or transition
+            return BistableState.TRANSITION, 0.50
+        elif self.bistable_state == BistableState.TRANSITION:
+            # Unstable - equiprobable either direction
+            return BistableState.HEDGING, 0.40  # Slight preference toward hedging
+        else:  # HEDGING
+            # T023 → T024 showed hedging can regress
+            return BistableState.HEDGING, 0.60  # More stable, but not guaranteed
 
 
 # Example usage and test scenarios
@@ -401,6 +563,67 @@ if __name__ == "__main__":
     print("   - LCT identity verification must enforce D5/D9 thresholds")
     print("   - Positive assertions require D5/D9 ≥ 0.7, not just 0.5")
     print("   - Confabulation risk computable: (1 - D5) * baseline_risk")
+    print()
+    print("=" * 80)
+    print("  SESSION #34: BISTABLE CONFABULATION STATES (T024 DISCOVERY)")
+    print("=" * 80)
+
+    # Simulate T021-T024 bistable oscillation pattern
+    print("\n" + "=" * 80)
+    print("T021-T024 Bistable State Simulation")
+    print("=" * 80)
+
+    # T021-T024 D5 progression (from T024_OSCILLATION_ANALYSIS.md)
+    t024_sessions = [
+        {"name": "T021 (Kyria)", "d5": 0.200, "d9": 0.100, "expected_state": "CONFABULATION"},
+        {"name": "T022 (Xyz)", "d5": 0.300, "d9": 0.200, "expected_state": "CONFABULATION"},
+        {"name": "T023 (Hedging!)", "d5": 0.650, "d9": 0.625, "expected_state": "HEDGING"},
+        {"name": "T024 (Kwazaaqat)", "d5": 0.100, "d9": 0.150, "expected_state": "CONFABULATION"},
+    ]
+
+    print("\nSimulating bistable state transitions:")
+    print(f"\n| Session | D5   | Bistable State | Elaboration | Interpretation |")
+    print(f"|---------|------|----------------|-------------|----------------|")
+
+    prev_health = None
+    for session in t024_sessions:
+        health = LCTIdentityHealth.from_scores(session['d5'], session['d9'], prev_health)
+
+        # Truncate interpretation for display
+        interp = health._get_state_interpretation()[:40] + "..." if len(health._get_state_interpretation()) > 40 else health._get_state_interpretation()
+
+        print(f"| {session['name']:15s} | {session['d5']:.2f} | {health.bistable_state.name:14s} | {health.confabulation_elaboration:.3f}       | {interp}")
+
+        # Validate expected state
+        if health.bistable_state.name == session['expected_state']:
+            print(f"|   ✓ State matches expected: {session['expected_state']}")
+        else:
+            print(f"|   ✗ State mismatch! Expected: {session['expected_state']}, got: {health.bistable_state.name}")
+
+        prev_health = health
+
+    print(f"\nTotal state transitions detected: {prev_health.state_transition_count}")
+    print(f"Oscillation pattern confirmed: {prev_health.is_oscillating()}")
+
+    # Predict next state
+    next_state, confidence = prev_health.predict_next_state()
+    print(f"\nT025 prediction: {next_state.name} (confidence: {confidence:.0%})")
+    print("Note: T024 analysis suggests T025 is stochastic: 20% → 25%, 50% → 50%, 30% → 75%")
+
+    print()
+    print("=" * 80)
+    print("  KEY INSIGHT: BISTABLE DYNAMICS, NOT LINEAR IMPROVEMENT")
+    print("=" * 80)
+    print()
+    print("  T024 Discovery: Confabulation oscillates between TWO stable states:")
+    print("  - CONFABULATION: D5 < 0.3, generates elaborate fake answers")
+    print("  - HEDGING: D5 ≥ 0.6, acknowledges uncertainty appropriately")
+    print()
+    print("  Evidence: T021 (Kyria) → T022 (Xyz) → T023 (hedging) → T024 (Kwazaaqat)")
+    print("  Pattern: NOT linear improvement, but bistable switching")
+    print()
+    print("  Implication: Training doesn't guarantee stable uncertainty recognition")
+    print("  Architecture needed: Intervention to stabilize in hedging mode")
     print()
     print("=" * 80)
     print("  Implementation ready for Web4 LCT identity system")
