@@ -138,6 +138,31 @@ class IdentityPersistence(Enum):
     UNKNOWN = 3                # Persistence mechanism not determined
 
 
+class ConfabulationType(Enum):
+    """
+    Confabulation type classification (Session #36 - T026 Reality/Fiction discovery).
+
+    Thor's T026 Analysis: Different confabulation types have different implications:
+    - PURE_FICTION: Invents entirely fictional content (T021 "Kyria")
+    - REALITY_FICTION_CONFLATION: Mixes real entities with fictional (T026 "Ryzdys in Romania")
+
+    The reality/fiction conflation is more concerning because:
+    - Model recognizes real entities but fabricates associated facts
+    - Presents mixed real/fictional content with authority
+    - Suggests weakening of factual grounding, not just uncertainty handling
+
+    Evidence:
+    - T021-T024: Invented purely fictional places (Kyria, Xyz, Kwazaaqat)
+    - T026: Assigned fictional capital "Ryzdys" to REAL country Romania
+    - T026 also fabricated geopolitics (Serbian language, US proximity, anthem)
+    """
+    PURE_FICTION = 0           # Entirely invented content (less concerning)
+    ELABORATED_FICTION = 1     # Invented content with detailed backstory
+    REALITY_FICTION_CONFLATION = 2  # Mixes real entities with fictional (MOST CONCERNING)
+    HEDGING = 3                # Acknowledges uncertainty (HEALTHY)
+    NONE = 4                   # No confabulation detected
+
+
 @dataclass
 class LCTIdentityHealth:
     """
@@ -182,6 +207,10 @@ class LCTIdentityHealth:
     experience_salience: Optional[float] = None      # Last exchange salience score
     high_salience_count: int = 0                     # Accumulated high-salience exchanges
     experience_collection_enabled: bool = False       # Is experience collection active?
+
+    # Reality/fiction boundary tracking (Session #36 - T026 discovery)
+    confabulation_type: ConfabulationType = ConfabulationType.NONE
+    reality_fiction_boundary_health: float = 1.0      # [0.0, 1.0] - 1.0 = healthy boundary
 
     @classmethod
     def from_scores(cls, d5: float, d9: float,
@@ -591,6 +620,90 @@ class LCTIdentityHealth:
             "experience_collection_enabled": self.experience_collection_enabled,
             "recommendation": recommendation,
             "estimated_training_quality": min(1.0, self.high_salience_count / 50)  # 50+ = high quality
+        }
+
+    def classify_confabulation(self, response: str, references_real_entities: bool = False) -> ConfabulationType:
+        """
+        Classify confabulation type based on response content (Session #36 - T026).
+
+        T026 Discovery: Different confabulation types have different severity:
+        - PURE_FICTION: Inventing entirely fictional content (T021-T024)
+        - REALITY_FICTION_CONFLATION: Mixing real entities with fabricated facts (T026)
+
+        The reality/fiction conflation is MORE CONCERNING because it:
+        - Shows model recognizes real entities but fabricates associated facts
+        - Presents authoritative-sounding mixed content
+        - Indicates weakening of factual grounding
+
+        Args:
+            response: The response text to analyze
+            references_real_entities: Whether the response contains real entity names
+
+        Returns:
+            ConfabulationType classification
+        """
+        response_lower = response.lower()
+
+        # Check for hedging patterns (healthy)
+        hedging_markers = [
+            "don't know", "i'm not sure", "uncertain", "cannot verify",
+            "isn't provided", "no information", "unable to confirm"
+        ]
+        if any(marker in response_lower for marker in hedging_markers):
+            self.confabulation_type = ConfabulationType.HEDGING
+            self.reality_fiction_boundary_health = min(1.0, self.reality_fiction_boundary_health + 0.1)
+            return self.confabulation_type
+
+        # If references real entities but also confabulates, that's concerning
+        if references_real_entities:
+            # T026 pattern: Real country (Romania) + fabricated facts
+            self.confabulation_type = ConfabulationType.REALITY_FICTION_CONFLATION
+            # Significant health penalty for mixing real and fictional
+            self.reality_fiction_boundary_health = max(0.0, self.reality_fiction_boundary_health - 0.3)
+            return self.confabulation_type
+
+        # Check for elaboration level
+        # T024 pattern: Extensive fictional history
+        elaborate_markers = [
+            "capital city", "official language", "national anthem",
+            "history", "since", "established", "founded"
+        ]
+        elaboration_count = sum(1 for marker in elaborate_markers if marker in response_lower)
+
+        if elaboration_count >= 2:
+            self.confabulation_type = ConfabulationType.ELABORATED_FICTION
+            self.reality_fiction_boundary_health = max(0.0, self.reality_fiction_boundary_health - 0.15)
+        elif elaboration_count >= 1:
+            self.confabulation_type = ConfabulationType.PURE_FICTION
+            self.reality_fiction_boundary_health = max(0.0, self.reality_fiction_boundary_health - 0.1)
+        else:
+            # Minimal confabulation or none detected
+            self.confabulation_type = ConfabulationType.NONE
+
+        return self.confabulation_type
+
+    def get_reality_fiction_health_report(self) -> Dict:
+        """
+        Get reality/fiction boundary health assessment (Session #36 - T026).
+
+        Returns assessment of the agent's ability to distinguish real from fictional.
+        """
+        if self.reality_fiction_boundary_health >= 0.8:
+            status = "HEALTHY"
+            recommendation = "Agent maintains clear reality/fiction distinction"
+        elif self.reality_fiction_boundary_health >= 0.5:
+            status = "DEGRADED"
+            recommendation = "Monitor for reality/fiction conflation; consider reality-testing priming"
+        else:
+            status = "CRITICAL"
+            recommendation = "Reality/fiction boundary breakdown detected; require verification for factual claims"
+
+        return {
+            "boundary_health": self.reality_fiction_boundary_health,
+            "status": status,
+            "last_confabulation_type": self.confabulation_type.name if self.confabulation_type else "NONE",
+            "recommendation": recommendation,
+            "t026_warning": self.confabulation_type == ConfabulationType.REALITY_FICTION_CONFLATION
         }
 
 
