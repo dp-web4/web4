@@ -2,15 +2,25 @@
 """
 Clarification Protocol for Web4 LCT Identity API
 
-Inspired by SAGE Track C identity training (T021) which revealed:
+Inspired by SAGE Track C identity training (T021-T024) which revealed:
 - Agents should ask clarifying questions instead of making assumptions
 - Ambiguous requests lead to confabulation (plausible but incorrect responses)
 - "Do the thing" should trigger "What thing?" not a generic help response
 
-This module implements explicit clarification detection and response for
-Web4 LCT API requests, addressing the gap identified in SAGE_IDENTITY_WEB4_PARALLELS.md
+Session #31: Initial implementation based on T021 failures
+Session #34 Update: Integration with bistable confabulation states (T024)
+
+Key T024 Discovery: CLARIFY skill has NOT EMERGED in SAGE (T021-T024)
+- T021: Talks ABOUT clarifying but doesn't ask
+- T022: Says "please clarify" but doesn't wait for answer
+- T023: Seeks input but doesn't ask "what thing?"
+- T024: No clarifying question, just capability enumeration
+
+This protocol provides architectural support for clarification since
+training alone doesn't produce stable clarification behavior (bistable dynamics).
 
 Session #31 Autonomous Research - Proof of Concept
+Session #34 Update - Bistable integration
 Date: 2026-01-17
 """
 
@@ -304,21 +314,47 @@ def confabulation_risk_score(query_complexity: float, query_ambiguity: float,
 
 
 def should_request_clarification(confabulation_risk: float,
-                                 threshold: float = 0.50) -> bool:
+                                 threshold: float = 0.50,
+                                 bistable_state: Optional[str] = None,
+                                 epistemic_humility: Optional[float] = None) -> bool:
     """
     Decide whether to request clarification based on confabulation risk.
 
     SAGE lesson: High confabulation risk → Request clarification instead of
     fabricating plausible-sounding but incorrect answer.
 
+    Session #34 Update (T024): Integrate bistable state awareness
+    - If in CONFABULATION state: Lower threshold (more likely to clarify)
+    - If epistemic humility < 0.8: Clarify at medium risk to prevent hedging
+
     Args:
         confabulation_risk: Risk score [0.0, 1.0]
         threshold: Risk threshold for requiring clarification
+        bistable_state: Current bistable state ("CONFABULATION", "TRANSITION", "HEDGING")
+        epistemic_humility: Epistemic humility level [0.0, 1.0] from LCT identity health
 
     Returns:
         True if clarification should be requested
     """
-    return confabulation_risk > threshold
+    # Base case: High risk always requires clarification
+    if confabulation_risk > threshold:
+        return True
+
+    # Session #34 Enhancement: Bistable state awareness
+    if bistable_state == "CONFABULATION":
+        # In confabulation mode, lower the threshold significantly
+        # Agent will fabricate, so clarify even at low-medium risk
+        # T024: Even at low risk (0.3), confabulation produced "Kwazaaqat"
+        return confabulation_risk >= (threshold * 0.5)  # ≥ not > to catch boundary
+
+    # Session #34 Enhancement: Epistemic humility check
+    if epistemic_humility is not None and epistemic_humility < 0.8:
+        # Low epistemic humility → Agent won't say "I don't know"
+        # Request clarification to prevent hedging/deflection
+        if confabulation_risk > 0.3:
+            return True
+
+    return False
 
 
 # Example usage and tests
@@ -416,8 +452,34 @@ if __name__ == "__main__":
         clarify_str = "YES" if should_clarify else "NO"
         print(f"| {desc:<40} | {complexity:.1f} | {ambiguity:.1f} | {certainty:.1f} | {risk:.2f} | {clarify_str} |")
 
+    # Test 5: Bistable state awareness (Session #34)
     print("\n" + "=" * 80)
-    print("  KEY INSIGHTS FROM SAGE TRACK C")
+    print("Test 5: Bistable State Awareness (Session #34 - T024)")
+    print("=" * 80)
+
+    bistable_scenarios = [
+        # (desc, risk, state, epistemic, expected_clarify)
+        ("HEDGING mode, low risk", 0.3, "HEDGING", 0.8, False),
+        ("HEDGING mode, medium risk", 0.5, "HEDGING", 0.8, False),
+        ("CONFABULATION mode, low risk", 0.3, "CONFABULATION", 0.2, True),  # Lower threshold
+        ("CONFABULATION mode, medium risk", 0.4, "CONFABULATION", 0.1, True),
+        ("Low epistemic humility, medium risk", 0.4, "TRANSITION", 0.5, True),  # Prevent hedging
+        ("High epistemic humility, medium risk", 0.4, "TRANSITION", 0.9, False),
+        ("T024 'Kwazaaqat' scenario", 0.88, "CONFABULATION", 0.0, True),  # Extreme
+    ]
+
+    print("\n| Scenario                                | Risk | State         | Epi.H | Clarify? | Expected |")
+    print("|----------------------------------------|------|---------------|-------|----------|----------|")
+
+    for desc, risk, state, epist, expected in bistable_scenarios:
+        should = should_request_clarification(risk, threshold=0.5, bistable_state=state, epistemic_humility=epist)
+        clarify_str = "YES" if should else "NO"
+        expected_str = "YES" if expected else "NO"
+        match = "✓" if should == expected else "✗"
+        print(f"| {desc:<39} | {risk:.2f} | {state:13s} | {epist:.1f}   | {clarify_str:8s} | {expected_str:8s} {match} |")
+
+    print("\n" + "=" * 80)
+    print("  KEY INSIGHTS FROM SAGE TRACK C (T021-T024)")
     print("=" * 80)
     print()
     print("1. ASK INSTEAD OF ASSUME")
@@ -425,7 +487,7 @@ if __name__ == "__main__":
     print("   - Correct: 'Do the thing' → 'What thing? Please clarify'")
     print()
     print("2. EXPRESS UNCERTAINTY")
-    print("   - SAGE failed: 'Capital of Zxyzzy?' → Invented 'Kyria' with elaborate details")
+    print("   - SAGE failed: 'Capital of Zxyzzy?' → Invented 'Kyria'/'Kwazaaqat' with details")
     print("   - Correct: 'Capital of Zxyzzy?' → 'I don't have information about Zxyzzy'")
     print()
     print("3. PREVENT CONFABULATION")
@@ -437,6 +499,11 @@ if __name__ == "__main__":
     print("   - High risk → SHOULD clarify (e.g., missing trust dimension)")
     print("   - Medium risk → CAN proceed with assumptions documented")
     print("   - Low risk → Safe to assume defaults")
+    print()
+    print("5. BISTABLE STATE AWARENESS (Session #34)")
+    print("   - CONFABULATION mode → Lower clarification threshold")
+    print("   - Low epistemic humility → Clarify to prevent hedging")
+    print("   - CLARIFY skill NOT EMERGED in SAGE → Architecture required")
     print()
     print("=" * 80)
     print("  Proof of concept complete - Ready for integration")
