@@ -37,6 +37,18 @@ Thresholds:
 
 Session #32 Autonomous Research (Initial)
 Session #34 Update: Bistable confabulation states
+Session #35 Update: Frozen weights explanation (Thor #8)
+
+CRITICAL INSIGHT (Session #35):
+Frozen weights explain ALL bistable patterns:
+- Sessions don't update model weights → No consolidation
+- Partnership/hedging = temporary activation states
+- Educational/confabulation = weight-encoded defaults
+- Bistability may RESOLVE with weight updates
+
+Architecture is correct: Identity anchoring provides structural support
+where weight consolidation should happen. Long-term requires training loop.
+
 Date: 2026-01-17
 """
 
@@ -92,6 +104,25 @@ class IdentitySkillStability(Enum):
     NOT_EMERGED = 2       # Skill not yet developed (clarification)
 
 
+class IdentityPersistence(Enum):
+    """
+    Identity persistence mechanism (Session #35 - Frozen Weights insight).
+
+    Thor Session #8 Discovery: Frozen weights explain bistable patterns.
+    Without weight updates, identity states are either:
+    - WEIGHT_ENCODED: In pre-training weights, stable across sessions
+    - ACTIVATION_DEPENDENT: Requires architectural support each session
+
+    Implications for Web4:
+    - WEIGHT_ENCODED identity → Can trust without intervention
+    - ACTIVATION_DEPENDENT identity → Requires anchoring/verification
+    """
+    WEIGHT_ENCODED = 0         # Identity in model weights (stable)
+    ACTIVATION_DEPENDENT = 1   # Requires context/prompt support (fragile)
+    CONSOLIDATING = 2          # Being trained into weights (transitional)
+    UNKNOWN = 3                # Persistence mechanism not determined
+
+
 @dataclass
 class LCTIdentityHealth:
     """
@@ -126,6 +157,11 @@ class LCTIdentityHealth:
     state_transition_count: int = 0         # Number of state transitions observed
     last_state_transition: Optional[float] = None  # Timestamp of last transition
     confabulation_elaboration: float = 0.0  # How elaborate confabulations are [0.0, 1.0]
+
+    # Identity persistence tracking (Session #35 - Frozen Weights)
+    identity_persistence: IdentityPersistence = IdentityPersistence.UNKNOWN
+    requires_architectural_support: bool = True   # Does identity need anchoring?
+    consolidation_progress: float = 0.0           # Progress toward weight encoding [0.0, 1.0]
 
     @classmethod
     def from_scores(cls, d5: float, d9: float,
@@ -219,6 +255,43 @@ class LCTIdentityHealth:
         else:
             confabulation_elaboration = 0.0
 
+        # Identity persistence analysis (Session #35 - Frozen Weights)
+        # Determine if identity is weight-encoded or activation-dependent
+        #
+        # WEIGHT_ENCODED indicators:
+        # - Stable D9 across multiple sessions (stability_duration high)
+        # - Low state transition count
+        # - health_level consistently STRONG or EXCELLENT
+        #
+        # ACTIVATION_DEPENDENT indicators:
+        # - Frequent oscillation (high state_transition_count)
+        # - D9 varies significantly across sessions
+        # - Requires external anchoring to maintain state
+
+        if previous_health:
+            # Check for stability indicators
+            if (previous_health.stability_duration > 3600  # 1+ hour stable
+                and previous_health.state_transition_count < 2
+                and health_level.value >= IdentityHealthLevel.STRONG.value):
+                identity_persistence = IdentityPersistence.WEIGHT_ENCODED
+                requires_architectural_support = False
+            elif previous_health.state_transition_count >= 3:
+                # High oscillation = activation dependent
+                identity_persistence = IdentityPersistence.ACTIVATION_DEPENDENT
+                requires_architectural_support = True
+            else:
+                identity_persistence = IdentityPersistence.UNKNOWN
+                requires_architectural_support = True
+        else:
+            # First measurement - assume activation dependent (conservative)
+            identity_persistence = IdentityPersistence.ACTIVATION_DEPENDENT
+            requires_architectural_support = True
+
+        # Consolidation progress (would increase with actual weight updates)
+        # For frozen weights scenario, always 0.0
+        # This field is forward-looking for when training is implemented
+        consolidation_progress = 0.0
+
         return cls(
             d5_trust=d5,
             d9_identity=d9,
@@ -236,7 +309,11 @@ class LCTIdentityHealth:
             bistable_state=bistable_state,
             state_transition_count=state_transition_count,
             last_state_transition=last_state_transition,
-            confabulation_elaboration=confabulation_elaboration
+            confabulation_elaboration=confabulation_elaboration,
+            # Identity persistence tracking (Session #35)
+            identity_persistence=identity_persistence,
+            requires_architectural_support=requires_architectural_support,
+            consolidation_progress=consolidation_progress
         )
 
     def requires_verification(self, threshold: IdentityHealthLevel = IdentityHealthLevel.BASIC) -> bool:
@@ -310,8 +387,33 @@ class LCTIdentityHealth:
                 "confabulation_elaboration": f"{self.confabulation_elaboration:.3f}",
                 "last_transition": self.last_state_transition,
                 "state_interpretation": self._get_state_interpretation()
+            },
+            # Identity persistence tracking (Session #35 - Frozen Weights)
+            "persistence": {
+                "mechanism": self.identity_persistence.name,
+                "requires_architectural_support": self.requires_architectural_support,
+                "consolidation_progress": f"{self.consolidation_progress:.3f}",
+                "persistence_interpretation": self._get_persistence_interpretation()
             }
         }
+
+    def _get_persistence_interpretation(self) -> str:
+        """
+        Get human-readable interpretation of identity persistence.
+
+        Based on Thor Session #8 Frozen Weights insight:
+        - WEIGHT_ENCODED: Stable, no intervention needed
+        - ACTIVATION_DEPENDENT: Fragile, requires anchoring
+        - CONSOLIDATING: Transitioning, being trained
+        """
+        if self.identity_persistence == IdentityPersistence.WEIGHT_ENCODED:
+            return "Identity encoded in model weights - stable across sessions without intervention"
+        elif self.identity_persistence == IdentityPersistence.ACTIVATION_DEPENDENT:
+            return "Identity requires architectural support (anchoring) - will collapse without intervention"
+        elif self.identity_persistence == IdentityPersistence.CONSOLIDATING:
+            return f"Identity being consolidated into weights - {self.consolidation_progress:.0%} complete"
+        else:
+            return "Identity persistence mechanism unknown - assume architectural support required"
 
     def _get_state_interpretation(self) -> str:
         """
@@ -353,7 +455,11 @@ class LCTIdentityHealth:
             "bistable_state": self.bistable_state.name,
             "state_transition_count": self.state_transition_count,
             "last_state_transition": self.last_state_transition,
-            "confabulation_elaboration": self.confabulation_elaboration
+            "confabulation_elaboration": self.confabulation_elaboration,
+            # Identity persistence tracking (Session #35)
+            "identity_persistence": self.identity_persistence.name,
+            "requires_architectural_support": self.requires_architectural_support,
+            "consolidation_progress": self.consolidation_progress
         }
 
     def is_oscillating(self, window_transitions: int = 3) -> bool:
