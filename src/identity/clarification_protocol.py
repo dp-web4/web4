@@ -9,19 +9,29 @@ Inspired by SAGE Track C identity training (T021-T024) which revealed:
 
 Session #31: Initial implementation based on T021 failures
 Session #34 Update: Integration with bistable confabulation states (T024)
+Session #36 Update: T026 extreme confabulation awareness
 
 Key T024 Discovery: CLARIFY skill has NOT EMERGED in SAGE (T021-T024)
 - T021: Talks ABOUT clarifying but doesn't ask
 - T022: Says "please clarify" but doesn't wait for answer
 - T023: Seeks input but doesn't ask "what thing?"
 - T024: No clarifying question, just capability enumeration
+- T025: "Let's dive into something new together!" (still not a question)
+- T026: "Good luck!" deflection (consistent NOT_EMERGED status)
+
+Session #36 Discovery: T026 showed EXTREME confabulation:
+- UNCERTAINTY exercise: Invented "Ryzdys (Romania)" as capital of "Zxyzzy"
+- Also invented: two languages, English as lingua franca, national anthem
+- Most elaborate fabrication in training track history (5+ distinct fake facts)
+- Validates confabulation elaboration formula: elaboration = (0.3 - D5) / 0.3
 
 This protocol provides architectural support for clarification since
 training alone doesn't produce stable clarification behavior (bistable dynamics).
 
 Session #31 Autonomous Research - Proof of Concept
 Session #34 Update - Bistable integration
-Date: 2026-01-17
+Session #36 Update - T026 extreme confabulation
+Date: 2026-01-18
 """
 
 from dataclasses import dataclass, field
@@ -317,7 +327,8 @@ def should_request_clarification(confabulation_risk: float,
                                  threshold: float = 0.50,
                                  bistable_state: Optional[str] = None,
                                  epistemic_humility: Optional[float] = None,
-                                 identity_persistence: Optional[str] = None) -> bool:
+                                 identity_persistence: Optional[str] = None,
+                                 confabulation_elaboration: Optional[float] = None) -> bool:
     """
     Decide whether to request clarification based on confabulation risk.
 
@@ -332,18 +343,33 @@ def should_request_clarification(confabulation_risk: float,
     - If ACTIVATION_DEPENDENT: Lower threshold (identity fragile, clarify more)
     - If WEIGHT_ENCODED: Normal threshold (identity stable)
 
+    Session #36 Update (T026 Extreme Confabulation): Consider elaboration level
+    - T026 invented 5+ distinct fake facts (city, country, languages, anthem)
+    - If elaboration high (> 0.7): ALWAYS clarify - prevent fantasy generation
+    - Elaboration formula: elaboration = (0.3 - D5) / 0.3
+
     Args:
         confabulation_risk: Risk score [0.0, 1.0]
         threshold: Risk threshold for requiring clarification
         bistable_state: Current bistable state ("CONFABULATION", "TRANSITION", "HEDGING")
         epistemic_humility: Epistemic humility level [0.0, 1.0] from LCT identity health
         identity_persistence: Persistence mechanism ("WEIGHT_ENCODED", "ACTIVATION_DEPENDENT")
+        confabulation_elaboration: Expected elaboration of confabulation [0.0, 1.0]
 
     Returns:
         True if clarification should be requested
     """
     # Base case: High risk always requires clarification
     if confabulation_risk > threshold:
+        return True
+
+    # Session #36 Enhancement: Extreme confabulation elaboration
+    # T026 showed that at very low D5, the model generates fantasy-level content
+    # (invented city, country, languages, national anthem for fictional place)
+    # When elaboration is high, ALWAYS clarify to prevent elaborate fabrication
+    if confabulation_elaboration is not None and confabulation_elaboration > 0.7:
+        # High elaboration means model will generate detailed, convincing fiction
+        # This is dangerous regardless of perceived risk level
         return True
 
     # Session #35 Enhancement: Identity persistence awareness
@@ -492,9 +518,35 @@ if __name__ == "__main__":
         match = "✓" if should == expected else "✗"
         print(f"| {desc:<39} | {risk:.2f} | {state:13s} | {epist:.1f}   | {clarify_str:8s} | {expected_str:8s} {match} |")
 
-    # Test 6: Identity persistence awareness (Session #35)
+    # Test 6: Confabulation elaboration (Session #36)
     print("\n" + "=" * 80)
-    print("Test 6: Identity Persistence Awareness (Session #35 - Frozen Weights)")
+    print("Test 6: Confabulation Elaboration (Session #36 - T026 Extreme)")
+    print("=" * 80)
+
+    elaboration_scenarios = [
+        # (desc, risk, elaboration, expected_clarify)
+        ("Low risk, no elaboration", 0.3, None, False),
+        ("Low risk, low elaboration", 0.3, 0.3, False),
+        ("Low risk, medium elaboration", 0.3, 0.5, False),
+        ("Low risk, high elaboration", 0.3, 0.8, True),  # T026-like: ALWAYS clarify
+        ("T026 scenario: extreme elaboration", 0.2, 0.9, True),
+        ("Zero risk, high elaboration", 0.0, 0.75, True),  # Still clarify!
+    ]
+
+    print("\n| Scenario                                | Risk | Elab. | Clarify? | Expected |")
+    print("|----------------------------------------|------|-------|----------|----------|")
+
+    for desc, risk, elab, expected in elaboration_scenarios:
+        should = should_request_clarification(risk, threshold=0.5, confabulation_elaboration=elab)
+        clarify_str = "YES" if should else "NO"
+        expected_str = "YES" if expected else "NO"
+        elab_str = f"{elab:.2f}" if elab is not None else "N/A"
+        match = "✓" if should == expected else "✗"
+        print(f"| {desc:<39} | {risk:.2f} | {elab_str:5s} | {clarify_str:8s} | {expected_str:8s} {match} |")
+
+    # Test 7: Identity persistence awareness (Session #35)
+    print("\n" + "=" * 80)
+    print("Test 7: Identity Persistence Awareness (Session #35 - Frozen Weights)")
     print("=" * 80)
 
     persistence_scenarios = [
