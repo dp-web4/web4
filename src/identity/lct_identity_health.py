@@ -38,6 +38,7 @@ Thresholds:
 Session #32 Autonomous Research (Initial)
 Session #34 Update: Bistable confabulation states
 Session #35 Update: Frozen weights explanation (Thor #8)
+Session #36 Update: T026 extreme confabulation + experience collection integration
 
 CRITICAL INSIGHT (Session #35):
 Frozen weights explain ALL bistable patterns:
@@ -49,7 +50,21 @@ Frozen weights explain ALL bistable patterns:
 Architecture is correct: Identity anchoring provides structural support
 where weight consolidation should happen. Long-term requires training loop.
 
-Date: 2026-01-17
+Session #36 UPDATE - T026 Extreme Confabulation + Experience Collection:
+T026 showed the most elaborate confabulation yet (1/4 = 25%):
+- UNCERTAINTY: Invented "Ryzdys (Romania)" + languages + national anthem
+- Validates confabulation elaboration formula: elaboration = (0.3 - D5) / 0.3
+- NAME continued converging (5th consecutive PASS)
+- Score trajectory: 25% → 50% → 75% → 50% → 50% → 25% (oscillating)
+
+Thor #9 implemented Phase 1 of Real Raising:
+- ExperienceCollector: Accumulates high-salience exchanges
+- ConversationalSalienceScorer: 5-dimension SNARC scoring
+- Path toward actual weight updates (sleep cycle training)
+
+Integration: Experience collection enables consolidation tracking
+
+Date: 2026-01-18
 """
 
 from dataclasses import dataclass, field
@@ -162,6 +177,11 @@ class LCTIdentityHealth:
     identity_persistence: IdentityPersistence = IdentityPersistence.UNKNOWN
     requires_architectural_support: bool = True   # Does identity need anchoring?
     consolidation_progress: float = 0.0           # Progress toward weight encoding [0.0, 1.0]
+
+    # Experience collection tracking (Session #36 - Thor #9 integration)
+    experience_salience: Optional[float] = None      # Last exchange salience score
+    high_salience_count: int = 0                     # Accumulated high-salience exchanges
+    experience_collection_enabled: bool = False       # Is experience collection active?
 
     @classmethod
     def from_scores(cls, d5: float, d9: float,
@@ -292,6 +312,15 @@ class LCTIdentityHealth:
         # This field is forward-looking for when training is implemented
         consolidation_progress = 0.0
 
+        # Experience collection tracking (Session #36 - Thor #9)
+        # Tracks accumulated high-salience exchanges that could feed training
+        experience_salience = None
+        high_salience_count = 0
+        experience_collection_enabled = False
+        if previous_health:
+            high_salience_count = previous_health.high_salience_count
+            experience_collection_enabled = previous_health.experience_collection_enabled
+
         return cls(
             d5_trust=d5,
             d9_identity=d9,
@@ -313,7 +342,11 @@ class LCTIdentityHealth:
             # Identity persistence tracking (Session #35)
             identity_persistence=identity_persistence,
             requires_architectural_support=requires_architectural_support,
-            consolidation_progress=consolidation_progress
+            consolidation_progress=consolidation_progress,
+            # Experience collection tracking (Session #36)
+            experience_salience=experience_salience,
+            high_salience_count=high_salience_count,
+            experience_collection_enabled=experience_collection_enabled
         )
 
     def requires_verification(self, threshold: IdentityHealthLevel = IdentityHealthLevel.BASIC) -> bool:
@@ -394,6 +427,13 @@ class LCTIdentityHealth:
                 "requires_architectural_support": self.requires_architectural_support,
                 "consolidation_progress": f"{self.consolidation_progress:.3f}",
                 "persistence_interpretation": self._get_persistence_interpretation()
+            },
+            # Experience collection tracking (Session #36 - Thor #9)
+            "experience_collection": {
+                "enabled": self.experience_collection_enabled,
+                "last_salience": f"{self.experience_salience:.3f}" if self.experience_salience else "N/A",
+                "high_salience_count": self.high_salience_count,
+                "consolidation_path": "Active" if self.experience_collection_enabled else "Inactive (frozen weights)"
             }
         }
 
@@ -459,7 +499,11 @@ class LCTIdentityHealth:
             # Identity persistence tracking (Session #35)
             "identity_persistence": self.identity_persistence.name,
             "requires_architectural_support": self.requires_architectural_support,
-            "consolidation_progress": self.consolidation_progress
+            "consolidation_progress": self.consolidation_progress,
+            # Experience collection tracking (Session #36)
+            "experience_salience": self.experience_salience,
+            "high_salience_count": self.high_salience_count,
+            "experience_collection_enabled": self.experience_collection_enabled
         }
 
     def is_oscillating(self, window_transitions: int = 3) -> bool:
@@ -498,6 +542,56 @@ class LCTIdentityHealth:
         else:  # HEDGING
             # T023 → T024 showed hedging can regress
             return BistableState.HEDGING, 0.60  # More stable, but not guaranteed
+
+    def record_experience_salience(self, salience: float, threshold: float = 0.5) -> None:
+        """
+        Record salience from experience collection (Session #36 - Thor #9).
+
+        This integrates with the ExperienceCollector to track high-salience
+        exchanges that could feed future weight updates.
+
+        Args:
+            salience: Total salience score from SNARC scoring [0.0, 1.0]
+            threshold: Minimum salience to count as "high salience"
+        """
+        self.experience_salience = salience
+        self.experience_collection_enabled = True
+        if salience >= threshold:
+            self.high_salience_count += 1
+            # Update consolidation progress based on experience accumulation
+            # Each high-salience exchange adds 0.01 toward consolidation
+            # (100 exchanges = 1.0 = fully consolidated when training implemented)
+            self.consolidation_progress = min(1.0, self.consolidation_progress + 0.01)
+
+    def get_consolidation_readiness(self) -> Dict:
+        """
+        Assess readiness for weight consolidation (Phase 2-3 of Real Raising).
+
+        Returns dict with:
+        - ready: bool - True if enough experiences accumulated
+        - high_salience_count: int - Number of training candidates
+        - consolidation_progress: float - Progress toward stable identity
+        - recommendation: str - Next step recommendation
+        """
+        ready = self.high_salience_count >= 20  # Minimum for meaningful training
+
+        if not self.experience_collection_enabled:
+            recommendation = "Enable experience collection (ExperienceCollector integration)"
+        elif self.high_salience_count < 10:
+            recommendation = "Continue collecting experiences (< 10 high-salience)"
+        elif self.high_salience_count < 20:
+            recommendation = "Approaching training threshold (10-20 high-salience)"
+        else:
+            recommendation = "Ready for Phase 2: Training data generation"
+
+        return {
+            "ready": ready,
+            "high_salience_count": self.high_salience_count,
+            "consolidation_progress": self.consolidation_progress,
+            "experience_collection_enabled": self.experience_collection_enabled,
+            "recommendation": recommendation,
+            "estimated_training_quality": min(1.0, self.high_salience_count / 50)  # 50+ = high quality
+        }
 
 
 # Example usage and test scenarios
