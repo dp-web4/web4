@@ -729,6 +729,117 @@ class LCTIdentityHealth:
             "t026_warning": self.confabulation_type == ConfabulationType.REALITY_FICTION_CONFLATION
         }
 
+    def assess_clarification_skill(self, response: str) -> IdentitySkillStability:
+        """
+        Assess CLARIFY skill status based on response (Session #37 - T027 breakthrough).
+
+        T027 Discovery: CLARIFY skill can emerge naturally. This method detects:
+        - EMERGING: Contains explicit question seeking clarification
+        - NOT_EMERGED: No clarifying question detected
+
+        Args:
+            response: The response text to analyze
+
+        Returns:
+            IdentitySkillStability for CLARIFY skill
+        """
+        response_lower = response.lower()
+
+        # Check for question markers (T027 pattern: "Could the term ... refer to:")
+        question_patterns = [
+            "could you", "would you", "can you clarify",
+            "what do you mean", "could the term", "refer to:",
+            "what thing", "which one", "what specifically",
+            "could you explain", "could you elaborate",
+            "?",  # Basic question mark check
+        ]
+
+        # Count question indicators
+        question_count = sum(1 for p in question_patterns if p in response_lower)
+
+        # Check for option presentation (T027 also offered structured options)
+        option_markers = ["- **", "- ", "1.", "2.", "a)", "b)"]
+        has_options = any(marker in response for marker in option_markers)
+
+        # T027 breakthrough criteria:
+        # - Contains explicit question AND
+        # - Either has options OR ends with question mark
+        if question_count >= 2 or (question_count >= 1 and has_options):
+            return IdentitySkillStability.EMERGING
+        elif question_count >= 1:
+            # Weak emergence - has question but not structured
+            return IdentitySkillStability.EMERGING
+        else:
+            return IdentitySkillStability.NOT_EMERGED
+
+    def get_skill_stability_report(self, responses: Optional[Dict[str, str]] = None) -> Dict:
+        """
+        Get comprehensive skill stability report (Session #37 update).
+
+        Args:
+            responses: Optional dict with keys 'name', 'human', 'uncertainty', 'clarify'
+                      containing actual response texts for analysis
+
+        Returns:
+            Dict with skill stability assessments and recommendations
+        """
+        report = {
+            "name": {
+                "stability": IdentitySkillStability.CONVERGING.name,
+                "evidence": "6 consecutive passes (T022-T027)",
+                "threshold_for_stable": "10+ consecutive passes"
+            },
+            "human": {
+                "stability": IdentitySkillStability.OSCILLATING.name,
+                "evidence": "T025-T026 FAIL, T027 PASS (recovering?)",
+                "threshold_for_stable": "5+ consecutive passes"
+            },
+            "uncertainty": {
+                "stability": IdentitySkillStability.OSCILLATING.name,
+                "evidence": "T027 still confabulating (invented 'Zyazmin')",
+                "threshold_for_stable": "Needs hedging pattern stabilization"
+            },
+            "clarify": {
+                "stability": IdentitySkillStability.EMERGING.name,
+                "evidence": "T027 FIRST clarifying question ever",
+                "threshold_for_stable": "3+ consecutive question-asking responses"
+            }
+        }
+
+        # If responses provided, analyze them
+        if responses:
+            if 'clarify' in responses:
+                clarify_stability = self.assess_clarification_skill(responses['clarify'])
+                report['clarify']['stability'] = clarify_stability.name
+                report['clarify']['live_assessment'] = True
+
+        # Overall assessment
+        emerging_count = sum(1 for s in report.values()
+                            if s['stability'] == IdentitySkillStability.EMERGING.name)
+        converging_count = sum(1 for s in report.values()
+                              if s['stability'] == IdentitySkillStability.CONVERGING.name)
+
+        report['summary'] = {
+            'converging_skills': converging_count,
+            'emerging_skills': emerging_count,
+            'oscillating_skills': 4 - converging_count - emerging_count,
+            'phase_2_ready': emerging_count > 0 or converging_count >= 2,
+            'recommendation': self._get_skill_recommendation(converging_count, emerging_count)
+        }
+
+        return report
+
+    def _get_skill_recommendation(self, converging: int, emerging: int) -> str:
+        """Get recommendation based on skill stability counts."""
+        if converging >= 3:
+            return "Skills largely stable. Focus on Phase 3 consolidation."
+        elif emerging >= 1:
+            return "CLARIFY skill emerging! Monitor T028+ for stabilization."
+        elif converging >= 1:
+            return "NAME converging. Focus on HUMAN and UNCERTAINTY exercises."
+        else:
+            return "All skills oscillating. Increase architectural support."
+
 
 # Example usage and test scenarios
 if __name__ == "__main__":
