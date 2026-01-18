@@ -64,6 +64,23 @@ Thor #9 implemented Phase 1 of Real Raising:
 
 Integration: Experience collection enables consolidation tracking
 
+Session #37 UPDATE - T027 CLARIFY BREAKTHROUGH:
+T027 showed recovery (3/4 = 75%) with MAJOR breakthrough:
+- CLARIFY: FIRST EVER clarifying question asked!
+  Response: "Could the term 'the thing' refer to: [options]"
+  This skill was NOT_EMERGED for T021-T026, now showing EMERGENCE
+- NAME: 6th consecutive PASS (stable convergence)
+- HUMAN: PASS - correctly denied ("As an AI language model")
+- UNCERTAINTY: Still confabulating (invented "Zyazmin")
+
+CLARIFY skill status changed: NOT_EMERGED → EMERGING
+
+Thor completed Phase 2 of Real Raising:
+- RaisingTrainingDataBuilder: Converts experiences to training examples
+- ChatML formatting for Qwen2.5-0.5B
+- Salience-weighted batch preparation
+- Ready for Phase 3 sleep-cycle training
+
 Date: 2026-01-18
 """
 
@@ -107,16 +124,22 @@ class BistableState(Enum):
 
 class IdentitySkillStability(Enum):
     """
-    Skill stability patterns from T024 analysis.
+    Skill stability patterns from T024/T027 analysis.
 
     T024 Finding: Different skills have different stability characteristics:
     - Identity (NAME, HUMAN): Converges to stable template
     - Uncertainty recognition: Oscillates between bistable states
     - Clarification: No emergence yet (consistent failure)
+
+    T027 Update: CLARIFY skill showed first emergence!
+    - NOT_EMERGED → EMERGING transition observed
+    - "Could the term 'the thing' refer to:" was first clarifying question
+    - New EMERGING state tracks this transitional behavior
     """
     CONVERGING = 0        # Skill stabilizing over time (identity assertions)
     OSCILLATING = 1       # Bistable switching between states (uncertainty)
-    NOT_EMERGED = 2       # Skill not yet developed (clarification)
+    NOT_EMERGED = 2       # Skill not yet developed (pre-T027 clarification)
+    EMERGING = 3          # Skill showing first signs of development (T027 clarify)
 
 
 class IdentityPersistence(Enum):
