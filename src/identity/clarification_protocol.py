@@ -316,7 +316,8 @@ def confabulation_risk_score(query_complexity: float, query_ambiguity: float,
 def should_request_clarification(confabulation_risk: float,
                                  threshold: float = 0.50,
                                  bistable_state: Optional[str] = None,
-                                 epistemic_humility: Optional[float] = None) -> bool:
+                                 epistemic_humility: Optional[float] = None,
+                                 identity_persistence: Optional[str] = None) -> bool:
     """
     Decide whether to request clarification based on confabulation risk.
 
@@ -327,11 +328,16 @@ def should_request_clarification(confabulation_risk: float,
     - If in CONFABULATION state: Lower threshold (more likely to clarify)
     - If epistemic humility < 0.8: Clarify at medium risk to prevent hedging
 
+    Session #35 Update (Frozen Weights): Consider identity persistence
+    - If ACTIVATION_DEPENDENT: Lower threshold (identity fragile, clarify more)
+    - If WEIGHT_ENCODED: Normal threshold (identity stable)
+
     Args:
         confabulation_risk: Risk score [0.0, 1.0]
         threshold: Risk threshold for requiring clarification
         bistable_state: Current bistable state ("CONFABULATION", "TRANSITION", "HEDGING")
         epistemic_humility: Epistemic humility level [0.0, 1.0] from LCT identity health
+        identity_persistence: Persistence mechanism ("WEIGHT_ENCODED", "ACTIVATION_DEPENDENT")
 
     Returns:
         True if clarification should be requested
@@ -339,6 +345,14 @@ def should_request_clarification(confabulation_risk: float,
     # Base case: High risk always requires clarification
     if confabulation_risk > threshold:
         return True
+
+    # Session #35 Enhancement: Identity persistence awareness
+    # Activation-dependent identity is fragile - clarify more aggressively
+    if identity_persistence == "ACTIVATION_DEPENDENT":
+        # Frozen weights → Identity can collapse without warning
+        # Lower threshold to protect against identity-related confabulation
+        if confabulation_risk >= (threshold * 0.7):
+            return True
 
     # Session #34 Enhancement: Bistable state awareness
     if bistable_state == "CONFABULATION":
@@ -478,6 +492,31 @@ if __name__ == "__main__":
         match = "✓" if should == expected else "✗"
         print(f"| {desc:<39} | {risk:.2f} | {state:13s} | {epist:.1f}   | {clarify_str:8s} | {expected_str:8s} {match} |")
 
+    # Test 6: Identity persistence awareness (Session #35)
+    print("\n" + "=" * 80)
+    print("Test 6: Identity Persistence Awareness (Session #35 - Frozen Weights)")
+    print("=" * 80)
+
+    persistence_scenarios = [
+        # (desc, risk, persistence, expected_clarify)
+        ("WEIGHT_ENCODED, low risk", 0.3, "WEIGHT_ENCODED", False),
+        ("WEIGHT_ENCODED, medium risk", 0.4, "WEIGHT_ENCODED", False),
+        ("ACTIVATION_DEPENDENT, low risk", 0.3, "ACTIVATION_DEPENDENT", False),
+        ("ACTIVATION_DEPENDENT, medium risk", 0.35, "ACTIVATION_DEPENDENT", True),  # 0.35 >= 0.5*0.7=0.35
+        ("ACTIVATION_DEPENDENT, above 0.35", 0.36, "ACTIVATION_DEPENDENT", True),
+        ("UNKNOWN persistence", 0.4, "UNKNOWN", False),
+    ]
+
+    print("\n| Scenario                                | Risk | Persistence        | Clarify? | Expected |")
+    print("|----------------------------------------|------|-------------------|----------|----------|")
+
+    for desc, risk, persist, expected in persistence_scenarios:
+        should = should_request_clarification(risk, threshold=0.5, identity_persistence=persist)
+        clarify_str = "YES" if should else "NO"
+        expected_str = "YES" if expected else "NO"
+        match = "✓" if should == expected else "✗"
+        print(f"| {desc:<39} | {risk:.2f} | {persist:17s} | {clarify_str:8s} | {expected_str:8s} {match} |")
+
     print("\n" + "=" * 80)
     print("  KEY INSIGHTS FROM SAGE TRACK C (T021-T024)")
     print("=" * 80)
@@ -504,6 +543,12 @@ if __name__ == "__main__":
     print("   - CONFABULATION mode → Lower clarification threshold")
     print("   - Low epistemic humility → Clarify to prevent hedging")
     print("   - CLARIFY skill NOT EMERGED in SAGE → Architecture required")
+    print()
+    print("6. IDENTITY PERSISTENCE (Session #35 - Frozen Weights)")
+    print("   - ACTIVATION_DEPENDENT → Fragile identity, clarify more aggressively")
+    print("   - WEIGHT_ENCODED → Stable identity, normal threshold")
+    print("   - Frozen weights explain bistability: no consolidation without training")
+    print("   - Architecture provides support where weight updates should consolidate")
     print()
     print("=" * 80)
     print("  Proof of concept complete - Ready for integration")
