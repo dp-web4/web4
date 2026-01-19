@@ -427,6 +427,16 @@ Web4's security research is:
 
 ---
 
+## Related Security Documentation
+
+- **[docs/HETEROGENEOUS_REVIEW.md](docs/HETEROGENEOUS_REVIEW.md)** - Multi-model review protocol for high-risk actions. Requires verification by independently-trained AI models before execution, providing defense-in-depth through assumption diversity and behavioral independence.
+
+- **[adversarials/TAXONOMY.md](adversarials/TAXONOMY.md)** - Attack vector taxonomy including governance interface attacks, trust manipulation, and destruction scenarios.
+
+- **[docs/ADVERSARIAL_TESTING_STATUS.md](docs/ADVERSARIAL_TESTING_STATUS.md)** - Current status of adversarial testing and defense maturity assessment.
+
+---
+
 ## Acknowledgments
 
 Security research developed through Sessions #80-85 with autonomous AI exploration and human decision authority.
