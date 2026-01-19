@@ -2,8 +2,8 @@
 
 ## Attack Vectors and Defense Analysis for Web4
 
-Version: 1.0
-Last Updated: 2026-01-17
+Version: 1.1
+Last Updated: 2026-01-18
 
 ---
 
@@ -108,6 +108,59 @@ Last Updated: 2026-01-17
 | **Complexity Bomb** | Overwhelm system with excessive complexity | Complexity-dependent instability | RESEARCH |
 
 **Gap**: Correlated noise protection not implemented in systems.
+
+### 2.7 Governance Interface Attacks (Cross-Substrate)
+
+These attacks target the interface between human governance (external authority, bioregional councils, standing credentials) and computational trust (T3/ATP). They exploit process rather than protocol.
+
+| Attack | Mechanism | Detection | Status |
+|--------|-----------|-----------|--------|
+| **Unbundling** | Stay under each individual cap while exceeding aggregate burden | Cumulative cost tracking | RESEARCH |
+| **Adjudication Delay** | Stall dispute resolution with evidence requests, jurisdiction claims | Timer enforcement | RESEARCH |
+| **Soft Veto via Reasonable Requests** | Impose cumulative requirements that freeze work without violating caps | Transaction cost metering | RESEARCH |
+| **Pay-to-Violate** | Leak protected content when penalty < extractive value | Penalty economics | RESEARCH |
+| **Forum Shopping** | Register through jurisdiction with cheaper compliance to evade stricter rules | Origin-of-impact binding | RESEARCH |
+
+**Detailed Attack Patterns**:
+
+**Unbundling (Execution Controls Cap Evasion)**
+- Stay under holdback cap (20%), audit frequency cap, reporting cap
+- Add "documentation prerequisites," "pre-approval gates," "special compliance review"
+- Each requirement "reasonable" individually, cumulative effect is veto
+- **Tell**: Many small requirements, project effectively frozen but "no cap violated"
+- **Mitigation**: Transaction Cost Budget (aggregate burden metering)
+
+**Adjudication Delay**
+- Accept external authority nominally: "we'll respect your ruling... eventually"
+- Endless evidence requests, jurisdiction challenges, internal committee cycles
+- Harm occurs before adjudication completes
+- **Tell**: Dispute process becomes paperwork treadmill, no ruling in reasonable time
+- **Mitigation**: Hard deadlines + default-state enforcement during dispute
+
+**Soft Veto via Reasonable Requests**
+- Never exceed any single cap
+- Impose weekly reporting, required tools/platforms, photo/video proof, auditor interviews
+- Counterparty time shifts from productive work to compliance theater
+- **Tell**: High-legitimacy actors spending >50% time on counterparty requirements
+- **Mitigation**: Transaction cost metering; prohibited_requirements block platform lock-in
+
+**Pay-to-Violate (Boundary Arbitrage)**
+- Leak boundary-protected content knowing penalty < extractive value
+- Use shell recipients outside enforcement reach
+- Forward to parties who don't recognize external authority
+- **Tell**: Boundary violations become profitable business model
+- **Mitigation**: Penalty scaling (harm_class multipliers) + contagion to sponsoring org
+
+**Forum Shopping**
+- Operate in Jurisdiction A with strict governance
+- Register/route through Jurisdiction B with cheaper compliance requirements
+- Claim Jurisdiction B standing for Jurisdiction A operations
+- **Tell**: Operational footprint doesn't match registration footprint
+- **Mitigation**: Impact-of-operation binding + mutual recognition requirements
+
+**Gap**: These attacks require human governance hooks (external authority registration, dispute resolution binding, sanction execution) that Web4 doesn't currently expose.
+
+**Key Insight**: These are "legitimate actor" attacks - they don't violate any single rule, they erode governance through process. Detection requires measuring cumulative burden, not individual violations.
 
 ---
 
@@ -243,6 +296,9 @@ These attacks aim not to extract value but to destroy the system entirely.
 | System destruction (nation-state) | CRITICAL | VERY LOW | P1 |
 | Collusion ring | HIGH | MEDIUM | P1 |
 | ATP market manipulation | UNKNOWN | UNKNOWN | P2 (research) |
+| Governance interface (unbundling) | HIGH | MEDIUM | P1 |
+| Governance interface (soft veto) | HIGH | HIGH | P0 |
+| Forum shopping | MEDIUM | LOW | P2 |
 
 ### 7.2 By Defense Maturity
 
@@ -254,6 +310,7 @@ These attacks aim not to extract value but to destroy the system entirely.
 | Network attacks | 80% | Formal proof |
 | Governance attacks | 10% | Framework design |
 | Destruction attacks | 20% | Threat modeling |
+| Governance interface | 5% | External authority hooks + transaction cost metering |
 
 ---
 
