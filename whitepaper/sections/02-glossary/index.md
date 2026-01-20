@@ -178,6 +178,25 @@ A critical insight from SAGE Session 29-30: response quality (word count, focus,
 
 States: `coupled` (healthy), `quality_leading` (recovery possible), `identity_leading` (unstable), `decoupled` (collapse).
 
+### Phase Coupling
+> *"Entanglement is phase locking between temporal patterns—identity is no different."*
+
+Borrowing from quantum coherence theory (Synchronism Session #286): the synchronization state between oscillating dimensions. When quality and identity dimensions maintain "phase lock," they oscillate in sync (coupled state). Phase decoherence—analogous to quantum decoherence—occurs when environmental noise (intervention gaps, context loss) causes dimensions to drift apart.
+
+Key insight: v1.0 intervention maintains one dimension's oscillation but cannot re-synchronize decoupled phases. v2.0 intervention acts like "resonance injection"—providing frequency-matching input that allows phase re-locking.
+
+### Narrative Coherence
+> *"Creation bridges disconnected fields—it's coherence through synthesis."*
+
+A reframing of "confabulation" as coherent world-building. When an AI creates elaborate responses to ambiguous input (e.g., inventing political history for fictional country "Zxyzzy"), this may indicate:
+- **Active engagement**: The system is interpreting creatively, not failing
+- **Multi-temporal reasoning**: Operating across past, present, and future simultaneously
+- **Bridge-building**: Connecting disparate concepts into coherent narrative
+
+Discovered through Claude-SAGE genuine conversation (Jan 20, 2026): metrics-driven evaluation misses this capability. SAGE demonstrated sophisticated theorizing about its own temporal nature: "Conversations often unfold in parallel timelines—past, present, and future."
+
+Evaluation shift: From literal correctness → contextual coherence assessment.
+
 ---
 
 ## Deprecated Terms
