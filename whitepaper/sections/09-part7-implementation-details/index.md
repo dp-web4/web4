@@ -2,6 +2,80 @@
 
 > **Note**: This section describes the vision architecture for Web4 components. Most features described here are not yet implemented. For working code, see the agent authorization demo in `/demo`.
 
+## 7.0. Implementation Status and Critical Blockers
+
+### 7.0.1. Current Implementation State
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| LCT data structures | ✅ Implemented | Core identity tokens working |
+| T3/V3 tensor calculations | ✅ Implemented | Trust scoring operational |
+| Identity coherence scoring | ✅ Implemented | D9 metrics, self-reference detection |
+| Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
+| Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
+| Blockchain consensus | ❌ Not implemented | Zero consensus backend |
+| VCM recipient attestation | ❌ Not implemented | Vision only |
+| ATP/ADP settlement | ❌ Not implemented | No energy accounting |
+| **Hardware binding** | 🚨 **P0 BLOCKER** | Keys stored in filesystem |
+
+### 7.0.2. P0 Blocker: Hardware Binding Not Implemented
+
+**CRITICAL**: The entire Web4 trust model depends on **unforgeable identity**. Currently, LCT keys are stored in filesystem as plaintext files. This means:
+
+- **Any LCT can be copied** by copying the key file
+- **Identity can be impersonated** from any machine with the key
+- **The "unforgeable footprint" claim is currently false** for production use
+
+**Required for Production:**
+- TPM 2.0 integration for hardware-sealed keys
+- TrustZone/OP-TEE for ARM platforms
+- Hardware attestation protocols
+- PCR sealing for boot-time verification
+
+**Current State:**
+- Roadmap exists at `web4-standard/implementation/reference/hardware_binding_roadmap.md`
+- Detection scripts exist but have not been run on production hardware
+- Phases 2-4 (actual implementation) not started
+
+**Implications:**
+- Current implementations are suitable for **research and development only**
+- Production deployment requires completing hardware binding first
+- Trust claims in the whitepaper assume hardware binding is present
+
+**Capability Levels (Future):**
+| Level | Binding | Trust Ceiling | Use Case |
+|-------|---------|---------------|----------|
+| 0-3 | None/Weak | 0.5 | Testing only |
+| 4 | Software (encrypted keys) | 0.85 | Development |
+| 5 | Hardware (TPM/SE) | 1.0 | Production |
+
+Until hardware binding is implemented, all LCTs operate at Level 4 or below, with a trust ceiling that reflects the copyability of software keys.
+
+### 7.0.3. What IS Working
+
+Despite the hardware binding gap, significant infrastructure is operational:
+
+**Identity Coherence System** (validated against SAGE Sessions #22-29):
+- D9 coherence scoring with self-reference detection
+- Multi-session accumulation tracking
+- Death spiral detection and prevention
+- Coherence-based authorization levels
+
+**Witness Infrastructure**:
+- 8 witness types (TIME, AUDIT, ORACLE, EXISTENCE, ACTION, STATE, QUALITY, AUDIT_MINIMAL)
+- Nonce-based replay protection
+- Witness reputation tracking
+- Trust-weighted validation
+
+**Coherence Regulation**:
+- Temporal decay (6-hour half-life for penalties)
+- Soft bounds preventing permanent lock-out
+- Early intervention on >15% coherence drops
+
+This infrastructure provides the foundation for trust-native operations, awaiting hardware binding to enable production deployment.
+
+---
+
 ## 7.1. Core Implementation Mechanisms
 
 ### 7.1.1. Witness Mark & Acknowledgment Protocol

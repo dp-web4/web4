@@ -46,7 +46,12 @@ ATP Budget Available?
   "t3_tensor": {
     "talent": 0.0,      // 0.0 to 1.0
     "training": 0.0,    // 0.0 to 1.0
-    "temperament": 0.0  // 0.0 to 1.0
+    "temperament": 0.0, // 0.0 to 1.0
+    "identity_coherence": 0.0,     // 0.0 to 1.0 (C × S × Φ × R)
+    "identity_accumulation": 0.0,  // 0.0 to 1.0 (multi-session stability)
+    "witness_count": 0,            // integer
+    "lineage_depth": 0,            // integer
+    "hardware_binding_strength": 0.0  // 0.0 to 1.0
   },
   "v3_tensor": {
     "valuation": [],    // Array of historical valuations
@@ -138,6 +143,34 @@ class MemorySensor:
 ```
 
 ## Appendix D: Trust Computation Formulas
+
+### Identity Coherence Formula (C × S × Φ × R)
+
+The foundational prerequisite for trust accumulation is identity coherence:
+
+```
+Identity_Coherence = C × S × Φ × R
+```
+
+Where:
+- **C** = Pattern Coherence (0.0-1.0): Consistency of behavioral patterns across contexts
+- **S** = Self-Reference Frequency (0.0-1.0): Rate of explicit identity references in outputs
+- **Φ** = Integration Quality (0.0-1.0): How well patterns integrate into unified identity
+- **R** = Role Coherence (0.0-1.0): Consistency of role-appropriate behavior
+
+**Coherence Thresholds:**
+| Threshold | Value | Operational Impact |
+|-----------|-------|-------------------|
+| C_REACTIVE | < 0.3 | Deny privileged operations |
+| C_PROTO | ≥ 0.3 | Read-only access |
+| C_CONTEXTUAL | ≥ 0.5 | Standard operations |
+| C_STABLE | ≥ 0.7 | Full trust accumulation |
+| C_EXEMPLARY | ≥ 0.85 | Elevated privileges |
+
+**Agent Type Adjustments:**
+- Software AI requires C ≥ 0.7 for trust accumulation (higher bar due to copyability)
+- Embodied AI requires C ≥ 0.6 (hardware binding provides stability)
+- Human requires C ≥ 0.5 (body-bound identity assumed)
 
 ### Basic Trust Score
 ```
@@ -293,58 +326,69 @@ message Acknowledgment {
       │                               │
 ```
 
-## Appendix G: Implementation Checklist
+## Appendix G: Implementation Status
 
-### Phase 1: Foundation (Months 1-3)
-- [ ] LCT data structure implementation
-- [ ] Basic cryptographic functions
-- [ ] File-based storage backend
-- [ ] Simple CLI for testing
-- [ ] Basic witness-acknowledgment protocol
+> **Note**: See Part 7, Section 7.0 for detailed implementation status and P0 blockers.
 
-### Phase 2: Core Systems (Months 4-6)
-- [ ] Memory sensor interface
-- [ ] SNARC signal processing
+### Current Implementation State
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| LCT data structures | ✅ Complete | Core identity tokens working |
+| T3/V3 tensor calculations | ✅ Complete | Trust scoring operational |
+| Identity coherence scoring | ✅ Complete | D9 metrics, C × S × Φ × R validated |
+| Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
+| Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
+| Blockchain consensus | ❌ Not started | Zero consensus backend |
+| VCM recipient attestation | ❌ Not started | Vision only |
+| ATP/ADP settlement | ❌ Not started | No energy accounting |
+| **Hardware binding** | 🚨 **P0 BLOCKER** | Keys stored in filesystem |
+
+### Completed Features
+- [x] LCT data structure implementation
+- [x] Basic cryptographic functions (Ed25519)
+- [x] File-based storage backend
+- [x] T3/V3 tensor calculations
+- [x] Identity coherence scoring (C × S × Φ × R)
+- [x] Self-reference detection (D9 metric)
+- [x] Coherence threshold enforcement
+- [x] Death spiral detection and prevention
+- [x] Temporal decay (6-hour half-life)
+- [x] Soft bounds preventing lock-out
+- [x] 8 witness types (TIME, AUDIT, ORACLE, EXISTENCE, ACTION, STATE, QUALITY, AUDIT_MINIMAL)
+- [x] Nonce-based replay protection
+- [x] Witness reputation tracking
+
+### Roadmap (Pending Hardware Binding)
+- [ ] TPM 2.0 integration (hardware-sealed keys)
+- [ ] TrustZone/OP-TEE for ARM platforms
+- [ ] Hardware attestation protocols
+- [ ] PCR sealing for boot-time verification
 - [ ] Four-tier blockchain implementation
 - [ ] ATP/ADP token system
-- [ ] T3/V3 tensor calculations
-
-### Phase 3: Integration (Months 7-9)
-- [ ] SAGE prototype with HRM
-- [ ] Multi-agent communication
-- [ ] Role-based task allocation
+- [ ] VCM multi-party attestation
 - [ ] Cross-chain value transfer
-- [ ] MCP server integration
-
-### Phase 4: Production (Months 10-12)
-- [ ] Performance optimization
-- [ ] Security hardening
-- [ ] Monitoring and metrics
-- [ ] Documentation completion
-- [ ] Reference implementations
-
-### Phase 5: Ecosystem (Year 2)
-- [ ] Developer tools and SDKs
-- [ ] Governance mechanisms
-- [ ] Cross-platform bridges
-- [ ] Application marketplace
-- [ ] Community building
+- [ ] Production deployment
 
 ## Appendix H: Glossary of Acronyms
 
 | Acronym | Full Form | Description |
 |---------|-----------|-------------|
 | **LCT** | Linked Context Token | Non-transferable identity token |
-| **ATP** | Alignment Transfer Protocol | Energy/value tracking system |
-| **ADP** | Alignment Discharged Potential | Spent ATP awaiting certification |
-| **T3** | Trust Tensor (Talent, Training, Temperament) | Capability assessment metric |
-| **V3** | Value Tensor (Valuation, Veracity, Validity) | Value creation metric |
+| **ATP** | Allocation Transfer Packet | Energy/value tracking system |
+| **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
+| **T3** | Trust Tensor | Capability assessment (Talent, Training, Temperament + extended dims) |
+| **V3** | Value Tensor | Value creation (Valuation, Veracity, Validity) |
 | **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
 | **SNARC** | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |
 | **HRM** | Hierarchical Reasoning Model | Two-level reasoning architecture |
-| **SAGE** | Situation-Aware Governance Engine | Web4 reference implementation |
+| **SAGE** | Self-Aware Goal-directed Entity | AI identity research testbed |
 | **VCM** | Value Confirmation Mechanism | Multi-party value certification |
 | **MCP** | Model Context Protocol | AI model communication standard |
+| **D9** | Dimension 9 | Self-reference frequency metric |
+| **C_STABLE** | Coherence Stable Threshold | 0.7 minimum for trust accumulation |
+| **TPM** | Trusted Platform Module | Hardware security for key binding |
+| **SE** | Secure Enclave | Hardware-isolated key storage |
 
 ---
 

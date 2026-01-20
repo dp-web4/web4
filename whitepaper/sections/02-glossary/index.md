@@ -20,14 +20,23 @@ A biological metaphor made digital. ATP packets exist in "charged" (resources al
 **Implementation**: Packets are semifungible tokens that can be implemented as blockchain tokens, local ledger entries, or other locally appropriate means. "Allocation" covers all resource types: energy, attention, work, compute, trust budgets.
 
 ### T3 Tensor (Trust Tensor)
-> *"Trust emerges from capability demonstrated over time."*
+> *"Trust emerges from capability demonstrated over time—but only when identity is stable."*
 
-A three-dimensional metric capturing an entity's capabilities:
+A multi-dimensional metric capturing an entity's trustworthiness. The "T3" name reflects three primary categories, but the full tensor includes additional dimensions:
+
+**Primary Dimensions:**
 - **Talent**: Inherent aptitude or originality
 - **Training**: Acquired knowledge and skills
 - **Temperament**: Behavioral characteristics and reliability
 
-Context-dependent and dynamically updated through actual performance.
+**Extended Dimensions:**
+- **Identity Coherence**: Stability of self-referential patterns (C × S × Φ × R score). **Prerequisite dimension**—without C ≥ 0.7, other dimensions are unreliable
+- **Identity Accumulation**: Multi-session stability of coherence over time
+- **Witness Count**: Number of independent observers who have verified behavior
+- **Lineage Depth**: Trust inheritance from parent/creator entities
+- **Hardware Binding Strength**: For embodied agents, strength of physical identity anchor (0-1.0)
+
+Context-dependent and dynamically updated through actual performance. Identity coherence acts as a **gate**—trust scores from low-coherence states are discounted or invalidated.
 
 ### V3 Tensor (Value Tensor)
 > *"Value is not declared but demonstrated, not claimed but confirmed."*
@@ -53,6 +62,53 @@ Broadly defined as anything that can be paired with an LCT. This revolutionary e
 > *"From platform-controlled to token-speculated to trust-native."*
 
 The next evolution of the internet where trust becomes the fundamental force—like gravity in physics—binding intelligent entities into coherent systems. Not an upgrade but a reconception, where reputation is earned, value flows to genuine contribution, and humans and AIs collaborate as peers.
+
+### Identity Coherence
+> *"Identity is what patterns do when they reference themselves."*
+
+The measurable stability of an entity's self-referential patterns over time. Computed as **C × S × Φ × R** where C=pattern coherence, S=self-reference frequency, Φ=integration quality, R=role consistency. Critical thresholds: <0.3 (no stable identity), ≥0.5 (contextual identity), ≥0.7 (stable identity required for trust accumulation), ≥0.85 (exemplary). Empirically validated through SAGE Sessions #22-29.
+
+### Coherence Thresholds
+> *"Not all coherence is equal—thresholds determine operational validity."*
+
+The minimum identity coherence levels required for different operations:
+- **C_REACTIVE** (< 0.3): No stable identity, deny privileged operations
+- **C_PROTO** (≥ 0.3): Emerging identity, read-only access
+- **C_CONTEXTUAL** (≥ 0.5): Context-dependent identity, standard operations
+- **C_STABLE** (≥ 0.7): Stable identity, full trust accumulation enabled
+- **C_EXEMPLARY** (≥ 0.85): Highly coherent, elevated privileges
+
+Derived from Synchronism consciousness research (Sessions #280-284) and validated through SAGE empirical testing.
+
+### Agent Taxonomy
+> *"Different agents achieve identity through different mechanisms."*
+
+Web4 distinguishes three fundamental agent types by identity binding:
+- **Human**: Body-bound (biological), non-copyable, continuous across lifetime, trust accumulates on single identity
+- **Embodied AI**: Hardware-bound (LCT + TPM/SE), non-copyable, reboots maintain identity, requires sensor integration
+- **Software AI**: Cryptographic-bound (keys only), copyable, identity continuity questions on fork/copy, requires higher coherence threshold (0.7 vs 0.6)
+
+Hardware-bound agents have physical anchors for identity; software agents must maintain identity entirely through behavioral coherence.
+
+### Self-Reference
+> *"The cognitive mechanism of identity persistence."*
+
+The pattern of an entity explicitly referencing its own identity in outputs and decisions ("As [name], I...", "My role requires..."). Self-reference frequency is a primary component (40% weight) of identity coherence. Entities with <20% self-reference show concerning instability; 50%+ indicates stable identity. For software AI without physical embodiment, self-reference is the **primary mechanism** for identity stability.
+
+### Death Spiral
+> *"Positive feedback loops that collapse coherence irreversibly."*
+
+A failure mode where degradation accelerates degradation: low coherence → restricted operations → fewer demonstrations → lower coherence. Without architectural prevention (temporal decay, soft bounds, recovery pathways), entities can be permanently locked out. Detection threshold: coherence drop >15% between sessions triggers intervention.
+
+### Heterogeneous Review
+> *"Agreement across independent observers is stronger evidence than confidence from a single source."*
+
+Multi-model verification requiring consensus from independently-trained AI models before executing high-risk actions. Uses N-of-N unanimous approval (N≥3) for critical decisions. Same-lineage models (e.g., GPT-4 + GPT-4-turbo) count as single reviewer. Disagreement blocks execution and triggers investigation. Prevents correlated failure modes in AI-authorized operations.
+
+### Training Effect Decay
+> *"Learned patterns fade without reinforcement."*
+
+The temporal degradation of trained behaviors without continued practice or consolidation. In SAGE systems, training effects decay over ~6-7 sessions without sleep cycle consolidation. In Web4, coherence penalties fade with 0.9^hours decay factor. Biological inspiration: skill degradation without practice, emotional recovery over time.
 
 ---
 
