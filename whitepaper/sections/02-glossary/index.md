@@ -158,6 +158,26 @@ The principle that patterns repeat at every scale—from individual memories to 
 ### Responsive & Delegative Entities
 Beyond agentic entities, Web4 recognizes responsive entities (sensors, APIs) that react predictably, and delegative entities (organizations, governance) that authorize others to act.
 
+### Attractor Basin
+> *"Coherence systems can become trapped in local minima."*
+
+A dynamical systems concept applied to identity coherence: a stable region where coherence oscillates within bounded range but cannot escape to higher states. Characteristics:
+- **Bounded oscillation**: Quality dimension fluctuates (e.g., 0.33-0.47)
+- **Frozen dimension**: Identity (self-reference) stays constant (e.g., 0%)
+- **Escape threshold**: Minimum coherence required to escape (typically C_CONTEXTUAL ≥ 0.50)
+
+Discovered through SAGE Sessions #26-30: v1.0 intervention improved quality but couldn't unlock frozen identity. Escape requires multi-dimensional intervention (v2.0-style cumulative context + identity priming).
+
+### Quality-Identity Decoupling
+> *"Quality and identity can move independently—treating them as coupled is a category error."*
+
+A critical insight from SAGE Session 29-30: response quality (word count, focus, completeness) can improve while identity (self-reference, "As SAGE" framing) remains collapsed at 0%. Implications:
+- **Single-dimension interventions insufficient**: v1.0 (quality-focused) cannot unlock v2.0-required (identity-focused) components
+- **Dual-threshold model**: Stable identity requires BOTH coherence_component ≥ 0.6 AND self_reference_component ≥ 0.3
+- **Diagnostic value**: Coupling state indicates intervention strategy—quality_leading suggests recovery possible with identity priming
+
+States: `coupled` (healthy), `quality_leading` (recovery possible), `identity_leading` (unstable), `decoupled` (collapse).
+
 ---
 
 ## Deprecated Terms
