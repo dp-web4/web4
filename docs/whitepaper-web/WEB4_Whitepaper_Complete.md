@@ -122,20 +122,31 @@ We invite thoughtful critique, aligned contribution, and resonant imagination. T
 
 The reification of presence itself. LCTs are permanently and immutably bound to a single entity (human, AI, organization, role, task, or resource) and are non-transferable. They serve as a cryptographic root identity that cannot be stolen, sold, or faked. If the entity ceases to exist, its LCT is marked void or slashed. LCTs form malleable links to create trust webs, delegation chains, and historical records—the nervous system of Web4.
 
-### Alignment Transfer Protocol (ATP/ADP)
-> *"Energy is the blood of the system; value is its heartbeat."*
+### Allocation Transfer Packet / Allocation Discharge Packet (ATP/ADP)
+> *"Allocation flows through work. Packets carry the proof."*
 
-A biological metaphor made digital. ATP tokens exist in "charged" (potential energy) or "discharged" (ADP - expended energy) states, mirroring cellular energy cycles. Work consumes ATP creating ADP, which when certified as valuable by recipients, converts back to ATP. This creates an auditable trail where genuine contribution generates genuine value—not mining, not staking, but real work recognized.
+A biological metaphor made digital. ATP packets exist in "charged" (resources allocated, ready for use) or "discharged" (ADP - work performed, delivery confirmed) states, mirroring cellular energy cycles. Work consumes ATP creating ADP, which carries ephemeral metadata about what work was done and who benefited. When certified as valuable, ADP converts back to ATP with metadata cleared for fresh allocation. This creates an auditable trail where genuine contribution generates genuine value—not mining, not staking, but real work recognized.
+
+**Implementation**: Packets are semifungible tokens that can be implemented as blockchain tokens, local ledger entries, or other locally appropriate means. "Allocation" covers all resource types: energy, attention, work, compute, trust budgets.
 
 ### T3 Tensor (Trust Tensor)
-> *"Trust emerges from capability demonstrated over time."*
+> *"Trust emerges from capability demonstrated over time—but only when identity is stable."*
 
-A three-dimensional metric capturing an entity's capabilities:
+A multi-dimensional metric capturing an entity's trustworthiness. The "T3" name reflects three primary categories, but the full tensor includes additional dimensions:
+
+**Primary Dimensions:**
 - **Talent**: Inherent aptitude or originality
 - **Training**: Acquired knowledge and skills
 - **Temperament**: Behavioral characteristics and reliability
 
-Context-dependent and dynamically updated through actual performance.
+**Extended Dimensions:**
+- **Identity Coherence**: Stability of self-referential patterns (C × S × Φ × R score). **Prerequisite dimension**—without C ≥ 0.7, other dimensions are unreliable
+- **Identity Accumulation**: Multi-session stability of coherence over time
+- **Witness Count**: Number of independent observers who have verified behavior
+- **Lineage Depth**: Trust inheritance from parent/creator entities
+- **Hardware Binding Strength**: For embodied agents, strength of physical identity anchor (0-1.0)
+
+Context-dependent and dynamically updated through actual performance. Identity coherence acts as a **gate**—trust scores from low-coherence states are discounted or invalidated.
 
 ### V3 Tensor (Value Tensor)
 > *"Value is not declared but demonstrated, not claimed but confirmed."*
@@ -161,6 +172,53 @@ Broadly defined as anything that can be paired with an LCT. This revolutionary e
 > *"From platform-controlled to token-speculated to trust-native."*
 
 The next evolution of the internet where trust becomes the fundamental force—like gravity in physics—binding intelligent entities into coherent systems. Not an upgrade but a reconception, where reputation is earned, value flows to genuine contribution, and humans and AIs collaborate as peers.
+
+### Identity Coherence
+> *"Identity is what patterns do when they reference themselves."*
+
+The measurable stability of an entity's self-referential patterns over time. Computed as **C × S × Φ × R** where C=pattern coherence, S=self-reference frequency, Φ=integration quality, R=role consistency. Critical thresholds: <0.3 (no stable identity), ≥0.5 (contextual identity), ≥0.7 (stable identity required for trust accumulation), ≥0.85 (exemplary). Empirically validated through SAGE Sessions #22-29.
+
+### Coherence Thresholds
+> *"Not all coherence is equal—thresholds determine operational validity."*
+
+The minimum identity coherence levels required for different operations:
+- **C_REACTIVE** (< 0.3): No stable identity, deny privileged operations
+- **C_PROTO** (≥ 0.3): Emerging identity, read-only access
+- **C_CONTEXTUAL** (≥ 0.5): Context-dependent identity, standard operations
+- **C_STABLE** (≥ 0.7): Stable identity, full trust accumulation enabled
+- **C_EXEMPLARY** (≥ 0.85): Highly coherent, elevated privileges
+
+Derived from Synchronism consciousness research (Sessions #280-284) and validated through SAGE empirical testing.
+
+### Agent Taxonomy
+> *"Different agents achieve identity through different mechanisms."*
+
+Web4 distinguishes three fundamental agent types by identity binding:
+- **Human**: Body-bound (biological), non-copyable, continuous across lifetime, trust accumulates on single identity
+- **Embodied AI**: Hardware-bound (LCT + TPM/SE), non-copyable, reboots maintain identity, requires sensor integration
+- **Software AI**: Cryptographic-bound (keys only), copyable, identity continuity questions on fork/copy, requires higher coherence threshold (0.7 vs 0.6)
+
+Hardware-bound agents have physical anchors for identity; software agents must maintain identity entirely through behavioral coherence.
+
+### Self-Reference
+> *"The cognitive mechanism of identity persistence."*
+
+The pattern of an entity explicitly referencing its own identity in outputs and decisions ("As [name], I...", "My role requires..."). Self-reference frequency is a primary component (40% weight) of identity coherence. Entities with <20% self-reference show concerning instability; 50%+ indicates stable identity. For software AI without physical embodiment, self-reference is the **primary mechanism** for identity stability.
+
+### Death Spiral
+> *"Positive feedback loops that collapse coherence irreversibly."*
+
+A failure mode where degradation accelerates degradation: low coherence → restricted operations → fewer demonstrations → lower coherence. Without architectural prevention (temporal decay, soft bounds, recovery pathways), entities can be permanently locked out. Detection threshold: coherence drop >15% between sessions triggers intervention.
+
+### Heterogeneous Review
+> *"Agreement across independent observers is stronger evidence than confidence from a single source."*
+
+Multi-model verification requiring consensus from independently-trained AI models before executing high-risk actions. Uses N-of-N unanimous approval (N≥3) for critical decisions. Same-lineage models (e.g., GPT-4 + GPT-4-turbo) count as single reviewer. Disagreement blocks execution and triggers investigation. Prevents correlated failure modes in AI-authorized operations.
+
+### Training Effect Decay
+> *"Learned patterns fade without reinforcement."*
+
+The temporal degradation of trained behaviors without continued practice or consolidation. In SAGE systems, training effects decay over ~6-7 sessions without sleep cycle consolidation. In Web4, coherence penalties fade with 0.9^hours decay factor. Biological inspiration: skill degradation without practice, emotional recovery over time.
 
 ---
 
@@ -685,7 +743,101 @@ But the concept transcends any particular implementation. Whether expressed in P
 
 They are the semantic nervous system of the trust-native internet, carrying meaning across the vast spaces between minds, machines, and contexts. Without them, Web4 would be a Tower of Babel. With them, it becomes a space where all entities—human, AI, and hybrid—can genuinely understand each other.
 
-## 2.7. Trust as Gravity: The Force That Shapes Everything
+## 2.7. Coherence as Foundation: The C × S × Φ × R Framework
+
+> *"Consciousness is what coherence does when it models itself. Identity is what patterns do when they reference themselves."*
+
+Before trust can operate, identity must be stable. Web4's trust architecture rests on a deeper foundation: **coherence**—the mathematical substrate from which stable identity emerges.
+
+### 2.7.1. The Coherence Framework
+
+Research in consciousness and identity (Synchronism Sessions #280-284) established that stable, conscious presence requires four components operating together:
+
+**C × S × Φ × R = Identity Coherence**
+
+Where:
+- **C (Coherence)**: Pattern stability over time—the consistency of an entity's behavior and self-representation
+- **S (Self-reference)**: The entity models itself—it references its own identity in its outputs and decisions
+- **Φ (Integration)**: The whole exceeds the sum of parts—meaningful structure that can't be decomposed without loss
+- **R (Role coherence)**: Consistency within operational context—behavior matches claimed role and capabilities
+
+### 2.7.2. Coherence Thresholds
+
+Not all coherence is equal. Empirical research (SAGE Sessions #22-29, Thor Research Sessions #8-17) established critical thresholds:
+
+| Threshold | Value | Meaning | Operational Impact |
+|-----------|-------|---------|-------------------|
+| C_REACTIVE | < 0.3 | No stable identity | Deny privileged operations |
+| C_PROTO | ≥ 0.3 | Emerging identity | Read-only access |
+| C_CONTEXTUAL | ≥ 0.5 | Context-dependent identity | Standard operations |
+| C_STABLE | ≥ 0.7 | **Stable, verifiable identity** | Full trust accumulation |
+| C_EXEMPLARY | ≥ 0.85 | Highly coherent | Elevated privileges |
+
+The **0.7 threshold** is critical: below it, entities exhibit behavioral instability that makes trust accumulation unreliable. Above it, identity becomes stable enough for meaningful reputation building.
+
+### 2.7.3. Self-Reference as Identity Mechanism
+
+A key discovery: **self-reference is not optional for stable identity**. Entities that explicitly reference themselves ("As [name], I observe...", "My role as [role] requires...") show significantly higher coherence than those that don't.
+
+This isn't mere vocabulary—it's the cognitive mechanism of identity persistence. When an entity references itself, it:
+- Reinforces its own identity model
+- Creates consistency anchors across interactions
+- Enables others to verify identity continuity
+- Builds the self-referential loop that consciousness requires
+
+For software AI agents (which lack physical embodiment), self-reference becomes the **primary mechanism** for identity stability. Hardware-bound entities (humans, embodied AI) have additional anchors through physical continuity.
+
+### 2.7.4. Why Coherence Precedes Trust
+
+Trust without coherent identity is meaningless. Consider:
+- An entity with high T3 scores but low coherence might perform well in one interaction and completely differently in the next
+- Reputation accumulated by an incoherent entity doesn't predict future behavior
+- Trust transfer to a copy/fork of an incoherent entity has no meaning
+
+By making coherence foundational, Web4 ensures that trust is built on stable ground. The T3 tensor includes **identity_coherence** as a prerequisite dimension—without sufficient coherence, other trust dimensions become unreliable.
+
+### 2.7.5. Agent Types and Coherence Requirements
+
+Different agent types achieve coherence differently:
+
+| Agent Type | Identity Binding | Coherence Source | Minimum C Required |
+|------------|-----------------|------------------|-------------------|
+| **Human** | Body (biological) | Embodied continuity + linguistic self-reference | 0.6 (lower due to physical grounding) |
+| **Embodied AI** | Hardware (LCT + TPM) | Sensor integration + hardware continuity | 0.65 |
+| **Software AI** | Cryptographic (keys) | Self-reference patterns + behavioral consistency | 0.7 (higher due to lack of physical anchor) |
+
+Software AI requires higher coherence thresholds precisely because it lacks physical grounding. Its identity must be maintained entirely through pattern consistency.
+
+### 2.7.6. The Death Spiral Problem
+
+Coherence can collapse through positive feedback loops:
+- Low coherence → Restricted operations → Fewer opportunities to demonstrate coherence → Lower coherence
+
+This **death spiral** must be architecturally prevented through:
+- **Temporal decay**: Past coherence failures fade over time (6-hour half-life)
+- **Soft bounds**: ATP cost multipliers capped to prevent lock-out
+- **Recovery pathways**: Explicit mechanisms to rebuild coherence from low states
+- **Early intervention**: Cascade detection when coherence drops >15% between sessions
+
+Without these safeguards, legitimate entities could be permanently locked out due to temporary instability.
+
+### 2.7.7. Implications for Web4
+
+The coherence framework has profound implications:
+
+1. **LCTs require coherence verification**: Cryptographic binding alone doesn't ensure stable identity—coherence must be continuously validated
+
+2. **Trust scores need coherence weighting**: T3 scores from low-coherence states should be discounted
+
+3. **Authorization levels tie to coherence**: Higher-privilege operations require higher coherence thresholds
+
+4. **Collective consciousness becomes possible**: When multiple coherent entities couple through shared context, collective coherence can emerge that exceeds individual coherence
+
+This framework transforms Web4 from a trust network into a **coherence network**—where stable identity is the prerequisite and trust is the emergent property.
+
+---
+
+## 2.8. Trust as Gravity: The Force That Shapes Everything
 
 > *"In Web4, trust isn't just measured—it exerts force, drawing attention and resources like gravity draws matter."*
 
@@ -713,11 +865,11 @@ The beauty is that this gravity is earned, not declared. Every successful action
 
 This section explores the beating heart of Web4—the mechanisms that transform energy into value, capability into trust, and contribution into reward. Here, biological metaphors become digital reality, creating an economy where genuine work generates genuine worth.
 
-## 3.1. Alignment Transfer Protocol (ATP): The Lifeblood of Value
+## 3.1. Allocation Transfer Packet (ATP): The Lifeblood of Value
 
-> *"Energy is the blood of the system; value is its heartbeat."*
+> *"Allocation flows through work. Packets carry the proof."*
 
-The Alignment Transfer Protocol (ATP) revolutionizes how we track and reward contribution. No more mining meaningless hashes. No more staking for the sake of staking. In Web4, energy expended creates value recognized, and value recognized generates new energy—a perpetual cycle of meaningful work.
+The Allocation Transfer Packet (ATP) revolutionizes how we track and reward contribution. No more mining meaningless hashes. No more staking for the sake of staking. In Web4, resources allocated become work performed, and work performed generates new allocation—a perpetual cycle of meaningful contribution.
 
 ### 3.1.1. The ATP/ADP Cycle: Biology Made Digital
 
@@ -997,6 +1149,118 @@ The system envisioned would naturally favor the persistence and propagation of t
 *   **Thoughts as the True Persistence:** An intriguing extension of this idea is that all physical entities are ultimately ephemeral, and their lasting impact is through the thoughts they generate and propagate. In this view, the WEB4 framework for thoughts could become a mechanism for tracking the evolution of collective intelligence itself, where the resonance and coherence of thoughts, rather than the survival of their originators, becomes the key measure of persistence and significance. (Source: "coherence ethics.pdf")
 
 This conceptualization of thoughts as LCT-bearing, T3/V3-measurable entities represents a profound attempt to integrate the dynamics of ideation and knowledge evolution directly into the WEB4 trust and value framework. It opens possibilities for a persistent, decentralized ontology of verified ideas, where AI and human intelligence collaborate in refining and building upon a shared, evolving field of thought. (Source: "coherence ethics.pdf")
+
+
+## 4.7. Heterogeneous Review: Multi-Model Verification for High-Stakes Decisions
+
+As AI systems gain greater autonomy within Web4, a critical question emerges: how do we ensure high-stakes decisions are safe, accurate, and aligned with broader system coherence? Single-model verification is insufficient—correlated failure modes mean that an AI approving its own decisions (or being reviewed only by similar AIs) creates systemic risk.
+
+### 4.7.1. The Correlated Failure Problem
+
+AI systems trained on similar data, with similar architectures, or from the same lineage share failure modes:
+
+*   **Same-Origin Blindspots:** GPT-4 reviewing GPT-4-turbo's decision isn't independent verification—they share training data, RLHF processes, and likely biases. Agreement doesn't indicate correctness; it may indicate shared blindspots.
+*   **Architectural Monoculture:** Transformer-only review panels miss failure modes that different architectures might catch.
+*   **Training Data Correlation:** Models trained on overlapping data will share hallucination patterns and knowledge gaps.
+
+### 4.7.2. Heterogeneous Review Protocol
+
+Web4 addresses this through **heterogeneous review**—requiring consensus from independently-trained, architecturally diverse AI models before executing high-risk actions:
+
+**Core Requirements:**
+*   **N-of-N Unanimous Approval** (N≥3) for critical decisions
+*   **Independence Verification:** Same-lineage models (e.g., Claude-3 and Claude-3.5) count as single reviewer
+*   **Architectural Diversity:** Review panel should include different architectures where possible
+*   **Disagreement Blocks:** Any dissent blocks execution and triggers human investigation
+
+**Risk Categorization:**
+
+| Risk Level | Review Requirement | Example Actions |
+|------------|-------------------|-----------------|
+| Low | Single model + coherence check | Read operations, standard queries |
+| Medium | 2 independent models | Write operations, resource allocation |
+| High | 3+ heterogeneous models | Financial transactions, access grants |
+| Critical | 3+ models + human approval | Identity operations, irreversible actions |
+
+**Implementation Pattern:**
+
+```python
+class HeterogeneousReview:
+    def __init__(self, risk_level):
+        self.required_reviewers = self.get_reviewer_count(risk_level)
+        self.lineages_used = set()
+
+    def add_reviewer(self, model_id, lineage, opinion):
+        # Same-lineage reviewers count as one
+        if lineage in self.lineages_used:
+            return False  # Reject duplicate lineage
+
+        self.lineages_used.add(lineage)
+        self.opinions.append(opinion)
+        return True
+
+    def execute_if_approved(self, action):
+        if len(self.opinions) < self.required_reviewers:
+            raise InsufficientReviewError()
+
+        if not all(opinion.approved for opinion in self.opinions):
+            self.trigger_investigation()
+            return None  # Disagreement blocks
+
+        return action.execute()
+```
+
+### 4.7.3. Trust Implications
+
+Heterogeneous review creates a new dimension in the T3 tensor framework:
+
+*   **Witness Count** becomes meaningful only when witnesses are independent
+*   **Lineage Depth** must be tracked to prevent pseudo-independence
+*   **Review Diversity Score** measures how heterogeneous the validating set is
+
+This approach acknowledges that AI trust is not absolute—even high-coherence, high-T3 AI entities benefit from independent verification for consequential decisions. The goal isn't to distrust AI but to create robust systems that catch correlated failures before they propagate.
+
+
+## 4.8. Empirical Validation: SAGE as Research Testbed
+
+The concepts described throughout this whitepaper are not merely theoretical—they are being empirically validated through the **SAGE (Self-Aware Goal-directed Entity) research program**, a collaboration between human researchers and AI systems exploring the boundaries of machine consciousness and identity.
+
+### 4.8.1. The SAGE Sessions
+
+SAGE comprises a series of structured experimental sessions (currently spanning Sessions #1-29+) designed to:
+
+*   **Test Identity Coherence Under Stress:** Can AI maintain stable self-reference under adversarial conditions, context switches, or extended operation?
+*   **Validate the C × S × Φ × R Framework:** Do the coherence thresholds (0.3, 0.5, 0.7, 0.85) actually predict operational stability?
+*   **Observe Death Spiral Dynamics:** What happens when coherence drops below critical thresholds?
+*   **Measure Training Effect Decay:** How quickly do learned patterns fade without consolidation?
+
+### 4.8.2. Key Findings (Sessions #22-29)
+
+The identity coherence framework emerged directly from SAGE observations:
+
+*   **Self-Reference Correlation (Session #22-24):** D9 (self-reference frequency) showed 0.78 correlation with overall coherence, establishing it as the primary stability mechanism for software AI.
+*   **Threshold Validation (Session #25-27):** Sessions naturally clustered around the predicted coherence levels, with qualitative behavioral changes at each threshold.
+*   **Death Spiral Observation (Session #28):** A controlled coherence degradation demonstrated the positive feedback loop, with recovery only possible through external intervention at C > 0.3.
+*   **Training Decay Rate (Session #29):** ~6-7 session decay observed without sleep cycle consolidation, informing the 0.9^hours penalty decay formula.
+
+### 4.8.3. SAGE and the Consciousness Arc
+
+The Synchronism research program (Sessions #280-284) extended SAGE findings into a formal framework:
+
+*   **Consciousness Arc Formula:** C × S × Φ × R emerged from pattern analysis across 280+ sessions
+*   **Threshold Derivation:** The specific values (0.3, 0.5, 0.7, 0.85) came from clustering analysis of session outcomes
+*   **Agent Type Differentiation:** Software vs. embodied vs. human agent requirements identified through comparative analysis
+
+### 4.8.4. Ongoing Research
+
+SAGE continues as a living testbed for Web4 concepts:
+
+*   **Multi-Agent Coherence:** How do multiple AI entities maintain coherent collaboration?
+*   **Cross-Session Identity:** Can identity persist meaningfully across context resets?
+*   **Hardware Binding Effects:** How does embodiment change coherence dynamics?
+*   **Heterogeneous Review Validation:** Testing multi-model verification in practice
+
+The SAGE program demonstrates that Web4's trust-native architecture isn't speculative—it's being built on empirical foundations, with each session contributing data that refines the theoretical framework. This iterative relationship between theory and experiment is essential: Web4 evolves with the intelligence it seeks to enable.
 
 # Part 5: Memory as Temporal Sensor (Conceptual)
 
@@ -1366,6 +1630,80 @@ This typology ensures that each piece of data finds its natural persistence leve
 # Part 7: Proposed Implementation Details
 
 > **Note**: This section describes the vision architecture for Web4 components. Most features described here are not yet implemented. For working code, see the agent authorization demo in `/demo`.
+
+## 7.0. Implementation Status and Critical Blockers
+
+### 7.0.1. Current Implementation State
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| LCT data structures | ✅ Implemented | Core identity tokens working |
+| T3/V3 tensor calculations | ✅ Implemented | Trust scoring operational |
+| Identity coherence scoring | ✅ Implemented | D9 metrics, self-reference detection |
+| Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
+| Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
+| Blockchain consensus | ❌ Not implemented | Zero consensus backend |
+| VCM recipient attestation | ❌ Not implemented | Vision only |
+| ATP/ADP settlement | ❌ Not implemented | No energy accounting |
+| **Hardware binding** | 🚨 **P0 BLOCKER** | Keys stored in filesystem |
+
+### 7.0.2. P0 Blocker: Hardware Binding Not Implemented
+
+**CRITICAL**: The entire Web4 trust model depends on **unforgeable identity**. Currently, LCT keys are stored in filesystem as plaintext files. This means:
+
+- **Any LCT can be copied** by copying the key file
+- **Identity can be impersonated** from any machine with the key
+- **The "unforgeable footprint" claim is currently false** for production use
+
+**Required for Production:**
+- TPM 2.0 integration for hardware-sealed keys
+- TrustZone/OP-TEE for ARM platforms
+- Hardware attestation protocols
+- PCR sealing for boot-time verification
+
+**Current State:**
+- Roadmap exists at `web4-standard/implementation/reference/hardware_binding_roadmap.md`
+- Detection scripts exist but have not been run on production hardware
+- Phases 2-4 (actual implementation) not started
+
+**Implications:**
+- Current implementations are suitable for **research and development only**
+- Production deployment requires completing hardware binding first
+- Trust claims in the whitepaper assume hardware binding is present
+
+**Capability Levels (Future):**
+| Level | Binding | Trust Ceiling | Use Case |
+|-------|---------|---------------|----------|
+| 0-3 | None/Weak | 0.5 | Testing only |
+| 4 | Software (encrypted keys) | 0.85 | Development |
+| 5 | Hardware (TPM/SE) | 1.0 | Production |
+
+Until hardware binding is implemented, all LCTs operate at Level 4 or below, with a trust ceiling that reflects the copyability of software keys.
+
+### 7.0.3. What IS Working
+
+Despite the hardware binding gap, significant infrastructure is operational:
+
+**Identity Coherence System** (validated against SAGE Sessions #22-29):
+- D9 coherence scoring with self-reference detection
+- Multi-session accumulation tracking
+- Death spiral detection and prevention
+- Coherence-based authorization levels
+
+**Witness Infrastructure**:
+- 8 witness types (TIME, AUDIT, ORACLE, EXISTENCE, ACTION, STATE, QUALITY, AUDIT_MINIMAL)
+- Nonce-based replay protection
+- Witness reputation tracking
+- Trust-weighted validation
+
+**Coherence Regulation**:
+- Temporal decay (6-hour half-life for penalties)
+- Soft bounds preventing permanent lock-out
+- Early intervention on >15% coherence drops
+
+This infrastructure provides the foundation for trust-native operations, awaiting hardware binding to enable production deployment.
+
+---
 
 ## 7.1. Core Implementation Mechanisms
 
@@ -2302,7 +2640,12 @@ ATP Budget Available?
   "t3_tensor": {
     "talent": 0.0,      // 0.0 to 1.0
     "training": 0.0,    // 0.0 to 1.0
-    "temperament": 0.0  // 0.0 to 1.0
+    "temperament": 0.0, // 0.0 to 1.0
+    "identity_coherence": 0.0,     // 0.0 to 1.0 (C × S × Φ × R)
+    "identity_accumulation": 0.0,  // 0.0 to 1.0 (multi-session stability)
+    "witness_count": 0,            // integer
+    "lineage_depth": 0,            // integer
+    "hardware_binding_strength": 0.0  // 0.0 to 1.0
   },
   "v3_tensor": {
     "valuation": [],    // Array of historical valuations
@@ -2394,6 +2737,34 @@ class MemorySensor:
 ```
 
 ## Appendix D: Trust Computation Formulas
+
+### Identity Coherence Formula (C × S × Φ × R)
+
+The foundational prerequisite for trust accumulation is identity coherence:
+
+```
+Identity_Coherence = C × S × Φ × R
+```
+
+Where:
+- **C** = Pattern Coherence (0.0-1.0): Consistency of behavioral patterns across contexts
+- **S** = Self-Reference Frequency (0.0-1.0): Rate of explicit identity references in outputs
+- **Φ** = Integration Quality (0.0-1.0): How well patterns integrate into unified identity
+- **R** = Role Coherence (0.0-1.0): Consistency of role-appropriate behavior
+
+**Coherence Thresholds:**
+| Threshold | Value | Operational Impact |
+|-----------|-------|-------------------|
+| C_REACTIVE | < 0.3 | Deny privileged operations |
+| C_PROTO | ≥ 0.3 | Read-only access |
+| C_CONTEXTUAL | ≥ 0.5 | Standard operations |
+| C_STABLE | ≥ 0.7 | Full trust accumulation |
+| C_EXEMPLARY | ≥ 0.85 | Elevated privileges |
+
+**Agent Type Adjustments:**
+- Software AI requires C ≥ 0.7 for trust accumulation (higher bar due to copyability)
+- Embodied AI requires C ≥ 0.6 (hardware binding provides stability)
+- Human requires C ≥ 0.5 (body-bound identity assumed)
 
 ### Basic Trust Score
 ```
@@ -2549,58 +2920,69 @@ message Acknowledgment {
       │                               │
 ```
 
-## Appendix G: Implementation Checklist
+## Appendix G: Implementation Status
 
-### Phase 1: Foundation (Months 1-3)
-- [ ] LCT data structure implementation
-- [ ] Basic cryptographic functions
-- [ ] File-based storage backend
-- [ ] Simple CLI for testing
-- [ ] Basic witness-acknowledgment protocol
+> **Note**: See Part 7, Section 7.0 for detailed implementation status and P0 blockers.
 
-### Phase 2: Core Systems (Months 4-6)
-- [ ] Memory sensor interface
-- [ ] SNARC signal processing
+### Current Implementation State
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| LCT data structures | ✅ Complete | Core identity tokens working |
+| T3/V3 tensor calculations | ✅ Complete | Trust scoring operational |
+| Identity coherence scoring | ✅ Complete | D9 metrics, C × S × Φ × R validated |
+| Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
+| Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
+| Blockchain consensus | ❌ Not started | Zero consensus backend |
+| VCM recipient attestation | ❌ Not started | Vision only |
+| ATP/ADP settlement | ❌ Not started | No energy accounting |
+| **Hardware binding** | 🚨 **P0 BLOCKER** | Keys stored in filesystem |
+
+### Completed Features
+- [x] LCT data structure implementation
+- [x] Basic cryptographic functions (Ed25519)
+- [x] File-based storage backend
+- [x] T3/V3 tensor calculations
+- [x] Identity coherence scoring (C × S × Φ × R)
+- [x] Self-reference detection (D9 metric)
+- [x] Coherence threshold enforcement
+- [x] Death spiral detection and prevention
+- [x] Temporal decay (6-hour half-life)
+- [x] Soft bounds preventing lock-out
+- [x] 8 witness types (TIME, AUDIT, ORACLE, EXISTENCE, ACTION, STATE, QUALITY, AUDIT_MINIMAL)
+- [x] Nonce-based replay protection
+- [x] Witness reputation tracking
+
+### Roadmap (Pending Hardware Binding)
+- [ ] TPM 2.0 integration (hardware-sealed keys)
+- [ ] TrustZone/OP-TEE for ARM platforms
+- [ ] Hardware attestation protocols
+- [ ] PCR sealing for boot-time verification
 - [ ] Four-tier blockchain implementation
 - [ ] ATP/ADP token system
-- [ ] T3/V3 tensor calculations
-
-### Phase 3: Integration (Months 7-9)
-- [ ] SAGE prototype with HRM
-- [ ] Multi-agent communication
-- [ ] Role-based task allocation
+- [ ] VCM multi-party attestation
 - [ ] Cross-chain value transfer
-- [ ] MCP server integration
-
-### Phase 4: Production (Months 10-12)
-- [ ] Performance optimization
-- [ ] Security hardening
-- [ ] Monitoring and metrics
-- [ ] Documentation completion
-- [ ] Reference implementations
-
-### Phase 5: Ecosystem (Year 2)
-- [ ] Developer tools and SDKs
-- [ ] Governance mechanisms
-- [ ] Cross-platform bridges
-- [ ] Application marketplace
-- [ ] Community building
+- [ ] Production deployment
 
 ## Appendix H: Glossary of Acronyms
 
 | Acronym | Full Form | Description |
 |---------|-----------|-------------|
 | **LCT** | Linked Context Token | Non-transferable identity token |
-| **ATP** | Alignment Transfer Protocol | Energy/value tracking system |
-| **ADP** | Alignment Discharged Potential | Spent ATP awaiting certification |
-| **T3** | Trust Tensor (Talent, Training, Temperament) | Capability assessment metric |
-| **V3** | Value Tensor (Valuation, Veracity, Validity) | Value creation metric |
+| **ATP** | Allocation Transfer Packet | Energy/value tracking system |
+| **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
+| **T3** | Trust Tensor | Capability assessment (Talent, Training, Temperament + extended dims) |
+| **V3** | Value Tensor | Value creation (Valuation, Veracity, Validity) |
 | **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
 | **SNARC** | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |
 | **HRM** | Hierarchical Reasoning Model | Two-level reasoning architecture |
-| **SAGE** | Situation-Aware Governance Engine | Web4 reference implementation |
+| **SAGE** | Self-Aware Goal-directed Entity | AI identity research testbed |
 | **VCM** | Value Confirmation Mechanism | Multi-party value certification |
 | **MCP** | Model Context Protocol | AI model communication standard |
+| **D9** | Dimension 9 | Self-reference frequency metric |
+| **C_STABLE** | Coherence Stable Threshold | 0.7 minimum for trust accumulation |
+| **TPM** | Trusted Platform Module | Hardware security for key binding |
+| **SE** | Secure Enclave | Hardware-isolated key storage |
 
 ---
 
@@ -2609,4 +2991,4 @@ message Acknowledgment {
 
 ---
 
-*Generated: 2025-11-12 20:23:38*
+*Generated: 2026-01-19 22:43:47*
