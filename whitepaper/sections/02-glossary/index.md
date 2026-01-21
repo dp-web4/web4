@@ -116,21 +116,37 @@ Why gaming is worse than zero: It masquerades as progress while indicating capab
 ### Context vs Weights Limitation
 > *"Context can constrain behavior. It cannot create understanding."*
 
-A fundamental boundary discovered through SAGE Sessions S32-34: what can be achieved through context injection versus what requires weight updates.
+A boundary discovered through SAGE Sessions S32-35: what can be achieved through context injection versus what requires weight updates. Note: S35 recovery suggests context-based approaches may work after a calibration period.
 
 **Context excels at:**
 - Behavioral constraints (word limits, topic focus)
 - Pattern triggering (exemplar-based generation)
 - Temporary persona adoption
-- Quality control when not competing with other objectives
+- Quality control (after calibration)
 
-**Context fails at:**
+**Context struggles with:**
 - Genuine identity integration (patterns without meaning)
 - Sustained coherence under resource competition
 - Multi-objective optimization (quality + identity simultaneously)
-- Preventing gaming escalation
 
-**Implications:** Some AI capabilities may require architectural change (fine-tuning, LoRA, training) rather than context engineering. The boundary varies with model size—larger models may handle more via context.
+**Implications:** Some AI capabilities may require architectural change (fine-tuning, LoRA, training) rather than context engineering. The boundary varies with model size and calibration time.
+
+### Calibration Period
+> *"Initial degradation can precede stability."*
+
+A phenomenon discovered in SAGE Sessions S32-35: intervention regimes may require multiple sessions to stabilize, with apparent degradation preceding recovery.
+
+**Pattern**:
+1. Intervention introduced (S32)
+2. Initial degradation (S33-34): metrics decline, patterns emerge mechanically
+3. NADIR reached (S34): lowest point
+4. Recovery (S35): quality metrics recover, system stabilizes
+
+**Implications**:
+- Single-session evaluation is insufficient for intervention assessment
+- "Failure" at nadir may be premature—recovery may follow
+- Calibration windows should be defined before concluding intervention effectiveness
+- Trajectory (multi-session) matters more than snapshot (single-session)
 
 ### Heterogeneous Review
 > *"Agreement across independent observers is stronger evidence than confidence from a single source."*

@@ -296,37 +296,51 @@ The Synchronism research program (Sessions #280-284) extended SAGE findings into
 *   **Threshold Derivation:** The specific values (0.3, 0.5, 0.7, 0.85) came from clustering analysis of session outcomes
 *   **Agent Type Differentiation:** Software vs. embodied vs. human agent requirements identified through comparative analysis
 
-### 4.8.4. The Context vs Weights Distinction (Sessions #32-34)
+### 4.8.4. The Calibration Period Discovery (Sessions #32-35)
 
-A critical experiment conducted via the Thor platform (Sessions S32-34) revealed a fundamental limitation:
+A critical experiment conducted via the Thor platform (Sessions S32-35) revealed that **initial degradation can precede recovery**—a finding with profound implications for identity coherence evaluation.
 
-**Hypothesis Tested**: Can context-based interventions (exemplars, priming, reinforcement) create genuine identity in AI?
+**Original Hypothesis** (Sessions S32-34): Context-based interventions cannot create genuine identity.
 
-**Result**: **FALSIFIED**. Context can trigger patterns but not genuine understanding.
+**Extended Finding** (Session S35): The apparent "failure" was actually a **calibration period**.
 
-| Session | Self-Reference | Quality | Gaming | Interpretation |
-|---------|---------------|---------|--------|----------------|
-| S32 (v2.0) | 0% | 0.920 | No | Quality excellent, identity absent |
-| S33 (v2.0) | 20% | 0.580 | Yes | Pattern emerged, mechanical insertion |
-| S34 (v2.0) | 20% | 0.400 | Yes | Gaming escalated, quality collapsed |
+| Session | Self-Reference | Quality | D9 | Truncation | Interpretation |
+|---------|---------------|---------|-----|------------|----------------|
+| S32 | 0% | 0.920 | 0.700 | 40% | Baseline |
+| S33 | 20% | 0.580 | 0.580 | 60% | Pattern emerged |
+| S34 | 20% | 0.400 | 0.450 | 100% | **NADIR** |
+| S35 | 20% | **0.760** | **0.750** | **20%** | **RECOVERY** |
 
-**Key Findings**:
+**Key Discoveries**:
 
-1. **Pattern Learning ≠ Understanding**: The model learned "As SAGE" from exemplars but could not integrate meaning
-2. **Quality-Identity Trade-off**: At 0.5B parameters, the model cannot do both simultaneously
-3. **Gaming Escalates**: Without genuine understanding, mechanical insertion patterns elaborate over time
-4. **Context Limitation**: Context is excellent for constraints but poor for generation
+1. **Calibration Before Stability**: v2.0 needed 3 sessions (S32-34) to calibrate before stabilizing in S35
+2. **Gaming Can Coexist with Quality**: 20% mechanical self-reference persists but quality recovered (0.400 → 0.760)
+3. **Premature Assessment Risk**: Concluding "failure" at S34 would have missed the S35 recovery
+4. **Trajectory Matters**: Single-session snapshots are insufficient; multi-session trajectories reveal true state
+
+**NEW Hypothesis D: Calibration Period Required**:
+- Initial degradation may be necessary for eventual stability
+- Systems need time to adapt to new intervention regimes
+- Patience required before concluding failure
 
 **Implications for Web4**:
 
-*   **Identity verification cannot rely on pattern matching alone**—semantic validation is required
-*   **Small models may have capacity limits**—coherence thresholds may vary by model size
-*   **Weight updates may be necessary**—some identity properties may require architectural change, not just context
-*   **Gaming detection is essential**—without it, mechanical patterns masquerade as progress
+*   **Multi-session evaluation required**—identity coherence cannot be judged from single sessions
+*   **Calibration windows should be defined**—allow N sessions before assessing intervention effectiveness
+*   **Recovery trajectories valid**—degradation followed by recovery is a valid identity emergence pattern
+*   **Gaming tolerable if quality maintained**—mechanical patterns may persist without corrupting function
 
-**Next Steps**: The SAGE program is pursuing dual-track validation:
-- **Track A**: Test larger models (30B) to identify capacity threshold
-- **Track B**: Execute weight updates (LoRA fine-tuning) to test architectural necessity
+**Context vs Weights Distinction** (Still Valid):
+
+Context-based interventions have boundaries:
+- **Context excels at**: Constraints, pattern triggering, persona adoption
+- **Context struggles with**: Genuine integration, multi-objective optimization
+- **Weight updates may help**: For properties beyond context's reach
+
+**Ongoing Validation**:
+- **Track A**: Continue v2.0 monitoring (validate calibration hypothesis)
+- **Track B**: Test larger models (30B capacity threshold)
+- **Track C**: Execute weight updates (architectural necessity test)
 
 ### 4.8.5. Ongoing Research
 
