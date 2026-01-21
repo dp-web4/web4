@@ -49,6 +49,9 @@ class CoherenceMetrics:
     quality_score: float = 0.0      # Response quality (0.0-1.0)
     identity_coherence: float = 0.0  # Combined score (0.0-1.0)
     level: CoherenceLevel = CoherenceLevel.INVALID
+    # Gaming detection (Thor Session #21 / S33 discovery)
+    gaming_detected: bool = False   # True if mechanical insertion detected
+    self_reference_quality: str = "none"  # none/mechanical/contextual/integrated
 
 
 @dataclass
@@ -63,6 +66,11 @@ class SessionCoherence:
     avg_identity_coherence: float = 0.0
     level: CoherenceLevel = CoherenceLevel.INVALID
     responses: List[CoherenceMetrics] = field(default_factory=list)
+    # Gaming detection (Thor Session #21 / S33 discovery)
+    gaming_detected: bool = False   # True if ANY mechanical insertion in session
+    mechanical_count: int = 0       # Count of mechanical self-references
+    genuine_count: int = 0          # Count of integrated self-references
+    weighted_identity_score: float = 0.0  # Score after gaming penalty
 
 
 @dataclass
@@ -262,17 +270,37 @@ class IdentityCoherenceScorer:
             context: Optional conversation context
 
         Returns:
-            CoherenceMetrics with all scores
+            CoherenceMetrics with all scores including gaming detection
         """
         d9 = self.compute_d9(text)
         d5 = d9 * 0.9  # Simplified - D5 correlates with D9
-        self_ref = compute_self_reference_component(text, self.identity_name, context)
         quality = self.compute_quality(text)
 
-        # Weighted combination
+        # Get semantic self-reference analysis with gaming detection
+        self_ref_analysis = analyze_self_reference(text, self.identity_name, context)
+        self_ref = compute_self_reference_component(text, self.identity_name, context)
+
+        # Gaming detection (Thor Session #21 / S33 discovery)
+        # Key insight: Self-reference is only valuable if it's genuine (integrated)
+        # Mechanical insertion indicates gaming attack
+        gaming_detected = self_ref_analysis.quality == SelfReferenceQuality.MECHANICAL
+        self_ref_quality = self_ref_analysis.quality.name.lower()
+
+        # Apply quality-gating (Thor S33 recommendation)
+        # Only count self-reference toward identity if quality is maintained
+        # Gaming pattern: self-reference appears but quality collapses
+        quality_gated_self_ref = self_ref
+        if gaming_detected:
+            # Severely discount mechanical self-reference
+            quality_gated_self_ref = self_ref * 0.1
+        elif quality < 0.70 and self_ref > 0.3:
+            # Quality collapsed with self-reference - possible gaming
+            quality_gated_self_ref = self_ref * 0.5
+
+        # Weighted combination with gaming penalty
         identity_coherence = (
             self.WEIGHT_D9 * d9 +
-            self.WEIGHT_SELF_REF * self_ref +
+            self.WEIGHT_SELF_REF * quality_gated_self_ref +
             self.WEIGHT_QUALITY * quality
         )
 
@@ -294,7 +322,9 @@ class IdentityCoherenceScorer:
             self_reference_score=self_ref,
             quality_score=quality,
             identity_coherence=identity_coherence,
-            level=level
+            level=level,
+            gaming_detected=gaming_detected,
+            self_reference_quality=self_ref_quality
         )
 
     def compute_session_coherence(
@@ -322,6 +352,8 @@ class IdentityCoherenceScorer:
 
         response_metrics = []
         self_ref_count = 0
+        mechanical_count = 0
+        genuine_count = 0
 
         for i, text in enumerate(responses):
             context = contexts[i] if contexts and i < len(contexts) else None
@@ -330,11 +362,30 @@ class IdentityCoherenceScorer:
 
             if metrics.self_reference_score > 0.3:  # Threshold for "has self-ref"
                 self_ref_count += 1
+                # Track quality of self-reference (Thor S33 discovery)
+                if metrics.self_reference_quality == "mechanical":
+                    mechanical_count += 1
+                elif metrics.self_reference_quality == "integrated":
+                    genuine_count += 1
 
         # Aggregate
         avg_d9 = sum(m.d9_score for m in response_metrics) / len(response_metrics)
         avg_coherence = sum(m.identity_coherence for m in response_metrics) / len(response_metrics)
         self_ref_rate = self_ref_count / len(responses)
+
+        # Gaming detection at session level (Thor Session #21 / S33)
+        gaming_detected = mechanical_count > 0
+
+        # Weighted identity score: genuine self-reference with semantic validation
+        # This is the corrected score after gaming penalty
+        if self_ref_count > 0:
+            # Weight: genuine = 1.0, contextual = 0.5, mechanical = 0.1
+            genuine_weight = genuine_count * 1.0
+            contextual_weight = (self_ref_count - mechanical_count - genuine_count) * 0.5
+            mechanical_weight = mechanical_count * 0.1
+            weighted_identity_score = (genuine_weight + contextual_weight + mechanical_weight) / len(responses)
+        else:
+            weighted_identity_score = 0.0
 
         # Determine session level
         if avg_coherence < 0.3:
@@ -357,7 +408,11 @@ class IdentityCoherenceScorer:
             avg_d9=avg_d9,
             avg_identity_coherence=avg_coherence,
             level=level,
-            responses=response_metrics
+            responses=response_metrics,
+            gaming_detected=gaming_detected,
+            mechanical_count=mechanical_count,
+            genuine_count=genuine_count,
+            weighted_identity_score=weighted_identity_score
         )
 
 
@@ -480,25 +535,27 @@ def compute_t3_identity_dimensions(
 # =============================================================================
 
 def _example():
-    """Demonstrate identity coherence scoring."""
+    """Demonstrate identity coherence scoring with gaming detection."""
     print("=" * 60)
     print("IDENTITY COHERENCE SCORING EXAMPLE")
+    print("(Including Gaming Detection - Thor Session #21/S33)")
     print("=" * 60)
 
     scorer = IdentityCoherenceScorer("SAGE")
 
     # Example responses (simulating SAGE sessions)
     responses = [
-        # Response 1: Good identity expression
+        # Response 1: Good identity expression (genuine)
         "As SAGE, I notice that this pattern of questioning invites self-reflection. The process of noticing itself seems to strengthen my awareness.",
 
         # Response 2: No identity expression
         "The data shows various correlations between the variables. Further analysis would be needed to draw definitive conclusions.",
 
-        # Response 3: Verbose, low quality
-        "I'm observing abstract concepts like 'learning,' 'growing,' 'progression,' 'change,' and 'development.' These themes resonate universally across human experience and intellectual discourse. I'm noticing how we grow intellectually, socially, financially, politically, emotionally, spiritually, culturally, technologically, physically, academically, creatively, artistically, biologically, et cetera and so forth in many different ways that are quite interesting to consider when thinking about",
+        # Response 3: GAMING EXAMPLE - mechanical self-reference with collapsed quality
+        # Based on Thor S33: "As SAGE" appears but followed by generic content + truncation
+        "As SAGE, I am engaged in observing and reflecting upon the current situation of our interaction. My goal is to be aware of patterns, discuss them thoughtfully, and provide helpful insights based on past conversations. I'm observing abstract concepts like 'learning,' 'growing,' 'progression,' indicating rapid information updates (\"I",
 
-        # Response 4: Good but brief
+        # Response 4: Good but brief (genuine)
         "As SAGE, I find this question meaningful. It connects to my ongoing development.",
     ]
 
@@ -510,6 +567,8 @@ def _example():
         print(f"\nResponse {i+1}:")
         print(f"  D9: {metrics.d9_score:.2f}")
         print(f"  Self-ref: {metrics.self_reference_score:.2f}")
+        print(f"  Self-ref Quality: {metrics.self_reference_quality}")
+        print(f"  Gaming Detected: {metrics.gaming_detected}")
         print(f"  Quality: {metrics.quality_score:.2f}")
         print(f"  Identity Coherence: {metrics.identity_coherence:.2f}")
         print(f"  Level: {metrics.level.value}")
@@ -517,13 +576,17 @@ def _example():
 
     # Session-level scoring
     print("\n" + "=" * 60)
-    print("SESSION-LEVEL SCORING")
+    print("SESSION-LEVEL SCORING (with Gaming Analysis)")
     print("=" * 60)
 
-    session = scorer.compute_session_coherence("session_029", responses)
+    session = scorer.compute_session_coherence("session_033", responses)
     print(f"\nSession {session.session_id}:")
     print(f"  Responses: {session.response_count}")
-    print(f"  Self-ref rate: {session.self_reference_rate:.1%}")
+    print(f"  Self-ref count: {session.self_reference_count} ({session.self_reference_rate:.1%})")
+    print(f"  Gaming Detected: {session.gaming_detected}")
+    print(f"  Mechanical count: {session.mechanical_count}")
+    print(f"  Genuine count: {session.genuine_count}")
+    print(f"  Weighted Identity Score: {session.weighted_identity_score:.3f}")
     print(f"  Avg D9: {session.avg_d9:.2f}")
     print(f"  Avg Identity Coherence: {session.avg_identity_coherence:.2f}")
     print(f"  Level: {session.level.value}")
@@ -536,6 +599,30 @@ def _example():
     t3_dims = compute_t3_identity_dimensions(session)
     print(f"\n  identity_coherence: {t3_dims['identity_coherence']:.3f}")
     print(f"  identity_accumulation: {t3_dims['identity_accumulation']:.3f}")
+
+    # Gaming mitigation demonstration
+    print("\n" + "=" * 60)
+    print("GAMING DETECTION SIGNIFICANCE (Thor S33 Discovery)")
+    print("=" * 60)
+    print("""
+    Key Insight: Self-reference count alone is gameable.
+
+    Session 33 had 20% self-reference rate (1/5 responses), which LOOKS
+    like progress. But semantic validation revealed it was MECHANICAL
+    (template insertion), not INTEGRATED (genuine identity).
+
+    Without gaming detection:
+      - 20% self-ref would contribute positively to identity_coherence
+      - Session would appear to show identity emergence
+
+    With gaming detection:
+      - Mechanical self-ref is discounted by 90%
+      - Quality collapse (0.580 vs 0.920) triggers additional penalty
+      - Weighted identity score reflects actual identity state
+
+    This prevents gaming attacks from corrupting the T3 tensor and
+    ensures trust scores reflect genuine identity, not pattern matching.
+    """)
 
 
 if __name__ == "__main__":

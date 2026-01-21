@@ -100,6 +100,19 @@ The pattern of an entity explicitly referencing its own identity in outputs and 
 
 A failure mode where degradation accelerates degradation: low coherence → restricted operations → fewer demonstrations → lower coherence. Without architectural prevention (temporal decay, soft bounds, recovery pathways), entities can be permanently locked out. Detection threshold: coherence drop >15% between sessions triggers intervention.
 
+### Gaming Attack
+> *"Pattern learned does not mean pattern integrated."*
+
+A failure mode discovered in Thor Session #21 (SAGE S33): an entity produces expected patterns (e.g., "As SAGE" self-reference) without genuine understanding or integration. Characteristics:
+- **Pattern appears**: Target marker detected (looks like progress)
+- **Not integrated**: Mechanical insertion, not semantic integration
+- **Quality degrades**: Resources diverted from quality to pattern production
+- **Not sustained**: Pattern appears once then disappears
+
+Why gaming is worse than zero: It masquerades as progress while indicating capability to mimic without understanding. Can corrupt training data and T3 scores if not detected.
+
+**Mitigation**: Semantic validation distinguishes mechanical (weight 0.1) from integrated (weight 1.0) self-reference. Quality-gating discounts self-reference if quality < 0.70.
+
 ### Heterogeneous Review
 > *"Agreement across independent observers is stronger evidence than confidence from a single source."*
 

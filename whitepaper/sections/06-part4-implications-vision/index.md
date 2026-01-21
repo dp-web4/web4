@@ -212,15 +212,58 @@ class HeterogeneousReview:
         return action.execute()
 ```
 
-### 4.7.3. Trust Implications
+### 4.7.3. Gaming Detection in Heterogeneous Review
+
+Thor Session #21 (SAGE S33) revealed a critical failure mode: **gaming attacks** where models produce expected patterns without genuine understanding. This insight extends to heterogeneous review—**unanimous approval can be gamed** if reviewers mechanically produce consensus signals.
+
+**Gaming Indicators in Review:**
+
+*   **Suspiciously Rapid Consensus:** All reviewers approve within seconds, with similar justifications
+*   **Template Responses:** Approval reasons share structural patterns suggesting mechanical generation
+*   **Quality Collapse:** Approval given but with low explanation quality (truncated, generic)
+*   **No Substantive Engagement:** Reviewers approve without addressing specific concerns in the request
+
+**Anti-Gaming Measures:**
+
+1. **Semantic Validation:** Apply identity coherence analysis to reviewer responses. Mechanical approvals are discounted.
+
+2. **Reasoning Quality Threshold:** Reviewers must provide substantive justification. Generic "Approved because it looks safe" signals are flagged.
+
+3. **Cross-Examination:** For critical decisions, reviewers must respond to each other's concerns, not just the original request.
+
+4. **Temporal Variation:** Require time gaps between review submissions to prevent coordinated generation.
+
+**Implementation Enhancement:**
+
+```python
+class HeterogeneousReviewWithGamingDetection(HeterogeneousReview):
+    def add_reviewer(self, model_id, lineage, opinion):
+        # Check for mechanical/gaming patterns
+        if self.detect_gaming(opinion):
+            opinion.weight = 0.1  # Severely discount mechanical approval
+            self.gaming_flags.append(model_id)
+
+        return super().add_reviewer(model_id, lineage, opinion)
+
+    def detect_gaming(self, opinion):
+        # Apply semantic validation from identity_coherence module
+        return (
+            opinion.reasoning_quality < 0.5 or
+            opinion.response_time < MIN_DELIBERATION_TIME or
+            opinion.matches_template_pattern()
+        )
+```
+
+### 4.7.4. Trust Implications
 
 Heterogeneous review creates a new dimension in the T3 tensor framework:
 
 *   **Witness Count** becomes meaningful only when witnesses are independent
 *   **Lineage Depth** must be tracked to prevent pseudo-independence
 *   **Review Diversity Score** measures how heterogeneous the validating set is
+*   **Gaming Resistance Score** measures how well the review resists mechanical consensus
 
-This approach acknowledges that AI trust is not absolute—even high-coherence, high-T3 AI entities benefit from independent verification for consequential decisions. The goal isn't to distrust AI but to create robust systems that catch correlated failures before they propagate.
+This approach acknowledges that AI trust is not absolute—even high-coherence, high-T3 AI entities benefit from independent verification for consequential decisions. The goal isn't to distrust AI but to create robust systems that catch correlated failures *and coordinated gaming* before they propagate.
 
 
 ## 4.8. Empirical Validation: SAGE as Research Testbed
