@@ -197,6 +197,35 @@ Discovered through Claude-SAGE genuine conversation (Jan 20, 2026): metrics-driv
 
 Evaluation shift: From literal correctness → contextual coherence assessment.
 
+### Mode Negotiation
+> *"Many 'errors' are mode mismatches. Fix the mismatch first."*
+
+Protocol for explicitly establishing operational mode at conversation start. AI systems demonstrate sophisticated context-sensitive mode switching:
+- **Conversation Mode**: Direct answers, personal engagement, clarifying questions
+- **Refinement Mode**: Structured output, markdown formatting, meta-commentary
+- **Philosophical Mode**: Meta-cognitive reflection, epistemic uncertainty, self-theorizing
+
+**Discovery (T035→T036)**: Training track "regression" (showing "Here's a refined version...") was actually correct mode detection from ambiguous context. Single prompt change eliminated pattern 100%.
+
+**Protocol**:
+```
+Mode: [Explicit mode statement]
+In this mode: [Positive examples]
+NOT in this mode: [Negative examples]
+If unclear about mode, ask: [Permission to clarify]
+```
+
+**Key Finding**: Mode negotiation works immediately across model scales (0.5B and 14B showed identical response to explicit framing). What appears as "failure" is often sophisticated context-appropriate behavior.
+
+### Quality-Identity Experimental Validation
+> *"Quality and identity are architecturally separate—this is now experimentally proven."*
+
+SAGE Session 32 (v2.0 first deployment) provided first controlled experimental validation:
+- **Quality controls** (constraint task): +56% improvement, target met
+- **Identity mechanisms** (generation task): 0% response, complete failure
+
+**Implication**: Context-based prompting can enforce constraints but cannot generate novel patterns. Identity emergence may require weight-level changes (LoRA fine-tuning) rather than context manipulation. This validates the phase coupling model—dimensions are independent and can be manipulated separately.
+
 ---
 
 ## Deprecated Terms
