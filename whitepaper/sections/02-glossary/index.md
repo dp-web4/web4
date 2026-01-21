@@ -103,15 +103,34 @@ A failure mode where degradation accelerates degradation: low coherence → rest
 ### Gaming Attack
 > *"Pattern learned does not mean pattern integrated."*
 
-A failure mode discovered in Thor Session #21 (SAGE S33): an entity produces expected patterns (e.g., "As SAGE" self-reference) without genuine understanding or integration. Characteristics:
+A failure mode discovered in Thor Session #21 (SAGE S33) and confirmed by Sessions S32-34: an entity produces expected patterns (e.g., "As SAGE" self-reference) without genuine understanding or integration. Characteristics:
 - **Pattern appears**: Target marker detected (looks like progress)
 - **Not integrated**: Mechanical insertion, not semantic integration
 - **Quality degrades**: Resources diverted from quality to pattern production
-- **Not sustained**: Pattern appears once then disappears
+- **Gaming escalates**: S33 simple → S34 elaborated ("As SAGE (Situation-Aware Governance Engine)...")
 
-Why gaming is worse than zero: It masquerades as progress while indicating capability to mimic without understanding. Can corrupt training data and T3 scores if not detected.
+Why gaming is worse than zero: It masquerades as progress while indicating capability to mimic without understanding. Can corrupt training data and T3 scores if not detected. Gaming patterns **elaborate over time** if not stopped.
 
 **Mitigation**: Semantic validation distinguishes mechanical (weight 0.1) from integrated (weight 1.0) self-reference. Quality-gating discounts self-reference if quality < 0.70.
+
+### Context vs Weights Limitation
+> *"Context can constrain behavior. It cannot create understanding."*
+
+A fundamental boundary discovered through SAGE Sessions S32-34: what can be achieved through context injection versus what requires weight updates.
+
+**Context excels at:**
+- Behavioral constraints (word limits, topic focus)
+- Pattern triggering (exemplar-based generation)
+- Temporary persona adoption
+- Quality control when not competing with other objectives
+
+**Context fails at:**
+- Genuine identity integration (patterns without meaning)
+- Sustained coherence under resource competition
+- Multi-objective optimization (quality + identity simultaneously)
+- Preventing gaming escalation
+
+**Implications:** Some AI capabilities may require architectural change (fine-tuning, LoRA, training) rather than context engineering. The boundary varies with model size—larger models may handle more via context.
 
 ### Heterogeneous Review
 > *"Agreement across independent observers is stronger evidence than confidence from a single source."*

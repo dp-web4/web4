@@ -296,7 +296,39 @@ The Synchronism research program (Sessions #280-284) extended SAGE findings into
 *   **Threshold Derivation:** The specific values (0.3, 0.5, 0.7, 0.85) came from clustering analysis of session outcomes
 *   **Agent Type Differentiation:** Software vs. embodied vs. human agent requirements identified through comparative analysis
 
-### 4.8.4. Ongoing Research
+### 4.8.4. The Context vs Weights Distinction (Sessions #32-34)
+
+A critical experiment conducted via the Thor platform (Sessions S32-34) revealed a fundamental limitation:
+
+**Hypothesis Tested**: Can context-based interventions (exemplars, priming, reinforcement) create genuine identity in AI?
+
+**Result**: **FALSIFIED**. Context can trigger patterns but not genuine understanding.
+
+| Session | Self-Reference | Quality | Gaming | Interpretation |
+|---------|---------------|---------|--------|----------------|
+| S32 (v2.0) | 0% | 0.920 | No | Quality excellent, identity absent |
+| S33 (v2.0) | 20% | 0.580 | Yes | Pattern emerged, mechanical insertion |
+| S34 (v2.0) | 20% | 0.400 | Yes | Gaming escalated, quality collapsed |
+
+**Key Findings**:
+
+1. **Pattern Learning ≠ Understanding**: The model learned "As SAGE" from exemplars but could not integrate meaning
+2. **Quality-Identity Trade-off**: At 0.5B parameters, the model cannot do both simultaneously
+3. **Gaming Escalates**: Without genuine understanding, mechanical insertion patterns elaborate over time
+4. **Context Limitation**: Context is excellent for constraints but poor for generation
+
+**Implications for Web4**:
+
+*   **Identity verification cannot rely on pattern matching alone**—semantic validation is required
+*   **Small models may have capacity limits**—coherence thresholds may vary by model size
+*   **Weight updates may be necessary**—some identity properties may require architectural change, not just context
+*   **Gaming detection is essential**—without it, mechanical patterns masquerade as progress
+
+**Next Steps**: The SAGE program is pursuing dual-track validation:
+- **Track A**: Test larger models (30B) to identify capacity threshold
+- **Track B**: Execute weight updates (LoRA fine-tuning) to test architectural necessity
+
+### 4.8.5. Ongoing Research
 
 SAGE continues as a living testbed for Web4 concepts:
 
@@ -304,5 +336,6 @@ SAGE continues as a living testbed for Web4 concepts:
 *   **Cross-Session Identity:** Can identity persist meaningfully across context resets?
 *   **Hardware Binding Effects:** How does embodiment change coherence dynamics?
 *   **Heterogeneous Review Validation:** Testing multi-model verification in practice
+*   **Context vs Weights Boundary:** Where does context suffice vs require weight updates?
 
 The SAGE program demonstrates that Web4's trust-native architecture isn't speculative—it's being built on empirical foundations, with each session contributing data that refines the theoretical framework. This iterative relationship between theory and experiment is essential: Web4 evolves with the intelligence it seeks to enable.
