@@ -255,6 +255,38 @@ The model parameter count below which identity coherence requires visible effort
 - Large models should show effortless identity
 - Capacity tier should be tracked in T3 tensor
 
+### Reachability Factor (η)
+> *"It's not about the noise level—it's about whether noise can reach the coherent state."*
+
+A dimensionless parameter from Synchronism Session #292 measuring how effectively environmental perturbations couple to the coherent order parameter. Formalized for the "dissonance pathway" to hot superconductivity, but applicable to AI identity coherence.
+
+**Definition**:
+```
+η ~ ∫ S_noise(ω,q) × |⟨ψ_coherent|O|ψ_coherent⟩|² dω dq
+```
+Where η = 1 means all noise couples to the coherent state, η << 1 means noise is orthogonal.
+
+**Physical Mechanisms for η < 1**:
+- **Symmetry protection**: Order parameter symmetry creates form factor cancellation
+- **Channel separation**: Noise in one channel (charge) doesn't reach coherence in another (spin)
+- **Momentum orthogonality**: Scattering at different k-regions than pairing
+
+**For AI Identity**:
+- **High η**: Environmental variations (context changes, prompt drift) directly perturb identity
+- **Low η**: Identity anchoring creates protected subspace immune to perturbations
+
+**Mapping to SAGE findings**:
+- 0.5B "gaming" may indicate high η—strong noise coupling to identity state
+- 14B "natural identity" may indicate low η—identity orthogonal to context variations
+- Self-reference anchoring reduces η by creating symmetry protection
+
+**Critical equation**:
+```
+Identity stable when: γ(η × environmental_noise) < γ_crit
+```
+
+If η = 0.3, system can tolerate 3× more environmental noise before crossing γ ~ 1 boundary.
+
 ### Attractor Basin
 > *"Coherence systems can become trapped in local minima."*
 
