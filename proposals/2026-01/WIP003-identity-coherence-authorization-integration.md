@@ -1,10 +1,11 @@
 # WIP003: Identity Coherence Authorization Integration
 
 **Status**: Draft
-**Date**: 2026-01-19
+**Date**: 2026-01-19 (Updated 2026-01-22)
 **Author**: Legion Autonomous Session
 **Category**: Authorization & Trust
 **Depends On**: WIP001 (Coherence Thresholds), WIP002 (Multi-Session Accumulation), WEB4-AUTH-001
+**Updated With**: Thor #25 (14B Capacity Breakthrough), Thor #26 (Hardware Confound)
 
 ---
 
@@ -364,6 +365,218 @@ class CoherenceBasedPermissionManager:
         )
 ```
 
+### 7. Capacity-Aware Authorization (Thor #25 Update)
+
+The 14B capacity breakthrough revealed that gaming is capacity signal, not failure. Authorization must account for capacity tier:
+
+```python
+from identity_coherence import CapacityProfile, CapacityTier
+
+class CapacityAwareAuthorizationEngine:
+    """
+    Authorization engine that adjusts gaming tolerance by capacity tier.
+
+    Thor #25 Discovery:
+    - 0.5B: 20% gaming is normal, not failure
+    - 14B: 0% gaming expected
+    - Same architecture, different capacity = different expectations
+    """
+
+    # Gaming tolerance by capacity tier
+    GAMING_TOLERANCE = {
+        CapacityTier.EDGE: 0.25,      # 25% gaming acceptable
+        CapacityTier.SMALL: 0.15,      # 15% gaming acceptable
+        CapacityTier.STANDARD: 0.05,   # 5% gaming max
+        CapacityTier.LARGE: 0.00,      # No gaming expected
+    }
+
+    def __init__(self, capacity_profile: CapacityProfile):
+        self.capacity = capacity_profile
+        self.gaming_tolerance = self.GAMING_TOLERANCE[capacity_profile.tier]
+
+    async def is_authorized_with_capacity_context(
+        self,
+        lct_id: str,
+        action: str,
+        resource: str,
+        organization: str
+    ) -> tuple[bool, str, dict]:
+        """
+        Authorization with capacity context.
+
+        Returns:
+            (authorized, reason, context_dict)
+        """
+        # Get coherence data
+        t3 = trust_service.get_t3_tensor(lct_id, organization)
+        session_data = get_latest_session(lct_id)
+
+        # Check gaming within tolerance
+        gaming_rate = session_data.get('gaming_rate', 0.0)
+        gaming_within_tolerance = gaming_rate <= self.gaming_tolerance
+
+        # Capacity-adjusted coherence evaluation
+        if gaming_within_tolerance:
+            # At this capacity, gaming is expected - don't penalize
+            effective_coherence = t3['identity_coherence']
+        else:
+            # Gaming exceeds capacity expectations - something wrong
+            effective_coherence = t3['identity_coherence'] * 0.7
+
+        # Standard authorization check
+        authorized, reason = await is_authorized_with_coherence(
+            lct_id, action, resource, organization,
+            coherence_override=effective_coherence
+        )
+
+        context = {
+            'capacity_tier': self.capacity.tier.value,
+            'gaming_tolerance': self.gaming_tolerance,
+            'actual_gaming_rate': gaming_rate,
+            'gaming_within_tolerance': gaming_within_tolerance,
+            'hardware_type': self.capacity.hardware_type,
+            'hardware_fallback': self.capacity.hardware_fallback,
+        }
+
+        return authorized, reason, context
+```
+
+### 8. Hardware Context Tracking (Thor #26 Update)
+
+Thor #26 discovered that hardware affects coherence (CPU fallback degraded D9 by 13%, quality by 32%). Authorization must track hardware context:
+
+```python
+@dataclass
+class HardwareContext:
+    """Track hardware state for authorization decisions."""
+    hardware_type: str  # "gpu", "cpu", "tpu", "npu"
+    is_fallback: bool   # True if running on backup hardware
+    expected_quality_baseline: float  # Expected quality at this hardware
+
+    @classmethod
+    def from_session_metadata(cls, session: dict) -> 'HardwareContext':
+        """Extract hardware context from session metadata."""
+        return cls(
+            hardware_type=session.get('hardware_type', 'unknown'),
+            is_fallback=session.get('cpu_fallback', False),
+            expected_quality_baseline=0.5 if session.get('cpu_fallback') else 0.7
+        )
+
+
+class HardwareAwareAuthorizationEngine:
+    """
+    Authorization engine accounting for hardware variance.
+
+    Thor #26 Discovery:
+    - S35 (GPU): D9=0.750, Quality=0.760 ✓
+    - S37 (CPU fallback): D9=0.650, Quality=0.520 ✗
+    - Same intervention, different hardware = different results
+    """
+
+    async def authorize_with_hardware_context(
+        self,
+        lct_id: str,
+        action: str,
+        resource: str,
+        organization: str,
+        hardware_context: HardwareContext
+    ) -> AuthorizationResponse:
+        """
+        Authorization with hardware context.
+
+        If on fallback hardware:
+        - Lower quality baselines expected
+        - Don't treat degradation as coherence failure
+        - Flag for human review if critical action
+        """
+        t3 = trust_service.get_t3_tensor(lct_id, organization)
+        quality = t3.get('quality_score', 0.0)
+
+        # Adjust expectations for hardware
+        if hardware_context.is_fallback:
+            # Running on fallback - lower expectations
+            effective_quality = quality / hardware_context.expected_quality_baseline
+            hardware_warning = True
+        else:
+            effective_quality = quality
+            hardware_warning = False
+
+        # Standard authorization
+        authorized, reason = await is_authorized_with_coherence(
+            lct_id, action, resource, organization
+        )
+
+        # Add hardware context to response
+        response = AuthorizationResponse(
+            authorized=authorized,
+            reason=reason,
+            # ... existing fields ...
+        )
+
+        if hardware_warning:
+            response.recommendations.append(
+                f"NOTE: Agent running on {hardware_context.hardware_type} fallback. "
+                f"Quality may be degraded. Consider re-evaluation when primary hardware available."
+            )
+
+        return response
+```
+
+### 9. Combined Capacity + Hardware Authorization
+
+The complete authorization check combines capacity tier and hardware context:
+
+```python
+async def full_authorization_check(
+    lct_id: str,
+    action: str,
+    resource: str,
+    organization: str,
+    capacity_profile: CapacityProfile,
+    session_metadata: dict
+) -> AuthorizationResponse:
+    """
+    Complete authorization with capacity and hardware context.
+
+    Quality = f(Intervention, Hardware, Capacity) - Thor #26 discovery
+    """
+    hardware = HardwareContext.from_session_metadata(session_metadata)
+
+    capacity_engine = CapacityAwareAuthorizationEngine(capacity_profile)
+    hardware_engine = HardwareAwareAuthorizationEngine()
+
+    # Get capacity-adjusted authorization
+    auth, reason, cap_context = await capacity_engine.is_authorized_with_capacity_context(
+        lct_id, action, resource, organization
+    )
+
+    # Get hardware-adjusted authorization
+    hw_response = await hardware_engine.authorize_with_hardware_context(
+        lct_id, action, resource, organization, hardware
+    )
+
+    # Combine results
+    final_authorized = auth and hw_response.authorized
+
+    # Build comprehensive response
+    return AuthorizationResponse(
+        authorized=final_authorized,
+        reason=reason if auth else hw_response.reason,
+        identity_coherence=hw_response.identity_coherence,
+        identity_accumulation=hw_response.identity_accumulation,
+        coherence_level=hw_response.coherence_level,
+        coherence_trend=hw_response.coherence_trend,
+        death_spiral_warning=hw_response.death_spiral_warning,
+        declining_trend_warning=hw_response.declining_trend_warning,
+        recommendations=hw_response.recommendations,
+        capacity_context=cap_context,
+        hardware_context={
+            'type': hardware.hardware_type,
+            'is_fallback': hardware.is_fallback,
+        }
+    )
+```
+
 ## Security Considerations
 
 ### Attack: Coherence Spoofing
@@ -447,10 +660,13 @@ class CoherenceBasedPermissionManager:
 3. WEB4-AUTH-001: LCT-Based Authorization System
 4. Thor Session #14: Coherence-Identity Synthesis
 5. SAGE Sessions S26-28: Death spiral validation
+6. Thor Session #25 (S901): 14B Capacity Breakthrough - Gaming is capacity signal
+7. Thor Session #26: Hardware Confound - CPU fallback affects coherence
 
 ## Changelog
 
 - **2026-01-19**: Initial draft integrating coherence scoring with authorization
+- **2026-01-22**: Added capacity-aware authorization (Section 7), hardware context tracking (Section 8), and combined authorization (Section 9) based on Thor #25/#26 discoveries
 
 ---
 
