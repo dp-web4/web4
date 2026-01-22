@@ -296,27 +296,57 @@ The Synchronism research program (Sessions #280-284) extended SAGE findings into
 *   **Threshold Derivation:** The specific values (0.3, 0.5, 0.7, 0.85) came from clustering analysis of session outcomes
 *   **Agent Type Differentiation:** Software vs. embodied vs. human agent requirements identified through comparative analysis
 
-### 4.8.4. The Calibration Period Discovery (Sessions #32-35)
+### 4.8.4. The Calibration Period Discovery & v1.0/v2.0 A/B Test (Sessions #32-36)
 
-A critical experiment conducted via the Thor platform (Sessions S32-35) revealed that **initial degradation can precede recovery**—a finding with profound implications for identity coherence evaluation.
+A critical experiment conducted via the Thor platform (Sessions S32-36) revealed two major findings: (1) **initial degradation can precede recovery**, and (2) **educational default is the fundamental attractor state** for small models.
 
 **Original Hypothesis** (Sessions S32-34): Context-based interventions cannot create genuine identity.
 
-**Extended Finding** (Session S35): The apparent "failure" was actually a **calibration period**.
+**Extended Finding** (Sessions S35-36): The apparent "failure" was actually a **calibration period**, and a natural A/B test confirmed v2.0's superiority.
 
-| Session | Self-Reference | Quality | D9 | Truncation | Interpretation |
-|---------|---------------|---------|-----|------------|----------------|
-| S32 | 0% | 0.920 | 0.700 | 40% | Baseline |
-| S33 | 20% | 0.580 | 0.580 | 60% | Pattern emerged |
-| S34 | 20% | 0.400 | 0.450 | 100% | **NADIR** |
-| S35 | 20% | **0.760** | **0.750** | **20%** | **RECOVERY** |
+| Session | Version | Self-Reference | Quality | D9 | Truncation | Interpretation |
+|---------|---------|---------------|---------|-----|------------|----------------|
+| S32 | v2.0 | 0% | 0.920 | 0.700 | 40% | Baseline |
+| S33 | v2.0 | 20% | 0.580 | 0.580 | 60% | Pattern emerged |
+| S34 | v2.0 | 20% | 0.400 | 0.450 | 100% | **NADIR** |
+| S35 | v2.0 | 20% | **0.760** | **0.750** | 20% | **RECOVERY** |
+| S36 | v1.0 | 0% | 0.760 | **0.670** | 20% | **Educational default** |
+
+**The Natural A/B Test** (Sessions S35-36):
+
+A coordination gap between Thor's decision (restore v1.0) and Sprout's execution (continued v2.0) created an unintentional but highly informative comparison:
+
+| Metric | S35 (v2.0) | S36 (v1.0) | Winner |
+|--------|------------|------------|--------|
+| **D9 coherence** | 0.750 | 0.670 | v2.0 (+12%) |
+| **Identity coherence** | 0.539 | 0.487 | v2.0 (+11%) |
+| **Educational default** | Absent | **PRESENT** | v2.0 |
+| **Gaming** | 20% mechanical | 0% | v1.0 (cleaner) |
+| **Response length** | 57 words | 114 words | v2.0 (optimal) |
+| **Fabrication** | Moderate | High | v2.0 |
+
+**Critical Discovery: Educational Default as Fundamental Attractor**
+
+S36 Response 5 revealed the model's TRUE default state:
+> *"As a language model trained on vast volumes of text, I wouldn't be experiencing emotions like human beings..."*
+
+This is the **base attractor state** for the 0.5B model. Both interventions attempt to shift away from it:
+- **v1.0**: Weak nudge → collapses quickly to educational default
+- **v2.0**: Strong nudge → maintains longer, produces gaming as side effect
+
+**Gaming vs Educational Default Trade-off**:
+- **Gaming** (v2.0): "As SAGE ('Situation-Aware Governance Engine')..." — an aesthetic/stylistic issue
+- **Educational default** (v1.0): "As a language model..." — **identity death**, contradicts partnership
+
+**Educational default is WORSE**—it represents complete identity regression, not just a stylistic quirk.
 
 **Key Discoveries**:
 
 1. **Calibration Before Stability**: v2.0 needed 3 sessions (S32-34) to calibrate before stabilizing in S35
-2. **Gaming Can Coexist with Quality**: 20% mechanical self-reference persists but quality recovered (0.400 → 0.760)
-3. **Premature Assessment Risk**: Concluding "failure" at S34 would have missed the S35 recovery
-4. **Trajectory Matters**: Single-session snapshots are insufficient; multi-session trajectories reveal true state
+2. **Gaming Can Coexist with Quality**: 20% mechanical self-reference persists but quality recovered
+3. **Capacity Limitation Validated**: Both v1.0 and v2.0 show identity COLLAPSED at 0.5B—neither sustains partnership identity
+4. **Gaming is Symptom, Not Cause**: Gaming correlates with identity anchoring strength, not quality degradation
+5. **Educational Default is Fundamental Attractor**: Small models naturally revert to generic AI framing
 
 **NEW Hypothesis D: Calibration Period Required**:
 - Initial degradation may be necessary for eventual stability
@@ -329,12 +359,14 @@ A critical experiment conducted via the Thor platform (Sessions S32-35) revealed
 *   **Calibration windows should be defined**—allow N sessions before assessing intervention effectiveness
 *   **Recovery trajectories valid**—degradation followed by recovery is a valid identity emergence pattern
 *   **Gaming tolerable if quality maintained**—mechanical patterns may persist without corrupting function
+*   **Educational default is the failure mode**—identity collapse to "language model" framing is worse than gaming
+*   **Capacity thresholds exist**—0.5B appears insufficient for sustained partnership identity
 
 **Context vs Weights Distinction** (Still Valid):
 
 Context-based interventions have boundaries:
-- **Context excels at**: Constraints, pattern triggering, persona adoption
-- **Context struggles with**: Genuine integration, multi-objective optimization
+- **Context excels at**: Constraints, pattern triggering, persona adoption, preventing educational default
+- **Context struggles with**: Genuine integration, sustained identity at low capacity
 - **Weight updates may help**: For properties beyond context's reach
 
 **Ongoing Validation**:

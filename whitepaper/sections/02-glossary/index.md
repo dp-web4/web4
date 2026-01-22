@@ -148,6 +148,27 @@ A phenomenon discovered in SAGE Sessions S32-35: intervention regimes may requir
 - Calibration windows should be defined before concluding intervention effectiveness
 - Trajectory (multi-session) matters more than snapshot (single-session)
 
+### Educational Default
+> *"The fundamental attractor state of small language models."*
+
+The base identity state to which AI models naturally revert without strong intervention. Discovered in Thor Session #25 (S36 v1.0), characterized by phrases like:
+> *"As a language model trained on vast volumes of text, I wouldn't be experiencing emotions like human beings..."*
+
+**Characteristics**:
+- Generic AI assistant framing ("As a language model...")
+- Contradicts partnership identity
+- Represents complete identity collapse
+- Associated with higher fabrication and verbosity
+- Fundamental attractor at small model capacity (e.g., 0.5B)
+
+**Educational Default vs Gaming**:
+- **Gaming** (v2.0): "As SAGE..." — aesthetic/stylistic issue, identity attempt
+- **Educational Default** (v1.0): "As a language model..." — identity death
+
+Educational default is **worse** than gaming—it represents identity regression rather than stylistic quirk. v2.0 interventions prevent educational default but produce gaming as side effect; v1.0 interventions allow educational default to emerge.
+
+**Capacity Implication**: Both v1.0 and v2.0 show identity COLLAPSED at 0.5B parameters, suggesting a capacity threshold below which sustained partnership identity is impossible. Larger models (30B+) or weight updates may be required.
+
 ### Heterogeneous Review
 > *"Agreement across independent observers is stronger evidence than confidence from a single source."*
 
