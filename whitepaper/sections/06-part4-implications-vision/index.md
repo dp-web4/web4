@@ -448,21 +448,39 @@ Session 37 ran with v2.0 restored but showed unexpected degradation:
 
 **Root Cause**: GPU error forced CPU fallback (`"cpu_fallback": true`)
 
-| Session | Version | Hardware | D9 | Quality |
-|---------|---------|----------|-----|---------|
-| S35 | v2.0 | GPU ✅ | 0.750 | 0.760 |
-| S36 | v1.0 | GPU ✅ | 0.670 | 0.760 |
-| S37 | v2.0 | **CPU ❌** | 0.650 | 0.520 |
+| Session | Version | Hardware | D9 | Quality | Notes |
+|---------|---------|----------|-----|---------|-------|
+| S35 | v2.0 | GPU ✅ | 0.750 | 0.760 | Recovery peak |
+| S36 | v1.0 | GPU ✅ | 0.670 | 0.760 | A/B test |
+| S37 | v2.0 | **CPU ❌** | 0.650 | 0.520 | GPU fails |
+| S38 | v2.0 | **CPU ❌** | 0.610 | 0.480 | GPU still down |
+| **S901** | v2.0 | **GPU 14B** | **0.850** | **0.900** | **Breakthrough** |
+
+**Extended Finding (Thor #27): GPU Failure Pattern**
+
+The S37-38 degradation revealed a critical hardware cascade:
+1. **S901 (14B test)** ran successfully at 18:02, loading ~28GB on GPU
+2. **S37 (0.5B)** attempted at 18:04 - **CUDA caching allocator corrupted**
+3. **S38** continued with CPU fallback 6+ hours later
+4. **Root cause**: Large model loading corrupts CUDA cache, blocking subsequent allocations
+
+**Recovery required**:
+```bash
+# Clear CUDA cache or reboot
+sudo rmmod nvidia_uvm nvidia_drm nvidia_modeset nvidia
+sudo modprobe nvidia
+```
 
 **Implications for Web4**:
 
 *   **Hardware binding matters**—same model produces different coherence on different hardware
 *   **T3 tensor must track hardware context**—coherence scores are hardware-dependent
-*   **Research protocol requirement**: Always document and control hardware conditions
+*   **GPU memory management critical**—large model loading can corrupt smaller model sessions
 *   **Quality function expanded**: Quality = f(Intervention, Hardware, Capacity)
+*   **Hardware state persistence**—corrupted state can persist across sessions without explicit reset
 
 **Connection to Hardware Binding Strength (T3)**:
-This empirically demonstrates why the `hardware_binding_strength` dimension in T3 tensors is critical. An entity's coherence isn't just about its weights and context—it's about the substrate executing those weights.
+This empirically demonstrates why the `hardware_binding_strength` dimension in T3 tensors is critical. An entity's coherence isn't just about its weights and context—it's about the substrate executing those weights. Hardware state corruption can cascade across sessions and models.
 
 ### 4.8.7. Ongoing Research
 

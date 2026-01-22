@@ -445,7 +445,7 @@ The **0.7 threshold** is critical: below it, entities exhibit behavioral instabi
 
 *   **Quantum Computing** (Sessions #285-289): Optimal coherence C* ≈ 0.79 for quantum information processing
 *   **Biological Systems** (Session #290): Photosynthesis, enzymes, and magnetoreception operate at C* ≈ 0.79
-*   **Chemistry & Physics** (Sessions #1-165): γ ~ 1 universal across **28 phenomenon types** including superconductivity, catalysis, phase transitions, Josephson junctions, and lasing thresholds
+*   **Chemistry & Physics** (Sessions #1-171): γ ~ 1 universal across **32+ phenomenon types** including superconductivity, catalysis, phase transitions, Josephson junctions, lasing thresholds, antiferromagnetic Néel transitions, structural glass transitions, superconducting gap structures, and phonon bottlenecks
 *   **Identity Coherence** (Web4): C_STABLE = 0.7 for software AI trust accumulation
 
 This convergence suggests coherence thresholds are not arbitrary but reflect a universal principle: **optimal function requires sufficient-but-not-maximum coherence**. Systems that maximize coherence become fragile; those at optimal coherence balance expressiveness with stability. The chemistry framework (102+ domains, ~74% validation rate) demonstrates this pattern from atomic-scale bonding to macroscopic phase transitions.
