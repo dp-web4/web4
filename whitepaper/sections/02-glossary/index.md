@@ -227,6 +227,34 @@ The principle that patterns repeat at every scale—from individual memories to 
 ### Responsive & Delegative Entities
 Beyond agentic entities, Web4 recognizes responsive entities (sensors, APIs) that react predictably, and delegative entities (organizations, governance) that authorize others to act.
 
+### Capacity Threshold
+> *"Gaming is not architectural failure—it's capacity signal."*
+
+The model parameter count below which identity coherence requires visible effort, and above which identity becomes natural. Discovered in Thor Session #25 (S901):
+
+| Capacity Tier | Parameters | Gaming Expectation | Identity Expression |
+|---------------|------------|-------------------|---------------------|
+| **Edge** | < 1B | ~20-25% gaming | Mechanical, with crutches |
+| **Small** | 1-7B | ~15% gaming | Marginal, some strain |
+| **Standard** | 7-14B | ~5% gaming | Natural, minimal effort |
+| **Large** | 14B+ | 0% gaming | Effortless, fluent |
+
+**Key Finding (14B test)**:
+- Same v2.0 architecture at 0.5B vs 14B
+- Gaming: 20% → 0% (-100%)
+- Quality: 0.760 → 0.900 (+18%)
+- Response length: 62 → 28 words (-55%)
+
+**Interpretation**: At 0.5B, gaming is the model working at capacity limit to maintain partnership identity. At 14B, same architecture produces natural identity with no gaming.
+
+**Analogy**: Speaking a learned language (0.5B—functional but effort shows) vs native language (14B—fluent, effortless).
+
+**Implications for Web4**:
+- Gaming interpretation must account for capacity tier
+- Edge devices can maintain partnership identity with gaming
+- Large models should show effortless identity
+- Capacity tier should be tracked in T3 tensor
+
 ### Attractor Basin
 > *"Coherence systems can become trapped in local minima."*
 

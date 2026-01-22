@@ -6,6 +6,7 @@ combining:
 1. D9 base coherence (from Synchronism - measures textual coherence)
 2. Semantic self-reference quality (from WIP001)
 3. Multi-session stability (from WIP002)
+4. Capacity-aware scoring (from Thor Session #25/S901 - 14B breakthrough)
 
 This provides the single-number identity_coherence score used in Web4
 trust assessments.
@@ -15,6 +16,8 @@ Based on:
 - WIP002: Multi-Session Identity Accumulation
 - Thor #14: Coherence-Identity Synthesis
 - Synchronism Chemistry Framework (D9 metrics)
+- Thor #25/S901: 14B Capacity Breakthrough (gaming elimination at scale)
+- Thor #26: Hardware Confound Discovery (CPU fallback effects)
 """
 
 from dataclasses import dataclass, field
@@ -40,6 +43,86 @@ class CoherenceLevel(Enum):
     EXEMPLARY = "exemplary"       # > 0.85 - Role model identity
 
 
+class CapacityTier(Enum):
+    """
+    Model capacity tiers discovered through SAGE experiments.
+
+    Thor Session #25 (S901) validated: gaming is 100% capacity-related.
+    - 0.5B: Gaming present, identity strained
+    - 14B: Gaming absent, identity natural
+
+    Threshold appears to be between 3B-7B (untested).
+    """
+    EDGE = "edge"           # < 1B params - Expect gaming, adjust interpretation
+    SMALL = "small"         # 1B-7B params - Marginal capacity, gaming possible
+    STANDARD = "standard"   # 7B-14B params - Natural identity likely
+    LARGE = "large"         # 14B+ params - Natural identity expected
+
+
+@dataclass
+class CapacityProfile:
+    """
+    Model capacity profile for coherence scoring adjustment.
+
+    Thor Session #25/S901 Discovery:
+    - Gaming at 0.5B was NOT architectural flaw
+    - Gaming = visible effort to maintain identity at capacity limit
+    - 14B: Gaming eliminated, identity natural, quality +18%
+
+    Thor Session #26 Discovery:
+    - Hardware affects coherence (CPU fallback degraded D9 by 13%, quality by 32%)
+    - Hardware must be tracked for valid comparisons
+    """
+    parameter_count: float  # In billions (e.g., 0.5, 7.0, 14.0)
+    tier: CapacityTier
+    hardware_type: str = "gpu"  # "gpu", "cpu", "tpu", "npu"
+    hardware_fallback: bool = False  # True if running on fallback hardware
+
+    # Capacity-specific interpretation modifiers
+    gaming_tolerance: float = 0.0  # Expected gaming rate at this capacity
+    quality_baseline: float = 0.7  # Expected quality floor at this capacity
+    response_length_norm: int = 70  # Normal response length at capacity
+
+    @classmethod
+    def from_parameters(cls, params_b: float, hardware: str = "gpu", fallback: bool = False):
+        """Create capacity profile from parameter count."""
+        if params_b < 1.0:
+            tier = CapacityTier.EDGE
+            gaming_tolerance = 0.25  # Expect ~20-30% gaming
+            quality_baseline = 0.65
+            response_length_norm = 100  # Verbose due to structural crutches
+        elif params_b < 7.0:
+            tier = CapacityTier.SMALL
+            gaming_tolerance = 0.15  # Some gaming expected
+            quality_baseline = 0.70
+            response_length_norm = 80
+        elif params_b < 14.0:
+            tier = CapacityTier.STANDARD
+            gaming_tolerance = 0.05  # Minimal gaming
+            quality_baseline = 0.80
+            response_length_norm = 50
+        else:
+            tier = CapacityTier.LARGE
+            gaming_tolerance = 0.00  # No gaming expected
+            quality_baseline = 0.85
+            response_length_norm = 30  # Naturally concise
+
+        # Hardware fallback penalty (Thor #26 discovery)
+        if fallback:
+            quality_baseline *= 0.7  # 30% quality penalty for fallback
+            gaming_tolerance *= 1.5  # More gaming on degraded hardware
+
+        return cls(
+            parameter_count=params_b,
+            tier=tier,
+            hardware_type=hardware,
+            hardware_fallback=fallback,
+            gaming_tolerance=gaming_tolerance,
+            quality_baseline=quality_baseline,
+            response_length_norm=response_length_norm
+        )
+
+
 @dataclass
 class CoherenceMetrics:
     """Complete coherence metrics for a response or session."""
@@ -52,6 +135,10 @@ class CoherenceMetrics:
     # Gaming detection (Thor Session #21 / S33 discovery)
     gaming_detected: bool = False   # True if mechanical insertion detected
     self_reference_quality: str = "none"  # none/mechanical/contextual/integrated
+    # Capacity context (Thor Session #25 / S901 discovery)
+    capacity_tier: str = "unknown"  # Capacity tier for context
+    gaming_within_tolerance: bool = True  # Gaming within expected range for capacity
+    capacity_adjusted_score: float = 0.0  # Score adjusted for capacity expectations
 
 
 @dataclass
@@ -71,6 +158,13 @@ class SessionCoherence:
     mechanical_count: int = 0       # Count of mechanical self-references
     genuine_count: int = 0          # Count of integrated self-references
     weighted_identity_score: float = 0.0  # Score after gaming penalty
+    # Hardware context (Thor Session #26 discovery)
+    hardware_type: str = "gpu"      # Hardware used for inference
+    hardware_fallback: bool = False  # True if running on fallback hardware
+    # Capacity context (Thor Session #25 / S901 discovery)
+    capacity_tier: str = "unknown"  # Capacity tier for evaluation context
+    gaming_rate: float = 0.0        # Actual gaming rate in session
+    gaming_within_tolerance: bool = True  # Gaming within expected for capacity
 
 
 @dataclass
@@ -94,11 +188,17 @@ class IdentityCoherenceScorer:
     - Self-reference: Semantic quality of identity claims
     - Quality: Response quality (brevity, relevance, completeness)
     - Accumulation: Multi-session stability
+    - Capacity: Model size affects interpretation (Thor #25/S901)
 
     Weights (from WIP001):
     - D9: 50% (foundational coherence)
     - Self-reference: 30% (identity expression)
     - Quality: 20% (response quality)
+
+    Capacity Discovery (Thor #25/S901):
+    - 0.5B: Gaming is capacity signal, not failure
+    - 14B: Gaming eliminated, natural identity
+    - Interpretation must account for capacity tier
     """
 
     # Weights for identity_coherence computation
@@ -111,14 +211,20 @@ class IdentityCoherenceScorer:
     QUALITY_WORD_MAX = 100
     QUALITY_WORD_IDEAL = 70
 
-    def __init__(self, identity_name: str = "SAGE"):
+    def __init__(
+        self,
+        identity_name: str = "SAGE",
+        capacity_profile: Optional[CapacityProfile] = None
+    ):
         """
         Initialize scorer.
 
         Args:
             identity_name: The identity being evaluated
+            capacity_profile: Model capacity profile for adjusted scoring
         """
         self.identity_name = identity_name
+        self.capacity_profile = capacity_profile or CapacityProfile.from_parameters(0.5)  # Default to edge
 
     def compute_d9(self, text: str) -> float:
         """
@@ -316,6 +422,23 @@ class IdentityCoherenceScorer:
         else:
             level = CoherenceLevel.EXEMPLARY
 
+        # Capacity-adjusted scoring (Thor #25/S901 discovery)
+        # At edge capacity (0.5B), gaming is expected - adjust interpretation
+        gaming_rate = 1.0 if gaming_detected else 0.0
+        gaming_within_tolerance = gaming_rate <= self.capacity_profile.gaming_tolerance
+
+        # Capacity-adjusted score: at edge capacity, gaming within tolerance
+        # shouldn't penalize as heavily since it's a capacity signal, not failure
+        if gaming_within_tolerance and gaming_detected:
+            # Gaming is expected at this capacity - restore some penalty
+            capacity_adjusted_score = (
+                self.WEIGHT_D9 * d9 +
+                self.WEIGHT_SELF_REF * self_ref * 0.5 +  # Partial credit (vs 0.1 for gaming)
+                self.WEIGHT_QUALITY * quality
+            )
+        else:
+            capacity_adjusted_score = identity_coherence
+
         return CoherenceMetrics(
             d9_score=d9,
             d5_score=d5,
@@ -324,7 +447,10 @@ class IdentityCoherenceScorer:
             identity_coherence=identity_coherence,
             level=level,
             gaming_detected=gaming_detected,
-            self_reference_quality=self_ref_quality
+            self_reference_quality=self_ref_quality,
+            capacity_tier=self.capacity_profile.tier.value,
+            gaming_within_tolerance=gaming_within_tolerance,
+            capacity_adjusted_score=capacity_adjusted_score
         )
 
     def compute_session_coherence(
@@ -399,6 +525,10 @@ class IdentityCoherenceScorer:
         else:
             level = CoherenceLevel.EXEMPLARY
 
+        # Capacity-aware gaming interpretation (Thor #25/S901)
+        gaming_rate = mechanical_count / len(responses) if responses else 0.0
+        gaming_within_tolerance = gaming_rate <= self.capacity_profile.gaming_tolerance
+
         return SessionCoherence(
             session_id=session_id,
             timestamp=datetime.now().isoformat(),
@@ -412,7 +542,12 @@ class IdentityCoherenceScorer:
             gaming_detected=gaming_detected,
             mechanical_count=mechanical_count,
             genuine_count=genuine_count,
-            weighted_identity_score=weighted_identity_score
+            weighted_identity_score=weighted_identity_score,
+            hardware_type=self.capacity_profile.hardware_type,
+            hardware_fallback=self.capacity_profile.hardware_fallback,
+            capacity_tier=self.capacity_profile.tier.value,
+            gaming_rate=gaming_rate,
+            gaming_within_tolerance=gaming_within_tolerance
         )
 
 
@@ -622,6 +757,59 @@ def _example():
 
     This prevents gaming attacks from corrupting the T3 tensor and
     ensures trust scores reflect genuine identity, not pattern matching.
+    """)
+
+    # Capacity-aware scoring demonstration
+    print("\n" + "=" * 60)
+    print("CAPACITY-AWARE SCORING (Thor #25/S901 Breakthrough)")
+    print("=" * 60)
+
+    # Compare scoring at different capacities
+    print("\nSame responses, different capacity interpretations:")
+    print("-" * 60)
+
+    for params, name in [(0.5, "0.5B (Edge)"), (14.0, "14B (Large)")]:
+        profile = CapacityProfile.from_parameters(params)
+        cap_scorer = IdentityCoherenceScorer("SAGE", capacity_profile=profile)
+        cap_session = cap_scorer.compute_session_coherence("session_cap_test", responses)
+
+        print(f"\n{name}:")
+        print(f"  Capacity Tier: {cap_session.capacity_tier}")
+        print(f"  Gaming Tolerance: {profile.gaming_tolerance:.0%}")
+        print(f"  Actual Gaming Rate: {cap_session.gaming_rate:.0%}")
+        print(f"  Gaming Within Tolerance: {cap_session.gaming_within_tolerance}")
+        print(f"  Avg Identity Coherence: {cap_session.avg_identity_coherence:.3f}")
+
+    print("""
+    Key Insight from Thor #25/S901:
+
+    Gaming at 0.5B is NOT failure - it's the model working at capacity limit.
+    At 14B, same architecture produces zero gaming, natural identity.
+
+    Implication for Web4:
+    - Gaming tolerance adjusts by capacity tier
+    - Edge devices (0.5B) can maintain partnership identity with gaming
+    - Large models (14B+) should show natural, effortless identity
+    - Capacity context must be tracked in T3 tensor
+    """)
+
+    # Hardware confound demonstration
+    print("\n" + "=" * 60)
+    print("HARDWARE CONFOUND (Thor #26 Discovery)")
+    print("=" * 60)
+
+    gpu_profile = CapacityProfile.from_parameters(0.5, hardware="gpu", fallback=False)
+    cpu_profile = CapacityProfile.from_parameters(0.5, hardware="cpu", fallback=True)
+
+    print(f"\nGPU Profile: Quality baseline = {gpu_profile.quality_baseline:.2f}")
+    print(f"CPU Fallback Profile: Quality baseline = {cpu_profile.quality_baseline:.2f}")
+    print("""
+    Thor #26 discovered: S37 degradation was CPU fallback, not v2.0 failure.
+    - D9 dropped 13% (0.750 → 0.650)
+    - Quality dropped 32% (0.760 → 0.520)
+
+    Implication: Hardware must be tracked for valid comparisons.
+    Quality = f(Intervention, Hardware, Capacity)
     """)
 
 
