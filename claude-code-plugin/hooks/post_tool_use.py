@@ -34,7 +34,7 @@ import json
 import os
 import sys
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 WEB4_DIR = Path.home() / ".web4"
@@ -88,7 +88,7 @@ def create_audit_record(session, r6_request, tool_output, tool_error):
 
     record = {
         "record_id": r6_request["id"].replace("r6:", "audit:"),
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
 
         # Link to intent
         "r6_request_id": r6_request["id"],

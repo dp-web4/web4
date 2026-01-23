@@ -35,7 +35,7 @@ import os
 import sys
 import uuid
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 WEB4_DIR = Path.home() / ".web4"
@@ -106,7 +106,7 @@ def create_r6_request(session, tool_name, tool_input):
 
     r6 = {
         "id": f"r6:{r6_id}",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
 
         # R1: Rules - constraints (extensible by user preferences)
         "rules": {
@@ -154,7 +154,7 @@ def log_r6(r6_request):
     """Log R6 request for audit trail."""
     R6_LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     log_file = R6_LOG_DIR / f"{today}.jsonl"
 
     with open(log_file, "a") as f:

@@ -22,7 +22,7 @@ import os
 import sys
 import uuid
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Web4 state directory
@@ -40,13 +40,13 @@ def create_session_token():
     Trust interpretation is up to the relying party.
     """
     # Derive from machine + user + timestamp for uniqueness
-    seed = f"{os.uname().nodename}:{os.getuid()}:{datetime.utcnow().isoformat()}"
+    seed = f"{os.uname().nodename}:{os.getuid()}:{datetime.now(timezone.utc).isoformat()}"
     token_hash = hashlib.sha256(seed.encode()).hexdigest()[:12]
 
     return {
         "token_id": f"web4:session:{token_hash}",
         "binding": "software",  # Explicit: not hardware-bound
-        "created_at": datetime.utcnow().isoformat() + "Z",
+        "created_at": datetime.now(timezone.utc).isoformat() + "Z",
         "machine_hint": hashlib.sha256(os.uname().nodename.encode()).hexdigest()[:8]
     }
 
@@ -78,7 +78,7 @@ def initialize_session(session_id):
         "session_id": session_id,
         "token": token,
         "preferences": prefs,
-        "started_at": datetime.utcnow().isoformat() + "Z",
+        "started_at": datetime.now(timezone.utc).isoformat() + "Z",
         "action_count": 0,
         "r6_requests": [],
         "audit_chain": []
