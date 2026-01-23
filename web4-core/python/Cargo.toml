@@ -1,0 +1,19 @@
+[package]
+name = "web4-python"
+version = "0.1.0"
+edition = "2021"
+authors = ["dp-web4 <dp@metalinxx.io>"]
+description = "Python bindings for web4-core"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dp-web4/web4"
+
+[lib]
+name = "web4"
+crate-type = ["cdylib"]
+
+[dependencies]
+web4-core = { path = ".." }
+pyo3 = { version = "0.22", features = ["extension-module"] }
+
+[build-dependencies]
+pyo3-build-config = "0.22"

@@ -1,0 +1,33 @@
+[package]
+name = "web4-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["dp-web4 <dp@metalinxx.io>"]
+description = "Web4 trust-native infrastructure core library"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dp-web4/web4"
+keywords = ["web4", "trust", "identity", "lct", "distributed"]
+categories = ["cryptography", "authentication"]
+
+[dependencies]
+# Cryptography
+ed25519-dalek = { version = "2.1", features = ["serde", "rand_core"] }
+sha2 = "0.10"
+rand = "0.8"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+# criterion = "0.5"  # Add benchmarks later
+
+[features]
+default = []
+# Enable Python bindings (used by the python subcrate)
+python = []
