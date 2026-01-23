@@ -80,7 +80,7 @@ Traditional governance models often rely on explicit rules, hierarchies of autho
     *   Conversely, entities that act incoherently or fail to deliver value will see their trust scores diminish, reducing their ability to influence or participate effectively. Their "signal" becomes weaker or is filtered out. (Source: "What is Web4 and Why Does It Matter.pdf")
 
 3.  **Contribution Impact (ATP Cycle and VCM):**
-    The Alignment Transfer Protocol (ATP) and its Value Confirmation Mechanism (VCM) provide a direct measure of an entity\\\\'s contribution impact. By linking energy expenditure to certified value creation, the ATP system ensures that resources flow towards activities that are demonstrably beneficial to the ecosystem. 
+    The Allocation Transfer Packet (ATP) system and its Value Confirmation Mechanism (VCM) provide a direct measure of an entity\\\\'s contribution impact. By linking energy expenditure to certified value creation, the ATP system ensures that resources flow towards activities that are demonstrably beneficial to the ecosystem. 
     *   High-impact contributions, as validated by the VCM (using V3 Tensors), are rewarded more significantly within the ATP cycle. This reinforces behaviors that resonate positively with the system\\\\'s value criteria.
     *   Low-impact or negatively perceived contributions receive less reward or may even lead to reputational penalties, dampening dissonant activities. (Source: "gpt atp adp.pdf", "What is Web4 and Why Does It Matter.pdf")
 

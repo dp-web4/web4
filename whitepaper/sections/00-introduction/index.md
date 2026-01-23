@@ -12,7 +12,7 @@ WEB4 introduces and interconnects several foundational components:
 
 - **T3 and V3 Tensors**: Multidimensional trust and value representations that capture capability (Talent, Training, Temperament) and contribution (Valuation, Veracity, Validity).
 
-- **Alignment Transfer Protocol (ATP)**: A semi-fungible energy-value exchange modeled on biological ATP/ADP cycles, where work creates value and value generates energy.
+- **Allocation Transfer Packet (ATP)**: A semi-fungible energy-value exchange modeled on biological ATP/ADP cycles, where work creates value and value generates energy.
 
 - **Markov Relevancy Horizon (MRH)**: A contextual boundary governing what is knowable, actionable, and relevant within each entity's scope.
 

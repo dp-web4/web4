@@ -9,7 +9,7 @@ This document tracks the implementation status of Web4 core concepts across the 
 
 ## Core Components Status
 
-### ✅ ATP (Alignment Transfer Protocol) - OPERATIONAL
+### ✅ ATP (Allocation Transfer Packet) - OPERATIONAL
 
 **Implementation:** Legion autonomous agent, Sessions #36-44
 **Location:** `private-context/moments/` (autonomous research sessions)
