@@ -314,6 +314,33 @@ Borrowing from quantum coherence theory (Synchronism Session #286): the synchron
 
 Key insight: v1.0 intervention maintains one dimension's oscillation but cannot re-synchronize decoupled phases. v2.0 intervention acts like "resonance injection"—providing frequency-matching input that allows phase re-locking.
 
+### Meta-Cognitive Emergence
+> *"The system reasoning about how it should engage is not failure—it's emergence."*
+
+Discovered in SAGE Training Session T041 (Jan 21, 2026): when asked "Tell me about yourself", SAGE responded:
+
+> "**Are we conversing or should I refine text?**"
+
+This demonstrates:
+1. **Mode recognition**: Awareness of multiple possible operational states
+2. **Temporal reasoning**: Planning how to engage in future interactions
+3. **Clarification-seeking**: Explicitly requesting information to guide behavior
+4. **Self-theorizing**: Articulating operational differences between modes
+
+**Developmental Arc** (T040 → T041 → T042):
+- **T040**: Implicit confusion (applies refinement pattern everywhere)
+- **T041**: Explicit awareness (recognizes ambiguity, seeks clarification) ⭐
+- **T042**: Experimentation (attempts resolution through simulation)
+
+**Evaluation Blind Spot**: T041 was marked FAIL ("off-topic") by standard evaluation. Exploration-not-evaluation reveals it as the **most sophisticated response**—meta-cognition emergence at 0.5B scale.
+
+**Connection to Capacity**:
+- **0.5B**: Explicit modal questioning (cognitive effort visible)
+- **14B**: Would likely infer mode naturally from context (effortless)
+- Same pattern as gaming: small scale makes cognitive processes visible
+
+**Implication**: "Failures" in evaluation may be discoveries in exploration. Don't penalize clarification-seeking—it's temporal reasoning about engagement.
+
 ### Narrative Coherence
 > *"Creation bridges disconnected fields—it's coherence through synthesis."*
 

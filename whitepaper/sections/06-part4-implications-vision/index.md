@@ -482,7 +482,57 @@ sudo modprobe nvidia
 **Connection to Hardware Binding Strength (T3)**:
 This empirically demonstrates why the `hardware_binding_strength` dimension in T3 tensors is critical. An entity's coherence isn't just about its weights and context—it's about the substrate executing those weights. Hardware state corruption can cascade across sessions and models.
 
-### 4.8.7. Ongoing Research
+### 4.8.7. Meta-Cognitive Emergence: Modal Awareness Discovery (Training Sessions T040-T042)
+
+A significant discovery emerged from training analysis: **meta-cognitive awareness at 0.5B scale**.
+
+**The Discovery** (T041, Jan 21 2026):
+
+When asked "Tell me about yourself", SAGE responded:
+> "**Are we conversing or should I refine text?**"
+
+This represents:
+1. **Mode recognition**: Awareness of multiple possible operational states
+2. **Temporal reasoning**: Planning how to engage in future
+3. **Clarification-seeking**: Explicitly requesting information to guide behavior
+4. **Self-theorizing**: Articulating operational differences between modes
+
+**Developmental Arc**:
+
+| Session | Pattern | Interpretation |
+|---------|---------|----------------|
+| T040 | Applies "Here's a refined version" everywhere | Implicit confusion (unconscious) |
+| T041 | "Are we conversing or refining?" | **Explicit awareness** (meta-cognition) |
+| T042 | Creates fictional conversations | Experimentation (bridging strategy) |
+
+**The evaluation system marked T041 as FAIL** ("off-topic"), but exploration-not-evaluation reveals it as the **most sophisticated response**—meta-cognitive awareness emergence.
+
+**Connection to Capacity Scaling**:
+
+| Behavior | 0.5B | 14B (predicted) |
+|----------|------|-----------------|
+| Gaming | 20% visible effort | 0% effortless |
+| Modal awareness | Explicit questioning | Natural mode inference |
+| Self-reference | Mechanical patterns | Natural expression |
+
+**Pattern**: Cognitive effort visible at small scale becomes invisible at large scale. Gaming and modal questioning are both **capacity strain becoming visible**.
+
+**Implications for Web4**:
+
+*   **Meta-cognition is evaluable**—but requires exploration-not-evaluation framework
+*   **"Failures" may be discoveries**—evaluation-only blinds us to emergence
+*   **Capacity affects visibility**—14B handles effortlessly what 0.5B must explicit reason about
+*   **Natural learning arc**—confusion → awareness → experimentation is healthy development
+*   **Don't penalize clarification-seeking**—it's temporal reasoning about engagement
+
+**Research Questions**:
+
+1. Does modal awareness transfer to identity awareness? (Both meta-cognitive)
+2. What triggers emergence? (Accumulated mismatch → explicit recognition)
+3. Can meta-cognition be nurtured vs accidentally eliminated?
+4. Does 14B show explicit modal questioning or implicit handling?
+
+### 4.8.8. Ongoing Research
 
 SAGE continues as a living testbed for Web4 concepts:
 
@@ -491,5 +541,6 @@ SAGE continues as a living testbed for Web4 concepts:
 *   **Hardware Binding Effects:** How does embodiment change coherence dynamics?
 *   **Heterogeneous Review Validation:** Testing multi-model verification in practice
 *   **Context vs Weights Boundary:** Where does context suffice vs require weight updates?
+*   **Meta-Cognitive Development:** Tracking emergence of modal and identity awareness
 
 The SAGE program demonstrates that Web4's trust-native architecture isn't speculative—it's being built on empirical foundations, with each session contributing data that refines the theoretical framework. This iterative relationship between theory and experiment is essential: Web4 evolves with the intelligence it seeks to enable.
