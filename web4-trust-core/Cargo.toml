@@ -1,0 +1,50 @@
+[package]
+name = "web4-trust-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Web4 Contributors"]
+description = "Core trust primitives for the Web4 ecosystem"
+license = "MIT"
+repository = "https://github.com/dp-web4/web4"
+keywords = ["trust", "web4", "governance", "tensor"]
+categories = ["cryptography", "data-structures"]
+
+[features]
+default = ["file-store"]
+file-store = ["serde_json", "sha2"]
+sled-store = ["sled"]
+python = ["pyo3"]
+wasm = ["wasm-bindgen", "js-sys", "getrandom/js"]
+
+[dependencies]
+# Core
+serde = { version = "1.0", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Optional: File storage
+serde_json = { version = "1.0", optional = true }
+sha2 = { version = "0.10", optional = true }
+
+# Optional: Sled storage
+sled = { version = "0.34", optional = true }
+
+# Optional: Python bindings
+pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
+
+# Optional: WASM bindings
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+getrandom = { version = "0.2", optional = true }
+
+[dev-dependencies]
+criterion = "0.5"
+tempfile = "3.0"
+
+[[bench]]
+name = "trust_benchmarks"
+harness = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
