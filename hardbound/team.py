@@ -32,9 +32,10 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "claude-code-plugin"))
 from governance import Ledger
 
-# Import trust decay and policy
+# Import trust decay, policy, and admin binding
 from .trust_decay import TrustDecayCalculator, DecayConfig
 from .policy import Policy, PolicyStore
+from .admin_binding import AdminBindingManager, AdminBindingType, AdminBinding
 
 
 @dataclass
@@ -185,11 +186,11 @@ class Team:
     def set_admin(self, lct_id: str, binding_type: str = "software",
                   require_hardware: bool = False) -> dict:
         """
-        Set the admin for this team.
+        Set the admin for this team (simple mode).
 
         Args:
             lct_id: LCT of the admin entity
-            binding_type: Type of binding (software, tpm, fido2)
+            binding_type: Type of binding (software, tpm2, fido2)
             require_hardware: If True, reject software-only binding
 
         Returns:
@@ -198,11 +199,13 @@ class Team:
         Note: For production, admin SHOULD be hardware-bound.
         Software binding is allowed for development/testing.
         Set require_hardware=True for production deployments.
+
+        For full hardware binding, use set_admin_tpm2() instead.
         """
         if require_hardware and binding_type == "software":
             raise ValueError(
                 "Hardware binding required for admin. "
-                "Use TPM or FIDO2, or set require_hardware=False for development."
+                "Use set_admin_tpm2() for TPM binding, or set require_hardware=False for development."
             )
 
         if self.admin_lct:
@@ -213,29 +216,99 @@ class Team:
         self.admin_lct = lct_id
         self._update_team()
 
-        # Record in audit trail
-        audit = self.ledger.record_audit(
-            session_id=self.team_id,
-            action_type="admin_assigned",
-            tool_name="hardbound",
-            target=lct_id,
-            r6_data={
-                "binding_type": binding_type,
-                "trust_note": "Hardware binding recommended for production"
-                    if binding_type == "software" else "Hardware-bound admin"
-            }
+        # Use AdminBindingManager for proper binding storage
+        binding_manager = AdminBindingManager(self.ledger)
+        binding = binding_manager.bind_admin_software(
+            self.team_id, lct_id, require_hardware=False
         )
 
         return {
             "team_id": self.team_id,
             "admin_lct": lct_id,
             "binding_type": binding_type,
-            "audit_id": audit["audit_id"]
+            "binding": {
+                "type": binding.binding_type.value,
+                "verified": binding.verified,
+                "bound_at": binding.bound_at
+            }
         }
 
-    def verify_admin(self, lct_id: str) -> bool:
-        """Check if LCT is the current admin."""
-        return self.admin_lct == lct_id
+    def set_admin_tpm2(self, admin_name: str = "admin") -> dict:
+        """
+        Set admin with TPM2 hardware binding.
+
+        Creates a new TPM-bound LCT for the admin and stores the binding.
+        This is the RECOMMENDED method for production deployments.
+
+        Args:
+            admin_name: Name for the admin entity
+
+        Returns:
+            Admin assignment record with hardware binding details
+
+        Raises:
+            RuntimeError: If TPM2 is not available
+        """
+        binding_manager = AdminBindingManager(self.ledger)
+
+        # Check TPM availability
+        status = binding_manager.get_tpm_status()
+        if not status.get('available'):
+            raise RuntimeError(
+                f"TPM2 not available: {status.get('reason')}. "
+                f"{status.get('recommendation')}"
+            )
+
+        # Create TPM-bound admin
+        binding = binding_manager.bind_admin_tpm2(self.team_id, admin_name)
+
+        # Update team
+        self.admin_lct = binding.lct_id
+        self._update_team()
+
+        return {
+            "team_id": self.team_id,
+            "admin_lct": binding.lct_id,
+            "binding_type": "tpm2",
+            "binding": {
+                "type": binding.binding_type.value,
+                "verified": binding.verified,
+                "hardware_anchor": binding.hardware_anchor,
+                "bound_at": binding.bound_at,
+                "trust_ceiling": 1.0
+            }
+        }
+
+    def get_admin_binding(self) -> Optional[AdminBinding]:
+        """Get the current admin's binding record."""
+        binding_manager = AdminBindingManager(self.ledger)
+        return binding_manager.get_binding(self.team_id)
+
+    def verify_admin(self, lct_id: str, signature: bytes = None,
+                     challenge: bytes = None) -> dict:
+        """
+        Verify admin identity.
+
+        For TPM2-bound admin, can optionally verify signature.
+        For software-bound admin, only checks LCT ID match.
+
+        Args:
+            lct_id: LCT claiming to be admin
+            signature: Optional signature on challenge (for TPM2)
+            challenge: Optional challenge data (for TPM2)
+
+        Returns:
+            Verification result dict
+        """
+        # Quick check
+        if self.admin_lct != lct_id:
+            return {"verified": False, "reason": "LCT ID mismatch"}
+
+        # Full verification through binding manager
+        binding_manager = AdminBindingManager(self.ledger)
+        return binding_manager.verify_admin(
+            self.team_id, lct_id, signature, challenge
+        )
 
     # --- Policy Management ---
 

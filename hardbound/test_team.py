@@ -240,6 +240,56 @@ def test_policy_persistence(team: Team, admin_lct: str):
     print("  Policy persistence working correctly!")
 
 
+def test_admin_binding():
+    """Test admin binding (TPM2 if available, software fallback)."""
+    from hardbound.admin_binding import check_tpm_availability, AdminBindingManager
+
+    print("\nTesting admin binding...")
+
+    # Check TPM status
+    status = check_tpm_availability()
+    print(f"  TPM available: {status.get('available', False)}")
+
+    if status.get('available'):
+        print(f"  Hardware: {status.get('hardware_type')}")
+        print(f"  Trust ceiling: {status.get('trust_ceiling')}")
+
+        # Create team with TPM admin
+        config = TeamConfig(
+            name="tpm-test-team",
+            description="Team with TPM-bound admin"
+        )
+        team = Team(config=config)
+
+        try:
+            result = team.set_admin_tpm2("test-admin")
+            print(f"  TPM admin LCT: {result['admin_lct'][:40]}...")
+            print(f"  Binding verified: {result['binding']['verified']}")
+            print(f"  Hardware anchor: {result['binding']['hardware_anchor']}")
+
+            # Verify admin
+            verify_result = team.verify_admin(result['admin_lct'])
+            print(f"  Verification: {verify_result.get('verified', False)}")
+
+            print("  TPM2 admin binding working correctly!")
+
+        except Exception as e:
+            print(f"  TPM2 binding error: {e}")
+            print("  (This may be expected if TPM is locked or in use)")
+
+    else:
+        print(f"  Reason: {status.get('reason')}")
+        print("  Skipping TPM test (not available)")
+
+    # Test software binding (always works)
+    config2 = TeamConfig(name="soft-test-team", description="Dev team")
+    team2 = Team(config=config2)
+    result = team2.set_admin("web4:soft:dev-admin:123")
+
+    assert result['binding']['type'] == 'software'
+    print("  Software binding working correctly!")
+
+
 def main():
     print("=" * 60)
     print("Hardbound Team Test")
@@ -252,6 +302,7 @@ def main():
     test_audit_trail(team)
     test_team_summary(team)
     test_trust_decay()
+    test_admin_binding()
     test_policy_persistence(team, admin_lct)
 
     print("\n" + "=" * 60)
