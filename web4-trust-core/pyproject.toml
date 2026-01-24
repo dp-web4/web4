@@ -1,0 +1,35 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "web4-trust"
+version = "0.1.0"
+description = "Web4 trust primitives (Rust core with Python bindings)"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Web4 Contributors"}
+]
+keywords = ["trust", "web4", "governance", "tensor"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+]
+
+[project.urls]
+Repository = "https://github.com/dp-web4/web4"
+
+[tool.maturin]
+features = ["python"]
+python-source = "python"
+module-name = "web4_trust"

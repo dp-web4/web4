@@ -13,7 +13,7 @@ categories = ["cryptography", "data-structures"]
 default = ["file-store"]
 file-store = ["serde_json", "sha2"]
 sled-store = ["sled"]
-python = ["pyo3"]
+python = ["pyo3", "parking_lot", "file-store"]
 wasm = ["wasm-bindgen", "js-sys", "getrandom/js"]
 
 [dependencies]
@@ -32,6 +32,7 @@ sled = { version = "0.34", optional = true }
 
 # Optional: Python bindings
 pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
+parking_lot = { version = "0.12", optional = true }
 
 # Optional: WASM bindings
 wasm-bindgen = { version = "0.2", optional = true }

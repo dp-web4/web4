@@ -5,7 +5,10 @@
 //! - WASM (via wasm-bindgen) - when `wasm` feature is enabled
 
 #[cfg(feature = "python")]
-mod python;
+pub mod python;
+
+#[cfg(feature = "python")]
+pub use python::*;
 
 #[cfg(feature = "wasm")]
 mod wasm;
