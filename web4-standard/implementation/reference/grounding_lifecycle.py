@@ -641,3 +641,28 @@ class GroundingManager:
     def validate_continuity(self) -> Tuple[bool, Optional[str]]:
         """Validate continuity chain"""
         return validate_continuity_chain(self.grounding_history)
+
+
+# ============================================================================
+# Heartbeat Ledger Integration
+# ============================================================================
+
+# For heartbeat-driven ledger timing, use HeartbeatAwareGroundingManager
+# from heartbeat_ledger.py which wraps this GroundingManager with:
+#
+# 1. Append-only ledger of all heartbeat events
+# 2. Timing validation (early/late/missed detection)
+# 3. Timing coherence contribution to CI
+# 4. Chain verification for audit trails
+#
+# Example:
+#   from heartbeat_ledger import HeartbeatAwareGroundingManager
+#
+#   manager = HeartbeatAwareGroundingManager(
+#       entity_lct="lct:my-entity",
+#       mrh_graph=graph,
+#       ledger_dir=Path("~/.web4/heartbeat")
+#   )
+#
+#   result = manager.heartbeat(current_context)
+#   # result contains: grounding, action, ledger_entry, timing_coherence
