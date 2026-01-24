@@ -13,13 +13,24 @@ It defines:
 - Trust thresholds for actions
 - ATP costs for actions
 - Approval requirements
+
+Persistence model:
+- Policy stored as JSON in ledger database
+- Hash-chain versioning for tamper detection
+- All changes recorded in audit trail
 """
 
+import hashlib
 import json
+import sqlite3
 from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, List, Any
+from pathlib import Path
+from typing import Optional, Dict, List, Any, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from governance import Ledger
 
 
 class ApprovalType(Enum):
@@ -222,3 +233,208 @@ class Policy:
             "rule_count": len(self.rules),
             "action_types": list(self.rules.keys())
         }
+
+    def compute_hash(self) -> str:
+        """Compute hash of policy for integrity verification."""
+        # Deterministic serialization
+        content = json.dumps(self.to_dict(), sort_keys=True)
+        return hashlib.sha256(content.encode()).hexdigest()
+
+
+class PolicyStore:
+    """
+    Persists policy to ledger database with hash-chain versioning.
+
+    Each policy version is stored with:
+    - Content hash for integrity
+    - Previous version hash for chain
+    - Change description
+    - Timestamp
+    """
+
+    def __init__(self, ledger: 'Ledger'):
+        """
+        Initialize policy store.
+
+        Args:
+            ledger: Ledger instance for persistence
+        """
+        self.ledger = ledger
+        self._ensure_table()
+
+    def _ensure_table(self):
+        """Create policy table if not exists."""
+        with sqlite3.connect(self.ledger.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS policies (
+                    policy_id TEXT PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    version INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    content_hash TEXT NOT NULL,
+                    prev_hash TEXT,
+                    change_description TEXT,
+                    changed_by TEXT,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(team_id, version)
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_policies_team
+                ON policies(team_id, version DESC)
+            """)
+
+    def save(self, team_id: str, policy: Policy, changed_by: str,
+             description: str = "") -> dict:
+        """
+        Save policy version to database.
+
+        Args:
+            team_id: Team this policy belongs to
+            policy: Policy to save
+            changed_by: LCT of who made the change
+            description: Description of change
+
+        Returns:
+            Policy version record
+        """
+        now = datetime.now(timezone.utc)
+        content = policy.to_json()
+        content_hash = policy.compute_hash()
+
+        # Get previous version hash
+        prev_hash = None
+        prev = self.get_latest(team_id)
+        if prev:
+            prev_hash = prev["content_hash"]
+            policy.version = prev["version"] + 1
+
+        # Generate policy ID
+        seed = f"policy:{team_id}:{policy.version}:{now.isoformat()}"
+        policy_id = f"policy:{hashlib.sha256(seed.encode()).hexdigest()[:12]}"
+
+        with sqlite3.connect(self.ledger.db_path) as conn:
+            conn.execute("""
+                INSERT INTO policies
+                (policy_id, team_id, version, content, content_hash,
+                 prev_hash, change_description, changed_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                policy_id, team_id, policy.version, content, content_hash,
+                prev_hash, description, changed_by, now.isoformat()
+            ))
+
+        # Record in audit trail
+        self.ledger.record_audit(
+            session_id=team_id,
+            action_type="policy_changed",
+            tool_name="hardbound",
+            target=policy_id,
+            r6_data={
+                "version": policy.version,
+                "content_hash": content_hash,
+                "prev_hash": prev_hash,
+                "description": description,
+                "rule_count": len(policy.rules)
+            }
+        )
+
+        return {
+            "policy_id": policy_id,
+            "team_id": team_id,
+            "version": policy.version,
+            "content_hash": content_hash,
+            "prev_hash": prev_hash,
+            "created_at": now.isoformat()
+        }
+
+    def get_latest(self, team_id: str) -> Optional[dict]:
+        """Get the latest policy version for a team."""
+        with sqlite3.connect(self.ledger.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("""
+                SELECT * FROM policies
+                WHERE team_id = ?
+                ORDER BY version DESC
+                LIMIT 1
+            """, (team_id,)).fetchone()
+
+            return dict(row) if row else None
+
+    def get_version(self, team_id: str, version: int) -> Optional[dict]:
+        """Get a specific policy version."""
+        with sqlite3.connect(self.ledger.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("""
+                SELECT * FROM policies
+                WHERE team_id = ? AND version = ?
+            """, (team_id, version)).fetchone()
+
+            return dict(row) if row else None
+
+    def load(self, team_id: str, version: Optional[int] = None) -> Optional[Policy]:
+        """
+        Load policy from database.
+
+        Args:
+            team_id: Team ID
+            version: Specific version, or None for latest
+
+        Returns:
+            Policy instance, or None if not found
+        """
+        if version is not None:
+            record = self.get_version(team_id, version)
+        else:
+            record = self.get_latest(team_id)
+
+        if not record:
+            return None
+
+        policy = Policy.from_json(record["content"])
+        policy.version = record["version"]
+        return policy
+
+    def get_history(self, team_id: str) -> List[dict]:
+        """Get policy version history for a team."""
+        with sqlite3.connect(self.ledger.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT policy_id, version, content_hash, prev_hash,
+                       change_description, changed_by, created_at
+                FROM policies
+                WHERE team_id = ?
+                ORDER BY version DESC
+            """, (team_id,)).fetchall()
+
+            return [dict(row) for row in rows]
+
+    def verify_chain(self, team_id: str) -> tuple:
+        """
+        Verify policy chain integrity.
+
+        Returns:
+            (valid: bool, error: Optional[str])
+        """
+        history = self.get_history(team_id)
+        if not history:
+            return (True, None)  # No policy = valid
+
+        # Verify from newest to oldest
+        expected_prev = None
+        for i, record in enumerate(history):
+            # Verify content hash
+            record_full = self.get_version(team_id, record["version"])
+            if record_full:
+                policy = Policy.from_json(record_full["content"])
+                computed_hash = policy.compute_hash()
+                if computed_hash != record["content_hash"]:
+                    return (False, f"Content hash mismatch at version {record['version']}")
+
+            # Verify chain linkage
+            if expected_prev is not None and record["content_hash"] != expected_prev:
+                return (False, f"Chain break at version {record['version']}")
+
+            expected_prev = record["prev_hash"]
+
+        return (True, None)

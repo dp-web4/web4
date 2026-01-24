@@ -189,6 +189,57 @@ def test_trust_decay():
     print("  Trust decay working correctly!")
 
 
+def test_policy_persistence(team: Team, admin_lct: str):
+    """Test policy persistence to ledger."""
+    print("\nTesting policy persistence...")
+
+    # Get default policy
+    policy = team.get_policy()
+    print(f"  Default policy version: {policy.version}")
+    print(f"  Default rules: {len(policy.rules)}")
+
+    # Add a custom rule
+    custom_rule = PolicyRule(
+        action_type="secret_access",
+        allowed_roles=["admin"],
+        trust_threshold=0.9,
+        atp_cost=20,
+        approval=ApprovalType.MULTI_SIG,
+        approval_count=2,
+        description="Access to team secrets"
+    )
+    policy.add_rule(custom_rule)
+
+    # Save policy
+    result = team.set_policy(policy, admin_lct, "Added secret_access rule")
+    print(f"  Saved policy: {result['policy_id']}")
+    print(f"  Version: {result['version']}")
+    print(f"  Hash: {result['content_hash'][:12]}...")
+
+    # Modify and save again
+    policy.get_rule("secret_access").trust_threshold = 0.95
+    result2 = team.set_policy(policy, admin_lct, "Increased trust threshold")
+    print(f"  Updated policy: {result2['policy_id']}")
+    print(f"  Version: {result2['version']}")
+    print(f"  Prev hash: {result2['prev_hash'][:12]}...")
+
+    # Get history
+    history = team.get_policy_history()
+    print(f"  Policy versions: {len(history)}")
+
+    # Verify chain
+    valid, error = team.verify_policy_chain()
+    print(f"  Chain valid: {valid}")
+    assert valid, f"Policy chain should be valid: {error}"
+
+    # Reload and verify
+    loaded = team.get_policy()
+    assert loaded.version == result2['version'], "Should load latest version"
+    assert loaded.get_rule("secret_access").trust_threshold == 0.95
+
+    print("  Policy persistence working correctly!")
+
+
 def main():
     print("=" * 60)
     print("Hardbound Team Test")
@@ -201,6 +252,7 @@ def main():
     test_audit_trail(team)
     test_team_summary(team)
     test_trust_decay()
+    test_policy_persistence(team, admin_lct)
 
     print("\n" + "=" * 60)
     print("All tests passed!")

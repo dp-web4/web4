@@ -32,8 +32,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "claude-code-plugin"))
 from governance import Ledger
 
-# Import trust decay
+# Import trust decay and policy
 from .trust_decay import TrustDecayCalculator, DecayConfig
+from .policy import Policy, PolicyStore
 
 
 @dataclass
@@ -235,6 +236,46 @@ class Team:
     def verify_admin(self, lct_id: str) -> bool:
         """Check if LCT is the current admin."""
         return self.admin_lct == lct_id
+
+    # --- Policy Management ---
+
+    def get_policy(self) -> Policy:
+        """
+        Get current team policy.
+
+        Loads from ledger, or returns default policy if none saved.
+        """
+        store = PolicyStore(self.ledger)
+        policy = store.load(self.team_id)
+        if policy is None:
+            policy = Policy()  # Default policy
+        return policy
+
+    def set_policy(self, policy: Policy, changed_by: str,
+                   description: str = "") -> dict:
+        """
+        Save team policy to ledger.
+
+        Args:
+            policy: Policy to save
+            changed_by: LCT of who made the change
+            description: Description of what changed
+
+        Returns:
+            Policy version record
+        """
+        store = PolicyStore(self.ledger)
+        return store.save(self.team_id, policy, changed_by, description)
+
+    def get_policy_history(self) -> List[dict]:
+        """Get policy change history."""
+        store = PolicyStore(self.ledger)
+        return store.get_history(self.team_id)
+
+    def verify_policy_chain(self) -> tuple:
+        """Verify policy chain integrity."""
+        store = PolicyStore(self.ledger)
+        return store.verify_chain(self.team_id)
 
     # --- Member Management ---
 
