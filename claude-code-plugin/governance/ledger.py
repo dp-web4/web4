@@ -43,9 +43,20 @@ class Ledger:
 
         self._init_db()
 
+    def _get_connection(self):
+        """Get a database connection with proper settings for concurrency."""
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn.execute("PRAGMA busy_timeout = 30000")  # 30 second wait on locks
+        return conn
+
     def _init_db(self):
-        """Initialize database schema."""
+        """Initialize database schema with concurrency support."""
         with sqlite3.connect(self.db_path) as conn:
+            # Enable WAL mode for better concurrent read/write access
+            # This allows multiple readers and one writer simultaneously
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout = 30000")
+
             conn.executescript("""
                 -- Identities (soft LCT)
                 CREATE TABLE IF NOT EXISTS identities (
