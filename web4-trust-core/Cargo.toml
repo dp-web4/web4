@@ -23,10 +23,6 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
-# WASM-specific uuid with JS random source
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-uuid = { version = "1.0", features = ["v4", "serde", "js"] }
-
 # Optional: File storage
 serde_json = { version = "1.0", optional = true }
 sha2 = { version = "0.10", optional = true }
@@ -42,6 +38,10 @@ parking_lot = { version = "0.12", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
 getrandom = { version = "0.2", optional = true }
+
+# WASM-specific uuid with JS random source
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1.0", features = ["v4", "serde", "js"] }
 
 [dev-dependencies]
 criterion = "0.5"

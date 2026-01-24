@@ -329,6 +329,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "file-store")]
     fn test_serialization() {
         let trust = EntityTrust::new("mcp:filesystem");
         let json = serde_json::to_string_pretty(&trust).unwrap();
