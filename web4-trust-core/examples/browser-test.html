@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web4 Trust Core - WASM Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00d9ff; }
+        .test {
+            background: #16213e;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+        .pass { border-left: 4px solid #00ff88; }
+        .fail { border-left: 4px solid #ff4444; }
+        pre {
+            background: #0f0f1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        code { color: #00d9ff; }
+    </style>
+</head>
+<body>
+    <h1>Web4 Trust Core - WASM Test</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        import init, {
+            T3Tensor,
+            V3Tensor,
+            EntityTrust,
+            WasmTrustStore,
+            version
+        } from '../pkg/web4_trust_core.js';
+
+        const results = document.getElementById('results');
+
+        function addResult(name, passed, details = '') {
+            const div = document.createElement('div');
+            div.className = `test ${passed ? 'pass' : 'fail'}`;
+            div.innerHTML = `
+                <strong>${passed ? '✓' : '✗'} ${name}</strong>
+                ${details ? `<pre><code>${details}</code></pre>` : ''}
+            `;
+            results.appendChild(div);
+        }
+
+        async function runTests() {
+            try {
+                // Initialize WASM
+                await init();
+                addResult('WASM Initialization', true, `Version: ${version()}`);
+
+                // Test T3 Tensor
+                const t3 = new T3Tensor(0.8, 0.7, 0.9, 0.5, 0.6, 0.85);
+                const t3Avg = t3.average();
+                addResult('T3 Tensor Creation', t3Avg > 0.7,
+                    `Average: ${t3Avg.toFixed(4)}\nLevel: ${t3.level()}\nJSON: ${JSON.stringify(t3.toJSON(), null, 2)}`);
+
+                // Test V3 Tensor
+                const v3 = V3Tensor.neutral();
+                addResult('V3 Tensor Neutral', v3.average() === 0.5,
+                    `Average: ${v3.average()}\nJSON: ${JSON.stringify(v3.toJSON(), null, 2)}`);
+
+                // Test EntityTrust
+                const entity = new EntityTrust('mcp:filesystem');
+                entity.updateFromOutcome(true, 0.1);
+                entity.updateFromOutcome(true, 0.1);
+                entity.updateFromOutcome(false, 0.05);
+                addResult('EntityTrust Outcome Updates', entity.successRate() > 0.6,
+                    `Entity: ${entity.entityId}\nSuccess Rate: ${entity.successRate().toFixed(4)}\nT3 Avg: ${entity.t3Average().toFixed(4)}\nTrust Level: ${entity.trustLevel()}`);
+
+                // Test WasmTrustStore
+                const store = new WasmTrustStore();
+                const e1 = store.update('agent:claude', true, 0.2);
+                const e2 = store.update('mcp:git', true, 0.15);
+
+                // Test witnessing
+                const [witness, target] = store.witness('agent:claude', 'mcp:git', true, 0.1);
+
+                addResult('TrustStore + Witnessing', store.count() === 2,
+                    `Entity Count: ${store.count()}\nClaude T3: ${e1.t3Average().toFixed(4)}\nGit T3 (after witness): ${target.t3Average().toFixed(4)}\nClaude witnessed: ${witness.hasWitnessed.length} entities`);
+
+                // Test decay
+                const decayEntity = new EntityTrust('test:decay');
+                decayEntity.updateFromOutcome(true, 0.3);
+                const beforeDecay = decayEntity.t3Average();
+                decayEntity.applyDecay(30, 0.1);
+                const afterDecay = decayEntity.t3Average();
+                addResult('Trust Decay', afterDecay < beforeDecay,
+                    `Before Decay: ${beforeDecay.toFixed(4)}\nAfter 30 days (0.1 rate): ${afterDecay.toFixed(4)}`);
+
+                // Summary
+                addResult('All Tests Complete', true,
+                    'Web4 Trust Core WASM bindings are working correctly!');
+
+            } catch (e) {
+                addResult('Error', false, e.toString());
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

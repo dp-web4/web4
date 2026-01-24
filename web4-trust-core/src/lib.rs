@@ -35,7 +35,7 @@ pub mod witnessing;
 pub mod decay;
 pub mod storage;
 
-#[cfg(feature = "python")]
+#[cfg(any(feature = "python", feature = "wasm"))]
 pub mod bindings;
 
 // Re-exports for convenience
