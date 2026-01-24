@@ -35,10 +35,12 @@ sys.path.insert(0, str(PLUGIN_DIR))
 
 # Try to import governance module
 try:
-    from governance import Ledger, SoftLCT, SessionManager
+    from governance import Ledger, SoftLCT, SessionManager, EntityTrustStore, EntityTrust
     GOVERNANCE_AVAILABLE = True
 except ImportError:
     GOVERNANCE_AVAILABLE = False
+    EntityTrustStore = None
+    EntityTrust = None
 
 # MCP Protocol version
 MCP_VERSION = "2024-11-05"
@@ -288,6 +290,87 @@ class MCPServer:
                     "type": "object",
                     "properties": {}
                 }
+            },
+            # Entity Trust Tools (MCP servers, references, etc.)
+            "web4.io/entity/trust": {
+                "description": "Query trust for any Web4 entity (MCP server, role, reference)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entity_id": {
+                            "type": "string",
+                            "description": "Entity ID (e.g., mcp:filesystem, role:code-reviewer, ref:abc123)"
+                        }
+                    },
+                    "required": ["entity_id"]
+                }
+            },
+            "web4.io/entity/witness": {
+                "description": "Record a witnessing event between two entities",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "witness_id": {
+                            "type": "string",
+                            "description": "Entity doing the witnessing (e.g., session:abc)"
+                        },
+                        "target_id": {
+                            "type": "string",
+                            "description": "Entity being witnessed (e.g., mcp:filesystem)"
+                        },
+                        "success": {
+                            "type": "boolean",
+                            "description": "Whether the witnessed action succeeded"
+                        },
+                        "magnitude": {
+                            "type": "number",
+                            "description": "Update magnitude (0.0-1.0)"
+                        }
+                    },
+                    "required": ["witness_id", "target_id", "success"]
+                }
+            },
+            "web4.io/entity/list": {
+                "description": "List all entities of a given type",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entity_type": {
+                            "type": "string",
+                            "description": "Entity type (mcp, role, ref, session)",
+                            "enum": ["mcp", "role", "ref", "session"]
+                        }
+                    }
+                }
+            },
+            "web4.io/entity/chain": {
+                "description": "Get witnessing chain for an entity (who witnessed whom)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entity_id": {"type": "string"},
+                        "depth": {"type": "integer", "description": "Chain depth to return"}
+                    },
+                    "required": ["entity_id"]
+                }
+            },
+            "web4.io/mcp/trust": {
+                "description": "Update MCP server trust after a tool call",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "server_name": {
+                            "type": "string",
+                            "description": "MCP server name (e.g., filesystem, web4)"
+                        },
+                        "success": {"type": "boolean"},
+                        "session_id": {
+                            "type": "string",
+                            "description": "Session witnessing the MCP call"
+                        }
+                    },
+                    "required": ["server_name", "success"]
+                }
             }
         }
 
@@ -445,6 +528,17 @@ class MCPServer:
             result = self._tool_agent_reference_add(arguments)
         elif tool_name == "web4.io/agent/roles":
             result = self._tool_agent_roles(arguments)
+        # Entity trust tools
+        elif tool_name == "web4.io/entity/trust":
+            result = self._tool_entity_trust(arguments)
+        elif tool_name == "web4.io/entity/witness":
+            result = self._tool_entity_witness(arguments)
+        elif tool_name == "web4.io/entity/list":
+            result = self._tool_entity_list(arguments)
+        elif tool_name == "web4.io/entity/chain":
+            result = self._tool_entity_chain(arguments)
+        elif tool_name == "web4.io/mcp/trust":
+            result = self._tool_mcp_trust(arguments)
         else:
             raise ValueError(f"Tool not implemented: {tool_name}")
 
@@ -1043,6 +1137,149 @@ class MCPServer:
             }
         except Exception as e:
             return {"error": str(e)}
+
+    # --- Entity Trust Tools ---
+
+    def _tool_entity_trust(self, args: dict) -> dict:
+        """Query trust for any Web4 entity."""
+        if not GOVERNANCE_AVAILABLE or EntityTrustStore is None:
+            return {"error": "Entity trust module not available"}
+
+        entity_id = args.get("entity_id")
+
+        try:
+            store = EntityTrustStore()
+            trust = store.get(entity_id)
+            return {
+                "entity_id": entity_id,
+                "entity_type": trust.entity_type,
+                "entity_name": trust.entity_name,
+                "t3_average": round(trust.t3_average(), 3),
+                "v3_average": round(trust.v3_average(), 3),
+                "trust_level": trust.trust_level(),
+                "t3": {
+                    "competence": round(trust.competence, 3),
+                    "reliability": round(trust.reliability, 3),
+                    "consistency": round(trust.consistency, 3),
+                    "witnesses": round(trust.witnesses, 3),
+                    "lineage": round(trust.lineage, 3),
+                    "alignment": round(trust.alignment, 3)
+                },
+                "witnessing": {
+                    "witness_count": trust.witness_count,
+                    "witnessed_by": trust.witnessed_by[:10],
+                    "has_witnessed": trust.has_witnessed[:10]
+                },
+                "action_count": trust.action_count,
+                "success_count": trust.success_count
+            }
+        except Exception as e:
+            return {"error": str(e), "entity_id": entity_id}
+
+    def _tool_entity_witness(self, args: dict) -> dict:
+        """Record a witnessing event between two entities."""
+        if not GOVERNANCE_AVAILABLE or EntityTrustStore is None:
+            return {"error": "Entity trust module not available"}
+
+        witness_id = args.get("witness_id")
+        target_id = args.get("target_id")
+        success = args.get("success", True)
+        magnitude = args.get("magnitude", 0.1)
+
+        try:
+            store = EntityTrustStore()
+            witness_trust, target_trust = store.witness(
+                witness_id, target_id, success, magnitude
+            )
+            return {
+                "witness": {
+                    "entity_id": witness_id,
+                    "t3_average": round(witness_trust.t3_average(), 3),
+                    "alignment": round(witness_trust.alignment, 3)
+                },
+                "target": {
+                    "entity_id": target_id,
+                    "t3_average": round(target_trust.t3_average(), 3),
+                    "witnesses_score": round(target_trust.witnesses, 3),
+                    "reputation": round(target_trust.reputation, 3)
+                },
+                "success": success,
+                "magnitude": magnitude
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _tool_entity_list(self, args: dict) -> dict:
+        """List all entities of a given type."""
+        if not GOVERNANCE_AVAILABLE or EntityTrustStore is None:
+            return {"error": "Entity trust module not available"}
+
+        entity_type = args.get("entity_type")
+
+        try:
+            store = EntityTrustStore()
+            entities = store.list_entities(entity_type)
+
+            # Get summary for each
+            summaries = []
+            for eid in entities[:50]:  # Limit for performance
+                trust = store.get(eid)
+                summaries.append({
+                    "entity_id": eid,
+                    "t3_average": round(trust.t3_average(), 3),
+                    "trust_level": trust.trust_level(),
+                    "action_count": trust.action_count,
+                    "witness_count": trust.witness_count
+                })
+
+            return {
+                "entity_type": entity_type or "all",
+                "count": len(entities),
+                "entities": summaries
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _tool_entity_chain(self, args: dict) -> dict:
+        """Get witnessing chain for an entity."""
+        if not GOVERNANCE_AVAILABLE or EntityTrustStore is None:
+            return {"error": "Entity trust module not available"}
+
+        entity_id = args.get("entity_id")
+        depth = args.get("depth", 2)
+
+        try:
+            store = EntityTrustStore()
+            chain = store.get_witnessing_chain(entity_id, depth)
+            return chain
+        except Exception as e:
+            return {"error": str(e), "entity_id": entity_id}
+
+    def _tool_mcp_trust(self, args: dict) -> dict:
+        """Update MCP server trust after a tool call."""
+        if not GOVERNANCE_AVAILABLE or EntityTrustStore is None:
+            return {"error": "Entity trust module not available"}
+
+        server_name = args.get("server_name")
+        success = args.get("success", True)
+        session_id = args.get("session_id", "session:current")
+
+        try:
+            from governance import update_mcp_trust
+            mcp_trust = update_mcp_trust(server_name, success, session_id)
+            return {
+                "mcp_server": server_name,
+                "entity_id": f"mcp:{server_name}",
+                "success": success,
+                "t3_average": round(mcp_trust.t3_average(), 3),
+                "trust_level": mcp_trust.trust_level(),
+                "reliability": round(mcp_trust.reliability, 3),
+                "action_count": mcp_trust.action_count,
+                "success_count": mcp_trust.success_count,
+                "witnessed_by": session_id
+            }
+        except Exception as e:
+            return {"error": str(e), "server_name": server_name}
 
     def _handle_resources_list(self) -> dict:
         """List available resources."""
