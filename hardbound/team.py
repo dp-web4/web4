@@ -32,6 +32,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "claude-code-plugin"))
 from governance import Ledger
 
+# Import trust decay
+from .trust_decay import TrustDecayCalculator, DecayConfig
+
 
 @dataclass
 class TeamConfig:
@@ -49,6 +52,10 @@ class TeamConfig:
     # Trust thresholds for actions
     action_trust_threshold: float = 0.5
     admin_trust_threshold: float = 0.8
+
+    # Trust decay settings
+    enable_trust_decay: bool = True
+    decay_config: Optional[DecayConfig] = None
 
 
 class Team:
@@ -74,6 +81,7 @@ class Team:
             ledger: Ledger instance (creates default if None)
         """
         self.ledger = ledger or Ledger()
+        self._decay_calculator: Optional[TrustDecayCalculator] = None
 
         if team_id:
             # Load existing team
@@ -83,6 +91,11 @@ class Team:
             if config is None:
                 raise ValueError("config required for new team")
             self._create_team(config)
+
+        # Initialize decay calculator if enabled
+        if self.config.enable_trust_decay:
+            decay_config = self.config.decay_config or DecayConfig()
+            self._decay_calculator = TrustDecayCalculator(decay_config)
 
     def _create_team(self, config: TeamConfig):
         """Create a new team."""
@@ -243,17 +256,23 @@ class Team:
 
         budget = atp_budget if atp_budget is not None else self.config.default_member_budget
 
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
         member = {
             "lct_id": lct_id,
             "role": role,
             "atp_budget": budget,
             "atp_consumed": 0,
-            "joined_at": datetime.now(timezone.utc).isoformat() + "Z",
+            "joined_at": now_iso,
             "trust": {
                 "competence": 0.5,
                 "reliability": 0.5,
-                "alignment": 0.5
+                "alignment": 0.5,
+                "consistency": 0.5,
+                "witnesses": 0.5,
+                "lineage": 0.5
             },
+            "last_trust_update": now_iso,
             "action_count": 0
         }
 
@@ -364,12 +383,23 @@ class Team:
             magnitude: Update magnitude (0.0 to 1.0)
 
         Returns:
-            Updated trust tensor
+            Updated trust tensor (after decay applied)
         """
         if lct_id not in self.members:
             raise ValueError(f"Not a member: {lct_id}")
 
-        trust = self.members[lct_id]["trust"]
+        member = self.members[lct_id]
+        trust = member["trust"]
+        now = datetime.now(timezone.utc)
+
+        # First apply any pending decay
+        if self._decay_calculator and "last_trust_update" in member:
+            trust = self._decay_calculator.apply_decay(
+                trust,
+                member["last_trust_update"],
+                now,
+                member.get("action_count", 0)
+            )
 
         if outcome == "success":
             delta = magnitude * 0.05
@@ -379,24 +409,68 @@ class Team:
             delta = magnitude * 0.02
 
         # Update all dimensions
-        trust["reliability"] = max(0, min(1, trust["reliability"] + delta))
-        trust["competence"] = max(0, min(1, trust["competence"] + delta * 0.5))
-        trust["alignment"] = max(0, min(1, trust["alignment"] + delta * 0.3))
+        for dim in trust:
+            if dim in ("reliability", "competence", "alignment"):
+                multiplier = 1.0 if dim == "reliability" else (0.5 if dim == "competence" else 0.3)
+                trust[dim] = max(0, min(1, trust[dim] + delta * multiplier))
 
+        # Store updated trust and timestamp
+        member["trust"] = trust
+        member["last_trust_update"] = now.isoformat()
+        member["action_count"] = member.get("action_count", 0) + 1
         self._update_team()
 
         return trust
 
-    def get_member_trust_score(self, lct_id: str) -> float:
-        """Get member's aggregate trust score (0.0 to 1.0)."""
+    def get_member_trust(self, lct_id: str, apply_decay: bool = True) -> Dict[str, float]:
+        """
+        Get member's full trust tensor.
+
+        Args:
+            lct_id: Member LCT
+            apply_decay: Whether to apply time-based decay
+
+        Returns:
+            Trust tensor with all dimensions
+        """
         if lct_id not in self.members:
+            return {}
+
+        member = self.members[lct_id]
+        trust = member["trust"].copy()
+
+        if apply_decay and self._decay_calculator and "last_trust_update" in member:
+            trust = self._decay_calculator.apply_decay(
+                trust,
+                member["last_trust_update"],
+                datetime.now(timezone.utc),
+                member.get("action_count", 0)
+            )
+
+        return trust
+
+    def get_member_trust_score(self, lct_id: str, apply_decay: bool = True) -> float:
+        """
+        Get member's aggregate trust score (0.0 to 1.0).
+
+        Args:
+            lct_id: Member LCT
+            apply_decay: Whether to apply time-based decay
+
+        Returns:
+            Weighted trust score
+        """
+        trust = self.get_member_trust(lct_id, apply_decay=apply_decay)
+        if not trust:
             return 0.0
 
-        trust = self.members[lct_id]["trust"]
-        # Weighted average
-        return (trust["competence"] * 0.4 +
-                trust["reliability"] * 0.4 +
-                trust["alignment"] * 0.2)
+        # Weighted average (using only the primary dimensions)
+        return (trust.get("competence", 0.5) * 0.25 +
+                trust.get("reliability", 0.5) * 0.20 +
+                trust.get("consistency", 0.5) * 0.15 +
+                trust.get("witnesses", 0.5) * 0.15 +
+                trust.get("lineage", 0.5) * 0.15 +
+                trust.get("alignment", 0.5) * 0.10)
 
     # --- Team Info ---
 

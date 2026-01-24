@@ -148,6 +148,47 @@ def test_team_summary(team: Team):
         print(f"    - {m['role']}: trust={m['trust_score']:.2f}, ATP={m['atp_remaining']}")
 
 
+def test_trust_decay():
+    """Test trust decay over time."""
+    from datetime import timedelta
+    from hardbound.trust_decay import TrustDecayCalculator
+
+    print("\nTesting trust decay...")
+
+    calc = TrustDecayCalculator()
+
+    # Simulate trust from 30 days ago
+    high_trust = {
+        'competence': 0.9,
+        'reliability': 0.85,
+        'consistency': 0.8,
+        'witnesses': 0.7,
+        'lineage': 0.9,
+        'alignment': 0.75
+    }
+
+    # Apply 30 days of decay with no activity
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    last_update = now - timedelta(days=30)
+
+    decayed = calc.apply_decay(high_trust, last_update, now, actions_since_update=0)
+
+    print(f"  Original (30 days ago): avg={sum(high_trust.values())/6:.3f}")
+    print(f"  After decay (no activity): avg={sum(decayed.values())/6:.3f}")
+
+    # Witnesses should decay fastest (0.10 rate)
+    witness_decay = high_trust['witnesses'] - decayed['witnesses']
+    lineage_decay = high_trust['lineage'] - decayed['lineage']
+    print(f"  Witness decay: {witness_decay:.3f} (fastest)")
+    print(f"  Lineage decay: {lineage_decay:.3f} (slowest)")
+
+    assert witness_decay > lineage_decay, "Witnesses should decay faster than lineage"
+    assert decayed['witnesses'] > 0.5, "Trust should not go below baseline"
+
+    print("  Trust decay working correctly!")
+
+
 def main():
     print("=" * 60)
     print("Hardbound Team Test")
@@ -159,6 +200,7 @@ def main():
     test_r6_workflow(team, admin_lct, dev_lct, reviewer_lct)
     test_audit_trail(team)
     test_team_summary(team)
+    test_trust_decay()
 
     print("\n" + "=" * 60)
     print("All tests passed!")
