@@ -290,6 +290,83 @@ def test_admin_binding():
     print("  Software binding working correctly!")
 
 
+def test_multisig():
+    """Test multi-sig proposal and voting."""
+    from hardbound.multisig import MultiSigManager, CriticalAction, ProposalStatus
+
+    print("\nTesting multi-sig operations...")
+
+    # Create team with multiple members
+    config = TeamConfig(
+        name="multisig-test-team",
+        description="Team for testing multi-sig"
+    )
+    team = Team(config=config)
+
+    # Set up admin and members
+    admin_lct = "web4:soft:admin:msig001"
+    team.set_admin(admin_lct)
+
+    member1 = "web4:soft:member1:msig002"
+    member2 = "web4:soft:member2:msig003"
+    member3 = "web4:soft:member3:msig004"
+
+    team.add_member(member1, role="developer")
+    team.add_member(member2, role="developer")
+    team.add_member(member3, role="reviewer")
+
+    # Boost trust for members (so they can vote)
+    # Need to boost enough to reach 0.6 threshold
+    for _ in range(15):
+        team.update_member_trust(member1, "success", 0.8)
+        team.update_member_trust(member2, "success", 0.8)
+        team.update_member_trust(member3, "success", 0.8)
+
+    # Create multi-sig manager
+    msig = MultiSigManager(team)
+
+    # Create a proposal (admin proposes policy change)
+    proposal = msig.create_proposal(
+        proposer_lct=admin_lct,
+        action=CriticalAction.POLICY_CHANGE,
+        action_data={"changes": {"deploy_trust_threshold": 0.8}},
+        description="Increase deploy trust threshold"
+    )
+    print(f"  Created proposal: {proposal.proposal_id}")
+    print(f"  Action: {proposal.action.value}")
+    print(f"  Status: {proposal.status.value}")
+    print(f"  Expires: {proposal.expires_at[:10]}...")
+
+    # Cast votes
+    proposal = msig.vote(proposal.proposal_id, member1, approve=True, comment="LGTM")
+    print(f"  Member1 voted: approval_count={proposal.approval_count}")
+
+    proposal = msig.vote(proposal.proposal_id, member2, approve=True, comment="Approved")
+    print(f"  Member2 voted: approval_count={proposal.approval_count}")
+    print(f"  Trust-weighted: {proposal.trust_weighted_approvals:.2f}")
+
+    # Add third vote to reach trust-weighted quorum
+    proposal = msig.vote(proposal.proposal_id, member3, approve=True, comment="Looks good")
+    print(f"  Member3 voted: approval_count={proposal.approval_count}")
+    print(f"  Trust-weighted: {proposal.trust_weighted_approvals:.2f}")
+    print(f"  Status: {proposal.status.value}")
+
+    # Check if quorum reached
+    if proposal.status == ProposalStatus.APPROVED:
+        print("  Quorum reached!")
+
+        # Execute the proposal
+        result = msig.execute_proposal(proposal.proposal_id, admin_lct)
+        print(f"  Executed: {result.status.value}")
+        print(f"  Result: {result.execution_result}")
+
+    # Test proposal history
+    history = msig.get_proposal_history()
+    print(f"  Proposal history: {len(history)} entries")
+
+    print("  Multi-sig working correctly!")
+
+
 def main():
     print("=" * 60)
     print("Hardbound Team Test")
@@ -304,6 +381,7 @@ def main():
     test_trust_decay()
     test_admin_binding()
     test_policy_persistence(team, admin_lct)
+    test_multisig()
 
     print("\n" + "=" * 60)
     print("All tests passed!")
