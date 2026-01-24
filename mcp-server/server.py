@@ -150,6 +150,30 @@ class MCPServer:
                     },
                     "required": ["session_id"]
                 }
+            },
+            "web4.io/heartbeat/verify": {
+                "description": "Verify a heartbeat chain (for cross-machine trust)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entries": {
+                            "type": "array",
+                            "description": "List of heartbeat entries to verify",
+                            "items": {"type": "object"}
+                        }
+                    },
+                    "required": ["entries"]
+                }
+            },
+            "web4.io/heartbeat/export": {
+                "description": "Export session heartbeats for remote verification",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"}
+                    },
+                    "required": ["session_id"]
+                }
             }
         }
 
@@ -283,6 +307,10 @@ class MCPServer:
             result = self._tool_heartbeat_coherence(arguments)
         elif tool_name == "web4.io/session/status":
             result = self._tool_session_status(arguments)
+        elif tool_name == "web4.io/heartbeat/verify":
+            result = self._tool_heartbeat_verify(arguments)
+        elif tool_name == "web4.io/heartbeat/export":
+            result = self._tool_heartbeat_export(arguments)
         else:
             raise ValueError(f"Tool not implemented: {tool_name}")
 
@@ -586,6 +614,114 @@ class MCPServer:
             "timing_coherence": coherence_result.get("coherence", 1.0),
             "token_binding": session.get("token", {}).get("binding", "unknown"),
             "audit_level": session.get("preferences", {}).get("audit_level", "standard")
+        }
+
+    def _tool_heartbeat_verify(self, args: dict) -> dict:
+        """Verify a heartbeat chain for cross-machine trust."""
+        entries = args.get("entries", [])
+
+        if not entries:
+            return {
+                "valid": False,
+                "error": "No entries provided",
+                "trust_score": 0.0
+            }
+
+        errors = []
+        warnings = []
+        chain_intact = True
+        timing_consistent = True
+        signatures_present = 0
+
+        for i, entry in enumerate(entries):
+            # Check hash chain
+            if i > 0:
+                prev = entries[i - 1]
+                if entry.get("previous_hash") != prev.get("entry_hash"):
+                    chain_intact = False
+                    errors.append(f"Chain broken at entry {i}")
+
+                # Check sequence
+                if entry.get("sequence", 0) != prev.get("sequence", 0) + 1:
+                    warnings.append(f"Sequence gap at entry {i}")
+
+                # Check timing
+                try:
+                    prev_ts = prev["timestamp"]
+                    curr_ts = entry["timestamp"]
+
+                    # Normalize timestamps
+                    if prev_ts.endswith("Z"):
+                        prev_ts = prev_ts[:-1] + "+00:00"
+                    if curr_ts.endswith("Z"):
+                        curr_ts = curr_ts[:-1] + "+00:00"
+
+                    from datetime import datetime
+                    prev_time = datetime.fromisoformat(prev_ts)
+                    curr_time = datetime.fromisoformat(curr_ts)
+
+                    if curr_time < prev_time:
+                        timing_consistent = False
+                        errors.append(f"Negative time delta at entry {i}")
+                except (KeyError, ValueError) as e:
+                    warnings.append(f"Cannot parse timestamp at entry {i}")
+
+            # Check for signatures
+            if entry.get("signature"):
+                signatures_present += 1
+
+        # Compute trust score
+        score = 0.0
+        if len(entries) >= 5:
+            if chain_intact:
+                score += 0.3
+            if timing_consistent:
+                score += 0.2
+            sig_ratio = signatures_present / len(entries) if entries else 0
+            score += 0.4 * sig_ratio
+            if any(e.get("binding_type") == "tpm" for e in entries):
+                score += 0.1
+
+        valid = chain_intact and timing_consistent and not errors
+
+        return {
+            "valid": valid,
+            "entries_verified": len(entries),
+            "chain_intact": chain_intact,
+            "timing_consistent": timing_consistent,
+            "signatures_present": signatures_present,
+            "trust_score": round(score, 3),
+            "errors": errors,
+            "warnings": warnings
+        }
+
+    def _tool_heartbeat_export(self, args: dict) -> dict:
+        """Export session heartbeats for remote verification."""
+        session_id = args.get("session_id")
+
+        ledger_file = WEB4_DIR / "heartbeat" / f"{session_id}.jsonl"
+
+        if not ledger_file.exists():
+            return {
+                "session_id": session_id,
+                "error": "Session not found",
+                "entries": []
+            }
+
+        entries = []
+        with open(ledger_file) as f:
+            for line in f:
+                if line.strip():
+                    entries.append(json.loads(line))
+
+        return {
+            "session_id": session_id,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "entry_count": len(entries),
+            "entries": entries,
+            "source_machine": hashlib.sha256(
+                os.uname().nodename.encode()
+            ).hexdigest()[:8]
         }
 
     def _handle_resources_list(self) -> dict:
