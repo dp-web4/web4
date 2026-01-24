@@ -19,6 +19,7 @@ This is a reference implementation for Claude Code and other MCP clients.
 
 import json
 import sys
+import os
 import hashlib
 import uuid
 from datetime import datetime, timezone
@@ -27,6 +28,17 @@ from typing import Any, Dict, List, Optional
 
 # Web4 state directory
 WEB4_DIR = Path.home() / ".web4"
+
+# Add claude-code-plugin to path for governance imports
+PLUGIN_DIR = Path(__file__).parent.parent / "claude-code-plugin"
+sys.path.insert(0, str(PLUGIN_DIR))
+
+# Try to import governance module
+try:
+    from governance import Ledger, SoftLCT, SessionManager
+    GOVERNANCE_AVAILABLE = True
+except ImportError:
+    GOVERNANCE_AVAILABLE = False
 
 # MCP Protocol version
 MCP_VERSION = "2024-11-05"
@@ -174,6 +186,55 @@ class MCPServer:
                     },
                     "required": ["session_id"]
                 }
+            },
+            "web4.io/ledger/session/start": {
+                "description": "Start a new governed session with identity and ATP budget",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {"type": "string", "description": "Project name"},
+                        "atp_budget": {"type": "integer", "description": "Action budget", "default": 100}
+                    },
+                    "required": ["project"]
+                }
+            },
+            "web4.io/ledger/session/end": {
+                "description": "End current session and get summary",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                        "status": {"type": "string", "enum": ["completed", "aborted", "error"]}
+                    },
+                    "required": ["session_id"]
+                }
+            },
+            "web4.io/ledger/audit/query": {
+                "description": "Query audit trail for a session",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"}
+                    },
+                    "required": ["session_id"]
+                }
+            },
+            "web4.io/ledger/audit/verify": {
+                "description": "Verify audit trail witnessing chain integrity",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"}
+                    },
+                    "required": ["session_id"]
+                }
+            },
+            "web4.io/ledger/identity": {
+                "description": "Get current soft LCT identity",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
             }
         }
 
@@ -311,6 +372,16 @@ class MCPServer:
             result = self._tool_heartbeat_verify(arguments)
         elif tool_name == "web4.io/heartbeat/export":
             result = self._tool_heartbeat_export(arguments)
+        elif tool_name == "web4.io/ledger/session/start":
+            result = self._tool_ledger_session_start(arguments)
+        elif tool_name == "web4.io/ledger/session/end":
+            result = self._tool_ledger_session_end(arguments)
+        elif tool_name == "web4.io/ledger/audit/query":
+            result = self._tool_ledger_audit_query(arguments)
+        elif tool_name == "web4.io/ledger/audit/verify":
+            result = self._tool_ledger_audit_verify(arguments)
+        elif tool_name == "web4.io/ledger/identity":
+            result = self._tool_ledger_identity(arguments)
         else:
             raise ValueError(f"Tool not implemented: {tool_name}")
 
@@ -723,6 +794,106 @@ class MCPServer:
                 os.uname().nodename.encode()
             ).hexdigest()[:8]
         }
+
+    # --- Governance Ledger Tools ---
+
+    def _tool_ledger_session_start(self, args: dict) -> dict:
+        """Start a new governed session."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available", "governance_available": False}
+
+        project = args.get("project", "default")
+        atp_budget = args.get("atp_budget", 100)
+
+        try:
+            manager = SessionManager()
+            session = manager.start_session(project=project, atp_budget=atp_budget)
+            return {
+                "session_id": session["session_id"],
+                "session_number": session.get("session_number"),
+                "lct_id": session["lct_id"],
+                "project": project,
+                "atp_budget": atp_budget,
+                "started_at": session["started_at"],
+                "governance_available": True
+            }
+        except Exception as e:
+            return {"error": str(e), "governance_available": True}
+
+    def _tool_ledger_session_end(self, args: dict) -> dict:
+        """End a session and get summary."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        session_id = args.get("session_id")
+        status = args.get("status", "completed")
+
+        try:
+            ledger = Ledger()
+            ledger.end_session(session_id, status)
+            summary = ledger.get_session_summary(session_id)
+            return summary or {"error": "Session not found", "session_id": session_id}
+        except Exception as e:
+            return {"error": str(e), "session_id": session_id}
+
+    def _tool_ledger_audit_query(self, args: dict) -> dict:
+        """Query audit trail for a session."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        session_id = args.get("session_id")
+
+        try:
+            ledger = Ledger()
+            records = ledger.get_session_audit_trail(session_id)
+            return {
+                "session_id": session_id,
+                "record_count": len(records),
+                "records": records
+            }
+        except Exception as e:
+            return {"error": str(e), "session_id": session_id}
+
+    def _tool_ledger_audit_verify(self, args: dict) -> dict:
+        """Verify audit trail witnessing chain."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        session_id = args.get("session_id")
+
+        try:
+            ledger = Ledger()
+            is_valid, error = ledger.verify_audit_chain(session_id)
+            records = ledger.get_session_audit_trail(session_id)
+            return {
+                "session_id": session_id,
+                "chain_valid": is_valid,
+                "error": error,
+                "record_count": len(records),
+                "verification": "witnessing_chain"
+            }
+        except Exception as e:
+            return {"error": str(e), "session_id": session_id}
+
+    def _tool_ledger_identity(self, args: dict) -> dict:
+        """Get current soft LCT identity."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        try:
+            lct = SoftLCT()
+            identity = lct.get_or_create()
+            verification = lct.verify_local()
+            return {
+                "lct_id": identity["lct_id"],
+                "binding": identity["binding"],
+                "created_at": identity["created_at"],
+                "verified": verification.get("verified", False),
+                "confidence": verification.get("confidence", 0.0),
+                "note": identity.get("trust_note", "")
+            }
+        except Exception as e:
+            return {"error": str(e)}
 
     def _handle_resources_list(self) -> dict:
         """List available resources."""
