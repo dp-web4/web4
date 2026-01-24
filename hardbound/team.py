@@ -168,20 +168,29 @@ class Team:
 
     # --- Admin Management ---
 
-    def set_admin(self, lct_id: str, binding_type: str = "software") -> dict:
+    def set_admin(self, lct_id: str, binding_type: str = "software",
+                  require_hardware: bool = False) -> dict:
         """
         Set the admin for this team.
 
         Args:
             lct_id: LCT of the admin entity
             binding_type: Type of binding (software, tpm, fido2)
+            require_hardware: If True, reject software-only binding
 
         Returns:
             Admin assignment record
 
         Note: For production, admin SHOULD be hardware-bound.
         Software binding is allowed for development/testing.
+        Set require_hardware=True for production deployments.
         """
+        if require_hardware and binding_type == "software":
+            raise ValueError(
+                "Hardware binding required for admin. "
+                "Use TPM or FIDO2, or set require_hardware=False for development."
+            )
+
         if self.admin_lct:
             # Changing admin requires current admin approval
             # For now, just record the change
