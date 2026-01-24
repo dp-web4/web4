@@ -80,7 +80,7 @@ Sessions get a software-bound token:
 web4:session:a1b2c3d4
 ```
 
-This is **not** hardware-bound (no TPM/Secure Enclave). Trust interpretation is up to the relying party. For hardware-bound identity, see [Hardbound](https://github.com/dp-web4/hardbound).
+This is **not** hardware-bound (no TPM/Secure Enclave). Trust interpretation is up to the relying party. For hardware-bound identity, contact dp@metalinxx.io.
 
 ## Commands
 
@@ -144,7 +144,7 @@ This plugin implements a subset of the [Web4 trust infrastructure](https://githu
 | Audit | Hash-linked chain | Distributed ledger |
 | Trust | (Relying party decides) | T3 Trust Tensor |
 
-For enterprise features (hardware binding, team governance, policy enforcement), see [Hardbound](https://github.com/dp-web4/hardbound).
+For enterprise features (hardware binding, team governance, policy enforcement), contact dp@metalinxx.io.
 
 ## Contributing
 
@@ -164,4 +164,4 @@ MIT License - see [LICENSE](LICENSE)
 
 - [Web4 Specification](https://github.com/dp-web4/web4)
 - [R6 Framework Spec](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/r6-framework.md)
-- [Hardbound (Enterprise)](https://github.com/dp-web4/hardbound)
+- Enterprise inquiries: dp@metalinxx.io
