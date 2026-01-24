@@ -4,30 +4,16 @@
 
 set -e
 
-# Determine paths based on platform
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    if [[ -d "/home/dp/ai-workspace" ]]; then
-        PLUGIN_PATH="/home/dp/ai-workspace/web4/claude-code-plugin"
-    else
-        PLUGIN_PATH="$(cd "$(dirname "$0")" && pwd)"
-    fi
-elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || -n "$WSL_DISTRO_NAME" ]]; then
-    PLUGIN_PATH="/mnt/c/exe/projects/ai-agents/web4/claude-code-plugin"
-else
-    PLUGIN_PATH="$(cd "$(dirname "$0")" && pwd)"
-fi
-
 echo "=== Web4 Governance Plugin Deployment ==="
-echo "Plugin path: $PLUGIN_PATH"
 echo ""
 
 # Step 1: Create ~/.web4 directory structure
-echo "[1/4] Creating ~/.web4 directory..."
+echo "[1/3] Creating ~/.web4 directory..."
 mkdir -p ~/.web4/sessions ~/.web4/r6 ~/.web4/audit
 chmod 700 ~/.web4
 
 # Step 2: Create default preferences
-echo "[2/4] Creating preferences..."
+echo "[2/3] Creating preferences..."
 if [[ ! -f ~/.web4/preferences.json ]]; then
     cat > ~/.web4/preferences.json << 'EOF'
 {
@@ -42,16 +28,18 @@ else
 fi
 
 # Step 3: Make hooks executable
-echo "[3/4] Making hooks executable..."
-chmod +x "$PLUGIN_PATH/hooks/"*.py
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+echo "[3/3] Making hooks executable..."
+chmod +x "$SCRIPT_DIR/hooks/"*.py
 echo "  Done"
 
-# Step 4: Show hook configuration for settings.json
-echo "[4/4] Hook configuration for Claude Code..."
 echo ""
-echo "Add this to your project's .claude/settings.local.json or ~/.claude/settings.json:"
+echo "=== Hook Configuration ==="
 echo ""
-cat << EOF
+echo "Add this to your project's .claude/settings.local.json:"
+echo "(Uses \$CLAUDE_PROJECT_DIR for portability across machines)"
+echo ""
+cat << 'EOF'
 {
   "hooks": {
     "SessionStart": [
@@ -59,7 +47,7 @@ cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "$PLUGIN_PATH/hooks/session_start.py"
+            "command": "$CLAUDE_PROJECT_DIR/web4/claude-code-plugin/hooks/session_start.py"
           }
         ]
       }
@@ -70,7 +58,7 @@ cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "$PLUGIN_PATH/hooks/pre_tool_use.py"
+            "command": "$CLAUDE_PROJECT_DIR/web4/claude-code-plugin/hooks/pre_tool_use.py"
           }
         ]
       }
@@ -81,7 +69,7 @@ cat << EOF
         "hooks": [
           {
             "type": "command",
-            "command": "$PLUGIN_PATH/hooks/post_tool_use.py"
+            "command": "$CLAUDE_PROJECT_DIR/web4/claude-code-plugin/hooks/post_tool_use.py"
           }
         ]
       }
@@ -94,8 +82,11 @@ echo ""
 echo "=== Deployment complete ==="
 echo ""
 echo "Next steps:"
-echo "1. Add the hook configuration above to your Claude Code settings"
+echo "1. Add the hook configuration above to .claude/settings.local.json"
 echo "2. Restart Claude Code"
 echo "3. Check ~/.web4/sessions/ for session state files"
 echo ""
-echo "To verify: Run 'claude --debug' and look for hook execution logs"
+echo "Audit trail location:"
+echo "  Sessions: ~/.web4/sessions/"
+echo "  R6 Requests: ~/.web4/r6/"
+echo "  Audit Records: ~/.web4/audit/"
