@@ -106,11 +106,27 @@ class Ledger:
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
                 );
 
+                -- Heartbeats (timing coherence tracking)
+                CREATE TABLE IF NOT EXISTS heartbeats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    sequence INTEGER NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    delta_seconds REAL,
+                    tool_name TEXT,
+                    action_index INTEGER,
+                    previous_hash TEXT,
+                    entry_hash TEXT NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+                );
+
                 -- Indexes for common queries
                 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project);
                 CREATE INDEX IF NOT EXISTS idx_sessions_lct ON sessions(lct_id);
                 CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_trail(session_id);
                 CREATE INDEX IF NOT EXISTS idx_work_session ON work_products(session_id);
+                CREATE INDEX IF NOT EXISTS idx_heartbeat_session ON heartbeats(session_id);
             """)
 
     # --- Identity Management ---
@@ -367,3 +383,86 @@ class Ledger:
             "work_products": work_count,
             "audit_records": audit_count
         }
+
+    # --- Heartbeat Tracking ---
+
+    def record_heartbeat(self, session_id: str, sequence: int, timestamp: str,
+                         status: str, delta_seconds: float, tool_name: str,
+                         action_index: int, previous_hash: str, entry_hash: str) -> int:
+        """
+        Record a heartbeat entry.
+
+        Args:
+            session_id: Session this heartbeat belongs to
+            sequence: Sequential heartbeat number
+            timestamp: ISO timestamp
+            status: Timing status (initial, on_time, early, late, gap)
+            delta_seconds: Seconds since last heartbeat
+            tool_name: Tool that triggered this heartbeat
+            action_index: Action index in session
+            previous_hash: Hash of previous entry (for chain)
+            entry_hash: Hash of this entry
+
+        Returns:
+            Row ID of inserted heartbeat
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                INSERT INTO heartbeats
+                (session_id, sequence, timestamp, status, delta_seconds,
+                 tool_name, action_index, previous_hash, entry_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (session_id, sequence, timestamp, status, delta_seconds,
+                  tool_name, action_index, previous_hash, entry_hash))
+            return cursor.lastrowid
+
+    def get_last_heartbeat(self, session_id: str) -> Optional[Dict]:
+        """Get the most recent heartbeat for a session."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("""
+                SELECT * FROM heartbeats
+                WHERE session_id = ?
+                ORDER BY sequence DESC LIMIT 1
+            """, (session_id,)).fetchone()
+            return dict(row) if row else None
+
+    def get_heartbeats(self, session_id: str, limit: Optional[int] = None) -> List[Dict]:
+        """Get heartbeats for a session."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if limit:
+                rows = conn.execute("""
+                    SELECT * FROM heartbeats
+                    WHERE session_id = ?
+                    ORDER BY sequence DESC LIMIT ?
+                """, (session_id, limit)).fetchall()
+                # Reverse to get chronological order
+                return [dict(row) for row in reversed(rows)]
+            else:
+                rows = conn.execute("""
+                    SELECT * FROM heartbeats
+                    WHERE session_id = ?
+                    ORDER BY sequence ASC
+                """, (session_id,)).fetchall()
+                return [dict(row) for row in rows]
+
+    def get_heartbeat_count(self, session_id: str) -> int:
+        """Get total heartbeat count for a session."""
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM heartbeats WHERE session_id = ?",
+                (session_id,)
+            ).fetchone()
+            return row[0] if row else 0
+
+    def get_heartbeat_status_distribution(self, session_id: str) -> Dict[str, int]:
+        """Get distribution of heartbeat statuses for a session."""
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute("""
+                SELECT status, COUNT(*) as count
+                FROM heartbeats
+                WHERE session_id = ?
+                GROUP BY status
+            """, (session_id,)).fetchall()
+            return {row[0]: row[1] for row in rows}

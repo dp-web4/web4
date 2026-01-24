@@ -9,7 +9,7 @@
 Lightweight Heartbeat Ledger for Claude Code Sessions
 
 Provides timing-based coherence tracking for audit trails.
-This is a simplified version of the full web4 heartbeat_ledger.py.
+Now backed by SQLite via the governance Ledger for unified storage.
 
 Records:
 - Session activity heartbeats (each tool call)
@@ -18,16 +18,18 @@ Records:
 - Timing coherence score for overall session health
 """
 
-import json
+import sys
 import hashlib
-import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
 
+# Add parent directory to path for governance import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from governance import Ledger
+
 
 # Configuration
-HEARTBEAT_DIR = Path.home() / ".web4" / "heartbeat"
 EXPECTED_INTERVAL = timedelta(seconds=60)  # Expected time between tool calls
 JITTER_TOLERANCE = 0.5  # 50% tolerance
 
@@ -37,41 +39,22 @@ class SessionHeartbeat:
     Heartbeat tracker for a single session.
 
     Records each tool call as a heartbeat, creating a timing-auditable
-    chain of activity.
+    chain of activity. Now uses SQLite via Ledger for persistence.
     """
 
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, ledger: Optional[Ledger] = None):
         self.session_id = session_id
-        HEARTBEAT_DIR.mkdir(parents=True, exist_ok=True)
-        self.ledger_file = HEARTBEAT_DIR / f"{session_id}.jsonl"
-
-        self._entries: List[dict] = []
+        self.ledger = ledger or Ledger()
         self._last_entry: Optional[dict] = None
         self._loaded = False
 
     def _load(self):
-        """Load existing entries from disk."""
+        """Load last entry from database."""
         if self._loaded:
             return
 
-        if self.ledger_file.exists():
-            with open(self.ledger_file, 'r') as f:
-                for line in f:
-                    if line.strip():
-                        entry = json.loads(line)
-                        self._entries.append(entry)
-            if self._entries:
-                self._last_entry = self._entries[-1]
-
+        self._last_entry = self.ledger.get_last_heartbeat(self.session_id)
         self._loaded = True
-
-    def _append(self, entry: dict):
-        """Append entry to ledger."""
-        self._entries.append(entry)
-        self._last_entry = entry
-
-        with open(self.ledger_file, 'a') as f:
-            f.write(json.dumps(entry) + '\n')
 
     def record(self, tool_name: str, action_index: int) -> dict:
         """
@@ -133,7 +116,20 @@ class SessionHeartbeat:
             'entry_hash': entry_hash
         }
 
-        self._append(entry)
+        # Store in database
+        self.ledger.record_heartbeat(
+            session_id=self.session_id,
+            sequence=sequence,
+            timestamp=timestamp,
+            status=status,
+            delta_seconds=round(delta_seconds, 2),
+            tool_name=tool_name,
+            action_index=action_index,
+            previous_hash=previous_hash,
+            entry_hash=entry_hash
+        )
+
+        self._last_entry = entry
         return entry
 
     def timing_coherence(self, window: int = 10) -> float:
@@ -142,17 +138,14 @@ class SessionHeartbeat:
 
         Returns [0.0, 1.0] based on how regular the heartbeats are.
         """
-        self._load()
+        entries = self.ledger.get_heartbeats(self.session_id, limit=window)
 
-        if len(self._entries) < 2:
+        if len(entries) < 2:
             return 1.0
-
-        # Get recent entries
-        recent = self._entries[-window:] if len(self._entries) >= window else self._entries
 
         # Score each entry
         scores = []
-        for entry in recent:
+        for entry in entries:
             status = entry['status']
             if status == 'initial':
                 scores.append(1.0)
@@ -179,18 +172,18 @@ class SessionHeartbeat:
 
     def verify_chain(self) -> Tuple[bool, Optional[str]]:
         """Verify hash chain integrity."""
-        self._load()
+        entries = self.ledger.get_heartbeats(self.session_id)
 
-        if not self._entries:
+        if not entries:
             return (True, None)
 
-        for i, entry in enumerate(self._entries):
+        for i, entry in enumerate(entries):
             if i == 0:
                 if entry.get('previous_hash'):
                     return (False, f"First entry has non-empty previous_hash")
                 continue
 
-            prev = self._entries[i - 1]
+            prev = entries[i - 1]
 
             # Check sequence
             if entry['sequence'] != prev['sequence'] + 1:
@@ -208,29 +201,25 @@ class SessionHeartbeat:
 
     def summary(self) -> dict:
         """Get heartbeat summary."""
-        self._load()
-
-        status_counts = {}
-        for entry in self._entries:
-            status = entry['status']
-            status_counts[status] = status_counts.get(status, 0) + 1
+        total = self.ledger.get_heartbeat_count(self.session_id)
+        status_counts = self.ledger.get_heartbeat_status_distribution(self.session_id)
+        last_entry = self.ledger.get_last_heartbeat(self.session_id)
 
         valid, error = self.verify_chain()
 
         return {
             'session_id': self.session_id,
-            'total_heartbeats': len(self._entries),
+            'total_heartbeats': total,
             'timing_coherence': self.timing_coherence(),
             'chain_valid': valid,
             'chain_error': error,
             'status_distribution': status_counts,
-            'last_heartbeat': self._last_entry['timestamp'] if self._last_entry else None
+            'last_heartbeat': last_entry['timestamp'] if last_entry else None
         }
 
     def get_recent(self, count: int = 10) -> List[dict]:
         """Get recent heartbeat entries."""
-        self._load()
-        return self._entries[-count:]
+        return self.ledger.get_heartbeats(self.session_id, limit=count)
 
 
 def get_session_heartbeat(session_id: str) -> SessionHeartbeat:
