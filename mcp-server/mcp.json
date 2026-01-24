@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "web4": {
+      "command": "python3",
+      "args": ["/home/dp/ai-workspace/web4/mcp-server/server.py"],
+      "description": "Web4 trust and governance services"
+    }
+  }
+}
