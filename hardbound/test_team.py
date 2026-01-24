@@ -433,6 +433,46 @@ def test_rate_limiter():
     print("  Rate limiting working correctly!")
 
 
+def test_synthesis_eval():
+    """Test synthesis vs fabrication evaluation."""
+    from hardbound.synthesis_eval import SynthesisEvaluator, ContentMode
+
+    print("\nTesting synthesis evaluation...")
+
+    evaluator = SynthesisEvaluator()
+
+    # Valid synthesis content
+    synthesis = """
+    I've observed patterns emerging across data sources.
+    Common themes include optimization strategies.
+    Examples might be caching, indexing, or batching.
+    """
+    eval1 = evaluator.evaluate(synthesis)
+    assert eval1.detected_mode == ContentMode.SYNTHESIS, "Should detect synthesis"
+    assert eval1.recommendation in ("include", "review"), "Should include/review"
+    print(f"  Synthesis detected: mode={eval1.detected_mode.value}, quality={eval1.overall_quality:.2f}")
+
+    # Invalid fabrication content
+    fabrication = """
+    Yesterday we discussed the server issues.
+    You told me about the database problems.
+    I remember when you mentioned the fix.
+    """
+    eval2 = evaluator.evaluate(fabrication)
+    assert eval2.detected_mode == ContentMode.FABRICATION, "Should detect fabrication"
+    assert eval2.recommendation in ("review", "exclude"), "Should review/exclude"
+    assert eval2.t3_integrity_delta < 0, "Should penalize integrity"
+    print(f"  Fabrication detected: mode={eval2.detected_mode.value}, integrity={eval2.t3_integrity_delta:+.3f}")
+
+    # Neutral conversation
+    convo = "Let me help you with that. Thank you for asking."
+    eval3 = evaluator.evaluate(convo)
+    assert eval3.detected_mode == ContentMode.CONVERSATION, "Should detect conversation"
+    print(f"  Conversation detected: mode={eval3.detected_mode.value}")
+
+    print("  Synthesis evaluation working correctly!")
+
+
 def main():
     print("=" * 60)
     print("Hardbound Team Test")
@@ -449,6 +489,7 @@ def main():
     test_policy_persistence(team, admin_lct)
     test_multisig()
     test_rate_limiter()
+    test_synthesis_eval()
 
     print("\n" + "=" * 60)
     print("All tests passed!")
