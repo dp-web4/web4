@@ -16,40 +16,34 @@
 | Blockchain consensus | ❌ Not implemented | Zero consensus backend |
 | VCM recipient attestation | ❌ Not implemented | Vision only |
 | ATP/ADP settlement | ❌ Not implemented | No energy accounting |
-| **Hardware binding** | 🚨 **P0 BLOCKER** | Keys stored in filesystem |
+| **Hardware binding** | ⚠️ **Partial** | TPM 2.0 in hardbound-core |
 
-### 7.0.2. P0 Blocker: Hardware Binding Not Implemented
+### 7.0.2. Hardware Binding Status
 
-**CRITICAL**: The entire Web4 trust model depends on **unforgeable identity**. Currently, LCT keys are stored in filesystem as plaintext files. This means:
+**Current State**: The Web4 trust model depends on **unforgeable identity**. Hardware binding is now **partially implemented**:
 
-- **Any LCT can be copied** by copying the key file
-- **Identity can be impersonated** from any machine with the key
-- **The "unforgeable footprint" claim is currently false** for production use
+**Implemented (hardbound-core):**
+- TPM 2.0 integration via `tss-esapi` (Rust)
+- Hardware-sealed key storage
+- PCR-based attestation
+- Verified working on x86_64 systems with TPM 2.0
 
-**Required for Production:**
-- TPM 2.0 integration for hardware-sealed keys
+**Not Yet Implemented:**
 - TrustZone/OP-TEE for ARM platforms
-- Hardware attestation protocols
-- PCR sealing for boot-time verification
+- Broad hardware attestation protocols
+- Automatic capability level detection
 
-**Current State:**
-- Roadmap exists at `web4-standard/implementation/reference/hardware_binding_roadmap.md`
-- Detection scripts exist but have not been run on production hardware
-- Phases 2-4 (actual implementation) not started
+**Capability Levels:**
+| Level | Binding | Trust Ceiling | Use Case | Status |
+|-------|---------|---------------|----------|--------|
+| 0-3 | None/Weak | 0.5 | Testing only | Available |
+| 4 | Software (encrypted keys) | 0.85 | Development | Available |
+| 5 | Hardware (TPM/SE) | 1.0 | Production | **TPM 2.0 now available** |
 
 **Implications:**
-- Current implementations are suitable for **research and development only**
-- Production deployment requires completing hardware binding first
-- Trust claims in the whitepaper assume hardware binding is present
-
-**Capability Levels (Future):**
-| Level | Binding | Trust Ceiling | Use Case |
-|-------|---------|---------------|----------|
-| 0-3 | None/Weak | 0.5 | Testing only |
-| 4 | Software (encrypted keys) | 0.85 | Development |
-| 5 | Hardware (TPM/SE) | 1.0 | Production |
-
-Until hardware binding is implemented, all LCTs operate at Level 4 or below, with a trust ceiling that reflects the copyability of software keys.
+- Systems with TPM 2.0 can now achieve Level 5 trust ceiling
+- ARM platforms still limited to Level 4
+- Roadmap for broader hardware support at `web4-standard/implementation/reference/hardware_binding_roadmap.md`
 
 ### 7.0.3. What IS Working
 
