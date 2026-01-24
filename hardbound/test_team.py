@@ -367,6 +367,72 @@ def test_multisig():
     print("  Multi-sig working correctly!")
 
 
+def test_rate_limiter():
+    """Test rate limiting infrastructure."""
+    from hardbound.rate_limiter import (
+        RateLimiter, RateLimitRule, RateLimitScope, TokenBucket
+    )
+
+    print("\nTesting rate limiting...")
+
+    # Test token bucket
+    bucket = TokenBucket(max_tokens=5, refill_rate=10.0)  # 10/sec for fast test
+    print(f"  Token bucket: 5 max, 10/sec refill")
+
+    # Consume all tokens
+    for i in range(5):
+        assert bucket.consume(1), f"Should have token #{i+1}"
+    print(f"  Consumed 5 tokens: remaining={bucket.available}")
+
+    # Next should fail
+    assert not bucket.consume(1), "Should be empty"
+    print(f"  6th consume failed (expected)")
+
+    # Test rate limiter with governance ledger
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent / "claude-code-plugin"))
+    from governance import Ledger
+
+    ledger = Ledger()
+    limiter = RateLimiter(ledger)
+
+    # Add a test rule
+    test_rule = RateLimitRule(
+        name="test_rule",
+        scope=RateLimitScope.PER_LCT,
+        max_requests=3,
+        window_seconds=60,
+        burst_allowance=1
+    )
+    limiter.add_rule(test_rule)
+
+    test_lct = "web4:soft:test:ratelimit"
+
+    # Should allow 4 requests (3 + 1 burst)
+    for i in range(4):
+        result = limiter.check("test_rule", lct_id=test_lct)
+        assert result.allowed, f"Request #{i+1} should be allowed"
+    print(f"  4 requests allowed (3 + 1 burst)")
+
+    # 5th should fail
+    result = limiter.check("test_rule", lct_id=test_lct)
+    assert not result.allowed, "5th request should be denied"
+    print(f"  5th request denied: {result.reason}")
+
+    # Check status
+    status = limiter.get_status("test_rule", lct_id=test_lct)
+    print(f"  Status: remaining={status['remaining']}, allowed={status['allowed']}")
+
+    # Reset and verify
+    limiter.reset("test_rule", lct_id=test_lct)
+    result = limiter.check("test_rule", lct_id=test_lct)
+    assert result.allowed, "After reset should allow"
+    print(f"  After reset: allowed={result.allowed}")
+
+    print("  Rate limiting working correctly!")
+
+
 def main():
     print("=" * 60)
     print("Hardbound Team Test")
@@ -382,6 +448,7 @@ def main():
     test_admin_binding()
     test_policy_persistence(team, admin_lct)
     test_multisig()
+    test_rate_limiter()
 
     print("\n" + "=" * 60)
     print("All tests passed!")
