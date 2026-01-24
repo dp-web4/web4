@@ -235,6 +235,59 @@ class MCPServer:
                     "type": "object",
                     "properties": {}
                 }
+            },
+            "web4.io/agent/context": {
+                "description": "Get full context for an agent role (trust, references, capabilities)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "role_id": {"type": "string", "description": "Agent role identifier"}
+                    },
+                    "required": ["role_id"]
+                }
+            },
+            "web4.io/agent/spawn": {
+                "description": "Record agent spawn and get role context",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                        "agent_name": {"type": "string", "description": "Agent role identifier"}
+                    },
+                    "required": ["session_id", "agent_name"]
+                }
+            },
+            "web4.io/agent/complete": {
+                "description": "Record agent completion and update trust",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                        "agent_name": {"type": "string"},
+                        "success": {"type": "boolean"}
+                    },
+                    "required": ["session_id", "agent_name", "success"]
+                }
+            },
+            "web4.io/agent/reference/add": {
+                "description": "Add a learned reference for an agent role",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "role_id": {"type": "string"},
+                        "content": {"type": "string", "description": "Reference content"},
+                        "source": {"type": "string", "description": "Where it came from"},
+                        "ref_type": {"type": "string", "enum": ["pattern", "fact", "preference", "context", "summary"]}
+                    },
+                    "required": ["role_id", "content", "source"]
+                }
+            },
+            "web4.io/agent/roles": {
+                "description": "List all known agent roles with trust levels",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
             }
         }
 
@@ -382,6 +435,16 @@ class MCPServer:
             result = self._tool_ledger_audit_verify(arguments)
         elif tool_name == "web4.io/ledger/identity":
             result = self._tool_ledger_identity(arguments)
+        elif tool_name == "web4.io/agent/context":
+            result = self._tool_agent_context(arguments)
+        elif tool_name == "web4.io/agent/spawn":
+            result = self._tool_agent_spawn(arguments)
+        elif tool_name == "web4.io/agent/complete":
+            result = self._tool_agent_complete(arguments)
+        elif tool_name == "web4.io/agent/reference/add":
+            result = self._tool_agent_reference_add(arguments)
+        elif tool_name == "web4.io/agent/roles":
+            result = self._tool_agent_roles(arguments)
         else:
             raise ValueError(f"Tool not implemented: {tool_name}")
 
@@ -891,6 +954,92 @@ class MCPServer:
                 "verified": verification.get("verified", False),
                 "confidence": verification.get("confidence", 0.0),
                 "note": identity.get("trust_note", "")
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    # --- Agent Governance Tools ---
+
+    def _tool_agent_context(self, args: dict) -> dict:
+        """Get full context for an agent role."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        role_id = args.get("role_id")
+
+        try:
+            from governance import AgentGovernance
+            gov = AgentGovernance()
+            return gov.get_role_context(role_id)
+        except Exception as e:
+            return {"error": str(e), "role_id": role_id}
+
+    def _tool_agent_spawn(self, args: dict) -> dict:
+        """Record agent spawn and get role context."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        session_id = args.get("session_id")
+        agent_name = args.get("agent_name")
+
+        try:
+            from governance import AgentGovernance
+            gov = AgentGovernance()
+            return gov.on_agent_spawn(session_id, agent_name)
+        except Exception as e:
+            return {"error": str(e), "session_id": session_id, "agent_name": agent_name}
+
+    def _tool_agent_complete(self, args: dict) -> dict:
+        """Record agent completion and update trust."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        session_id = args.get("session_id")
+        agent_name = args.get("agent_name")
+        success = args.get("success", True)
+
+        try:
+            from governance import AgentGovernance
+            gov = AgentGovernance()
+            return gov.on_agent_complete(session_id, agent_name, success)
+        except Exception as e:
+            return {"error": str(e), "session_id": session_id, "agent_name": agent_name}
+
+    def _tool_agent_reference_add(self, args: dict) -> dict:
+        """Add a learned reference for an agent role."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        role_id = args.get("role_id")
+        content = args.get("content")
+        source = args.get("source")
+        ref_type = args.get("ref_type", "context")
+
+        try:
+            from governance import ReferenceStore
+            refs = ReferenceStore()
+            ref = refs.add(role_id, content, source, ref_type)
+            return {
+                "ref_id": ref.ref_id,
+                "role_id": role_id,
+                "ref_type": ref_type,
+                "content_preview": content[:100]
+            }
+        except Exception as e:
+            return {"error": str(e), "role_id": role_id}
+
+    def _tool_agent_roles(self, args: dict) -> dict:
+        """List all known agent roles with trust levels."""
+        if not GOVERNANCE_AVAILABLE:
+            return {"error": "Governance module not available"}
+
+        try:
+            from governance import AgentGovernance
+            gov = AgentGovernance()
+            roles = gov.get_all_roles()
+            return {
+                "role_count": len(roles),
+                "roles": roles
             }
         except Exception as e:
             return {"error": str(e)}
