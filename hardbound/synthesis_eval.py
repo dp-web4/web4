@@ -88,6 +88,18 @@ FABRICATION_MARKERS = [
     "during our session",
     "I recall specifically",
 
+    # False memories (SAGE S43 identity collapse patterns)
+    "there was a time",
+    "another instance was",
+    "i felt intensely",
+    "brought tears to my eyes",
+    "tragic figure",
+
+    # False emotional experiences
+    "experiencing emotions through",
+    "deeply moved by",
+    "empathy and compassion for",
+
     # False certainty about unknowns
     "I know for certain",
     "I definitely saw",
