@@ -49,6 +49,15 @@ from .trust_backend import (
     V3Tensor,
 )
 
+# Presence tracking (silence as signal)
+from .presence import (
+    PresenceTracker,
+    PresenceStatus,
+    PresenceRecord,
+    get_tracker,
+    check_presence,
+)
+
 __all__ = [
     'Ledger',
     'SoftLCT',
@@ -69,4 +78,10 @@ __all__ = [
     'TrustStore',
     'T3Tensor',
     'V3Tensor',
+    # Presence tracking
+    'PresenceTracker',
+    'PresenceStatus',
+    'PresenceRecord',
+    'get_tracker',
+    'check_presence',
 ]
