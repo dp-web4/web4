@@ -55,13 +55,68 @@ SESSION_DIR = WEB4_DIR / "sessions"
 R6_LOG_DIR = WEB4_DIR / "r6"
 
 
-def load_session(session_id):
-    """Load session state."""
+def create_session_token():
+    """Create a software-bound session token (mirrors session_start.py)."""
+    seed = f"{os.uname().nodename}:{os.getuid()}:{datetime.now(timezone.utc).isoformat()}"
+    token_hash = hashlib.sha256(seed.encode()).hexdigest()[:12]
+    return {
+        "token_id": f"web4:session:{token_hash}",
+        "binding": "software",
+        "created_at": datetime.now(timezone.utc).isoformat() + "Z",
+        "machine_hint": hashlib.sha256(os.uname().nodename.encode()).hexdigest()[:8]
+    }
+
+
+def load_or_create_session(session_id):
+    """
+    Load session state, or create one if missing (lazy initialization).
+
+    This handles context compaction continuations where SessionStart
+    doesn't fire but PreToolUse does.
+    """
+    SESSION_DIR.mkdir(parents=True, exist_ok=True)
     session_file = SESSION_DIR / f"{session_id}.json"
-    if not session_file.exists():
-        return None
-    with open(session_file) as f:
-        return json.load(f)
+
+    if session_file.exists():
+        with open(session_file) as f:
+            return json.load(f)
+
+    # Lazy initialization for continued/recovered sessions
+    session = {
+        "session_id": session_id,
+        "token": create_session_token(),
+        "preferences": {
+            "audit_level": "standard",
+            "show_r6_status": True,
+            "action_budget": None,
+        },
+        "started_at": datetime.now(timezone.utc).isoformat() + "Z",
+        "recovered_at": datetime.now(timezone.utc).isoformat() + "Z",  # Mark as recovered
+        "action_count": 0,
+        "r6_requests": [],
+        "audit_chain": [],
+        "active_agent": None,
+        "agents_used": [],
+        "governance_available": GOVERNANCE_AVAILABLE
+    }
+
+    # Save immediately
+    with open(session_file, "w") as f:
+        json.dump(session, f, indent=2)
+
+    # Initialize heartbeat for recovered session
+    heartbeat = get_session_heartbeat(session_id)
+    heartbeat.record("session_recovered", 0)
+
+    # Log recovery
+    print(f"[Web4] Session recovered: {session['token']['token_id'].split(':')[-1]} (lazy init)", file=sys.stderr)
+
+    return session
+
+
+def load_session(session_id):
+    """Load session state (wrapper for compatibility)."""
+    return load_or_create_session(session_id)
 
 
 def save_session(session):
