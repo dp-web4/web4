@@ -1,0 +1,153 @@
+{
+  "review_date": "2026-01-26",
+  "last_review_date": "2026-01-25",
+  "needs_update": true,
+  "summary": "Two new features implemented in web4-trust-core since last review: Creative Reasoning Detection module and Presence Tracking with silence-as-signal governance. Both represent significant governance enhancements that require whitepaper documentation. Hardware binding status should also be updated to reflect TPM 2.0 working implementation.",
+  "proposals": [
+    {
+      "id": "WP-2026-01-01",
+      "target_section": "06-part4-implications-vision (Governance through resonance)",
+      "scope": "Expand governance section with new presence tracking capability",
+      "priority": "HIGH",
+      "description": "Add subsection documenting 'Silence as Signal' governance model. New PresenceTracker infrastructure (presence.py, 278 lines) enables absence detection and T3 integration via apply_silence_penalty(). This addresses governance resilience gap: systems that only react to explicit failures miss half the intelligence. Should be presented as an extension to governance-through-resonance concept—absence of expected activity is trust-relevant information.",
+      "implementation_evidence": [
+        "File: /mnt/c/exe/projects/ai-agents/web4/web4-trust-core/governance/presence.py (278 lines)",
+        "File: /mnt/c/exe/projects/ai-agents/web4/web4-trust-core/governance/entity_trust.py (apply_silence_penalty method)",
+        "Test: test_presence.py (188 lines, 7 tests covering active/expected/overdue/missing states)",
+        "Integration: hooks/heartbeat.py emits presence signals on session tool calls"
+      ],
+      "terminology_impact": "New terms: PresenceTracker, PresenceStatus (active/expected/overdue/missing), silence_penalty, heartbeat signal",
+      "sections_modified": ["governance/presence.py", "governance/entity_trust.py"],
+      "commit_hash": "61f0bb8abd09b1e39208ae0cd6f6282a2c215ef1"
+    },
+    {
+      "id": "WP-2026-01-02",
+      "target_section": "06-part4-implications-vision (new subsection or Part 4.8+)",
+      "scope": "Document Creative Reasoning Detection module",
+      "priority": "HIGH",
+      "description": "Add subsection on distinguishing creative reasoning from fabrication in AI governance. Implements creative_reasoning_eval.py (581 lines) addressing critical gap from Thor Session #31. Classifies four reasoning types: FABRICATION, CREATIVE_REASONING, UNCERTAIN_EXPLORATION, FACTUAL_SYNTHESIS. Uses 23 hedging markers (uncertainty acknowledgment) and 20 fabrication markers (false claims, S43/S44 patterns). Integrates with identity_integrity.py and R6 evaluation pipeline. This represents enhancement to T3 temperament scoring and coherence evaluation.",
+      "implementation_evidence": [
+        "File: /mnt/c/exe/projects/ai-agents/hardbound/creative_reasoning_eval.py (581 lines)",
+        "Complements: hardbound/identity_integrity.py (identity violations)",
+        "Integration point: SAGE R6 evaluation pipeline",
+        "Validated by: Thor Session #31 (Exploration Reframe Validation)",
+        "Based on: Sessions #28-31 multi-dimensional coherence framework"
+      ],
+      "terminology_impact": "New terms: creative_reasoning_eval, fabrication_markers, hedging_markers, reasoning classification scheme (4 types), S43/S44 pattern detection",
+      "sections_modified": ["hardbound/creative_reasoning_eval.py"],
+      "commit_hash": "aef1e64ea67e325328b152170bf1d8a5d38c74f5"
+    },
+    {
+      "id": "WP-2026-01-03",
+      "target_section": "09-part7-implementation-details (7.0.2 Hardware Binding Status)",
+      "scope": "Update hardware binding status from 'Partial' to 'Implemented (TPM 2.0)'",
+      "priority": "MEDIUM",
+      "description": "Update hardware binding status section to reflect working TPM 2.0 integration in hardbound-core. Current text (lines 19-46) states TPM 'in hardbound-core' but could be clearer about 'verified working on x86_64 systems'. Confirm Level 5 (Hardware/TPM) trust ceiling is now achievable. ARM platforms remain at Level 4. Update table and capability level guidance to reflect current state.",
+      "implementation_evidence": [
+        "hardbound-core includes TPM 2.0 integration via tss-esapi (Rust)",
+        "Status: Verified working on x86_64 systems with TPM 2.0",
+        "File reference: web4-standard/implementation/reference/hardware_binding_roadmap.md"
+      ],
+      "terminology_impact": "No new terms; clarify existing: Level 5 trust ceiling, TPM 2.0, hardware-sealed key storage, PCR-based attestation",
+      "sections_modified": ["09-part7-implementation-details/index.md section 7.0.2"],
+      "commit_hash": "Various in hardbound-core (working state)"
+    },
+    {
+      "id": "WP-2026-01-04",
+      "target_section": "02-glossary (Core Terms section)",
+      "scope": "Add new glossary entries",
+      "priority": "MEDIUM",
+      "description": "Add entries for presence-related terminology and creative reasoning classification. New entries needed: PresenceTracker, silence_penalty, heartbeat_signal, creative_reasoning_eval, fabrication_marker, hedging_marker, reasoning_classification.",
+      "implementation_evidence": [
+        "presence.py implements PresenceStatus enum (active, expected, overdue, missing)",
+        "creative_reasoning_eval.py lines 50-120 define marker detection logic"
+      ],
+      "terminology_impact": "7 new glossary entries",
+      "sections_modified": ["02-glossary/index.md"],
+      "commit_hash": "61f0bb8, aef1e64"
+    },
+    {
+      "id": "WP-2026-01-05",
+      "target_section": "02-glossary (Core Terms) - OPTIONAL EXPANSION",
+      "scope": "Consider R6 framework terminology refinement",
+      "priority": "LOW",
+      "description": "R6 framework was recently documented but glossary entries are minimal. Current whitepaper mentions R6 as 'Rules + Role + Request + Reference + Resource → Result' but new hardbound implementation may benefit from expanded glossary definition including integration with creative_reasoning_eval and R6-specific evaluation patterns.",
+      "implementation_evidence": [
+        "PUBLISHER_CONTEXT.md section 5 mentions R6 framework expansion in 2026-01-23 update",
+        "Proposal exists: sections/04-part2-foundational-concepts/meta/proposals/r6-action-framework.md"
+      ],
+      "terminology_impact": "Glossary clarification of R6 role in evaluation pipeline",
+      "sections_modified": ["02-glossary/index.md", "04-part2-foundational-concepts/index.md"],
+      "commit_hash": "aef1e64 (hardbound integration)"
+    }
+  ],
+  "sections_affected": [
+    "06-part4-implications-vision (governance section expansion needed)",
+    "09-part7-implementation-details (hardware binding update)",
+    "02-glossary (new terminology entries)",
+    "04-part2-foundational-concepts (optional R6 expansion)"
+  ],
+  "terminology_concerns": [
+    {
+      "term": "PresenceTracker",
+      "status": "NEW",
+      "definition": "Infrastructure for registering expected entity check-in intervals and detecting absence (active → expected → overdue → missing states)",
+      "canon_check": "Not yet in glossary; needs entry"
+    },
+    {
+      "term": "silence_penalty",
+      "status": "NEW",
+      "definition": "Trust penalty applied via T3 tensor when expected entity activity fails to manifest within expected interval",
+      "canon_check": "Not yet in glossary; integrates with existing T3 framework"
+    },
+    {
+      "term": "heartbeat_signal",
+      "status": "NEW",
+      "definition": "Presence confirmation emitted automatically on session tool calls; feeds PresenceTracker state machine",
+      "canon_check": "Not yet in glossary"
+    },
+    {
+      "term": "creative_reasoning_eval",
+      "status": "NEW",
+      "definition": "Module distinguishing four AI reasoning classes: FABRICATION (exclude), CREATIVE_REASONING (include), UNCERTAIN_EXPLORATION (include), FACTUAL_SYNTHESIS (include)",
+      "canon_check": "Not yet in glossary; critical for R6 evaluation pipeline"
+    },
+    {
+      "term": "fabrication_marker",
+      "status": "NEW",
+      "definition": "20 detection patterns indicating false specific claims, S43/S44 pattern, or unsupported assertions",
+      "canon_check": "Not yet in glossary; complements identity_integrity checks"
+    },
+    {
+      "term": "hedging_marker",
+      "status": "NEW",
+      "definition": "23 linguistic patterns indicating uncertainty acknowledgment (e.g., 'may', 'possible', 'unclear')",
+      "canon_check": "Not yet in glossary; inverse indicator of fabrication"
+    }
+  ],
+  "hardware_binding_status": {
+    "current_implementation": "TPM 2.0 working (x86_64)",
+    "trust_ceiling": "Level 5 achievable on TPM-enabled systems",
+    "platform_coverage": "x86_64 with TPM 2.0 verified; ARM platforms (TrustZone/OP-TEE) pending",
+    "whitepaper_accuracy": "Mostly accurate but could emphasize working status more clearly",
+    "update_recommendation": "Section 7.0.2 should state 'Hardware binding now implemented (TPM 2.0)' rather than 'Partial'"
+  },
+  "build_verification_required": true,
+  "verification_steps": [
+    "Run ./make-md.sh to verify no build errors",
+    "Check terminology consistency in combined markdown",
+    "Verify cross-references to new sections resolve correctly",
+    "Optional: Run ./make-web.sh to verify web navigation with new content"
+  ],
+  "notes": [
+    "Both new features (presence tracking and creative reasoning detection) are governance enhancements, not foundational architecture changes. They integrate cleanly into existing T3/V3 framework.",
+    "Creative reasoning detection addresses long-standing SAGE/Thor research gap (Sessions #28-31), making it semantically important for whitepaper credibility.",
+    "Presence tracking represents philosophical shift: 'absence is signal' extends resonance-based governance to negative space.",
+    "Hardware binding update is clarification only—no architectural change, just accuracy correction.",
+    "All new terminology is domain-specific and non-conflicting with canonical terms from PUBLISHER_CONTEXT.md.",
+    "Review note: PUBLISHER_CONTEXT was last updated 2026-01-23; new commits are 2026-01-25 (one day old), so inclusion criteria are clearly met (code implements new features).",
+    "Commit pattern shows active development in web4-trust-core and hardbound-core with experimental validation (Thor/SAGE sessions referenced)."
+  ],
+  "confidence_level": "HIGH",
+  "rationale": "Both new implementations are production-ready code with test coverage and clear integration paths. They represent governance capability enhancements (not experimental). The presence tracking and creative reasoning modules should be documented before they are deployed more widely."
+}
