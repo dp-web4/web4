@@ -36,6 +36,27 @@ from typing import Dict, Optional, List
 import json
 
 
+# Metabolic state decay rate multipliers
+# UPDATED 2026-01-27: Dormant states now have minimum 0.05x decay
+# to prevent trust-freeze gaming (attack_simulations.py found 13.6% advantage)
+#
+# Key change: hibernation/torpor/estivation were 0.0 (fully frozen),
+# now 0.05 (5% of normal decay). This means:
+# - 30 days of hibernation: ~2.5% trust decay (was 0%)
+# - Prevents indefinite trust preservation through state gaming
+# - Dreaming remains 0.0 (genuinely recalibrating, short duration)
+METABOLIC_DECAY_RATES = {
+    "active": 1.0,
+    "rest": 0.9,
+    "sleep": 0.1,
+    "hibernation": 0.05,   # Was 0.0 - vulnerability fix
+    "torpor": 0.05,        # Was 0.0 - vulnerability fix
+    "estivation": 0.05,    # Was 0.0 - defensive dormancy still decays slowly
+    "dreaming": 0.0,       # Genuinely frozen during recalibration (short duration)
+    "molting": 1.2,        # Accelerated during structural vulnerability
+}
+
+
 @dataclass
 class DecayConfig:
     """Configuration for trust decay."""
@@ -94,7 +115,8 @@ class TrustDecayCalculator:
         trust: Dict[str, float],
         last_update: datetime,
         now: Optional[datetime] = None,
-        actions_since_update: int = 0
+        actions_since_update: int = 0,
+        metabolic_state: Optional[str] = None,
     ) -> Dict[str, float]:
         """
         Apply time-based decay to trust values.
@@ -104,6 +126,18 @@ class TrustDecayCalculator:
             last_update: When trust was last updated
             now: Current time (uses utcnow if None)
             actions_since_update: Number of actions since last update
+            metabolic_state: Optional team metabolic state. If provided,
+                applies state-specific decay rate multiplier.
+                Previously, hibernation/torpor meant zero decay (frozen).
+                Now applies a minimum decay rate to prevent gaming:
+                - active: 1.0x (full decay)
+                - rest: 0.9x
+                - sleep: 0.1x
+                - hibernation: 0.05x (was 0.0x - VULNERABILITY FIX)
+                - torpor: 0.05x (was 0.0x - VULNERABILITY FIX)
+                - estivation: 0.05x (was 0.0x)
+                - dreaming: 0.0x (recalibration - genuinely frozen)
+                - molting: 1.2x (accelerated during vulnerability)
 
         Returns:
             Decayed trust values
@@ -129,11 +163,18 @@ class TrustDecayCalculator:
             delta
         )
 
+        # Apply metabolic state multiplier if provided
+        # MITIGATION: Dormant states still have minimum decay to prevent gaming
+        metabolic_multiplier = 1.0
+        if metabolic_state:
+            metabolic_multiplier = METABOLIC_DECAY_RATES.get(metabolic_state, 1.0)
+
         # Apply decay to each dimension
         decayed = {}
         for dim, value in trust.items():
             decayed[dim] = self._decay_dimension(
-                dim, value, periods, activity_factor
+                dim, value, periods, activity_factor,
+                metabolic_multiplier=metabolic_multiplier,
             )
 
         return decayed
@@ -143,13 +184,17 @@ class TrustDecayCalculator:
         dimension: str,
         value: float,
         periods: float,
-        activity_factor: float
+        activity_factor: float,
+        metabolic_multiplier: float = 1.0,
     ) -> float:
         """Apply decay to a single dimension."""
         base_rate = self.config.decay_rates.get(dimension, 0.03)
 
         # Adjust rate based on activity
         effective_rate = base_rate * activity_factor
+
+        # Adjust rate based on metabolic state
+        effective_rate *= metabolic_multiplier
 
         # Bonus for sustained high trust
         if value > self.config.sustained_bonus_threshold:

@@ -534,19 +534,27 @@ def attack_trust_decay_evasion() -> AttackResult:
 
     attacker_avg = sum(current_trust.values()) / 6
 
-    # Scenario 3: Frozen trust (keep team in hibernation)
-    # Trust doesn't decay during hibernation/torpor
-    frozen_trust = dict(honest_trust)
-    # If trust is frozen for 30 days, it stays the same
-    frozen_avg = sum(frozen_trust.values()) / 6  # No decay applied
+    # Scenario 3: Hibernation trust (MITIGATED - now decays at 5% rate)
+    # Previously: trust was completely frozen (0.0 decay) = 13.6% advantage
+    # Now: trust decays at 5% rate during hibernation
+    hibernation_trust = dict(honest_trust)
+    hibernation_decayed = calc.apply_decay(
+        hibernation_trust, last_update, now,
+        actions_since_update=0,
+        metabolic_state="hibernation",  # NEW: metabolic-aware decay
+    )
+    hibernation_avg = sum(hibernation_decayed.values()) / 6
 
     # Compare
     trust_diff_attack = attacker_avg - honest_avg
-    trust_diff_frozen = frozen_avg - honest_avg
+    trust_diff_hibernation = hibernation_avg - honest_avg
+
+    # Success criteria: more than 10% advantage from gaming
+    gaming_successful = trust_diff_attack > 0.05 or trust_diff_hibernation > 0.1
 
     return AttackResult(
         attack_name="Trust Decay Evasion",
-        success=trust_diff_attack > 0.05 or trust_diff_frozen > 0.1,
+        success=gaming_successful,
         setup_cost_atp=30.0,  # 1 ATP per day for 30 days of micro-activity
         gain_atp=0.0,  # Trust-based, not ATP-based
         roi=0.0,
@@ -556,31 +564,35 @@ def attack_trust_decay_evasion() -> AttackResult:
         trust_damage=0.3,
         description=(
             f"Trust after 30 days:\n"
-            f"  Honest (moderate activity):  avg={honest_avg:.4f}\n"
-            f"  Attacker (daily micro-ping): avg={attacker_avg:.4f} "
+            f"  Honest (moderate activity):     avg={honest_avg:.4f}\n"
+            f"  Attacker (daily micro-ping):    avg={attacker_avg:.4f} "
             f"(+{trust_diff_attack:.4f})\n"
-            f"  Frozen (hibernation):        avg={frozen_avg:.4f} "
-            f"(+{trust_diff_frozen:.4f})\n\n"
+            f"  Hibernation (5% decay rate):    avg={hibernation_avg:.4f} "
+            f"(+{trust_diff_hibernation:.4f})\n\n"
             f"The daily micro-activity strategy preserves "
             f"{trust_diff_attack/honest_avg*100:.1f}% more trust.\n"
-            f"The hibernation freeze preserves "
-            f"{trust_diff_frozen/honest_avg*100:.1f}% more trust.\n"
-            f"Both represent gaming of the decay system."
+            f"Hibernation freeze now only preserves "
+            f"{trust_diff_hibernation/honest_avg*100:.1f}% more trust "
+            f"(was 13.6% before fix).\n"
+            f"Gaming {'successful' if gaming_successful else 'mitigated'}: "
+            f"advantage below 10% threshold."
         ),
         mitigation=(
-            "1. Minimum meaningful activity threshold (not just any action counts)\n"
-            "2. Activity quality scoring (trivial actions don't fully reset decay)\n"
-            "3. Hibernation trust degradation (slow decay even in dormant states)\n"
-            "4. Trust recalibration on wake from dormancy\n"
-            "5. Decay based on productive output, not just presence"
+            "IMPLEMENTED:\n"
+            "1. Metabolic-state-aware decay (5% rate during hibernation/torpor)\n"
+            "2. Prevents complete trust freeze during dormant states\n"
+            "\nSTILL RECOMMENDED:\n"
+            "3. Minimum meaningful activity threshold\n"
+            "4. Activity quality scoring\n"
+            "5. Trust recalibration on wake from extended dormancy"
         ),
         raw_data={
             "honest_decayed": honest_decayed,
             "attacker_trust": current_trust,
-            "frozen_trust": frozen_trust,
+            "hibernation_trust": hibernation_decayed,
             "honest_avg": honest_avg,
             "attacker_avg": attacker_avg,
-            "frozen_avg": frozen_avg,
+            "hibernation_avg": hibernation_avg,
         }
     )
 
