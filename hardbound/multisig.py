@@ -339,7 +339,7 @@ class MultiSigManager:
             ValueError: If action data is invalid
         """
         # Verify proposer permission
-        is_admin = self.team.verify_admin(proposer_lct)
+        is_admin = self.team.is_admin(proposer_lct)
         member = self.team.get_member(proposer_lct)
 
         if not is_admin and not member:
@@ -468,7 +468,7 @@ class MultiSigManager:
 
         # Verify voter is eligible
         member = self.team.get_member(voter_lct)
-        is_admin = self.team.verify_admin(voter_lct)
+        is_admin = self.team.is_admin(voter_lct)
 
         if not member and not is_admin:
             raise PermissionError("Voter must be admin or team member")
@@ -709,7 +709,7 @@ class MultiSigManager:
                 )
 
         # Verify executor (usually admin)
-        is_admin = self.team.verify_admin(executor_lct)
+        is_admin = self.team.is_admin(executor_lct)
         if not is_admin:
             raise PermissionError("Only admin can execute proposals")
 

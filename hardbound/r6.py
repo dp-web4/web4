@@ -260,7 +260,7 @@ class R6Workflow:
 
         # Check approver permission
         if rule.approval == ApprovalType.ADMIN:
-            if not self.team.verify_admin(approver_lct):
+            if not self.team.is_admin(approver_lct):
                 raise PermissionError("Only admin can approve this request")
         elif rule.approval == ApprovalType.PEER:
             member = self.team.get_member(approver_lct)
@@ -319,7 +319,7 @@ class R6Workflow:
             raise ValueError(f"Request not pending: {request.status.value}")
 
         # Check rejector permission
-        is_admin = self.team.verify_admin(rejector_lct)
+        is_admin = self.team.is_admin(rejector_lct)
         member = self.team.get_member(rejector_lct)
 
         if not is_admin and not member:

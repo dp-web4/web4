@@ -562,6 +562,18 @@ class Team:
             self.team_id, lct_id, signature, challenge
         )
 
+    def is_admin(self, lct_id: str) -> bool:
+        """
+        Check if an LCT is the team admin. Returns a simple bool.
+
+        Use this for permission checks instead of verify_admin(), which returns
+        a dict that is always truthy (even when verification fails).
+        """
+        result = self.verify_admin(lct_id)
+        if isinstance(result, dict):
+            return result.get("verified", False)
+        return bool(result)
+
     # --- Policy Management ---
 
     def get_policy(self) -> Policy:
@@ -677,7 +689,7 @@ class Team:
 
         Requires admin approval (requester must be admin).
         """
-        if not self.verify_admin(requester_lct):
+        if not self.is_admin(requester_lct):
             raise PermissionError("Only admin can change roles")
 
         if lct_id not in self.members:
@@ -740,16 +752,8 @@ class Team:
         # Authorization: must be admin OR have multi-sig approval
         if via_multisig:
             auth_method = f"multisig:{via_multisig}"
-        elif requester_lct:
-            admin_check = self.verify_admin(requester_lct)
-            if isinstance(admin_check, dict) and admin_check.get("verified"):
-                auth_method = f"admin:{requester_lct}"
-            elif admin_check is True:  # Fallback for simple bool return
-                auth_method = f"admin:{requester_lct}"
-            else:
-                raise PermissionError(
-                    "Member removal requires admin authority or multi-sig approval"
-                )
+        elif requester_lct and self.is_admin(requester_lct):
+            auth_method = f"admin:{requester_lct}"
         else:
             raise PermissionError(
                 "Member removal requires admin authority or multi-sig approval"

@@ -763,3 +763,32 @@ class TestActivityQualityIntegration:
         result = team._quality_adjusted_actions("member:qi", 10)
         assert isinstance(result, int)
         assert result >= 0
+
+
+class TestIsAdmin:
+    """Tests for is_admin() bool correctness (fixes truthy-dict bug)."""
+
+    def test_is_admin_returns_bool(self):
+        """is_admin() returns True for admin, False for non-admin."""
+        config = TeamConfig(name="admin-bool", description="Admin bool test")
+        team = Team(config=config)
+        team.set_admin("admin:bool")
+        team.add_member("member:bool", role="developer")
+
+        assert team.is_admin("admin:bool") is True
+        assert team.is_admin("member:bool") is False
+        assert team.is_admin("unknown:lct") is False
+
+    def test_verify_admin_dict_is_truthy_for_non_admin(self):
+        """Demonstrates the bug: verify_admin() dict is truthy even for non-admins."""
+        config = TeamConfig(name="admin-bug", description="Bug demo")
+        team = Team(config=config)
+        team.set_admin("admin:bug")
+
+        # verify_admin returns a dict which is always truthy
+        result = team.verify_admin("not_the_admin")
+        assert isinstance(result, dict)
+        # The dict IS truthy even though verified=False
+        assert bool(result) is True
+        # But is_admin correctly returns False
+        assert team.is_admin("not_the_admin") is False
