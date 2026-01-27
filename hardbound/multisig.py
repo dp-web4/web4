@@ -34,6 +34,7 @@ from pathlib import Path
 
 if TYPE_CHECKING:
     from .team import Team
+    from .federation import FederationRegistry
     from governance import Ledger
 
 
@@ -253,15 +254,17 @@ class MultiSigManager:
     # Quorum multiplier when proposer is a beneficiary
     SELF_BENEFIT_QUORUM_MULTIPLIER = 1.5
 
-    def __init__(self, team: 'Team'):
+    def __init__(self, team: 'Team', federation: 'FederationRegistry' = None):
         """
         Initialize multi-sig manager.
 
         Args:
             team: Team this manager is for
+            federation: Optional FederationRegistry for cross-team validation
         """
         self.team = team
         self.ledger = team.ledger
+        self.federation = federation
         self._ensure_table()
 
     def _ensure_table(self):
@@ -634,6 +637,36 @@ class MultiSigManager:
                 "to prevent cross-team collusion."
             )
 
+        # FEDERATION VALIDATION: If federation registry is available, verify
+        # the witness team is registered, active, and has acceptable reputation
+        if self.federation:
+            fed_team = self.federation.get_team(witness_team_id)
+            if not fed_team:
+                raise ValueError(
+                    f"Witness team '{witness_team_id}' is not registered in the federation. "
+                    "External witnesses must come from federated teams."
+                )
+            if fed_team.status.value != "active":
+                raise ValueError(
+                    f"Witness team '{witness_team_id}' is {fed_team.status.value}. "
+                    "Only active federated teams can provide witnesses."
+                )
+            from .federation import FederationRegistry
+            if fed_team.witness_score < FederationRegistry.MIN_WITNESS_SCORE:
+                raise PermissionError(
+                    f"Witness team '{witness_team_id}' has low reputation "
+                    f"({fed_team.witness_score:.2f} < {FederationRegistry.MIN_WITNESS_SCORE}). "
+                    "Team must improve witness reputation before providing witnesses."
+                )
+
+            # Record the witness event in federation
+            self.federation.record_witness_event(
+                witness_team_id=witness_team_id,
+                proposal_team_id=self.team.team_id,
+                witness_lct=witness_lct,
+                proposal_id=proposal_id,
+            )
+
         # Record the external witness and their team
         proposal.external_witnesses.append(witness_lct)
         proposal.external_witness_teams.append(witness_team_id)
@@ -732,6 +765,11 @@ class MultiSigManager:
             proposal.execution_result = {"error": str(e)}
 
         self._save_proposal(proposal)
+
+        # FEDERATION FEEDBACK: Update witness reputation based on outcome
+        if self.federation and proposal.external_witnesses:
+            outcome = "succeeded" if proposal.status == ProposalStatus.EXECUTED else "failed"
+            self.federation.update_witness_outcome(proposal.proposal_id, outcome)
 
         self.ledger.record_audit(
             session_id=self.team.team_id,

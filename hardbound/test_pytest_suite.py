@@ -765,6 +765,124 @@ class TestActivityQualityIntegration:
         assert result >= 0
 
 
+class TestFederatedWitnessing:
+    """Tests for federation-integrated multi-sig witnessing."""
+
+    def _make_team(self, name, admin, members):
+        config = TeamConfig(name=name, description=f"{name} test")
+        team = Team(config=config)
+        team.set_admin(admin)
+        for m in members:
+            team.add_member(m, role="developer")
+            member = team.get_member(m)
+            member["trust"] = {
+                "reliability": 0.85, "competence": 0.85, "alignment": 0.85,
+                "consistency": 0.85, "witnesses": 0.85, "lineage": 0.85,
+            }
+        team._update_team()
+        return team
+
+    def test_federation_validates_witness_team(self):
+        """Unregistered teams are rejected when federation is active."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        from hardbound.federation import FederationRegistry
+        import pytest
+
+        team = self._make_team("fed-val", "admin:fv",
+                               ["v:1", "v:2", "v:3", "v:4"])
+        fed = FederationRegistry()
+        fed.register_team(team.team_id, "Test Team")
+        # Do NOT register "unregistered:team"
+
+        msig = MultiSigManager(team, federation=fed)
+        proposal = msig.create_proposal(
+            proposer_lct="admin:fv",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={"new_admin_lct": "v:1"},
+        )
+        for v in ["v:2", "v:3", "v:4"]:
+            msig.vote(proposal.proposal_id, v, approve=True)
+
+        with pytest.raises(ValueError, match="not registered in the federation"):
+            msig.add_external_witness(
+                proposal.proposal_id,
+                witness_lct="ext:unreg:1",
+                witness_team_id="unregistered:team",
+                witness_trust_score=0.9,
+            )
+
+    def test_federation_records_witness_event(self):
+        """When federation is active, witness events are recorded."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        from hardbound.federation import FederationRegistry
+
+        team = self._make_team("fed-rec", "admin:fr",
+                               ["v:a", "v:b", "v:c", "v:d"])
+        fed = FederationRegistry()
+        fed.register_team(team.team_id, "Proposal Team")
+        fed.register_team("external:team", "External Team")
+
+        msig = MultiSigManager(team, federation=fed)
+        proposal = msig.create_proposal(
+            proposer_lct="admin:fr",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={"new_admin_lct": "v:a"},
+        )
+        for v in ["v:b", "v:c", "v:d"]:
+            msig.vote(proposal.proposal_id, v, approve=True)
+
+        msig.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="ext:member:1",
+            witness_team_id="external:team",
+            witness_trust_score=0.9,
+        )
+
+        # Federation should have recorded the witness event
+        ext_team = fed.get_team("external:team")
+        assert ext_team.witness_count == 1
+
+    def test_federation_updates_reputation_on_execute(self):
+        """Successful execution improves witness reputation."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        from hardbound.federation import FederationRegistry
+
+        team = self._make_team("fed-rep", "admin:frep",
+                               ["v:x", "v:y", "v:z", "v:w"])
+        fed = FederationRegistry()
+        fed.register_team(team.team_id, "Proposal Team")
+        fed.register_team("witness:team", "Witness Team")
+
+        msig = MultiSigManager(team, federation=fed)
+        proposal = msig.create_proposal(
+            proposer_lct="admin:frep",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={"new_admin_lct": "v:x"},
+        )
+        for v in ["v:y", "v:z", "v:w"]:
+            msig.vote(proposal.proposal_id, v, approve=True)
+
+        msig.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="wit:member:1",
+            witness_team_id="witness:team",
+            witness_trust_score=0.9,
+        )
+
+        # Bypass voting period
+        proposal = msig.get_proposal(proposal.proposal_id)
+        proposal.min_voting_period_hours = 0
+        msig._save_proposal(proposal)
+
+        # Execute - should update federation
+        msig.execute_proposal(proposal.proposal_id, "admin:frep")
+
+        # Witness team should have success recorded
+        wit_team = fed.get_team("witness:team")
+        assert wit_team.witness_successes == 1
+        assert wit_team.witness_score > 0.9  # Bayesian: (1+5)/(1+5) = 1.0
+
+
 class TestIsAdmin:
     """Tests for is_admin() bool correctness (fixes truthy-dict bug)."""
 
