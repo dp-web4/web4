@@ -133,9 +133,15 @@ class Team:
         """
         return self.heartbeat.heartbeat(sentinel_lct=sentinel_lct or self.admin_lct)
 
+    # States that trigger wake recalibration on exit
+    DORMANT_STATES = {"sleep", "hibernation", "torpor", "estivation"}
+
     def metabolic_transition(self, to_state: str, trigger: str):
         """
         Transition the team to a new metabolic state.
+
+        If waking from a dormant state, applies trust recalibration
+        to all members based on dormancy duration and severity.
 
         Args:
             to_state: Target state name (active, rest, sleep, etc.)
@@ -144,8 +150,13 @@ class Team:
         Returns:
             MetabolicTransition record
         """
+        from_state = self.heartbeat.state.value
         target = MetabolicState(to_state)
         transition = self.heartbeat.transition_state(target, trigger=trigger)
+
+        # Wake recalibration: apply trust penalty when leaving dormant states
+        if from_state in self.DORMANT_STATES and to_state in ("active", "rest"):
+            self._apply_wake_recalibration(from_state, transition)
 
         # Record on team audit trail
         self.ledger.record_audit(
@@ -162,6 +173,63 @@ class Team:
         )
 
         return transition
+
+    def _apply_wake_recalibration(self, dormant_state: str, transition):
+        """
+        Apply trust recalibration to all members after waking from dormancy.
+
+        Extended absence creates epistemic uncertainty about member
+        capabilities. This pulls trust toward baseline proportionally
+        to dormancy duration.
+        """
+        from .trust_decay import TrustDecayCalculator
+
+        calc = TrustDecayCalculator()
+        now = datetime.now(timezone.utc)
+
+        # Estimate dormancy start from transition history
+        dormancy_seconds = transition.atp_cost  # Approximate: cost ~ duration
+        # Better estimate from heartbeat ledger's last transition timestamp
+        history = self.heartbeat.get_transition_history()
+        if len(history) >= 2:
+            # The transition that entered the dormant state
+            for h in reversed(history[:-1]):  # Skip the wake transition itself
+                if h.get("to_state") == dormant_state:
+                    dormancy_start = datetime.fromisoformat(h["timestamp"])
+                    break
+            else:
+                dormancy_start = now - timedelta(days=1)  # Fallback
+        else:
+            dormancy_start = now - timedelta(days=1)
+
+        team_data = self._load_team()
+        recalibrated_count = 0
+
+        for member_data in team_data.get("members", {}).values():
+            trust = member_data.get("trust", {})
+            if not trust:
+                continue
+
+            recalibrated = calc.wake_recalibration(
+                trust, dormancy_start, now, dormant_state
+            )
+            member_data["trust"] = recalibrated
+            recalibrated_count += 1
+
+        if recalibrated_count > 0:
+            self._update_team()
+            self.ledger.record_audit(
+                session_id=self.team_id,
+                action_type="wake_recalibration",
+                tool_name="hardbound",
+                target=f"{recalibrated_count} members",
+                r6_data={
+                    "dormant_state": dormant_state,
+                    "dormancy_start": dormancy_start.isoformat(),
+                    "wake_time": now.isoformat(),
+                    "members_recalibrated": recalibrated_count,
+                }
+            )
 
     def get_metabolic_health(self) -> Dict[str, Any]:
         """Get team metabolic health report."""

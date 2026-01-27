@@ -289,6 +289,94 @@ class TrustDecayCalculator:
         return snapshots
 
 
+    def wake_recalibration(
+        self,
+        trust: Dict[str, float],
+        dormancy_start: datetime,
+        wake_time: Optional[datetime] = None,
+        dormant_state: str = "hibernation",
+    ) -> Dict[str, float]:
+        """
+        Apply trust recalibration when waking from extended dormancy.
+
+        Extended absence creates epistemic uncertainty: we don't know if
+        the entity's capabilities, alignment, or reliability have changed
+        while dormant. This method applies a recalibration penalty that:
+
+        1. Scales with dormancy duration (longer = more uncertain)
+        2. Affects volatile dimensions more than stable ones
+        3. Pulls trust toward baseline (not zero) proportionally
+        4. Preserves lineage (historical record doesn't change)
+
+        The penalty represents the "re-entry cost" - the entity must
+        re-prove themselves through activity to restore full trust.
+
+        Args:
+            trust: Pre-wake trust values
+            dormancy_start: When entity entered dormant state
+            wake_time: When waking (default: now)
+            dormant_state: Which dormant state they were in
+
+        Returns:
+            Recalibrated trust values
+        """
+        if wake_time is None:
+            wake_time = datetime.now(timezone.utc)
+
+        dormancy_days = (wake_time - dormancy_start).total_seconds() / 86400.0
+        if dormancy_days <= 0:
+            return trust
+
+        # Recalibration thresholds (days)
+        # Under 1 day: no recalibration (normal rest)
+        # 1-7 days: mild recalibration
+        # 7-30 days: moderate recalibration
+        # 30+ days: significant recalibration
+        if dormancy_days < 1.0:
+            return trust
+
+        # Dimension volatility: how much each dimension is affected by absence
+        # Higher = more affected by time away
+        WAKE_VOLATILITY = {
+            "reliability": 0.8,    # Reliability is very time-sensitive
+            "competence": 0.5,     # Skills degrade moderately
+            "alignment": 0.6,     # Alignment can shift during absence
+            "consistency": 0.7,    # Consistency requires ongoing proof
+            "witnesses": 0.9,     # Witness attestations age fastest
+            "lineage": 0.1,       # Historical record barely changes
+        }
+
+        # Dormancy severity multiplier
+        STATE_SEVERITY = {
+            "sleep": 0.3,         # Short nap, minimal impact
+            "hibernation": 0.7,   # Extended absence
+            "torpor": 0.9,        # Near-complete withdrawal
+            "estivation": 0.6,    # Seasonal dormancy
+        }
+        severity = STATE_SEVERITY.get(dormant_state, 0.5)
+
+        # Recalibration strength: asymptotic approach to max penalty
+        # Caps at ~50% pull-toward-baseline for very long dormancy
+        max_pull = 0.50
+        # Half-life: dormancy duration at which we apply half the max penalty
+        half_life_days = 14.0
+        pull_strength = max_pull * (1 - math.exp(-0.693 * dormancy_days / half_life_days))
+        pull_strength *= severity
+
+        baseline = self.config.baseline
+        recalibrated = {}
+
+        for dim, value in trust.items():
+            volatility = WAKE_VOLATILITY.get(dim, 0.5)
+            dim_pull = pull_strength * volatility
+
+            # Pull toward baseline
+            diff = value - baseline
+            recalibrated[dim] = value - diff * dim_pull
+
+        return recalibrated
+
+
 class TrustHistoryManager:
     """
     Manages trust history and decay for an entity.
