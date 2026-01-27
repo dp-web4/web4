@@ -587,6 +587,122 @@ class TestMemberRemoval:
         assert len(target["_witness_log"]["witness:wh"]) == 5
 
 
+class TestFederationRegistry:
+    """Tests for cross-team federation and witness coordination."""
+
+    def test_register_and_find_teams(self):
+        """Teams can register and be discovered by domain."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:a", "Alpha", domains=["finance"], member_count=5)
+        reg.register_team("team:b", "Beta", domains=["engineering"], member_count=3)
+        reg.register_team("team:c", "Gamma", domains=["finance", "audit"], member_count=8)
+
+        # Find finance teams
+        finance = reg.find_teams(domain="finance")
+        assert len(finance) == 2
+        names = {t.name for t in finance}
+        assert "Alpha" in names
+        assert "Gamma" in names
+
+    def test_witness_pool_excludes_self(self):
+        """Witness pool never includes the requesting team."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:self", "Self Team", member_count=5)
+        reg.register_team("team:other", "Other Team", member_count=3)
+
+        pool = reg.find_witness_pool("team:self", count=10)
+        assert all(t.team_id != "team:self" for t in pool)
+        assert len(pool) == 1
+
+    def test_witness_reputation_after_outcomes(self):
+        """Witness score degrades after witnessed proposals fail."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:witness", "Witness Team")
+        reg.register_team("team:propose", "Proposing Team")
+
+        # 3 successful witnesses, 2 failed
+        for i in range(5):
+            reg.record_witness_event("team:witness", "team:propose",
+                                     f"w:lct:{i}", f"msig:{i}")
+        for i in range(3):
+            reg.update_witness_outcome(f"msig:{i}", "succeeded")
+        for i in range(3, 5):
+            reg.update_witness_outcome(f"msig:{i}", "failed")
+
+        team = reg.get_team("team:witness")
+        assert team.witness_successes == 3
+        assert team.witness_failures == 2
+        # With Bayesian smoothing (5 pseudo-successes over 5 pseudo-total):
+        # score = (3 + 5) / (5 + 5) = 0.8
+        assert 0.75 <= team.witness_score <= 0.85
+
+    def test_reciprocity_detection(self):
+        """High reciprocity between teams triggers collusion flag."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:x", "Team X")
+        reg.register_team("team:y", "Team Y")
+        reg.register_team("team:z", "Team Z")
+
+        # X and Y witness for each other 5 times each (tight reciprocity)
+        for i in range(5):
+            reg.record_witness_event("team:x", "team:y", f"x:{i}", f"msig:xy:{i}")
+            reg.record_witness_event("team:y", "team:x", f"y:{i}", f"msig:yx:{i}")
+
+        recip = reg.check_reciprocity("team:x", "team:y")
+        assert recip["a_witnesses_b"] == 5
+        assert recip["b_witnesses_a"] == 5
+        assert recip["reciprocity_ratio"] == 1.0
+        assert recip["is_suspicious"] is True
+
+    def test_collusion_report(self):
+        """Collusion report identifies flagged pairs."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        for t in ["team:1", "team:2", "team:3"]:
+            reg.register_team(t, f"Team {t}")
+
+        # Team 1 and 2 collude
+        for i in range(5):
+            reg.record_witness_event("team:1", "team:2", f"m:{i}", f"p12:{i}")
+            reg.record_witness_event("team:2", "team:1", f"m:{i}", f"p21:{i}")
+
+        report = reg.get_collusion_report()
+        assert report["total_teams"] == 3
+        assert len(report["flagged_pairs"]) >= 1
+        assert report["health"] in ("concerning", "critical")
+
+    def test_witness_pool_filters_colluding_teams(self):
+        """find_witness_pool() excludes teams with high reciprocity."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:req", "Requester")
+        reg.register_team("team:colluder", "Colluding Team")
+        reg.register_team("team:clean", "Clean Team")
+
+        # Create collusion pattern between req and colluder
+        for i in range(5):
+            reg.record_witness_event("team:req", "team:colluder", f"r:{i}", f"pc:{i}")
+            reg.record_witness_event("team:colluder", "team:req", f"c:{i}", f"pr:{i}")
+
+        # Clean team has no reciprocity
+        pool = reg.find_witness_pool("team:req", count=5)
+        pool_ids = {t.team_id for t in pool}
+
+        # Colluder should be excluded, clean should be included
+        assert "team:clean" in pool_ids
+        assert "team:colluder" not in pool_ids
+
+
 class TestActivityQualityIntegration:
     """Tests that ActivityWindow is wired into Team trust operations."""
 
