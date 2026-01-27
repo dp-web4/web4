@@ -132,3 +132,44 @@ class TestActivityQuality:
 
         assert window.quality_score > 0.4
         assert window.tier in (ActivityTier.HIGH, ActivityTier.CRITICAL)
+
+
+class TestSybilDetection:
+    """Sybil detection tests."""
+
+    def test_sybil_self_test(self):
+        """Run the full Sybil detection self-test."""
+        from hardbound.sybil_detection import _self_test
+        _self_test()
+
+    def test_clean_team_no_false_positives(self):
+        """Clean team with diverse trust should not trigger detection."""
+        from hardbound.sybil_detection import SybilDetector, SybilRisk
+
+        detector = SybilDetector()
+        trusts = {
+            "dev_a": {"reliability": 0.75, "competence": 0.60, "alignment": 0.80,
+                      "consistency": 0.70, "witnesses": 0.55, "lineage": 0.65},
+            "dev_b": {"reliability": 0.50, "competence": 0.85, "alignment": 0.45,
+                      "consistency": 0.60, "witnesses": 0.70, "lineage": 0.40},
+        }
+        report = detector.analyze_team("test:clean", trusts)
+        assert report.overall_risk == SybilRisk.NONE
+
+    def test_identical_trust_detected(self):
+        """Members with identical trust should be flagged."""
+        from hardbound.sybil_detection import SybilDetector, SybilRisk
+
+        detector = SybilDetector()
+        same = {"reliability": 0.55, "competence": 0.55, "alignment": 0.55,
+                "consistency": 0.55, "witnesses": 0.55, "lineage": 0.55}
+        trusts = {
+            "sybil_1": same.copy(),
+            "sybil_2": same.copy(),
+            "honest": {"reliability": 0.80, "competence": 0.60, "alignment": 0.70,
+                       "consistency": 0.65, "witnesses": 0.75, "lineage": 0.50},
+        }
+        report = detector.analyze_team("test:sybil", trusts)
+        assert len(report.clusters) > 0
+        assert any("sybil_1" in c.members and "sybil_2" in c.members
+                   for c in report.clusters)
