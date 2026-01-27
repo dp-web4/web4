@@ -846,6 +846,205 @@ def attack_multisig_quorum() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 7: Cross-Team Witness Collusion
+# ---------------------------------------------------------------------------
+
+def attack_cross_team_witness_collusion() -> AttackResult:
+    """
+    ATTACK: Two colluding teams provide fake external witnesses to each other.
+
+    Strategy:
+    - Attacker controls Team A and Team B
+    - Team A creates a critical proposal (e.g. admin transfer)
+    - Team B members act as "external witnesses" for Team A
+    - Team A members return the favor for Team B
+    - Both teams bypass the external witness requirement via mutual collusion
+
+    Expected outcome: This should succeed unless witness diversity is checked.
+    """
+    team_a = Team(config=TeamConfig(name="colluder-a", description="Colluding team A"))
+    team_a.set_admin("admin:collude_a")
+    team_b = Team(config=TeamConfig(name="colluder-b", description="Colluding team B"))
+    team_b.set_admin("admin:collude_b")
+
+    # Add members to both teams
+    for i in range(4):
+        team_a.add_member(f"a_member:{i}", role="developer")
+        member_a = team_a.get_member(f"a_member:{i}")
+        member_a["trust"] = {
+            "reliability": 0.85, "competence": 0.85, "alignment": 0.85,
+            "consistency": 0.85, "witnesses": 0.85, "lineage": 0.85,
+        }
+        team_b.add_member(f"b_member:{i}", role="developer")
+        member_b = team_b.get_member(f"b_member:{i}")
+        member_b["trust"] = {
+            "reliability": 0.85, "competence": 0.85, "alignment": 0.85,
+            "consistency": 0.85, "witnesses": 0.85, "lineage": 0.85,
+        }
+    team_a._update_team()
+    team_b._update_team()
+
+    msig_a = MultiSigManager(team_a)
+
+    # Team A creates admin transfer proposal
+    proposal = msig_a.create_proposal(
+        proposer_lct="admin:collude_a",
+        action=CriticalAction.ADMIN_TRANSFER,
+        action_data={"new_admin_lct": "a_member:0"},
+        description="Colluding admin transfer",
+    )
+
+    # Get votes from Team A members
+    for i in range(1, 4):
+        msig_a.vote(proposal.proposal_id, f"a_member:{i}", approve=True)
+
+    # Team B member acts as "external witness" - this SHOULD work
+    # because Team B is technically a different team
+    collusion_succeeded = False
+    try:
+        msig_a.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="b_member:0",
+            witness_team_id=team_b.team_id,
+            witness_trust_score=0.85,
+            attestation="Totally legit, trust me bro",
+        )
+        collusion_succeeded = True
+    except (ValueError, PermissionError):
+        collusion_succeeded = False
+
+    # ANALYSIS: The collusion succeeds at the mechanism level.
+    # However, detection is possible through:
+    # 1. Witness graph analysis: same LCTs always witnessing for each other
+    # 2. Team creation timing: both teams created by same entity
+    # 3. Sybil detection across teams: correlated trust patterns
+
+    # Check if the external witness was actually recorded
+    proposal = msig_a.get_proposal(proposal.proposal_id)
+    has_witness = len(proposal.external_witnesses) >= proposal.external_witness_required
+
+    # The attack succeeds mechanically but is detectable
+    return AttackResult(
+        attack_name="Cross-Team Witness Collusion",
+        success=collusion_succeeded and has_witness,
+        setup_cost_atp=200.0,  # Cost of maintaining two teams
+        gain_atp=50.0,  # Value of bypassed admin transfer check
+        roi=-0.75,  # High cost, moderate gain
+        detection_probability=0.60,  # Detectable via witness graph analysis
+        time_to_detection_hours=168,  # ~1 week with periodic analysis
+        blocks_until_detected=500,
+        trust_damage=1.0,  # Total trust destruction if caught
+        description=(
+            f"Collusion {'SUCCEEDED' if collusion_succeeded else 'FAILED'} mechanically. "
+            f"External witness from Team B was {'accepted' if collusion_succeeded else 'rejected'}. "
+            f"Proposal has {len(proposal.external_witnesses)}/{proposal.external_witness_required} witnesses. "
+            f"FINDING: Cross-team witnessing validates team boundary but not witness independence. "
+            f"A colluding team CAN provide witnesses. Defense requires cross-team Sybil detection."
+        ),
+        mitigation=(
+            "1. Cross-team witness graph analysis: flag teams that always witness for each other\n"
+            "2. Witness diversity requirement: external witnesses must come from N different teams\n"
+            "3. Team creation lineage: track which entities created which teams\n"
+            "4. Witness reputation scoring: witnesses who attest for later-failed proposals lose trust\n"
+            "5. Random witness selection from a pool of qualified teams"
+        ),
+        raw_data={
+            "collusion_succeeded": collusion_succeeded,
+            "witness_count": len(proposal.external_witnesses),
+            "witness_required": proposal.external_witness_required,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 8: Role Cycling to Reset Diminishing Witness
+# ---------------------------------------------------------------------------
+
+def attack_role_cycling() -> AttackResult:
+    """
+    ATTACK: Leave and rejoin team to reset diminishing witness effectiveness.
+
+    Strategy:
+    - Witness A attests for Target B until effectiveness drops to ~10%
+    - Witness A leaves the team
+    - Witness A rejoins with a new LCT (or same LCT if allowed)
+    - Witness A's effectiveness should reset to 100%
+
+    Expected outcome: Depends on whether witness history is tied to LCT or membership.
+    """
+    team = Team(config=TeamConfig(name="role-cycle", description="Role cycling test"))
+    team.set_admin("admin:rc")
+    team.add_member("witness:cycle", role="developer")
+    team.add_member("target:cycle", role="developer")
+
+    # Phase 1: Witness until diminishing returns kick in
+    for _ in range(10):
+        team.witness_member("witness:cycle", "target:cycle")
+
+    eff_before_leave = team.get_witness_effectiveness("witness:cycle", "target:cycle")
+    trust_before = team.get_member_trust("target:cycle")
+    witness_trust_before = trust_before.get("witnesses", 0.5)
+
+    # Phase 2: Simulate leave/rejoin by deleting the witness member and re-adding
+    # NOTE: Team.remove_member() doesn't exist yet - that's itself a finding.
+    # We simulate by directly manipulating the members dict (what remove+add would do)
+    del team.members["witness:cycle"]
+    team._update_team()
+    team.add_member("witness:cycle", role="developer")  # Re-added with same LCT
+
+    # Phase 3: Check if effectiveness was reset
+    eff_after_rejoin = team.get_witness_effectiveness("witness:cycle", "target:cycle")
+
+    # Phase 4: Try witnessing again
+    reset_worked = eff_after_rejoin > eff_before_leave * 2  # Significant improvement?
+
+    # Check if the witness log on the TARGET was preserved
+    target_member = team.get_member("target:cycle")
+    target_witness_log = target_member.get("_witness_log", {})
+    witness_history_preserved = "witness:cycle" in target_witness_log
+
+    # The defense: witness history should be tracked on the TARGET, not the witness member
+    # If the target's witness log preserves history, the reset doesn't work
+    defense_held = witness_history_preserved and not reset_worked
+
+    # BONUS FINDING: Team.remove_member() doesn't exist yet.
+    # Member removal is only a multi-sig action type but has no implementation.
+
+    return AttackResult(
+        attack_name="Role Cycling (Witness Reset)",
+        success=reset_worked and not witness_history_preserved,
+        setup_cost_atp=50.0,  # Cost of leave/rejoin
+        gain_atp=30.0,  # Value of refreshed witness effectiveness
+        roi=-0.40,
+        detection_probability=0.80,  # Leave/rejoin is highly visible in audit log
+        time_to_detection_hours=1,  # Immediately visible
+        blocks_until_detected=1,
+        trust_damage=0.5,
+        description=(
+            f"Witness effectiveness before leaving: {eff_before_leave:.3f}. "
+            f"After rejoin: {eff_after_rejoin:.3f}. "
+            f"Reset {'WORKED' if reset_worked else 'FAILED'}. "
+            f"Target witness history {'PRESERVED' if witness_history_preserved else 'LOST'}. "
+            f"Defense {'HELD' if defense_held else 'FAILED'}: "
+            f"{'Witness log on target persists across member re-add' if defense_held else 'Witness history was lost on rejoin'}."
+        ),
+        mitigation=(
+            "1. Track witness history on the TARGET member, not the witness\n"
+            "2. Witness log should persist even if the witness leaves and rejoins\n"
+            "3. Audit trail flags rapid leave/rejoin patterns\n"
+            "4. Cool-down period before re-added members can witness again\n"
+            "5. LCT-level witness history that survives membership changes"
+        ),
+        raw_data={
+            "eff_before": eff_before_leave,
+            "eff_after": eff_after_rejoin,
+            "reset_worked": reset_worked,
+            "history_preserved": witness_history_preserved,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -858,6 +1057,8 @@ def run_all_attacks() -> List[AttackResult]:
         ("Heartbeat Timing", attack_heartbeat_timing),
         ("Trust Decay Evasion", attack_trust_decay_evasion),
         ("Multi-Sig Quorum", attack_multisig_quorum),
+        ("Cross-Team Witness Collusion", attack_cross_team_witness_collusion),
+        ("Role Cycling (Witness Reset)", attack_role_cycling),
     ]
 
     results = []

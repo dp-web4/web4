@@ -33,7 +33,7 @@ class TestAttackSimulations:
         """Execute all 6 attack vectors."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 6
+        assert len(results) == 8
 
 
 class TestStandaloneComponents:
