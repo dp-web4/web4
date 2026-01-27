@@ -316,11 +316,16 @@ def test_multisig():
     team.add_member(member3, role="reviewer")
 
     # Boost trust for members (so they can vote)
-    # Need to boost enough to reach 0.6 threshold
-    for _ in range(15):
-        team.update_member_trust(member1, "success", 0.8)
-        team.update_member_trust(member2, "success", 0.8)
-        team.update_member_trust(member3, "success", 0.8)
+    # Need trust >= 0.6 threshold. With velocity caps, we set trust directly
+    # since this test is about multi-sig behavior, not trust growth.
+    high_trust = {
+        "reliability": 0.75, "competence": 0.70, "alignment": 0.65,
+        "consistency": 0.65, "witnesses": 0.70, "lineage": 0.60,
+    }
+    for m in [member1, member2, member3]:
+        member_data = team.get_member(m)
+        member_data["trust"] = high_trust.copy()
+    team._update_team()
 
     # Create multi-sig manager
     msig = MultiSigManager(team)

@@ -554,6 +554,17 @@ class Team:
 
     # --- Trust Management ---
 
+    # Trust velocity caps per epoch (24h window)
+    # Maximum trust gain per dimension per day
+    TRUST_VELOCITY_CAPS = {
+        "reliability": 0.10,    # Max +10% per day
+        "competence": 0.08,     # Max +8% per day
+        "alignment": 0.06,      # Max +6% per day
+        "consistency": 0.05,    # Max +5% per day
+        "witnesses": 0.15,      # Witnesses can grow faster (external validation)
+        "lineage": 0.03,        # Historical record grows very slowly
+    }
+
     def update_member_trust(self, lct_id: str, outcome: str,
                             magnitude: float = 0.1) -> dict:
         """
@@ -566,6 +577,9 @@ class Team:
 
         Returns:
             Updated trust tensor (after decay applied)
+
+        Trust velocity caps prevent Sybil-style rapid trust inflation.
+        Maximum trust gain per dimension is capped per 24h epoch.
         """
         if lct_id not in self.members:
             raise ValueError(f"Not a member: {lct_id}")
@@ -574,13 +588,15 @@ class Team:
         trust = member["trust"]
         now = datetime.now(timezone.utc)
 
-        # First apply any pending decay
+        # First apply any pending decay (metabolic-state-aware)
         if self._decay_calculator and "last_trust_update" in member:
+            metabolic = self.metabolic_state if self._heartbeat_ledger else None
             trust = self._decay_calculator.apply_decay(
                 trust,
                 member["last_trust_update"],
                 now,
-                member.get("action_count", 0)
+                member.get("action_count", 0),
+                metabolic_state=metabolic,
             )
 
         if outcome == "success":
@@ -590,16 +606,36 @@ class Team:
         else:
             delta = magnitude * 0.02
 
-        # Update all dimensions
+        # Track trust velocity (cumulative gain this epoch)
+        epoch_key = now.strftime("%Y-%m-%d")
+        velocity = member.get("_trust_velocity", {})
+        if velocity.get("_epoch") != epoch_key:
+            # New epoch - reset velocity tracker
+            velocity = {"_epoch": epoch_key}
+
+        # Update all dimensions with velocity cap enforcement
         for dim in trust:
             if dim in ("reliability", "competence", "alignment"):
                 multiplier = 1.0 if dim == "reliability" else (0.5 if dim == "competence" else 0.3)
-                trust[dim] = max(0, min(1, trust[dim] + delta * multiplier))
+                raw_delta = delta * multiplier
 
-        # Store updated trust and timestamp
+                # Apply velocity cap (only for positive changes)
+                if raw_delta > 0:
+                    cap = self.TRUST_VELOCITY_CAPS.get(dim, 0.10)
+                    gained_today = velocity.get(dim, 0.0)
+                    remaining_cap = max(0, cap - gained_today)
+                    capped_delta = min(raw_delta, remaining_cap)
+                    velocity[dim] = gained_today + capped_delta
+                    trust[dim] = max(0, min(1, trust[dim] + capped_delta))
+                else:
+                    # No cap on trust loss (penalties always apply in full)
+                    trust[dim] = max(0, min(1, trust[dim] + raw_delta))
+
+        # Store updated trust, timestamp, and velocity
         member["trust"] = trust
         member["last_trust_update"] = now.isoformat()
         member["action_count"] = member.get("action_count", 0) + 1
+        member["_trust_velocity"] = velocity
         self._update_team()
 
         return trust
