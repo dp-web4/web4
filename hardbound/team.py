@@ -21,7 +21,7 @@ of other teams (fractal structure), and accumulates its own trust.
 import hashlib
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, field, asdict
@@ -707,6 +707,117 @@ class Team:
         self._update_team()
 
         return trust
+
+    # Diminishing returns for same-pair witnessing
+    # After N same-pair attestations in a window, multiplier drops exponentially
+    WITNESS_DIMINISHING_HALFLIFE = 3  # Attestations before effectiveness halves
+    WITNESS_WINDOW_DAYS = 30          # Rolling window for counting pair interactions
+
+    def witness_member(self, witness_lct: str, target_lct: str,
+                       quality: float = 1.0) -> Dict[str, float]:
+        """
+        Record a witnessing event: one member attests to another's activity.
+
+        Witnessing is a core Web4 concept - entities build trust by observing
+        and attesting to each other's actions. However, repeated same-pair
+        witnessing has diminishing returns to prevent closed-loop farming.
+
+        Args:
+            witness_lct: The LCT of the witnessing entity
+            target_lct: The LCT of the entity being witnessed
+            quality: Quality multiplier (0.0-1.0) from activity quality scoring
+
+        Returns:
+            Updated trust tensor for target member
+        """
+        import math
+
+        if target_lct not in self.members:
+            raise ValueError(f"Target not a member: {target_lct}")
+        if witness_lct == target_lct:
+            raise ValueError("Cannot witness yourself")
+
+        member = self.members[target_lct]
+        trust = member["trust"]
+        now = datetime.now(timezone.utc)
+
+        # Track witness pair history
+        witness_log = member.get("_witness_log", {})
+        pair_key = witness_lct
+        pair_history = witness_log.get(pair_key, [])
+
+        # Prune old entries outside window
+        cutoff = (now - timedelta(days=self.WITNESS_WINDOW_DAYS)).isoformat()
+        pair_history = [ts for ts in pair_history if ts >= cutoff]
+
+        # Count same-pair attestations in window
+        pair_count = len(pair_history)
+
+        # Diminishing returns: multiplier = 2^(-n / halflife)
+        diminishing = math.pow(2, -pair_count / self.WITNESS_DIMINISHING_HALFLIFE)
+
+        # Base witness trust delta (positive, affects witnesses dimension primarily)
+        base_delta = 0.03 * quality * diminishing
+
+        # Apply to trust dimensions (witnesses gets most, others get minor boost)
+        witness_weights = {
+            "witnesses": 1.0,
+            "reliability": 0.3,
+            "consistency": 0.2,
+        }
+
+        for dim, weight in witness_weights.items():
+            if dim in trust:
+                delta = base_delta * weight
+                # Still subject to velocity caps
+                trust[dim] = max(0, min(1, trust[dim] + delta))
+
+        # Record this attestation
+        pair_history.append(now.isoformat())
+        witness_log[pair_key] = pair_history
+        member["_witness_log"] = witness_log
+        member["trust"] = trust
+        member["last_trust_update"] = now.isoformat()
+        self._update_team()
+
+        # Record on audit trail
+        self.ledger.record_audit(
+            session_id=self.team_id,
+            action_type="witness_attestation",
+            tool_name="hardbound",
+            target=target_lct,
+            r6_data={
+                "witness": witness_lct,
+                "target": target_lct,
+                "quality": quality,
+                "pair_count": pair_count + 1,
+                "diminishing_factor": round(diminishing, 4),
+            }
+        )
+
+        return trust
+
+    def get_witness_effectiveness(self, witness_lct: str, target_lct: str) -> float:
+        """
+        Get the current effectiveness of a witness pair.
+
+        Returns: Float 0.0-1.0 representing how much impact the next
+        attestation from this witness will have on the target.
+        """
+        import math
+
+        if target_lct not in self.members:
+            return 0.0
+
+        member = self.members[target_lct]
+        witness_log = member.get("_witness_log", {})
+        pair_history = witness_log.get(witness_lct, [])
+
+        now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(days=self.WITNESS_WINDOW_DAYS)).isoformat()
+        recent = [ts for ts in pair_history if ts >= cutoff]
+
+        return math.pow(2, -len(recent) / self.WITNESS_DIMINISHING_HALFLIFE)
 
     def get_member_trust(self, lct_id: str, apply_decay: bool = True) -> Dict[str, float]:
         """

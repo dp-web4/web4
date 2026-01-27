@@ -173,3 +173,45 @@ class TestSybilDetection:
         assert len(report.clusters) > 0
         assert any("sybil_1" in c.members and "sybil_2" in c.members
                    for c in report.clusters)
+
+
+class TestWitnessDiminishing:
+    """Tests for diminishing same-pair witnessing."""
+
+    def test_diminishing_returns(self):
+        """Repeated same-pair witnessing should have diminishing impact."""
+        config = TeamConfig(name="witness-test", description="Witness test")
+        team = Team(config=config)
+        team.set_admin("admin:wit")
+        team.add_member("witness:a", role="developer")
+        team.add_member("target:a", role="developer")
+
+        # First attestation: full effectiveness
+        eff1 = team.get_witness_effectiveness("witness:a", "target:a")
+        assert eff1 == 1.0
+
+        trust1 = team.witness_member("witness:a", "target:a")
+        wit_dim_1 = trust1["witnesses"]
+
+        # 5 more attestations
+        for _ in range(5):
+            team.witness_member("witness:a", "target:a")
+
+        eff6 = team.get_witness_effectiveness("witness:a", "target:a")
+        assert eff6 < 0.35, f"After 6 attestations, effectiveness should be <35%, got {eff6}"
+
+        # Fresh witness still has full effectiveness
+        team.add_member("fresh:a", role="reviewer")
+        eff_fresh = team.get_witness_effectiveness("fresh:a", "target:a")
+        assert eff_fresh == 1.0
+
+    def test_self_witness_blocked(self):
+        """Cannot witness yourself."""
+        config = TeamConfig(name="self-test", description="Self witness test")
+        team = Team(config=config)
+        team.set_admin("admin:self")
+        team.add_member("member:self", role="developer")
+
+        import pytest
+        with pytest.raises(ValueError, match="Cannot witness yourself"):
+            team.witness_member("member:self", "member:self")
