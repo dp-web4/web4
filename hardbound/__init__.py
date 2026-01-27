@@ -26,6 +26,7 @@ from .team import Team, TeamConfig
 from .member import Member, MemberRole
 from .policy import Policy, PolicyRule
 from .r6 import R6Request, R6Response, R6Status
+from .activity_quality import ActivityWindow, ActivityTier
 
 __all__ = [
     'Team',
@@ -37,4 +38,6 @@ __all__ = [
     'R6Request',
     'R6Response',
     'R6Status',
+    'ActivityWindow',
+    'ActivityTier',
 ]

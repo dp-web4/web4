@@ -90,3 +90,45 @@ class TestStandaloneComponents:
         team.add_member("web4:soft:dev:audit", role="developer")
         valid, error = team.verify_audit_chain()
         assert valid is True, f"Audit chain invalid: {error}"
+
+
+class TestActivityQuality:
+    """Activity quality scoring tests."""
+
+    def test_activity_quality_self_test(self):
+        """Run the full activity quality self-test."""
+        from hardbound.activity_quality import _self_test
+        _self_test()
+
+    def test_micro_ping_detection(self):
+        """Micro-pings should get minimal trust decay credit."""
+        from hardbound.activity_quality import (
+            ActivityWindow, ActivityTier, compute_quality_adjusted_decay
+        )
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)
+        window = ActivityWindow(entity_id="test:micro", window_seconds=86400*7)
+        for day in range(7):
+            ts = (now - timedelta(days=6-day)).isoformat()
+            window.record("presence_ping", ts)
+
+        assert window.tier == ActivityTier.TRIVIAL
+        adjusted = compute_quality_adjusted_decay(7, window)
+        assert adjusted < 1.0, "Micro-pings should get <1.0 credit for 7 days"
+
+    def test_diverse_work_scores_high(self):
+        """Diverse meaningful actions should score well."""
+        from hardbound.activity_quality import ActivityWindow, ActivityTier
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)
+        window = ActivityWindow(entity_id="test:diverse")
+        types = ["r6_created", "r6_approved", "r6_completed", "trust_update",
+                 "multisig_vote", "heartbeat", "audit_record"]
+        for i, tx_type in enumerate(types):
+            ts = (now - timedelta(hours=6-i)).isoformat()
+            window.record(tx_type, ts, atp_cost=2.0 if i % 2 == 0 else 0.0)
+
+        assert window.quality_score > 0.4
+        assert window.tier in (ActivityTier.HIGH, ActivityTier.CRITICAL)
