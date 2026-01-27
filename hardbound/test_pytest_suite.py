@@ -585,3 +585,65 @@ class TestMemberRemoval:
         target = team.get_member("target:wh")
         assert "witness:wh" in target.get("_witness_log", {})
         assert len(target["_witness_log"]["witness:wh"]) == 5
+
+
+class TestActivityQualityIntegration:
+    """Tests that ActivityWindow is wired into Team trust operations."""
+
+    def test_activity_window_populated_on_trust_update(self):
+        """update_member_trust() records to ActivityWindow."""
+        config = TeamConfig(name="aq-update", description="Activity window test")
+        team = Team(config=config)
+        team.set_admin("admin:aq")
+        team.add_member("worker:aq", role="developer")
+
+        # Perform trust updates
+        team.update_member_trust("worker:aq", "success", 0.5)
+        team.update_member_trust("worker:aq", "failure", 0.3)
+        team.update_member_trust("worker:aq", "success", 0.2)
+
+        # Check that activity window was populated
+        window = team._activity_windows.get("worker:aq")
+        assert window is not None
+        assert len(window.actions) == 3
+        action_types = [a["tx_type"] for a in window.actions]
+        assert "trust_update_success" in action_types
+        assert "trust_update_failure" in action_types
+
+    def test_activity_window_populated_on_witness(self):
+        """witness_member() records to both witness and target windows."""
+        config = TeamConfig(name="aq-witness", description="Witness activity test")
+        team = Team(config=config)
+        team.set_admin("admin:aqw")
+        team.add_member("witness:aqw", role="developer")
+        team.add_member("target:aqw", role="developer")
+
+        team.witness_member("witness:aqw", "target:aqw")
+
+        # Both should have activity recorded
+        w_window = team._activity_windows.get("witness:aqw")
+        t_window = team._activity_windows.get("target:aqw")
+        assert w_window is not None
+        assert t_window is not None
+        assert any(a["tx_type"] == "witness_given" for a in w_window.actions)
+        assert any(a["tx_type"] == "witness_received" for a in t_window.actions)
+
+    def test_quality_adjusted_actions_returns_int(self):
+        """_quality_adjusted_actions returns a non-negative integer."""
+        config = TeamConfig(name="aq-int", description="Adjusted action test")
+        team = Team(config=config)
+        team.set_admin("admin:qi")
+        team.add_member("member:qi", role="developer")
+
+        # Without any activity recorded, falls back to raw count
+        result = team._quality_adjusted_actions("member:qi", 10)
+        assert isinstance(result, int)
+        assert result == 10  # No window yet = raw count
+
+        # After some activity, uses quality adjustment
+        for _ in range(5):
+            team.update_member_trust("member:qi", "success", 0.1)
+
+        result = team._quality_adjusted_actions("member:qi", 10)
+        assert isinstance(result, int)
+        assert result >= 0

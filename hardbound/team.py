@@ -37,6 +37,7 @@ from .trust_decay import TrustDecayCalculator, DecayConfig
 from .policy import Policy, PolicyStore
 from .admin_binding import AdminBindingManager, AdminBindingType, AdminBinding
 from .heartbeat_ledger import HeartbeatLedger, MetabolicState
+from .activity_quality import ActivityWindow, compute_quality_adjusted_decay
 
 
 @dataclass
@@ -102,6 +103,31 @@ class Team:
 
         # Initialize heartbeat ledger for metabolic tracking
         self._heartbeat_ledger: Optional[HeartbeatLedger] = None
+
+        # Activity quality tracking per member (not persisted - rebuilt from actions)
+        self._activity_windows: Dict[str, 'ActivityWindow'] = {}
+
+    def _get_activity_window(self, lct_id: str) -> ActivityWindow:
+        """Get or create an ActivityWindow for a member (30-day rolling window)."""
+        if lct_id not in self._activity_windows:
+            self._activity_windows[lct_id] = ActivityWindow(
+                entity_id=lct_id, window_seconds=86400 * 30
+            )
+        return self._activity_windows[lct_id]
+
+    def _quality_adjusted_actions(self, lct_id: str, raw_count: int) -> int:
+        """
+        Get quality-adjusted action count for decay calculation.
+
+        Uses ActivityWindow if available, otherwise falls back to raw count.
+        This prevents micro-ping gaming where trivial actions slow decay.
+        """
+        window = self._activity_windows.get(lct_id)
+        if window and len(window.actions) > 0:
+            metabolic = self.metabolic_state if self._heartbeat_ledger else "active"
+            adjusted = compute_quality_adjusted_decay(raw_count, window, metabolic)
+            return max(0, int(adjusted))
+        return raw_count
 
     @property
     def heartbeat(self) -> HeartbeatLedger:
@@ -825,14 +851,21 @@ class Team:
         trust = member["trust"]
         now = datetime.now(timezone.utc)
 
+        # Record activity in quality window
+        action_type = f"trust_update_{outcome}"
+        window = self._get_activity_window(lct_id)
+        window.record(action_type, now.isoformat())
+
         # First apply any pending decay (metabolic-state-aware)
         if self._decay_calculator and "last_trust_update" in member:
             metabolic = self.metabolic_state if self._heartbeat_ledger else None
+            raw_actions = member.get("action_count", 0)
+            adjusted_actions = self._quality_adjusted_actions(lct_id, raw_actions)
             trust = self._decay_calculator.apply_decay(
                 trust,
                 member["last_trust_update"],
                 now,
-                member.get("action_count", 0),
+                adjusted_actions,
                 metabolic_state=metabolic,
             )
 
@@ -909,6 +942,12 @@ class Team:
         member = self.members[target_lct]
         trust = member["trust"]
         now = datetime.now(timezone.utc)
+
+        # Record witnessing activity for both parties
+        witness_window = self._get_activity_window(witness_lct)
+        witness_window.record("witness_given", now.isoformat())
+        target_window = self._get_activity_window(target_lct)
+        target_window.record("witness_received", now.isoformat())
 
         # Track witness pair history
         witness_log = member.get("_witness_log", {})
@@ -1006,11 +1045,13 @@ class Team:
         trust = member["trust"].copy()
 
         if apply_decay and self._decay_calculator and "last_trust_update" in member:
+            raw_actions = member.get("action_count", 0)
+            adjusted_actions = self._quality_adjusted_actions(lct_id, raw_actions)
             trust = self._decay_calculator.apply_decay(
                 trust,
                 member["last_trust_update"],
                 datetime.now(timezone.utc),
-                member.get("action_count", 0)
+                adjusted_actions,
             )
 
         return trust
