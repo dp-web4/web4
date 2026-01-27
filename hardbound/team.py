@@ -36,6 +36,7 @@ from governance import Ledger
 from .trust_decay import TrustDecayCalculator, DecayConfig
 from .policy import Policy, PolicyStore
 from .admin_binding import AdminBindingManager, AdminBindingType, AdminBinding
+from .heartbeat_ledger import HeartbeatLedger, MetabolicState
 
 
 @dataclass
@@ -98,6 +99,73 @@ class Team:
         if self.config.enable_trust_decay:
             decay_config = self.config.decay_config or DecayConfig()
             self._decay_calculator = TrustDecayCalculator(decay_config)
+
+        # Initialize heartbeat ledger for metabolic tracking
+        self._heartbeat_ledger: Optional[HeartbeatLedger] = None
+
+    @property
+    def heartbeat(self) -> HeartbeatLedger:
+        """
+        Get or create the heartbeat ledger for this team.
+
+        Lazy initialization - only created when first accessed.
+        The heartbeat ledger tracks metabolic state and produces
+        blocks driven by team activity patterns.
+        """
+        if self._heartbeat_ledger is None:
+            self._heartbeat_ledger = HeartbeatLedger(self.team_id)
+        return self._heartbeat_ledger
+
+    @property
+    def metabolic_state(self) -> str:
+        """Current team metabolic state."""
+        return self.heartbeat.state.value
+
+    def pulse(self, sentinel_lct: Optional[str] = None):
+        """
+        Fire a metabolic heartbeat, sealing pending transactions into a block.
+
+        This is the team's "pulse" - call it periodically to maintain
+        the block chain. Active teams should pulse every ~60s, resting
+        teams every ~5min, etc.
+
+        Returns the sealed block.
+        """
+        return self.heartbeat.heartbeat(sentinel_lct=sentinel_lct or self.admin_lct)
+
+    def metabolic_transition(self, to_state: str, trigger: str):
+        """
+        Transition the team to a new metabolic state.
+
+        Args:
+            to_state: Target state name (active, rest, sleep, etc.)
+            trigger: What caused the transition
+
+        Returns:
+            MetabolicTransition record
+        """
+        target = MetabolicState(to_state)
+        transition = self.heartbeat.transition_state(target, trigger=trigger)
+
+        # Record on team audit trail
+        self.ledger.record_audit(
+            session_id=self.team_id,
+            action_type="metabolic_transition",
+            tool_name="hardbound",
+            target=to_state,
+            r6_data={
+                "from": transition.from_state,
+                "to": transition.to_state,
+                "trigger": trigger,
+                "atp_cost": transition.atp_cost,
+            }
+        )
+
+        return transition
+
+    def get_metabolic_health(self) -> Dict[str, Any]:
+        """Get team metabolic health report."""
+        return self.heartbeat.get_metabolic_health()
 
     def _create_team(self, config: TeamConfig):
         """Create a new team."""
