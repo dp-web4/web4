@@ -127,4 +127,4 @@ Without memory as active temporal sensing, Web4 would be just another network. W
 
 ---
 
-*For technical implementation details of memory systems, see [Part 9: Implementation Details](#implementation). For specific protocols, see [Appendix B: Memory Sensor API](#appendix-b).*
+*For technical implementation details of memory systems, see Part 7: Proposed Implementation Details. For specific protocols, see Appendix C: Memory Sensor API.*

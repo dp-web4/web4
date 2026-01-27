@@ -1,4 +1,4 @@
-## Introduction
+# Introduction
 
 This document presents WEB4—a paradigm that redefines trust, value, and intelligence in the age of autonomous collaboration. Building upon the philosophical framework of [Synchronism](https://dpcars.net/synchronism), which recognizes coherence and resonance as fundamental organizing principles, WEB4 manifests these concepts as practical internet architecture.
 
