@@ -981,17 +981,21 @@ def attack_cross_team_witness_collusion() -> AttackResult:
             f"Multi-witness diversity block: {'ENFORCED' if diversity_blocked else 'BYPASSED'}. "
             f"FINDING: Witness diversity requirement blocks same-team stacking. "
             f"Single-witness actions remain vulnerable to a single colluding team. "
-            f"Full mitigation requires witness reputation scoring and graph analysis."
+            f"Federation registry now provides reputation scoring and collusion detection."
         ),
         mitigation=(
             "IMPLEMENTED:\n"
             "1. Witness diversity: each external witness must come from a different team\n"
+            "2. Federation registry: cross-team witness graph analysis flags reciprocal collusion\n"
+            "3. Witness reputation scoring: Bayesian scores degrade when attested proposals fail\n"
+            "4. Federation-integrated witnessing: add_external_witness() validates team registration,\n"
+            "   active status, and minimum witness score via FederationRegistry\n"
+            "5. Collusion detection: reciprocity analysis flags team pairs with >60% mutual witnessing\n"
+            "6. Witness pool filtering: find_witness_pool() excludes flagged colluding teams\n"
             "\n"
             "STILL NEEDED:\n"
-            "2. Cross-team witness graph analysis: flag teams that always witness for each other\n"
-            "3. Team creation lineage: track which entities created which teams\n"
-            "4. Witness reputation scoring: witnesses who attest for later-failed proposals lose trust\n"
-            "5. Random witness selection from a pool of qualified teams"
+            "7. Team creation lineage: track which entities created which teams\n"
+            "8. Random witness selection from qualified pool (currently manual)"
         ),
         raw_data={
             "single_witness_succeeded": single_witness_succeeded,
