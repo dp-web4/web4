@@ -447,3 +447,91 @@ class TestCrossTeamWitnessing:
         result = msig.execute_proposal(proposal.proposal_id, "admin:xd")
         assert result.status.value == "executed"
         assert len(result.external_witnesses) == 2
+
+
+class TestMemberRemoval:
+    """Tests for Team.remove_member() with audit trail."""
+
+    def test_admin_can_remove_member(self):
+        """Admin can directly remove a member."""
+        config = TeamConfig(name="rm-admin", description="Removal test")
+        team = Team(config=config)
+        team.set_admin("admin:rm")
+        team.add_member("target:rm", role="developer")
+
+        assert team.get_member("target:rm") is not None
+
+        result = team.remove_member(
+            "target:rm", requester_lct="admin:rm", reason="Performance issues"
+        )
+
+        assert result["removed_lct"] == "target:rm"
+        assert "admin:rm" in result["auth_method"]
+        assert result["archived_trust"] is not None
+        assert team.get_member("target:rm") is None
+
+    def test_cannot_remove_admin(self):
+        """Admin cannot be removed (must use admin transfer)."""
+        import pytest
+        config = TeamConfig(name="rm-noadmin", description="No admin removal")
+        team = Team(config=config)
+        team.set_admin("admin:no")
+        team.add_member("normal:1", role="developer")
+
+        with pytest.raises(ValueError, match="Cannot remove admin"):
+            team.remove_member("admin:no", requester_lct="admin:no")
+
+    def test_non_admin_cannot_remove(self):
+        """Non-admin cannot remove members without multi-sig."""
+        import pytest
+        config = TeamConfig(name="rm-noauth", description="No auth test")
+        team = Team(config=config)
+        team.set_admin("admin:na")
+        team.add_member("member:a", role="developer")
+        team.add_member("member:b", role="developer")
+
+        with pytest.raises(PermissionError, match="admin authority or multi-sig"):
+            team.remove_member("member:b", requester_lct="member:a")
+
+    def test_removal_via_multisig(self):
+        """Member can be removed via multi-sig proposal."""
+        config = TeamConfig(name="rm-msig", description="Multi-sig removal")
+        team = Team(config=config)
+        team.set_admin("admin:ms")
+        team.add_member("target:ms", role="developer")
+
+        result = team.remove_member(
+            "target:ms",
+            reason="Voted out",
+            via_multisig="msig:abc123",
+        )
+
+        assert result["removed_lct"] == "target:ms"
+        assert "multisig:msig:abc123" in result["auth_method"]
+        assert team.get_member("target:ms") is None
+
+    def test_witness_history_preserved_on_other_members(self):
+        """When a witness is removed, their attestations on targets persist."""
+        config = TeamConfig(name="rm-witness", description="Witness history test")
+        team = Team(config=config)
+        team.set_admin("admin:wh")
+        team.add_member("witness:wh", role="developer")
+        team.add_member("target:wh", role="developer")
+
+        # Witness attests target several times
+        for _ in range(5):
+            team.witness_member("witness:wh", "target:wh")
+
+        # Target's witness log should reference the witness
+        target = team.get_member("target:wh")
+        assert "witness:wh" in target.get("_witness_log", {})
+        log_count = len(target["_witness_log"]["witness:wh"])
+        assert log_count == 5
+
+        # Remove the witness
+        team.remove_member("witness:wh", requester_lct="admin:wh")
+
+        # Target's witness log should STILL reference the removed witness
+        target = team.get_member("target:wh")
+        assert "witness:wh" in target.get("_witness_log", {})
+        assert len(target["_witness_log"]["witness:wh"]) == 5

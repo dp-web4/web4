@@ -680,6 +680,85 @@ class Team:
             "audit_id": audit["audit_id"]
         }
 
+    def remove_member(self, lct_id: str, requester_lct: str = None,
+                      reason: str = "", via_multisig: str = None) -> dict:
+        """
+        Remove a member from the team.
+
+        Member data is archived in the audit trail before deletion.
+        Witness logs on OTHER members referencing this member are preserved
+        (they are historical facts about the target, not the removed member).
+
+        Args:
+            lct_id: LCT of the member to remove
+            requester_lct: LCT requesting removal (must be admin unless via_multisig)
+            reason: Reason for removal
+            via_multisig: Proposal ID if removal was approved via multi-sig
+
+        Returns:
+            Dict with removal details and archived member data
+
+        Raises:
+            PermissionError: If requester is not admin and no multi-sig approval
+            ValueError: If lct_id is not a member or is the admin
+        """
+        # Cannot remove admin through this method
+        if lct_id == self.admin_lct:
+            raise ValueError(
+                "Cannot remove admin. Use admin transfer via multi-sig first."
+            )
+
+        if lct_id not in self.members:
+            raise ValueError(f"Not a member: {lct_id}")
+
+        # Authorization: must be admin OR have multi-sig approval
+        if via_multisig:
+            auth_method = f"multisig:{via_multisig}"
+        elif requester_lct:
+            admin_check = self.verify_admin(requester_lct)
+            if isinstance(admin_check, dict) and admin_check.get("verified"):
+                auth_method = f"admin:{requester_lct}"
+            elif admin_check is True:  # Fallback for simple bool return
+                auth_method = f"admin:{requester_lct}"
+            else:
+                raise PermissionError(
+                    "Member removal requires admin authority or multi-sig approval"
+                )
+        else:
+            raise PermissionError(
+                "Member removal requires admin authority or multi-sig approval"
+            )
+
+        # Archive member data before removal
+        member_data = dict(self.members[lct_id])
+        member_data["_archived_trust"] = member_data.get("trust", {}).copy()
+
+        # Remove from active members
+        del self.members[lct_id]
+        self._update_team()
+
+        # Record in audit trail with full member snapshot
+        audit = self.ledger.record_audit(
+            session_id=self.team_id,
+            action_type="member_removed",
+            tool_name="hardbound",
+            target=lct_id,
+            r6_data={
+                "reason": reason,
+                "auth_method": auth_method,
+                "archived_member": member_data,
+                "remaining_members": len(self.members),
+            }
+        )
+
+        return {
+            "removed_lct": lct_id,
+            "reason": reason,
+            "auth_method": auth_method,
+            "archived_trust": member_data.get("_archived_trust", {}),
+            "audit_id": audit["audit_id"],
+        }
+
     # --- ATP Management ---
 
     def consume_member_atp(self, lct_id: str, amount: int) -> int:

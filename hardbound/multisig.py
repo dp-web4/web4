@@ -769,11 +769,16 @@ class MultiSigManager:
             member_lct = data.get("member_lct")
             if not member_lct:
                 raise ValueError("member_lct required")
-            # Actual removal would happen here
+            # Execute actual removal through Team.remove_member()
+            result = self.team.remove_member(
+                lct_id=member_lct,
+                reason=data.get("reason", "Removed via multi-sig"),
+                via_multisig=proposal.proposal_id,
+            )
             return {
                 "action": "member_removal",
                 "removed_member": member_lct,
-                "note": "Member removed via multi-sig"
+                **result,
             }
 
         else:
