@@ -215,3 +215,47 @@ class TestWitnessDiminishing:
         import pytest
         with pytest.raises(ValueError, match="Cannot witness yourself"):
             team.witness_member("member:self", "member:self")
+
+
+class TestAuditHealth:
+    """Team health audit tests."""
+
+    def test_audit_health_report(self):
+        """audit_health() returns complete health report."""
+        config = TeamConfig(name="health-test", description="Health test")
+        team = Team(config=config)
+        team.set_admin("admin:h")
+        team.add_member("dev:h1", role="developer")
+        team.add_member("dev:h2", role="developer")
+
+        report = team.audit_health()
+        assert "team_id" in report
+        assert "sybil" in report
+        assert "trust" in report
+        assert "witness_health" in report
+        assert "health_score" in report
+        assert report["member_count"] == 2
+        assert report["health_score"] >= 0
+        assert report["health_score"] <= 100
+
+    def test_sybil_lowers_health(self):
+        """Sybil-like patterns should lower health score."""
+        config = TeamConfig(name="sybil-health", description="Sybil health test")
+        team = Team(config=config)
+        team.set_admin("admin:sh")
+
+        # Create members with identical trust (Sybil signal)
+        same_trust = {
+            "reliability": 0.55, "competence": 0.55, "alignment": 0.55,
+            "consistency": 0.55, "witnesses": 0.55, "lineage": 0.55,
+        }
+        for i in range(4):
+            lct = f"sybil:{i}"
+            team.add_member(lct, role="developer")
+            member = team.get_member(lct)
+            member["trust"] = same_trust.copy()
+        team._update_team()
+
+        report = team.audit_health()
+        # Should detect Sybil patterns and lower health
+        assert report["sybil"]["cluster_count"] > 0

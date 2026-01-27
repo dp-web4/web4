@@ -235,6 +235,96 @@ class Team:
         """Get team metabolic health report."""
         return self.heartbeat.get_metabolic_health()
 
+    def audit_health(self) -> Dict[str, Any]:
+        """
+        Comprehensive team health audit including Sybil detection,
+        trust anomalies, witness concentration, and activity quality.
+
+        Returns a health report suitable for monitoring dashboards.
+        """
+        from .sybil_detection import SybilDetector
+
+        report = {
+            "team_id": self.team_id,
+            "member_count": len(self.members),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # 1. Sybil detection
+        member_trusts = {}
+        for lct in self.members:
+            member_trusts[lct] = self.get_member_trust(lct, apply_decay=False)
+
+        detector = SybilDetector()
+
+        # Collect witness pairs from member logs
+        witness_pairs = []
+        for lct, member in self.members.items():
+            witness_log = member.get("_witness_log", {})
+            for witness_lct, timestamps in witness_log.items():
+                for _ in timestamps:
+                    witness_pairs.append((witness_lct, lct))
+
+        sybil_report = detector.analyze_team(
+            self.team_id, member_trusts,
+            witness_pairs=witness_pairs if witness_pairs else None,
+        )
+        report["sybil"] = sybil_report.to_dict()
+
+        # 2. Trust anomalies
+        trust_scores = {}
+        low_trust_members = []
+        high_trust_members = []
+        for lct in self.members:
+            score = self.get_member_trust_score(lct)
+            trust_scores[lct] = score
+            if score < 0.3:
+                low_trust_members.append(lct)
+            elif score > 0.85:
+                high_trust_members.append(lct)
+
+        if trust_scores:
+            scores = list(trust_scores.values())
+            report["trust"] = {
+                "avg": round(sum(scores) / len(scores), 4),
+                "min": round(min(scores), 4),
+                "max": round(max(scores), 4),
+                "low_trust_members": low_trust_members,
+                "high_trust_members": high_trust_members,
+            }
+        else:
+            report["trust"] = {"avg": 0.0, "min": 0.0, "max": 0.0,
+                               "low_trust_members": [], "high_trust_members": []}
+
+        # 3. Witness health
+        witness_stats = {}
+        for lct, member in self.members.items():
+            witness_log = member.get("_witness_log", {})
+            total_attestations = sum(len(ts) for ts in witness_log.values())
+            unique_witnesses = len(witness_log)
+            witness_stats[lct] = {
+                "total_attestations": total_attestations,
+                "unique_witnesses": unique_witnesses,
+            }
+        report["witness_health"] = witness_stats
+
+        # 4. Overall health score (0-100)
+        health_score = 100
+        if sybil_report.overall_risk.value == "critical":
+            health_score -= 40
+        elif sybil_report.overall_risk.value == "high":
+            health_score -= 25
+        elif sybil_report.overall_risk.value == "moderate":
+            health_score -= 15
+
+        if low_trust_members:
+            health_score -= min(20, len(low_trust_members) * 5)
+
+        report["health_score"] = max(0, health_score)
+        report["recommendations"] = sybil_report.recommendations
+
+        return report
+
     def _create_team(self, config: TeamConfig):
         """Create a new team."""
         # Generate team LCT (the team itself is an entity)
