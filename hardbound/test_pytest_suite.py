@@ -259,3 +259,191 @@ class TestAuditHealth:
         report = team.audit_health()
         # Should detect Sybil patterns and lower health
         assert report["sybil"]["cluster_count"] > 0
+
+
+class TestCrossTeamWitnessing:
+    """Tests for cross-team witnessing on multi-sig proposals."""
+
+    def _make_team_with_members(self, name, admin, members):
+        """Helper: create a team with admin and high-trust members."""
+        config = TeamConfig(name=name, description=f"{name} test team")
+        team = Team(config=config)
+        team.set_admin(admin)
+        for m in members:
+            team.add_member(m, role="developer")
+            # Directly set trust above thresholds (velocity caps limit incremental growth)
+            member = team.get_member(m)
+            member["trust"] = {
+                "reliability": 0.85, "competence": 0.85, "alignment": 0.85,
+                "consistency": 0.85, "witnesses": 0.85, "lineage": 0.85,
+            }
+        team._update_team()
+        return team
+
+    def test_admin_transfer_requires_external_witness(self):
+        """ADMIN_TRANSFER cannot execute without external witness."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        import pytest
+
+        team = self._make_team_with_members(
+            "xt-admin", "admin:xt",
+            ["voter:1", "voter:2", "voter:3", "voter:4"]
+        )
+        msig = MultiSigManager(team)
+
+        # Create admin transfer proposal
+        proposal = msig.create_proposal(
+            proposer_lct="admin:xt",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={"new_admin_lct": "voter:1"},
+            description="Transfer admin to voter:1",
+        )
+
+        # Verify external_witness_required is set from quorum config
+        assert proposal.external_witness_required == 1
+
+        # Get enough votes to approve
+        for voter in ["voter:2", "voter:3", "voter:4"]:
+            msig.vote(proposal.proposal_id, voter, approve=True)
+
+        # Proposal should be approved (quorum met)
+        proposal = msig.get_proposal(proposal.proposal_id)
+        assert proposal.status.value == "approved"
+
+        # But execution should FAIL without external witness
+        # (We bypass voting period check by monkey-patching for test)
+        proposal.min_voting_period_hours = 0
+        msig._save_proposal(proposal)
+
+        with pytest.raises(ValueError, match="Insufficient external witnesses"):
+            msig.execute_proposal(proposal.proposal_id, "admin:xt")
+
+    def test_external_witness_must_be_outside_team(self):
+        """External witnesses must not be members of the proposing team."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        import pytest
+
+        team = self._make_team_with_members(
+            "xt-outside", "admin:xo",
+            ["voter:a", "voter:b", "voter:c", "voter:d"]
+        )
+        msig = MultiSigManager(team)
+
+        proposal = msig.create_proposal(
+            proposer_lct="admin:xo",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={"new_admin_lct": "voter:a"},
+            description="Test external witness validation",
+        )
+
+        # Internal member cannot be external witness
+        with pytest.raises(ValueError, match="member of this team"):
+            msig.add_external_witness(
+                proposal.proposal_id,
+                witness_lct="voter:b",
+                witness_team_id="web4:team:other",
+                witness_trust_score=0.9,
+            )
+
+        # Same team ID also blocked
+        with pytest.raises(ValueError, match="different team"):
+            msig.add_external_witness(
+                proposal.proposal_id,
+                witness_lct="external:witness:1",
+                witness_team_id=team.team_id,
+                witness_trust_score=0.9,
+            )
+
+    def test_external_witness_enables_execution(self):
+        """With external witness, admin transfer can execute."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+
+        team = self._make_team_with_members(
+            "xt-execute", "admin:xe",
+            ["voter:x1", "voter:x2", "voter:x3", "voter:x4"]
+        )
+        msig = MultiSigManager(team)
+
+        proposal = msig.create_proposal(
+            proposer_lct="admin:xe",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={"new_admin_lct": "voter:x1"},
+            description="Transfer with external witness",
+        )
+
+        # Vote to approve
+        for voter in ["voter:x2", "voter:x3", "voter:x4"]:
+            msig.vote(proposal.proposal_id, voter, approve=True)
+
+        # Add external witness from another team
+        msig.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="external:auditor:1",
+            witness_team_id="web4:team:auditors",
+            witness_trust_score=0.85,
+            attestation="Verified admin transfer is legitimate",
+        )
+
+        # Bypass voting period for test
+        proposal = msig.get_proposal(proposal.proposal_id)
+        proposal.min_voting_period_hours = 0
+        msig._save_proposal(proposal)
+
+        # Now execution should succeed
+        result = msig.execute_proposal(proposal.proposal_id, "admin:xe")
+        assert result.status.value == "executed"
+        assert len(result.external_witnesses) == 1
+
+    def test_team_dissolution_requires_two_witnesses(self):
+        """TEAM_DISSOLUTION requires 2 external witnesses."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        import pytest
+
+        team = self._make_team_with_members(
+            "xt-dissolve", "admin:xd",
+            ["voter:d1", "voter:d2", "voter:d3", "voter:d4", "voter:d5"]
+        )
+        msig = MultiSigManager(team)
+
+        proposal = msig.create_proposal(
+            proposer_lct="admin:xd",
+            action=CriticalAction.TEAM_DISSOLUTION,
+            action_data={"reason": "Test dissolution"},
+            description="Dissolve team for testing",
+        )
+
+        assert proposal.external_witness_required == 2
+
+        # Only 1 external witness - should still fail
+        msig.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="external:gov:1",
+            witness_team_id="web4:team:governance",
+            witness_trust_score=0.9,
+        )
+
+        # Vote to approve (need 4 for dissolution)
+        for voter in ["voter:d1", "voter:d2", "voter:d3", "voter:d4"]:
+            msig.vote(proposal.proposal_id, voter, approve=True)
+
+        # Bypass voting period
+        proposal = msig.get_proposal(proposal.proposal_id)
+        proposal.min_voting_period_hours = 0
+        msig._save_proposal(proposal)
+
+        # Should fail - only 1 of 2 required witnesses
+        with pytest.raises(ValueError, match="Insufficient external witnesses"):
+            msig.execute_proposal(proposal.proposal_id, "admin:xd")
+
+        # Add second external witness
+        msig.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="external:gov:2",
+            witness_team_id="web4:team:oversight",
+            witness_trust_score=0.88,
+        )
+
+        # Now should succeed
+        result = msig.execute_proposal(proposal.proposal_id, "admin:xd")
+        assert result.status.value == "executed"
+        assert len(result.external_witnesses) == 2

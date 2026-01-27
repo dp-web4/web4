@@ -58,42 +58,49 @@ class CriticalAction(Enum):
 
 
 # Default quorum requirements by action
+# external_witness_required: minimum external witnesses needed (0 = none needed)
 QUORUM_REQUIREMENTS = {
     CriticalAction.ADMIN_TRANSFER: {
         "min_approvals": 3,
         "trust_threshold": 0.7,
         "trust_weighted_quorum": 2.0,  # Sum of trust scores
         "expiry_hours": 48,
+        "external_witness_required": 1,  # Must have outside validation
     },
     CriticalAction.POLICY_CHANGE: {
         "min_approvals": 2,
         "trust_threshold": 0.6,
         "trust_weighted_quorum": 1.5,
         "expiry_hours": 24,
+        "external_witness_required": 0,
     },
     CriticalAction.SECRET_ROTATION: {
         "min_approvals": 2,
         "trust_threshold": 0.7,
         "trust_weighted_quorum": 1.5,
         "expiry_hours": 12,
+        "external_witness_required": 0,
     },
     CriticalAction.MEMBER_REMOVAL: {
         "min_approvals": 2,
         "trust_threshold": 0.6,
         "trust_weighted_quorum": 1.5,
         "expiry_hours": 24,
+        "external_witness_required": 0,
     },
     CriticalAction.BUDGET_ALLOCATION: {
         "min_approvals": 2,
         "trust_threshold": 0.5,
         "trust_weighted_quorum": 1.0,
         "expiry_hours": 24,
+        "external_witness_required": 0,
     },
     CriticalAction.TEAM_DISSOLUTION: {
         "min_approvals": 4,  # Very high bar
         "trust_threshold": 0.8,
         "trust_weighted_quorum": 3.0,
         "expiry_hours": 72,
+        "external_witness_required": 2,  # Requires 2 external witnesses
     },
 }
 
@@ -144,6 +151,10 @@ class Proposal:
     min_voting_period_hours: float = 12.0
     vetoed_by: Optional[str] = None
     veto_reason: str = ""
+
+    # Cross-team witnessing
+    external_witness_required: int = 0  # Number of external witnesses needed
+    external_witnesses: List[str] = field(default_factory=list)  # LCTs of external witnesses
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -272,13 +283,32 @@ class MultiSigManager:
                     trust_weighted_quorum REAL NOT NULL,
                     executed_at TEXT,
                     executed_by TEXT,
-                    execution_result TEXT
+                    execution_result TEXT,
+                    beneficiaries TEXT,
+                    min_voting_period_hours REAL,
+                    vetoed_by TEXT,
+                    veto_reason TEXT,
+                    external_witness_required INTEGER DEFAULT 0,
+                    external_witnesses TEXT
                 )
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_proposals_team_status
                 ON proposals(team_id, status)
             """)
+            # Schema migration: add columns that may not exist in older DBs
+            for col_def in [
+                ("beneficiaries", "TEXT"),
+                ("min_voting_period_hours", "REAL"),
+                ("vetoed_by", "TEXT"),
+                ("veto_reason", "TEXT"),
+                ("external_witness_required", "INTEGER DEFAULT 0"),
+                ("external_witnesses", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE proposals ADD COLUMN {col_def[0]} {col_def[1]}")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
 
     def create_proposal(
         self,
@@ -357,6 +387,9 @@ class MultiSigManager:
         # Determine minimum voting period
         min_voting_hours = self.MIN_VOTING_PERIOD_HOURS.get(action, 12)
 
+        # Cross-team witnessing requirement
+        ext_witness_req = quorum.get("external_witness_required", 0)
+
         proposal = Proposal(
             proposal_id=proposal_id,
             team_id=self.team.team_id,
@@ -371,6 +404,7 @@ class MultiSigManager:
             trust_weighted_quorum=quorum["trust_weighted_quorum"],
             beneficiaries=beneficiaries,
             min_voting_period_hours=min_voting_hours,
+            external_witness_required=ext_witness_req,
         )
 
         # Store proposal
@@ -519,6 +553,97 @@ class MultiSigManager:
 
         return proposal
 
+    def add_external_witness(
+        self,
+        proposal_id: str,
+        witness_lct: str,
+        witness_team_id: str,
+        witness_trust_score: float,
+        attestation: str = "",
+    ) -> Proposal:
+        """
+        Add an external witness to a proposal requiring cross-team validation.
+
+        External witnesses are members of OTHER teams who attest that the
+        proposed action is legitimate. This prevents insular team capture
+        where a compromised team approves its own destructive actions.
+
+        Args:
+            proposal_id: ID of the proposal
+            witness_lct: LCT of the external witness
+            witness_team_id: Team ID the witness belongs to (must differ from proposal team)
+            witness_trust_score: Trust score of the witness in their own team
+            attestation: Optional attestation message
+
+        Returns:
+            Updated proposal
+
+        Raises:
+            ValueError: If proposal not found, expired, or witness is internal
+            PermissionError: If witness trust is insufficient
+        """
+        proposal = self.get_proposal(proposal_id)
+        if not proposal:
+            raise ValueError(f"Proposal not found: {proposal_id}")
+
+        if proposal.status not in (ProposalStatus.PENDING, ProposalStatus.APPROVED):
+            raise ValueError(f"Cannot witness proposal in state: {proposal.status.value}")
+
+        if proposal.is_expired():
+            proposal.status = ProposalStatus.EXPIRED
+            self._save_proposal(proposal)
+            raise ValueError("Proposal has expired")
+
+        if proposal.external_witness_required == 0:
+            raise ValueError("This proposal does not require external witnesses")
+
+        # External witness must NOT be from this team
+        if witness_team_id == self.team.team_id:
+            raise ValueError(
+                "External witness must be from a different team. "
+                f"Witness team '{witness_team_id}' matches proposal team."
+            )
+
+        # Must not be a member of this team either (belt AND suspenders)
+        if self.team.get_member(witness_lct) is not None:
+            raise ValueError(
+                f"Witness '{witness_lct}' is a member of this team. "
+                "External witnesses must be from outside the team."
+            )
+
+        # Minimum trust threshold for external witnesses (same as proposal threshold)
+        if witness_trust_score < proposal.trust_threshold:
+            raise PermissionError(
+                f"External witness trust {witness_trust_score:.2f} below "
+                f"threshold {proposal.trust_threshold:.2f}"
+            )
+
+        # No duplicate witnesses
+        if witness_lct in proposal.external_witnesses:
+            raise ValueError(f"Witness '{witness_lct}' has already attested")
+
+        # Record the external witness
+        proposal.external_witnesses.append(witness_lct)
+        self._save_proposal(proposal)
+
+        # Audit trail
+        self.ledger.record_audit(
+            session_id=self.team.team_id,
+            action_type="multisig_external_witness",
+            tool_name="hardbound",
+            target=proposal_id,
+            r6_data={
+                "witness_lct": witness_lct,
+                "witness_team": witness_team_id,
+                "witness_trust": witness_trust_score,
+                "attestation": attestation,
+                "witnesses_count": len(proposal.external_witnesses),
+                "witnesses_required": proposal.external_witness_required,
+            }
+        )
+
+        return proposal
+
     def execute_proposal(
         self,
         proposal_id: str,
@@ -558,6 +683,17 @@ class MultiSigManager:
                 f"Voting period not elapsed. {remaining:.1f}h remaining "
                 f"(minimum {proposal.min_voting_period_hours}h required)"
             )
+
+        # MITIGATION: Cross-team witnessing enforcement
+        # Critical actions require external witnesses before execution
+        if proposal.external_witness_required > 0:
+            witness_count = len(proposal.external_witnesses)
+            if witness_count < proposal.external_witness_required:
+                raise ValueError(
+                    f"Insufficient external witnesses: {witness_count} present, "
+                    f"{proposal.external_witness_required} required. "
+                    "Cross-team validation is mandatory for this action."
+                )
 
         # Verify executor (usually admin)
         is_admin = self.team.verify_admin(executor_lct)
@@ -749,8 +885,10 @@ class MultiSigManager:
                 (proposal_id, team_id, action, proposer_lct, created_at,
                  expires_at, status, action_data, description, votes,
                  min_approvals, trust_threshold, trust_weighted_quorum,
-                 executed_at, executed_by, execution_result)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 executed_at, executed_by, execution_result,
+                 beneficiaries, min_voting_period_hours, vetoed_by, veto_reason,
+                 external_witness_required, external_witnesses)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 proposal.proposal_id,
                 proposal.team_id,
@@ -767,7 +905,13 @@ class MultiSigManager:
                 proposal.trust_weighted_quorum,
                 proposal.executed_at,
                 proposal.executed_by,
-                json.dumps(proposal.execution_result) if proposal.execution_result else None
+                json.dumps(proposal.execution_result) if proposal.execution_result else None,
+                json.dumps(proposal.beneficiaries),
+                proposal.min_voting_period_hours,
+                proposal.vetoed_by,
+                proposal.veto_reason,
+                proposal.external_witness_required,
+                json.dumps(proposal.external_witnesses),
             ))
 
     def _row_to_proposal(self, row) -> Proposal:
@@ -788,7 +932,13 @@ class MultiSigManager:
             trust_weighted_quorum=row["trust_weighted_quorum"],
             executed_at=row["executed_at"],
             executed_by=row["executed_by"],
-            execution_result=json.loads(row["execution_result"]) if row["execution_result"] else {}
+            execution_result=json.loads(row["execution_result"]) if row["execution_result"] else {},
+            beneficiaries=json.loads(row["beneficiaries"]) if row["beneficiaries"] else [],
+            min_voting_period_hours=row["min_voting_period_hours"] if row["min_voting_period_hours"] is not None else 12.0,
+            vetoed_by=row["vetoed_by"],
+            veto_reason=row["veto_reason"] or "",
+            external_witness_required=row["external_witness_required"] if row["external_witness_required"] is not None else 0,
+            external_witnesses=json.loads(row["external_witnesses"]) if row["external_witnesses"] else [],
         )
 
 
@@ -803,3 +953,6 @@ if __name__ == "__main__":
         print(f"  Trust threshold: {quorum['trust_threshold']}")
         print(f"  Trust-weighted quorum: {quorum['trust_weighted_quorum']}")
         print(f"  Expiry: {quorum['expiry_hours']} hours")
+        ext = quorum.get('external_witness_required', 0)
+        if ext > 0:
+            print(f"  External witnesses required: {ext}")
