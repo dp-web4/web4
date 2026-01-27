@@ -139,6 +139,12 @@ class Proposal:
     executed_by: Optional[str] = None
     execution_result: Dict = field(default_factory=dict)
 
+    # Security mitigations
+    beneficiaries: List[str] = field(default_factory=list)
+    min_voting_period_hours: float = 12.0
+    vetoed_by: Optional[str] = None
+    veto_reason: str = ""
+
     def to_dict(self) -> dict:
         d = asdict(self)
         d["action"] = self.action.value
@@ -207,9 +213,33 @@ class MultiSigManager:
     All critical operations flow through this manager:
     1. Proposer creates proposal
     2. Eligible voters cast votes
-    3. Once quorum reached, action can be executed
+    3. Once quorum reached AND voting period elapsed, action can be executed
     4. Expired proposals are automatically rejected
+    5. Conflict-of-interest detection flags self-benefiting proposals
+    6. Veto mechanism allows high-trust members to block
+
+    Security mitigations (2026-01-27):
+    - Mandatory voting period before execution (prevents rush-through)
+    - Conflict-of-interest detection (self-benefit raises quorum)
+    - Veto power for members above veto_trust_threshold
+    - Beneficiary exclusion from voting on self-benefiting proposals
     """
+
+    # Minimum voting period before execution (hours)
+    MIN_VOTING_PERIOD_HOURS = {
+        CriticalAction.ADMIN_TRANSFER: 24,
+        CriticalAction.POLICY_CHANGE: 12,
+        CriticalAction.SECRET_ROTATION: 6,
+        CriticalAction.MEMBER_REMOVAL: 12,
+        CriticalAction.BUDGET_ALLOCATION: 12,
+        CriticalAction.TEAM_DISSOLUTION: 48,
+    }
+
+    # Trust threshold for veto power
+    VETO_TRUST_THRESHOLD = 0.85
+
+    # Quorum multiplier when proposer is a beneficiary
+    SELF_BENEFIT_QUORUM_MULTIPLIER = 1.5
 
     def __init__(self, team: 'Team'):
         """
@@ -294,12 +324,26 @@ class MultiSigManager:
         if custom_quorum:
             quorum = custom_quorum
         else:
-            quorum = QUORUM_REQUIREMENTS.get(action, {
+            quorum = dict(QUORUM_REQUIREMENTS.get(action, {
                 "min_approvals": 2,
                 "trust_threshold": 0.5,
                 "trust_weighted_quorum": 1.0,
                 "expiry_hours": 24,
-            })
+            }))
+
+        # MITIGATION: Conflict-of-interest detection
+        # If proposer benefits from the action, raise the quorum
+        beneficiaries = self._detect_beneficiaries(proposer_lct, action, action_data)
+        is_self_benefiting = proposer_lct in beneficiaries
+
+        if is_self_benefiting:
+            quorum["min_approvals"] = max(
+                quorum["min_approvals"],
+                int(quorum["min_approvals"] * self.SELF_BENEFIT_QUORUM_MULTIPLIER)
+            )
+            quorum["trust_weighted_quorum"] = (
+                quorum["trust_weighted_quorum"] * self.SELF_BENEFIT_QUORUM_MULTIPLIER
+            )
 
         # Generate proposal ID
         now = datetime.now(timezone.utc)
@@ -309,6 +353,9 @@ class MultiSigManager:
 
         # Calculate expiry
         expires_at = now + timedelta(hours=quorum.get("expiry_hours", 24))
+
+        # Determine minimum voting period
+        min_voting_hours = self.MIN_VOTING_PERIOD_HOURS.get(action, 12)
 
         proposal = Proposal(
             proposal_id=proposal_id,
@@ -322,6 +369,8 @@ class MultiSigManager:
             min_approvals=quorum["min_approvals"],
             trust_threshold=quorum["trust_threshold"],
             trust_weighted_quorum=quorum["trust_weighted_quorum"],
+            beneficiaries=beneficiaries,
+            min_voting_period_hours=min_voting_hours,
         )
 
         # Store proposal
@@ -402,6 +451,14 @@ class MultiSigManager:
         if voter_lct == proposal.proposer_lct:
             raise PermissionError("Cannot vote on your own proposal")
 
+        # MITIGATION: Beneficiary exclusion
+        # Members who benefit from the proposal cannot approve it
+        if voter_lct in proposal.beneficiaries and approve:
+            raise PermissionError(
+                "Beneficiaries cannot approve proposals they benefit from. "
+                f"Detected beneficiary: {voter_lct}"
+            )
+
         # Cast vote
         vote = Vote(
             voter_lct=voter_lct,
@@ -411,6 +468,26 @@ class MultiSigManager:
             comment=comment
         )
         proposal.votes.append(vote)
+
+        # MITIGATION: Veto power for high-trust members
+        # A single rejection from a high-trust member vetoes the proposal
+        if not approve and trust_score >= self.VETO_TRUST_THRESHOLD:
+            proposal.status = ProposalStatus.REJECTED
+            proposal.vetoed_by = voter_lct
+            proposal.veto_reason = comment or f"Vetoed by high-trust member (trust={trust_score:.3f})"
+            self._save_proposal(proposal)
+            self.ledger.record_audit(
+                session_id=self.team.team_id,
+                action_type="multisig_vetoed",
+                tool_name="hardbound",
+                target=proposal.proposal_id,
+                r6_data={
+                    "vetoed_by": voter_lct,
+                    "trust_score": trust_score,
+                    "reason": proposal.veto_reason,
+                }
+            )
+            return proposal
 
         # Check quorum
         quorum_reached, reason = proposal.check_quorum()
@@ -469,6 +546,18 @@ class MultiSigManager:
 
         if proposal.status != ProposalStatus.APPROVED:
             raise ValueError(f"Proposal not approved: {proposal.status.value}")
+
+        # MITIGATION: Mandatory voting period
+        # Cannot execute until minimum voting period has elapsed
+        created = datetime.fromisoformat(proposal.created_at.replace('Z', '+00:00'))
+        now = datetime.now(timezone.utc)
+        elapsed_hours = (now - created).total_seconds() / 3600
+        if elapsed_hours < proposal.min_voting_period_hours:
+            remaining = proposal.min_voting_period_hours - elapsed_hours
+            raise ValueError(
+                f"Voting period not elapsed. {remaining:.1f}h remaining "
+                f"(minimum {proposal.min_voting_period_hours}h required)"
+            )
 
         # Verify executor (usually admin)
         is_admin = self.team.verify_admin(executor_lct)
@@ -557,6 +646,51 @@ class MultiSigManager:
                 "data": data,
                 "note": "Executed via multi-sig"
             }
+
+    def _detect_beneficiaries(self, proposer_lct: str, action: CriticalAction,
+                              action_data: Dict) -> List[str]:
+        """
+        Detect which LCTs benefit from a proposal.
+
+        This is the conflict-of-interest detector. It examines the action data
+        to identify members who would directly benefit if the proposal executes.
+        """
+        beneficiaries = []
+
+        if action == CriticalAction.BUDGET_ALLOCATION:
+            # Who receives the budget?
+            recipient = action_data.get("recipient")
+            if recipient:
+                beneficiaries.append(recipient)
+            recipients = action_data.get("recipients", [])
+            beneficiaries.extend(recipients)
+
+        elif action == CriticalAction.ADMIN_TRANSFER:
+            # Who becomes admin?
+            new_admin = action_data.get("new_admin_lct")
+            if new_admin:
+                beneficiaries.append(new_admin)
+
+        elif action == CriticalAction.MEMBER_REMOVAL:
+            # Who might benefit from removal? (competitors for role)
+            # The proposer might benefit if they take over the removed member's role
+            # For now, just flag the proposer if they're not the one being removed
+            removed = action_data.get("member_lct")
+            if removed and removed != proposer_lct:
+                # Proposer might benefit from removing a competitor
+                beneficiaries.append(proposer_lct)
+
+        elif action == CriticalAction.POLICY_CHANGE:
+            # Check if changes lower thresholds for specific roles
+            changes = action_data.get("changes", {})
+            # If changes reduce trust thresholds, the proposer benefits
+            for key, value in changes.items():
+                if "threshold" in key.lower() and isinstance(value, (int, float)):
+                    # Proposer benefits from lowered thresholds
+                    beneficiaries.append(proposer_lct)
+                    break
+
+        return list(set(beneficiaries))  # Deduplicate
 
     def get_proposal(self, proposal_id: str) -> Optional[Proposal]:
         """Get a proposal by ID."""
