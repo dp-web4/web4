@@ -449,6 +449,56 @@ class TestCrossTeamWitnessing:
         assert len(result.external_witnesses) == 2
 
 
+    def test_witness_diversity_blocks_same_team(self):
+        """Two witnesses from the same team are blocked by diversity requirement."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        import pytest
+
+        team = self._make_team_with_members(
+            "xt-diverse", "admin:div",
+            ["voter:v1", "voter:v2", "voter:v3", "voter:v4", "voter:v5"]
+        )
+        msig = MultiSigManager(team)
+
+        # Dissolution requires 2 external witnesses
+        proposal = msig.create_proposal(
+            proposer_lct="admin:div",
+            action=CriticalAction.TEAM_DISSOLUTION,
+            action_data={"reason": "Diversity test"},
+            description="Test witness diversity",
+        )
+
+        # First witness from team-alpha: OK
+        msig.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="ext:alpha:1",
+            witness_team_id="web4:team:alpha",
+            witness_trust_score=0.9,
+        )
+
+        # Second witness from SAME team-alpha: BLOCKED
+        with pytest.raises(ValueError, match="already provided a witness"):
+            msig.add_external_witness(
+                proposal.proposal_id,
+                witness_lct="ext:alpha:2",
+                witness_team_id="web4:team:alpha",
+                witness_trust_score=0.9,
+            )
+
+        # Second witness from team-beta: OK
+        msig.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="ext:beta:1",
+            witness_team_id="web4:team:beta",
+            witness_trust_score=0.9,
+        )
+
+        proposal = msig.get_proposal(proposal.proposal_id)
+        assert len(proposal.external_witnesses) == 2
+        assert len(proposal.external_witness_teams) == 2
+        assert set(proposal.external_witness_teams) == {"web4:team:alpha", "web4:team:beta"}
+
+
 class TestMemberRemoval:
     """Tests for Team.remove_member() with audit trail."""
 

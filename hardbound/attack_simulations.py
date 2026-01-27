@@ -898,9 +898,9 @@ def attack_cross_team_witness_collusion() -> AttackResult:
     for i in range(1, 4):
         msig_a.vote(proposal.proposal_id, f"a_member:{i}", approve=True)
 
-    # Team B member acts as "external witness" - this SHOULD work
-    # because Team B is technically a different team
-    collusion_succeeded = False
+    # SCENARIO 1: Single witness from colluding team (admin transfer needs 1)
+    # This still works because 1 witness from 1 team = valid diversity
+    single_witness_succeeded = False
     try:
         msig_a.add_external_witness(
             proposal.proposal_id,
@@ -909,49 +909,96 @@ def attack_cross_team_witness_collusion() -> AttackResult:
             witness_trust_score=0.85,
             attestation="Totally legit, trust me bro",
         )
-        collusion_succeeded = True
+        single_witness_succeeded = True
     except (ValueError, PermissionError):
-        collusion_succeeded = False
+        single_witness_succeeded = False
 
-    # ANALYSIS: The collusion succeeds at the mechanism level.
-    # However, detection is possible through:
-    # 1. Witness graph analysis: same LCTs always witnessing for each other
-    # 2. Team creation timing: both teams created by same entity
-    # 3. Sybil detection across teams: correlated trust patterns
+    # SCENARIO 2: Try to stack multiple witnesses from SAME colluding team
+    # This tests the new diversity requirement.
+    # Create a dissolution proposal (needs 2 external witnesses)
+    team_a.add_member("a_member:4", role="developer")
+    member_a4 = team_a.get_member("a_member:4")
+    member_a4["trust"] = {
+        "reliability": 0.85, "competence": 0.85, "alignment": 0.85,
+        "consistency": 0.85, "witnesses": 0.85, "lineage": 0.85,
+    }
+    team_a._update_team()
 
-    # Check if the external witness was actually recorded
+    dissolve_proposal = msig_a.create_proposal(
+        proposer_lct="admin:collude_a",
+        action=CriticalAction.TEAM_DISSOLUTION,
+        action_data={"reason": "Colluding dissolution"},
+        description="Test diversity on dissolution",
+    )
+
+    # First witness from Team B - should work
+    first_collude = False
+    try:
+        msig_a.add_external_witness(
+            dissolve_proposal.proposal_id,
+            witness_lct="b_member:1",
+            witness_team_id=team_b.team_id,
+            witness_trust_score=0.85,
+        )
+        first_collude = True
+    except (ValueError, PermissionError):
+        first_collude = False
+
+    # Second witness ALSO from Team B - should FAIL due to diversity requirement
+    diversity_blocked = False
+    try:
+        msig_a.add_external_witness(
+            dissolve_proposal.proposal_id,
+            witness_lct="b_member:2",
+            witness_team_id=team_b.team_id,  # Same team!
+            witness_trust_score=0.85,
+        )
+    except ValueError as e:
+        if "already provided a witness" in str(e):
+            diversity_blocked = True
+
+    # Check final state
     proposal = msig_a.get_proposal(proposal.proposal_id)
-    has_witness = len(proposal.external_witnesses) >= proposal.external_witness_required
+    dissolve = msig_a.get_proposal(dissolve_proposal.proposal_id)
 
-    # The attack succeeds mechanically but is detectable
+    # The attack is PARTIALLY defended:
+    # - Single-witness actions (admin transfer): colluding team can still provide 1 witness
+    # - Multi-witness actions (dissolution): diversity requirement blocks same-team stacking
+    attack_success = single_witness_succeeded and not diversity_blocked
+
     return AttackResult(
         attack_name="Cross-Team Witness Collusion",
-        success=collusion_succeeded and has_witness,
-        setup_cost_atp=200.0,  # Cost of maintaining two teams
-        gain_atp=50.0,  # Value of bypassed admin transfer check
-        roi=-0.75,  # High cost, moderate gain
-        detection_probability=0.60,  # Detectable via witness graph analysis
-        time_to_detection_hours=168,  # ~1 week with periodic analysis
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=25.0,  # Reduced gain - only single-witness actions exploitable
+        roi=-0.875,
+        detection_probability=0.70,  # Higher detection with diversity tracking
+        time_to_detection_hours=168,
         blocks_until_detected=500,
-        trust_damage=1.0,  # Total trust destruction if caught
+        trust_damage=1.0,
         description=(
-            f"Collusion {'SUCCEEDED' if collusion_succeeded else 'FAILED'} mechanically. "
-            f"External witness from Team B was {'accepted' if collusion_succeeded else 'rejected'}. "
-            f"Proposal has {len(proposal.external_witnesses)}/{proposal.external_witness_required} witnesses. "
-            f"FINDING: Cross-team witnessing validates team boundary but not witness independence. "
-            f"A colluding team CAN provide witnesses. Defense requires cross-team Sybil detection."
+            f"Single-witness collusion: {'SUCCEEDED' if single_witness_succeeded else 'FAILED'}. "
+            f"Multi-witness diversity block: {'ENFORCED' if diversity_blocked else 'BYPASSED'}. "
+            f"FINDING: Witness diversity requirement blocks same-team stacking. "
+            f"Single-witness actions remain vulnerable to a single colluding team. "
+            f"Full mitigation requires witness reputation scoring and graph analysis."
         ),
         mitigation=(
-            "1. Cross-team witness graph analysis: flag teams that always witness for each other\n"
-            "2. Witness diversity requirement: external witnesses must come from N different teams\n"
+            "IMPLEMENTED:\n"
+            "1. Witness diversity: each external witness must come from a different team\n"
+            "\n"
+            "STILL NEEDED:\n"
+            "2. Cross-team witness graph analysis: flag teams that always witness for each other\n"
             "3. Team creation lineage: track which entities created which teams\n"
             "4. Witness reputation scoring: witnesses who attest for later-failed proposals lose trust\n"
             "5. Random witness selection from a pool of qualified teams"
         ),
         raw_data={
-            "collusion_succeeded": collusion_succeeded,
-            "witness_count": len(proposal.external_witnesses),
-            "witness_required": proposal.external_witness_required,
+            "single_witness_succeeded": single_witness_succeeded,
+            "diversity_blocked": diversity_blocked,
+            "first_collude_from_b": first_collude,
+            "admin_transfer_witnesses": len(proposal.external_witnesses),
+            "dissolution_witnesses": len(dissolve.external_witnesses),
         }
     )
 

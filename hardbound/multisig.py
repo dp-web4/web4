@@ -155,6 +155,7 @@ class Proposal:
     # Cross-team witnessing
     external_witness_required: int = 0  # Number of external witnesses needed
     external_witnesses: List[str] = field(default_factory=list)  # LCTs of external witnesses
+    external_witness_teams: List[str] = field(default_factory=list)  # Team IDs of witnesses (parallel to external_witnesses)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -289,7 +290,8 @@ class MultiSigManager:
                     vetoed_by TEXT,
                     veto_reason TEXT,
                     external_witness_required INTEGER DEFAULT 0,
-                    external_witnesses TEXT
+                    external_witnesses TEXT,
+                    external_witness_teams TEXT
                 )
             """)
             conn.execute("""
@@ -304,6 +306,7 @@ class MultiSigManager:
                 ("veto_reason", "TEXT"),
                 ("external_witness_required", "INTEGER DEFAULT 0"),
                 ("external_witnesses", "TEXT"),
+                ("external_witness_teams", "TEXT"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE proposals ADD COLUMN {col_def[0]} {col_def[1]}")
@@ -622,8 +625,18 @@ class MultiSigManager:
         if witness_lct in proposal.external_witnesses:
             raise ValueError(f"Witness '{witness_lct}' has already attested")
 
-        # Record the external witness
+        # DIVERSITY REQUIREMENT: Each external witness must come from a DIFFERENT team.
+        # This prevents collusion where one team provides all external witnesses.
+        if witness_team_id in proposal.external_witness_teams:
+            raise ValueError(
+                f"Team '{witness_team_id}' has already provided a witness. "
+                "Each external witness must come from a different team "
+                "to prevent cross-team collusion."
+            )
+
+        # Record the external witness and their team
         proposal.external_witnesses.append(witness_lct)
+        proposal.external_witness_teams.append(witness_team_id)
         self._save_proposal(proposal)
 
         # Audit trail
@@ -892,8 +905,8 @@ class MultiSigManager:
                  min_approvals, trust_threshold, trust_weighted_quorum,
                  executed_at, executed_by, execution_result,
                  beneficiaries, min_voting_period_hours, vetoed_by, veto_reason,
-                 external_witness_required, external_witnesses)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 external_witness_required, external_witnesses, external_witness_teams)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 proposal.proposal_id,
                 proposal.team_id,
@@ -917,6 +930,7 @@ class MultiSigManager:
                 proposal.veto_reason,
                 proposal.external_witness_required,
                 json.dumps(proposal.external_witnesses),
+                json.dumps(proposal.external_witness_teams),
             ))
 
     def _row_to_proposal(self, row) -> Proposal:
@@ -944,6 +958,7 @@ class MultiSigManager:
             veto_reason=row["veto_reason"] or "",
             external_witness_required=row["external_witness_required"] if row["external_witness_required"] is not None else 0,
             external_witnesses=json.loads(row["external_witnesses"]) if row["external_witnesses"] else [],
+            external_witness_teams=json.loads(row["external_witness_teams"]) if row["external_witness_teams"] else [],
         )
 
 
