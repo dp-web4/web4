@@ -38,6 +38,21 @@ from .role_trust import RoleTrust, RoleTrustStore
 from .references import Reference, ReferenceStore
 from .agent_governance import AgentGovernance
 from .entity_trust import EntityTrust, EntityTrustStore, get_mcp_trust, update_mcp_trust
+from .presets import (
+    PolicyConfig,
+    PolicyRule,
+    PolicyMatch,
+    RateLimitSpec,
+    PresetDefinition,
+    get_preset,
+    list_presets,
+    resolve_preset,
+    is_preset_name,
+    policy_config_to_dict,
+)
+from .rate_limiter import RateLimiter, RateLimitResult
+from .reporter import AuditReporter, AuditReport
+from .policy_entity import PolicyEntity, PolicyRegistry, PolicyEvaluation
 
 # Trust backend (Rust or Python fallback)
 from .trust_backend import (
@@ -47,15 +62,6 @@ from .trust_backend import (
     TrustStore,
     T3Tensor,
     V3Tensor,
-)
-
-# Presence tracking (silence as signal)
-from .presence import (
-    PresenceTracker,
-    PresenceStatus,
-    PresenceRecord,
-    get_tracker,
-    check_presence,
 )
 
 __all__ = [
@@ -78,10 +84,25 @@ __all__ = [
     'TrustStore',
     'T3Tensor',
     'V3Tensor',
-    # Presence tracking
-    'PresenceTracker',
-    'PresenceStatus',
-    'PresenceRecord',
-    'get_tracker',
-    'check_presence',
+    # Tier 1.5: Presets
+    'PolicyConfig',
+    'PolicyRule',
+    'PolicyMatch',
+    'RateLimitSpec',
+    'PresetDefinition',
+    'get_preset',
+    'list_presets',
+    'resolve_preset',
+    'is_preset_name',
+    'policy_config_to_dict',
+    # Tier 1.5: Rate Limiter
+    'RateLimiter',
+    'RateLimitResult',
+    # Tier 1.5: Reporter
+    'AuditReporter',
+    'AuditReport',
+    # Tier 1.5: Policy Entity
+    'PolicyEntity',
+    'PolicyRegistry',
+    'PolicyEvaluation',
 ]
