@@ -616,10 +616,17 @@ class Team:
 
     # --- Member Management ---
 
+    # Cool-down period: re-added members cannot witness for this many hours
+    REJOIN_COOLDOWN_HOURS = 72  # 3 days
+
     def add_member(self, lct_id: str, role: str = "member",
                    atp_budget: Optional[int] = None) -> dict:
         """
         Add a member to the team.
+
+        If the member was previously removed, a cool-down period applies
+        during which they cannot act as a witness. This prevents gaming
+        the diminishing witness effectiveness by cycling members.
 
         Args:
             lct_id: LCT of the entity to add
@@ -636,6 +643,13 @@ class Team:
 
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
+
+        # Check if this LCT was previously removed (re-join detection)
+        cooldown_until = ""
+        previous_removal = self._find_previous_removal(lct_id)
+        if previous_removal:
+            cooldown_until = (now + timedelta(hours=self.REJOIN_COOLDOWN_HOURS)).isoformat()
+
         member = {
             "lct_id": lct_id,
             "role": role,
@@ -651,7 +665,8 @@ class Team:
                 "lineage": 0.5
             },
             "last_trust_update": now_iso,
-            "action_count": 0
+            "action_count": 0,
+            "_cooldown_until": cooldown_until,
         }
 
         self.members[lct_id] = member
@@ -788,6 +803,28 @@ class Team:
             "archived_trust": member_data.get("_archived_trust", {}),
             "audit_id": audit["audit_id"],
         }
+
+    def _find_previous_removal(self, lct_id: str) -> Optional[dict]:
+        """Check the audit trail for a previous member_removed event for this LCT."""
+        try:
+            trail = self.ledger.get_session_audit_trail(self.team_id)
+            for entry in reversed(trail):
+                if (entry.get("action_type") == "member_removed"
+                        and entry.get("target") == lct_id):
+                    return entry
+        except Exception:
+            pass
+        return None
+
+    def is_in_cooldown(self, lct_id: str) -> bool:
+        """Check if a member is in post-rejoin cooldown."""
+        if lct_id not in self.members:
+            return False
+        cooldown = self.members[lct_id].get("_cooldown_until", "")
+        if not cooldown:
+            return False
+        now = datetime.now(timezone.utc)
+        return now < datetime.fromisoformat(cooldown)
 
     # --- ATP Management ---
 
@@ -1026,6 +1063,14 @@ class Team:
             raise ValueError(f"Target not a member: {target_lct}")
         if witness_lct == target_lct:
             raise ValueError("Cannot witness yourself")
+
+        # Check if witness is in post-rejoin cooldown
+        if self.is_in_cooldown(witness_lct):
+            cooldown = self.members[witness_lct].get("_cooldown_until", "")
+            raise PermissionError(
+                f"Witness '{witness_lct}' is in post-rejoin cooldown until {cooldown}. "
+                f"Re-added members must wait {self.REJOIN_COOLDOWN_HOURS}h before witnessing."
+            )
 
         member = self.members[target_lct]
         trust = member["trust"]

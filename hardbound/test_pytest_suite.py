@@ -704,6 +704,72 @@ class TestFederationRegistry:
         assert "team:colluder" not in pool_ids
 
 
+class TestRejoinCooldown:
+    """Tests for post-rejoin witnessing cooldown."""
+
+    def test_fresh_member_has_no_cooldown(self):
+        """New members added for the first time have no cooldown."""
+        config = TeamConfig(name="cooldown-fresh", description="Fresh member")
+        team = Team(config=config)
+        team.set_admin("admin:cd")
+        team.add_member("fresh:1", role="developer")
+
+        assert not team.is_in_cooldown("fresh:1")
+        member = team.get_member("fresh:1")
+        assert member["_cooldown_until"] == ""
+
+    def test_readded_member_has_cooldown(self):
+        """Members who were removed and re-added get a cooldown period."""
+        config = TeamConfig(name="cooldown-readd", description="Re-add test")
+        team = Team(config=config)
+        team.set_admin("admin:ra")
+        team.add_member("target:ra", role="developer")
+        team.add_member("witness:ra", role="developer")
+
+        # Remove target
+        team.remove_member("target:ra", requester_lct="admin:ra", reason="test")
+
+        # Re-add - should have cooldown
+        team.add_member("target:ra", role="developer")
+        assert team.is_in_cooldown("target:ra")
+
+        member = team.get_member("target:ra")
+        assert member["_cooldown_until"] != ""
+
+    def test_cooldown_blocks_witnessing(self):
+        """Members in cooldown cannot witness."""
+        config = TeamConfig(name="cooldown-block", description="Block witness test")
+        team = Team(config=config)
+        team.set_admin("admin:cb")
+        team.add_member("cycled:cb", role="developer")
+        team.add_member("target:cb", role="developer")
+
+        # Remove and re-add the cycled member
+        team.remove_member("cycled:cb", requester_lct="admin:cb", reason="cycling test")
+        team.add_member("cycled:cb", role="developer")
+
+        # Attempt to witness should fail
+        with pytest.raises(PermissionError, match="post-rejoin cooldown"):
+            team.witness_member("cycled:cb", "target:cb")
+
+    def test_non_cooldown_member_can_still_witness(self):
+        """Normal members are unaffected by another member's cooldown."""
+        config = TeamConfig(name="cooldown-other", description="Other witness test")
+        team = Team(config=config)
+        team.set_admin("admin:co")
+        team.add_member("normal:co", role="developer")
+        team.add_member("cycled:co", role="developer")
+        team.add_member("target:co", role="developer")
+
+        # Remove and re-add cycled member
+        team.remove_member("cycled:co", requester_lct="admin:co")
+        team.add_member("cycled:co", role="developer")
+
+        # Normal member can still witness
+        trust = team.witness_member("normal:co", "target:co")
+        assert trust["witnesses"] > 0.5
+
+
 class TestMemberOverlap:
     """Tests for cross-team member overlap analysis."""
 
