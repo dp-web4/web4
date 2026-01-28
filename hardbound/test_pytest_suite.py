@@ -2756,3 +2756,182 @@ class TestR6HeartbeatIntegration:
         block = team.pulse()
         assert block is not None
         assert block.block_number >= 0
+
+
+class TestR6DelegationChains:
+    """Tests for R6 request parent-child delegation chains."""
+
+    def test_create_child_request(self):
+        """Can create a request that depends on another."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="chain-test", description="Chain test")
+        team = Team(config=config)
+        team.set_admin("admin:ct")
+        team.add_member("dev:ct", role="developer", atp_budget=100)
+
+        policy = Policy()
+        for action in ["review", "deploy"]:
+            policy.add_rule(PolicyRule(
+                action_type=action,
+                allowed_roles=["developer", "admin"],
+                trust_threshold=0.3,
+                atp_cost=5,
+                approval=ApprovalType.ADMIN,
+            ))
+
+        wf = R6Workflow(team, policy)
+
+        # Create parent request
+        parent = wf.create_request(
+            requester_lct="dev:ct",
+            action_type="review",
+            description="Review code",
+        )
+
+        # Create child that depends on parent
+        child = wf.create_request(
+            requester_lct="dev:ct",
+            action_type="deploy",
+            description="Deploy after review",
+            parent_r6_id=parent.r6_id,
+        )
+
+        assert child.parent_r6_id == parent.r6_id
+        # Parent should track child
+        parent_updated = wf.get_request(parent.r6_id)
+        assert child.r6_id in parent_updated.child_r6_ids
+
+    def test_parent_success_triggers_child(self):
+        """Successful parent execution auto-approves children."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="chain-trigger", description="Chain trigger")
+        team = Team(config=config)
+        team.set_admin("admin:tr")
+        team.add_member("dev:tr", role="developer", atp_budget=100)
+
+        policy = Policy()
+        for action in ["step1", "step2"]:
+            policy.add_rule(PolicyRule(
+                action_type=action,
+                allowed_roles=["developer", "admin"],
+                trust_threshold=0.3,
+                atp_cost=2,
+                approval=ApprovalType.ADMIN,
+            ))
+
+        wf = R6Workflow(team, policy)
+
+        # Create parent and child
+        parent = wf.create_request(
+            requester_lct="dev:tr",
+            action_type="step1",
+            description="Step 1",
+        )
+        child = wf.create_request(
+            requester_lct="dev:tr",
+            action_type="step2",
+            description="Step 2 (after step 1)",
+            parent_r6_id=parent.r6_id,
+        )
+
+        # Child starts pending
+        assert child.status == R6Status.PENDING
+
+        # Approve and execute parent
+        wf.approve_request(parent.r6_id, "admin:tr")
+        wf.execute_request(parent.r6_id, success=True)
+
+        # Child should now be auto-approved
+        child_updated = wf.get_request(child.r6_id)
+        assert child_updated.status == R6Status.APPROVED
+        assert any("auto:parent" in a for a in child_updated.approvals)
+
+    def test_parent_failure_does_not_trigger_child(self):
+        """Failed parent does not auto-approve children."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="chain-fail", description="Chain fail test")
+        team = Team(config=config)
+        team.set_admin("admin:cf")
+        team.add_member("dev:cf", role="developer", atp_budget=100)
+
+        policy = Policy()
+        for action in ["stage", "prod"]:
+            policy.add_rule(PolicyRule(
+                action_type=action,
+                allowed_roles=["developer", "admin"],
+                trust_threshold=0.3,
+                atp_cost=2,
+                approval=ApprovalType.ADMIN,
+            ))
+
+        wf = R6Workflow(team, policy)
+
+        parent = wf.create_request(
+            requester_lct="dev:cf",
+            action_type="stage",
+            description="Deploy to staging",
+        )
+        child = wf.create_request(
+            requester_lct="dev:cf",
+            action_type="prod",
+            description="Deploy to prod after staging",
+            parent_r6_id=parent.r6_id,
+        )
+
+        # Approve and execute parent with FAILURE
+        wf.approve_request(parent.r6_id, "admin:cf")
+        wf.execute_request(parent.r6_id, success=False, error_message="Staging failed")
+
+        # Child should remain pending
+        child_updated = wf.get_request(child.r6_id)
+        assert child_updated.status == R6Status.PENDING
+
+    def test_chain_depth_limit(self):
+        """Cannot create chains deeper than 10."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="chain-depth", description="Chain depth limit")
+        team = Team(config=config)
+        team.set_admin("admin:cd")
+        team.add_member("dev:cd", role="developer", atp_budget=200)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="action",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=1,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+
+        # Create a chain of 11 requests (depths 0-10)
+        prev_id = ""
+        for i in range(11):
+            req = wf.create_request(
+                requester_lct="dev:cd",
+                action_type="action",
+                description=f"Chain step {i}",
+                parent_r6_id=prev_id if prev_id else None,
+            )
+            prev_id = req.r6_id
+
+        # 12th should fail (depth would be 11)
+        try:
+            wf.create_request(
+                requester_lct="dev:cd",
+                action_type="action",
+                description="Chain step 11 (too deep)",
+                parent_r6_id=prev_id,
+            )
+            assert False, "Should have raised ValueError"
+        except ValueError as e:
+            assert "too deep" in str(e).lower()

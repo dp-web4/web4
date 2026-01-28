@@ -83,6 +83,10 @@ class R6Request:
     # Multi-sig delegation (set when R6 request is linked to a multi-sig proposal)
     linked_proposal_id: str = ""
 
+    # Delegation chains: parent->child relationships
+    parent_r6_id: str = ""  # If set, this request depends on parent completion
+    child_r6_ids: List[str] = field(default_factory=list)  # Requests that depend on this one
+
     # Expiry (ISO timestamp; empty = no expiry)
     expires_at: str = ""
 
@@ -250,6 +254,19 @@ class R6Workflow:
                 requests[req.r6_id] = req
         return requests
 
+    def _get_chain_depth(self, r6_id: str, visited: set = None) -> int:
+        """Get the depth of the delegation chain from this request to root."""
+        if visited is None:
+            visited = set()
+        if r6_id in visited:
+            return 999  # Circular dependency
+        visited.add(r6_id)
+
+        request = self.get_request(r6_id, auto_expire=False)
+        if not request or not request.parent_r6_id:
+            return 0
+        return 1 + self._get_chain_depth(request.parent_r6_id, visited)
+
     def create_request(
         self,
         requester_lct: str,
@@ -259,7 +276,8 @@ class R6Workflow:
         parameters: Optional[Dict] = None,
         reference_type: str = "",
         reference_id: str = "",
-        reference_data: Optional[Dict] = None
+        reference_data: Optional[Dict] = None,
+        parent_r6_id: str = ""
     ) -> R6Request:
         """
         Create a new R6 request.
@@ -273,6 +291,7 @@ class R6Workflow:
             reference_type: Type of reference (issue, pr, etc.)
             reference_id: ID of reference
             reference_data: Additional reference data
+            parent_r6_id: Optional parent request this depends on
 
         Returns:
             R6Request object
@@ -305,6 +324,19 @@ class R6Workflow:
         if not permitted:
             raise PermissionError(reason)
 
+        # Validate parent if specified
+        parent_request = None
+        if parent_r6_id:
+            parent_request = self.get_request(parent_r6_id, auto_expire=False)
+            if not parent_request:
+                raise ValueError(f"Parent request not found: {parent_r6_id}")
+            if parent_request.status in (R6Status.REJECTED, R6Status.CANCELLED, R6Status.EXPIRED):
+                raise ValueError(f"Cannot depend on {parent_request.status.value} request")
+            # Check for circular dependency (simplified: no chains deeper than 10)
+            chain_depth = self._get_chain_depth(parent_r6_id)
+            if chain_depth >= 10:
+                raise ValueError("Delegation chain too deep (max 10)")
+
         # Generate request ID
         timestamp = datetime.now(timezone.utc)
         seed = f"{self.team.team_id}:{requester_lct}:{timestamp.isoformat()}"
@@ -335,7 +367,13 @@ class R6Workflow:
             atp_cost=rule.atp_cost,
             status=R6Status.PENDING,
             expires_at=expires_at,
+            parent_r6_id=parent_r6_id,
         )
+
+        # Link to parent request if specified
+        if parent_request:
+            parent_request.child_r6_ids.append(r6_id)
+            self._save_request(parent_request)
 
         # Multi-sig delegation: if the action has MULTI_SIG approval and
         # maps to a CriticalAction, create a linked proposal
@@ -776,7 +814,45 @@ class R6Workflow:
         del self.pending_requests[r6_id]
         self._delete_request(r6_id)
 
+        # Trigger child requests if this was successful
+        if success and request.child_r6_ids:
+            self._trigger_children(request.child_r6_ids, r6_id)
+
         return response
+
+    def _trigger_children(self, child_ids: List[str], parent_id: str):
+        """
+        Auto-approve child requests when parent completes successfully.
+
+        Children become auto-approved (bypass normal approval flow) because
+        their dependency was satisfied.
+        """
+        for child_id in child_ids:
+            child = self.get_request(child_id, auto_expire=False)
+            if not child or child.status != R6Status.PENDING:
+                continue
+
+            # Auto-approve the child
+            child.status = R6Status.APPROVED
+            child.approvals.append(f"auto:parent:{parent_id}")
+            self._save_request(child)
+
+            # Record in audit
+            self.team.ledger.record_audit(
+                session_id=self.team.team_id,
+                action_type="r6_chain_triggered",
+                tool_name="hardbound",
+                target=child_id,
+                r6_data={
+                    "parent_r6_id": parent_id,
+                    "child_r6_id": child_id,
+                    "trigger": "parent_success",
+                }
+            )
+
+            # Update in-memory cache
+            if child_id in self.pending_requests:
+                self.pending_requests[child_id] = child
 
     def _submit_to_heartbeat(self, tx_type: str, actor_lct: str,
                               data: Dict, target_lct: str = None,
