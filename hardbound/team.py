@@ -819,6 +819,90 @@ class Team:
         member = self.members[lct_id]
         return member["atp_budget"] - member["atp_consumed"]
 
+    def replenish_member_atp(self, lct_id: str, amount: int,
+                              requester_lct: str = None) -> int:
+        """
+        Replenish ATP for a member. Requires admin authority.
+
+        Args:
+            lct_id: Member to replenish
+            amount: ATP to add (increases budget)
+            requester_lct: LCT requesting the replenishment (must be admin)
+
+        Returns:
+            New remaining ATP balance
+
+        Raises:
+            PermissionError: If requester is not admin
+            ValueError: If member not found or amount invalid
+        """
+        if requester_lct and not self.is_admin(requester_lct):
+            raise PermissionError("ATP replenishment requires admin authority")
+
+        if lct_id not in self.members:
+            raise ValueError(f"Not a member: {lct_id}")
+
+        if amount <= 0:
+            raise ValueError(f"Replenishment amount must be positive: {amount}")
+
+        member = self.members[lct_id]
+        member["atp_budget"] += amount
+        self._update_team()
+
+        # Audit trail
+        self.ledger.record_audit(
+            session_id=self.team_id,
+            action_type="atp_replenish",
+            tool_name="hardbound",
+            target=lct_id,
+            r6_data={
+                "amount": amount,
+                "new_budget": member["atp_budget"],
+                "remaining": member["atp_budget"] - member["atp_consumed"],
+                "requester": requester_lct or "system",
+            }
+        )
+
+        return member["atp_budget"] - member["atp_consumed"]
+
+    def reward_member_atp(self, lct_id: str, outcome: str,
+                           base_reward: int = 0) -> int:
+        """
+        Reward ATP based on outcome quality. Called after R6 completion.
+
+        Successful outcomes restore a fraction of the ATP cost.
+        This creates a sustainable economy where productive members
+        can continue operating.
+
+        Args:
+            lct_id: Member who completed the work
+            outcome: "success", "partial", or "failure"
+            base_reward: Base ATP to reward (before quality adjustment)
+
+        Returns:
+            ATP actually rewarded (may be 0 for failures)
+        """
+        if lct_id not in self.members:
+            return 0
+
+        # Reward scales based on outcome quality
+        reward_multipliers = {
+            "success": 1.0,    # Full reward
+            "partial": 0.5,    # Half reward
+            "failure": 0.0,    # No reward for failure
+        }
+        multiplier = reward_multipliers.get(outcome, 0.0)
+        reward = int(base_reward * multiplier)
+
+        if reward <= 0:
+            return 0
+
+        member = self.members[lct_id]
+        member["atp_budget"] += reward
+        self._update_team()
+
+        return reward
+
     # --- Trust Management ---
 
     # Trust velocity caps per epoch (24h window)

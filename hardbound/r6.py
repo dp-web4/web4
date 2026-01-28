@@ -235,6 +235,14 @@ class R6Workflow:
             r6_data=request.to_dict()
         )
 
+        # Submit to heartbeat ledger as transaction
+        self._submit_to_heartbeat("r6_created", requester_lct, {
+            "r6_id": r6_id,
+            "action_type": action_type,
+            "description": description,
+            "atp_cost": rule.atp_cost,
+        }, atp_cost=0.0)  # No ATP consumed at creation
+
         return request
 
     def approve_request(self, r6_id: str, approver_lct: str) -> R6Request:
@@ -299,6 +307,14 @@ class R6Workflow:
                 "approvals": request.approvals
             }
         )
+
+        # Submit to heartbeat ledger
+        self._submit_to_heartbeat("r6_approved", approver_lct, {
+            "r6_id": r6_id,
+            "action_type": request.action_type,
+            "status": request.status.value,
+            "approval_count": len(request.approvals),
+        }, target_lct=request.requester_lct, atp_cost=0.0)
 
         return request
 
@@ -391,12 +407,20 @@ class R6Workflow:
             )
             status = R6Status.EXECUTED
             result_type = "success"
+
+            # Reward ATP for successful outcomes (partial cost recovery)
+            # Successful work earns back a fraction of the cost
+            atp_reward = self.team.reward_member_atp(
+                request.requester_lct, "success",
+                base_reward=max(1, request.atp_cost // 2)  # 50% recovery
+            )
         else:
             trust_delta = self.team.update_member_trust(
                 request.requester_lct, "failure", 0.1
             )
             status = R6Status.FAILED
             result_type = "error"
+            atp_reward = 0
 
         # Create response
         response = R6Response(
