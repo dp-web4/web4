@@ -704,6 +704,87 @@ class TestFederationRegistry:
         assert "team:colluder" not in pool_ids
 
 
+class TestRandomWitnessSelection:
+    """Tests for reputation-weighted random witness selection."""
+
+    def test_select_from_pool(self):
+        """select_witnesses returns teams from the pool."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:req", "Requester", creator_lct="alice")
+        reg.register_team("team:w1", "Witness 1", creator_lct="bob")
+        reg.register_team("team:w2", "Witness 2", creator_lct="carol")
+        reg.register_team("team:w3", "Witness 3", creator_lct="diana")
+
+        selected = reg.select_witnesses("team:req", count=2, seed=42)
+        assert len(selected) == 2
+        assert all(t.team_id != "team:req" for t in selected)
+        # All from different teams
+        assert len(set(t.team_id for t in selected)) == 2
+
+    def test_reproducible_with_seed(self):
+        """Same seed produces same selection."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:r", "Requester", creator_lct="a")
+        for i in range(5):
+            reg.register_team(f"team:w{i}", f"W{i}", creator_lct=f"c{i}")
+
+        sel1 = reg.select_witnesses("team:r", count=2, seed=123)
+        sel2 = reg.select_witnesses("team:r", count=2, seed=123)
+        assert [t.team_id for t in sel1] == [t.team_id for t in sel2]
+
+    def test_high_rep_selected_more_often(self):
+        """Higher-reputation teams are selected more frequently over many runs."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:r", "Requester", creator_lct="req")
+        reg.register_team("team:high", "High Rep", creator_lct="h")
+        reg.register_team("team:low", "Low Rep", creator_lct="l")
+        reg.register_team("team:other", "Other Team", creator_lct="o")
+
+        # Give high team many successes (witnessing for OTHER team, not requester)
+        for i in range(20):
+            reg.record_witness_event("team:high", "team:other", f"h:{i}", f"p:{i}")
+            reg.update_witness_outcome(f"p:{i}", "succeeded")
+
+        # Give low team some failures (witnessing for other team)
+        for i in range(5):
+            reg.record_witness_event("team:low", "team:other", f"l:{i}", f"q:{i}")
+            reg.update_witness_outcome(f"q:{i}", "failed")
+
+        # Select many times
+        high_count = 0
+        for seed in range(100):
+            selected = reg.select_witnesses("team:r", count=1, seed=seed)
+            if selected and selected[0].team_id == "team:high":
+                high_count += 1
+
+        # High-rep team (score=1.0) should be selected more than low-rep (score=0.5)
+        # Pool has: high(1.0), low(0.5), other(1.0) - high should get ~40%
+        low_count = sum(
+            1 for seed in range(100)
+            if (s := reg.select_witnesses("team:r", count=1, seed=seed))
+            and s[0].team_id == "team:low"
+        )
+        assert high_count > low_count, (
+            f"High-rep ({high_count}) should be selected more than low-rep ({low_count})"
+        )
+
+    def test_empty_pool_returns_empty(self):
+        """No qualified witnesses returns empty list."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:lonely", "Lonely Team")
+
+        selected = reg.select_witnesses("team:lonely", count=3)
+        assert selected == []
+
+
 class TestFederationHealthDashboard:
     """Tests for the aggregate federation health dashboard."""
 

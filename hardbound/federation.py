@@ -338,6 +338,58 @@ class FederationRegistry:
 
         return clean_candidates
 
+    def select_witnesses(self, requesting_team_id: str,
+                         count: int = 1,
+                         min_score: float = None,
+                         seed: int = None) -> List[FederatedTeam]:
+        """
+        Randomly select witnesses from the qualified pool, weighted by reputation.
+
+        Higher-reputation teams are more likely to be selected, but randomness
+        ensures that no single team becomes the permanent witness. This prevents
+        witness concentration attacks.
+
+        Args:
+            requesting_team_id: Team seeking witnesses
+            count: Number of witnesses to select
+            min_score: Minimum witness reputation score
+            seed: Optional random seed for reproducibility (testing)
+
+        Returns:
+            List of selected witness teams (may be fewer than count if pool is small)
+        """
+        import random
+
+        pool = self.find_witness_pool(
+            requesting_team_id, count=count * 3, min_score=min_score
+        )
+
+        if not pool:
+            return []
+
+        if len(pool) <= count:
+            return pool
+
+        # Weight by witness_score (reputation-proportional selection)
+        weights = [max(t.witness_score, 0.01) for t in pool]
+
+        rng = random.Random(seed)
+        selected = []
+        remaining = list(zip(pool, weights))
+
+        for _ in range(min(count, len(remaining))):
+            total = sum(w for _, w in remaining)
+            r = rng.uniform(0, total)
+            cumulative = 0.0
+            for idx, (team, weight) in enumerate(remaining):
+                cumulative += weight
+                if cumulative >= r:
+                    selected.append(team)
+                    remaining.pop(idx)
+                    break
+
+        return selected
+
     def record_witness_event(self, witness_team_id: str,
                               proposal_team_id: str,
                               witness_lct: str,
