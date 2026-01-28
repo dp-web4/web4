@@ -1046,6 +1046,217 @@ class FederationRegistry:
         )
 
 
+    # -----------------------------------------------------------------------
+    # Cross-Team R6 Proposals
+    # -----------------------------------------------------------------------
+
+    def create_cross_team_proposal(
+        self,
+        proposing_team_id: str,
+        proposer_lct: str,
+        action_type: str,
+        description: str,
+        target_team_ids: List[str],
+        required_approvals: int = None,
+        parameters: Dict = None,
+    ) -> Dict:
+        """
+        Create a proposal that requires approval from multiple federation teams.
+
+        This enables federation-level governance where actions affecting multiple
+        teams require coordination. Examples:
+        - Shared resource allocation
+        - Cross-team access grants
+        - Federation policy changes
+
+        Args:
+            proposing_team_id: Team initiating the proposal
+            proposer_lct: LCT of the proposing entity
+            action_type: Type of cross-team action
+            description: Human-readable description
+            target_team_ids: Teams that must approve
+            required_approvals: Number of target team approvals needed (default: all)
+            parameters: Action-specific parameters
+
+        Returns:
+            Cross-team proposal record
+        """
+        # Validate proposing team
+        proposing_team = self.get_team(proposing_team_id)
+        if not proposing_team or proposing_team.status != FederationStatus.ACTIVE:
+            raise ValueError(f"Proposing team not active: {proposing_team_id}")
+
+        # Validate target teams
+        for tid in target_team_ids:
+            target = self.get_team(tid)
+            if not target or target.status != FederationStatus.ACTIVE:
+                raise ValueError(f"Target team not active: {tid}")
+
+        # Generate proposal ID
+        now = datetime.now(timezone.utc)
+        seed = f"xteam:{proposing_team_id}:{action_type}:{now.isoformat()}"
+        proposal_id = f"xteam:{hashlib.sha256(seed.encode()).hexdigest()[:12]}"
+
+        required = required_approvals or len(target_team_ids)
+        if required > len(target_team_ids):
+            raise ValueError(f"Required approvals ({required}) > target teams ({len(target_team_ids)})")
+
+        proposal = {
+            "proposal_id": proposal_id,
+            "proposing_team_id": proposing_team_id,
+            "proposer_lct": proposer_lct,
+            "action_type": action_type,
+            "description": description,
+            "target_team_ids": target_team_ids,
+            "required_approvals": required,
+            "parameters": parameters or {},
+            "status": "pending",
+            "approvals": {},  # team_id -> {"approver_lct": ..., "timestamp": ...}
+            "rejections": {},
+            "created_at": now.isoformat(),
+            "closed_at": "",
+            "outcome": "",
+        }
+
+        # Persist to database
+        self._ensure_xteam_table()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO cross_team_proposals
+                (proposal_id, data, status, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (proposal_id, json.dumps(proposal), "pending", now.isoformat()))
+
+        return proposal
+
+    def _ensure_xteam_table(self):
+        """Create cross_team_proposals table if not exists."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cross_team_proposals (
+                    proposal_id TEXT PRIMARY KEY,
+                    data TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+    def approve_cross_team_proposal(
+        self,
+        proposal_id: str,
+        approving_team_id: str,
+        approver_lct: str,
+    ) -> Dict:
+        """
+        Approve a cross-team proposal on behalf of a target team.
+
+        The approver must be the admin of the approving team (or have delegation).
+
+        Returns:
+            Updated proposal, with status changed to "approved" if threshold met
+        """
+        proposal = self._load_xteam_proposal(proposal_id)
+        if not proposal:
+            raise ValueError(f"Proposal not found: {proposal_id}")
+
+        if proposal["status"] != "pending":
+            raise ValueError(f"Proposal not pending: {proposal['status']}")
+
+        if approving_team_id not in proposal["target_team_ids"]:
+            raise ValueError(f"Team {approving_team_id} not a target of this proposal")
+
+        if approving_team_id in proposal["approvals"]:
+            raise ValueError(f"Team {approving_team_id} already approved")
+
+        # Record approval
+        proposal["approvals"][approving_team_id] = {
+            "approver_lct": approver_lct,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Check if threshold met
+        if len(proposal["approvals"]) >= proposal["required_approvals"]:
+            proposal["status"] = "approved"
+            proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
+            proposal["outcome"] = "approved"
+
+        self._save_xteam_proposal(proposal)
+        return proposal
+
+    def reject_cross_team_proposal(
+        self,
+        proposal_id: str,
+        rejecting_team_id: str,
+        rejector_lct: str,
+        reason: str = "",
+    ) -> Dict:
+        """
+        Reject a cross-team proposal on behalf of a target team.
+
+        A single rejection is sufficient to block the proposal (veto power).
+        """
+        proposal = self._load_xteam_proposal(proposal_id)
+        if not proposal:
+            raise ValueError(f"Proposal not found: {proposal_id}")
+
+        if proposal["status"] != "pending":
+            raise ValueError(f"Proposal not pending: {proposal['status']}")
+
+        if rejecting_team_id not in proposal["target_team_ids"]:
+            raise ValueError(f"Team {rejecting_team_id} not a target of this proposal")
+
+        # Record rejection
+        proposal["rejections"][rejecting_team_id] = {
+            "rejector_lct": rejector_lct,
+            "reason": reason,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Single rejection = proposal rejected
+        proposal["status"] = "rejected"
+        proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
+        proposal["outcome"] = "rejected"
+
+        self._save_xteam_proposal(proposal)
+        return proposal
+
+    def get_cross_team_proposal(self, proposal_id: str) -> Optional[Dict]:
+        """Get a cross-team proposal by ID."""
+        return self._load_xteam_proposal(proposal_id)
+
+    def get_pending_cross_team_proposals(self, team_id: str) -> List[Dict]:
+        """Get all pending cross-team proposals where team_id is a target."""
+        self._ensure_xteam_table()
+        proposals = []
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT data FROM cross_team_proposals WHERE status = 'pending'"
+            ).fetchall()
+            for row in rows:
+                proposal = json.loads(row[0])
+                if team_id in proposal["target_team_ids"]:
+                    proposals.append(proposal)
+        return proposals
+
+    def _load_xteam_proposal(self, proposal_id: str) -> Optional[Dict]:
+        """Load a cross-team proposal from database."""
+        self._ensure_xteam_table()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT data FROM cross_team_proposals WHERE proposal_id = ?",
+                (proposal_id,)
+            ).fetchone()
+            return json.loads(row[0]) if row else None
+
+    def _save_xteam_proposal(self, proposal: Dict):
+        """Save a cross-team proposal to database."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE cross_team_proposals SET data = ?, status = ? WHERE proposal_id = ?",
+                (json.dumps(proposal), proposal["status"], proposal["proposal_id"])
+            )
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("Federation Registry - Self Test")

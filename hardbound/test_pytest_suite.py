@@ -2935,3 +2935,137 @@ class TestR6DelegationChains:
             assert False, "Should have raised ValueError"
         except ValueError as e:
             assert "too deep" in str(e).lower()
+
+
+class TestCrossTeamProposals:
+    """Tests for federation-level cross-team R6 proposals."""
+
+    def test_create_cross_team_proposal(self):
+        """Can create a proposal requiring multiple team approvals."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "xteam.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Register 3 teams
+        fed.register_team("team:alpha", "Alpha", domains=["core"])
+        fed.register_team("team:beta", "Beta", domains=["audit"])
+        fed.register_team("team:gamma", "Gamma", domains=["ops"])
+
+        # Alpha proposes something that requires Beta and Gamma approval
+        proposal = fed.create_cross_team_proposal(
+            proposing_team_id="team:alpha",
+            proposer_lct="admin:alpha",
+            action_type="shared_resource_grant",
+            description="Grant shared access to resource X",
+            target_team_ids=["team:beta", "team:gamma"],
+            parameters={"resource_id": "res:X"},
+        )
+
+        assert proposal["status"] == "pending"
+        assert proposal["proposing_team_id"] == "team:alpha"
+        assert len(proposal["target_team_ids"]) == 2
+        assert proposal["required_approvals"] == 2
+
+    def test_approval_threshold(self):
+        """Proposal approved when threshold met."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "xteam_approve.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "Team A")
+        fed.register_team("team:b", "Team B")
+        fed.register_team("team:c", "Team C")
+
+        proposal = fed.create_cross_team_proposal(
+            proposing_team_id="team:a",
+            proposer_lct="admin:a",
+            action_type="policy_change",
+            description="Change federation policy",
+            target_team_ids=["team:b", "team:c"],
+        )
+
+        # First approval
+        updated = fed.approve_cross_team_proposal(
+            proposal["proposal_id"], "team:b", "admin:b"
+        )
+        assert updated["status"] == "pending"
+        assert "team:b" in updated["approvals"]
+
+        # Second approval triggers approval
+        updated = fed.approve_cross_team_proposal(
+            proposal["proposal_id"], "team:c", "admin:c"
+        )
+        assert updated["status"] == "approved"
+        assert updated["outcome"] == "approved"
+
+    def test_single_rejection_vetoes(self):
+        """Single rejection blocks the entire proposal."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "xteam_reject.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:x", "Team X")
+        fed.register_team("team:y", "Team Y")
+        fed.register_team("team:z", "Team Z")
+
+        proposal = fed.create_cross_team_proposal(
+            proposing_team_id="team:x",
+            proposer_lct="admin:x",
+            action_type="access_grant",
+            description="Grant cross-team access",
+            target_team_ids=["team:y", "team:z"],
+        )
+
+        # Y approves
+        fed.approve_cross_team_proposal(proposal["proposal_id"], "team:y", "admin:y")
+
+        # Z rejects - entire proposal fails
+        updated = fed.reject_cross_team_proposal(
+            proposal["proposal_id"], "team:z", "admin:z", reason="Security concern"
+        )
+        assert updated["status"] == "rejected"
+        assert updated["outcome"] == "rejected"
+        assert "team:z" in updated["rejections"]
+
+    def test_get_pending_for_team(self):
+        """Can query pending proposals for a specific team."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "xteam_pending.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:p1", "P1")
+        fed.register_team("team:p2", "P2")
+        fed.register_team("team:p3", "P3")
+
+        # Create 2 proposals targeting p2
+        fed.create_cross_team_proposal(
+            "team:p1", "admin:p1", "action1", "Desc 1", ["team:p2"]
+        )
+        fed.create_cross_team_proposal(
+            "team:p3", "admin:p3", "action2", "Desc 2", ["team:p2"]
+        )
+
+        # Create 1 proposal not targeting p2
+        fed.create_cross_team_proposal(
+            "team:p1", "admin:p1", "action3", "Desc 3", ["team:p3"]
+        )
+
+        # P2 should see 2 pending proposals
+        pending = fed.get_pending_cross_team_proposals("team:p2")
+        assert len(pending) == 2
+
+        # P3 should see 1 pending proposal
+        pending = fed.get_pending_cross_team_proposals("team:p3")
+        assert len(pending) == 1
