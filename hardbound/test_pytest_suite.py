@@ -1287,6 +1287,143 @@ class TestATPEconomics:
             team.consume_member_atp("worker:e", 1)
 
 
+class TestR6MultiSigDelegation:
+    """Tests for R6 requests delegating to multi-sig for critical actions."""
+
+    def _make_team(self, name):
+        """Create a team with admin and high-trust members."""
+        config = TeamConfig(name=name, description=f"{name} test")
+        team = Team(config=config)
+        team.set_admin(f"admin:{name}")
+        for i in range(4):
+            lct = f"dev:{name}:{i}"
+            team.add_member(lct, role="developer", atp_budget=100)
+            member = team.get_member(lct)
+            member["trust"] = {
+                "reliability": 0.85, "competence": 0.85, "alignment": 0.85,
+                "consistency": 0.85, "witnesses": 0.85, "lineage": 0.85,
+            }
+        team._update_team()
+        return team
+
+    def test_multisig_proposal_created_for_critical_action(self):
+        """R6 request with MULTI_SIG approval creates a linked proposal."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        team = self._make_team("msig-r6")
+        msig = MultiSigManager(team)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="member_removal",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=5,
+            approval=ApprovalType.MULTI_SIG,
+            approval_count=2,
+        ))
+
+        wf = R6Workflow(team, policy, multisig=msig)
+        request = wf.create_request(
+            requester_lct=f"dev:msig-r6:0",
+            action_type="member_removal",
+            description="Remove inactive member",
+            parameters={"member_lct": f"dev:msig-r6:3"},
+        )
+
+        # R6 request should have a linked proposal
+        assert request.linked_proposal_id != ""
+        assert request.linked_proposal_id.startswith("msig:")
+
+        # The proposal should exist in the multi-sig manager
+        proposal = msig.get_proposal(request.linked_proposal_id)
+        assert proposal is not None
+        assert "[R6:" in proposal.description
+
+    def test_r6_approval_delegates_to_multisig_vote(self):
+        """Approving an R6 request also votes on the linked proposal."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.multisig import MultiSigManager, ProposalStatus
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        team = self._make_team("msig-vote")
+        msig = MultiSigManager(team)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="policy_change",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=3,
+            approval=ApprovalType.MULTI_SIG,
+            approval_count=2,
+        ))
+
+        wf = R6Workflow(team, policy, multisig=msig)
+        request = wf.create_request(
+            requester_lct=f"dev:msig-vote:0",
+            action_type="policy_change",
+            description="Update trust thresholds",
+            parameters={"changes": {"trust_min": 0.4}},
+        )
+        r6_id = request.r6_id
+        proposal_id = request.linked_proposal_id
+
+        # First voter approves via R6
+        wf.approve_request(r6_id, f"dev:msig-vote:1")
+
+        # Check proposal has a vote
+        proposal = msig.get_proposal(proposal_id)
+        assert proposal.approval_count == 1
+
+        # Second voter approves - should trigger proposal approval
+        updated = wf.approve_request(r6_id, f"dev:msig-vote:2")
+
+        # R6 request should now be APPROVED (driven by proposal)
+        assert updated.status == R6Status.APPROVED
+
+        # Proposal should also be APPROVED
+        proposal = msig.get_proposal(proposal_id)
+        assert proposal.status == ProposalStatus.APPROVED
+
+    def test_no_multisig_without_manager(self):
+        """Without multisig manager, MULTI_SIG approval works with counts only."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        team = self._make_team("no-msig")
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="member_removal",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=5,
+            approval=ApprovalType.MULTI_SIG,
+            approval_count=2,
+        ))
+
+        # No multisig manager
+        wf = R6Workflow(team, policy, multisig=None)
+        request = wf.create_request(
+            requester_lct=f"dev:no-msig:0",
+            action_type="member_removal",
+            description="Remove member",
+            parameters={"member_lct": f"dev:no-msig:3"},
+        )
+
+        # No linked proposal
+        assert request.linked_proposal_id == ""
+
+        # Approval still works via count
+        wf.approve_request(request.r6_id, f"dev:no-msig:1")
+        wf.approve_request(request.r6_id, f"dev:no-msig:2")
+        reloaded = wf.get_request(request.r6_id)
+        assert reloaded.status == R6Status.APPROVED
+
+
 class TestR6Persistence:
     """Tests for R6 request persistence across workflow instances."""
 

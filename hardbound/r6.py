@@ -79,6 +79,9 @@ class R6Request:
     approvals: List[str] = field(default_factory=list)  # LCTs that approved
     rejections: List[str] = field(default_factory=list)
 
+    # Multi-sig delegation (set when R6 request is linked to a multi-sig proposal)
+    linked_proposal_id: str = ""
+
     def to_dict(self) -> dict:
         d = asdict(self)
         d["status"] = self.status.value
@@ -130,19 +133,40 @@ class R6Workflow:
         request = workflow.create_request(...)
         response = workflow.process_request(request, approver_lct)
         workflow.execute_request(request_id, execution_result)
+
+    Multi-sig delegation:
+        When a policy rule specifies MULTI_SIG approval and the action type
+        matches a CriticalAction, creating the R6 request also creates a
+        linked multi-sig Proposal. The R6 request tracks the proposal ID
+        and delegates approval to the multi-sig voting process.
     """
 
-    def __init__(self, team: 'Team', policy: Optional[Policy] = None):
+    # Maps R6 action types to CriticalAction for multi-sig delegation.
+    # When an R6 request has MULTI_SIG approval AND its action_type is in
+    # this map, a multi-sig Proposal is auto-created and linked.
+    MULTISIG_ACTION_MAP = {
+        "admin_transfer": "admin_transfer",
+        "policy_change": "policy_change",
+        "secret_rotation": "secret_rotation",
+        "member_removal": "member_removal",
+        "budget_allocation": "budget_allocation",
+        "team_dissolution": "team_dissolution",
+    }
+
+    def __init__(self, team: 'Team', policy: Optional[Policy] = None,
+                 multisig: 'MultiSigManager' = None):
         """
         Initialize R6 workflow.
 
         Args:
             team: Team this workflow is for
             policy: Policy to enforce (uses default if None)
+            multisig: Optional MultiSigManager for multi-sig delegation
         """
         from .team import Team
         self.team = team
         self.policy = policy or Policy()
+        self.multisig = multisig
         self._ensure_table()
         self.pending_requests: Dict[str, R6Request] = self._load_pending()
 
@@ -280,6 +304,24 @@ class R6Workflow:
             status=R6Status.PENDING
         )
 
+        # Multi-sig delegation: if the action has MULTI_SIG approval and
+        # maps to a CriticalAction, create a linked proposal
+        if (rule.approval == ApprovalType.MULTI_SIG
+                and self.multisig
+                and action_type in self.MULTISIG_ACTION_MAP):
+            from .multisig import CriticalAction
+            try:
+                critical_action = CriticalAction(self.MULTISIG_ACTION_MAP[action_type])
+                proposal = self.multisig.create_proposal(
+                    proposer_lct=requester_lct,
+                    action=critical_action,
+                    action_data=parameters or {},
+                    description=f"[R6:{r6_id}] {description}",
+                )
+                request.linked_proposal_id = proposal.proposal_id
+            except (PermissionError, ValueError):
+                pass  # Multi-sig creation failed; R6 request still valid
+
         self.pending_requests[r6_id] = request
         self._save_request(request)
 
@@ -342,8 +384,22 @@ class R6Workflow:
         if approver_lct not in request.approvals:
             request.approvals.append(approver_lct)
 
-        # Check if sufficient approvals
-        if rule.approval == ApprovalType.NONE:
+        # If linked to a multi-sig proposal, delegate voting there
+        if request.linked_proposal_id and self.multisig:
+            from .multisig import ProposalStatus
+            try:
+                self.multisig.vote(
+                    request.linked_proposal_id, approver_lct, approve=True
+                )
+            except (ValueError, PermissionError):
+                pass  # Vote may fail (already voted, etc.)
+
+            # Sync status from proposal
+            proposal = self.multisig.get_proposal(request.linked_proposal_id)
+            if proposal and proposal.status == ProposalStatus.APPROVED:
+                request.status = R6Status.APPROVED
+            # Don't change status otherwise - let the proposal drive it
+        elif rule.approval == ApprovalType.NONE:
             request.status = R6Status.APPROVED
         elif rule.approval == ApprovalType.MULTI_SIG:
             if len(request.approvals) >= rule.approval_count:
