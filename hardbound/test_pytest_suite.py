@@ -785,6 +785,107 @@ class TestRandomWitnessSelection:
         assert selected == []
 
 
+class TestWitnessSelectionIntegration:
+    """Tests for witness selection integration with multi-sig."""
+
+    def _make_team(self, name, admin, members):
+        """Create a team with admin and high-trust members."""
+        config = TeamConfig(name=name, description=f"{name} team")
+        team = Team(config=config)
+        team.set_admin(admin)
+        for m in members:
+            team.add_member(m, role="developer")
+            member = team.get_member(m)
+            member["trust"] = {k: 0.85 for k in member["trust"]}
+        team._update_team()
+        return team
+
+    def test_request_witnesses_selects_from_federation(self):
+        """request_external_witnesses() selects from qualified teams."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        from hardbound.federation import FederationRegistry
+
+        # Setup requesting team
+        team = self._make_team("req-team", "admin:req", ["v1", "v2", "v3", "v4"])
+        fed = FederationRegistry()
+        fed.register_team(team.team_id, "Requester", creator_lct="alice")
+        fed.register_team("team:witness1", "Witness 1", creator_lct="bob")
+        fed.register_team("team:witness2", "Witness 2", creator_lct="carol")
+
+        msig = MultiSigManager(team, federation=fed)
+
+        proposal = msig.create_proposal(
+            proposer_lct="admin:req",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={"new_admin": "new_admin:lct"},
+            description="Transfer admin",
+        )
+
+        # Get votes
+        for v in ["v1", "v2", "v3"]:
+            msig.vote(proposal.proposal_id, v, approve=True)
+
+        # Request witnesses
+        selected = msig.request_external_witnesses(proposal.proposal_id, seed=42)
+
+        assert len(selected) >= 1
+        assert all("team_id" in s for s in selected)
+        assert all(s["team_id"] != team.team_id for s in selected)
+
+    def test_request_witnesses_fails_without_federation(self):
+        """request_external_witnesses() fails without federation."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        import pytest
+
+        team = self._make_team("no-fed", "admin:nf", ["v1", "v2", "v3", "v4"])
+        msig = MultiSigManager(team, federation=None)
+
+        proposal = msig.create_proposal(
+            proposer_lct="admin:nf",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={},
+            description="No federation",
+        )
+
+        with pytest.raises(ValueError, match="No federation"):
+            msig.request_external_witnesses(proposal.proposal_id)
+
+    def test_request_witnesses_returns_empty_when_satisfied(self):
+        """Returns empty list when witness requirement already met."""
+        from hardbound.multisig import MultiSigManager, CriticalAction
+        from hardbound.federation import FederationRegistry
+
+        team = self._make_team("sat-team", "admin:sat", ["v1", "v2", "v3", "v4"])
+        fed = FederationRegistry()
+        fed.register_team(team.team_id, "Sat Team", creator_lct="sat")
+        fed.register_team("team:ext", "External", creator_lct="ext")
+
+        msig = MultiSigManager(team, federation=fed)
+
+        proposal = msig.create_proposal(
+            proposer_lct="admin:sat",
+            action=CriticalAction.ADMIN_TRANSFER,
+            action_data={},
+            description="Already witnessed",
+        )
+
+        # Vote
+        for v in ["v1", "v2", "v3"]:
+            msig.vote(proposal.proposal_id, v, approve=True)
+
+        # Manually add an external witness
+        msig.add_external_witness(
+            proposal.proposal_id,
+            witness_lct="ext:person",
+            witness_team_id="team:ext",
+            witness_trust_score=0.9,
+        )
+
+        # Request should return empty (already have 1 witness, need 1)
+        selected = msig.request_external_witnesses(proposal.proposal_id)
+        assert selected == []
+
+
 class TestFederationHealthDashboard:
     """Tests for the aggregate federation health dashboard."""
 

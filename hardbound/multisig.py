@@ -690,6 +690,87 @@ class MultiSigManager:
 
         return proposal
 
+    def request_external_witnesses(
+        self,
+        proposal_id: str,
+        count: int = None,
+        seed: int = None,
+    ) -> List[dict]:
+        """
+        Auto-select and request external witnesses from the federation.
+
+        Uses the federation's reputation-weighted random selection to pick
+        witnesses from qualified teams. Returns the selected teams for
+        the caller to coordinate the actual witnessing (e.g., send notifications).
+
+        Args:
+            proposal_id: ID of the proposal needing witnesses
+            count: Number of witnesses to request (defaults to external_witness_required)
+            seed: Optional random seed for reproducibility (testing)
+
+        Returns:
+            List of dicts with team info for selected witnesses
+
+        Raises:
+            ValueError: If no federation, proposal not found, or no candidates
+        """
+        if not self.federation:
+            raise ValueError("No federation configured for witness selection")
+
+        proposal = self.get_proposal(proposal_id)
+        if not proposal:
+            raise ValueError(f"Proposal not found: {proposal_id}")
+
+        if proposal.external_witness_required == 0:
+            raise ValueError("This proposal does not require external witnesses")
+
+        needed = count if count is not None else proposal.external_witness_required
+        already_have = len(proposal.external_witnesses)
+        to_select = max(0, needed - already_have)
+
+        if to_select == 0:
+            return []  # Already have enough witnesses
+
+        # Select witnesses from federation
+        selected_teams = self.federation.select_witnesses(
+            requesting_team_id=self.team.team_id,
+            count=to_select,
+            min_score=proposal.trust_threshold,
+            seed=seed,
+        )
+
+        if not selected_teams:
+            raise ValueError(
+                f"No qualified witnesses found in federation (need {to_select}, "
+                f"min_score={proposal.trust_threshold})"
+            )
+
+        # Record the request in audit trail
+        selected_info = []
+        for fedteam in selected_teams:
+            info = {
+                "team_id": fedteam.team_id,
+                "team_name": fedteam.name,
+                "witness_score": fedteam.witness_score,
+                "domains": fedteam.domains,
+            }
+            selected_info.append(info)
+
+        self.team.ledger.record_audit(
+            session_id=self.team.team_id,
+            action_type="witnesses_requested",
+            tool_name="hardbound",
+            target=proposal_id,
+            r6_data={
+                "proposal_id": proposal_id,
+                "witnesses_needed": to_select,
+                "witnesses_selected": len(selected_info),
+                "selected_teams": selected_info,
+            }
+        )
+
+        return selected_info
+
     def execute_proposal(
         self,
         proposal_id: str,
