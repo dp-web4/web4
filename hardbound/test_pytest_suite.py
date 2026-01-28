@@ -1285,3 +1285,91 @@ class TestATPEconomics:
 
         with pytest.raises(ValueError, match="Insufficient ATP"):
             team.consume_member_atp("worker:e", 1)
+
+
+class TestR6HeartbeatIntegration:
+    """Tests for R6 events flowing into the heartbeat ledger."""
+
+    def test_r6_events_become_heartbeat_transactions(self):
+        """R6 create/approve/execute should appear as heartbeat ledger transactions."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-heartbeat", description="R6 heartbeat test")
+        team = Team(config=config)
+        team.set_admin("admin:hb")
+        team.add_member("dev:hb", role="developer", atp_budget=100)
+
+        # Initialize heartbeat ledger
+        hl = team.heartbeat
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="deploy",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=5,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+
+        # Create request -> should submit r6_created transaction
+        request = wf.create_request(
+            requester_lct="dev:hb",
+            action_type="deploy",
+            description="Deploy to staging",
+        )
+
+        # Approve -> should submit r6_approved transaction
+        wf.approve_request(request.r6_id, "admin:hb")
+
+        # Execute -> should submit r6_executed transaction
+        wf.execute_request(request.r6_id, success=True)
+
+        # Check heartbeat ledger pending transactions
+        pending = hl._pending_transactions
+        tx_types = [tx.tx_type for tx in pending]
+
+        assert "r6_created" in tx_types
+        assert "r6_approved" in tx_types
+        assert "r6_executed" in tx_types
+
+        # The r6_executed transaction should have ATP cost
+        exec_tx = [tx for tx in pending if tx.tx_type == "r6_executed"][0]
+        assert exec_tx.atp_cost == 5.0
+
+    def test_r6_rejection_recorded_in_heartbeat(self):
+        """R6 rejection should also appear as a heartbeat transaction."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-reject-hb", description="R6 reject heartbeat")
+        team = Team(config=config)
+        team.set_admin("admin:rj")
+        team.add_member("dev:rj", role="developer", atp_budget=50)
+
+        hl = team.heartbeat
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="delete_env",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=10,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+        request = wf.create_request(
+            requester_lct="dev:rj",
+            action_type="delete_env",
+            description="Delete staging env",
+        )
+
+        # Reject the request
+        wf.reject_request(request.r6_id, "admin:rj", reason="Not authorized")
+
+        tx_types = [tx.tx_type for tx in hl._pending_transactions]
+        assert "r6_created" in tx_types
+        assert "r6_rejected" in tx_types
