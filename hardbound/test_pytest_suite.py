@@ -704,6 +704,70 @@ class TestFederationRegistry:
         assert "team:colluder" not in pool_ids
 
 
+class TestPatternSigning:
+    """Tests for cryptographic pattern signing on federation analysis."""
+
+    def test_sign_and_verify_collusion_report(self):
+        """Signed collusion report passes verification."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:sig_a", "Team A")
+        reg.register_team("team:sig_b", "Team B")
+
+        report = reg.get_collusion_report()
+        signed = reg.sign_pattern("collusion_report", report, signer_lct="auditor:1")
+
+        assert signed["pattern_type"] == "collusion_report"
+        assert signed["signature"] != ""
+        assert signed["algorithm"] == "hmac-sha256"
+
+        # Verification should pass
+        assert reg.verify_pattern_signature(signed) is True
+
+    def test_tampered_data_fails_verification(self):
+        """Modifying signed data causes verification to fail."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:tam_a", "Tamper Test A")
+
+        report = reg.get_collusion_report()
+        signed = reg.sign_pattern("collusion_report", report, signer_lct="auditor:2")
+
+        # Tamper with the data
+        signed["data"]["health"] = "healthy_TAMPERED"
+
+        # Verification should fail
+        assert reg.verify_pattern_signature(signed) is False
+
+    def test_sign_lineage_report(self):
+        """Lineage reports can be signed and verified."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:lin_a", "Lineage A", creator_lct="creator:x")
+        reg.register_team("team:lin_b", "Lineage B", creator_lct="creator:x")
+
+        lineage = reg.get_lineage_report()
+        signed = reg.sign_pattern("lineage_report", lineage, signer_lct="compliance:1")
+
+        assert reg.verify_pattern_signature(signed) is True
+        assert signed["data"]["health"] == "warning"  # Multi-creator but no witnessing
+
+    def test_different_signers_produce_different_signatures(self):
+        """Same data signed by different LCTs produces different signatures."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        data = {"test": "value", "count": 42}
+
+        sig_a = reg.sign_pattern("test", data, signer_lct="signer:alpha")
+        sig_b = reg.sign_pattern("test", data, signer_lct="signer:beta")
+
+        assert sig_a["signature"] != sig_b["signature"]
+
+
 class TestRejoinCooldown:
     """Tests for post-rejoin witnessing cooldown."""
 

@@ -754,6 +754,82 @@ class FederationRegistry:
             "health": health,
         }
 
+    def sign_pattern(self, pattern_type: str, pattern_data: Dict,
+                     signer_lct: str = "") -> Dict:
+        """
+        Create a cryptographic signature for a federation pattern.
+
+        Pattern signing creates a tamper-evident seal on federation analysis
+        results (collusion reports, lineage reports, overlap analysis).
+        The signature can be verified to confirm the data hasn't been
+        modified since it was generated.
+
+        Uses HMAC-SHA256 with the pattern content as the message.
+        The signing key is derived from the signer LCT and the federation
+        DB path (acting as a domain separator).
+
+        Args:
+            pattern_type: Type of pattern (collusion_report, lineage_report,
+                         overlap_analysis, witness_event)
+            pattern_data: The data to sign (dict)
+            signer_lct: LCT of the entity creating the signature
+
+        Returns:
+            Dict with original data, signature, and verification metadata
+        """
+        import hmac
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        # Canonical representation for signing
+        canonical = json.dumps({
+            "type": pattern_type,
+            "data": pattern_data,
+            "signer": signer_lct,
+            "timestamp": timestamp,
+        }, sort_keys=True, separators=(',', ':'))
+
+        # Derive signing key from signer identity + DB path (domain separator)
+        key_material = f"{signer_lct}:{self.db_path}".encode()
+        signing_key = hashlib.sha256(key_material).digest()
+
+        # HMAC-SHA256 signature
+        signature = hmac.new(signing_key, canonical.encode(), hashlib.sha256).hexdigest()
+
+        return {
+            "pattern_type": pattern_type,
+            "data": pattern_data,
+            "signer_lct": signer_lct,
+            "signed_at": timestamp,
+            "signature": signature,
+            "algorithm": "hmac-sha256",
+        }
+
+    def verify_pattern_signature(self, signed_pattern: Dict) -> bool:
+        """
+        Verify a signed federation pattern.
+
+        Args:
+            signed_pattern: The signed pattern dict (from sign_pattern())
+
+        Returns:
+            True if signature is valid, False if tampered
+        """
+        import hmac
+
+        canonical = json.dumps({
+            "type": signed_pattern["pattern_type"],
+            "data": signed_pattern["data"],
+            "signer": signed_pattern["signer_lct"],
+            "timestamp": signed_pattern["signed_at"],
+        }, sort_keys=True, separators=(',', ':'))
+
+        key_material = f"{signed_pattern['signer_lct']}:{self.db_path}".encode()
+        signing_key = hashlib.sha256(key_material).digest()
+
+        expected = hmac.new(signing_key, canonical.encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, signed_pattern["signature"])
+
     def suspend_team(self, team_id: str, reason: str = "") -> bool:
         """Suspend a team from the federation (e.g., for collusion)."""
         with sqlite3.connect(self.db_path) as conn:
