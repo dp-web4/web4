@@ -940,6 +940,62 @@ class Team:
 
         return reward
 
+    def replenish_all_budgets(self, rate: float = 0.1,
+                               min_atp: int = 10,
+                               cap: int = None) -> Dict[str, int]:
+        """
+        Replenish all member ATP budgets by a percentage of their default budget.
+
+        This should be called periodically (e.g., daily or on heartbeat cycles).
+        Each member receives `rate * default_member_budget` ATP, up to a cap.
+
+        Args:
+            rate: Fraction of default_member_budget to replenish (default 0.1 = 10%)
+            min_atp: Minimum ATP to give each member regardless of rate
+            cap: Maximum ATP budget after replenishment (None = no cap)
+
+        Returns:
+            Dict mapping member LCT to amount replenished
+        """
+        replenished = {}
+        default_budget = self.config.default_member_budget
+        amount = max(min_atp, int(rate * default_budget))
+
+        for lct_id, member in self.members.items():
+            current = member["atp_budget"]
+            if cap and current >= cap:
+                replenished[lct_id] = 0
+                continue
+
+            # Calculate replenishment (respecting cap)
+            to_add = amount
+            if cap:
+                to_add = min(amount, cap - current)
+
+            if to_add > 0:
+                member["atp_budget"] += to_add
+                replenished[lct_id] = to_add
+
+        if replenished:
+            self._update_team()
+
+            # Audit trail
+            self.ledger.record_audit(
+                session_id=self.team_id,
+                action_type="atp_bulk_replenish",
+                tool_name="hardbound",
+                target="all_members",
+                r6_data={
+                    "rate": rate,
+                    "min_atp": min_atp,
+                    "cap": cap,
+                    "members_replenished": len([v for v in replenished.values() if v > 0]),
+                    "total_atp_added": sum(replenished.values()),
+                }
+            )
+
+        return replenished
+
     # --- Trust Management ---
 
     # Trust velocity caps per epoch (24h window)

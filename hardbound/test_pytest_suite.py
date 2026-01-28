@@ -1765,6 +1765,79 @@ class TestATPEconomics:
             team.consume_member_atp("worker:e", 1)
 
 
+class TestATPBulkReplenish:
+    """Tests for periodic bulk ATP replenishment."""
+
+    def test_replenish_all_gives_each_member_atp(self):
+        """replenish_all_budgets() adds ATP to all members."""
+        config = TeamConfig(
+            name="bulk-replenish", description="Bulk replenish",
+            default_member_budget=100
+        )
+        team = Team(config=config)
+        team.set_admin("admin:br")
+        team.add_member("dev:br1", role="developer", atp_budget=50)
+        team.add_member("dev:br2", role="developer", atp_budget=30)
+
+        # 10% replenishment = 10 ATP each
+        result = team.replenish_all_budgets(rate=0.1)
+
+        assert result["dev:br1"] == 10
+        assert result["dev:br2"] == 10
+        assert team.get_member("dev:br1")["atp_budget"] == 60
+        assert team.get_member("dev:br2")["atp_budget"] == 40
+
+    def test_replenish_respects_cap(self):
+        """replenish_all_budgets() respects the cap parameter."""
+        config = TeamConfig(
+            name="capped-replenish", description="Capped",
+            default_member_budget=100
+        )
+        team = Team(config=config)
+        team.set_admin("admin:cr")
+        team.add_member("dev:cr1", role="developer", atp_budget=95)
+        team.add_member("dev:cr2", role="developer", atp_budget=80)
+
+        # Cap at 100, rate 0.1 = 10 ATP each, but cr1 only gets 5
+        result = team.replenish_all_budgets(rate=0.1, cap=100)
+
+        assert result["dev:cr1"] == 5  # 95 + 5 = 100 (capped)
+        assert result["dev:cr2"] == 10  # 80 + 10 = 90 (under cap)
+        assert team.get_member("dev:cr1")["atp_budget"] == 100
+        assert team.get_member("dev:cr2")["atp_budget"] == 90
+
+    def test_replenish_uses_min_atp(self):
+        """Minimum ATP is guaranteed even if rate is low."""
+        config = TeamConfig(
+            name="min-replenish", description="Min",
+            default_member_budget=10  # Very small budget
+        )
+        team = Team(config=config)
+        team.set_admin("admin:mr")
+        team.add_member("dev:mr", role="developer", atp_budget=5)
+
+        # 1% of 10 = 0.1 → rounds to 0, but min_atp=5 guarantees 5
+        result = team.replenish_all_budgets(rate=0.01, min_atp=5)
+
+        assert result["dev:mr"] == 5
+        assert team.get_member("dev:mr")["atp_budget"] == 10
+
+    def test_replenish_skips_already_at_cap(self):
+        """Members at or above cap get 0 replenishment."""
+        config = TeamConfig(
+            name="skip-replenish", description="Skip",
+            default_member_budget=100
+        )
+        team = Team(config=config)
+        team.set_admin("admin:sr")
+        team.add_member("dev:sr", role="developer", atp_budget=100)
+
+        result = team.replenish_all_budgets(rate=0.1, cap=100)
+
+        assert result["dev:sr"] == 0
+        assert team.get_member("dev:sr")["atp_budget"] == 100
+
+
 class TestR6Cancellation:
     """Tests for R6 request cancellation."""
 
