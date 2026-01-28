@@ -37,6 +37,130 @@ class TestAttackSimulations:
         assert len(results) == 10
 
 
+class TestEndToEndIntegration:
+    """Full integration test: R6 → Multi-Sig → Federation → Execution."""
+
+    def test_full_admin_transfer_workflow(self):
+        """
+        End-to-end test of a critical action (admin transfer) requiring:
+        1. R6 request creation
+        2. Multi-sig delegation and voting
+        3. Federation witness selection and attestation
+        4. Execution and outcome propagation
+        """
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from hardbound.multisig import MultiSigManager, CriticalAction, ProposalStatus
+        from hardbound.federation import FederationRegistry
+
+        # === PHASE 1: Setup teams and federation ===
+        config = TeamConfig(
+            name="integration-team",
+            description="Integration test team",
+            default_member_budget=200,
+        )
+        team = Team(config=config)
+        team.set_admin("admin:int")
+        members = ["voter:a", "voter:b", "voter:c", "voter:d"]
+        for m in members:
+            team.add_member(m, role="developer", atp_budget=100)
+            member = team.get_member(m)
+            member["trust"] = {k: 0.85 for k in member["trust"]}
+        team._update_team()
+
+        # Federation with witness team
+        fed = FederationRegistry()
+        fed.register_team(team.team_id, "Integration Team", creator_lct="alice")
+        fed.register_team("team:witness_a", "Witness A", creator_lct="bob")
+        fed.register_team("team:witness_b", "Witness B", creator_lct="carol")
+
+        # === PHASE 2: Setup R6 workflow with multi-sig ===
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="admin_transfer",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.5,
+            atp_cost=25,
+            approval=ApprovalType.MULTI_SIG,
+            approval_count=3,
+        ))
+
+        msig = MultiSigManager(team, federation=fed)
+        wf = R6Workflow(team, policy, multisig=msig)
+
+        # Add admin as member so they can use R6 (R6 requires get_member)
+        team.add_member("admin:int", role="admin", atp_budget=200)
+        admin_member = team.get_member("admin:int")
+        admin_member["trust"] = {k: 0.90 for k in admin_member["trust"]}
+        team._update_team()
+
+        # === PHASE 3: Create R6 request (creates linked multi-sig proposal) ===
+        r6_request = wf.create_request(
+            requester_lct="admin:int",
+            action_type="admin_transfer",
+            description="Transfer admin to new leader",
+            parameters={"new_admin_lct": "new_leader:int"},
+        )
+
+        # Verify R6 created with linked proposal
+        assert r6_request.status == R6Status.PENDING
+        assert r6_request.linked_proposal_id != ""
+        assert r6_request.expires_at != ""
+
+        proposal = msig.get_proposal(r6_request.linked_proposal_id)
+        assert proposal is not None
+        assert proposal.external_witness_required >= 1
+
+        # === PHASE 4: Vote via R6 (delegates to multi-sig) ===
+        wf.approve_request(r6_request.r6_id, "voter:b")
+        wf.approve_request(r6_request.r6_id, "voter:c")
+        wf.approve_request(r6_request.r6_id, "voter:d")
+
+        # Check proposal has votes
+        proposal = msig.get_proposal(r6_request.linked_proposal_id)
+        assert proposal.approval_count >= 3
+
+        # === PHASE 5: Request external witnesses from federation ===
+        witness_teams = msig.request_external_witnesses(
+            r6_request.linked_proposal_id, seed=42)
+        assert len(witness_teams) >= 1
+
+        # Add external witness manually (simulating witness responding)
+        witness_team = witness_teams[0]
+        msig.add_external_witness(
+            r6_request.linked_proposal_id,
+            witness_lct=f"witness:{witness_team['team_id']}",
+            witness_team_id=witness_team["team_id"],
+            witness_trust_score=0.9,
+            attestation="Verified proposal legitimacy",
+        )
+
+        # === PHASE 6: Verify proposal is approved ===
+        proposal = msig.get_proposal(r6_request.linked_proposal_id)
+        assert proposal.status == ProposalStatus.APPROVED
+
+        # R6 should also be approved now
+        r6_reloaded = wf.get_request(r6_request.r6_id)
+        assert r6_reloaded.status == R6Status.APPROVED
+
+        # === PHASE 7: Execute R6 ===
+        result = wf.execute_request(r6_request.r6_id, success=True)
+        assert result.status == R6Status.EXECUTED
+
+        # === PHASE 8: Verify federation health ===
+        health = fed.get_federation_health()
+        assert health["overall_health"] in ("healthy", "warning")
+
+        # === PHASE 9: Verify audit trail ===
+        audit = team.ledger.get_session_audit_trail(team.team_id)
+        action_types = [a.get("action_type") for a in audit]
+        assert "r6_created" in action_types
+        assert "r6_approved" in action_types
+        assert "r6_completed" in action_types  # execute_request records as r6_completed
+        assert "witnesses_requested" in action_types
+        assert "multisig_external_witness" in action_types
+
+
 class TestStandaloneComponents:
     """Individual component tests that don't require shared state."""
 
