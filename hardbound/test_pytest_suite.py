@@ -2694,3 +2694,65 @@ class TestR6HeartbeatIntegration:
         tx_types = [tx.tx_type for tx in hl._pending_transactions]
         assert "r6_created" in tx_types
         assert "r6_rejected" in tx_types
+
+    def test_pulse_triggers_r6_cleanup(self):
+        """pulse() with registered workflow cleans up expired R6 requests."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        import time
+
+        config = TeamConfig(name="r6-pulse-cleanup", description="Pulse cleanup test")
+        team = Team(config=config)
+        team.set_admin("admin:pc")
+        team.add_member("dev:pc", role="developer", atp_budget=100)
+
+        # Policy allowing very short expiry for testing
+        policy = Policy(min_expiry_hours=0, max_expiry_hours=24*365)
+        policy.add_rule(PolicyRule(
+            action_type="quick_job",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=1,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        # Short expiry workflow
+        wf = R6Workflow(team, policy, default_expiry_hours=1/3600)
+
+        # Register workflow with team
+        team.register_r6_workflow(wf)
+
+        # Create some requests
+        for i in range(3):
+            wf.create_request(
+                requester_lct="dev:pc",
+                action_type="quick_job",
+                description=f"Job {i}",
+            )
+
+        assert len(wf.get_pending_requests()) == 3
+
+        # Wait for expiry
+        time.sleep(1.5)
+
+        # pulse() should trigger cleanup
+        block = team.pulse()
+
+        # Requests should be gone
+        assert len(wf.get_pending_requests()) == 0
+
+        # Audit trail should have cleanup record
+        audits = team.get_audit_trail()
+        action_types = [a["action_type"] for a in audits]
+        assert "r6_heartbeat_cleanup" in action_types
+
+    def test_pulse_without_workflow_ok(self):
+        """pulse() works fine without registered workflow."""
+        config = TeamConfig(name="no-workflow", description="No workflow")
+        team = Team(config=config)
+        team.set_admin("admin:nw")
+
+        # Just pulse without any R6 workflow
+        block = team.pulse()
+        assert block is not None
+        assert block.block_number >= 0

@@ -107,6 +107,9 @@ class Team:
         # Activity quality tracking per member (not persisted - rebuilt from actions)
         self._activity_windows: Dict[str, 'ActivityWindow'] = {}
 
+        # Optional R6Workflow for heartbeat-triggered cleanup
+        self._r6_workflow: Optional['R6Workflow'] = None
+
     def _get_activity_window(self, lct_id: str) -> ActivityWindow:
         """Get or create an ActivityWindow for a member (30-day rolling window)."""
         if lct_id not in self._activity_windows:
@@ -147,7 +150,19 @@ class Team:
         """Current team metabolic state."""
         return self.heartbeat.state.value
 
-    def pulse(self, sentinel_lct: Optional[str] = None):
+    def register_r6_workflow(self, workflow: 'R6Workflow'):
+        """
+        Register an R6Workflow for heartbeat-triggered cleanup.
+
+        When pulse() is called, expired R6 requests will be automatically
+        cleaned up.
+
+        Args:
+            workflow: R6Workflow instance to register
+        """
+        self._r6_workflow = workflow
+
+    def pulse(self, sentinel_lct: Optional[str] = None, cleanup_r6: bool = True):
         """
         Fire a metabolic heartbeat, sealing pending transactions into a block.
 
@@ -155,9 +170,35 @@ class Team:
         the block chain. Active teams should pulse every ~60s, resting
         teams every ~5min, etc.
 
-        Returns the sealed block.
+        Args:
+            sentinel_lct: LCT to witness this heartbeat
+            cleanup_r6: Whether to cleanup expired R6 requests (default True)
+
+        Returns:
+            The sealed block.
         """
-        return self.heartbeat.heartbeat(sentinel_lct=sentinel_lct or self.admin_lct)
+        # Cleanup expired R6 requests if workflow registered
+        expired_count = 0
+        if cleanup_r6 and self._r6_workflow:
+            expired = self._r6_workflow.cleanup_expired()
+            expired_count = len(expired)
+
+        block = self.heartbeat.heartbeat(sentinel_lct=sentinel_lct or self.admin_lct)
+
+        # Record cleanup in audit trail if any were expired
+        if expired_count > 0:
+            self.ledger.record_audit(
+                session_id=self.team_id,
+                action_type="r6_heartbeat_cleanup",
+                tool_name="hardbound",
+                target="r6_requests",
+                r6_data={
+                    "expired_count": expired_count,
+                    "block_number": block.block_number,
+                }
+            )
+
+        return block
 
     # States that trigger wake recalibration on exit
     DORMANT_STATES = {"sleep", "hibernation", "torpor", "estivation"}
