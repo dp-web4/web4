@@ -58,6 +58,9 @@ class FederatedTeam:
     admin_lct: str = ""  # Public admin LCT for verification
     member_count: int = 0
 
+    # Creation lineage - who created this team
+    creator_lct: str = ""  # LCT of the entity that created this team
+
     # Witness reputation
     witness_score: float = 1.0  # 0.0 (terrible) to 1.0 (perfect)
     witness_count: int = 0      # Total times this team provided witnesses
@@ -132,6 +135,7 @@ class FederationRegistry:
                     domains TEXT DEFAULT '[]',
                     capabilities TEXT DEFAULT '[]',
                     admin_lct TEXT DEFAULT '',
+                    creator_lct TEXT DEFAULT '',
                     member_count INTEGER DEFAULT 0,
                     witness_score REAL DEFAULT 1.0,
                     witness_count INTEGER DEFAULT 0,
@@ -156,11 +160,23 @@ class FederationRegistry:
                 CREATE INDEX IF NOT EXISTS idx_witness_records_teams
                 ON witness_records(witness_team_id, proposal_team_id)
             """)
+            # Backwards-compatible schema migration for creator_lct
+            try:
+                conn.execute(
+                    "ALTER TABLE federated_teams ADD COLUMN creator_lct TEXT DEFAULT ''"
+                )
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_creator_lct
+                ON federated_teams(creator_lct)
+            """)
 
     def register_team(self, team_id: str, name: str,
                       domains: List[str] = None,
                       capabilities: List[str] = None,
                       admin_lct: str = "",
+                      creator_lct: str = "",
                       member_count: int = 0) -> FederatedTeam:
         """
         Register a team in the federation.
@@ -171,6 +187,7 @@ class FederationRegistry:
             domains: Domain tags for discovery
             capabilities: Capability tags
             admin_lct: Public admin LCT
+            creator_lct: LCT of the entity that created this team (for lineage tracking)
             member_count: Number of team members
 
         Returns:
@@ -192,6 +209,7 @@ class FederationRegistry:
             domains=domains or [],
             capabilities=capabilities or ["external_witnessing"],
             admin_lct=admin_lct,
+            creator_lct=creator_lct,
             member_count=member_count,
         )
 
@@ -199,14 +217,14 @@ class FederationRegistry:
             conn.execute("""
                 INSERT INTO federated_teams
                 (team_id, name, registered_at, status, domains, capabilities,
-                 admin_lct, member_count, witness_score, witness_count,
+                 admin_lct, creator_lct, member_count, witness_score, witness_count,
                  witness_successes, witness_failures)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 team.team_id, team.name, team.registered_at,
                 team.status.value,
                 json.dumps(team.domains), json.dumps(team.capabilities),
-                team.admin_lct, team.member_count,
+                team.admin_lct, team.creator_lct, team.member_count,
                 team.witness_score, team.witness_count,
                 team.witness_successes, team.witness_failures,
             ))
@@ -298,9 +316,18 @@ class FederationRegistry:
             limit=count * 2,  # Get extra to account for collusion filtering
         )
 
-        # Check for collusion with requesting team
+        # Get requesting team's creator for lineage check
+        requesting_team = self.get_team(requesting_team_id)
+        requesting_creator = requesting_team.creator_lct if requesting_team else ""
+
+        # Check for collusion and lineage conflicts
         clean_candidates = []
         for candidate in candidates:
+            # Skip teams created by the same entity (lineage conflict)
+            if (requesting_creator and candidate.creator_lct
+                    and requesting_creator == candidate.creator_lct):
+                continue
+
             reciprocity = self.check_reciprocity(
                 requesting_team_id, candidate.team_id
             )
@@ -534,13 +561,110 @@ class FederationRegistry:
                 if reciprocity["is_suspicious"]:
                     flagged_pairs.append(reciprocity)
 
+        # Include lineage analysis
+        lineage = self.get_lineage_report()
+
+        # Combine reciprocity and lineage health
+        if lineage["health"] == "critical" or len(flagged_pairs) > 2:
+            health = "critical"
+        elif lineage["health"] == "warning" or len(flagged_pairs) > 0:
+            health = "concerning"
+        else:
+            health = "healthy"
+
         return {
             "total_teams": len(team_ids),
             "pairs_analyzed": pair_count,
             "flagged_pairs": flagged_pairs,
             "collusion_ratio": len(flagged_pairs) / max(pair_count, 1),
-            "health": "healthy" if len(flagged_pairs) == 0 else
-                      "concerning" if len(flagged_pairs) <= 2 else "critical",
+            "lineage": lineage,
+            "health": health,
+        }
+
+    def find_teams_by_creator(self, creator_lct: str) -> List[FederatedTeam]:
+        """
+        Find all teams created by a specific LCT.
+
+        Useful for detecting Sybil team creation where one entity
+        creates multiple teams to bypass cross-team witnessing.
+
+        Args:
+            creator_lct: LCT of the creator to search for
+
+        Returns:
+            List of teams created by this LCT
+        """
+        if not creator_lct:
+            return []
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM federated_teams WHERE creator_lct = ?",
+                (creator_lct,)
+            ).fetchall()
+            return [self._row_to_team(row) for row in rows]
+
+    def get_lineage_report(self) -> Dict:
+        """
+        Analyze team creation lineage for suspicious patterns.
+
+        Flags:
+        - Single LCT creating multiple teams (team Sybil attack)
+        - Teams with the same creator witnessing for each other
+
+        Returns:
+            Dict with lineage analysis
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            # Find creators with multiple teams
+            rows = conn.execute("""
+                SELECT creator_lct, COUNT(*) as team_count,
+                       GROUP_CONCAT(team_id) as team_ids
+                FROM federated_teams
+                WHERE creator_lct != '' AND status = 'active'
+                GROUP BY creator_lct
+                HAVING COUNT(*) > 1
+            """).fetchall()
+
+        multi_creators = []
+        same_creator_witness_pairs = []
+
+        for row in rows:
+            creator = row["creator_lct"]
+            team_ids = row["team_ids"].split(",")
+            team_count = row["team_count"]
+
+            multi_creators.append({
+                "creator_lct": creator,
+                "team_count": team_count,
+                "team_ids": team_ids,
+            })
+
+            # Check if same-creator teams are witnessing for each other
+            for i in range(len(team_ids)):
+                for j in range(i + 1, len(team_ids)):
+                    recip = self.check_reciprocity(team_ids[i], team_ids[j])
+                    if recip["pair_total"] > 0:
+                        same_creator_witness_pairs.append({
+                            "creator_lct": creator,
+                            "team_a": team_ids[i],
+                            "team_b": team_ids[j],
+                            "witness_events": recip["pair_total"],
+                            "reciprocity_ratio": recip["reciprocity_ratio"],
+                        })
+
+        return {
+            "multi_team_creators": multi_creators,
+            "same_creator_witness_count": len(same_creator_witness_pairs),
+            "same_creator_witness_pairs": same_creator_witness_pairs,
+            "health": (
+                "critical" if same_creator_witness_pairs else
+                "warning" if multi_creators else
+                "healthy"
+            ),
         }
 
     def suspend_team(self, team_id: str, reason: str = "") -> bool:
@@ -554,6 +678,12 @@ class FederationRegistry:
 
     def _row_to_team(self, row) -> FederatedTeam:
         """Convert database row to FederatedTeam."""
+        # Handle creator_lct which may not exist in old schemas
+        try:
+            creator_lct = row["creator_lct"] or ""
+        except (IndexError, KeyError):
+            creator_lct = ""
+
         return FederatedTeam(
             team_id=row["team_id"],
             name=row["name"],
@@ -562,6 +692,7 @@ class FederationRegistry:
             domains=json.loads(row["domains"]) if row["domains"] else [],
             capabilities=json.loads(row["capabilities"]) if row["capabilities"] else [],
             admin_lct=row["admin_lct"] or "",
+            creator_lct=creator_lct,
             member_count=row["member_count"] or 0,
             witness_score=row["witness_score"] if row["witness_score"] is not None else 1.0,
             witness_count=row["witness_count"] or 0,

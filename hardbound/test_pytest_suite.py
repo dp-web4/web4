@@ -1096,3 +1096,89 @@ class TestFederatedSybilDetection:
         # Multiple signals should push confidence higher than any single signal
         assert top.confidence > 0.4
         assert len(top.signals) >= 2
+
+
+class TestTeamCreationLineage:
+    """Tests for team creation lineage tracking and collusion detection."""
+
+    def test_creator_lct_stored_on_registration(self):
+        """Creator LCT is persisted and retrievable."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        team = reg.register_team(
+            "team:lineage_test", "Lineage Test",
+            creator_lct="creator:alice",
+            member_count=3,
+        )
+        assert team.creator_lct == "creator:alice"
+
+        # Retrieve and verify
+        retrieved = reg.get_team("team:lineage_test")
+        assert retrieved.creator_lct == "creator:alice"
+
+    def test_find_teams_by_creator(self):
+        """Can find all teams created by the same entity."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:a1", "Alpha 1", creator_lct="creator:mallory")
+        reg.register_team("team:a2", "Alpha 2", creator_lct="creator:mallory")
+        reg.register_team("team:b1", "Beta 1", creator_lct="creator:bob")
+
+        mallory_teams = reg.find_teams_by_creator("creator:mallory")
+        assert len(mallory_teams) == 2
+        assert {t.team_id for t in mallory_teams} == {"team:a1", "team:a2"}
+
+        bob_teams = reg.find_teams_by_creator("creator:bob")
+        assert len(bob_teams) == 1
+
+    def test_witness_pool_excludes_same_creator(self):
+        """Teams created by the same entity cannot witness for each other."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:sybil_a", "Sybil A", creator_lct="creator:mallory")
+        reg.register_team("team:sybil_b", "Sybil B", creator_lct="creator:mallory")
+        reg.register_team("team:legit", "Legit Team", creator_lct="creator:alice")
+
+        # Sybil A looks for witnesses - should NOT get Sybil B
+        pool = reg.find_witness_pool("team:sybil_a", count=5)
+        pool_ids = {t.team_id for t in pool}
+        assert "team:sybil_b" not in pool_ids
+        assert "team:legit" in pool_ids
+
+    def test_lineage_report_flags_multi_team_creators(self):
+        """Lineage report identifies entities creating multiple teams."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:m1", "Mallory 1", creator_lct="creator:mallory")
+        reg.register_team("team:m2", "Mallory 2", creator_lct="creator:mallory")
+        reg.register_team("team:m3", "Mallory 3", creator_lct="creator:mallory")
+        reg.register_team("team:honest", "Honest", creator_lct="creator:alice")
+
+        report = reg.get_lineage_report()
+        assert len(report["multi_team_creators"]) == 1
+        assert report["multi_team_creators"][0]["creator_lct"] == "creator:mallory"
+        assert report["multi_team_creators"][0]["team_count"] == 3
+        assert report["health"] == "warning"  # Multi-creator but no cross-witnessing
+
+    def test_lineage_report_critical_on_cross_witnessing(self):
+        """Lineage report goes CRITICAL when same-creator teams witness for each other."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:s1", "Sybil 1", creator_lct="creator:mallory")
+        reg.register_team("team:s2", "Sybil 2", creator_lct="creator:mallory")
+
+        # Simulate cross-witnessing between same-creator teams
+        reg.record_witness_event("team:s1", "team:s2", "s1:member", "prop:1")
+        reg.record_witness_event("team:s2", "team:s1", "s2:member", "prop:2")
+
+        report = reg.get_lineage_report()
+        assert report["health"] == "critical"
+        assert len(report["same_creator_witness_pairs"]) > 0
+        pair = report["same_creator_witness_pairs"][0]
+        assert pair["creator_lct"] == "creator:mallory"
+        assert pair["witness_events"] > 0
