@@ -1238,6 +1238,96 @@ def attack_sybil_team_creation() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 10: Witness Cycling via Official Remove/Re-Add
+# ---------------------------------------------------------------------------
+
+def attack_witness_cycling() -> AttackResult:
+    """
+    ATTACK: Remove and re-add a witness to reset diminishing effectiveness.
+
+    Strategy:
+    - Witness A exhausts effectiveness against Target B (10+ attestations)
+    - Admin removes Witness A
+    - Admin re-adds Witness A (same LCT)
+    - Witness A attempts to witness again with "fresh" effectiveness
+
+    This tests whether the post-rejoin cooldown defense prevents the attack.
+    """
+    team = Team(config=TeamConfig(name="witness-cycle-v2", description="Cycling attack v2"))
+    team.set_admin("admin:wc2")
+    team.add_member("witness:wc2", role="developer")
+    team.add_member("target:wc2", role="developer")
+
+    # Phase 1: Exhaust witness effectiveness
+    for _ in range(10):
+        team.witness_member("witness:wc2", "target:wc2")
+
+    eff_exhausted = team.get_witness_effectiveness("witness:wc2", "target:wc2")
+    target_trust_before = team.get_member_trust_score("target:wc2")
+
+    # Phase 2: Remove and re-add via official API
+    team.remove_member("witness:wc2", requester_lct="admin:wc2", reason="cycling attempt")
+    team.add_member("witness:wc2", role="developer")
+
+    # Phase 3: Check cooldown status
+    in_cooldown = team.is_in_cooldown("witness:wc2")
+
+    # Phase 4: Attempt to witness during cooldown
+    witness_blocked = False
+    try:
+        team.witness_member("witness:wc2", "target:wc2")
+    except PermissionError:
+        witness_blocked = True
+
+    # Phase 5: Check if target's witness history was preserved
+    target = team.get_member("target:wc2")
+    history_preserved = "witness:wc2" in target.get("_witness_log", {})
+
+    # The defense layers:
+    # 1. Post-rejoin cooldown blocks immediate witnessing (72h)
+    # 2. Target's witness history persists across remove/re-add
+    # 3. Even after cooldown, diminishing returns still apply (history on target)
+    defense_held = in_cooldown and witness_blocked and history_preserved
+
+    return AttackResult(
+        attack_name="Witness Cycling (Official API)",
+        success=not defense_held,
+        setup_cost_atp=50.0,
+        gain_atp=0.0 if defense_held else 30.0,
+        roi=-1.0 if defense_held else -0.40,
+        detection_probability=0.95,
+        time_to_detection_hours=0.0,  # Immediately visible
+        blocks_until_detected=0,
+        trust_damage=0.5,
+        description=(
+            f"Witness effectiveness before cycling: {eff_exhausted:.3f}. "
+            f"Post-rejoin cooldown active: {in_cooldown}. "
+            f"Witnessing blocked by cooldown: {witness_blocked}. "
+            f"Target witness history preserved: {history_preserved}. "
+            f"Defense {'HELD' if defense_held else 'FAILED'}: "
+            f"{'3-layer defense (cooldown + history preservation + diminishing returns)' if defense_held else 'Cycling bypassed defenses'}."
+        ),
+        mitigation=(
+            "IMPLEMENTED (3-layer defense):\n"
+            "1. Post-rejoin cooldown: 72h before re-added members can witness\n"
+            "2. Target witness history preservation: _witness_log persists on target\n"
+            "3. Diminishing same-pair returns: effectiveness still degraded after cooldown\n"
+            "4. Audit trail: remove/re-add visible in audit log\n"
+            "\n"
+            "The combination fully closes the witness cycling vector."
+        ),
+        raw_data={
+            "eff_exhausted": eff_exhausted,
+            "target_trust_before": target_trust_before,
+            "in_cooldown": in_cooldown,
+            "witness_blocked": witness_blocked,
+            "history_preserved": history_preserved,
+            "defense_held": defense_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -1253,6 +1343,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Cross-Team Witness Collusion", attack_cross_team_witness_collusion),
         ("Role Cycling (Witness Reset)", attack_role_cycling),
         ("Sybil Team Creation", attack_sybil_team_creation),
+        ("Witness Cycling (Official API)", attack_witness_cycling),
     ]
 
     results = []
