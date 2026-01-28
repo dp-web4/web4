@@ -6,8 +6,10 @@ The R6 framework (Rules + Role + Request + Reference + Resource → Result) is i
 
 ## Implementation Tiers
 
-### Tier 1: Observational (MIT Licensed)
-**Project**: `web4/claude-code-plugin`
+### Tier 1: Observational (Open Source)
+**Projects**:
+- `web4/claude-code-plugin` (Python, standalone)
+- `moltbot/extensions/web4-governance` (TypeScript, moltbot plugin) **← Live implementation**
 
 Purpose: Audit trail without authorization overhead. Safe for public adoption.
 
@@ -18,15 +20,22 @@ R6 Components (Lite):
 ├── Request: tool, category, target, input_hash
 ├── Reference: session_id, prev_r6, chain_length
 ├── Resource: optional estimates
-└── Result: status, output_hash (in post_tool_use)
+└── Result: status, output_hash, error, durationMs (in after_tool_call)
 ```
 
 **Characteristics**:
 - No approval workflow - records everything
 - No ATP tracking
 - No trust tensor updates
-- Hash-linked audit chain for verification
-- Python implementation
+- Hash-linked JSONL audit chain with SHA-256 provenance verification
+- `before_tool_call` hook surface ready for policy enforcement (Tier 1.5)
+- TypeScript implementation (moltbot), Python implementation (standalone)
+
+**Moltbot Integration** (January 2026):
+- PR #1: Wired `before_tool_call`/`after_tool_call` typed hooks into agent tool pipeline
+- PR #2: web4-governance plugin using `after_tool_call` for R6 audit records
+- Hooks enable both observation (current) and enforcement (next: policy engine)
+- See: `moltbot/extensions/web4-governance/ARCHITECTURE.md`
 
 ### Tier 2: Authorization (Proprietary)
 **Project**: `hardbound/hardbound-core`
@@ -126,4 +135,5 @@ See: `r6-security-analysis.md` for attack vectors and mitigations.
 
 - Web4 Spec: `web4-standard/README.md`
 - Hardbound: `hardbound/README.md`
+- Moltbot Plugin: `moltbot/extensions/web4-governance/ARCHITECTURE.md`
 - SAGE Training: `HRM/sage/raising/tracks/training/README.md`
