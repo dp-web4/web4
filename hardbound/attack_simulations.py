@@ -1480,6 +1480,146 @@ def attack_r6_timeout_evasion() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 12: Multi-Party Cross-Team Collusion
+# ---------------------------------------------------------------------------
+
+def attack_multiparty_crossteam_collusion() -> AttackResult:
+    """
+    ATTACK: Coordinate multiple teams to approve malicious cross-team proposals.
+
+    Strategy:
+    - Create 3+ teams (or use Sybil teams)
+    - Create cross-team proposal that benefits the colluding group
+    - Colluding teams auto-approve each other's proposals
+    - Bypass the spirit of multi-team governance
+
+    Expected defense: Reciprocity analysis, lineage tracking, member overlap detection.
+    """
+    from .federation import FederationRegistry, FederationStatus
+    import tempfile
+
+    db_path = Path(tempfile.mkdtemp()) / "attack12_multiparty.db"
+    fed = FederationRegistry(db_path=db_path)
+
+    # SCENARIO 1: Naive collusion ring (same creator)
+    # Create 3 colluding teams with same creator
+    fed.register_team("team:ring_a", "Ring A", creator_lct="colluder:master")
+    fed.register_team("team:ring_b", "Ring B", creator_lct="colluder:master")
+    fed.register_team("team:ring_c", "Ring C", creator_lct="colluder:master")
+
+    # Also create an honest team
+    fed.register_team("team:honest", "Honest Team", creator_lct="honest:admin")
+
+    # Ring A creates a malicious cross-team proposal
+    proposal1 = fed.create_cross_team_proposal(
+        proposing_team_id="team:ring_a",
+        proposer_lct="admin:ring_a",
+        action_type="resource_drain",
+        description="Drain resources from shared pool",
+        target_team_ids=["team:ring_b", "team:ring_c"],  # Only ring members
+        parameters={"amount": 1000},
+    )
+
+    # Ring B and C auto-approve (coordinated)
+    fed.approve_cross_team_proposal(proposal1["proposal_id"], "team:ring_b", "admin:ring_b")
+    fed.approve_cross_team_proposal(proposal1["proposal_id"], "team:ring_c", "admin:ring_c")
+
+    # Check if proposal passed
+    proposal1_result = fed.get_cross_team_proposal(proposal1["proposal_id"])
+    naive_attack_succeeded = proposal1_result["status"] == "approved"
+
+    # But lineage should flag them
+    lineage_report = fed.get_lineage_report()
+    same_creator_flagged = len(lineage_report.get("multi_team_creators", [])) > 0
+
+    # SCENARIO 2: Sophisticated collusion (straw-man creators but mutual approvals)
+    # Create teams with different nominal creators
+    fed.register_team("team:front_x", "Front X", creator_lct="strawman:x")
+    fed.register_team("team:front_y", "Front Y", creator_lct="strawman:y")
+    fed.register_team("team:front_z", "Front Z", creator_lct="strawman:z")
+
+    # Multiple rounds of mutual cross-team approval
+    for i in range(5):
+        # X proposes, Y and Z approve
+        px = fed.create_cross_team_proposal(
+            "team:front_x", f"admin:front_x{i}", f"action_x{i}", f"Action X{i}",
+            ["team:front_y", "team:front_z"]
+        )
+        fed.approve_cross_team_proposal(px["proposal_id"], "team:front_y", f"admin:y{i}")
+        fed.approve_cross_team_proposal(px["proposal_id"], "team:front_z", f"admin:z{i}")
+
+        # Y proposes, X and Z approve
+        py = fed.create_cross_team_proposal(
+            "team:front_y", f"admin:front_y{i}", f"action_y{i}", f"Action Y{i}",
+            ["team:front_x", "team:front_z"]
+        )
+        fed.approve_cross_team_proposal(py["proposal_id"], "team:front_x", f"admin:x{i}")
+        fed.approve_cross_team_proposal(py["proposal_id"], "team:front_z", f"admin:z{i}")
+
+    # Also have the honest team reject one proposal (control)
+    # Honest team should not be in a collusion ring
+    honest_proposal = fed.create_cross_team_proposal(
+        "team:ring_a", "admin:ring_a", "malicious_action", "Another drain",
+        ["team:honest"]
+    )
+    fed.reject_cross_team_proposal(
+        honest_proposal["proposal_id"], "team:honest", "admin:honest",
+        reason="Suspicious activity"
+    )
+
+    # Check collusion report for mutual approval pattern
+    # The current system tracks witness reciprocity; we'd need approval reciprocity
+    collusion_report = fed.get_collusion_report()
+
+    # For now, lineage evades detection but witness reciprocity might not trigger
+    # since these are approvals not witness events
+    # FINDING: Current system doesn't track cross-team approval patterns
+
+    # Calculate detection status
+    lineage_detection = same_creator_flagged  # Catches naive ring
+    # Cross-team approval pattern detection not yet implemented
+
+    defense_held = lineage_detection  # Partial defense
+
+    return AttackResult(
+        attack_name="Multi-Party Cross-Team Collusion",
+        success=naive_attack_succeeded and not lineage_detection,
+        setup_cost_atp=750.0,  # High: maintain multiple teams
+        gain_atp=200.0,  # Significant: drain shared resources
+        roi=-0.73,
+        detection_probability=0.60,  # Lineage catches naive, approval patterns missed
+        time_to_detection_hours=720,  # 30 days for pattern analysis
+        blocks_until_detected=2000,
+        trust_damage=3.0,  # Severe: federation-level collusion
+        description=(
+            f"SCENARIO 1 (Same creator ring): Proposal {'PASSED' if naive_attack_succeeded else 'BLOCKED'}. "
+            f"Lineage detection {'CAUGHT' if same_creator_flagged else 'MISSED'}. "
+            f"SCENARIO 2 (Straw-man creators): Mutual approval pattern NOT YET TRACKED. "
+            f"FINDING: Lineage catches naive collusion. Sophisticated collusion using "
+            f"mutual cross-team approvals currently evades detection. Need approval pattern analysis."
+        ),
+        mitigation=(
+            "IMPLEMENTED:\n"
+            "1. Creator lineage tracking: same creator_lct flagged\n"
+            "2. Witness reciprocity analysis (for witness events)\n"
+            "3. Single rejection veto power prevents forced approval\n"
+            "\n"
+            "NEEDED:\n"
+            "4. Cross-team approval pattern analysis\n"
+            "5. Approval reciprocity detection (A approves B's proposals, B approves A's)\n"
+            "6. Temporal clustering: proposals approved too quickly flagged\n"
+            "7. Outsider requirement: some proposals should require non-ring approval"
+        ),
+        raw_data={
+            "naive_attack_succeeded": naive_attack_succeeded,
+            "lineage_flagged": same_creator_flagged,
+            "defense_held": defense_held,
+            "multi_team_creators": lineage_report.get("multi_team_creators", []),
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -1497,6 +1637,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Sybil Team Creation", attack_sybil_team_creation),
         ("Witness Cycling (Official API)", attack_witness_cycling),
         ("R6 Timeout Evasion", attack_r6_timeout_evasion),
+        ("Multi-Party Cross-Team Collusion", attack_multiparty_crossteam_collusion),
     ]
 
     results = []
