@@ -704,6 +704,96 @@ class TestFederationRegistry:
         assert "team:colluder" not in pool_ids
 
 
+class TestFederationHealthDashboard:
+    """Tests for the aggregate federation health dashboard."""
+
+    def test_healthy_federation(self):
+        """Clean federation reports healthy status."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:alpha", "Alpha Corp", creator_lct="alice")
+        reg.register_team("team:beta", "Beta Corp", creator_lct="bob")
+        reg.register_team("team:gamma", "Gamma Corp", creator_lct="carol")
+
+        report = reg.get_federation_health()
+        assert report["overall_health"] == "healthy"
+        assert report["health_score"] >= 80
+        assert len(report["issues"]) == 0
+        assert "signature" in report
+
+    def test_collusion_degrades_health(self):
+        """Colluding teams degrade federation health."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:x", "Team X", creator_lct="creator:x")
+        reg.register_team("team:y", "Team Y", creator_lct="creator:y")
+
+        # Create reciprocal witnessing (collusion signal)
+        for i in range(5):
+            reg.record_witness_event("team:x", "team:y", f"x:{i}", f"mxy:{i}")
+            reg.record_witness_event("team:y", "team:x", f"y:{i}", f"myx:{i}")
+
+        report = reg.get_federation_health()
+        assert report["health_score"] < 100
+        assert len(report["issues"]) > 0
+        assert report["subsystems"]["collusion"]["flagged_pairs"] > 0
+
+    def test_lineage_issues_flagged(self):
+        """Same-creator multi-teams are flagged in health report."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:m1", "Shell 1", creator_lct="mallory")
+        reg.register_team("team:m2", "Shell 2", creator_lct="mallory")
+        reg.register_team("team:legit", "Legit", creator_lct="alice")
+
+        report = reg.get_federation_health()
+        assert report["subsystems"]["lineage"]["multi_team_creators"] == 1
+        assert report["health_score"] < 100
+
+    def test_overlap_analysis_included(self):
+        """Member overlap is included when data is provided."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        reg.register_team("team:a", "Team A")
+        reg.register_team("team:b", "Team B")
+
+        report = reg.get_federation_health(
+            team_member_maps={
+                "team:a": ["alice", "bob", "shared"],
+                "team:b": ["carol", "diana", "shared"],
+            }
+        )
+        assert report["subsystems"]["member_overlap"]["health"] != "not_analyzed"
+        assert report["subsystems"]["member_overlap"]["multi_team_count"] == 1
+
+    def test_critical_score_on_multiple_issues(self):
+        """Multiple critical issues drive score below 40."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        # Same creator teams that witness for each other (lineage + collusion)
+        reg.register_team("team:s1", "Shell 1", creator_lct="mallory")
+        reg.register_team("team:s2", "Shell 2", creator_lct="mallory")
+
+        for i in range(5):
+            reg.record_witness_event("team:s1", "team:s2", f"s1:{i}", f"ms:{i}")
+            reg.record_witness_event("team:s2", "team:s1", f"s2:{i}", f"mr:{i}")
+
+        report = reg.get_federation_health(
+            team_member_maps={
+                "team:s1": ["alice", "bob", "carol"],
+                "team:s2": ["alice", "bob", "carol"],  # Full overlap!
+            }
+        )
+        # Multiple issues compound: collusion + lineage + overlap
+        assert report["health_score"] < 60
+        assert len(report["issues"]) >= 2
+
+
 class TestPatternSigning:
     """Tests for cryptographic pattern signing on federation analysis."""
 

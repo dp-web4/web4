@@ -830,6 +830,136 @@ class FederationRegistry:
         expected = hmac.new(signing_key, canonical.encode(), hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signed_pattern["signature"])
 
+    def get_federation_health(self, team_member_maps: Dict[str, List[str]] = None,
+                              teams_data: Dict[str, Dict] = None) -> Dict:
+        """
+        Aggregate federation health dashboard combining all sub-reports.
+
+        Produces a single health assessment from:
+        - Collusion report (witness reciprocity)
+        - Lineage report (team creation patterns)
+        - Member overlap analysis (shared LCTs)
+        - Per-team Sybil analysis (if trust data provided)
+        - Pattern signing verification
+
+        Args:
+            team_member_maps: Optional {team_id: [member LCTs]} for overlap analysis
+            teams_data: Optional {team_id: {member_id: trust_dict}} for Sybil analysis
+
+        Returns:
+            Comprehensive health report with per-subsystem status and overall score
+        """
+        from .sybil_detection import FederatedSybilDetector
+
+        subsystems = {}
+        issues = []
+        score = 100  # Start at 100, deduct for problems
+
+        # 1. Collusion report
+        collusion = self.get_collusion_report()
+        subsystems["collusion"] = {
+            "health": collusion["health"],
+            "flagged_pairs": len(collusion.get("flagged_pairs", [])),
+            "total_teams": collusion["total_teams"],
+        }
+        if collusion["health"] == "critical":
+            score -= 30
+            issues.append("Critical collusion detected between teams")
+        elif collusion["health"] == "concerning":
+            score -= 15
+            issues.append(f"{len(collusion['flagged_pairs'])} suspicious team pairs")
+
+        # 2. Lineage report
+        lineage = self.get_lineage_report()
+        subsystems["lineage"] = {
+            "health": lineage["health"],
+            "multi_team_creators": len(lineage.get("multi_team_creators", [])),
+            "cross_witness_pairs": len(lineage.get("same_creator_witness_pairs", [])),
+        }
+        if lineage["health"] == "critical":
+            score -= 25
+            issues.append("Same-creator teams witnessing for each other")
+        elif lineage["health"] == "warning":
+            score -= 10
+            issues.append(f"{len(lineage['multi_team_creators'])} entities with multiple teams")
+
+        # 3. Member overlap (if data provided)
+        if team_member_maps:
+            overlap = self.analyze_member_overlap(team_member_maps)
+            subsystems["member_overlap"] = {
+                "health": overlap["health"],
+                "multi_team_count": overlap["multi_team_count"],
+                "critical_pairs": sum(
+                    1 for p in overlap.get("pair_analysis", [])
+                    if p["risk"] == "critical"
+                ),
+            }
+            if overlap["health"] == "critical":
+                score -= 20
+                issues.append("Fully overlapping teams detected (shell teams)")
+            elif overlap["health"] == "warning":
+                score -= 10
+                issues.append("High member overlap between teams")
+        else:
+            subsystems["member_overlap"] = {"health": "not_analyzed", "reason": "no data"}
+
+        # 4. Cross-team Sybil detection (if trust data provided)
+        if teams_data:
+            detector = FederatedSybilDetector(federation=self)
+            sybil_report = detector.analyze_federation(teams_data)
+            subsystems["sybil"] = {
+                "health": sybil_report.overall_risk.value,
+                "cross_team_clusters": len(sybil_report.cross_team_clusters),
+                "teams_analyzed": sybil_report.teams_analyzed,
+            }
+            if sybil_report.overall_risk.value == "critical":
+                score -= 25
+                issues.append(
+                    f"{len(sybil_report.cross_team_clusters)} cross-team Sybil clusters")
+            elif sybil_report.overall_risk.value in ("high", "elevated"):
+                score -= 10
+                issues.append("Elevated cross-team Sybil risk")
+        else:
+            subsystems["sybil"] = {"health": "not_analyzed", "reason": "no data"}
+
+        # 5. Federation size stats
+        all_teams = self.find_teams()
+        active = [t for t in all_teams if t.status == FederationStatus.ACTIVE]
+        suspended = [t for t in all_teams if t.status == FederationStatus.SUSPENDED]
+        subsystems["federation_size"] = {
+            "total_teams": len(all_teams),
+            "active_teams": len(active),
+            "suspended_teams": len(suspended),
+        }
+        if len(suspended) > len(active):
+            score -= 15
+            issues.append("More suspended than active teams")
+
+        # Overall assessment
+        score = max(0, score)
+        if score >= 80:
+            overall = "healthy"
+        elif score >= 60:
+            overall = "warning"
+        elif score >= 40:
+            overall = "degraded"
+        else:
+            overall = "critical"
+
+        report = {
+            "overall_health": overall,
+            "health_score": score,
+            "subsystems": subsystems,
+            "issues": issues,
+            "analyzed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Auto-sign the dashboard
+        signed = self.sign_pattern("federation_health", report, signer_lct="federation:system")
+        report["signature"] = signed["signature"]
+
+        return report
+
     def suspend_team(self, team_id: str, reason: str = "") -> bool:
         """Suspend a team from the federation (e.g., for collusion)."""
         with sqlite3.connect(self.db_path) as conn:
