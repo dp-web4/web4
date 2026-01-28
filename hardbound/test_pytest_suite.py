@@ -704,6 +704,82 @@ class TestFederationRegistry:
         assert "team:colluder" not in pool_ids
 
 
+class TestMemberOverlap:
+    """Tests for cross-team member overlap analysis."""
+
+    def test_no_overlap_is_healthy(self):
+        """Teams with disjoint members show healthy status."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        result = reg.analyze_member_overlap({
+            "team:a": ["alice", "bob", "charlie"],
+            "team:b": ["diana", "eve", "frank"],
+        })
+        assert result["health"] == "healthy"
+        assert result["multi_team_count"] == 0
+        assert len(result["pair_analysis"]) == 0
+
+    def test_low_overlap_detected(self):
+        """One shared member across teams is detected but low risk."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        result = reg.analyze_member_overlap({
+            "team:a": ["alice", "bob", "shared_member", "charlie", "diana"],
+            "team:b": ["eve", "frank", "shared_member", "george", "helen"],
+        })
+        assert result["multi_team_count"] == 1
+        assert "shared_member" in result["multi_team_members"]
+        assert len(result["pair_analysis"]) == 1
+        assert result["pair_analysis"][0]["risk"] == "low"
+        assert result["health"] == "info"
+
+    def test_high_overlap_flagged(self):
+        """High member overlap triggers warning."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        # 3 out of 5 shared = 60% overlap
+        result = reg.analyze_member_overlap({
+            "team:x": ["a", "b", "c", "d", "e"],
+            "team:y": ["a", "b", "c", "f", "g"],
+        })
+        assert len(result["pair_analysis"]) == 1
+        pair = result["pair_analysis"][0]
+        assert pair["shared_count"] == 3
+        assert pair["risk"] == "high"
+        assert result["health"] == "warning"
+
+    def test_full_overlap_critical(self):
+        """Fully overlapping teams are critical risk."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        # Same members = shell teams
+        result = reg.analyze_member_overlap({
+            "team:shell_a": ["x", "y", "z"],
+            "team:shell_b": ["x", "y", "z"],
+        })
+        pair = result["pair_analysis"][0]
+        assert pair["overlap_ratio"] == 1.0
+        assert pair["risk"] == "critical"
+        assert result["health"] == "critical"
+
+    def test_multi_team_member_tracking(self):
+        """Members appearing in 3+ teams are tracked."""
+        from hardbound.federation import FederationRegistry
+
+        reg = FederationRegistry()
+        result = reg.analyze_member_overlap({
+            "team:1": ["alice", "bob", "carol"],
+            "team:2": ["alice", "diana", "eve"],
+            "team:3": ["alice", "frank", "grace"],
+        })
+        assert "alice" in result["multi_team_members"]
+        assert len(result["multi_team_members"]["alice"]) == 3
+
+
 class TestActivityQualityIntegration:
     """Tests that ActivityWindow is wired into Team trust operations."""
 

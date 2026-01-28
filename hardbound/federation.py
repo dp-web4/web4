@@ -667,6 +667,93 @@ class FederationRegistry:
             ),
         }
 
+    def analyze_member_overlap(self, team_member_maps: Dict[str, List[str]]) -> Dict:
+        """
+        Analyze member overlap across teams to detect shared LCTs.
+
+        Same LCT appearing in multiple teams can be legitimate (cross-team
+        contributor) or suspicious (Sybil operating across team boundaries).
+
+        The analysis distinguishes:
+        - **Low overlap** (1-2 shared members): Normal cross-team work
+        - **High overlap** (>30% of smaller team): Suspicious coordination
+        - **Full overlap**: Likely duplicate or shell teams
+
+        Args:
+            team_member_maps: Dict of {team_id: [list of member LCTs]}
+
+        Returns:
+            Dict with overlap analysis including shared members, overlap
+            ratios, and risk assessment per team pair.
+        """
+        team_ids = list(team_member_maps.keys())
+        member_sets = {tid: set(members) for tid, members in team_member_maps.items()}
+
+        # Track which LCTs appear in multiple teams
+        lct_to_teams: Dict[str, List[str]] = defaultdict(list)
+        for tid, members in team_member_maps.items():
+            for lct in members:
+                lct_to_teams[lct].append(tid)
+
+        multi_team_lcts = {
+            lct: teams for lct, teams in lct_to_teams.items()
+            if len(teams) > 1
+        }
+
+        # Pairwise overlap analysis
+        pair_analysis = []
+        for i, tid_a in enumerate(team_ids):
+            for tid_b in team_ids[i + 1:]:
+                shared = member_sets[tid_a] & member_sets[tid_b]
+                if not shared:
+                    continue
+
+                smaller_size = min(len(member_sets[tid_a]), len(member_sets[tid_b]))
+                overlap_ratio = len(shared) / max(smaller_size, 1)
+
+                if overlap_ratio >= 0.8:
+                    risk = "critical"
+                elif overlap_ratio >= 0.3:
+                    risk = "high"
+                elif len(shared) >= 3:
+                    risk = "moderate"
+                else:
+                    risk = "low"
+
+                pair_analysis.append({
+                    "team_a": tid_a,
+                    "team_b": tid_b,
+                    "shared_members": sorted(shared),
+                    "shared_count": len(shared),
+                    "team_a_size": len(member_sets[tid_a]),
+                    "team_b_size": len(member_sets[tid_b]),
+                    "overlap_ratio": round(overlap_ratio, 3),
+                    "risk": risk,
+                })
+
+        # Overall assessment
+        critical_pairs = [p for p in pair_analysis if p["risk"] == "critical"]
+        high_pairs = [p for p in pair_analysis if p["risk"] == "high"]
+
+        if critical_pairs:
+            health = "critical"
+        elif high_pairs:
+            health = "warning"
+        elif pair_analysis:
+            health = "info"
+        else:
+            health = "healthy"
+
+        return {
+            "teams_analyzed": len(team_ids),
+            "multi_team_members": {
+                lct: teams for lct, teams in sorted(multi_team_lcts.items())
+            },
+            "multi_team_count": len(multi_team_lcts),
+            "pair_analysis": pair_analysis,
+            "health": health,
+        }
+
     def suspend_team(self, team_id: str, reason: str = "") -> bool:
         """Suspend a team from the federation (e.g., for collusion)."""
         with sqlite3.connect(self.db_path) as conn:
