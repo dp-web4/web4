@@ -84,6 +84,10 @@ class Policy:
     enforced by admin during R6 workflow.
     """
 
+    # Global policy constraints
+    DEFAULT_MIN_EXPIRY_HOURS = 24  # Minimum 1 day expiry for any R6 request
+    DEFAULT_MAX_EXPIRY_HOURS = 24 * 30  # Maximum 30 days
+
     # Default rules if none specified
     DEFAULT_RULES = [
         PolicyRule(
@@ -125,16 +129,26 @@ class Policy:
         ),
     ]
 
-    def __init__(self, rules: Optional[List[PolicyRule]] = None):
+    def __init__(self, rules: Optional[List[PolicyRule]] = None,
+                 min_expiry_hours: int = None,
+                 max_expiry_hours: int = None):
         """
         Initialize policy with rules.
 
         Args:
             rules: List of policy rules. Uses defaults if None.
+            min_expiry_hours: Minimum R6 request expiry time (enforced)
+            max_expiry_hours: Maximum R6 request expiry time (enforced)
         """
         self.rules: Dict[str, PolicyRule] = {}
         self.created_at = datetime.now(timezone.utc).isoformat() + "Z"
         self.version = 1
+
+        # Expiry constraints
+        self.min_expiry_hours = (min_expiry_hours if min_expiry_hours is not None
+                                  else self.DEFAULT_MIN_EXPIRY_HOURS)
+        self.max_expiry_hours = (max_expiry_hours if max_expiry_hours is not None
+                                  else self.DEFAULT_MAX_EXPIRY_HOURS)
 
         # Load rules
         rule_list = rules if rules is not None else self.DEFAULT_RULES
@@ -144,6 +158,39 @@ class Policy:
     def get_rule(self, action_type: str) -> Optional[PolicyRule]:
         """Get rule for an action type."""
         return self.rules.get(action_type)
+
+    def validate_expiry_hours(self, expiry_hours: int) -> tuple:
+        """
+        Validate that requested expiry hours meets policy constraints.
+
+        Args:
+            expiry_hours: Requested expiry duration in hours
+
+        Returns:
+            (valid: bool, error: Optional[str], enforced_hours: int)
+            If valid=False, error explains why
+            enforced_hours is the value to use (clamped to bounds)
+        """
+        # Zero expiry (no expiry) is only allowed if min_expiry_hours is 0
+        if expiry_hours <= 0:
+            if self.min_expiry_hours == 0:
+                # Policy explicitly allows zero/infinite expiry
+                return (True, None, 0)
+            return (False,
+                    f"Expiry must be positive. Policy minimum: {self.min_expiry_hours}h",
+                    self.min_expiry_hours)
+
+        if expiry_hours < self.min_expiry_hours:
+            return (False,
+                    f"Expiry {expiry_hours}h below policy minimum {self.min_expiry_hours}h",
+                    self.min_expiry_hours)
+
+        if expiry_hours > self.max_expiry_hours:
+            return (False,
+                    f"Expiry {expiry_hours}h exceeds policy maximum {self.max_expiry_hours}h",
+                    self.max_expiry_hours)
+
+        return (True, None, expiry_hours)
 
     def check_permission(self, action_type: str, role: str,
                         trust_score: float, atp_available: int) -> tuple:
@@ -201,6 +248,8 @@ class Policy:
         return {
             "version": self.version,
             "created_at": self.created_at,
+            "min_expiry_hours": self.min_expiry_hours,
+            "max_expiry_hours": self.max_expiry_hours,
             "rules": {
                 k: v.to_dict() for k, v in self.rules.items()
             }
@@ -212,7 +261,11 @@ class Policy:
         rules = [
             PolicyRule.from_dict(r) for r in data.get("rules", {}).values()
         ]
-        policy = cls(rules=rules)
+        policy = cls(
+            rules=rules,
+            min_expiry_hours=data.get("min_expiry_hours"),
+            max_expiry_hours=data.get("max_expiry_hours"),
+        )
         policy.version = data.get("version", 1)
         policy.created_at = data.get("created_at", policy.created_at)
         return policy

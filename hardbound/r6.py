@@ -187,8 +187,12 @@ class R6Workflow:
         self.team = team
         self.policy = policy or Policy()
         self.multisig = multisig
-        self.expiry_hours = (default_expiry_hours if default_expiry_hours is not None
-                            else self.DEFAULT_EXPIRY_HOURS)
+        # Determine expiry hours with policy enforcement
+        requested_expiry = (default_expiry_hours if default_expiry_hours is not None
+                           else self.DEFAULT_EXPIRY_HOURS)
+        valid, error, enforced = self.policy.validate_expiry_hours(requested_expiry)
+        self.expiry_hours = enforced
+        self._expiry_enforced = not valid  # Track if we had to clamp
         self._ensure_table()
         self.pending_requests: Dict[str, R6Request] = self._load_pending()
 

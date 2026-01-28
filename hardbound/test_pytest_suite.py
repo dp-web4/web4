@@ -2300,7 +2300,8 @@ class TestR6Expiry:
         team.set_admin("admin:se")
         team.add_member("dev:se", role="developer", atp_budget=100)
 
-        policy = Policy()
+        # Policy that allows very short expiry for testing
+        policy = Policy(min_expiry_hours=0, max_expiry_hours=24*365)
         policy.add_rule(PolicyRule(
             action_type="quick_action",
             allowed_roles=["developer", "admin"],
@@ -2339,7 +2340,8 @@ class TestR6Expiry:
         team.set_admin("admin:be")
         team.add_member("dev:be", role="developer", atp_budget=100)
 
-        policy = Policy()
+        # Policy that allows very short expiry for testing
+        policy = Policy(min_expiry_hours=0, max_expiry_hours=24*365)
         policy.add_rule(PolicyRule(
             action_type="batch_action",
             allowed_roles=["developer", "admin"],
@@ -2380,7 +2382,8 @@ class TestR6Expiry:
         team.set_admin("admin:ne")
         team.add_member("dev:ne", role="developer", atp_budget=100)
 
-        policy = Policy()
+        # Policy that allows zero expiry for testing "no expiry" mode
+        policy = Policy(min_expiry_hours=0, max_expiry_hours=24*365)
         policy.add_rule(PolicyRule(
             action_type="eternal",
             allowed_roles=["developer", "admin"],
@@ -2398,6 +2401,62 @@ class TestR6Expiry:
 
         assert request.expires_at == ""
         assert not request.is_expired()
+
+
+class TestPolicyExpiryEnforcement:
+    """Tests for policy-enforced expiry constraints on R6 requests."""
+
+    def test_policy_rejects_zero_expiry(self):
+        """Policy rejects zero-expiry configuration."""
+        from hardbound.policy import Policy
+
+        policy = Policy(min_expiry_hours=24)
+        valid, error, enforced = policy.validate_expiry_hours(0)
+
+        assert not valid
+        assert "positive" in error.lower()
+        assert enforced == 24  # Enforced to minimum
+
+    def test_policy_enforces_minimum_expiry(self):
+        """Policy prevents expiry below minimum."""
+        from hardbound.policy import Policy
+
+        policy = Policy(min_expiry_hours=48)
+        valid, error, enforced = policy.validate_expiry_hours(24)
+
+        assert not valid
+        assert "below" in error.lower()
+        assert enforced == 48
+
+    def test_policy_enforces_maximum_expiry(self):
+        """Policy prevents expiry above maximum."""
+        from hardbound.policy import Policy
+
+        policy = Policy(max_expiry_hours=168)  # 7 days max
+        valid, error, enforced = policy.validate_expiry_hours(720)  # 30 days
+
+        assert not valid
+        assert "exceeds" in error.lower()
+        assert enforced == 168
+
+    def test_workflow_clamps_to_policy_minimum(self):
+        """R6Workflow respects policy minimum expiry."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy
+
+        config = TeamConfig(name="policy-min-exp", description="Minimum expiry test")
+        team = Team(config=config)
+        team.set_admin("admin:pme")
+
+        # Policy requires minimum 72 hours
+        policy = Policy(min_expiry_hours=72)
+
+        # Workflow tries to use 24 hours
+        wf = R6Workflow(team, policy, default_expiry_hours=24)
+
+        # Should be clamped to 72
+        assert wf.expiry_hours == 72
+        assert wf._expiry_enforced == True
 
 
 class TestR6Persistence:
