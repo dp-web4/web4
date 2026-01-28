@@ -1287,6 +1287,155 @@ class TestATPEconomics:
             team.consume_member_atp("worker:e", 1)
 
 
+class TestR6Persistence:
+    """Tests for R6 request persistence across workflow instances."""
+
+    def test_pending_request_survives_restart(self):
+        """Pending R6 requests persist across R6Workflow instantiations."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-persist", description="R6 persistence test")
+        team = Team(config=config)
+        team.set_admin("admin:persist")
+        team.add_member("dev:persist", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="code_review",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=5,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        # Create request in first workflow instance
+        wf1 = R6Workflow(team, policy)
+        request = wf1.create_request(
+            requester_lct="dev:persist",
+            action_type="code_review",
+            description="Review for persistence test",
+        )
+        r6_id = request.r6_id
+
+        # Verify it's in the first workflow
+        assert wf1.get_request(r6_id) is not None
+        assert wf1.get_request(r6_id).status == R6Status.PENDING
+
+        # Create SECOND workflow instance (simulates restart)
+        wf2 = R6Workflow(team, policy)
+
+        # Request should be loaded from DB
+        reloaded = wf2.get_request(r6_id)
+        assert reloaded is not None
+        assert reloaded.r6_id == r6_id
+        assert reloaded.status == R6Status.PENDING
+        assert reloaded.description == "Review for persistence test"
+        assert reloaded.action_type == "code_review"
+        assert reloaded.requester_lct == "dev:persist"
+
+    def test_approved_request_persists(self):
+        """Approved requests persist with updated status."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-approve-persist", description="Approved persist")
+        team = Team(config=config)
+        team.set_admin("admin:ap")
+        team.add_member("dev:ap", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="deploy",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=5,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf1 = R6Workflow(team, policy)
+        request = wf1.create_request(
+            requester_lct="dev:ap",
+            action_type="deploy",
+            description="Deploy to staging",
+        )
+        r6_id = request.r6_id
+        wf1.approve_request(r6_id, "admin:ap")
+
+        # New workflow instance should see approved status
+        wf2 = R6Workflow(team, policy)
+        reloaded = wf2.get_request(r6_id)
+        assert reloaded is not None
+        assert reloaded.status == R6Status.APPROVED
+        assert "admin:ap" in reloaded.approvals
+
+    def test_executed_request_removed_from_active(self):
+        """Executed requests are removed from the active requests table."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-exec-clean", description="Exec cleanup")
+        team = Team(config=config)
+        team.set_admin("admin:ec")
+        team.add_member("dev:ec", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="test_run",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=3,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf1 = R6Workflow(team, policy)
+        request = wf1.create_request(
+            requester_lct="dev:ec",
+            action_type="test_run",
+            description="Run test suite",
+        )
+        r6_id = request.r6_id
+        wf1.approve_request(r6_id, "admin:ec")
+        wf1.execute_request(r6_id, success=True)
+
+        # New workflow instance should NOT see the executed request
+        wf2 = R6Workflow(team, policy)
+        assert wf2.get_request(r6_id) is None
+        assert len(wf2.get_pending_requests()) == 0
+
+    def test_rejected_request_removed_from_active(self):
+        """Rejected requests are removed from the active requests table."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-reject-clean", description="Reject cleanup")
+        team = Team(config=config)
+        team.set_admin("admin:rc")
+        team.add_member("dev:rc", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="delete_env",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=5,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf1 = R6Workflow(team, policy)
+        request = wf1.create_request(
+            requester_lct="dev:rc",
+            action_type="delete_env",
+            description="Delete staging",
+        )
+        r6_id = request.r6_id
+        wf1.reject_request(r6_id, "admin:rc", reason="Denied")
+
+        # New workflow instance should NOT see the rejected request
+        wf2 = R6Workflow(team, policy)
+        assert wf2.get_request(r6_id) is None
+
+
 class TestR6HeartbeatIntegration:
     """Tests for R6 events flowing into the heartbeat ledger."""
 

@@ -20,6 +20,7 @@ This creates an auditable trail of intent + outcome.
 
 import hashlib
 import json
+import sqlite3
 from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, List, Any
@@ -142,7 +143,62 @@ class R6Workflow:
         from .team import Team
         self.team = team
         self.policy = policy or Policy()
-        self.pending_requests: Dict[str, R6Request] = {}
+        self._ensure_table()
+        self.pending_requests: Dict[str, R6Request] = self._load_pending()
+
+    def _ensure_table(self):
+        """Create r6_requests table if not exists."""
+        with sqlite3.connect(self.team.ledger.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS r6_requests (
+                    r6_id TEXT PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_r6_team_status
+                ON r6_requests(team_id, status)
+            """)
+
+    def _save_request(self, request: R6Request):
+        """Persist an R6 request to SQLite."""
+        with sqlite3.connect(self.team.ledger.db_path) as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO r6_requests
+                (r6_id, team_id, data, status, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                request.r6_id,
+                request.team_id,
+                json.dumps(request.to_dict()),
+                request.status.value,
+                request.created_at,
+            ))
+
+    def _delete_request(self, r6_id: str):
+        """Remove a completed/rejected request from the active table."""
+        with sqlite3.connect(self.team.ledger.db_path) as conn:
+            conn.execute(
+                "DELETE FROM r6_requests WHERE r6_id = ?", (r6_id,)
+            )
+
+    def _load_pending(self) -> Dict[str, R6Request]:
+        """Load all pending/approved requests for this team from SQLite."""
+        requests = {}
+        with sqlite3.connect(self.team.ledger.db_path) as conn:
+            rows = conn.execute(
+                "SELECT data FROM r6_requests WHERE team_id = ? "
+                "AND status IN ('pending', 'approved')",
+                (self.team.team_id,)
+            ).fetchall()
+            for row in rows:
+                data = json.loads(row[0])
+                req = R6Request.from_dict(data)
+                requests[req.r6_id] = req
+        return requests
 
     def create_request(
         self,
@@ -225,6 +281,7 @@ class R6Workflow:
         )
 
         self.pending_requests[r6_id] = request
+        self._save_request(request)
 
         # Record in audit trail
         self.team.ledger.record_audit(
@@ -294,6 +351,9 @@ class R6Workflow:
         else:
             # Single approval (ADMIN or PEER)
             request.status = R6Status.APPROVED
+
+        # Persist updated state
+        self._save_request(request)
 
         # Record approval
         self.team.ledger.record_audit(
@@ -383,8 +443,9 @@ class R6Workflow:
             "reason": reason,
         }, target_lct=request.requester_lct, atp_cost=0.0)
 
-        # Remove from pending
+        # Remove from pending (memory + DB)
         del self.pending_requests[r6_id]
+        self._delete_request(r6_id)
 
         return response
 
@@ -465,8 +526,9 @@ class R6Workflow:
             "success": success,
         }, atp_cost=float(request.atp_cost))
 
-        # Remove from pending
+        # Remove from pending (memory + DB)
         del self.pending_requests[r6_id]
+        self._delete_request(r6_id)
 
         return response
 
@@ -491,5 +553,27 @@ class R6Workflow:
         return list(self.pending_requests.values())
 
     def get_request(self, r6_id: str) -> Optional[R6Request]:
-        """Get a specific request."""
-        return self.pending_requests.get(r6_id)
+        """Get a specific request (checks memory cache first, then DB)."""
+        if r6_id in self.pending_requests:
+            return self.pending_requests[r6_id]
+        # Fall back to DB (may have been loaded by another workflow instance)
+        with sqlite3.connect(self.team.ledger.db_path) as conn:
+            row = conn.execute(
+                "SELECT data FROM r6_requests WHERE r6_id = ?", (r6_id,)
+            ).fetchone()
+            if row:
+                req = R6Request.from_dict(json.loads(row[0]))
+                self.pending_requests[r6_id] = req
+                return req
+        return None
+
+    def get_request_history(self, limit: int = 50) -> List[dict]:
+        """Get R6 request history from the audit trail (includes completed requests)."""
+        with sqlite3.connect(self.team.ledger.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT data FROM r6_requests WHERE team_id = ? "
+                "ORDER BY created_at DESC LIMIT ?",
+                (self.team.team_id, limit)
+            ).fetchall()
+            return [json.loads(row["data"]) for row in rows]
