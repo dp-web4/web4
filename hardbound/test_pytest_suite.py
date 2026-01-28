@@ -1493,6 +1493,164 @@ class TestATPEconomics:
             team.consume_member_atp("worker:e", 1)
 
 
+class TestR6Cancellation:
+    """Tests for R6 request cancellation."""
+
+    def test_requester_can_cancel_own_request(self):
+        """The original requester can cancel their pending request."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-cancel", description="Cancel test")
+        team = Team(config=config)
+        team.set_admin("admin:cancel")
+        team.add_member("dev:cancel", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="code_review",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=5,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+        request = wf.create_request(
+            requester_lct="dev:cancel",
+            action_type="code_review",
+            description="Review PR #99",
+        )
+        r6_id = request.r6_id
+
+        response = wf.cancel_request(r6_id, "dev:cancel", reason="Changed my mind")
+        assert response.status == R6Status.CANCELLED
+        assert wf.get_request(r6_id) is None
+
+    def test_admin_can_cancel_any_request(self):
+        """Admin can cancel any member's request."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-admin-cancel", description="Admin cancel")
+        team = Team(config=config)
+        team.set_admin("admin:ac")
+        team.add_member("dev:ac", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="deploy",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=10,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+        request = wf.create_request(
+            requester_lct="dev:ac",
+            action_type="deploy",
+            description="Deploy to prod",
+        )
+
+        response = wf.cancel_request(request.r6_id, "admin:ac", reason="Deployment freeze")
+        assert response.status == R6Status.CANCELLED
+
+    def test_other_member_cannot_cancel(self):
+        """A different member cannot cancel someone else's request."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-no-cancel", description="No cancel")
+        team = Team(config=config)
+        team.set_admin("admin:nc")
+        team.add_member("dev:nc1", role="developer", atp_budget=100)
+        team.add_member("dev:nc2", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="test_run",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=3,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+        request = wf.create_request(
+            requester_lct="dev:nc1",
+            action_type="test_run",
+            description="Run tests",
+        )
+
+        with pytest.raises(PermissionError, match="original requester or admin"):
+            wf.cancel_request(request.r6_id, "dev:nc2")
+
+    def test_cannot_cancel_executed_request(self):
+        """Cannot cancel a request that has already been executed."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-no-cancel-exec", description="No cancel executed")
+        team = Team(config=config)
+        team.set_admin("admin:nce")
+        team.add_member("dev:nce", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="test_run",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=3,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+        request = wf.create_request(
+            requester_lct="dev:nce",
+            action_type="test_run",
+            description="Run tests",
+        )
+        wf.approve_request(request.r6_id, "admin:nce")
+        wf.execute_request(request.r6_id, success=True)
+
+        with pytest.raises(ValueError, match="not found"):
+            wf.cancel_request(request.r6_id, "dev:nce")
+
+    def test_cancel_removes_from_persistence(self):
+        """Cancelled request is removed from SQLite persistence."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-cancel-persist", description="Cancel persistence")
+        team = Team(config=config)
+        team.set_admin("admin:cp")
+        team.add_member("dev:cp", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="review",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=2,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf1 = R6Workflow(team, policy)
+        request = wf1.create_request(
+            requester_lct="dev:cp",
+            action_type="review",
+            description="Review code",
+        )
+        r6_id = request.r6_id
+
+        wf1.cancel_request(r6_id, "dev:cp")
+
+        # New workflow instance should NOT see cancelled request
+        wf2 = R6Workflow(team, policy)
+        assert wf2.get_request(r6_id) is None
+
+
 class TestR6MultiSigDelegation:
     """Tests for R6 requests delegating to multi-sig for critical actions."""
 

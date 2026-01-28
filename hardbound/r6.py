@@ -505,6 +505,77 @@ class R6Workflow:
 
         return response
 
+    def cancel_request(self, r6_id: str, canceller_lct: str,
+                       reason: str = "") -> R6Response:
+        """
+        Cancel a pending R6 request. Only the original requester or admin
+        can cancel. No trust penalty for self-cancellation.
+
+        Args:
+            r6_id: Request ID to cancel
+            canceller_lct: LCT of the entity cancelling
+            reason: Optional reason for cancellation
+
+        Returns:
+            R6Response with CANCELLED status
+        """
+        if r6_id not in self.pending_requests:
+            raise ValueError(f"Request not found: {r6_id}")
+
+        request = self.pending_requests[r6_id]
+
+        if request.status not in (R6Status.PENDING, R6Status.APPROVED):
+            raise ValueError(
+                f"Cannot cancel request in state: {request.status.value}")
+
+        # Only original requester or admin can cancel
+        is_admin = self.team.is_admin(canceller_lct)
+        is_requester = canceller_lct == request.requester_lct
+        if not is_admin and not is_requester:
+            raise PermissionError(
+                "Only the original requester or admin can cancel a request")
+
+        response = R6Response(
+            r6_id=r6_id,
+            status=R6Status.CANCELLED,
+            closed_at=datetime.now(timezone.utc).isoformat() + "Z",
+            closed_by=canceller_lct,
+            result_type="cancelled",
+            error_message=reason,
+            atp_consumed=0,
+            atp_returned=0,
+            trust_delta=0.0,  # No penalty for cancellation
+        )
+
+        request.status = R6Status.CANCELLED
+
+        # Record cancellation
+        self.team.ledger.record_audit(
+            session_id=self.team.team_id,
+            action_type="r6_cancelled",
+            tool_name="hardbound",
+            target=r6_id,
+            r6_data={
+                "canceller": canceller_lct,
+                "reason": reason,
+                "was_approved": request.status == R6Status.APPROVED,
+                "response": response.to_dict(),
+            }
+        )
+
+        # Submit to heartbeat ledger
+        self._submit_to_heartbeat("r6_cancelled", canceller_lct, {
+            "r6_id": r6_id,
+            "action_type": request.action_type,
+            "reason": reason,
+        }, target_lct=request.requester_lct, atp_cost=0.0)
+
+        # Remove from pending (memory + DB)
+        del self.pending_requests[r6_id]
+        self._delete_request(r6_id)
+
+        return response
+
     def execute_request(self, r6_id: str, success: bool,
                         result_data: Optional[Dict] = None,
                         error_message: str = "") -> R6Response:
