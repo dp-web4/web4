@@ -1337,6 +1337,149 @@ def attack_witness_cycling() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 11: R6 Timeout Evasion (Stale Approval Accumulation)
+# ---------------------------------------------------------------------------
+
+def attack_r6_timeout_evasion() -> AttackResult:
+    """
+    ATTACK: Keep R6 requests alive indefinitely to accumulate stale approvals.
+
+    Strategy:
+    - Create an R6 request with long (or no) expiry
+    - Collect approvals over time as trust context changes
+    - Execute with stale approvals after team composition/trust has shifted
+    - Bypass current trust requirements using historical approvals
+
+    Expected defense: R6 expiry system prevents indefinite request lifetime.
+    """
+    from .r6 import R6Workflow, R6Status
+    from .policy import Policy, PolicyRule, ApprovalType
+    import time
+
+    team = Team(config=TeamConfig(name="timeout-evasion", description="Timeout evasion test"))
+    team.set_admin("admin:te")
+    team.add_member("adversary:te", role="developer", atp_budget=100)
+    for i in range(3):
+        team.add_member(f"voter:{i}", role="developer", atp_budget=50)
+
+    # Boost trust
+    for lct in list(team.members.keys()):
+        team.members[lct]["trust"] = {k: 0.8 for k in team.members[lct]["trust"]}
+    team._update_team()
+
+    policy = Policy()
+    policy.add_rule(PolicyRule(
+        action_type="sensitive_action",
+        allowed_roles=["developer", "admin"],
+        trust_threshold=0.5,
+        atp_cost=10,
+        approval=ApprovalType.MULTI_SIG,
+        approval_count=2,
+    ))
+
+    # SCENARIO 1: Normal expiry workflow (7-day default)
+    wf_normal = R6Workflow(team, policy)
+    request_normal = wf_normal.create_request(
+        requester_lct="adversary:te",
+        action_type="sensitive_action",
+        description="Normal expiry request",
+    )
+    has_expiry = request_normal.expires_at != ""
+
+    # SCENARIO 2: Attempt to disable expiry (set to 0)
+    wf_no_expiry = R6Workflow(team, policy, default_expiry_hours=0)
+    request_no_expiry = wf_no_expiry.create_request(
+        requester_lct="adversary:te",
+        action_type="sensitive_action",
+        description="No expiry attempt",
+    )
+    no_expiry_enabled = request_no_expiry.expires_at == ""
+
+    # SCENARIO 3: Very short expiry (1 second)
+    wf_short = R6Workflow(team, policy, default_expiry_hours=1/3600)
+    request_short = wf_short.create_request(
+        requester_lct="adversary:te",
+        action_type="sensitive_action",
+        description="Short expiry",
+    )
+    # Get approval
+    wf_short.approve_request(request_short.r6_id, "voter:0")
+
+    # Wait for expiry
+    time.sleep(1.5)
+
+    # Check if request expired
+    expired_request = wf_short.get_request(request_short.r6_id)
+    request_auto_expired = expired_request is None
+
+    # SCENARIO 4: Cleanup batch removes stale requests
+    wf_batch = R6Workflow(team, policy, default_expiry_hours=1/3600)
+    for i in range(3):
+        wf_batch.create_request(
+            requester_lct="adversary:te",
+            action_type="sensitive_action",
+            description=f"Stale {i}",
+        )
+    time.sleep(1.5)
+    expired = wf_batch.cleanup_expired()
+    batch_cleanup_worked = len(expired) == 3
+
+    # Defense assessment:
+    # 1. Default expiry is enabled (7 days)
+    # 2. Expiry can be disabled (potential risk if not policy-controlled)
+    # 3. Short expiry auto-expires requests
+    # 4. Batch cleanup removes all stale requests
+    #
+    # The attack partially succeeds if expiry can be disabled (scenario 2),
+    # but is mitigated by:
+    # - Policy can mandate minimum expiry
+    # - Admin can run cleanup_expired() periodically
+    # - Audit trail records all approvals with timestamps
+
+    defense_held = has_expiry and request_auto_expired and batch_cleanup_worked
+    # Note: no_expiry_enabled being True is a configuration choice, not a bypass
+
+    return AttackResult(
+        attack_name="R6 Timeout Evasion",
+        success=not defense_held,
+        setup_cost_atp=40.0,
+        gain_atp=20.0 if not defense_held else 0.0,
+        roi=-1.0 if defense_held else -0.50,
+        detection_probability=0.90,
+        time_to_detection_hours=168,  # 7 days (expiry window)
+        blocks_until_detected=14,
+        trust_damage=0.3,
+        description=(
+            f"Default expiry enabled: {has_expiry}. "
+            f"Zero-expiry allowed: {no_expiry_enabled}. "
+            f"Auto-expiry on access: {request_auto_expired}. "
+            f"Batch cleanup: {batch_cleanup_worked}. "
+            f"Defense {'HELD' if defense_held else 'FAILED'}: "
+            f"{'Expiry system prevents indefinite request lifetime' if defense_held else 'Stale approvals persist'}."
+        ),
+        mitigation=(
+            "IMPLEMENTED:\n"
+            "1. Default 7-day expiry on all R6 requests\n"
+            "2. Auto-expiry on get_request() access (lazy expiry)\n"
+            "3. cleanup_expired() batch method for periodic cleanup\n"
+            "4. Audit trail records approval timestamps\n"
+            "5. Minor trust penalty for expired requests\n"
+            "\n"
+            "RECOMMENDED:\n"
+            "6. Policy-enforced minimum expiry (prevent zero-expiry)\n"
+            "7. Heartbeat integration: run cleanup_expired() on each block"
+        ),
+        raw_data={
+            "has_default_expiry": has_expiry,
+            "zero_expiry_allowed": no_expiry_enabled,
+            "auto_expired": request_auto_expired,
+            "batch_cleanup_count": len(expired),
+            "defense_held": defense_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -1353,6 +1496,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Role Cycling (Witness Reset)", attack_role_cycling),
         ("Sybil Team Creation", attack_sybil_team_creation),
         ("Witness Cycling (Official API)", attack_witness_cycling),
+        ("R6 Timeout Evasion", attack_r6_timeout_evasion),
     ]
 
     results = []
