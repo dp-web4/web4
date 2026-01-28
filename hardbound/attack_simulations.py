@@ -1037,17 +1037,21 @@ def attack_role_cycling() -> AttackResult:
     trust_before = team.get_member_trust("target:cycle")
     witness_trust_before = trust_before.get("witnesses", 0.5)
 
-    # Phase 2: Simulate leave/rejoin by deleting the witness member and re-adding
-    # NOTE: Team.remove_member() doesn't exist yet - that's itself a finding.
-    # We simulate by directly manipulating the members dict (what remove+add would do)
-    del team.members["witness:cycle"]
-    team._update_team()
+    # Phase 2: Remove and re-add via official API
+    team.remove_member("witness:cycle", requester_lct="admin:rc", reason="cycling attempt")
     team.add_member("witness:cycle", role="developer")  # Re-added with same LCT
 
-    # Phase 3: Check if effectiveness was reset
+    # Phase 3: Check cooldown and effectiveness
+    in_cooldown = team.is_in_cooldown("witness:cycle")
     eff_after_rejoin = team.get_witness_effectiveness("witness:cycle", "target:cycle")
 
-    # Phase 4: Try witnessing again
+    # Phase 4: Try witnessing again (should be blocked by cooldown)
+    witness_blocked = False
+    try:
+        team.witness_member("witness:cycle", "target:cycle")
+    except PermissionError:
+        witness_blocked = True
+
     reset_worked = eff_after_rejoin > eff_before_leave * 2  # Significant improvement?
 
     # Check if the witness log on the TARGET was preserved
@@ -1055,12 +1059,12 @@ def attack_role_cycling() -> AttackResult:
     target_witness_log = target_member.get("_witness_log", {})
     witness_history_preserved = "witness:cycle" in target_witness_log
 
-    # The defense: witness history should be tracked on the TARGET, not the witness member
-    # If the target's witness log preserves history, the reset doesn't work
-    defense_held = witness_history_preserved and not reset_worked
-
-    # BONUS FINDING: Team.remove_member() doesn't exist yet.
-    # Member removal is only a multi-sig action type but has no implementation.
+    # The defense: 3-layer protection
+    # 1. Post-rejoin cooldown blocks immediate witnessing (72h)
+    # 2. Witness log on target persists across member re-add
+    # 3. Even after cooldown, diminishing returns still apply
+    defense_held = (in_cooldown and witness_blocked
+                    and witness_history_preserved and not reset_worked)
 
     return AttackResult(
         attack_name="Role Cycling (Witness Reset)",
@@ -1075,21 +1079,26 @@ def attack_role_cycling() -> AttackResult:
         description=(
             f"Witness effectiveness before leaving: {eff_before_leave:.3f}. "
             f"After rejoin: {eff_after_rejoin:.3f}. "
-            f"Reset {'WORKED' if reset_worked else 'FAILED'}. "
+            f"Post-rejoin cooldown: {in_cooldown}. "
+            f"Witnessing blocked: {witness_blocked}. "
             f"Target witness history {'PRESERVED' if witness_history_preserved else 'LOST'}. "
             f"Defense {'HELD' if defense_held else 'FAILED'}: "
-            f"{'Witness log on target persists across member re-add' if defense_held else 'Witness history was lost on rejoin'}."
+            f"{'3-layer defense (cooldown + history + diminishing returns)' if defense_held else 'Cycling bypassed defenses'}."
         ),
         mitigation=(
-            "1. Track witness history on the TARGET member, not the witness\n"
-            "2. Witness log should persist even if the witness leaves and rejoins\n"
-            "3. Audit trail flags rapid leave/rejoin patterns\n"
-            "4. Cool-down period before re-added members can witness again\n"
-            "5. LCT-level witness history that survives membership changes"
+            "IMPLEMENTED (3-layer defense):\n"
+            "1. Post-rejoin cooldown: 72h before re-added members can witness\n"
+            "2. Target witness history: _witness_log persists on target across remove/re-add\n"
+            "3. Diminishing same-pair returns: effectiveness still degraded after cooldown\n"
+            "4. Audit trail: remove/re-add visible in audit log\n"
+            "\n"
+            "The combination fully closes the witness cycling vector."
         ),
         raw_data={
             "eff_before": eff_before_leave,
             "eff_after": eff_after_rejoin,
+            "in_cooldown": in_cooldown,
+            "witness_blocked": witness_blocked,
             "reset_worked": reset_worked,
             "history_preserved": witness_history_preserved,
         }
