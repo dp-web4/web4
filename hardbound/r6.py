@@ -376,6 +376,13 @@ class R6Workflow:
             }
         )
 
+        # Submit to heartbeat ledger
+        self._submit_to_heartbeat("r6_rejected", rejector_lct, {
+            "r6_id": r6_id,
+            "action_type": request.action_type,
+            "reason": reason,
+        }, target_lct=request.requester_lct, atp_cost=0.0)
+
         # Remove from pending
         del self.pending_requests[r6_id]
 
@@ -450,10 +457,34 @@ class R6Workflow:
             }
         )
 
+        # Submit to heartbeat ledger with ATP cost
+        self._submit_to_heartbeat("r6_executed", request.requester_lct, {
+            "r6_id": r6_id,
+            "action_type": request.action_type,
+            "result_type": result_type,
+            "success": success,
+        }, atp_cost=float(request.atp_cost))
+
         # Remove from pending
         del self.pending_requests[r6_id]
 
         return response
+
+    def _submit_to_heartbeat(self, tx_type: str, actor_lct: str,
+                              data: Dict, target_lct: str = None,
+                              atp_cost: float = 0.0):
+        """Submit R6 event as a heartbeat ledger transaction if available."""
+        try:
+            heartbeat = self.team.heartbeat
+            heartbeat.submit_transaction(
+                tx_type=tx_type,
+                actor_lct=actor_lct,
+                data=data,
+                target_lct=target_lct,
+                atp_cost=atp_cost,
+            )
+        except Exception:
+            pass  # Heartbeat ledger may not be initialized yet
 
     def get_pending_requests(self) -> List[R6Request]:
         """Get all pending requests."""
