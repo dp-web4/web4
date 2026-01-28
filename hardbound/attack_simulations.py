@@ -993,8 +993,9 @@ def attack_cross_team_witness_collusion() -> AttackResult:
             "5. Collusion detection: reciprocity analysis flags team pairs with >60% mutual witnessing\n"
             "6. Witness pool filtering: find_witness_pool() excludes flagged colluding teams\n"
             "\n"
+            "7. Team creation lineage: creator_lct tracked, same-creator teams excluded from pool\n"
+            "\n"
             "STILL NEEDED:\n"
-            "7. Team creation lineage: track which entities created which teams\n"
             "8. Random witness selection from qualified pool (currently manual)"
         ),
         raw_data={
@@ -1096,6 +1097,147 @@ def attack_role_cycling() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 9: Sybil Team Creation via Lineage Evasion
+# ---------------------------------------------------------------------------
+
+def attack_sybil_team_creation() -> AttackResult:
+    """
+    ATTACK: Create multiple teams to bypass cross-team witness requirements.
+
+    Strategy:
+    - Adversary creates Team A and Team B
+    - Naive approach: same creator_lct (detected by lineage tracking)
+    - Evasion: use different straw-man creator LCTs for each team
+    - Teams witness for each other to validate malicious proposals
+
+    This tests whether lineage tracking plus other federation signals
+    can detect the attack even when creator LCTs differ.
+    """
+    from hardbound.federation import FederationRegistry
+
+    fed = FederationRegistry()
+
+    # SCENARIO 1: Same creator (should be detected)
+    fed.register_team(
+        "team:shell_a", "Shell Corp A",
+        domains=["finance"],
+        admin_lct="admin:shell_a",
+        creator_lct="adversary:main",
+        member_count=3,
+    )
+    fed.register_team(
+        "team:shell_b", "Shell Corp B",
+        domains=["audit"],
+        admin_lct="admin:shell_b",
+        creator_lct="adversary:main",  # Same creator!
+        member_count=3,
+    )
+
+    lineage_report = fed.get_lineage_report()
+    same_creator_detected = lineage_report["health"] in ("warning", "critical")
+    same_creator_teams = len(lineage_report["multi_team_creators"])
+
+    # Verify witness pool excludes same-creator team
+    pool_for_a = fed.find_witness_pool("team:shell_a", count=5)
+    shell_b_in_pool = any(t.team_id == "team:shell_b" for t in pool_for_a)
+
+    # SCENARIO 2: Different straw-man creators (harder to detect)
+    fed2 = FederationRegistry()
+    fed2.register_team(
+        "team:front_a", "Front Corp A",
+        domains=["engineering"],
+        admin_lct="admin:front_a",
+        creator_lct="strawman:alpha",  # Different creator
+        member_count=3,
+    )
+    fed2.register_team(
+        "team:front_b", "Front Corp B",
+        domains=["security"],
+        admin_lct="admin:front_b",
+        creator_lct="strawman:beta",  # Different creator
+        member_count=3,
+    )
+    # Also register a legit team for comparison
+    fed2.register_team(
+        "team:legit", "Legit Corp",
+        domains=["compliance"],
+        admin_lct="admin:legit",
+        creator_lct="honest:creator",
+        member_count=10,
+    )
+
+    lineage2 = fed2.get_lineage_report()
+    strawman_evades_lineage = lineage2["health"] == "healthy"
+
+    # But if they witness for each other repeatedly, reciprocity catches them
+    for i in range(5):
+        fed2.record_witness_event(
+            "team:front_a", "team:front_b",
+            f"front_a:member{i}", f"msig:ab{i}"
+        )
+        fed2.record_witness_event(
+            "team:front_b", "team:front_a",
+            f"front_b:member{i}", f"msig:ba{i}"
+        )
+
+    collusion_report = fed2.get_collusion_report()
+    reciprocity_catches_them = collusion_report["health"] != "healthy"
+
+    # Check if witness pool filters after reciprocity detection
+    pool_for_front_a = fed2.find_witness_pool("team:front_a", count=5)
+    front_b_excluded = not any(
+        t.team_id == "team:front_b" for t in pool_for_front_a
+    )
+
+    # Overall: lineage catches naive version, reciprocity catches evasion
+    naive_defended = same_creator_detected and not shell_b_in_pool
+    evasion_defended = reciprocity_catches_them and front_b_excluded
+
+    return AttackResult(
+        attack_name="Sybil Team Creation",
+        success=not naive_defended and not evasion_defended,
+        setup_cost_atp=500.0,  # High cost: create and maintain multiple teams
+        gain_atp=50.0,  # Moderate gain: bypass witness requirements
+        roi=-0.90,
+        detection_probability=0.85,
+        time_to_detection_hours=336,  # 2 weeks for reciprocity to accumulate
+        blocks_until_detected=1000,
+        trust_damage=2.0,  # Federation-level penalty
+        description=(
+            f"SCENARIO 1 (Same creator): Lineage detection {'CAUGHT' if same_creator_detected else 'MISSED'}. "
+            f"Witness pool exclusion {'ENFORCED' if not shell_b_in_pool else 'BYPASSED'}. "
+            f"SCENARIO 2 (Straw-man creators): Lineage {'EVADED' if strawman_evades_lineage else 'CAUGHT'}. "
+            f"Reciprocity detection {'CAUGHT' if reciprocity_catches_them else 'MISSED'}. "
+            f"Pool exclusion {'ENFORCED' if front_b_excluded else 'BYPASSED'}. "
+            f"FINDING: Lineage tracking catches naive Sybil teams. "
+            f"Straw-man creators evade lineage but reciprocity analysis catches the behavioral pattern."
+        ),
+        mitigation=(
+            "IMPLEMENTED:\n"
+            "1. Creator lineage tracking: same creator_lct flagged in lineage report\n"
+            "2. Witness pool exclusion: same-creator teams excluded from pool\n"
+            "3. Reciprocity detection: teams that always witness for each other flagged\n"
+            "4. Collusion report: federation-wide health monitoring\n"
+            "\n"
+            "STILL NEEDED:\n"
+            "5. Network analysis: graph clustering to detect coordinated team creation\n"
+            "6. Temporal analysis: teams created in rapid succession flagged\n"
+            "7. Member overlap analysis: same LCTs appearing across teams"
+        ),
+        raw_data={
+            "same_creator_detected": same_creator_detected,
+            "same_creator_teams": same_creator_teams,
+            "shell_b_excluded_from_pool": not shell_b_in_pool,
+            "strawman_evades_lineage": strawman_evades_lineage,
+            "reciprocity_catches_evasion": reciprocity_catches_them,
+            "front_b_excluded_from_pool": front_b_excluded,
+            "naive_defended": naive_defended,
+            "evasion_defended": evasion_defended,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -1110,6 +1252,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Multi-Sig Quorum", attack_multisig_quorum),
         ("Cross-Team Witness Collusion", attack_cross_team_witness_collusion),
         ("Role Cycling (Witness Reset)", attack_role_cycling),
+        ("Sybil Team Creation", attack_sybil_team_creation),
     ]
 
     results = []

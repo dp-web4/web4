@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all 6 attack vectors."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 8
+        assert len(results) == 9
 
 
 class TestStandaloneComponents:
@@ -1182,3 +1182,106 @@ class TestTeamCreationLineage:
         pair = report["same_creator_witness_pairs"][0]
         assert pair["creator_lct"] == "creator:mallory"
         assert pair["witness_events"] > 0
+
+
+class TestATPEconomics:
+    """Tests for ATP replenishment, rewards, and economic sustainability."""
+
+    def test_admin_can_replenish_atp(self):
+        """Admin can top up a member's ATP budget."""
+        config = TeamConfig(name="atp-econ", description="ATP economics test")
+        team = Team(config=config)
+        team.set_admin("admin:atp")
+        team.add_member("worker:1", role="developer", atp_budget=10)
+
+        # Consume some ATP
+        team.consume_member_atp("worker:1", 8)
+        assert team.get_member_atp("worker:1") == 2
+
+        # Admin replenishes
+        remaining = team.replenish_member_atp("worker:1", 20, requester_lct="admin:atp")
+        assert remaining == 22  # 2 + 20
+
+    def test_non_admin_cannot_replenish(self):
+        """Non-admin members cannot replenish ATP."""
+        config = TeamConfig(name="atp-perm", description="ATP permissions")
+        team = Team(config=config)
+        team.set_admin("admin:boss")
+        team.add_member("worker:1", role="developer")
+        team.add_member("worker:2", role="developer")
+
+        with pytest.raises(PermissionError, match="admin authority"):
+            team.replenish_member_atp("worker:1", 50, requester_lct="worker:2")
+
+    def test_reward_on_success(self):
+        """Successful outcomes generate ATP rewards."""
+        config = TeamConfig(name="atp-reward", description="Reward test")
+        team = Team(config=config)
+        team.set_admin("admin:r")
+        team.add_member("dev:1", role="developer", atp_budget=100)
+
+        initial = team.get_member_atp("dev:1")
+
+        # Reward for successful outcome (base_reward=10)
+        reward = team.reward_member_atp("dev:1", "success", base_reward=10)
+        assert reward == 10
+        assert team.get_member_atp("dev:1") == initial + 10
+
+        # Partial reward
+        reward_partial = team.reward_member_atp("dev:1", "partial", base_reward=10)
+        assert reward_partial == 5  # 50% for partial
+
+        # No reward for failure
+        reward_fail = team.reward_member_atp("dev:1", "failure", base_reward=10)
+        assert reward_fail == 0
+
+    def test_r6_execute_rewards_atp(self):
+        """R6 execute_request() rewards ATP on successful completion."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-reward", description="R6 reward test")
+        team = Team(config=config)
+        team.set_admin("admin:r6")
+        team.add_member("dev:r6", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="code_review",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=10,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+        request = wf.create_request(
+            requester_lct="dev:r6",
+            action_type="code_review",
+            description="Review PR #42",
+        )
+        r6_id = request.r6_id
+
+        wf.approve_request(r6_id, "admin:r6")
+
+        # Execute successfully
+        before_atp = team.get_member_atp("dev:r6")
+        response = wf.execute_request(r6_id, success=True)
+        after_atp = team.get_member_atp("dev:r6")
+
+        # ATP consumed (10) but rewarded back (10 // 2 = 5)
+        # Net cost = 10 - 5 = 5
+        assert after_atp == before_atp - 10 + 5
+
+    def test_atp_exhaustion_blocks_actions(self):
+        """Members with 0 ATP cannot perform actions."""
+        config = TeamConfig(name="atp-exhaust", description="Exhaustion test")
+        team = Team(config=config)
+        team.set_admin("admin:e")
+        team.add_member("worker:e", role="developer", atp_budget=5)
+
+        team.consume_member_atp("worker:e", 5)
+        assert team.get_member_atp("worker:e") == 0
+
+        with pytest.raises(ValueError, match="Insufficient ATP"):
+            team.consume_member_atp("worker:e", 1)
