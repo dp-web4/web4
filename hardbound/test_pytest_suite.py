@@ -1959,6 +1959,149 @@ class TestR6MultiSigDelegation:
         assert reloaded.status == R6Status.APPROVED
 
 
+class TestR6Expiry:
+    """Tests for R6 request timeout and expiry."""
+
+    def test_request_has_expiry_timestamp(self):
+        """Created R6 requests have an expires_at timestamp."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-expiry", description="Expiry test")
+        team = Team(config=config)
+        team.set_admin("admin:exp")
+        team.add_member("dev:exp", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="review",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=5,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy)
+        request = wf.create_request(
+            requester_lct="dev:exp",
+            action_type="review",
+            description="Review code",
+        )
+
+        assert request.expires_at != ""
+        assert "2026" in request.expires_at  # Should be a future date
+
+    def test_short_expiry_triggers_expired_status(self):
+        """Request with very short expiry becomes expired."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        import time
+
+        config = TeamConfig(name="r6-short-exp", description="Short expiry")
+        team = Team(config=config)
+        team.set_admin("admin:se")
+        team.add_member("dev:se", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="quick_action",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=1,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        # Very short expiry (1 second = 1/3600 hours)
+        wf = R6Workflow(team, policy, default_expiry_hours=1/3600)
+        request = wf.create_request(
+            requester_lct="dev:se",
+            action_type="quick_action",
+            description="Quick action",
+        )
+        r6_id = request.r6_id
+
+        # Wait for expiry
+        time.sleep(1.5)
+
+        # Request should now be expired
+        assert request.is_expired()
+
+        # expire_request should work
+        response = wf.expire_request(r6_id)
+        assert response.status == R6Status.EXPIRED
+
+    def test_cleanup_expired_batch(self):
+        """cleanup_expired() expires all timed-out requests."""
+        from hardbound.r6 import R6Workflow, R6Status
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        import time
+
+        config = TeamConfig(name="r6-batch-exp", description="Batch expiry")
+        team = Team(config=config)
+        team.set_admin("admin:be")
+        team.add_member("dev:be", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="batch_action",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=1,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        # Short expiry
+        wf = R6Workflow(team, policy, default_expiry_hours=1/3600)
+
+        # Create multiple requests
+        for i in range(3):
+            wf.create_request(
+                requester_lct="dev:be",
+                action_type="batch_action",
+                description=f"Batch {i}",
+            )
+
+        assert len(wf.get_pending_requests()) == 3
+
+        # Wait for expiry
+        time.sleep(1.5)
+
+        # Cleanup should expire all
+        expired = wf.cleanup_expired()
+        assert len(expired) == 3
+        assert all(r.status == R6Status.EXPIRED for r in expired)
+        assert len(wf.get_pending_requests()) == 0
+
+    def test_no_expiry_when_hours_zero(self):
+        """Setting expiry_hours=0 disables expiry."""
+        from hardbound.r6 import R6Workflow
+        from hardbound.policy import Policy, PolicyRule, ApprovalType
+
+        config = TeamConfig(name="r6-no-exp", description="No expiry")
+        team = Team(config=config)
+        team.set_admin("admin:ne")
+        team.add_member("dev:ne", role="developer", atp_budget=100)
+
+        policy = Policy()
+        policy.add_rule(PolicyRule(
+            action_type="eternal",
+            allowed_roles=["developer", "admin"],
+            trust_threshold=0.3,
+            atp_cost=1,
+            approval=ApprovalType.ADMIN,
+        ))
+
+        wf = R6Workflow(team, policy, default_expiry_hours=0)
+        request = wf.create_request(
+            requester_lct="dev:ne",
+            action_type="eternal",
+            description="Never expires",
+        )
+
+        assert request.expires_at == ""
+        assert not request.is_expired()
+
+
 class TestR6Persistence:
     """Tests for R6 request persistence across workflow instances."""
 

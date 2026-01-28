@@ -37,6 +37,7 @@ class R6Status(Enum):
     EXECUTED = "executed"    # Action executed successfully
     FAILED = "failed"        # Action execution failed
     CANCELLED = "cancelled"  # Cancelled by requester
+    EXPIRED = "expired"      # Timed out without action
 
 
 @dataclass
@@ -81,6 +82,20 @@ class R6Request:
 
     # Multi-sig delegation (set when R6 request is linked to a multi-sig proposal)
     linked_proposal_id: str = ""
+
+    # Expiry (ISO timestamp; empty = no expiry)
+    expires_at: str = ""
+
+    def is_expired(self) -> bool:
+        """Check if this request has expired."""
+        if not self.expires_at:
+            return False
+        now = datetime.now(timezone.utc)
+        # Handle various timestamp formats
+        expires_str = self.expires_at.rstrip('Z')
+        if '+' not in expires_str and '-' not in expires_str[-6:]:
+            expires_str += '+00:00'
+        return now > datetime.fromisoformat(expires_str)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -153,8 +168,12 @@ class R6Workflow:
         "team_dissolution": "team_dissolution",
     }
 
+    # Default expiry: 7 days for pending requests
+    DEFAULT_EXPIRY_HOURS = 24 * 7
+
     def __init__(self, team: 'Team', policy: Optional[Policy] = None,
-                 multisig: 'MultiSigManager' = None):
+                 multisig: 'MultiSigManager' = None,
+                 default_expiry_hours: int = None):
         """
         Initialize R6 workflow.
 
@@ -164,9 +183,12 @@ class R6Workflow:
             multisig: Optional MultiSigManager for multi-sig delegation
         """
         from .team import Team
+        from datetime import timedelta
         self.team = team
         self.policy = policy or Policy()
         self.multisig = multisig
+        self.expiry_hours = (default_expiry_hours if default_expiry_hours is not None
+                            else self.DEFAULT_EXPIRY_HOURS)
         self._ensure_table()
         self.pending_requests: Dict[str, R6Request] = self._load_pending()
 
@@ -285,6 +307,12 @@ class R6Workflow:
         r6_hash = hashlib.sha256(seed.encode()).hexdigest()[:12]
         r6_id = f"r6:{r6_hash}"
 
+        # Calculate expiry time
+        from datetime import timedelta
+        expires_at = ""
+        if self.expiry_hours > 0:
+            expires_at = (timestamp + timedelta(hours=self.expiry_hours)).isoformat() + "Z"
+
         request = R6Request(
             r6_id=r6_id,
             team_id=self.team.team_id,
@@ -301,7 +329,8 @@ class R6Workflow:
             reference_id=reference_id,
             reference_data=reference_data or {},
             atp_cost=rule.atp_cost,
-            status=R6Status.PENDING
+            status=R6Status.PENDING,
+            expires_at=expires_at,
         )
 
         # Multi-sig delegation: if the action has MULTI_SIG approval and
@@ -576,6 +605,92 @@ class R6Workflow:
 
         return response
 
+    def expire_request(self, r6_id: str) -> R6Response:
+        """
+        Expire a pending R6 request that has passed its expiry time.
+
+        Returns:
+            R6Response with EXPIRED status
+        """
+        if r6_id not in self.pending_requests:
+            raise ValueError(f"Request not found: {r6_id}")
+
+        request = self.pending_requests[r6_id]
+
+        if request.status not in (R6Status.PENDING, R6Status.APPROVED):
+            raise ValueError(
+                f"Cannot expire request in state: {request.status.value}")
+
+        if not request.is_expired():
+            raise ValueError(
+                f"Request has not expired yet (expires_at={request.expires_at})")
+
+        response = R6Response(
+            r6_id=r6_id,
+            status=R6Status.EXPIRED,
+            closed_at=datetime.now(timezone.utc).isoformat() + "Z",
+            closed_by="system:expiry",
+            result_type="expired",
+            error_message="Request expired without action",
+            atp_consumed=0,
+            atp_returned=0,
+            trust_delta=-0.01,  # Minor trust penalty for letting requests expire
+        )
+
+        request.status = R6Status.EXPIRED
+
+        # Record expiry
+        self.team.ledger.record_audit(
+            session_id=self.team.team_id,
+            action_type="r6_expired",
+            tool_name="hardbound",
+            target=r6_id,
+            r6_data={
+                "expires_at": request.expires_at,
+                "created_at": request.created_at,
+                "action_type": request.action_type,
+                "response": response.to_dict(),
+            }
+        )
+
+        # Submit to heartbeat ledger
+        self._submit_to_heartbeat("r6_expired", "system:expiry", {
+            "r6_id": r6_id,
+            "action_type": request.action_type,
+        }, target_lct=request.requester_lct, atp_cost=0.0)
+
+        # Apply minor trust penalty
+        try:
+            self.team.update_member_trust(
+                request.requester_lct, "failure", 0.02)
+        except Exception:
+            pass
+
+        # Remove from pending (memory + DB)
+        del self.pending_requests[r6_id]
+        self._delete_request(r6_id)
+
+        return response
+
+    def cleanup_expired(self) -> List[R6Response]:
+        """
+        Expire all pending requests that have passed their expiry time.
+
+        This should be called periodically (e.g., on each heartbeat or via cron).
+
+        Returns:
+            List of R6Response objects for expired requests
+        """
+        expired = []
+        for r6_id, request in list(self.pending_requests.items()):
+            if request.is_expired():
+                try:
+                    response = self.expire_request(r6_id)
+                    expired.append(response)
+                except (ValueError, Exception):
+                    pass
+        return expired
+
     def execute_request(self, r6_id: str, success: bool,
                         result_data: Optional[Dict] = None,
                         error_message: str = "") -> R6Response:
@@ -679,20 +794,35 @@ class R6Workflow:
         """Get all pending requests."""
         return list(self.pending_requests.values())
 
-    def get_request(self, r6_id: str) -> Optional[R6Request]:
-        """Get a specific request (checks memory cache first, then DB)."""
+    def get_request(self, r6_id: str, auto_expire: bool = True) -> Optional[R6Request]:
+        """
+        Get a specific request (checks memory cache first, then DB).
+
+        If auto_expire is True and the request is expired, it will be
+        automatically expired and None returned.
+        """
+        request = None
         if r6_id in self.pending_requests:
-            return self.pending_requests[r6_id]
-        # Fall back to DB (may have been loaded by another workflow instance)
-        with sqlite3.connect(self.team.ledger.db_path) as conn:
-            row = conn.execute(
-                "SELECT data FROM r6_requests WHERE r6_id = ?", (r6_id,)
-            ).fetchone()
-            if row:
-                req = R6Request.from_dict(json.loads(row[0]))
-                self.pending_requests[r6_id] = req
-                return req
-        return None
+            request = self.pending_requests[r6_id]
+        else:
+            # Fall back to DB (may have been loaded by another workflow instance)
+            with sqlite3.connect(self.team.ledger.db_path) as conn:
+                row = conn.execute(
+                    "SELECT data FROM r6_requests WHERE r6_id = ?", (r6_id,)
+                ).fetchone()
+                if row:
+                    request = R6Request.from_dict(json.loads(row[0]))
+                    self.pending_requests[r6_id] = request
+
+        # Auto-expire if needed
+        if request and auto_expire and request.is_expired():
+            try:
+                self.expire_request(r6_id)
+            except Exception:
+                pass
+            return None
+
+        return request
 
     def get_request_history(self, limit: int = 50) -> List[dict]:
         """Get R6 request history from the audit trail (includes completed requests)."""
