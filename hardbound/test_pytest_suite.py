@@ -5,6 +5,7 @@
 # attack_simulations.py) through pytest discovery.
 
 import pytest
+from datetime import datetime, timezone, timedelta
 from hardbound.team import Team, TeamConfig
 
 
@@ -910,3 +911,188 @@ class TestIsAdmin:
         assert bool(result) is True
         # But is_admin correctly returns False
         assert team.is_admin("not_the_admin") is False
+
+
+class TestFederatedSybilDetection:
+    """Tests for cross-team Sybil detection via FederatedSybilDetector."""
+
+    def test_cross_team_trust_mirroring_detected(self):
+        """Members in different teams with identical trust are flagged."""
+        from hardbound.sybil_detection import FederatedSybilDetector, SybilRisk
+
+        detector = FederatedSybilDetector()
+
+        # Sybil has same trust profile in both teams
+        sybil_trust = {
+            "reliability": 0.55, "competence": 0.55, "alignment": 0.55,
+            "consistency": 0.55, "witnesses": 0.55, "lineage": 0.55,
+        }
+        teams_data = {
+            "team_alpha": {
+                "sybil_in_alpha": dict(sybil_trust),
+                "legit_alpha": {
+                    "reliability": 0.80, "competence": 0.60, "alignment": 0.70,
+                    "consistency": 0.65, "witnesses": 0.75, "lineage": 0.50,
+                },
+            },
+            "team_beta": {
+                "sybil_in_beta": dict(sybil_trust),
+                "legit_beta": {
+                    "reliability": 0.45, "competence": 0.90, "alignment": 0.50,
+                    "consistency": 0.70, "witnesses": 0.40, "lineage": 0.85,
+                },
+            },
+        }
+
+        report = detector.analyze_federation(teams_data)
+        assert report.teams_analyzed == 2
+        assert report.total_members == 4
+        assert len(report.cross_team_clusters) > 0
+
+        # Check the flagged pair spans teams
+        flagged = report.cross_team_clusters[0]
+        assert len(flagged.team_ids) == 2
+        assert "sybil_in_alpha" in flagged.members or "sybil_in_beta" in flagged.members
+
+    def test_cross_team_timing_detected(self):
+        """Members in different teams acting simultaneously are flagged."""
+        from hardbound.sybil_detection import FederatedSybilDetector
+
+        detector = FederatedSybilDetector()
+        now = datetime.now(timezone.utc)
+
+        teams_data = {
+            "team_x": {
+                "bot_x": {"reliability": 0.5, "competence": 0.5, "alignment": 0.5,
+                           "consistency": 0.5, "witnesses": 0.5, "lineage": 0.5},
+            },
+            "team_y": {
+                "bot_y": {"reliability": 0.6, "competence": 0.4, "alignment": 0.7,
+                           "consistency": 0.3, "witnesses": 0.8, "lineage": 0.5},
+            },
+        }
+
+        # Both bots act within 2 seconds of each other consistently
+        action_timestamps = {
+            "team_x": {
+                "bot_x": [
+                    (now - timedelta(hours=i, seconds=0)).isoformat()
+                    for i in range(10)
+                ],
+            },
+            "team_y": {
+                "bot_y": [
+                    (now - timedelta(hours=i, seconds=2)).isoformat()
+                    for i in range(10)
+                ],
+            },
+        }
+
+        report = detector.analyze_federation(teams_data, action_timestamps=action_timestamps)
+        timing_clusters = [
+            c for c in report.cross_team_clusters
+            if c.timing_correlation > 0
+        ]
+        assert len(timing_clusters) > 0
+        assert any("timing" in s.lower() for c in timing_clusters for s in c.signals)
+
+    def test_no_false_positives_across_teams(self):
+        """Distinct members in different teams should not trigger."""
+        from hardbound.sybil_detection import FederatedSybilDetector
+
+        detector = FederatedSybilDetector()
+
+        # Very different trust profiles
+        teams_data = {
+            "team_finance": {
+                "alice": {"reliability": 0.90, "competence": 0.30, "alignment": 0.80,
+                          "consistency": 0.50, "witnesses": 0.70, "lineage": 0.60},
+                "bob": {"reliability": 0.40, "competence": 0.85, "alignment": 0.55,
+                        "consistency": 0.75, "witnesses": 0.35, "lineage": 0.90},
+            },
+            "team_engineering": {
+                "charlie": {"reliability": 0.60, "competence": 0.70, "alignment": 0.40,
+                            "consistency": 0.80, "witnesses": 0.50, "lineage": 0.30},
+                "diana": {"reliability": 0.75, "competence": 0.55, "alignment": 0.65,
+                          "consistency": 0.45, "witnesses": 0.85, "lineage": 0.70},
+            },
+        }
+
+        report = detector.analyze_federation(teams_data)
+        assert len(report.cross_team_clusters) == 0
+        assert report.overall_risk.value == "none"
+
+    def test_registration_timing_detection(self):
+        """Accounts created at nearly the same time across teams are flagged."""
+        from hardbound.sybil_detection import FederatedSybilDetector
+
+        detector = FederatedSybilDetector()
+        now = datetime.now(timezone.utc)
+
+        teams_data = {
+            "team_a": {
+                "batch_1": {"reliability": 0.5, "competence": 0.6, "alignment": 0.4,
+                            "consistency": 0.5, "witnesses": 0.5, "lineage": 0.5},
+            },
+            "team_b": {
+                "batch_2": {"reliability": 0.7, "competence": 0.3, "alignment": 0.8,
+                            "consistency": 0.6, "witnesses": 0.4, "lineage": 0.5},
+            },
+        }
+
+        # Both registered within 10 seconds
+        registration_times = {
+            "batch_1": now.isoformat(),
+            "batch_2": (now + timedelta(seconds=10)).isoformat(),
+        }
+
+        report = detector.analyze_federation(
+            teams_data, registration_times=registration_times
+        )
+        reg_clusters = [
+            c for c in report.cross_team_clusters
+            if any("Registration" in s for s in c.signals)
+        ]
+        assert len(reg_clusters) > 0
+
+    def test_multi_signal_amplification(self):
+        """Multiple cross-team signals amplify confidence."""
+        from hardbound.sybil_detection import FederatedSybilDetector
+
+        detector = FederatedSybilDetector()
+        now = datetime.now(timezone.utc)
+
+        # Same trust AND same timing = higher confidence
+        sybil_trust = {
+            "reliability": 0.55, "competence": 0.55, "alignment": 0.55,
+            "consistency": 0.55, "witnesses": 0.55, "lineage": 0.55,
+        }
+        teams_data = {
+            "team_1": {"sybil_a": dict(sybil_trust)},
+            "team_2": {"sybil_b": dict(sybil_trust)},
+        }
+        action_timestamps = {
+            "team_1": {"sybil_a": [
+                (now - timedelta(hours=i)).isoformat() for i in range(8)
+            ]},
+            "team_2": {"sybil_b": [
+                (now - timedelta(hours=i, seconds=1)).isoformat() for i in range(8)
+            ]},
+        }
+        registration_times = {
+            "sybil_a": now.isoformat(),
+            "sybil_b": (now + timedelta(seconds=5)).isoformat(),
+        }
+
+        report = detector.analyze_federation(
+            teams_data,
+            action_timestamps=action_timestamps,
+            registration_times=registration_times,
+        )
+
+        # Should have at least one high-confidence cluster
+        assert len(report.cross_team_clusters) > 0
+        top = max(report.cross_team_clusters, key=lambda c: c.confidence)
+        # Multiple signals should push confidence higher than any single signal
+        assert top.confidence > 0.4
+        assert len(top.signals) >= 2

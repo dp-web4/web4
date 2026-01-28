@@ -27,6 +27,7 @@ Output: SybilReport with cluster identification and confidence scores.
 """
 
 import math
+import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass, field
@@ -586,6 +587,468 @@ def _self_test():
     print("\n" + "=" * 60)
     print("All Sybil detection tests passed!")
     print("=" * 60)
+
+
+@dataclass
+class CrossTeamSybilCluster:
+    """A suspected Sybil identity operating across multiple teams."""
+    members: Dict[str, str]  # {lct_id: team_id} for each suspected identity
+    confidence: float
+    signals: List[str]
+    trust_correlation: float = 0.0
+    timing_correlation: float = 0.0
+    witness_pattern_score: float = 0.0
+
+    @property
+    def risk(self) -> SybilRisk:
+        if self.confidence >= 0.9:
+            return SybilRisk.CRITICAL
+        elif self.confidence >= 0.7:
+            return SybilRisk.HIGH
+        elif self.confidence >= 0.5:
+            return SybilRisk.MODERATE
+        elif self.confidence >= 0.3:
+            return SybilRisk.LOW
+        return SybilRisk.NONE
+
+    @property
+    def team_ids(self) -> Set[str]:
+        return set(self.members.values())
+
+
+@dataclass
+class FederatedSybilReport:
+    """Sybil analysis across federated teams."""
+    analyzed_at: str
+    teams_analyzed: int
+    total_members: int
+    cross_team_clusters: List[CrossTeamSybilCluster]
+    overall_risk: SybilRisk
+    recommendations: List[str]
+    per_team_reports: Dict[str, SybilReport] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict:
+        return {
+            "analyzed_at": self.analyzed_at,
+            "teams_analyzed": self.teams_analyzed,
+            "total_members": self.total_members,
+            "cross_team_cluster_count": len(self.cross_team_clusters),
+            "overall_risk": self.overall_risk.value,
+            "cross_team_clusters": [
+                {
+                    "members": c.members,
+                    "team_ids": list(c.team_ids),
+                    "confidence": round(c.confidence, 3),
+                    "risk": c.risk.value,
+                    "signals": c.signals,
+                }
+                for c in self.cross_team_clusters
+            ],
+            "recommendations": self.recommendations,
+            "per_team_risks": {
+                tid: r.overall_risk.value
+                for tid, r in self.per_team_reports.items()
+            },
+        }
+
+
+class FederatedSybilDetector:
+    """
+    Cross-team Sybil detection using federation registry data.
+
+    Detects adversaries operating the same identity across multiple teams.
+    This is harder than intra-team detection because the adversary has
+    separate LCTs in each team, but behavioral correlation still leaks.
+
+    Detection signals:
+    1. **Cross-team trust mirroring**: Members in different teams with
+       nearly identical trust trajectories despite being in different contexts.
+    2. **Cross-team timing**: Members in different teams acting within
+       seconds of each other (automated single-operator).
+    3. **Witness bridge patterns**: A member in Team A always witnesses
+       for the same member in Team B, suggesting coordinated identities.
+    4. **Registration timing**: LCTs in different teams created at nearly
+       the same time (batch Sybil creation).
+    """
+
+    # Cross-team thresholds (stricter than intra-team)
+    CROSS_TRUST_CORRELATION_THRESHOLD = 0.90   # Higher bar for cross-team
+    CROSS_TIMING_WINDOW_SECONDS = 5.0          # Tighter window
+    CROSS_TIMING_THRESHOLD = 0.60              # Lower bar (less data available)
+    WITNESS_BRIDGE_THRESHOLD = 3               # Min witness events to flag
+    REGISTRATION_WINDOW_SECONDS = 60.0         # Accounts created within 1 minute
+
+    def __init__(self, federation=None):
+        """
+        Args:
+            federation: Optional FederationRegistry for witness event data
+        """
+        self.federation = federation
+        self._intra_detector = SybilDetector()
+
+    def analyze_federation(
+        self,
+        teams_data: Dict[str, Dict],
+        action_timestamps: Optional[Dict[str, Dict[str, List[str]]]] = None,
+        registration_times: Optional[Dict[str, str]] = None,
+    ) -> FederatedSybilReport:
+        """
+        Analyze multiple teams for cross-team Sybil behavior.
+
+        Args:
+            teams_data: {team_id: {lct_id: {dim: trust_value}}} for each team
+            action_timestamps: Optional {team_id: {lct_id: [iso_ts]}} per team
+            registration_times: Optional {lct_id: iso_timestamp} for member creation times
+
+        Returns:
+            FederatedSybilReport with cross-team and per-team findings
+        """
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Phase 1: Run intra-team detection for each team
+        per_team_reports = {}
+        for team_id, member_trusts in teams_data.items():
+            team_timestamps = (action_timestamps or {}).get(team_id, {})
+            report = self._intra_detector.analyze_team(
+                team_id, member_trusts, action_timestamps=team_timestamps
+            )
+            per_team_reports[team_id] = report
+
+        # Phase 2: Cross-team detection
+        cross_clusters = []
+
+        # Signal 1: Cross-team trust mirroring
+        trust_mirror_clusters = self._detect_cross_trust_mirroring(teams_data)
+        cross_clusters.extend(trust_mirror_clusters)
+
+        # Signal 2: Cross-team timing correlation
+        if action_timestamps:
+            timing_clusters = self._detect_cross_timing(
+                teams_data, action_timestamps
+            )
+            cross_clusters.extend(timing_clusters)
+
+        # Signal 3: Witness bridge patterns (from federation)
+        if self.federation:
+            witness_clusters = self._detect_witness_bridges()
+            cross_clusters.extend(witness_clusters)
+
+        # Signal 4: Registration timing (batch creation)
+        if registration_times:
+            reg_clusters = self._detect_registration_timing(
+                teams_data, registration_times
+            )
+            cross_clusters.extend(reg_clusters)
+
+        # Merge overlapping cross-team clusters
+        merged = self._merge_cross_clusters(cross_clusters)
+
+        # Determine overall risk
+        all_risks = [r.overall_risk for r in per_team_reports.values()]
+        if merged:
+            max_cross = max(c.confidence for c in merged)
+            if max_cross >= 0.9:
+                all_risks.append(SybilRisk.CRITICAL)
+            elif max_cross >= 0.7:
+                all_risks.append(SybilRisk.HIGH)
+            elif max_cross >= 0.5:
+                all_risks.append(SybilRisk.MODERATE)
+            else:
+                all_risks.append(SybilRisk.LOW)
+
+        risk_order = [SybilRisk.CRITICAL, SybilRisk.HIGH,
+                      SybilRisk.MODERATE, SybilRisk.LOW, SybilRisk.NONE]
+        overall = SybilRisk.NONE
+        for r in risk_order:
+            if r in all_risks:
+                overall = r
+                break
+
+        # Generate recommendations
+        recs = self._generate_cross_recommendations(merged, per_team_reports)
+
+        total_members = sum(len(m) for m in teams_data.values())
+
+        return FederatedSybilReport(
+            analyzed_at=now,
+            teams_analyzed=len(teams_data),
+            total_members=total_members,
+            cross_team_clusters=merged,
+            overall_risk=overall,
+            recommendations=recs,
+            per_team_reports=per_team_reports,
+        )
+
+    def _detect_cross_trust_mirroring(
+        self, teams_data: Dict[str, Dict]
+    ) -> List[CrossTeamSybilCluster]:
+        """Detect members in DIFFERENT teams with mirrored trust profiles."""
+        clusters = []
+
+        # Build flat list of (team_id, lct_id, trust_vector)
+        all_members = []
+        for team_id, members in teams_data.items():
+            for lct_id, trust in members.items():
+                if trust and len(trust) >= 3:
+                    all_members.append((team_id, lct_id, trust))
+
+        # Compare each pair across different teams
+        for i in range(len(all_members)):
+            for j in range(i + 1, len(all_members)):
+                t1_id, m1_id, trust1 = all_members[i]
+                t2_id, m2_id, trust2 = all_members[j]
+
+                # Only compare across teams
+                if t1_id == t2_id:
+                    continue
+
+                dims = sorted(set(trust1.keys()) & set(trust2.keys()))
+                if len(dims) < 3:
+                    continue
+
+                v1 = [trust1[d] for d in dims]
+                v2 = [trust2[d] for d in dims]
+                r = SybilDetector._pearson_correlation(v1, v2)
+
+                if r >= self.CROSS_TRUST_CORRELATION_THRESHOLD:
+                    avg_diff = sum(abs(a - b) for a, b in zip(v1, v2)) / len(dims)
+                    clusters.append(CrossTeamSybilCluster(
+                        members={m1_id: t1_id, m2_id: t2_id},
+                        confidence=r * 0.4,  # Cross-team correlation is a moderate signal
+                        signals=[
+                            f"Cross-team trust mirror: r={r:.3f}, avg_diff={avg_diff:.4f} "
+                            f"({m1_id}@{t1_id} ~ {m2_id}@{t2_id})"
+                        ],
+                        trust_correlation=r,
+                    ))
+
+        return clusters
+
+    def _detect_cross_timing(
+        self,
+        teams_data: Dict[str, Dict],
+        action_timestamps: Dict[str, Dict[str, List[str]]],
+    ) -> List[CrossTeamSybilCluster]:
+        """Detect members in different teams who act simultaneously."""
+        clusters = []
+
+        # Build flat timestamp lists
+        all_ts = []
+        for team_id, members_ts in action_timestamps.items():
+            for lct_id, timestamps in members_ts.items():
+                if len(timestamps) >= 3:
+                    all_ts.append((team_id, lct_id, timestamps))
+
+        for i in range(len(all_ts)):
+            for j in range(i + 1, len(all_ts)):
+                t1_id, m1_id, ts1 = all_ts[i]
+                t2_id, m2_id, ts2 = all_ts[j]
+
+                if t1_id == t2_id:
+                    continue
+
+                simultaneous = 0
+                total = 0
+
+                for t1_str in ts1:
+                    t1 = datetime.fromisoformat(t1_str)
+                    for t2_str in ts2:
+                        t2 = datetime.fromisoformat(t2_str)
+                        if abs((t1 - t2).total_seconds()) < self.CROSS_TIMING_WINDOW_SECONDS:
+                            simultaneous += 1
+                            break
+                    total += 1
+
+                if total > 0:
+                    ratio = simultaneous / total
+                    if ratio >= self.CROSS_TIMING_THRESHOLD:
+                        clusters.append(CrossTeamSybilCluster(
+                            members={m1_id: t1_id, m2_id: t2_id},
+                            confidence=ratio * 0.5,  # Cross-team timing is strong
+                            signals=[
+                                f"Cross-team timing: {ratio:.0%} simultaneous "
+                                f"({simultaneous}/{total}) within {self.CROSS_TIMING_WINDOW_SECONDS}s "
+                                f"({m1_id}@{t1_id} ~ {m2_id}@{t2_id})"
+                            ],
+                            timing_correlation=ratio,
+                        ))
+
+        return clusters
+
+    def _detect_witness_bridges(self) -> List[CrossTeamSybilCluster]:
+        """
+        Detect members who form persistent witness bridges between teams.
+
+        Uses federation registry witness events to find individuals who
+        always witness for the same counterpart in another team.
+        """
+        if not self.federation:
+            return []
+
+        clusters = []
+
+        # Get all witness events from federation
+        try:
+            with sqlite3.connect(self.federation.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute("""
+                    SELECT witness_team_id, proposal_team_id, witness_lct,
+                           COUNT(*) as event_count
+                    FROM witness_events
+                    GROUP BY witness_team_id, proposal_team_id, witness_lct
+                    HAVING COUNT(*) >= ?
+                """, (self.WITNESS_BRIDGE_THRESHOLD,)).fetchall()
+        except Exception:
+            return []
+
+        # A "bridge" is one LCT repeatedly witnessing for the same target team
+        for row in rows:
+            clusters.append(CrossTeamSybilCluster(
+                members={row["witness_lct"]: row["witness_team_id"]},
+                confidence=min(0.5, row["event_count"] * 0.1),
+                signals=[
+                    f"Witness bridge: {row['witness_lct']}@{row['witness_team_id']} "
+                    f"witnessed {row['event_count']}x for team {row['proposal_team_id']}"
+                ],
+                witness_pattern_score=row["event_count"] * 0.1,
+            ))
+
+        return clusters
+
+    def _detect_registration_timing(
+        self,
+        teams_data: Dict[str, Dict],
+        registration_times: Dict[str, str],
+    ) -> List[CrossTeamSybilCluster]:
+        """
+        Detect LCTs across different teams registered at nearly the same time.
+
+        Batch Sybil creation often results in registration timestamps within
+        seconds of each other.
+        """
+        clusters = []
+
+        # Build (team_id, lct_id, reg_time) list
+        reg_entries = []
+        for team_id, members in teams_data.items():
+            for lct_id in members:
+                if lct_id in registration_times:
+                    try:
+                        ts = datetime.fromisoformat(registration_times[lct_id])
+                        reg_entries.append((team_id, lct_id, ts))
+                    except (ValueError, TypeError):
+                        continue
+
+        for i in range(len(reg_entries)):
+            for j in range(i + 1, len(reg_entries)):
+                t1_id, m1_id, ts1 = reg_entries[i]
+                t2_id, m2_id, ts2 = reg_entries[j]
+
+                if t1_id == t2_id:
+                    continue
+
+                diff = abs((ts1 - ts2).total_seconds())
+                if diff < self.REGISTRATION_WINDOW_SECONDS:
+                    clusters.append(CrossTeamSybilCluster(
+                        members={m1_id: t1_id, m2_id: t2_id},
+                        confidence=0.25,  # Registration timing alone is weak
+                        signals=[
+                            f"Registration timing: {diff:.1f}s apart "
+                            f"({m1_id}@{t1_id}, {m2_id}@{t2_id})"
+                        ],
+                    ))
+
+        return clusters
+
+    def _merge_cross_clusters(
+        self, clusters: List[CrossTeamSybilCluster]
+    ) -> List[CrossTeamSybilCluster]:
+        """Merge cross-team clusters with overlapping members."""
+        if not clusters:
+            return []
+
+        # Group by member pairs (using frozenset of lct_ids)
+        pair_map: Dict[frozenset, CrossTeamSybilCluster] = {}
+
+        for cluster in clusters:
+            key = frozenset(cluster.members.keys())
+
+            if key not in pair_map:
+                pair_map[key] = CrossTeamSybilCluster(
+                    members=dict(cluster.members),
+                    confidence=0.0,
+                    signals=[],
+                )
+
+            existing = pair_map[key]
+            existing.confidence = min(1.0, existing.confidence + cluster.confidence)
+            existing.signals.extend(cluster.signals)
+            existing.trust_correlation = max(
+                existing.trust_correlation, cluster.trust_correlation
+            )
+            existing.timing_correlation = max(
+                existing.timing_correlation, cluster.timing_correlation
+            )
+            existing.witness_pattern_score = max(
+                existing.witness_pattern_score, cluster.witness_pattern_score
+            )
+
+        return [c for c in pair_map.values() if c.confidence >= 0.25]
+
+    def _generate_cross_recommendations(
+        self,
+        cross_clusters: List[CrossTeamSybilCluster],
+        per_team: Dict[str, SybilReport],
+    ) -> List[str]:
+        """Generate recommendations for cross-team Sybil findings."""
+        recs = []
+
+        if not cross_clusters:
+            recs.append("No cross-team Sybil patterns detected.")
+        else:
+            recs.append(
+                f"Detected {len(cross_clusters)} cross-team Sybil cluster(s)"
+            )
+
+            high_risk = [c for c in cross_clusters if c.confidence >= 0.7]
+            if high_risk:
+                teams_involved = set()
+                for c in high_risk:
+                    teams_involved.update(c.team_ids)
+                recs.append(
+                    f"HIGH RISK: {len(high_risk)} cluster(s) across teams: "
+                    f"{', '.join(sorted(teams_involved))}"
+                )
+                recs.append(
+                    "Recommend identity verification for flagged members"
+                )
+                recs.append(
+                    "Consider suspending cross-team witnessing between affected teams"
+                )
+
+            if any(c.timing_correlation > 0 for c in cross_clusters):
+                recs.append(
+                    "Cross-team action timing suggests automated control - "
+                    "require proof of separate operators"
+                )
+
+            if any(c.witness_pattern_score > 0 for c in cross_clusters):
+                recs.append(
+                    "Persistent witness bridges detected - rotate witness "
+                    "assignments via federation pool"
+                )
+
+        # Per-team issues
+        flagged_teams = [
+            tid for tid, r in per_team.items()
+            if r.overall_risk in (SybilRisk.HIGH, SybilRisk.CRITICAL)
+        ]
+        if flagged_teams:
+            recs.append(
+                f"Intra-team Sybil risk in: {', '.join(flagged_teams)}"
+            )
+
+        return recs
 
 
 if __name__ == "__main__":
