@@ -4705,6 +4705,195 @@ class TestTrustIntegration:
 
 
 # =============================================================================
+# Track BF: Multi-Federation Witness Requirements
+# =============================================================================
+
+class TestMultiFederation:
+    """Tests for multi-federation witness requirements."""
+
+    def test_federation_registration(self):
+        """Federations can be registered."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "multi_fed_reg.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        fed = registry.register_federation("fed:test", "Test Federation")
+        assert fed.federation_id == "fed:test"
+        assert fed.name == "Test Federation"
+        assert fed.status == "active"
+
+    def test_trust_establishment(self):
+        """Federations can establish trust relationships."""
+        from hardbound.multi_federation import (
+            MultiFederationRegistry, FederationRelationship
+        )
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "multi_fed_trust.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+
+        trust = registry.establish_trust(
+            "fed:a", "fed:b",
+            FederationRelationship.ALLIED,
+            initial_trust=0.8,
+        )
+
+        assert trust.source_federation_id == "fed:a"
+        assert trust.target_federation_id == "fed:b"
+        assert trust.relationship == FederationRelationship.ALLIED
+        assert trust.trust_score == 0.8
+
+        # Retrieve the relationship
+        retrieved = registry.get_trust_relationship("fed:a", "fed:b")
+        assert retrieved is not None
+        assert retrieved.trust_score == 0.8
+
+    def test_eligible_witness_federations(self):
+        """Can find eligible witness federations."""
+        from hardbound.multi_federation import (
+            MultiFederationRegistry, FederationRelationship
+        )
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "multi_fed_witness.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:requester", "Requester")
+        registry.register_federation("fed:trusted", "Trusted")
+        registry.register_federation("fed:untrusted", "Untrusted")
+
+        # Only establish trust with one
+        registry.establish_trust(
+            "fed:requester", "fed:trusted",
+            FederationRelationship.PEER,
+            initial_trust=0.6,
+        )
+
+        eligible = registry.find_eligible_witness_federations("fed:requester")
+
+        assert len(eligible) == 1
+        assert eligible[0][0] == "fed:trusted"
+        assert eligible[0][1] == 0.6
+
+    def test_cross_federation_proposal(self):
+        """Cross-federation proposals can be created and approved."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "multi_fed_proposal.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:proposer", "Proposer")
+        registry.register_federation("fed:affected", "Affected")
+
+        proposal = registry.create_cross_federation_proposal(
+            "fed:proposer",
+            "team:proposer:eng",
+            ["fed:proposer", "fed:affected"],
+            "resource_share",
+            "Share resources",
+        )
+
+        assert proposal.proposing_federation_id == "fed:proposer"
+        assert "fed:affected" in proposal.affected_federation_ids
+        assert proposal.status == "pending"
+
+    def test_approval_from_all_federations(self):
+        """Proposal approved when all affected federations approve."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "multi_fed_approval.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+
+        proposal = registry.create_cross_federation_proposal(
+            "fed:a",
+            "team:a:1",
+            ["fed:a", "fed:b"],
+            "joint_action",
+            "Joint action",
+            require_external_witness=False,  # Simplify test
+        )
+
+        # Approve from A
+        result1 = registry.approve_from_federation(
+            proposal.proposal_id,
+            "fed:a",
+            ["team:a:1"],
+        )
+        assert result1["all_approved"] is False
+
+        # Approve from B
+        result2 = registry.approve_from_federation(
+            proposal.proposal_id,
+            "fed:b",
+            ["team:b:1"],
+        )
+        assert result2["all_approved"] is True
+        assert result2["new_status"] == "approved"
+
+    def test_external_witness_requirement(self):
+        """External federation witness requirement enforced."""
+        from hardbound.multi_federation import (
+            MultiFederationRegistry, FederationRelationship
+        )
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "multi_fed_external.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:proposer", "Proposer")
+        registry.register_federation("fed:affected", "Affected")
+        registry.register_federation("fed:witness", "Witness")
+
+        # Trust the witness federation
+        registry.establish_trust(
+            "fed:proposer", "fed:witness",
+            FederationRelationship.TRUSTED,
+            initial_trust=0.7,
+        )
+
+        proposal = registry.create_cross_federation_proposal(
+            "fed:proposer",
+            "team:p:1",
+            ["fed:proposer", "fed:affected"],
+            "action",
+            "Action",
+            require_external_witness=True,
+        )
+
+        # Check requirements before witness
+        reqs = registry.check_proposal_requirements(proposal.proposal_id)
+        assert reqs["requires_external_witness"] is True
+        assert reqs["has_external_witness"] is False
+
+        # Add external witness
+        registry.add_external_witness(
+            proposal.proposal_id,
+            "fed:witness",
+            "team:w:1",
+        )
+
+        # Check requirements after witness
+        reqs = registry.check_proposal_requirements(proposal.proposal_id)
+        assert reqs["has_external_witness"] is True
+
+
+# =============================================================================
 # Track AY: Governance Audit Logging Tests
 # =============================================================================
 
