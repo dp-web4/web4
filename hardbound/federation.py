@@ -1577,6 +1577,131 @@ class FederationRegistry:
             "health": health,
         }
 
+    def detect_approval_cycles(self, min_cycle_length: int = 3, min_approvals: int = 2) -> Dict:
+        """
+        Detect cyclic approval patterns that evade pairwise reciprocity detection.
+
+        Chain-pattern collusion: A approves B's proposals, B approves C's, C approves A's.
+        This forms a cycle that benefits all participants but each pairwise check
+        shows one-directional approval (not suspicious in isolation).
+
+        Args:
+            min_cycle_length: Minimum cycle size to flag (default 3 = A->B->C->A)
+            min_approvals: Minimum approvals per edge to consider it significant
+
+        Returns:
+            Report with detected cycles and risk assessment
+        """
+        self._ensure_xteam_table()
+
+        # Build directed approval graph: edge (A, B) exists if A approves B's proposals
+        # Note: Edge direction is approver -> proposer (who benefits)
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute("""
+                SELECT approving_team_id, proposing_team_id, COUNT(*) as count
+                FROM xteam_approval_records
+                GROUP BY approving_team_id, proposing_team_id
+                HAVING count >= ?
+            """, (min_approvals,)).fetchall()
+
+        # Build adjacency list
+        graph: Dict[str, Set[str]] = defaultdict(set)
+        edge_counts: Dict[Tuple[str, str], int] = {}
+        nodes: Set[str] = set()
+
+        for approver, proposer, count in rows:
+            graph[approver].add(proposer)
+            edge_counts[(approver, proposer)] = count
+            nodes.add(approver)
+            nodes.add(proposer)
+
+        # Find all cycles using DFS
+        def find_cycles_from(start: str) -> List[List[str]]:
+            """Find all cycles starting from a given node."""
+            cycles = []
+            stack = [(start, [start], set([start]))]
+
+            while stack:
+                node, path, visited = stack.pop()
+
+                for neighbor in graph.get(node, []):
+                    if neighbor == start and len(path) >= min_cycle_length:
+                        # Found a cycle back to start
+                        cycles.append(path + [start])
+                    elif neighbor not in visited:
+                        stack.append((neighbor, path + [neighbor], visited | {neighbor}))
+
+            return cycles
+
+        # Find cycles from each node, deduplicate
+        all_cycles = []
+        seen_cycle_sets = set()
+
+        for node in nodes:
+            cycles = find_cycles_from(node)
+            for cycle in cycles:
+                # Normalize cycle to avoid duplicates (same cycle, different start)
+                # Use frozenset of edges
+                edges = frozenset(
+                    (cycle[i], cycle[i + 1]) for i in range(len(cycle) - 1)
+                )
+                if edges not in seen_cycle_sets:
+                    seen_cycle_sets.add(edges)
+                    all_cycles.append(cycle)
+
+        # Analyze each cycle
+        flagged_cycles = []
+        for cycle in all_cycles:
+            # Calculate total approvals in cycle
+            total_approvals = sum(
+                edge_counts.get((cycle[i], cycle[i + 1]), 0)
+                for i in range(len(cycle) - 1)
+            )
+            avg_per_edge = total_approvals / (len(cycle) - 1)
+
+            # Check if balanced (similar approval counts across edges)
+            edge_weights = [
+                edge_counts.get((cycle[i], cycle[i + 1]), 0)
+                for i in range(len(cycle) - 1)
+            ]
+            min_weight = min(edge_weights)
+            max_weight = max(edge_weights)
+            balance_ratio = min_weight / max_weight if max_weight > 0 else 0.0
+
+            # Suspicious if balanced and significant volume
+            is_suspicious = balance_ratio > 0.5 and avg_per_edge >= min_approvals
+
+            flagged_cycles.append({
+                "cycle": cycle,
+                "length": len(cycle) - 1,  # Number of edges
+                "total_approvals": total_approvals,
+                "avg_per_edge": avg_per_edge,
+                "balance_ratio": balance_ratio,
+                "is_suspicious": is_suspicious,
+                "edge_weights": edge_weights,
+            })
+
+        # Sort by suspiciousness
+        flagged_cycles.sort(key=lambda c: (c["is_suspicious"], c["total_approvals"]), reverse=True)
+
+        # Determine health
+        suspicious_count = sum(1 for c in flagged_cycles if c["is_suspicious"])
+        if suspicious_count > 2:
+            health = "critical"
+        elif suspicious_count > 0:
+            health = "warning"
+        else:
+            health = "healthy"
+
+        return {
+            "total_cycles": len(all_cycles),
+            "suspicious_cycles": suspicious_count,
+            "cycles": flagged_cycles,
+            "graph_nodes": len(nodes),
+            "graph_edges": len(edge_counts),
+            "health": health,
+        }
+
     def analyze_approval_timing(self, proposal_id: str) -> Dict:
         """
         Analyze how quickly a proposal was approved.

@@ -3193,6 +3193,157 @@ class TestApprovalReciprocity:
         assert report["health"] in ["warning", "critical"]
 
 
+class TestApprovalCycleDetection:
+    """Tests for detecting cyclic approval patterns (chain-pattern collusion)."""
+
+    def test_simple_three_node_cycle(self):
+        """Detects A->B->C->A chain pattern."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "cycle_simple.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        # Create chain: A proposes to B, B proposes to C, C proposes to A
+        for i in range(3):
+            # A proposes, B approves
+            p1 = fed.create_cross_team_proposal(
+                "team:a", f"admin:a{i}", f"act_a{i}", "Test", ["team:b"]
+            )
+            fed.approve_cross_team_proposal(p1["proposal_id"], "team:b", f"admin:b{i}")
+
+            # B proposes, C approves
+            p2 = fed.create_cross_team_proposal(
+                "team:b", f"admin:b{i}", f"act_b{i}", "Test", ["team:c"]
+            )
+            fed.approve_cross_team_proposal(p2["proposal_id"], "team:c", f"admin:c{i}")
+
+            # C proposes, A approves (completes cycle)
+            p3 = fed.create_cross_team_proposal(
+                "team:c", f"admin:c{i}", f"act_c{i}", "Test", ["team:a"]
+            )
+            fed.approve_cross_team_proposal(p3["proposal_id"], "team:a", f"admin:a{i}")
+
+        result = fed.detect_approval_cycles(min_cycle_length=3, min_approvals=2)
+        assert result["total_cycles"] >= 1
+        assert result["suspicious_cycles"] >= 1
+        assert result["health"] in ["warning", "critical"]
+
+        # Verify cycle found contains all three teams
+        cycles = [c for c in result["cycles"] if c["is_suspicious"]]
+        assert len(cycles) >= 1
+        cycle_teams = set(cycles[0]["cycle"][:-1])  # Remove duplicated start node
+        assert cycle_teams == {"team:a", "team:b", "team:c"}
+
+    def test_no_cycle_with_linear_approvals(self):
+        """Linear approval chains (A->B->C) without cycle are not flagged."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "cycle_linear.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        # Linear chain (no cycle): A proposes to B, B proposes to C
+        # C never proposes back to A
+        for i in range(3):
+            p1 = fed.create_cross_team_proposal(
+                "team:a", f"admin:a{i}", f"act_a{i}", "Test", ["team:b"]
+            )
+            fed.approve_cross_team_proposal(p1["proposal_id"], "team:b", f"admin:b{i}")
+
+            p2 = fed.create_cross_team_proposal(
+                "team:b", f"admin:b{i}", f"act_b{i}", "Test", ["team:c"]
+            )
+            fed.approve_cross_team_proposal(p2["proposal_id"], "team:c", f"admin:c{i}")
+
+        result = fed.detect_approval_cycles(min_cycle_length=3, min_approvals=2)
+        # No cycles because C doesn't propose back to A
+        assert result["total_cycles"] == 0
+        assert result["health"] == "healthy"
+
+    def test_cycle_evades_pairwise_reciprocity(self):
+        """Chain pattern evades pairwise reciprocity but cycle detection catches it."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "cycle_evasion.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:x", "X")
+        fed.register_team("team:y", "Y")
+        fed.register_team("team:z", "Z")
+
+        # Chain pattern: each pair is one-directional
+        for i in range(3):
+            px = fed.create_cross_team_proposal(
+                "team:x", f"admin:x{i}", f"act_x{i}", "Test", ["team:y"]
+            )
+            fed.approve_cross_team_proposal(px["proposal_id"], "team:y", f"admin:y{i}")
+
+            py = fed.create_cross_team_proposal(
+                "team:y", f"admin:y{i}", f"act_y{i}", "Test", ["team:z"]
+            )
+            fed.approve_cross_team_proposal(py["proposal_id"], "team:z", f"admin:z{i}")
+
+            pz = fed.create_cross_team_proposal(
+                "team:z", f"admin:z{i}", f"act_z{i}", "Test", ["team:x"]
+            )
+            fed.approve_cross_team_proposal(pz["proposal_id"], "team:x", f"admin:x{i}")
+
+        # Pairwise reciprocity should NOT flag (one-directional)
+        recip_xy = fed.check_approval_reciprocity("team:x", "team:y")
+        recip_yz = fed.check_approval_reciprocity("team:y", "team:z")
+        recip_zx = fed.check_approval_reciprocity("team:z", "team:x")
+
+        assert not recip_xy["is_suspicious"], "X-Y pair should not be suspicious"
+        assert not recip_yz["is_suspicious"], "Y-Z pair should not be suspicious"
+        assert not recip_zx["is_suspicious"], "Z-X pair should not be suspicious"
+
+        # But cycle detection SHOULD catch it
+        cycles = fed.detect_approval_cycles(min_cycle_length=3, min_approvals=2)
+        assert cycles["suspicious_cycles"] >= 1, "Cycle detection should find chain pattern"
+        assert cycles["health"] != "healthy"
+
+    def test_longer_cycle_detected(self):
+        """Detects longer cycles (A->B->C->D->A)."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "cycle_long.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        teams = ["team:a", "team:b", "team:c", "team:d"]
+        for t in teams:
+            fed.register_team(t, t.split(":")[1].upper())
+
+        # Create 4-node cycle: A->B->C->D->A
+        for i in range(3):
+            for j, t in enumerate(teams):
+                next_t = teams[(j + 1) % len(teams)]
+                p = fed.create_cross_team_proposal(
+                    t, f"admin:{t}{i}", f"act_{t}{i}", "Test", [next_t]
+                )
+                fed.approve_cross_team_proposal(p["proposal_id"], next_t, f"admin:{next_t}{i}")
+
+        result = fed.detect_approval_cycles(min_cycle_length=3, min_approvals=2)
+        assert result["total_cycles"] >= 1
+        # Should find at least the 4-node cycle
+        long_cycles = [c for c in result["cycles"] if c["length"] == 4]
+        assert len(long_cycles) >= 1
+
+
 class TestTemporalPatternDetection:
     """Tests for detecting suspiciously fast approval patterns."""
 
@@ -3557,17 +3708,17 @@ class TestDefenseEvasion:
         defenses_held = result.raw_data.get("defenses_held", 0)
         assert defenses_held >= 3, f"Only {defenses_held}/4 defenses held"
 
-    def test_chain_pattern_gap_identified(self):
-        """Chain-pattern evasion identifies a gap for future work."""
+    def test_cycle_detection_closes_chain_gap(self):
+        """Cycle detection (Track AU) catches chain-pattern evasion."""
         from hardbound.attack_simulations import attack_defense_evasion
         result = attack_defense_evasion()
-        # Chain evasion currently works - this documents the gap
-        chain_evades = result.raw_data.get("chain_evades_reciprocity", False)
-        chain_detected = result.raw_data.get("chain_detected_anyway", True)
-        # Either chain is detected, or we've documented the gap
-        if chain_evades and not chain_detected:
-            # Gap exists - verify it's documented in mitigation
-            assert "Chain-pattern" in result.mitigation
+        # Chain pattern evades pairwise reciprocity...
+        chain_evades_pairwise = result.raw_data.get("chain_evades_reciprocity", False)
+        # ...but cycle detection should catch it
+        cycle_detected = result.raw_data.get("cycle_detected", False)
+        # Verify the gap is closed
+        assert chain_evades_pairwise, "Chain pattern should evade pairwise detection"
+        assert cycle_detected, "Cycle detection should catch chain pattern"
 
     def test_key_defenses_functional(self):
         """Outsider requirement and weighted voting must work."""

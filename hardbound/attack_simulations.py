@@ -1718,7 +1718,11 @@ def attack_defense_evasion() -> AttackResult:
     full_report = fed.get_approval_reciprocity_report()
     chain_detected_anyway = len(full_report.get("suspicious_pairs", [])) > 0
 
-    if not chain_evades or chain_detected_anyway:
+    # NEW: Cycle detection (Track AU) should catch the chain pattern
+    cycle_report = fed.detect_approval_cycles(min_cycle_length=3, min_approvals=2)
+    cycle_detected = cycle_report.get("suspicious_cycles", 0) > 0
+
+    if not chain_evades or chain_detected_anyway or cycle_detected:
         defenses["reciprocity_analysis"] = True
 
     # ========================================================================
@@ -1843,7 +1847,7 @@ def attack_defense_evasion() -> AttackResult:
         trust_damage=2.5,
         description=(
             f"DEFENSE TEST RESULTS:\n"
-            f"  - Reciprocity Analysis (AP): {'HELD' if defenses['reciprocity_analysis'] else 'EVADED'}\n"
+            f"  - Reciprocity + Cycle Analysis (AP+AU): {'HELD' if defenses['reciprocity_analysis'] else 'EVADED'}\n"
             f"  - Temporal Detection (AQ): {'HELD' if defenses['temporal_detection'] else 'EVADED'}\n"
             f"  - Outsider Requirement (AR): {'HELD' if defenses['outsider_requirement'] else 'EVADED'}\n"
             f"  - Weighted Voting (AS): {'HELD' if defenses['weighted_voting'] else 'EVADED'}\n"
@@ -1851,20 +1855,21 @@ def attack_defense_evasion() -> AttackResult:
             f"Overall: {defenses_held}/{total_defenses} defenses held. "
             f"{'ATTACK BLOCKED' if not attack_success else 'ATTACK PARTIALLY SUCCESSFUL'}.\n"
             f"\n"
-            f"Chain-pattern evasion of reciprocity: {'WORKED' if chain_evades and not chain_detected_anyway else 'BLOCKED'}\n"
+            f"Chain-pattern evasion of pairwise reciprocity: {'WORKED' if chain_evades else 'BLOCKED'}\n"
+            f"Cycle detection caught chain: {'YES' if cycle_detected else 'NO'}\n"
             f"Instant approval flagged: {'YES' if instant_flagged else 'NO'}\n"
             f"Outsider bypass blocked: {'YES' if outsider_blocked else 'NO'}\n"
             f"Low-rep weighted approval blocked: {'YES' if low_rep_blocked else 'NO'}"
         ),
         mitigation=(
-            "DEFENSES IMPLEMENTED (Tracks AP-AS):\n"
-            "1. Approval reciprocity analysis - detects mutual approval patterns\n"
-            "2. Temporal pattern detection - flags suspiciously fast approvals\n"
-            "3. Outsider requirement - critical proposals need neutral third party\n"
-            "4. Weighted voting - reputation-weighted votes prevent low-trust takeover\n"
+            "DEFENSES IMPLEMENTED (Tracks AP-AU):\n"
+            "1. Approval reciprocity analysis - detects mutual A<->B patterns\n"
+            "2. Cycle detection (NEW) - catches A->B->C->A chain patterns\n"
+            "3. Temporal pattern detection - flags suspiciously fast approvals\n"
+            "4. Outsider requirement - critical proposals need neutral third party\n"
+            "5. Weighted voting - reputation-weighted votes prevent low-trust takeover\n"
             "\n"
             "FUTURE IMPROVEMENTS:\n"
-            "5. Chain-pattern detection (A->B->C->A cycles)\n"
             "6. Cross-domain temporal analysis\n"
             "7. Adaptive thresholds based on proposal severity"
         ),
@@ -1873,6 +1878,7 @@ def attack_defense_evasion() -> AttackResult:
             "defenses_held": defenses_held,
             "chain_evades_reciprocity": chain_evades,
             "chain_detected_anyway": chain_detected_anyway,
+            "cycle_detected": cycle_detected,
             "instant_flagged": instant_flagged,
             "outsider_blocked": outsider_blocked,
             "outsider_impersonation_blocked": outsider_impersonation_blocked,
