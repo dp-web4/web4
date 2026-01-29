@@ -2838,6 +2838,199 @@ class FederationRegistry:
 
         return correlations
 
+    def get_federation_health_dashboard(
+        self,
+        include_heartbeat: bool = True,
+        include_temporal: bool = True,
+        include_cross_domain: bool = True,
+        include_reciprocity: bool = True,
+        include_cycles: bool = True,
+        include_audit: bool = True,
+    ) -> Dict:
+        """
+        Comprehensive federation health dashboard.
+
+        Aggregates all health metrics and analysis into a single view:
+        - Heartbeat status and history
+        - Temporal pattern analysis
+        - Cross-domain correlation
+        - Reciprocity patterns
+        - Approval cycle detection
+        - Governance audit alerts
+
+        Args:
+            include_*: Toggle individual analysis sections
+
+        Returns:
+            Consolidated health dashboard with all metrics and alerts
+        """
+        now = datetime.now(timezone.utc)
+        timestamp = now.isoformat()
+
+        dashboard = {
+            "generated_at": timestamp,
+            "overall_health": "healthy",
+            "alerts": [],
+            "summary": {},
+            "details": {},
+        }
+
+        # Track health issues for overall assessment
+        critical_issues = []
+        warning_issues = []
+        info_notes = []
+
+        # --- Heartbeat Analysis ---
+        if include_heartbeat:
+            try:
+                history = self.get_heartbeat_history(limit=5)
+                if history:
+                    latest = history[0]
+                    dashboard["details"]["heartbeat"] = {
+                        "latest": latest,
+                        "recent_history": history,
+                    }
+                    dashboard["summary"]["last_heartbeat"] = latest["timestamp"]
+                    dashboard["summary"]["heartbeat_status"] = latest["health_status"]
+
+                    if latest["health_status"] == "critical":
+                        critical_issues.append("Heartbeat status critical")
+                    elif latest["health_status"] in ("warning", "degraded"):
+                        warning_issues.append(f"Heartbeat status: {latest['health_status']}")
+
+                    for issue in latest.get("health_issues", []):
+                        warning_issues.append(f"Heartbeat: {issue}")
+                else:
+                    dashboard["details"]["heartbeat"] = {"status": "no_data"}
+                    info_notes.append("No heartbeat history")
+            except Exception as e:
+                dashboard["details"]["heartbeat"] = {"error": str(e)}
+
+        # --- Temporal Pattern Analysis ---
+        if include_temporal:
+            try:
+                temporal = self.get_temporal_analysis_report()
+                dashboard["details"]["temporal"] = temporal
+                dashboard["summary"]["proposals_flagged"] = temporal["flagged_count"]
+                dashboard["summary"]["temporal_health"] = temporal["health"]
+
+                if temporal["health"] == "critical":
+                    critical_issues.append(f"Temporal: {temporal['flagged_count']} suspicious proposals")
+                elif temporal["health"] == "warning":
+                    warning_issues.append(f"Temporal: {temporal['flagged_count']} suspicious proposals")
+            except Exception as e:
+                dashboard["details"]["temporal"] = {"error": str(e)}
+
+        # --- Cross-Domain Temporal Analysis ---
+        if include_cross_domain:
+            try:
+                cross_domain = self.get_cross_domain_temporal_analysis()
+                dashboard["details"]["cross_domain"] = cross_domain
+                dashboard["summary"]["burst_patterns"] = len(cross_domain["burst_patterns"])
+                dashboard["summary"]["correlated_approvals"] = len(cross_domain["correlated_approvals"])
+
+                if cross_domain["health_status"] == "critical":
+                    critical_issues.extend(cross_domain["issues"])
+                elif cross_domain["health_status"] == "warning":
+                    warning_issues.extend(cross_domain["issues"])
+            except Exception as e:
+                dashboard["details"]["cross_domain"] = {"error": str(e)}
+
+        # --- Reciprocity Analysis ---
+        if include_reciprocity:
+            try:
+                reciprocity = self.get_approval_reciprocity_report()
+                dashboard["details"]["reciprocity"] = reciprocity
+                dashboard["summary"]["reciprocity_flags"] = len(reciprocity.get("suspicious_pairs", []))
+
+                if reciprocity.get("health") == "critical":
+                    critical_issues.append("High reciprocity concentration detected")
+                elif reciprocity.get("health") == "warning":
+                    warning_issues.append(f"{len(reciprocity.get('suspicious_pairs', []))} suspicious approval pairs")
+            except Exception as e:
+                dashboard["details"]["reciprocity"] = {"error": str(e)}
+
+        # --- Cycle Detection ---
+        if include_cycles:
+            try:
+                cycles = self.detect_approval_cycles()
+                dashboard["details"]["cycles"] = cycles
+                dashboard["summary"]["approval_cycles"] = len(cycles.get("cycles", []))
+
+                suspicious_cycles = [
+                    c for c in cycles.get("cycles", [])
+                    if c.get("suspicious", False)
+                ]
+                if suspicious_cycles:
+                    critical_issues.append(f"{len(suspicious_cycles)} suspicious approval cycles")
+            except Exception as e:
+                dashboard["details"]["cycles"] = {"error": str(e)}
+
+        # --- Governance Audit Analysis ---
+        if include_audit:
+            try:
+                # Get recent warnings
+                audit_warnings = self.get_governance_audit_log(risk_level="warning", limit=10)
+                dashboard["details"]["audit_warnings"] = audit_warnings
+                dashboard["summary"]["audit_warnings"] = len(audit_warnings)
+
+                if audit_warnings:
+                    recent = audit_warnings[0]
+                    warning_issues.append(
+                        f"Recent audit warning: {recent.get('audit_type', 'unknown')}"
+                    )
+            except Exception as e:
+                dashboard["details"]["audit_warnings"] = {"error": str(e)}
+
+        # --- Team Health Summary ---
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+
+                active_count = conn.execute(
+                    "SELECT COUNT(*) FROM federated_teams WHERE status = 'active'"
+                ).fetchone()[0]
+
+                avg_rep = conn.execute(
+                    "SELECT AVG(witness_score) FROM federated_teams WHERE status = 'active'"
+                ).fetchone()[0] or 0.0
+
+                low_rep = conn.execute(
+                    "SELECT COUNT(*) FROM federated_teams WHERE status = 'active' AND witness_score < ?",
+                    (self.MIN_WITNESS_SCORE,)
+                ).fetchone()[0]
+
+            dashboard["summary"]["active_teams"] = active_count
+            dashboard["summary"]["average_reputation"] = round(avg_rep, 3)
+            dashboard["summary"]["low_reputation_teams"] = low_rep
+
+            if active_count < 3:
+                warning_issues.append(f"Low team count: {active_count}")
+            if avg_rep < 0.5:
+                warning_issues.append(f"Low average reputation: {avg_rep:.2f}")
+            if low_rep > active_count * 0.3:
+                critical_issues.append(f"Many low-reputation teams: {low_rep}/{active_count}")
+
+        except Exception as e:
+            dashboard["summary"]["team_error"] = str(e)
+
+        # --- Calculate Overall Health ---
+        if critical_issues:
+            dashboard["overall_health"] = "critical"
+            dashboard["alerts"] = critical_issues + warning_issues
+        elif warning_issues:
+            dashboard["overall_health"] = "warning"
+            dashboard["alerts"] = warning_issues
+        else:
+            dashboard["overall_health"] = "healthy"
+            dashboard["alerts"] = info_notes
+
+        # Summary counts
+        dashboard["summary"]["critical_count"] = len(critical_issues)
+        dashboard["summary"]["warning_count"] = len(warning_issues)
+
+        return dashboard
+
 
 if __name__ == "__main__":
     print("=" * 60)

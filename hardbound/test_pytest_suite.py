@@ -3872,6 +3872,161 @@ class TestCrossDomainTemporalAnalysis:
         assert "issues" in analysis
 
 
+class TestFederationHealthDashboard:
+    """Tests for comprehensive federation health dashboard."""
+
+    def test_dashboard_returns_all_sections(self):
+        """Dashboard returns all expected sections."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "dashboard_sections.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        dashboard = fed.get_federation_health_dashboard()
+
+        # Check top-level structure
+        assert "generated_at" in dashboard
+        assert "overall_health" in dashboard
+        assert "alerts" in dashboard
+        assert "summary" in dashboard
+        assert "details" in dashboard
+
+        # Check summary fields
+        assert "active_teams" in dashboard["summary"]
+        assert "average_reputation" in dashboard["summary"]
+        assert "critical_count" in dashboard["summary"]
+        assert "warning_count" in dashboard["summary"]
+
+    def test_dashboard_healthy_with_no_issues(self):
+        """Dashboard shows healthy when no issues present."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "dashboard_healthy.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Create healthy federation
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+        fed.register_team("team:d", "D")
+
+        dashboard = fed.get_federation_health_dashboard()
+
+        # Should be healthy with 4 active teams
+        assert dashboard["overall_health"] == "healthy"
+        assert dashboard["summary"]["active_teams"] == 4
+        assert dashboard["summary"]["critical_count"] == 0
+
+    def test_dashboard_warning_with_low_teams(self):
+        """Dashboard shows warning when team count is low."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "dashboard_low_teams.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Only 2 teams (below threshold of 3)
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+
+        dashboard = fed.get_federation_health_dashboard()
+
+        assert dashboard["overall_health"] in ("warning", "degraded")
+        assert dashboard["summary"]["active_teams"] == 2
+        assert any("team count" in alert.lower() for alert in dashboard["alerts"])
+
+    def test_dashboard_aggregates_audit_warnings(self):
+        """Dashboard includes governance audit warnings."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "dashboard_audit.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        # Create proposal with severity downgrade (triggers warning)
+        fed.create_cross_team_proposal(
+            "team:a", "admin:a", "team_dissolution", "Force low severity",
+            ["team:b", "team:c"],
+            severity="low"  # Downgrade from critical
+        )
+
+        dashboard = fed.get_federation_health_dashboard()
+
+        # Should have audit warnings section
+        assert "audit_warnings" in dashboard["details"]
+        assert dashboard["summary"]["audit_warnings"] >= 1
+
+    def test_dashboard_includes_temporal_analysis(self):
+        """Dashboard includes temporal pattern analysis."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "dashboard_temporal.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        # Create fast approval (triggers temporal flag)
+        p = fed.create_cross_team_proposal(
+            "team:a", "admin:a", "fast_action", "Test", ["team:b"]
+        )
+        fed.approve_cross_team_proposal(p["proposal_id"], "team:b", "admin:b")
+
+        dashboard = fed.get_federation_health_dashboard()
+
+        # Temporal analysis should be present
+        assert "temporal" in dashboard["details"]
+        assert dashboard["details"]["temporal"]["flagged_count"] >= 1
+
+    def test_dashboard_selective_inclusion(self):
+        """Dashboard can selectively include sections."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "dashboard_selective.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        # Exclude most sections
+        dashboard = fed.get_federation_health_dashboard(
+            include_heartbeat=False,
+            include_temporal=False,
+            include_cross_domain=False,
+            include_reciprocity=False,
+            include_cycles=False,
+            include_audit=False,
+        )
+
+        # Should still have basic structure
+        assert "overall_health" in dashboard
+        assert "summary" in dashboard
+
+        # Excluded sections should be absent
+        assert "heartbeat" not in dashboard["details"]
+        assert "temporal" not in dashboard["details"]
+
+
 class TestAdaptiveThresholds:
     """Tests for severity-based adaptive governance thresholds."""
 
