@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 13  # 12 original + Attack 13 (Defense Evasion)
+        assert len(results) == 14  # 12 original + Attack 13 + Attack 14
 
 
 class TestEndToEndIntegration:
@@ -4000,3 +4000,40 @@ class TestDefenseEvasion:
         # These are the most important defenses
         assert defenses.get("outsider_requirement", False), "Outsider requirement failed"
         assert defenses.get("weighted_voting", False), "Weighted voting failed"
+
+
+# =============================================================================
+# Attack 14: Advanced Defense Tests (Tracks AU-AW)
+# =============================================================================
+
+class TestAdvancedDefenses:
+    """Tests for Attack 14 - validating AU-AW defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Attack 14 simulation completes without error."""
+        from hardbound.attack_simulations import attack_advanced_defenses
+        result = attack_advanced_defenses()
+        assert result.attack_name == "Advanced Defenses (AU-AW)"
+        assert not result.success  # Defenses should hold
+
+    def test_all_defenses_hold(self):
+        """All 3 defenses should hold."""
+        from hardbound.attack_simulations import attack_advanced_defenses
+        result = attack_advanced_defenses()
+        defenses_held = result.raw_data.get("defenses_held", 0)
+        assert defenses_held == 3, f"Only {defenses_held}/3 defenses held"
+
+    def test_reputation_decay_effective(self):
+        """Reputation decay reduces dormant team's score."""
+        from hardbound.attack_simulations import attack_advanced_defenses
+        result = attack_advanced_defenses()
+        before = result.raw_data.get("dormant_score_before", 0)
+        after = result.raw_data.get("dormant_score_after", 1)
+        assert after < before, "Dormant team score should decay"
+
+    def test_severity_classification_correct(self):
+        """Critical actions are classified correctly."""
+        from hardbound.attack_simulations import attack_advanced_defenses
+        result = attack_advanced_defenses()
+        classified = result.raw_data.get("classified_severity")
+        assert classified == "critical", f"team_dissolution should be critical, got {classified}"

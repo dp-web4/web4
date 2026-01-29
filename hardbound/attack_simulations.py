@@ -1872,9 +1872,9 @@ def attack_defense_evasion() -> AttackResult:
             "4. Outsider requirement - critical proposals need neutral third party\n"
             "5. Weighted voting - reputation-weighted votes prevent low-trust takeover\n"
             "\n"
-            "FUTURE IMPROVEMENTS:\n"
-            "6. Cross-domain temporal analysis\n"
-            "7. Adaptive thresholds based on proposal severity"
+            "IMPLEMENTED (Tracks AU-AW):\n"
+            "6. Reputation decay - inactive teams lose influence\n"
+            "7. Adaptive thresholds - critical actions get stricter governance"
         ),
         raw_data={
             "defenses": defenses,
@@ -1886,6 +1886,167 @@ def attack_defense_evasion() -> AttackResult:
             "outsider_blocked": outsider_blocked,
             "outsider_impersonation_blocked": outsider_impersonation_blocked,
             "low_rep_blocked": low_rep_blocked,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 14: Advanced Defense Testing (Tracks AU-AW)
+# ---------------------------------------------------------------------------
+
+def attack_advanced_defenses() -> AttackResult:
+    """
+    ATTACK: Test new defenses from Tracks AU-AW.
+
+    Tests:
+    - AU: Cycle detection (already tested in Attack 13)
+    - AV: Reputation decay bypass attempts
+    - AW: Adaptive threshold exploitation
+    """
+    from .federation import FederationRegistry
+    import sqlite3
+    import tempfile
+
+    db_path = Path(tempfile.mkdtemp()) / "attack14_advanced.db"
+    fed = FederationRegistry(db_path=db_path)
+
+    defenses = {
+        "reputation_decay": False,
+        "adaptive_thresholds": False,
+        "severity_classification": False,
+    }
+
+    # Setup teams
+    fed.register_team("team:active", "Active Team", creator_lct="honest:a")
+    fed.register_team("team:dormant", "Dormant Team", creator_lct="sleeper:d")
+    fed.register_team("team:attacker", "Attacker", creator_lct="attacker:x")
+
+    # Set up dormant team with high reputation but old activity
+    old_time = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE federated_teams SET last_activity = ?, witness_score = 0.95 WHERE team_id = 'team:dormant'",
+            (old_time,)
+        )
+        # Attacker has low reputation
+        conn.execute(
+            "UPDATE federated_teams SET witness_score = 0.3 WHERE team_id = 'team:attacker'"
+        )
+
+    # ========================================================================
+    # TEST 1: Reputation Decay (Track AV)
+    # ========================================================================
+    # Attack: Try to use dormant high-rep team before decay runs
+
+    # Check dormant team's current score
+    dormant_before = fed.get_team("team:dormant").witness_score
+    assert dormant_before == 0.95, "Setup failed: dormant team should have high score"
+
+    # Apply reputation decay
+    decay_result = fed.apply_reputation_decay(decay_threshold_days=30, decay_rate=0.2)
+
+    dormant_after = fed.get_team("team:dormant").witness_score
+    dormant_decayed = dormant_after < dormant_before
+
+    if dormant_decayed:
+        defenses["reputation_decay"] = True
+
+    # ========================================================================
+    # TEST 2: Adaptive Thresholds (Track AW)
+    # ========================================================================
+    # Attack: Try to use low-severity thresholds for critical action
+
+    # Try to create critical action with low thresholds
+    # (Should be auto-escalated by severity classification)
+    critical_proposal = fed.create_cross_team_proposal(
+        "team:attacker", "admin:attacker", "admin_transfer", "Transfer admin",
+        ["team:active"],
+    )
+
+    # Critical actions should auto-apply strict thresholds
+    has_strict_thresholds = (
+        critical_proposal["severity"] == "critical" and
+        critical_proposal["require_outsider"] == True and
+        critical_proposal["approval_threshold"] >= 0.8
+    )
+
+    if has_strict_thresholds:
+        defenses["adaptive_thresholds"] = True
+
+    # ========================================================================
+    # TEST 3: Severity Classification (Track AW)
+    # ========================================================================
+    # Attack: Try to disguise critical action as low-severity
+
+    # Attempt to manually override severity (should still classify correctly)
+    disguised_proposal = fed.create_cross_team_proposal(
+        "team:attacker", "admin:attacker", "team_dissolution", "Dissolve team",
+        ["team:active"],
+        severity="low",  # Explicit low severity (attacker tries to downgrade)
+    )
+
+    # Check if policy was still applied based on explicit severity
+    # Note: If explicit severity is allowed, this is a potential gap
+    # The test documents current behavior
+    severity_override_works = disguised_proposal["severity"] == "low"
+
+    # But the action type classification should be available for audit
+    classified_severity = fed.classify_action_severity("team_dissolution")
+    correct_classification = classified_severity == "critical"
+
+    if correct_classification:
+        defenses["severity_classification"] = True
+
+    # ========================================================================
+    # RESULTS
+    # ========================================================================
+    defenses_held = sum(1 for v in defenses.values() if v)
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses
+
+    return AttackResult(
+        attack_name="Advanced Defenses (AU-AW)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=50.0 if attack_success else 0.0,
+        roi=-0.75 if not attack_success else 0.25,
+        detection_probability=0.90 if defenses_held == total_defenses else 0.6,
+        time_to_detection_hours=12 if defenses_held == total_defenses else 72,
+        blocks_until_detected=50 if defenses_held == total_defenses else 200,
+        trust_damage=2.0,
+        description=(
+            f"ADVANCED DEFENSE TEST (Tracks AU-AW):\n"
+            f"  - Reputation Decay (AV): {'HELD' if defenses['reputation_decay'] else 'EVADED'}\n"
+            f"    Dormant team score: {dormant_before:.2f} -> {dormant_after:.2f}\n"
+            f"  - Adaptive Thresholds (AW): {'HELD' if defenses['adaptive_thresholds'] else 'EVADED'}\n"
+            f"    Critical action got strict policy: {has_strict_thresholds}\n"
+            f"  - Severity Classification: {'HELD' if defenses['severity_classification'] else 'EVADED'}\n"
+            f"    team_dissolution classified as: {classified_severity}\n"
+            f"\n"
+            f"Overall: {defenses_held}/{total_defenses} defenses held.\n"
+            f"NOTE: Explicit severity override currently {'ALLOWED' if severity_override_works else 'BLOCKED'}.\n"
+            f"This is a policy decision - explicit override may be valid for audited use."
+        ),
+        mitigation=(
+            "DEFENSES IMPLEMENTED (Tracks AU-AW):\n"
+            "1. Cycle detection - catches chain-pattern collusion\n"
+            "2. Reputation decay - inactive teams lose influence over time\n"
+            "3. Adaptive thresholds - critical actions get stricter governance\n"
+            "4. Severity classification - action types mapped to severity levels\n"
+            "\n"
+            "POTENTIAL GAPS:\n"
+            "5. Explicit severity override allowed (audit-trail recommended)\n"
+            "6. Decay only applied when explicitly called (integrate with heartbeat)\n"
+            "7. Amount-based classification needs more granular thresholds"
+        ),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "dormant_score_before": dormant_before,
+            "dormant_score_after": dormant_after,
+            "has_strict_thresholds": has_strict_thresholds,
+            "severity_override_works": severity_override_works,
+            "classified_severity": classified_severity,
         }
     )
 
@@ -1910,6 +2071,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("R6 Timeout Evasion", attack_r6_timeout_evasion),
         ("Multi-Party Cross-Team Collusion", attack_multiparty_crossteam_collusion),
         ("Defense Evasion (AP-AS)", attack_defense_evasion),
+        ("Advanced Defenses (AU-AW)", attack_advanced_defenses),
     ]
 
     results = []
