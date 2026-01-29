@@ -772,6 +772,233 @@ class FederationRegistry:
 
         return inactive
 
+    def federation_heartbeat(
+        self,
+        apply_decay: bool = True,
+        decay_threshold_days: int = 30,
+        decay_rate: float = 0.1,
+        min_score: float = 0.3,
+        ledger: "Ledger" = None,
+        session_id: str = None,
+    ) -> Dict:
+        """
+        Federation heartbeat - periodic health check and maintenance.
+
+        This method should be called periodically (e.g., weekly) to:
+        1. Apply reputation decay to inactive teams
+        2. Check federation health metrics
+        3. Optionally record to ledger for audit trail
+
+        Args:
+            apply_decay: Whether to apply reputation decay (default True)
+            decay_threshold_days: Days of inactivity before decay
+            decay_rate: Decay rate per heartbeat (default 10%)
+            min_score: Minimum reputation score floor
+            ledger: Optional Ledger instance for recording heartbeat
+            session_id: Session ID for ledger recording
+
+        Returns:
+            Dict with heartbeat results and health metrics
+        """
+        now = datetime.now(timezone.utc)
+        timestamp = now.isoformat()
+
+        # Track heartbeat sequence in DB
+        self._ensure_federation_heartbeat_table()
+        self._ensure_xteam_table()  # Ensure xteam tables exist for metrics
+        sequence = self._get_next_heartbeat_sequence()
+
+        # Gather health metrics
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            # Total active teams
+            active_count = conn.execute(
+                "SELECT COUNT(*) FROM federated_teams WHERE status = 'active'"
+            ).fetchone()[0]
+
+            # Average reputation
+            avg_rep = conn.execute(
+                "SELECT AVG(witness_score) FROM federated_teams WHERE status = 'active'"
+            ).fetchone()[0] or 0.0
+
+            # Teams below minimum threshold
+            low_rep_count = conn.execute(
+                "SELECT COUNT(*) FROM federated_teams WHERE status = 'active' AND witness_score < ?",
+                (self.MIN_WITNESS_SCORE,)
+            ).fetchone()[0]
+
+            # Pending proposals
+            pending_proposals = conn.execute(
+                "SELECT COUNT(*) FROM cross_team_proposals WHERE status = 'pending'"
+            ).fetchone()[0]
+
+        # Get inactive teams
+        inactive_teams = self.get_inactive_teams(decay_threshold_days)
+
+        # Apply decay if enabled
+        decay_result = None
+        if apply_decay and inactive_teams:
+            decay_result = self.apply_reputation_decay(
+                decay_threshold_days=decay_threshold_days,
+                decay_rate=decay_rate,
+                min_score=min_score,
+            )
+
+        # Build health assessment
+        health_status = "healthy"
+        health_issues = []
+
+        if active_count < 3:
+            health_status = "degraded"
+            health_issues.append(f"Low team count: {active_count}")
+
+        if avg_rep < 0.5:
+            health_status = "warning"
+            health_issues.append(f"Low average reputation: {avg_rep:.2f}")
+
+        if len(inactive_teams) > active_count * 0.5:
+            health_status = "warning"
+            health_issues.append(f"High inactivity: {len(inactive_teams)}/{active_count} teams inactive")
+
+        if low_rep_count > active_count * 0.3:
+            health_status = "critical"
+            health_issues.append(f"Many low-rep teams: {low_rep_count}")
+
+        # Record heartbeat
+        heartbeat_entry = {
+            "sequence": sequence,
+            "timestamp": timestamp,
+            "active_teams": active_count,
+            "average_reputation": round(avg_rep, 3),
+            "inactive_teams": len(inactive_teams),
+            "low_rep_teams": low_rep_count,
+            "pending_proposals": pending_proposals,
+            "decay_applied": decay_result is not None,
+            "teams_decayed": len(decay_result["decayed_teams"]) if decay_result else 0,
+            "health_status": health_status,
+            "health_issues": health_issues,
+        }
+
+        self._record_federation_heartbeat(heartbeat_entry)
+
+        # Optionally record to ledger
+        if ledger and session_id:
+            import hashlib
+            entry_hash = hashlib.sha256(
+                f"{sequence}:{timestamp}:{health_status}".encode()
+            ).hexdigest()[:16]
+
+            ledger.record_heartbeat(
+                session_id=session_id,
+                sequence=sequence,
+                timestamp=timestamp,
+                status=health_status,
+                delta_seconds=0.0,  # No previous for federation heartbeat
+                tool_name="federation_heartbeat",
+                action_index=0,
+                previous_hash="",
+                entry_hash=entry_hash,
+            )
+
+        return {
+            "heartbeat": heartbeat_entry,
+            "decay_result": decay_result,
+            "inactive_teams": inactive_teams,
+        }
+
+    def _ensure_federation_heartbeat_table(self):
+        """Ensure federation heartbeat tracking table exists."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS federation_heartbeats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sequence INTEGER NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    active_teams INTEGER,
+                    average_reputation REAL,
+                    inactive_teams INTEGER,
+                    low_rep_teams INTEGER,
+                    pending_proposals INTEGER,
+                    decay_applied INTEGER,
+                    teams_decayed INTEGER,
+                    health_status TEXT,
+                    health_issues TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_fed_heartbeat_seq
+                ON federation_heartbeats(sequence DESC)
+            """)
+
+    def _get_next_heartbeat_sequence(self) -> int:
+        """Get next heartbeat sequence number."""
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT MAX(sequence) FROM federation_heartbeats"
+            ).fetchone()
+            return (row[0] or 0) + 1
+
+    def _record_federation_heartbeat(self, entry: Dict):
+        """Record a federation heartbeat entry."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO federation_heartbeats
+                (sequence, timestamp, active_teams, average_reputation, inactive_teams,
+                 low_rep_teams, pending_proposals, decay_applied, teams_decayed,
+                 health_status, health_issues)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                entry["sequence"],
+                entry["timestamp"],
+                entry["active_teams"],
+                entry["average_reputation"],
+                entry["inactive_teams"],
+                entry["low_rep_teams"],
+                entry["pending_proposals"],
+                1 if entry["decay_applied"] else 0,
+                entry["teams_decayed"],
+                entry["health_status"],
+                json.dumps(entry["health_issues"]),
+            ))
+
+    def get_heartbeat_history(self, limit: int = 10) -> List[Dict]:
+        """
+        Get recent federation heartbeat history.
+
+        Args:
+            limit: Maximum number of entries to return
+
+        Returns:
+            List of heartbeat entries, most recent first
+        """
+        self._ensure_federation_heartbeat_table()
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT * FROM federation_heartbeats
+                ORDER BY sequence DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+
+        return [
+            {
+                "sequence": row["sequence"],
+                "timestamp": row["timestamp"],
+                "active_teams": row["active_teams"],
+                "average_reputation": row["average_reputation"],
+                "inactive_teams": row["inactive_teams"],
+                "low_rep_teams": row["low_rep_teams"],
+                "pending_proposals": row["pending_proposals"],
+                "decay_applied": bool(row["decay_applied"]),
+                "teams_decayed": row["teams_decayed"],
+                "health_status": row["health_status"],
+                "health_issues": json.loads(row["health_issues"]) if row["health_issues"] else [],
+            }
+            for row in rows
+        ]
+
     def check_reciprocity(self, team_a_id: str, team_b_id: str) -> Dict:
         """
         Check witness reciprocity between two teams.

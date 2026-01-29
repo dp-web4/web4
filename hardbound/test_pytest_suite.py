@@ -3487,6 +3487,156 @@ class TestReputationDecay:
         assert team.witness_score >= 0.3, "Score should not go below minimum"
 
 
+class TestFederationHeartbeat:
+    """Tests for federation heartbeat and automatic decay."""
+
+    def test_heartbeat_returns_health_metrics(self):
+        """Heartbeat returns federation health metrics."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "heartbeat_metrics.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        result = fed.federation_heartbeat(apply_decay=False)
+
+        assert "heartbeat" in result
+        hb = result["heartbeat"]
+        assert hb["active_teams"] == 3
+        assert hb["sequence"] == 1
+        assert hb["health_status"] == "healthy"
+
+    def test_heartbeat_applies_decay_automatically(self):
+        """Heartbeat applies decay to inactive teams when enabled."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        import sqlite3
+        from pathlib import Path
+        from datetime import datetime, timezone, timedelta
+
+        db_path = Path(tempfile.mkdtemp()) / "heartbeat_decay.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:active", "Active")
+        fed.register_team("team:stale", "Stale")
+
+        # Make one team inactive
+        old_time = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE federated_teams SET last_activity = ?, witness_score = 0.9 WHERE team_id = 'team:stale'",
+                (old_time,)
+            )
+
+        result = fed.federation_heartbeat(
+            apply_decay=True,
+            decay_threshold_days=30,
+            decay_rate=0.1
+        )
+
+        assert result["decay_result"] is not None
+        assert result["decay_result"]["teams_decayed"] >= 1
+        assert result["heartbeat"]["decay_applied"] is True
+        assert result["heartbeat"]["teams_decayed"] >= 1
+
+    def test_heartbeat_no_decay_when_disabled(self):
+        """Heartbeat skips decay when apply_decay=False."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        import sqlite3
+        from pathlib import Path
+        from datetime import datetime, timezone, timedelta
+
+        db_path = Path(tempfile.mkdtemp()) / "heartbeat_no_decay.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:old", "Old")
+
+        # Make team inactive
+        old_time = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE federated_teams SET last_activity = ?, witness_score = 0.8 WHERE team_id = 'team:old'",
+                (old_time,)
+            )
+
+        result = fed.federation_heartbeat(apply_decay=False)
+
+        assert result["decay_result"] is None
+        assert result["heartbeat"]["decay_applied"] is False
+        assert result["heartbeat"]["teams_decayed"] == 0
+
+        # Score should be unchanged
+        team = fed.get_team("team:old")
+        assert team.witness_score == 0.8
+
+    def test_heartbeat_sequence_increments(self):
+        """Each heartbeat increments sequence number."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "heartbeat_seq.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+
+        result1 = fed.federation_heartbeat(apply_decay=False)
+        result2 = fed.federation_heartbeat(apply_decay=False)
+        result3 = fed.federation_heartbeat(apply_decay=False)
+
+        assert result1["heartbeat"]["sequence"] == 1
+        assert result2["heartbeat"]["sequence"] == 2
+        assert result3["heartbeat"]["sequence"] == 3
+
+    def test_heartbeat_history_retrieval(self):
+        """Can retrieve heartbeat history."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "heartbeat_history.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+
+        # Run several heartbeats
+        for _ in range(5):
+            fed.federation_heartbeat(apply_decay=False)
+
+        history = fed.get_heartbeat_history(limit=3)
+
+        assert len(history) == 3
+        # Most recent first
+        assert history[0]["sequence"] == 5
+        assert history[1]["sequence"] == 4
+        assert history[2]["sequence"] == 3
+
+    def test_heartbeat_health_status_degraded(self):
+        """Low team count triggers degraded status."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "heartbeat_degraded.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Only 2 teams (< 3 = degraded)
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+
+        result = fed.federation_heartbeat(apply_decay=False)
+
+        assert result["heartbeat"]["health_status"] == "degraded"
+        assert any("Low team count" in issue for issue in result["heartbeat"]["health_issues"])
+
+
 class TestTemporalPatternDetection:
     """Tests for detecting suspiciously fast approval patterns."""
 
