@@ -31,10 +31,10 @@ class TestAttackSimulations:
     """Run attack simulation suite."""
 
     def test_attack_simulations(self):
-        """Execute all 6 attack vectors."""
+        """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 12
+        assert len(results) == 13  # 12 original + Attack 13 (Defense Evasion)
 
 
 class TestEndToEndIntegration:
@@ -3533,3 +3533,47 @@ class TestWeightedVoting:
         )
 
         assert updated["status"] == "rejected"
+
+
+# =============================================================================
+# Attack 13: Defense Evasion Tests
+# =============================================================================
+
+class TestDefenseEvasion:
+    """Tests for Attack 13 - validating collusion defenses (Tracks AP-AS)."""
+
+    def test_attack_simulation_runs(self):
+        """Attack 13 simulation completes without error."""
+        from hardbound.attack_simulations import attack_defense_evasion
+        result = attack_defense_evasion()
+        assert result.attack_name == "Defense Evasion (Testing AP-AS)"
+        # Should not succeed - defenses should mostly hold
+        assert not result.success
+
+    def test_three_defenses_hold(self):
+        """At least 3 of 4 defenses should hold."""
+        from hardbound.attack_simulations import attack_defense_evasion
+        result = attack_defense_evasion()
+        defenses_held = result.raw_data.get("defenses_held", 0)
+        assert defenses_held >= 3, f"Only {defenses_held}/4 defenses held"
+
+    def test_chain_pattern_gap_identified(self):
+        """Chain-pattern evasion identifies a gap for future work."""
+        from hardbound.attack_simulations import attack_defense_evasion
+        result = attack_defense_evasion()
+        # Chain evasion currently works - this documents the gap
+        chain_evades = result.raw_data.get("chain_evades_reciprocity", False)
+        chain_detected = result.raw_data.get("chain_detected_anyway", True)
+        # Either chain is detected, or we've documented the gap
+        if chain_evades and not chain_detected:
+            # Gap exists - verify it's documented in mitigation
+            assert "Chain-pattern" in result.mitigation
+
+    def test_key_defenses_functional(self):
+        """Outsider requirement and weighted voting must work."""
+        from hardbound.attack_simulations import attack_defense_evasion
+        result = attack_defense_evasion()
+        defenses = result.raw_data.get("defenses", {})
+        # These are the most important defenses
+        assert defenses.get("outsider_requirement", False), "Outsider requirement failed"
+        assert defenses.get("weighted_voting", False), "Weighted voting failed"

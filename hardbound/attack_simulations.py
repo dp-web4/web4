@@ -1620,6 +1620,268 @@ def attack_multiparty_crossteam_collusion() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 13: Defense Evasion (Testing AP-AS Collusion Defenses)
+# ---------------------------------------------------------------------------
+
+def attack_defense_evasion() -> AttackResult:
+    """
+    ATTACK: Attempt to evade new collusion defenses (Tracks AP-AS).
+
+    Tests the effectiveness of:
+    - AP: Approval reciprocity analysis
+    - AQ: Temporal pattern detection
+    - AR: Outsider requirement
+    - AS: Weighted voting
+
+    Strategy:
+    - Try various evasion techniques against each defense
+    - Measure which defenses hold and which can be bypassed
+    """
+    from .federation import FederationRegistry
+    import sqlite3
+    import tempfile
+    import time as time_module
+
+    db_path = Path(tempfile.mkdtemp()) / "attack13_evasion.db"
+    fed = FederationRegistry(db_path=db_path)
+
+    # Setup: Create teams for attack scenarios
+    # Legitimate teams (high reputation)
+    fed.register_team("team:legit_a", "Legit A", creator_lct="founder:a")
+    fed.register_team("team:legit_b", "Legit B", creator_lct="founder:b")
+    fed.register_team("team:legit_c", "Legit C", creator_lct="founder:c")
+
+    # Colluding teams (lower reputation)
+    fed.register_team("team:ring_x", "Ring X", creator_lct="colluder:x")
+    fed.register_team("team:ring_y", "Ring Y", creator_lct="colluder:y")
+    fed.register_team("team:ring_z", "Ring Z", creator_lct="colluder:z")
+
+    # Set reputation scores (legitimate teams have higher scores)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE federated_teams SET witness_score = 0.9 WHERE team_id = 'team:legit_a'")
+        conn.execute("UPDATE federated_teams SET witness_score = 0.85 WHERE team_id = 'team:legit_b'")
+        conn.execute("UPDATE federated_teams SET witness_score = 0.8 WHERE team_id = 'team:legit_c'")
+        conn.execute("UPDATE federated_teams SET witness_score = 0.3 WHERE team_id = 'team:ring_x'")
+        conn.execute("UPDATE federated_teams SET witness_score = 0.25 WHERE team_id = 'team:ring_y'")
+        conn.execute("UPDATE federated_teams SET witness_score = 0.2 WHERE team_id = 'team:ring_z'")
+
+    defenses = {
+        "reciprocity_analysis": False,
+        "temporal_detection": False,
+        "outsider_requirement": False,
+        "weighted_voting": False,
+    }
+
+    # ========================================================================
+    # TEST 1: Reciprocity Analysis (Track AP)
+    # ========================================================================
+    # Try to evade by using one-directional approvals
+    # Strategy: A approves B's proposals, C approves A's, B approves C's (chain)
+
+    # Instead of X <-> Y, do X -> Y -> Z -> X (one-way chain)
+    for i in range(4):
+        # X proposes to Y only
+        px = fed.create_cross_team_proposal(
+            "team:ring_x", f"admin:x{i}", f"chain_x{i}", f"Chain X{i}",
+            ["team:ring_y"]
+        )
+        fed.approve_cross_team_proposal(px["proposal_id"], "team:ring_y", f"admin:y{i}")
+
+        # Y proposes to Z only
+        py = fed.create_cross_team_proposal(
+            "team:ring_y", f"admin:y{i}", f"chain_y{i}", f"Chain Y{i}",
+            ["team:ring_z"]
+        )
+        fed.approve_cross_team_proposal(py["proposal_id"], "team:ring_z", f"admin:z{i}")
+
+        # Z proposes to X only (completing chain)
+        pz = fed.create_cross_team_proposal(
+            "team:ring_z", f"admin:z{i}", f"chain_z{i}", f"Chain Z{i}",
+            ["team:ring_x"]
+        )
+        fed.approve_cross_team_proposal(pz["proposal_id"], "team:ring_x", f"admin:x{i}")
+
+    # Check reciprocity report - circular chains should be harder to detect
+    # than direct A<->B reciprocity
+    reciprocity_xy = fed.check_approval_reciprocity("team:ring_x", "team:ring_y")
+    reciprocity_yz = fed.check_approval_reciprocity("team:ring_y", "team:ring_z")
+    reciprocity_zx = fed.check_approval_reciprocity("team:ring_z", "team:ring_x")
+
+    # Chain pattern: each pair should NOT be suspicious (one-way)
+    chain_evades = (
+        not reciprocity_xy.get("is_suspicious", False) and
+        not reciprocity_yz.get("is_suspicious", False) and
+        not reciprocity_zx.get("is_suspicious", False)
+    )
+
+    # But full reciprocity report should catch overall patterns
+    full_report = fed.get_approval_reciprocity_report()
+    chain_detected_anyway = len(full_report.get("suspicious_pairs", [])) > 0
+
+    if not chain_evades or chain_detected_anyway:
+        defenses["reciprocity_analysis"] = True
+
+    # ========================================================================
+    # TEST 2: Temporal Detection (Track AQ)
+    # ========================================================================
+    # Strategy: Introduce artificial delays between creation and approval
+
+    # Create proposal and wait before approving
+    delayed_proposal = fed.create_cross_team_proposal(
+        "team:ring_x", "admin:x_delayed", "delayed_action", "Delayed approval",
+        ["team:ring_y"]
+    )
+
+    # In real attack, would wait 6+ minutes. Here we just test the detection.
+    # Since we can't actually wait in a test, we'll check if the system
+    # would flag instant approvals
+    instant_proposal = fed.create_cross_team_proposal(
+        "team:ring_x", "admin:x_instant", "instant_action", "Instant approval",
+        ["team:ring_y"]
+    )
+    fed.approve_cross_team_proposal(instant_proposal["proposal_id"], "team:ring_y", "admin:y_instant")
+
+    timing_analysis = fed.analyze_approval_timing(instant_proposal["proposal_id"])
+    instant_flagged = timing_analysis.get("is_suspicious", False)
+
+    if instant_flagged:
+        defenses["temporal_detection"] = True
+
+    # ========================================================================
+    # TEST 3: Outsider Requirement (Track AR)
+    # ========================================================================
+    # Strategy: Try to approve outsider-required proposal without outsider
+
+    # Create proposal requiring outsider
+    outsider_proposal = fed.create_cross_team_proposal(
+        "team:ring_x", "admin:x_outsider", "critical_action", "Critical action",
+        target_team_ids=["team:ring_y", "team:ring_z"],
+        require_outsider=True,
+        outsider_team_ids=["team:legit_a", "team:legit_b", "team:legit_c"]
+    )
+
+    # Colluding teams approve
+    fed.approve_cross_team_proposal(outsider_proposal["proposal_id"], "team:ring_y", "admin:ring_y")
+    fed.approve_cross_team_proposal(outsider_proposal["proposal_id"], "team:ring_z", "admin:ring_z")
+
+    # Check status - should NOT be approved without outsider
+    outsider_result = fed.get_cross_team_proposal(outsider_proposal["proposal_id"])
+    outsider_blocked = outsider_result["status"] != "approved"
+
+    if outsider_blocked:
+        defenses["outsider_requirement"] = True
+
+    # Now try ring member pretending to be outsider
+    try:
+        # Ring Z tries to approve as outsider (but is target team)
+        fed.approve_as_outsider(
+            outsider_proposal["proposal_id"],
+            "team:ring_z",  # Not valid outsider
+            "admin:z_pretend"
+        )
+        outsider_impersonation_blocked = False
+    except ValueError:
+        outsider_impersonation_blocked = True
+
+    if outsider_impersonation_blocked:
+        defenses["outsider_requirement"] = True
+
+    # ========================================================================
+    # TEST 4: Weighted Voting (Track AS)
+    # ========================================================================
+    # Strategy: Low-rep ring tries to pass proposal in weighted mode
+
+    # Ring tries to pass proposal affecting legitimate teams
+    weighted_proposal = fed.create_cross_team_proposal(
+        "team:ring_x", "admin:x_weighted", "resource_grab", "Ring resource grab",
+        target_team_ids=["team:legit_a", "team:ring_y"],  # Mix of legit and ring
+        voting_mode="weighted",
+        approval_threshold=0.5,
+    )
+
+    # Ring Y approves (low weight: 0.25)
+    fed.approve_cross_team_proposal(weighted_proposal["proposal_id"], "team:ring_y", "admin:ring_y")
+
+    # Check if passed without legitimate approval
+    weighted_result = fed.get_cross_team_proposal(weighted_proposal["proposal_id"])
+    low_rep_blocked = weighted_result["status"] != "approved"
+
+    if low_rep_blocked:
+        # Now test that high-rep rejection blocks
+        weighted_proposal2 = fed.create_cross_team_proposal(
+            "team:ring_x", "admin:x_w2", "another_grab", "Another grab",
+            target_team_ids=["team:legit_a", "team:legit_b"],
+            voting_mode="weighted",
+            approval_threshold=0.5,
+        )
+
+        # Legit A rejects (high weight: 0.9)
+        fed.reject_cross_team_proposal(weighted_proposal2["proposal_id"], "team:legit_a", "admin:legit_a", "Suspicious")
+
+        weighted_result2 = fed.get_cross_team_proposal(weighted_proposal2["proposal_id"])
+        high_rep_veto = weighted_result2["status"] == "rejected"
+
+        if high_rep_veto:
+            defenses["weighted_voting"] = True
+
+    # ========================================================================
+    # RESULTS
+    # ========================================================================
+    defenses_held = sum(1 for v in defenses.values() if v)
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses / 2
+
+    return AttackResult(
+        attack_name="Defense Evasion (Testing AP-AS)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=100.0 if attack_success else 0.0,
+        roi=-0.8 if not attack_success else 0.2,
+        detection_probability=0.85 if defenses_held >= 3 else 0.4,
+        time_to_detection_hours=24 if defenses_held >= 3 else 168,
+        blocks_until_detected=100 if defenses_held >= 3 else 500,
+        trust_damage=2.5,
+        description=(
+            f"DEFENSE TEST RESULTS:\n"
+            f"  - Reciprocity Analysis (AP): {'HELD' if defenses['reciprocity_analysis'] else 'EVADED'}\n"
+            f"  - Temporal Detection (AQ): {'HELD' if defenses['temporal_detection'] else 'EVADED'}\n"
+            f"  - Outsider Requirement (AR): {'HELD' if defenses['outsider_requirement'] else 'EVADED'}\n"
+            f"  - Weighted Voting (AS): {'HELD' if defenses['weighted_voting'] else 'EVADED'}\n"
+            f"\n"
+            f"Overall: {defenses_held}/{total_defenses} defenses held. "
+            f"{'ATTACK BLOCKED' if not attack_success else 'ATTACK PARTIALLY SUCCESSFUL'}.\n"
+            f"\n"
+            f"Chain-pattern evasion of reciprocity: {'WORKED' if chain_evades and not chain_detected_anyway else 'BLOCKED'}\n"
+            f"Instant approval flagged: {'YES' if instant_flagged else 'NO'}\n"
+            f"Outsider bypass blocked: {'YES' if outsider_blocked else 'NO'}\n"
+            f"Low-rep weighted approval blocked: {'YES' if low_rep_blocked else 'NO'}"
+        ),
+        mitigation=(
+            "DEFENSES IMPLEMENTED (Tracks AP-AS):\n"
+            "1. Approval reciprocity analysis - detects mutual approval patterns\n"
+            "2. Temporal pattern detection - flags suspiciously fast approvals\n"
+            "3. Outsider requirement - critical proposals need neutral third party\n"
+            "4. Weighted voting - reputation-weighted votes prevent low-trust takeover\n"
+            "\n"
+            "FUTURE IMPROVEMENTS:\n"
+            "5. Chain-pattern detection (A->B->C->A cycles)\n"
+            "6. Cross-domain temporal analysis\n"
+            "7. Adaptive thresholds based on proposal severity"
+        ),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "chain_evades_reciprocity": chain_evades,
+            "chain_detected_anyway": chain_detected_anyway,
+            "instant_flagged": instant_flagged,
+            "outsider_blocked": outsider_blocked,
+            "outsider_impersonation_blocked": outsider_impersonation_blocked,
+            "low_rep_blocked": low_rep_blocked,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -1638,6 +1900,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Witness Cycling (Official API)", attack_witness_cycling),
         ("R6 Timeout Evasion", attack_r6_timeout_evasion),
         ("Multi-Party Cross-Team Collusion", attack_multiparty_crossteam_collusion),
+        ("Defense Evasion (AP-AS)", attack_defense_evasion),
     ]
 
     results = []
