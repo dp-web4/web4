@@ -1130,7 +1130,7 @@ class FederationRegistry:
         return proposal
 
     def _ensure_xteam_table(self):
-        """Create cross_team_proposals table if not exists."""
+        """Create cross_team_proposals and approval_records tables if not exist."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS cross_team_proposals (
@@ -1139,6 +1139,21 @@ class FederationRegistry:
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
+            """)
+            # Track approval events for reciprocity analysis
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS xteam_approval_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    proposing_team_id TEXT NOT NULL,
+                    approving_team_id TEXT NOT NULL,
+                    proposal_id TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    outcome TEXT DEFAULT 'pending'
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_xteam_approvals_teams
+                ON xteam_approval_records(proposing_team_id, approving_team_id)
             """)
 
     def approve_cross_team_proposal(
@@ -1169,10 +1184,19 @@ class FederationRegistry:
             raise ValueError(f"Team {approving_team_id} already approved")
 
         # Record approval
+        now = datetime.now(timezone.utc).isoformat()
         proposal["approvals"][approving_team_id] = {
             "approver_lct": approver_lct,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now,
         }
+
+        # Record for reciprocity analysis
+        self._record_xteam_approval(
+            proposing_team_id=proposal["proposing_team_id"],
+            approving_team_id=approving_team_id,
+            proposal_id=proposal_id,
+            timestamp=now,
+        )
 
         # Check if threshold met
         if len(proposal["approvals"]) >= proposal["required_approvals"]:
@@ -1255,6 +1279,136 @@ class FederationRegistry:
                 "UPDATE cross_team_proposals SET data = ?, status = ? WHERE proposal_id = ?",
                 (json.dumps(proposal), proposal["status"], proposal["proposal_id"])
             )
+
+    def _record_xteam_approval(self, proposing_team_id: str, approving_team_id: str,
+                                proposal_id: str, timestamp: str):
+        """Record a cross-team approval event for reciprocity analysis."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO xteam_approval_records
+                (proposing_team_id, approving_team_id, proposal_id, timestamp)
+                VALUES (?, ?, ?, ?)
+            """, (proposing_team_id, approving_team_id, proposal_id, timestamp))
+
+    def check_approval_reciprocity(self, team_a: str, team_b: str) -> Dict:
+        """
+        Check if two teams have suspicious mutual approval patterns.
+
+        Returns analysis of how often A approves B's proposals and vice versa.
+        High reciprocity (>0.8) is suspicious - indicates potential collusion.
+        """
+        self._ensure_xteam_table()
+        with sqlite3.connect(self.db_path) as conn:
+            # Count A approving B's proposals
+            a_approves_b = conn.execute("""
+                SELECT COUNT(*) FROM xteam_approval_records
+                WHERE proposing_team_id = ? AND approving_team_id = ?
+            """, (team_b, team_a)).fetchone()[0]
+
+            # Count B approving A's proposals
+            b_approves_a = conn.execute("""
+                SELECT COUNT(*) FROM xteam_approval_records
+                WHERE proposing_team_id = ? AND approving_team_id = ?
+            """, (team_a, team_b)).fetchone()[0]
+
+            # Total approvals by each team
+            a_total = conn.execute("""
+                SELECT COUNT(*) FROM xteam_approval_records
+                WHERE approving_team_id = ?
+            """, (team_a,)).fetchone()[0]
+
+            b_total = conn.execute("""
+                SELECT COUNT(*) FROM xteam_approval_records
+                WHERE approving_team_id = ?
+            """, (team_b,)).fetchone()[0]
+
+        # Calculate reciprocity metrics
+        pair_total = a_approves_b + b_approves_a
+        if pair_total == 0:
+            reciprocity_ratio = 0.0
+        else:
+            # How balanced is the mutual approval?
+            min_val = min(a_approves_b, b_approves_a)
+            max_val = max(a_approves_b, b_approves_a)
+            reciprocity_ratio = min_val / max_val if max_val > 0 else 0.0
+
+        # Concentration: what % of A's approvals go to B?
+        a_concentration = a_approves_b / a_total if a_total > 0 else 0.0
+        b_concentration = b_approves_a / b_total if b_total > 0 else 0.0
+
+        # Suspicious if:
+        # 1. High reciprocity (balanced mutual approval)
+        # 2. High concentration (most approvals to each other)
+        # 3. Significant volume (not just 1-2 approvals)
+        is_suspicious = (
+            reciprocity_ratio > 0.7 and
+            pair_total >= 4 and
+            (a_concentration > 0.5 or b_concentration > 0.5)
+        )
+
+        return {
+            "team_a": team_a,
+            "team_b": team_b,
+            "a_approves_b": a_approves_b,
+            "b_approves_a": b_approves_a,
+            "a_total_approvals": a_total,
+            "b_total_approvals": b_total,
+            "pair_total": pair_total,
+            "reciprocity_ratio": reciprocity_ratio,
+            "a_concentration": a_concentration,
+            "b_concentration": b_concentration,
+            "is_suspicious": is_suspicious,
+        }
+
+    def get_approval_reciprocity_report(self) -> Dict:
+        """
+        Analyze the entire approval graph for collusion patterns.
+
+        Returns report with flagged team pairs and overall health metrics.
+        """
+        self._ensure_xteam_table()
+        with sqlite3.connect(self.db_path) as conn:
+            # Get all teams that have participated in cross-team approvals
+            rows = conn.execute("""
+                SELECT DISTINCT proposing_team_id FROM xteam_approval_records
+                UNION
+                SELECT DISTINCT approving_team_id FROM xteam_approval_records
+            """).fetchall()
+            participating_teams = [row[0] for row in rows]
+
+        if len(participating_teams) < 2:
+            return {
+                "total_teams": len(participating_teams),
+                "pairs_analyzed": 0,
+                "flagged_pairs": [],
+                "health": "healthy",
+            }
+
+        # Check all pairs
+        flagged_pairs = []
+        pair_count = 0
+        for i, a in enumerate(participating_teams):
+            for b in participating_teams[i + 1:]:
+                pair_count += 1
+                reciprocity = self.check_approval_reciprocity(a, b)
+                if reciprocity["is_suspicious"]:
+                    flagged_pairs.append(reciprocity)
+
+        # Determine health
+        if len(flagged_pairs) > 2:
+            health = "critical"
+        elif len(flagged_pairs) > 0:
+            health = "warning"
+        else:
+            health = "healthy"
+
+        return {
+            "total_teams": len(participating_teams),
+            "pairs_analyzed": pair_count,
+            "flagged_pairs": flagged_pairs,
+            "collusion_ratio": len(flagged_pairs) / max(pair_count, 1),
+            "health": health,
+        }
 
 
 if __name__ == "__main__":

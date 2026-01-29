@@ -3069,3 +3069,125 @@ class TestCrossTeamProposals:
         # P3 should see 1 pending proposal
         pending = fed.get_pending_cross_team_proposals("team:p3")
         assert len(pending) == 1
+
+
+class TestApprovalReciprocity:
+    """Tests for cross-team approval reciprocity analysis."""
+
+    def test_approval_recorded_for_reciprocity(self):
+        """Approvals are recorded in the approval_records table."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "recip_record.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:r1", "R1")
+        fed.register_team("team:r2", "R2")
+
+        # R1 creates proposal, R2 approves
+        proposal = fed.create_cross_team_proposal(
+            "team:r1", "admin:r1", "action1", "Test", ["team:r2"]
+        )
+        fed.approve_cross_team_proposal(proposal["proposal_id"], "team:r2", "admin:r2")
+
+        # Check reciprocity (should show 1 approval from r2 to r1's proposal)
+        recip = fed.check_approval_reciprocity("team:r1", "team:r2")
+        assert recip["b_approves_a"] == 1  # R2 approved R1's proposal
+        assert recip["a_approves_b"] == 0
+
+    def test_mutual_approval_detected(self):
+        """High mutual approval rate is flagged as suspicious."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "recip_mutual.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:m1", "M1")
+        fed.register_team("team:m2", "M2")
+
+        # Create balanced mutual approvals
+        for i in range(3):
+            # M1 proposes, M2 approves
+            p1 = fed.create_cross_team_proposal(
+                "team:m1", f"admin:m1_{i}", f"action_m1_{i}", "Test", ["team:m2"]
+            )
+            fed.approve_cross_team_proposal(p1["proposal_id"], "team:m2", f"admin:m2_{i}")
+
+            # M2 proposes, M1 approves
+            p2 = fed.create_cross_team_proposal(
+                "team:m2", f"admin:m2_{i}", f"action_m2_{i}", "Test", ["team:m1"]
+            )
+            fed.approve_cross_team_proposal(p2["proposal_id"], "team:m1", f"admin:m1_{i}")
+
+        recip = fed.check_approval_reciprocity("team:m1", "team:m2")
+        assert recip["a_approves_b"] == 3  # M1 approved M2's 3 proposals
+        assert recip["b_approves_a"] == 3  # M2 approved M1's 3 proposals
+        assert recip["reciprocity_ratio"] == 1.0  # Perfect balance
+        assert recip["is_suspicious"] == True  # Should be flagged
+
+    def test_one_way_approval_not_suspicious(self):
+        """One-way approvals without reciprocity are not flagged."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "recip_oneway.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:o1", "O1")
+        fed.register_team("team:o2", "O2")
+        fed.register_team("team:o3", "O3")
+
+        # O1 proposes multiple times, O2 approves all
+        # O2 never proposes (no reciprocity)
+        for i in range(5):
+            p = fed.create_cross_team_proposal(
+                "team:o1", f"admin:o1_{i}", f"action_{i}", "Test", ["team:o2"]
+            )
+            fed.approve_cross_team_proposal(p["proposal_id"], "team:o2", f"admin:o2_{i}")
+
+        recip = fed.check_approval_reciprocity("team:o1", "team:o2")
+        assert recip["b_approves_a"] == 5  # O2 approved O1's proposals
+        assert recip["a_approves_b"] == 0  # O1 never approved O2's proposals
+        assert recip["reciprocity_ratio"] == 0.0  # No reciprocity
+        assert recip["is_suspicious"] == False  # Not flagged
+
+    def test_reciprocity_report(self):
+        """Full reciprocity report flags suspicious pairs."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "recip_report.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        # A and B collude (mutual approval)
+        for i in range(3):
+            p1 = fed.create_cross_team_proposal(
+                "team:a", f"admin:a{i}", f"act_a{i}", "Test", ["team:b"]
+            )
+            fed.approve_cross_team_proposal(p1["proposal_id"], "team:b", f"admin:b{i}")
+
+            p2 = fed.create_cross_team_proposal(
+                "team:b", f"admin:b{i}", f"act_b{i}", "Test", ["team:a"]
+            )
+            fed.approve_cross_team_proposal(p2["proposal_id"], "team:a", f"admin:a{i}")
+
+        # C is honest - approves but doesn't collude
+        p_honest = fed.create_cross_team_proposal(
+            "team:c", "admin:c", "honest_act", "Test", ["team:a"]
+        )
+        fed.approve_cross_team_proposal(p_honest["proposal_id"], "team:a", "admin:a")
+
+        report = fed.get_approval_reciprocity_report()
+        assert report["total_teams"] == 3
+        assert len(report["flagged_pairs"]) >= 1  # A-B pair should be flagged
+        assert report["health"] in ["warning", "critical"]
