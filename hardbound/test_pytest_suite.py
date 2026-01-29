@@ -2970,7 +2970,7 @@ class TestCrossTeamProposals:
         assert proposal["required_approvals"] == 2
 
     def test_approval_threshold(self):
-        """Proposal approved when threshold met."""
+        """Proposal approved when all approvals received (veto mode)."""
         from hardbound.federation import FederationRegistry
         import tempfile
         from pathlib import Path
@@ -2982,12 +2982,14 @@ class TestCrossTeamProposals:
         fed.register_team("team:b", "Team B")
         fed.register_team("team:c", "Team C")
 
+        # Use veto mode to ensure all approvals needed
         proposal = fed.create_cross_team_proposal(
             proposing_team_id="team:a",
             proposer_lct="admin:a",
             action_type="policy_change",
             description="Change federation policy",
             target_team_ids=["team:b", "team:c"],
+            voting_mode="veto",  # Explicit veto mode
         )
 
         # First approval
@@ -3005,7 +3007,7 @@ class TestCrossTeamProposals:
         assert updated["outcome"] == "approved"
 
     def test_single_rejection_vetoes(self):
-        """Single rejection blocks the entire proposal."""
+        """Single rejection blocks the entire proposal (veto mode)."""
         from hardbound.federation import FederationRegistry
         import tempfile
         from pathlib import Path
@@ -3017,12 +3019,14 @@ class TestCrossTeamProposals:
         fed.register_team("team:y", "Team Y")
         fed.register_team("team:z", "Team Z")
 
+        # Use veto mode for single rejection to block
         proposal = fed.create_cross_team_proposal(
             proposing_team_id="team:x",
             proposer_lct="admin:x",
             action_type="access_grant",
             description="Grant cross-team access",
             target_team_ids=["team:y", "team:z"],
+            voting_mode="veto",  # Explicit veto mode
         )
 
         # Y approves
@@ -3555,6 +3559,134 @@ class TestTemporalPatternDetection:
         assert report["health"] == "critical"
 
 
+class TestAdaptiveThresholds:
+    """Tests for severity-based adaptive governance thresholds."""
+
+    def test_severity_policy_retrieval(self):
+        """Can retrieve policy for each severity level."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "severity_policy.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # All levels should return valid policies
+        for level in ["low", "medium", "high", "critical"]:
+            policy = fed.get_severity_policy(level)
+            assert "approval_threshold" in policy
+            assert "require_outsider" in policy
+            assert "voting_mode" in policy
+
+    def test_critical_action_auto_classified(self):
+        """Critical action types are auto-classified as critical severity."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "severity_critical.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        critical_actions = ["team_dissolution", "admin_transfer", "key_rotation"]
+        for action in critical_actions:
+            severity = fed.classify_action_severity(action)
+            assert severity == "critical", f"{action} should be critical"
+
+    def test_severity_applies_policy_defaults(self):
+        """Proposals auto-apply severity-based policy defaults."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "severity_defaults.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:target", "Target")
+
+        # Critical action should get critical policy
+        proposal = fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "admin_transfer", "Transfer admin",
+            ["team:target"],
+        )
+
+        assert proposal["severity"] == "critical"
+        assert proposal["require_outsider"] == True
+        assert proposal["voting_mode"] == "veto"
+        assert proposal["approval_threshold"] == 0.9
+
+    def test_low_severity_gets_relaxed_thresholds(self):
+        """Low-severity actions get more permissive thresholds."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "severity_low.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:target", "Target")
+
+        # Generic action should default to low severity
+        proposal = fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "ping", "Simple ping",
+            ["team:target"],
+        )
+
+        assert proposal["severity"] == "low"
+        assert proposal["require_outsider"] == False
+        assert proposal["voting_mode"] == "weighted"
+        assert proposal["approval_threshold"] == 0.5
+
+    def test_explicit_override_beats_policy(self):
+        """Explicit parameters override severity policy defaults."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "severity_override.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:target", "Target")
+
+        # Critical action but with explicit relaxed settings
+        proposal = fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "admin_transfer", "Transfer admin",
+            ["team:target"],
+            voting_mode="weighted",  # Override veto
+            approval_threshold=0.6,  # Override 0.9
+            require_outsider=False,  # Override True
+        )
+
+        # Severity still critical, but explicit params used
+        assert proposal["severity"] == "critical"
+        assert proposal["voting_mode"] == "weighted"
+        assert proposal["approval_threshold"] == 0.6
+        assert proposal["require_outsider"] == False
+
+    def test_amount_parameter_affects_severity(self):
+        """Large amounts increase severity classification."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "severity_amount.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Small amount = low severity
+        low_severity = fed.classify_action_severity("transfer", {"amount": 50})
+        assert low_severity == "low"
+
+        # Medium amount
+        medium_severity = fed.classify_action_severity("transfer", {"amount": 500})
+        assert medium_severity == "medium"
+
+        # High amount
+        high_severity = fed.classify_action_severity("transfer", {"amount": 5000})
+        assert high_severity == "high"
+
+
 class TestOutsiderRequirement:
     """Tests for outsider approval requirement on critical proposals."""
 
@@ -3793,23 +3925,24 @@ class TestWeightedVoting:
 
         assert updated["status"] == "rejected"
 
-    def test_veto_mode_default(self):
-        """Default mode is veto - single rejection blocks."""
+    def test_veto_mode_explicit(self):
+        """Veto mode - single rejection blocks (must be explicit or critical severity)."""
         from hardbound.federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
-        db_path = Path(tempfile.mkdtemp()) / "veto_default.db"
+        db_path = Path(tempfile.mkdtemp()) / "veto_explicit.db"
         fed = FederationRegistry(db_path=db_path)
 
         fed.register_team("team:a", "A")
         fed.register_team("team:b", "B")
         fed.register_team("team:c", "C")
 
-        # Default voting mode (veto)
+        # Explicitly set veto mode (low severity defaults to weighted)
         proposal = fed.create_cross_team_proposal(
             "team:a", "admin:a", "action", "Test",
             target_team_ids=["team:b", "team:c"],
+            voting_mode="veto",
         )
 
         assert proposal["voting_mode"] == "veto"

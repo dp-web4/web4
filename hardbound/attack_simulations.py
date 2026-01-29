@@ -1539,11 +1539,13 @@ def attack_multiparty_crossteam_collusion() -> AttackResult:
     fed.register_team("team:front_z", "Front Z", creator_lct="strawman:z")
 
     # Multiple rounds of mutual cross-team approval
+    # Use veto mode to require both approvals for proposal to pass
     for i in range(5):
         # X proposes, Y and Z approve
         px = fed.create_cross_team_proposal(
             "team:front_x", f"admin:front_x{i}", f"action_x{i}", f"Action X{i}",
-            ["team:front_y", "team:front_z"]
+            ["team:front_y", "team:front_z"],
+            voting_mode="veto",  # Explicit veto mode
         )
         fed.approve_cross_team_proposal(px["proposal_id"], "team:front_y", f"admin:y{i}")
         fed.approve_cross_team_proposal(px["proposal_id"], "team:front_z", f"admin:z{i}")
@@ -1551,7 +1553,8 @@ def attack_multiparty_crossteam_collusion() -> AttackResult:
         # Y proposes, X and Z approve
         py = fed.create_cross_team_proposal(
             "team:front_y", f"admin:front_y{i}", f"action_y{i}", f"Action Y{i}",
-            ["team:front_x", "team:front_z"]
+            ["team:front_x", "team:front_z"],
+            voting_mode="veto",  # Explicit veto mode
         )
         fed.approve_cross_team_proposal(py["proposal_id"], "team:front_x", f"admin:x{i}")
         fed.approve_cross_team_proposal(py["proposal_id"], "team:front_z", f"admin:z{i}")

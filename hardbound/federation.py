@@ -111,6 +111,45 @@ class FederationRegistry:
     # Maximum reciprocity ratio before flagging collusion
     MAX_RECIPROCITY_RATIO = 0.6  # If >60% of witnessing is reciprocal, flag it
 
+    # Severity levels for adaptive thresholds
+    SEVERITY_LOW = "low"
+    SEVERITY_MEDIUM = "medium"
+    SEVERITY_HIGH = "high"
+    SEVERITY_CRITICAL = "critical"
+
+    # Default adaptive threshold policies per severity level
+    # These can be overridden per-federation
+    DEFAULT_SEVERITY_POLICIES = {
+        "low": {
+            "approval_threshold": 0.5,       # Simple majority
+            "require_outsider": False,
+            "min_approvals_ratio": 0.5,      # 50% of target teams
+            "min_reputation": 0.3,           # Any active team can participate
+            "voting_mode": "weighted",
+        },
+        "medium": {
+            "approval_threshold": 0.6,       # 60% weighted approval
+            "require_outsider": False,
+            "min_approvals_ratio": 0.6,
+            "min_reputation": 0.5,           # Moderate reputation required
+            "voting_mode": "weighted",
+        },
+        "high": {
+            "approval_threshold": 0.75,      # 75% weighted approval
+            "require_outsider": True,        # Neutral third party required
+            "min_approvals_ratio": 0.75,
+            "min_reputation": 0.7,           # High reputation required
+            "voting_mode": "weighted",
+        },
+        "critical": {
+            "approval_threshold": 0.9,       # Near-unanimous
+            "require_outsider": True,
+            "min_approvals_ratio": 1.0,      # All teams must approve
+            "min_reputation": 0.8,           # Only trusted teams
+            "voting_mode": "veto",           # Any team can block
+        },
+    }
+
     def __init__(self, db_path: Optional[str] = None):
         """
         Initialize the federation registry.
@@ -1153,6 +1192,72 @@ class FederationRegistry:
             )
         return True
 
+    def get_severity_policy(self, severity: str) -> Dict:
+        """
+        Get the governance policy for a given severity level.
+
+        Args:
+            severity: One of "low", "medium", "high", "critical"
+
+        Returns:
+            Policy dict with approval_threshold, require_outsider, etc.
+        """
+        severity = severity.lower()
+        if severity not in self.DEFAULT_SEVERITY_POLICIES:
+            raise ValueError(f"Invalid severity level: {severity}. "
+                           f"Valid: {list(self.DEFAULT_SEVERITY_POLICIES.keys())}")
+        return dict(self.DEFAULT_SEVERITY_POLICIES[severity])
+
+    def classify_action_severity(self, action_type: str, parameters: Dict = None) -> str:
+        """
+        Automatically classify action severity based on type and parameters.
+
+        This provides default classification. Federation-specific rules can override.
+
+        Args:
+            action_type: Type of cross-team action
+            parameters: Optional action parameters
+
+        Returns:
+            Severity level: "low", "medium", "high", or "critical"
+        """
+        parameters = parameters or {}
+
+        # Critical actions: irreversible, high-impact
+        critical_actions = {
+            "team_dissolution", "federation_exit", "admin_transfer",
+            "key_rotation", "emergency_override", "policy_override",
+        }
+        if action_type in critical_actions:
+            return self.SEVERITY_CRITICAL
+
+        # High-impact actions: significant changes
+        high_actions = {
+            "resource_transfer", "role_change", "access_grant",
+            "member_removal", "permission_escalation", "config_change",
+        }
+        if action_type in high_actions:
+            return self.SEVERITY_HIGH
+
+        # Check parameters for severity hints
+        amount = parameters.get("amount", 0)
+        if isinstance(amount, (int, float)):
+            if amount > 1000:
+                return self.SEVERITY_HIGH
+            if amount > 100:
+                return self.SEVERITY_MEDIUM
+
+        # Medium: standard operations
+        medium_actions = {
+            "proposal_submit", "resource_allocation", "schedule_change",
+            "notification", "status_update",
+        }
+        if action_type in medium_actions:
+            return self.SEVERITY_MEDIUM
+
+        # Default to low for unknown actions
+        return self.SEVERITY_LOW
+
     def _row_to_team(self, row) -> FederatedTeam:
         """Convert database row to FederatedTeam."""
         # Handle creator_lct which may not exist in old schemas
@@ -1192,10 +1297,11 @@ class FederationRegistry:
         target_team_ids: List[str],
         required_approvals: int = None,
         parameters: Dict = None,
-        require_outsider: bool = False,
+        require_outsider: bool = None,  # Now can be auto-set by severity
         outsider_team_ids: List[str] = None,
-        voting_mode: str = "veto",
-        approval_threshold: float = 0.5,
+        voting_mode: str = None,  # Now can be auto-set by severity
+        approval_threshold: float = None,  # Now can be auto-set by severity
+        severity: str = None,  # NEW: auto-classify or explicit
     ) -> Dict:
         """
         Create a proposal that requires approval from multiple federation teams.
@@ -1206,8 +1312,13 @@ class FederationRegistry:
         - Cross-team access grants
         - Federation policy changes
 
+        Severity-based adaptive thresholds:
+        - If severity is provided, policy defaults are applied automatically
+        - Explicit parameters override policy defaults
+        - Without severity, falls back to legacy defaults
+
         Voting modes:
-        - "veto": Single rejection blocks proposal (default, strong minority protection)
+        - "veto": Single rejection blocks proposal (strong minority protection)
         - "weighted": Reputation-weighted voting, passes if weighted approval >= threshold
 
         Args:
@@ -1222,12 +1333,28 @@ class FederationRegistry:
                              not in the proposing group (anti-collusion measure)
             outsider_team_ids: Optional list of eligible outsider teams.
                                If None, any team not in target_team_ids qualifies.
-            voting_mode: "veto" (default) or "weighted"
+            voting_mode: "veto" or "weighted" (or None for severity-based)
             approval_threshold: For weighted mode, required weighted approval ratio (0.0-1.0)
+            severity: "low", "medium", "high", "critical" (or None for auto-classify)
 
         Returns:
             Cross-team proposal record
         """
+        # Auto-classify severity if not provided
+        if severity is None:
+            severity = self.classify_action_severity(action_type, parameters)
+
+        # Get policy for this severity level
+        policy = self.get_severity_policy(severity)
+
+        # Apply policy defaults (explicit parameters override)
+        if voting_mode is None:
+            voting_mode = policy["voting_mode"]
+        if approval_threshold is None:
+            approval_threshold = policy["approval_threshold"]
+        if require_outsider is None:
+            require_outsider = policy["require_outsider"]
+
         # Validate voting mode
         if voting_mode not in ("veto", "weighted"):
             raise ValueError(f"Invalid voting_mode: {voting_mode}")
@@ -1276,6 +1403,9 @@ class FederationRegistry:
             # Voting mode configuration
             "voting_mode": voting_mode,
             "approval_threshold": approval_threshold,
+            # Severity and policy tracking
+            "severity": severity,
+            "applied_policy": policy,
         }
 
         # Persist to database
