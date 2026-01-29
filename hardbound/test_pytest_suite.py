@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 15  # 12 original + Attack 13 + Attack 14 + Attack 15
+        assert len(results) == 16  # 12 original + Attack 13 + Attack 14 + Attack 15 + Attack 16
 
 
 class TestEndToEndIntegration:
@@ -5189,6 +5189,152 @@ class TestAmountThresholdPolicy:
 
         critical_severity = fed.classify_action_severity("transfer", {"amount": 15000})
         assert critical_severity == "critical"  # 15000 > 10000
+
+
+class TestMultiFederationAttack:
+    """Tests for Attack 16 - Multi-federation attack vectors (Track BH)."""
+
+    def test_attack_simulation_runs(self):
+        """Attack 16 runs without errors."""
+        from hardbound.attack_simulations import attack_multi_federation_vectors
+        result = attack_multi_federation_vectors()
+        assert result is not None
+        assert result.attack_name == "Multi-Federation Vectors (BH)"
+
+    def test_some_defenses_hold(self):
+        """At least some multi-federation defenses should hold."""
+        from hardbound.attack_simulations import attack_multi_federation_vectors
+        result = attack_multi_federation_vectors()
+
+        defenses = result.raw_data["defenses"]
+        defenses_held = sum(1 for v in defenses.values() if v)
+
+        # At least half of defenses should hold
+        assert defenses_held >= 2, f"Only {defenses_held} defenses held"
+
+    def test_external_witness_required(self):
+        """Cross-federation proposals require external witness."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "external_witness_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        # Setup: two federations
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.6)
+        registry.establish_trust("fed:b", "fed:a", initial_trust=0.6)
+
+        # Create proposal requiring external witness
+        proposal = registry.create_cross_federation_proposal(
+            proposing_federation_id="fed:a",
+            proposing_team_id="team:a1",
+            affected_federation_ids=["fed:b"],
+            action_type="transfer",
+            description="Test transfer",
+            require_external_witness=True,
+        )
+
+        # fed:b approves (target)
+        result = registry.approve_from_federation(
+            proposal.proposal_id, "fed:b", ["team:b1"]
+        )
+
+        # Check requirements - external witness still needed
+        req_status = registry.check_proposal_requirements(proposal.proposal_id)
+
+        # Should not meet all requirements yet - waiting for external witness
+        assert req_status["has_external_witness"] == False
+        assert req_status["all_requirements_met"] == False
+
+    def test_external_witness_completes(self):
+        """Adding external witness allows proposal to complete."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "external_complete_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        # Setup: three federations
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+        registry.register_federation("fed:witness", "Witness Federation")
+
+        # Trust relationships
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.6)
+        registry.establish_trust("fed:b", "fed:a", initial_trust=0.6)
+        registry.establish_trust("fed:a", "fed:witness", initial_trust=0.7)
+        registry.establish_trust("fed:witness", "fed:a", initial_trust=0.7)
+
+        # Create proposal
+        proposal = registry.create_cross_federation_proposal(
+            proposing_federation_id="fed:a",
+            proposing_team_id="team:a1",
+            affected_federation_ids=["fed:b"],
+            action_type="transfer",
+            description="Test transfer",
+            require_external_witness=True,
+        )
+
+        # fed:b approves
+        registry.approve_from_federation(
+            proposal.proposal_id, "fed:b", ["team:b1"]
+        )
+
+        # Add external witness (note: method takes single team_id string, not list)
+        witness_result = registry.add_external_witness(
+            proposal.proposal_id, "fed:witness", "team:witness1"
+        )
+
+        # Result contains witness info
+        assert witness_result["total_external_witnesses"] >= 1
+
+        # Check proposal status
+        status = registry.check_proposal_requirements(proposal.proposal_id)
+        assert status["has_external_witness"] == True
+
+    def test_low_trust_witness_rejected(self):
+        """Witness with insufficient trust is rejected."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "low_trust_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        # Setup
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+        registry.register_federation("fed:lowrep", "Low Rep")
+
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.6)
+        registry.establish_trust("fed:b", "fed:a", initial_trust=0.6)
+        # Low trust to witness
+        registry.establish_trust("fed:a", "fed:lowrep", initial_trust=0.2)  # Below MIN_CROSS_FED_TRUST
+
+        # Create proposal
+        proposal = registry.create_cross_federation_proposal(
+            proposing_federation_id="fed:a",
+            proposing_team_id="team:a1",
+            affected_federation_ids=["fed:b"],
+            action_type="transfer",
+            description="Test",
+            require_external_witness=True,
+        )
+
+        # Try to add low-trust witness - should raise ValueError
+        try:
+            result = registry.add_external_witness(
+                proposal.proposal_id, "fed:lowrep", "lowrep:team"
+            )
+            # If no exception, this is unexpected - check result
+            assert False, f"Expected ValueError but got result: {result}"
+        except ValueError as e:
+            # Expected - low trust rejected
+            assert "trust" in str(e).lower()
 
 
 # Import sqlite3 at module level for tests that need it

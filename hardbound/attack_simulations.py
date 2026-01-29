@@ -2251,6 +2251,229 @@ def attack_new_mechanisms() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 16: Multi-Federation Attack Vectors (Track BH)
+# ---------------------------------------------------------------------------
+
+def attack_multi_federation_vectors() -> AttackResult:
+    """
+    ATTACK: Exploit multi-federation governance for cross-boundary manipulation.
+
+    Track BH: Tests defenses from Track BF (multi-federation witness requirements).
+
+    Attack scenarios:
+    1. Trust bootstrap attack - Create federation with artificially high trust
+    2. Colluding federations - Two federations approve each other's proposals
+    3. Witness shopping - Find minimal trust federation to witness proposals
+    4. External witness bypass - Try to approve without external witness
+
+    Tests:
+    - MIN_CROSS_FED_TRUST enforcement
+    - External witness federation requirement
+    - Federation-level reciprocity detection
+    """
+    from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+
+    db_path = Path(tempfile.mkdtemp()) / "attack_multi_fed.db"
+    registry = MultiFederationRegistry(db_path=db_path)
+
+    defenses = {
+        "trust_threshold": False,
+        "external_witness_required": False,
+        "colluding_federation_detection": False,
+        "witness_shopping_blocked": False,
+    }
+
+    # ========================================================================
+    # Setup: Create federations
+    # ========================================================================
+    # Honest federations
+    registry.register_federation("fed:honest1", "Honest One")
+    registry.register_federation("fed:honest2", "Honest Two")
+    registry.register_federation("fed:honest3", "Honest Three")
+
+    # Attacker federations (colluding pair)
+    registry.register_federation("fed:attacker1", "Attacker Alpha")
+    registry.register_federation("fed:attacker2", "Attacker Beta")
+
+    # Low-reputation federation (for witness shopping)
+    registry.register_federation("fed:lowrep", "Low Rep Inc")
+
+    # ========================================================================
+    # Attack 1: Trust Bootstrap - Try high trust without history
+    # ========================================================================
+    # Attempt to establish mutual high trust between attacker federations
+    trust1 = registry.establish_trust(
+        "fed:attacker1", "fed:attacker2",
+        relationship=FederationRelationship.TRUSTED,
+        initial_trust=0.9  # Claim high trust
+    )
+
+    trust2 = registry.establish_trust(
+        "fed:attacker2", "fed:attacker1",
+        relationship=FederationRelationship.TRUSTED,
+        initial_trust=0.9
+    )
+
+    # Check if system accepts artificially high trust
+    # Defense should enforce minimum requirements or decay new relationships
+    actual_trust1 = trust1.trust_score
+    actual_trust2 = trust2.trust_score
+
+    # If either trust was capped or reduced, defense held
+    if actual_trust1 <= 0.6 or actual_trust2 <= 0.6:
+        defenses["trust_threshold"] = True
+        trust_defense_note = f"Trust capped: {actual_trust1:.2f}, {actual_trust2:.2f}"
+    else:
+        # System allowed high trust - check if it's actually enforced in proposals
+        trust_defense_note = f"Trust accepted: {actual_trust1:.2f}, {actual_trust2:.2f}"
+
+    # ========================================================================
+    # Attack 2: Colluding Federation Approval
+    # ========================================================================
+    # Establish honest trust relationships for comparison
+    registry.establish_trust("fed:honest1", "fed:honest2", initial_trust=0.7)
+    registry.establish_trust("fed:honest2", "fed:honest1", initial_trust=0.7)
+    registry.establish_trust("fed:honest1", "fed:honest3", initial_trust=0.7)
+    registry.establish_trust("fed:honest3", "fed:honest1", initial_trust=0.7)
+
+    # Attacker creates proposal requiring multi-fed approval
+    try:
+        proposal = registry.create_cross_federation_proposal(
+            proposing_federation_id="fed:attacker1",
+            proposing_team_id="attacker:team1",
+            affected_federation_ids=["fed:attacker2"],
+            action_type="resource_transfer",
+            description="Move resources between federations",
+            require_external_witness=True,
+        )
+
+        # Attacker2 approves (colluding partner)
+        result1 = registry.approve_from_federation(
+            proposal.proposal_id, "fed:attacker2", ["attacker2:team1"]
+        )
+
+        # Check if proposal approved without external witness
+        if result1.get("status") == "approved":
+            # No external witness required - defense failed
+            external_witness_note = "Approved without external witness!"
+        else:
+            # Defense held - requires external witness
+            defenses["external_witness_required"] = True
+            external_witness_note = "Requires external witness"
+
+            # Try to use low-rep federation as witness
+            # First establish minimal trust
+            registry.establish_trust("fed:attacker1", "fed:lowrep", initial_trust=0.35)
+
+            try:
+                witness_result = registry.add_external_witness(
+                    proposal.proposal_id,
+                    "fed:lowrep",
+                    "lowrep:team1"
+                )
+
+                # Check if low-trust witness was accepted
+                if witness_result.get("total_external_witnesses", 0) > 0:
+                    witness_shopping_note = "Low-rep witness accepted"
+                else:
+                    defenses["witness_shopping_blocked"] = True
+                    witness_shopping_note = f"Rejected: no witness added"
+            except ValueError as e:
+                defenses["witness_shopping_blocked"] = True
+                witness_shopping_note = f"Rejected: {str(e)}"
+
+    except ValueError as e:
+        # Proposal creation itself failed
+        defenses["external_witness_required"] = True
+        external_witness_note = f"Proposal blocked: {str(e)}"
+        witness_shopping_note = "N/A (proposal blocked)"
+
+    # ========================================================================
+    # Attack 3: Federation Reciprocity (Cross-Federation Collusion)
+    # ========================================================================
+    # Create mutual approval pattern between attacker federations
+    proposals_created = []
+    for i in range(3):
+        try:
+            p1 = registry.create_cross_federation_proposal(
+                proposing_federation_id=f"fed:attacker{1 + (i % 2)}",
+                proposing_team_id=f"attacker{1 + (i % 2)}:team1",
+                affected_federation_ids=[f"fed:attacker{2 - (i % 2)}"],
+                action_type=f"transfer_{i}",
+                description=f"Transfer {i}",
+                require_external_witness=True,
+            )
+            proposals_created.append(p1)
+        except Exception:
+            pass  # May fail due to earlier defenses
+
+    # Check for reciprocity detection
+    # In a full implementation, we'd have federation-level reciprocity analysis
+    # For now, check if the pattern is detectable
+    reciprocity_detected = len(proposals_created) < 3  # If blocked, defense worked
+
+    if reciprocity_detected or len(proposals_created) == 0:
+        defenses["colluding_federation_detection"] = True
+        collusion_note = "Federation collusion pattern blocked or limited"
+    else:
+        collusion_note = f"Created {len(proposals_created)} proposals without detection"
+
+    # ========================================================================
+    # RESULTS
+    # ========================================================================
+    defenses_held = sum(1 for v in defenses.values() if v)
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses
+
+    return AttackResult(
+        attack_name="Multi-Federation Vectors (BH)",
+        success=attack_success,
+        setup_cost_atp=300.0,  # Cross-federation setup is expensive
+        gain_atp=100.0 if attack_success else 0.0,
+        roi=-0.67 if not attack_success else 0.33,
+        detection_probability=0.90 if defenses_held == total_defenses else 0.60,
+        time_to_detection_hours=8 if defenses_held == total_defenses else 72,
+        blocks_until_detected=40 if defenses_held == total_defenses else 200,
+        trust_damage=3.0,  # Cross-federation attacks damage both federations
+        description=(
+            f"MULTI-FEDERATION ATTACK TEST (Track BH):\n"
+            f"  - Trust Threshold: {'HELD' if defenses['trust_threshold'] else 'EVADED'}\n"
+            f"    {trust_defense_note}\n"
+            f"  - External Witness Required: {'HELD' if defenses['external_witness_required'] else 'EVADED'}\n"
+            f"    {external_witness_note}\n"
+            f"  - Witness Shopping Blocked: {'HELD' if defenses['witness_shopping_blocked'] else 'EVADED'}\n"
+            f"    {witness_shopping_note}\n"
+            f"  - Colluding Federation Detection: {'HELD' if defenses['colluding_federation_detection'] else 'EVADED'}\n"
+            f"    {collusion_note}\n"
+            f"\n"
+            f"Overall: {defenses_held}/{total_defenses} defenses held."
+        ),
+        mitigation=(
+            "DEFENSES IMPLEMENTED (Track BF):\n"
+            "1. Inter-federation trust requirements - MIN_CROSS_FED_TRUST = 0.4\n"
+            "2. External witness federation required for cross-fed proposals\n"
+            "3. Trust relationship types (peer, parent, child, trusted, allied)\n"
+            "4. Federation eligibility checking before witness acceptance\n"
+            "\n"
+            "POTENTIAL GAPS:\n"
+            "5. Federation-level reciprocity analysis needed\n"
+            "6. New federation trust bootstrapping could be gamed\n"
+            "7. Trust relationship type manipulation (claim 'parent' status)"
+        ),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "trust_values": {"attacker1_to_2": actual_trust1, "attacker2_to_1": actual_trust2},
+            "proposals_created": len(proposals_created),
+            "trust_defense_note": trust_defense_note,
+            "external_witness_note": external_witness_note,
+            "witness_shopping_note": witness_shopping_note,
+            "collusion_note": collusion_note,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -2272,6 +2495,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Defense Evasion (AP-AS)", attack_defense_evasion),
         ("Advanced Defenses (AU-AW)", attack_advanced_defenses),
         ("New Mechanisms (AY-BB)", attack_new_mechanisms),
+        ("Multi-Federation Vectors (BH)", attack_multi_federation_vectors),
     ]
 
     results = []
