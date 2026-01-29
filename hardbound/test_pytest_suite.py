@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 14  # 12 original + Attack 13 + Attack 14
+        assert len(results) == 15  # 12 original + Attack 13 + Attack 14 + Attack 15
 
 
 class TestEndToEndIntegration:
@@ -4505,6 +4505,56 @@ class TestAdvancedDefenses:
         result = attack_advanced_defenses()
         classified = result.raw_data.get("classified_severity")
         assert classified == "critical", f"team_dissolution should be critical, got {classified}"
+
+
+# =============================================================================
+# Attack 15: New Mechanisms (Tracks AY-BB) Tests
+# =============================================================================
+
+class TestNewMechanisms:
+    """Tests for Attack 15 - validating AY-BB defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Attack 15 simulation completes without error."""
+        from hardbound.attack_simulations import attack_new_mechanisms
+        result = attack_new_mechanisms()
+        assert result.attack_name == "New Mechanisms (AY-BB)"
+        assert not result.success  # Defenses should hold
+
+    def test_all_defenses_hold(self):
+        """All 4 defenses should hold."""
+        from hardbound.attack_simulations import attack_new_mechanisms
+        result = attack_new_mechanisms()
+        defenses_held = result.raw_data.get("defenses_held", 0)
+        assert defenses_held == 4, f"Only {defenses_held}/4 defenses held"
+
+    def test_audit_logging_captures_downgrade(self):
+        """Severity downgrade is captured in audit log."""
+        from hardbound.attack_simulations import attack_new_mechanisms
+        result = attack_new_mechanisms()
+        assert result.raw_data.get("downgrade_logged") is True
+
+    def test_heartbeat_decay_applied(self):
+        """Heartbeat triggers decay on dormant team."""
+        from hardbound.attack_simulations import attack_new_mechanisms
+        result = attack_new_mechanisms()
+        before = result.raw_data.get("colluder_score_before", 0)
+        after = result.raw_data.get("colluder_score_after", 1)
+        assert after < before, f"Score should decay: {before} -> {after}"
+
+    def test_burst_pattern_detected(self):
+        """Burst of proposals is detected."""
+        from hardbound.attack_simulations import attack_new_mechanisms
+        result = attack_new_mechanisms()
+        assert result.raw_data.get("burst_detected") is True
+
+    def test_dashboard_shows_issues(self):
+        """Dashboard reflects the detected issues."""
+        from hardbound.attack_simulations import attack_new_mechanisms
+        result = attack_new_mechanisms()
+        dashboard_health = result.raw_data.get("dashboard_health")
+        # Dashboard should not show healthy given all the suspicious activity
+        assert dashboard_health != "healthy", f"Dashboard should show issues, got {dashboard_health}"
 
 
 # =============================================================================

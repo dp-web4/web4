@@ -2052,6 +2052,205 @@ def attack_advanced_defenses() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 15: New Mechanism Testing (Tracks AY-BB)
+# ---------------------------------------------------------------------------
+
+def attack_new_mechanisms() -> AttackResult:
+    """
+    ATTACK: Test new defenses from Tracks AY-BB.
+
+    Tests:
+    - AY: Governance audit logging (try to evade audit trail)
+    - AZ: Heartbeat-integrated decay (try to bypass automatic decay)
+    - BA: Cross-domain temporal analysis (try to evade correlation detection)
+    - BB: Dashboard integration (check for blind spots)
+    """
+    from .federation import FederationRegistry
+    import sqlite3
+    import tempfile
+    import time
+
+    db_path = Path(tempfile.mkdtemp()) / "attack15_mechanisms.db"
+    fed = FederationRegistry(db_path=db_path)
+
+    defenses = {
+        "audit_logging": False,
+        "heartbeat_decay": False,
+        "cross_domain_detection": False,
+        "dashboard_visibility": False,
+    }
+
+    # Setup teams
+    fed.register_team("team:honest", "Honest Team", creator_lct="honest:h")
+    fed.register_team("team:colluder1", "Colluder 1", creator_lct="collude:1")
+    fed.register_team("team:colluder2", "Colluder 2", creator_lct="collude:2")
+    fed.register_team("team:target", "Target", creator_lct="target:t")
+
+    # ========================================================================
+    # TEST 1: Audit Logging (Track AY)
+    # ========================================================================
+    # Attack: Try to perform severity downgrade without being logged
+
+    # Attempt severity downgrade (should be logged as warning)
+    fed.create_cross_team_proposal(
+        "team:colluder1", "admin:colluder1", "team_dissolution", "Dissolve target",
+        ["team:target"],
+        severity="low",  # Downgrade from critical
+    )
+
+    # Check if audit was logged
+    audit_log = fed.get_governance_audit_log(audit_type="severity_override")
+    downgrade_logged = any(
+        entry.get("risk_level") == "warning"
+        for entry in audit_log
+    )
+
+    if downgrade_logged:
+        defenses["audit_logging"] = True
+
+    # ========================================================================
+    # TEST 2: Heartbeat-Integrated Decay (Track AZ)
+    # ========================================================================
+    # Attack: Try to maintain reputation without activity via heartbeat bypass
+
+    # Set up a dormant team with high reputation
+    old_time = (datetime.now(timezone.utc) - timedelta(days=45)).isoformat()
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE federated_teams SET last_activity = ?, witness_score = 0.9 WHERE team_id = 'team:colluder1'",
+            (old_time,)
+        )
+
+    colluder_before = fed.get_team("team:colluder1").witness_score
+
+    # Run heartbeat with decay enabled (simulates automated maintenance)
+    heartbeat_result = fed.federation_heartbeat(
+        apply_decay=True,
+        decay_threshold_days=30,
+        decay_rate=0.15
+    )
+
+    colluder_after = fed.get_team("team:colluder1").witness_score
+    decay_applied = colluder_after < colluder_before
+
+    if decay_applied and heartbeat_result["decay_result"]["teams_decayed"] > 0:
+        defenses["heartbeat_decay"] = True
+
+    # ========================================================================
+    # TEST 3: Cross-Domain Temporal Analysis (Track BA)
+    # ========================================================================
+    # Attack: Try to coordinate approvals without triggering detection
+
+    # Create a burst of proposals (should be detected)
+    for i in range(4):
+        p = fed.create_cross_team_proposal(
+            "team:colluder1", "admin:colluder1", f"coordinated_action_{i}",
+            f"Coordinated {i}",
+            ["team:colluder2"],
+        )
+        # Instant approval (coordinated)
+        fed.approve_cross_team_proposal(p["proposal_id"], "team:colluder2", "admin:colluder2")
+
+    # Run cross-domain analysis
+    cross_analysis = fed.get_cross_domain_temporal_analysis(
+        min_proposals=3
+    )
+
+    # Check if burst pattern was detected
+    burst_detected = len(cross_analysis["burst_patterns"]) > 0
+
+    # Check if colluder teams show suspicious pattern
+    colluder_pattern = cross_analysis["team_patterns"].get("team:colluder1", {})
+    pattern_flagged = colluder_pattern.get("suspicion_level", "normal") in ("high", "critical")
+
+    if burst_detected or pattern_flagged:
+        defenses["cross_domain_detection"] = True
+
+    # ========================================================================
+    # TEST 4: Dashboard Visibility (Track BB)
+    # ========================================================================
+    # Attack: Check if issues appear in dashboard (no blind spots)
+
+    dashboard = fed.get_federation_health_dashboard()
+
+    # Dashboard should show:
+    # 1. Audit warnings (from severity downgrade)
+    # 2. Temporal flags (from fast approvals)
+    # 3. Cross-domain issues (from burst pattern)
+
+    has_audit_visibility = dashboard["summary"].get("audit_warnings", 0) > 0
+    has_temporal_visibility = dashboard["summary"].get("proposals_flagged", 0) > 0
+    has_cross_domain_visibility = (
+        dashboard["summary"].get("burst_patterns", 0) > 0 or
+        dashboard["summary"].get("correlated_approvals", 0) > 0
+    )
+
+    # Dashboard should not be "healthy" given all these issues
+    not_falsely_healthy = dashboard["overall_health"] != "healthy"
+
+    if has_audit_visibility or has_temporal_visibility or has_cross_domain_visibility:
+        if not_falsely_healthy:
+            defenses["dashboard_visibility"] = True
+
+    # ========================================================================
+    # RESULTS
+    # ========================================================================
+    defenses_held = sum(1 for v in defenses.values() if v)
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses
+
+    return AttackResult(
+        attack_name="New Mechanisms (AY-BB)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=40.0 if attack_success else 0.0,
+        roi=-0.73 if not attack_success else 0.27,
+        detection_probability=0.95 if defenses_held == total_defenses else 0.65,
+        time_to_detection_hours=6 if defenses_held == total_defenses else 48,
+        blocks_until_detected=30 if defenses_held == total_defenses else 150,
+        trust_damage=2.5,
+        description=(
+            f"NEW MECHANISM TEST (Tracks AY-BB):\n"
+            f"  - Audit Logging (AY): {'HELD' if defenses['audit_logging'] else 'EVADED'}\n"
+            f"    Severity downgrade logged as warning: {downgrade_logged}\n"
+            f"  - Heartbeat Decay (AZ): {'HELD' if defenses['heartbeat_decay'] else 'EVADED'}\n"
+            f"    Dormant score: {colluder_before:.2f} -> {colluder_after:.2f}\n"
+            f"  - Cross-Domain Detection (BA): {'HELD' if defenses['cross_domain_detection'] else 'EVADED'}\n"
+            f"    Burst detected: {burst_detected}, Pattern flagged: {pattern_flagged}\n"
+            f"  - Dashboard Visibility (BB): {'HELD' if defenses['dashboard_visibility'] else 'EVADED'}\n"
+            f"    Overall health: {dashboard['overall_health']}\n"
+            f"\n"
+            f"Overall: {defenses_held}/{total_defenses} defenses held."
+        ),
+        mitigation=(
+            "DEFENSES IMPLEMENTED (Tracks AY-BB):\n"
+            "1. Governance audit logging - severity overrides tracked with risk levels\n"
+            "2. Heartbeat-integrated decay - automatic reputation reduction for inactive teams\n"
+            "3. Cross-domain temporal analysis - burst and correlation pattern detection\n"
+            "4. Federation health dashboard - consolidated visibility into all issues\n"
+            "\n"
+            "KEY IMPROVEMENTS:\n"
+            "- No silent severity downgrades (all logged)\n"
+            "- Decay runs automatically via heartbeat\n"
+            "- Coordinated approval patterns detected across proposals\n"
+            "- Single dashboard shows all federation health issues"
+        ),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "audit_log_count": len(audit_log),
+            "downgrade_logged": downgrade_logged,
+            "colluder_score_before": colluder_before,
+            "colluder_score_after": colluder_after,
+            "burst_detected": burst_detected,
+            "pattern_flagged": pattern_flagged,
+            "dashboard_health": dashboard["overall_health"],
+            "dashboard_alerts": dashboard["alerts"],
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -2072,6 +2271,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Multi-Party Cross-Team Collusion", attack_multiparty_crossteam_collusion),
         ("Defense Evasion (AP-AS)", attack_defense_evasion),
         ("Advanced Defenses (AU-AW)", attack_advanced_defenses),
+        ("New Mechanisms (AY-BB)", attack_new_mechanisms),
     ]
 
     results = []
