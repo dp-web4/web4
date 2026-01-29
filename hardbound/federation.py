@@ -1410,6 +1410,119 @@ class FederationRegistry:
             "health": health,
         }
 
+    def analyze_approval_timing(self, proposal_id: str) -> Dict:
+        """
+        Analyze how quickly a proposal was approved.
+
+        Fast approval (within minutes of creation) suggests pre-arranged collusion.
+        Normal workflow should take hours/days for teams to review.
+
+        Returns:
+            Analysis with timing metrics and suspicion flags
+        """
+        proposal = self._load_xteam_proposal(proposal_id)
+        if not proposal:
+            raise ValueError(f"Proposal not found: {proposal_id}")
+
+        created_at = datetime.fromisoformat(proposal["created_at"].rstrip("Z"))
+        approvals = proposal.get("approvals", {})
+
+        if not approvals:
+            return {
+                "proposal_id": proposal_id,
+                "approval_count": 0,
+                "fastest_approval_seconds": None,
+                "average_approval_seconds": None,
+                "is_suspicious": False,
+                "reason": "no approvals yet",
+            }
+
+        # Calculate time to each approval
+        approval_times = []
+        for team_id, approval_data in approvals.items():
+            approval_ts = datetime.fromisoformat(approval_data["timestamp"].rstrip("Z"))
+            delta = (approval_ts - created_at).total_seconds()
+            approval_times.append({
+                "team_id": team_id,
+                "seconds": delta,
+            })
+
+        fastest = min(t["seconds"] for t in approval_times)
+        average = sum(t["seconds"] for t in approval_times) / len(approval_times)
+
+        # Suspicious thresholds:
+        # - Any approval within 60 seconds: very suspicious
+        # - Average under 5 minutes: suspicious
+        # - All approvals within 10 minutes: suspicious
+        very_fast = fastest < 60
+        fast_average = average < 300
+        all_fast = max(t["seconds"] for t in approval_times) < 600
+
+        is_suspicious = very_fast or (fast_average and all_fast)
+
+        reasons = []
+        if very_fast:
+            reasons.append(f"approval within {fastest:.0f}s")
+        if fast_average:
+            reasons.append(f"average {average:.0f}s")
+        if all_fast:
+            reasons.append("all approvals within 10 minutes")
+
+        return {
+            "proposal_id": proposal_id,
+            "approval_count": len(approvals),
+            "fastest_approval_seconds": fastest,
+            "average_approval_seconds": average,
+            "approval_times": approval_times,
+            "is_suspicious": is_suspicious,
+            "reason": "; ".join(reasons) if reasons else "normal timing",
+        }
+
+    def get_temporal_analysis_report(self) -> Dict:
+        """
+        Analyze timing patterns across all cross-team proposals.
+
+        Identifies proposals with suspiciously fast approval times.
+        """
+        self._ensure_xteam_table()
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT proposal_id FROM cross_team_proposals WHERE status = 'approved'"
+            ).fetchall()
+
+        flagged_proposals = []
+        normal_proposals = []
+
+        for row in rows:
+            proposal_id = row[0]
+            try:
+                analysis = self.analyze_approval_timing(proposal_id)
+                if analysis["is_suspicious"]:
+                    flagged_proposals.append(analysis)
+                else:
+                    normal_proposals.append(analysis)
+            except Exception:
+                pass
+
+        # Health assessment
+        total = len(flagged_proposals) + len(normal_proposals)
+        if total == 0:
+            health = "healthy"
+        elif len(flagged_proposals) / total > 0.5:
+            health = "critical"
+        elif len(flagged_proposals) > 0:
+            health = "warning"
+        else:
+            health = "healthy"
+
+        return {
+            "total_proposals": total,
+            "flagged_count": len(flagged_proposals),
+            "normal_count": len(normal_proposals),
+            "flagged_proposals": flagged_proposals,
+            "health": health,
+        }
+
 
 if __name__ == "__main__":
     print("=" * 60)

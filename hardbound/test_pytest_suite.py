@@ -3191,3 +3191,75 @@ class TestApprovalReciprocity:
         assert report["total_teams"] == 3
         assert len(report["flagged_pairs"]) >= 1  # A-B pair should be flagged
         assert report["health"] in ["warning", "critical"]
+
+
+class TestTemporalPatternDetection:
+    """Tests for detecting suspiciously fast approval patterns."""
+
+    def test_instant_approval_flagged(self):
+        """Approval within seconds of creation is flagged."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "temporal_instant.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:t1", "T1")
+        fed.register_team("team:t2", "T2")
+
+        # Create and immediately approve (no sleep = instant)
+        proposal = fed.create_cross_team_proposal(
+            "team:t1", "admin:t1", "fast_action", "Test", ["team:t2"]
+        )
+        fed.approve_cross_team_proposal(proposal["proposal_id"], "team:t2", "admin:t2")
+
+        analysis = fed.analyze_approval_timing(proposal["proposal_id"])
+        assert analysis["approval_count"] == 1
+        assert analysis["fastest_approval_seconds"] < 5  # Very fast
+        assert analysis["is_suspicious"] == True
+
+    def test_no_approvals_not_suspicious(self):
+        """Pending proposal with no approvals is not flagged."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "temporal_pending.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:p1", "P1")
+        fed.register_team("team:p2", "P2")
+
+        # Create but don't approve
+        proposal = fed.create_cross_team_proposal(
+            "team:p1", "admin:p1", "pending_action", "Test", ["team:p2"]
+        )
+
+        analysis = fed.analyze_approval_timing(proposal["proposal_id"])
+        assert analysis["approval_count"] == 0
+        assert analysis["is_suspicious"] == False
+
+    def test_temporal_report(self):
+        """Temporal analysis report summarizes all proposals."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "temporal_report.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:r1", "R1")
+        fed.register_team("team:r2", "R2")
+
+        # Create multiple fast approvals
+        for i in range(3):
+            p = fed.create_cross_team_proposal(
+                "team:r1", f"admin:r1_{i}", f"fast_{i}", "Test", ["team:r2"]
+            )
+            fed.approve_cross_team_proposal(p["proposal_id"], "team:r2", f"admin:r2_{i}")
+
+        report = fed.get_temporal_analysis_report()
+        assert report["total_proposals"] == 3
+        assert report["flagged_count"] == 3  # All should be flagged (instant approval)
+        assert report["health"] == "critical"
