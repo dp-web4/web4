@@ -4037,3 +4037,152 @@ class TestAdvancedDefenses:
         result = attack_advanced_defenses()
         classified = result.raw_data.get("classified_severity")
         assert classified == "critical", f"team_dissolution should be critical, got {classified}"
+
+
+# =============================================================================
+# Track AY: Governance Audit Logging Tests
+# =============================================================================
+
+class TestGovernanceAudit:
+    """Tests for governance audit logging (Track AY)."""
+
+    def test_severity_downgrade_logged_as_warning(self):
+        """Downgrading severity from critical to low triggers warning audit."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "audit_downgrade.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:target", "Target")
+
+        # Critical action explicitly downgraded to low severity
+        fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "admin_transfer", "Transfer admin",
+            ["team:target"],
+            severity="low",  # Explicit downgrade from critical
+        )
+
+        # Check audit log
+        audit_log = fed.get_governance_audit_log(audit_type="severity_override")
+        assert len(audit_log) >= 1, "Severity override should be logged"
+
+        override_entry = audit_log[0]
+        assert override_entry["risk_level"] == "warning", "Downgrade should be warning"
+        assert override_entry["details"]["auto_classified_severity"] == "critical"
+        assert override_entry["details"]["explicit_severity"] == "low"
+
+    def test_severity_upgrade_logged_as_info(self):
+        """Upgrading severity from low to high is logged as info (conservative)."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "audit_upgrade.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:target", "Target")
+
+        # Low action explicitly upgraded to high severity
+        fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "ping", "Simple ping",
+            ["team:target"],
+            severity="high",  # Explicit upgrade from low
+        )
+
+        audit_log = fed.get_governance_audit_log(audit_type="severity_override")
+        assert len(audit_log) >= 1
+
+        override_entry = audit_log[0]
+        assert override_entry["risk_level"] == "info", "Upgrade should be info"
+        assert override_entry["details"]["auto_classified_severity"] == "low"
+        assert override_entry["details"]["explicit_severity"] == "high"
+
+    def test_policy_override_logged(self):
+        """Overriding policy parameters (threshold, outsider) is logged."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "audit_policy.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:target", "Target")
+
+        # Override threshold and outsider without changing severity
+        fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "ping", "Simple ping",
+            ["team:target"],
+            approval_threshold=0.9,  # Override from 0.5
+            require_outsider=True,  # Override from False
+        )
+
+        audit_log = fed.get_governance_audit_log(audit_type="policy_override")
+        assert len(audit_log) >= 1
+
+        entry = audit_log[0]
+        assert "threshold" in str(entry["details"]["policy_overrides"])
+        assert "outsider" in str(entry["details"]["policy_overrides"])
+
+    def test_no_override_no_audit(self):
+        """Normal proposals without overrides don't create audit entries."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "audit_normal.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:target", "Target")
+
+        # Normal proposal with no overrides
+        fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "ping", "Simple ping",
+            ["team:target"],
+        )
+
+        audit_log = fed.get_governance_audit_log()
+        # Should have no severity or policy overrides
+        override_logs = [e for e in audit_log if e["audit_type"] in ("severity_override", "policy_override")]
+        assert len(override_logs) == 0, "Normal proposal should not trigger audit"
+
+    def test_audit_log_filtering(self):
+        """Audit log can be filtered by type, risk level, and team."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "audit_filter.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:target", "Target")
+
+        # Create multiple auditable proposals
+        fed.create_cross_team_proposal(
+            "team:a", "admin:a", "admin_transfer", "Test",
+            ["team:target"],
+            severity="low",  # Downgrade - warning
+        )
+        fed.create_cross_team_proposal(
+            "team:b", "admin:b", "ping", "Test",
+            ["team:target"],
+            severity="high",  # Upgrade - info
+        )
+
+        # Filter by risk level
+        warnings = fed.get_governance_audit_log(risk_level="warning")
+        infos = fed.get_governance_audit_log(risk_level="info")
+
+        assert len(warnings) >= 1
+        assert len(infos) >= 1
+
+        # Filter by team
+        team_a_logs = fed.get_governance_audit_log(team_id="team:a")
+        assert all(e["team_id"] == "team:a" for e in team_a_logs)

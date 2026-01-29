@@ -565,6 +565,102 @@ class FederationRegistry:
                 (timestamp, team_id)
             )
 
+    def _log_governance_audit(
+        self,
+        audit_type: str,
+        details: Dict,
+        proposal_id: str = None,
+        team_id: str = None,
+        actor_lct: str = None,
+        action_type: str = None,
+        risk_level: str = "info",
+    ):
+        """
+        Log a governance audit event.
+
+        Used to track policy overrides, anomalies, and security-relevant events.
+
+        Args:
+            audit_type: Type of audit event (e.g., "severity_override", "policy_override")
+            details: Dict with event-specific details
+            proposal_id: Associated proposal ID if applicable
+            team_id: Team involved in the event
+            actor_lct: LCT of the actor who triggered the event
+            action_type: Type of action being performed
+            risk_level: One of "info", "warning", "critical"
+        """
+        self._ensure_xteam_table()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO governance_audit
+                (timestamp, audit_type, proposal_id, team_id, actor_lct, action_type, details, risk_level)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                datetime.now(timezone.utc).isoformat(),
+                audit_type,
+                proposal_id,
+                team_id,
+                actor_lct,
+                action_type,
+                json.dumps(details),
+                risk_level,
+            ))
+
+    def get_governance_audit_log(
+        self,
+        audit_type: str = None,
+        risk_level: str = None,
+        team_id: str = None,
+        limit: int = 100,
+    ) -> List[Dict]:
+        """
+        Retrieve governance audit events.
+
+        Args:
+            audit_type: Filter by audit type
+            risk_level: Filter by risk level
+            team_id: Filter by team
+            limit: Maximum events to return
+
+        Returns:
+            List of audit events, newest first
+        """
+        self._ensure_xteam_table()
+        query = "SELECT * FROM governance_audit WHERE 1=1"
+        params = []
+
+        if audit_type:
+            query += " AND audit_type = ?"
+            params.append(audit_type)
+        if risk_level:
+            query += " AND risk_level = ?"
+            params.append(risk_level)
+        if team_id:
+            query += " AND team_id = ?"
+            params.append(team_id)
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query, params).fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "timestamp": row["timestamp"],
+                "audit_type": row["audit_type"],
+                "proposal_id": row["proposal_id"],
+                "team_id": row["team_id"],
+                "actor_lct": row["actor_lct"],
+                "action_type": row["action_type"],
+                "details": json.loads(row["details"]) if row["details"] else {},
+                "risk_level": row["risk_level"],
+            }
+            for row in rows
+        ]
+
     def apply_reputation_decay(self, decay_threshold_days: int = 30,
                                 decay_rate: float = 0.1,
                                 min_score: float = 0.3) -> Dict:
@@ -1340,12 +1436,26 @@ class FederationRegistry:
         Returns:
             Cross-team proposal record
         """
-        # Auto-classify severity if not provided
+        # Track severity override for audit
+        auto_classified_severity = self.classify_action_severity(action_type, parameters)
+        severity_was_overridden = False
+
         if severity is None:
-            severity = self.classify_action_severity(action_type, parameters)
+            severity = auto_classified_severity
+        elif severity != auto_classified_severity:
+            severity_was_overridden = True
 
         # Get policy for this severity level
         policy = self.get_severity_policy(severity)
+
+        # Track parameter overrides for audit
+        policy_overrides = []
+        if voting_mode is not None and voting_mode != policy["voting_mode"]:
+            policy_overrides.append(f"voting_mode: {policy['voting_mode']} -> {voting_mode}")
+        if approval_threshold is not None and approval_threshold != policy["approval_threshold"]:
+            policy_overrides.append(f"threshold: {policy['approval_threshold']} -> {approval_threshold}")
+        if require_outsider is not None and require_outsider != policy["require_outsider"]:
+            policy_overrides.append(f"outsider: {policy['require_outsider']} -> {require_outsider}")
 
         # Apply policy defaults (explicit parameters override)
         if voting_mode is None:
@@ -1420,6 +1530,39 @@ class FederationRegistry:
         # Update activity timestamp for the proposing team
         self._update_last_activity(proposing_team_id, now.isoformat())
 
+        # Audit log for severity/policy overrides
+        if severity_was_overridden or policy_overrides:
+            audit_details = {
+                "auto_classified_severity": auto_classified_severity,
+                "explicit_severity": severity if severity_was_overridden else None,
+                "severity_override": severity_was_overridden,
+                "policy_overrides": policy_overrides,
+                "action_type": action_type,
+            }
+            # Determine risk level based on override direction
+            if severity_was_overridden:
+                severity_levels = ["low", "medium", "high", "critical"]
+                auto_idx = severity_levels.index(auto_classified_severity)
+                explicit_idx = severity_levels.index(severity)
+                if explicit_idx < auto_idx:
+                    # Downgrade: potential security risk
+                    risk_level = "warning"
+                else:
+                    # Upgrade: conservative, low risk
+                    risk_level = "info"
+            else:
+                risk_level = "info"
+
+            self._log_governance_audit(
+                audit_type="severity_override" if severity_was_overridden else "policy_override",
+                proposal_id=proposal_id,
+                team_id=proposing_team_id,
+                actor_lct=proposer_lct,
+                action_type=action_type,
+                details=audit_details,
+                risk_level=risk_level,
+            )
+
         return proposal
 
     def _ensure_xteam_table(self):
@@ -1447,6 +1590,20 @@ class FederationRegistry:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_xteam_approvals_teams
                 ON xteam_approval_records(proposing_team_id, approving_team_id)
+            """)
+            # Governance audit log for policy overrides and anomalies
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS governance_audit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    audit_type TEXT NOT NULL,
+                    proposal_id TEXT,
+                    team_id TEXT,
+                    actor_lct TEXT,
+                    action_type TEXT,
+                    details TEXT NOT NULL,
+                    risk_level TEXT DEFAULT 'info'
+                )
             """)
 
     def approve_cross_team_proposal(
