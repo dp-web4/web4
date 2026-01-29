@@ -61,6 +61,9 @@ class FederatedTeam:
     # Creation lineage - who created this team
     creator_lct: str = ""  # LCT of the entity that created this team
 
+    # Activity tracking for reputation decay
+    last_activity: str = ""  # ISO timestamp of last activity (proposal, approval, witness)
+
     # Witness reputation
     witness_score: float = 1.0  # 0.0 (terrible) to 1.0 (perfect)
     witness_count: int = 0      # Total times this team provided witnesses
@@ -137,12 +140,18 @@ class FederationRegistry:
                     admin_lct TEXT DEFAULT '',
                     creator_lct TEXT DEFAULT '',
                     member_count INTEGER DEFAULT 0,
+                    last_activity TEXT DEFAULT '',
                     witness_score REAL DEFAULT 1.0,
                     witness_count INTEGER DEFAULT 0,
                     witness_successes INTEGER DEFAULT 0,
                     witness_failures INTEGER DEFAULT 0
                 )
             """)
+            # Add last_activity column if not exists (migration)
+            try:
+                conn.execute("ALTER TABLE federated_teams ADD COLUMN last_activity TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS witness_records (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -211,20 +220,22 @@ class FederationRegistry:
             admin_lct=admin_lct,
             creator_lct=creator_lct,
             member_count=member_count,
+            last_activity=now,  # Registration counts as activity
         )
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
                 INSERT INTO federated_teams
                 (team_id, name, registered_at, status, domains, capabilities,
-                 admin_lct, creator_lct, member_count, witness_score, witness_count,
+                 admin_lct, creator_lct, member_count, last_activity, witness_score, witness_count,
                  witness_successes, witness_failures)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 team.team_id, team.name, team.registered_at,
                 team.status.value,
                 json.dumps(team.domains), json.dumps(team.capabilities),
                 team.admin_lct, team.creator_lct, team.member_count,
+                team.last_activity,
                 team.witness_score, team.witness_count,
                 team.witness_successes, team.witness_failures,
             ))
@@ -504,6 +515,127 @@ class FederationRegistry:
             "UPDATE federated_teams SET witness_score = ? WHERE team_id = ?",
             (score, team_id)
         )
+
+    def _update_last_activity(self, team_id: str, timestamp: str = None):
+        """Update the last activity timestamp for a team."""
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE federated_teams SET last_activity = ? WHERE team_id = ?",
+                (timestamp, team_id)
+            )
+
+    def apply_reputation_decay(self, decay_threshold_days: int = 30,
+                                decay_rate: float = 0.1,
+                                min_score: float = 0.3) -> Dict:
+        """
+        Apply reputation decay to inactive teams.
+
+        Teams that haven't participated (proposed, approved, witnessed) in the
+        specified period see their witness_score decay. This prevents stale
+        high-reputation teams from having unearned influence.
+
+        Args:
+            decay_threshold_days: Days of inactivity before decay starts
+            decay_rate: Fraction of score to decay per application (0.1 = 10%)
+            min_score: Minimum score floor (won't decay below this)
+
+        Returns:
+            Report of decayed teams and new scores
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=decay_threshold_days)).isoformat()
+        decayed_teams = []
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT team_id, name, witness_score, last_activity
+                FROM federated_teams
+                WHERE status = 'active'
+                  AND (last_activity IS NULL OR last_activity = '' OR last_activity < ?)
+                  AND witness_score > ?
+            """, (cutoff, min_score)).fetchall()
+
+            for row in rows:
+                old_score = row["witness_score"]
+                new_score = max(min_score, old_score * (1 - decay_rate))
+
+                conn.execute(
+                    "UPDATE federated_teams SET witness_score = ? WHERE team_id = ?",
+                    (new_score, row["team_id"])
+                )
+
+                decayed_teams.append({
+                    "team_id": row["team_id"],
+                    "name": row["name"],
+                    "old_score": old_score,
+                    "new_score": new_score,
+                    "decay": old_score - new_score,
+                    "last_activity": row["last_activity"] or "never",
+                })
+
+        return {
+            "threshold_days": decay_threshold_days,
+            "decay_rate": decay_rate,
+            "min_score": min_score,
+            "teams_decayed": len(decayed_teams),
+            "decayed_teams": decayed_teams,
+        }
+
+    def get_inactive_teams(self, days: int = 30) -> List[Dict]:
+        """
+        Get teams that have been inactive for the specified period.
+
+        Args:
+            days: Number of days to consider as inactive
+
+        Returns:
+            List of inactive team info with last activity details
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT team_id, name, witness_score, last_activity, registered_at
+                FROM federated_teams
+                WHERE status = 'active'
+                  AND (last_activity IS NULL OR last_activity = '' OR last_activity < ?)
+                ORDER BY last_activity ASC
+            """, (cutoff,)).fetchall()
+
+        inactive = []
+        now = datetime.now(timezone.utc)
+        for row in rows:
+            last_act = row["last_activity"]
+            if last_act:
+                try:
+                    last_dt = datetime.fromisoformat(last_act.rstrip("Z"))
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=timezone.utc)
+                    inactive_days = (now - last_dt).days
+                except:
+                    inactive_days = None
+            else:
+                # Never active, use registration date
+                try:
+                    reg_dt = datetime.fromisoformat(row["registered_at"].rstrip("Z"))
+                    if reg_dt.tzinfo is None:
+                        reg_dt = reg_dt.replace(tzinfo=timezone.utc)
+                    inactive_days = (now - reg_dt).days
+                except:
+                    inactive_days = None
+
+            inactive.append({
+                "team_id": row["team_id"],
+                "name": row["name"],
+                "witness_score": row["witness_score"],
+                "last_activity": row["last_activity"] or "never",
+                "inactive_days": inactive_days,
+            })
+
+        return inactive
 
     def check_reciprocity(self, team_a_id: str, team_b_id: str) -> Dict:
         """
@@ -1039,6 +1171,7 @@ class FederationRegistry:
             admin_lct=row["admin_lct"] or "",
             creator_lct=creator_lct,
             member_count=row["member_count"] or 0,
+            last_activity=row["last_activity"] if "last_activity" in row.keys() and row["last_activity"] else "",
             witness_score=row["witness_score"] if row["witness_score"] is not None else 1.0,
             witness_count=row["witness_count"] or 0,
             witness_successes=row["witness_successes"] or 0,
@@ -1154,6 +1287,9 @@ class FederationRegistry:
                 VALUES (?, ?, ?, ?)
             """, (proposal_id, json.dumps(proposal), "pending", now.isoformat()))
 
+        # Update activity timestamp for the proposing team
+        self._update_last_activity(proposing_team_id, now.isoformat())
+
         return proposal
 
     def _ensure_xteam_table(self):
@@ -1216,6 +1352,9 @@ class FederationRegistry:
             "approver_lct": approver_lct,
             "timestamp": now,
         }
+
+        # Update activity timestamp for the approving team
+        self._update_last_activity(approving_team_id, now)
 
         # Record for reciprocity analysis
         self._record_xteam_approval(

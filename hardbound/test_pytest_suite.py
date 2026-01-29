@@ -3344,6 +3344,145 @@ class TestApprovalCycleDetection:
         assert len(long_cycles) >= 1
 
 
+class TestReputationDecay:
+    """Tests for reputation decay over inactivity periods."""
+
+    def test_activity_tracked_on_proposal(self):
+        """Creating a proposal updates last_activity."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "decay_proposal.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+
+        # Get initial last_activity
+        initial = fed.get_team("team:a").last_activity
+
+        # Create proposal (should update activity)
+        import time
+        time.sleep(0.1)  # Ensure different timestamp
+        fed.create_cross_team_proposal(
+            "team:a", "admin:a", "action", "Test", ["team:b"]
+        )
+
+        updated = fed.get_team("team:a").last_activity
+        assert updated >= initial, "Last activity should be updated"
+
+    def test_activity_tracked_on_approval(self):
+        """Approving a proposal updates last_activity."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "decay_approval.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+
+        proposal = fed.create_cross_team_proposal(
+            "team:a", "admin:a", "action", "Test", ["team:b"]
+        )
+
+        # Get B's initial activity
+        initial = fed.get_team("team:b").last_activity
+
+        import time
+        time.sleep(0.1)
+        fed.approve_cross_team_proposal(proposal["proposal_id"], "team:b", "admin:b")
+
+        updated = fed.get_team("team:b").last_activity
+        assert updated >= initial, "Last activity should be updated on approval"
+
+    def test_decay_applied_to_inactive_teams(self):
+        """Inactive teams see reputation decay."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        import sqlite3
+        from pathlib import Path
+        from datetime import datetime, timezone, timedelta
+
+        db_path = Path(tempfile.mkdtemp()) / "decay_inactive.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:active", "Active")
+        fed.register_team("team:inactive", "Inactive")
+
+        # Set inactive team's last_activity to 60 days ago
+        old_time = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE federated_teams SET last_activity = ?, witness_score = 0.9 WHERE team_id = 'team:inactive'",
+                (old_time,)
+            )
+
+        # Apply decay (30 day threshold)
+        result = fed.apply_reputation_decay(decay_threshold_days=30, decay_rate=0.1)
+
+        assert result["teams_decayed"] >= 1
+        assert any(t["team_id"] == "team:inactive" for t in result["decayed_teams"])
+
+        # Verify score decreased
+        inactive = fed.get_team("team:inactive")
+        assert inactive.witness_score < 0.9, "Score should have decayed"
+
+    def test_active_teams_not_decayed(self):
+        """Teams with recent activity don't decay."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        import sqlite3
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "decay_active.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:active", "Active")
+
+        # Set high reputation
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE federated_teams SET witness_score = 0.95 WHERE team_id = 'team:active'"
+            )
+
+        # Apply decay (team just registered, should be active)
+        result = fed.apply_reputation_decay(decay_threshold_days=30)
+
+        # Active team should not be decayed
+        active_decayed = [t for t in result["decayed_teams"] if t["team_id"] == "team:active"]
+        assert len(active_decayed) == 0, "Active team should not be decayed"
+
+    def test_decay_respects_minimum_score(self):
+        """Decay doesn't reduce score below minimum."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        import sqlite3
+        from pathlib import Path
+        from datetime import datetime, timezone, timedelta
+
+        db_path = Path(tempfile.mkdtemp()) / "decay_min.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:low", "Low")
+
+        # Set low score and old activity
+        old_time = (datetime.now(timezone.utc) - timedelta(days=100)).isoformat()
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE federated_teams SET last_activity = ?, witness_score = 0.35 WHERE team_id = 'team:low'",
+                (old_time,)
+            )
+
+        # Apply decay with min_score of 0.3
+        fed.apply_reputation_decay(decay_threshold_days=30, decay_rate=0.5, min_score=0.3)
+
+        team = fed.get_team("team:low")
+        assert team.witness_score >= 0.3, "Score should not go below minimum"
+
+
 class TestTemporalPatternDetection:
     """Tests for detecting suspiciously fast approval patterns."""
 
