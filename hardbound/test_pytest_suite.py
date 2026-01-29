@@ -3709,6 +3709,169 @@ class TestTemporalPatternDetection:
         assert report["health"] == "critical"
 
 
+class TestCrossDomainTemporalAnalysis:
+    """Tests for cross-domain temporal pattern detection."""
+
+    def test_burst_detection_flags_many_fast_proposals(self):
+        """Burst of proposals from same team is detected."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "burst_detect.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:burst", "Burst")
+        fed.register_team("team:target1", "Target1")
+        fed.register_team("team:target2", "Target2")
+
+        # Create burst of 5 proposals from same team
+        for i in range(5):
+            fed.create_cross_team_proposal(
+                "team:burst",
+                f"admin:burst",
+                f"burst_action_{i}",
+                "Rapid proposal",
+                ["team:target1", "team:target2"]
+            )
+
+        analysis = fed.get_cross_domain_temporal_analysis(
+            time_window_hours=24,
+            min_proposals=3
+        )
+
+        assert analysis["proposals_analyzed"] == 5
+        assert len(analysis["burst_patterns"]) >= 1
+        burst = analysis["burst_patterns"][0]
+        assert burst["count"] >= 3
+        assert burst["team_concentration"] >= 0.7  # All from same team
+
+    def test_team_pattern_detects_fast_approvals(self):
+        """Teams with consistently fast approvals are flagged."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "team_pattern.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:favored", "Favored")
+        fed.register_team("team:approver", "Approver")
+
+        # Create multiple proposals that all get fast approvals
+        for i in range(4):
+            p = fed.create_cross_team_proposal(
+                "team:favored",
+                "admin:favored",
+                f"quick_action_{i}",
+                "Always approved fast",
+                ["team:approver"]
+            )
+            # Instant approval
+            fed.approve_cross_team_proposal(
+                p["proposal_id"], "team:approver", "admin:approver"
+            )
+
+        analysis = fed.get_cross_domain_temporal_analysis()
+
+        # Favored team should have high fast approval ratio
+        team_pattern = analysis["team_patterns"].get("team:favored", {})
+        assert team_pattern.get("approvals_received", 0) == 4
+        assert team_pattern.get("fast_approval_ratio_received", 0) > 0.8
+        assert team_pattern.get("suspicion_level") in ("high", "critical")
+
+    def test_correlated_approvals_detected(self):
+        """Correlated approval timing across proposals is flagged."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "correlated.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:approver1", "Approver1")
+        fed.register_team("team:approver2", "Approver2")
+
+        # Create two proposals with same approvers who approve at similar times
+        # Use veto mode so both approvals are needed
+        p1 = fed.create_cross_team_proposal(
+            "team:a", "admin:a", "action1", "Test1",
+            ["team:approver1", "team:approver2"],
+            voting_mode="veto"
+        )
+        p2 = fed.create_cross_team_proposal(
+            "team:b", "admin:b", "action2", "Test2",
+            ["team:approver1", "team:approver2"],
+            voting_mode="veto"
+        )
+
+        # Both approvers approve both proposals instantly
+        fed.approve_cross_team_proposal(p1["proposal_id"], "team:approver1", "a1")
+        fed.approve_cross_team_proposal(p1["proposal_id"], "team:approver2", "a2")
+        fed.approve_cross_team_proposal(p2["proposal_id"], "team:approver1", "a1")
+        fed.approve_cross_team_proposal(p2["proposal_id"], "team:approver2", "a2")
+
+        analysis = fed.get_cross_domain_temporal_analysis(correlation_threshold=0.5)
+
+        # Should detect correlation between the two proposals
+        assert len(analysis["correlated_approvals"]) >= 1
+        corr = analysis["correlated_approvals"][0]
+        assert len(corr["common_approvers"]) == 2
+
+    def test_healthy_when_no_suspicious_patterns(self):
+        """Federation shows healthy when patterns are normal."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "healthy.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:x", "X")
+        fed.register_team("team:y", "Y")
+
+        # Just one proposal, no burst
+        fed.create_cross_team_proposal(
+            "team:x", "admin:x", "normal_action", "Normal", ["team:y"]
+        )
+
+        analysis = fed.get_cross_domain_temporal_analysis(min_proposals=5)
+
+        # Not enough proposals for burst detection
+        assert analysis["proposals_analyzed"] == 1
+        assert analysis["burst_patterns"] == []
+        assert analysis["health_status"] == "healthy"
+
+    def test_analysis_returns_all_fields(self):
+        """Analysis result contains all expected fields."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "fields.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:f1", "F1")
+        fed.register_team("team:f2", "F2")
+
+        fed.create_cross_team_proposal(
+            "team:f1", "admin:f1", "action", "Test", ["team:f2"]
+        )
+
+        analysis = fed.get_cross_domain_temporal_analysis()
+
+        # Check all expected fields present
+        assert "analysis_window_hours" in analysis
+        assert "proposals_analyzed" in analysis
+        assert "burst_patterns" in analysis
+        assert "team_patterns" in analysis
+        assert "correlated_approvals" in analysis
+        assert "health_status" in analysis
+        assert "issues" in analysis
+
+
 class TestAdaptiveThresholds:
     """Tests for severity-based adaptive governance thresholds."""
 

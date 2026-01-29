@@ -2468,6 +2468,376 @@ class FederationRegistry:
             "health": health,
         }
 
+    def get_cross_domain_temporal_analysis(
+        self,
+        time_window_hours: int = 24,
+        min_proposals: int = 3,
+        correlation_threshold: float = 0.8,
+    ) -> Dict:
+        """
+        Analyze timing patterns across multiple proposals and teams.
+
+        Cross-domain temporal analysis detects sophisticated coordination that
+        individual proposal analysis might miss:
+        - Multiple proposals from same team all getting fast approvals
+        - "Burst" patterns where many proposals are created/approved together
+        - Timing correlation between proposals from different teams
+
+        Args:
+            time_window_hours: Window to consider proposals "related" (default 24h)
+            min_proposals: Minimum proposals to trigger burst detection (default 3)
+            correlation_threshold: How correlated timing must be to flag (0-1)
+
+        Returns:
+            Cross-domain temporal analysis with patterns and flags
+        """
+        self._ensure_xteam_table()
+        now = datetime.now(timezone.utc)
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT proposal_id, data, status, created_at
+                FROM cross_team_proposals
+                WHERE status IN ('approved', 'pending')
+                ORDER BY created_at DESC
+            """).fetchall()
+
+        if not rows:
+            return {
+                "analysis_window_hours": time_window_hours,
+                "proposals_analyzed": 0,
+                "burst_patterns": [],
+                "team_patterns": {},
+                "correlated_approvals": [],
+                "health_status": "healthy",
+                "issues": [],
+            }
+
+        # Parse proposals
+        proposals = []
+        for row in rows:
+            try:
+                data = json.loads(row["data"])
+                created_at = datetime.fromisoformat(row["created_at"].rstrip("Z"))
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+                proposals.append({
+                    "proposal_id": row["proposal_id"],
+                    "proposing_team": data.get("proposing_team_id", ""),
+                    "target_teams": data.get("target_team_ids", []),
+                    "action_type": data.get("action_type", ""),
+                    "created_at": created_at,
+                    "status": row["status"],
+                    "approvals": data.get("approvals", {}),
+                })
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+        # Analysis 1: Burst detection - many proposals in short window
+        burst_patterns = self._detect_proposal_bursts(
+            proposals, time_window_hours, min_proposals
+        )
+
+        # Analysis 2: Per-team patterns - does one team always get fast approvals?
+        team_patterns = self._analyze_team_approval_patterns(proposals)
+
+        # Analysis 3: Correlated approvals - same approvers, same timing
+        correlated_approvals = self._detect_correlated_approvals(
+            proposals, correlation_threshold
+        )
+
+        # Health assessment
+        issues = []
+        health_status = "healthy"
+
+        if burst_patterns:
+            health_status = "warning"
+            for burst in burst_patterns:
+                issues.append(
+                    f"Burst detected: {burst['count']} proposals in {burst['window_minutes']:.0f} min"
+                )
+
+        suspicious_teams = [
+            t for t, d in team_patterns.items()
+            if d.get("suspicion_level", "normal") in ("high", "critical")
+        ]
+        if suspicious_teams:
+            health_status = "warning"
+            issues.extend([
+                f"Suspicious timing pattern for team {t}"
+                for t in suspicious_teams
+            ])
+
+        if correlated_approvals:
+            if len(correlated_approvals) > 3:
+                health_status = "critical"
+            else:
+                health_status = "warning"
+            issues.append(
+                f"Detected {len(correlated_approvals)} correlated approval patterns"
+            )
+
+        return {
+            "analysis_window_hours": time_window_hours,
+            "proposals_analyzed": len(proposals),
+            "burst_patterns": burst_patterns,
+            "team_patterns": team_patterns,
+            "correlated_approvals": correlated_approvals,
+            "health_status": health_status,
+            "issues": issues,
+        }
+
+    def _detect_proposal_bursts(
+        self,
+        proposals: List[Dict],
+        window_hours: int,
+        min_count: int,
+    ) -> List[Dict]:
+        """
+        Detect bursts of proposals created in short time windows.
+
+        A burst indicates potential coordination - legitimate proposals
+        are usually spread over time.
+        """
+        if len(proposals) < min_count:
+            return []
+
+        bursts = []
+        window = timedelta(hours=window_hours)
+
+        # Sort by creation time
+        sorted_proposals = sorted(proposals, key=lambda p: p["created_at"])
+
+        # Sliding window detection
+        i = 0
+        while i < len(sorted_proposals):
+            window_start = sorted_proposals[i]["created_at"]
+            window_end = window_start + window
+
+            # Find all proposals in this window
+            window_proposals = [
+                p for p in sorted_proposals[i:]
+                if p["created_at"] <= window_end
+            ]
+
+            if len(window_proposals) >= min_count:
+                # Check if they share common characteristics
+                proposing_teams = [p["proposing_team"] for p in window_proposals]
+                unique_teams = set(proposing_teams)
+
+                # Suspicious if many from same team or all to same targets
+                team_concentration = max(
+                    proposing_teams.count(t) for t in unique_teams
+                ) / len(window_proposals)
+
+                actual_minutes = (
+                    window_proposals[-1]["created_at"] - window_proposals[0]["created_at"]
+                ).total_seconds() / 60
+
+                bursts.append({
+                    "window_start": window_start.isoformat(),
+                    "window_end": window_end.isoformat(),
+                    "count": len(window_proposals),
+                    "window_minutes": actual_minutes,
+                    "proposal_ids": [p["proposal_id"] for p in window_proposals],
+                    "team_concentration": round(team_concentration, 2),
+                    "unique_teams": len(unique_teams),
+                    "suspicious": team_concentration > 0.7 or actual_minutes < 60,
+                })
+
+                # Skip past this burst
+                i += len(window_proposals)
+            else:
+                i += 1
+
+        return [b for b in bursts if b["suspicious"]]
+
+    def _analyze_team_approval_patterns(self, proposals: List[Dict]) -> Dict:
+        """
+        Analyze approval patterns per team.
+
+        Suspicious patterns:
+        - Team consistently receives fast approvals
+        - Team consistently gives fast approvals
+        - Team has abnormal approval timing distribution
+        """
+        team_stats = {}
+
+        for proposal in proposals:
+            proposing_team = proposal["proposing_team"]
+            approvals = proposal.get("approvals", {})
+
+            if proposing_team not in team_stats:
+                team_stats[proposing_team] = {
+                    "proposals_created": 0,
+                    "approvals_received": 0,
+                    "approvals_given": 0,
+                    "fast_approvals_received": 0,
+                    "fast_approvals_given": 0,
+                    "avg_time_to_approval": [],
+                    "avg_time_to_give_approval": [],
+                }
+
+            stats = team_stats[proposing_team]
+            stats["proposals_created"] += 1
+
+            created_at = proposal["created_at"]
+            for approver_team, approval_data in approvals.items():
+                try:
+                    approval_ts = datetime.fromisoformat(
+                        approval_data["timestamp"].rstrip("Z")
+                    )
+                    if approval_ts.tzinfo is None:
+                        approval_ts = approval_ts.replace(tzinfo=timezone.utc)
+
+                    delta_seconds = (approval_ts - created_at).total_seconds()
+                    stats["approvals_received"] += 1
+                    stats["avg_time_to_approval"].append(delta_seconds)
+
+                    if delta_seconds < 300:  # Under 5 minutes = fast
+                        stats["fast_approvals_received"] += 1
+
+                    # Track the approver's stats too
+                    if approver_team not in team_stats:
+                        team_stats[approver_team] = {
+                            "proposals_created": 0,
+                            "approvals_received": 0,
+                            "approvals_given": 0,
+                            "fast_approvals_received": 0,
+                            "fast_approvals_given": 0,
+                            "avg_time_to_approval": [],
+                            "avg_time_to_give_approval": [],
+                        }
+
+                    approver_stats = team_stats[approver_team]
+                    approver_stats["approvals_given"] += 1
+                    approver_stats["avg_time_to_give_approval"].append(delta_seconds)
+
+                    if delta_seconds < 300:
+                        approver_stats["fast_approvals_given"] += 1
+
+                except (ValueError, KeyError):
+                    continue
+
+        # Calculate final stats and suspicion levels
+        result = {}
+        for team_id, stats in team_stats.items():
+            avg_received = (
+                sum(stats["avg_time_to_approval"]) / len(stats["avg_time_to_approval"])
+                if stats["avg_time_to_approval"] else None
+            )
+            avg_given = (
+                sum(stats["avg_time_to_give_approval"]) / len(stats["avg_time_to_give_approval"])
+                if stats["avg_time_to_give_approval"] else None
+            )
+
+            # Suspicion level based on fast approval ratio
+            fast_ratio_received = (
+                stats["fast_approvals_received"] / stats["approvals_received"]
+                if stats["approvals_received"] > 0 else 0
+            )
+            fast_ratio_given = (
+                stats["fast_approvals_given"] / stats["approvals_given"]
+                if stats["approvals_given"] > 0 else 0
+            )
+
+            suspicion_level = "normal"
+            if fast_ratio_received > 0.8 and stats["approvals_received"] >= 3:
+                suspicion_level = "high"
+            elif fast_ratio_received > 0.5 and stats["approvals_received"] >= 5:
+                suspicion_level = "medium"
+            elif fast_ratio_given > 0.8 and stats["approvals_given"] >= 3:
+                suspicion_level = "high"
+            elif fast_ratio_given > 0.5 and stats["approvals_given"] >= 5:
+                suspicion_level = "medium"
+
+            if (fast_ratio_received > 0.9 and fast_ratio_given > 0.9 and
+                stats["approvals_received"] >= 3 and stats["approvals_given"] >= 3):
+                suspicion_level = "critical"
+
+            result[team_id] = {
+                "proposals_created": stats["proposals_created"],
+                "approvals_received": stats["approvals_received"],
+                "approvals_given": stats["approvals_given"],
+                "fast_approvals_received": stats["fast_approvals_received"],
+                "fast_approvals_given": stats["fast_approvals_given"],
+                "avg_time_to_receive_approval_seconds": round(avg_received, 1) if avg_received else None,
+                "avg_time_to_give_approval_seconds": round(avg_given, 1) if avg_given else None,
+                "fast_approval_ratio_received": round(fast_ratio_received, 2),
+                "fast_approval_ratio_given": round(fast_ratio_given, 2),
+                "suspicion_level": suspicion_level,
+            }
+
+        return result
+
+    def _detect_correlated_approvals(
+        self,
+        proposals: List[Dict],
+        threshold: float,
+    ) -> List[Dict]:
+        """
+        Detect proposals with suspiciously correlated approval timing.
+
+        If the same approvers approve multiple proposals within similar
+        timeframes, it suggests coordination rather than independent review.
+        """
+        correlations = []
+
+        # Compare pairs of proposals
+        for i, prop1 in enumerate(proposals):
+            if not prop1.get("approvals"):
+                continue
+
+            for prop2 in proposals[i + 1:]:
+                if not prop2.get("approvals"):
+                    continue
+
+                # Find common approvers
+                common_approvers = set(prop1["approvals"].keys()) & set(prop2["approvals"].keys())
+
+                if len(common_approvers) < 2:
+                    continue
+
+                # Check timing correlation for common approvers
+                timing_diffs = []
+                for approver in common_approvers:
+                    try:
+                        ts1 = datetime.fromisoformat(
+                            prop1["approvals"][approver]["timestamp"].rstrip("Z")
+                        )
+                        ts2 = datetime.fromisoformat(
+                            prop2["approvals"][approver]["timestamp"].rstrip("Z")
+                        )
+
+                        # Time between same approver's approvals
+                        diff = abs((ts2 - ts1).total_seconds())
+                        timing_diffs.append(diff)
+                    except (ValueError, KeyError):
+                        continue
+
+                if not timing_diffs:
+                    continue
+
+                # Correlation score: low variance in timing diffs = high correlation
+                avg_diff = sum(timing_diffs) / len(timing_diffs)
+                if avg_diff < 600:  # All within 10 minutes
+                    variance = sum((d - avg_diff) ** 2 for d in timing_diffs) / len(timing_diffs)
+                    # Normalize variance to correlation score
+                    correlation = 1 / (1 + variance / 10000)  # Higher = more correlated
+
+                    if correlation > threshold:
+                        correlations.append({
+                            "proposal_1": prop1["proposal_id"],
+                            "proposal_2": prop2["proposal_id"],
+                            "common_approvers": list(common_approvers),
+                            "avg_time_between_approvals_seconds": round(avg_diff, 1),
+                            "timing_variance": round(variance, 1),
+                            "correlation_score": round(correlation, 3),
+                        })
+
+        return correlations
+
 
 if __name__ == "__main__":
     print("=" * 60)
