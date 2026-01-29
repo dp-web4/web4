@@ -555,6 +555,24 @@ class FederationRegistry:
             (score, team_id)
         )
 
+    def _update_witness_score(self, team_id: str, score: float):
+        """
+        Directly update witness score for a team.
+
+        Used for external trust system integration (e.g., web4-trust-core).
+        Score is clamped to [0.0, 1.0].
+
+        Args:
+            team_id: Team ID to update
+            score: New witness score
+        """
+        score = max(0.0, min(1.0, score))
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE federated_teams SET witness_score = ? WHERE team_id = ?",
+                (score, team_id)
+            )
+
     def _update_last_activity(self, team_id: str, timestamp: str = None):
         """Update the last activity timestamp for a team."""
         if timestamp is None:

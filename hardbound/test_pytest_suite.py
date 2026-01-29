@@ -4558,6 +4558,153 @@ class TestNewMechanisms:
 
 
 # =============================================================================
+# Track BE: Trust Integration (Hardbound + web4-trust-core)
+# =============================================================================
+
+class TestTrustIntegration:
+    """Tests for Hardbound + web4-trust-core integration."""
+
+    def test_bridge_creation(self):
+        """Trust integration bridge can be created."""
+        try:
+            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+        except ImportError:
+            pytest.skip("web4-trust not available")
+
+        if not RUST_BACKEND_AVAILABLE:
+            pytest.skip("Rust backend not available")
+
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "bridge_test.db"
+        fed = FederationRegistry(db_path=db_path)
+        fed.register_team("team:test", "Test")
+
+        bridge = TrustIntegrationBridge(fed)
+        assert bridge is not None
+        assert bridge.federation == fed
+
+    def test_team_to_entity_export(self):
+        """Team can be exported as EntityTrust."""
+        try:
+            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+        except ImportError:
+            pytest.skip("web4-trust not available")
+
+        if not RUST_BACKEND_AVAILABLE:
+            pytest.skip("Rust backend not available")
+
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "export_test.db"
+        fed = FederationRegistry(db_path=db_path)
+        fed.register_team("team:export", "Exporter")
+
+        bridge = TrustIntegrationBridge(fed)
+        entity = bridge.export_team_to_entity("team:export")
+
+        assert entity is not None
+        assert entity.entity_id == "federation:team:export"
+        assert 0.0 <= entity.t3_average() <= 1.0
+
+    def test_trust_mapping_comparison(self):
+        """Trust scores from both systems can be compared."""
+        try:
+            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+        except ImportError:
+            pytest.skip("web4-trust not available")
+
+        if not RUST_BACKEND_AVAILABLE:
+            pytest.skip("Rust backend not available")
+
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "compare_test.db"
+        fed = FederationRegistry(db_path=db_path)
+        fed.register_team("team:compare", "Comparer")
+
+        bridge = TrustIntegrationBridge(fed)
+        mapping = bridge.compare_trust_scores("team:compare")
+
+        assert mapping.team_id == "team:compare"
+        assert 0.0 <= mapping.hardbound_witness_score <= 1.0
+        assert 0.0 <= mapping.t3_average <= 1.0
+        assert mapping.discrepancy >= 0.0
+
+    def test_unified_trust_report(self):
+        """Unified trust report can be generated."""
+        try:
+            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+        except ImportError:
+            pytest.skip("web4-trust not available")
+
+        if not RUST_BACKEND_AVAILABLE:
+            pytest.skip("Rust backend not available")
+
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "report_test.db"
+        fed = FederationRegistry(db_path=db_path)
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        bridge = TrustIntegrationBridge(fed)
+        report = bridge.get_unified_trust_report()
+
+        assert "timestamp" in report
+        assert report["teams_analyzed"] == 3
+        assert "average_hardbound_score" in report
+        assert "average_t3_score" in report
+        assert "calibration" in report
+        assert report["calibration"] in ("excellent", "good", "fair", "poor")
+
+    def test_score_sync_back_to_team(self):
+        """EntityTrust updates can sync back to Hardbound."""
+        try:
+            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+        except ImportError:
+            pytest.skip("web4-trust not available")
+
+        if not RUST_BACKEND_AVAILABLE:
+            pytest.skip("Rust backend not available")
+
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "sync_test.db"
+        fed = FederationRegistry(db_path=db_path)
+        fed.register_team("team:sync", "Syncer")
+
+        original_score = fed.get_team("team:sync").witness_score
+
+        bridge = TrustIntegrationBridge(fed)
+        # Get entity and modify it in the store
+        entity_id = bridge.team_to_entity_id("team:sync")
+        entity = bridge.trust_store.get(entity_id)
+        # Update several times to change T3
+        for _ in range(10):
+            bridge.trust_store.update(entity_id, False, 0.2)
+
+        # Sync back
+        success = bridge.sync_entity_to_team(entity_id)
+        assert success is True
+
+        # Score should have changed (blended with T3)
+        new_score = fed.get_team("team:sync").witness_score
+        assert new_score != original_score or abs(new_score - original_score) < 0.01
+
+
+# =============================================================================
 # Track AY: Governance Audit Logging Tests
 # =============================================================================
 
