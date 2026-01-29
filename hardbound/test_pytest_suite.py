@@ -5040,3 +5040,156 @@ class TestGovernanceAudit:
         # Filter by team
         team_a_logs = fed.get_governance_audit_log(team_id="team:a")
         assert all(e["team_id"] == "team:a" for e in team_a_logs)
+
+
+class TestAmountThresholdPolicy:
+    """Tests for context-dependent amount threshold classification (Track BG)."""
+
+    def test_amount_policy_resource_types(self):
+        """Different resource types have different thresholds."""
+        from hardbound.federation import AmountThresholdPolicy
+
+        policy = AmountThresholdPolicy()
+
+        # ATP is strict - 50 is medium severity
+        atp_severity = policy.classify_amount(50, "atp", member_count=10)
+        assert atp_severity == "medium"
+
+        # Credits are relaxed - 50 is still low
+        credit_severity = policy.classify_amount(50, "credit", member_count=10)
+        assert credit_severity == "low"
+
+        # Token is moderate - 50 is low, 100 is medium
+        token_low = policy.classify_amount(50, "token", member_count=10)
+        assert token_low == "low"
+        token_med = policy.classify_amount(100, "token", member_count=10)
+        assert token_med == "medium"
+
+    def test_amount_policy_team_size_scaling(self):
+        """Larger teams get higher thresholds (can handle bigger amounts)."""
+        from hardbound.federation import AmountThresholdPolicy
+
+        policy = AmountThresholdPolicy()
+
+        # 200 tokens is high severity for a tiny team (5 members)
+        tiny_severity = policy.classify_amount(200, "token", member_count=3)
+        assert tiny_severity == "medium"  # tiny gets 0.5x = threshold 50
+
+        # Same 200 tokens is only medium for a medium team
+        medium_severity = policy.classify_amount(200, "token", member_count=30)
+        assert medium_severity == "medium"  # medium gets 2x = threshold 200
+
+        # 200 tokens is low for a large team
+        large_severity = policy.classify_amount(200, "token", member_count=100)
+        assert large_severity == "low"  # large gets 5x = threshold 500
+
+    def test_amount_policy_size_categories(self):
+        """Team size categories are correctly identified."""
+        from hardbound.federation import AmountThresholdPolicy
+
+        policy = AmountThresholdPolicy()
+
+        assert policy.get_team_size_category(3) == "tiny"      # 1-5
+        assert policy.get_team_size_category(10) == "small"    # 6-20
+        assert policy.get_team_size_category(35) == "medium"   # 21-50
+        assert policy.get_team_size_category(100) == "large"   # 51-200
+        assert policy.get_team_size_category(500) == "enterprise"  # 200+
+
+    def test_amount_policy_critical_threshold(self):
+        """Critical amounts trigger critical severity."""
+        from hardbound.federation import AmountThresholdPolicy
+
+        policy = AmountThresholdPolicy()
+
+        # 5000 ATP is critical for any team
+        crit = policy.classify_amount(5000, "atp", member_count=10)
+        assert crit == "critical"
+
+        # But for enterprise team (10x multiplier), need 50000
+        large_high = policy.classify_amount(10000, "atp", member_count=250)
+        assert large_high == "high"  # 5000 * 10 = 50000 for critical
+
+    def test_classify_action_severity_with_context(self):
+        """FederationRegistry uses context-dependent classification."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "context_severity.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Register teams with different sizes
+        fed.register_team("team:tiny", "Tiny Team")
+        fed.register_team("team:large", "Large Corp")
+
+        # Update member counts
+        with sqlite3.connect(fed.db_path) as conn:
+            conn.execute("UPDATE federated_teams SET member_count = 3 WHERE team_id = 'team:tiny'")
+            conn.execute("UPDATE federated_teams SET member_count = 150 WHERE team_id = 'team:large'")
+
+        # 200 ATP transfer - high for tiny team
+        tiny_severity = fed.classify_action_severity(
+            "transfer", {"amount": 200, "resource_type": "atp"}, team_id="team:tiny"
+        )
+        # tiny: thresholds are halved (0.5x) -> 25/250/2500 for medium/high/critical
+        assert tiny_severity == "medium"  # 200 > 25, < 250
+
+        # Same 200 ATP transfer - lower for large team
+        large_severity = fed.classify_action_severity(
+            "transfer", {"amount": 200, "resource_type": "atp"}, team_id="team:large"
+        )
+        # large: thresholds are 5x -> 250/2500/25000 for medium/high/critical
+        assert large_severity == "low"  # 200 < 250
+
+    def test_classify_action_severity_detailed(self):
+        """Detailed classification provides transparency."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "detailed_severity.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "Team A")
+
+        # Get detailed classification
+        result = fed.classify_action_severity_detailed(
+            "transfer",
+            {"amount": 500, "resource_type": "atp"},
+            team_id="team:a"
+        )
+
+        assert result["severity"] == "high"
+        assert result["classification_reason"] == "amount_exceeds_high_threshold"
+        assert "thresholds_used" in result
+        assert result["thresholds_used"]["medium"] == 50  # atp default
+        assert result["thresholds_used"]["high"] == 500   # atp default
+        assert result["resource_type"] == "atp"
+        assert result["amount"] == 500
+
+    def test_backward_compatible_classification(self):
+        """Old-style classification still works without context."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "compat_severity.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Old style: just amount, no resource_type
+        # Uses "default" resource type with standard member count (10)
+        low_severity = fed.classify_action_severity("transfer", {"amount": 50})
+        assert low_severity == "low"  # 50 < 100 (default medium threshold)
+
+        medium_severity = fed.classify_action_severity("transfer", {"amount": 500})
+        assert medium_severity == "medium"  # 100 < 500 < 1000
+
+        high_severity = fed.classify_action_severity("transfer", {"amount": 5000})
+        assert high_severity == "high"  # 1000 < 5000 < 10000
+
+        critical_severity = fed.classify_action_severity("transfer", {"amount": 15000})
+        assert critical_severity == "critical"  # 15000 > 10000
+
+
+# Import sqlite3 at module level for tests that need it
+import sqlite3

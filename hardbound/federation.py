@@ -43,6 +43,123 @@ class FederationStatus(Enum):
 
 
 @dataclass
+class AmountThresholdPolicy:
+    """
+    Context-dependent amount thresholds for severity classification.
+
+    Different resource types have different value scales. A transfer of
+    100 ATP is significant, but 100 notification credits is trivial.
+    Team size also matters - large teams handle larger amounts routinely.
+
+    Track BG: Context-dependent threshold tuning.
+    """
+    # Resource type thresholds (absolute values)
+    # Format: {resource_type: {severity: threshold}}
+    resource_thresholds: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
+        # ATP (high-value token) - strict thresholds
+        "atp": {"medium": 50, "high": 500, "critical": 5000},
+        # Standard tokens - moderate thresholds
+        "token": {"medium": 100, "high": 1000, "critical": 10000},
+        # Credits (low-value) - relaxed thresholds
+        "credit": {"medium": 1000, "high": 10000, "critical": 100000},
+        # Access levels (discrete) - very strict
+        "access": {"medium": 1, "high": 3, "critical": 5},
+        # Member count changes
+        "members": {"medium": 5, "high": 20, "critical": 50},
+        # Default for unknown types
+        "default": {"medium": 100, "high": 1000, "critical": 10000},
+    })
+
+    # Team size multipliers: larger teams can handle larger amounts
+    # Applied as: threshold * multiplier based on team member count
+    team_size_multipliers: Dict[str, float] = field(default_factory=lambda: {
+        "tiny": 0.5,     # 1-5 members
+        "small": 1.0,    # 6-20 members
+        "medium": 2.0,   # 21-50 members
+        "large": 5.0,    # 51-200 members
+        "enterprise": 10.0,  # 200+ members
+    })
+
+    # Thresholds for team size classification
+    team_size_brackets: Dict[str, int] = field(default_factory=lambda: {
+        "tiny": 5,
+        "small": 20,
+        "medium": 50,
+        "large": 200,
+        # enterprise is 200+
+    })
+
+    def get_team_size_category(self, member_count: int) -> str:
+        """Classify team by member count."""
+        if member_count <= self.team_size_brackets["tiny"]:
+            return "tiny"
+        elif member_count <= self.team_size_brackets["small"]:
+            return "small"
+        elif member_count <= self.team_size_brackets["medium"]:
+            return "medium"
+        elif member_count <= self.team_size_brackets["large"]:
+            return "large"
+        return "enterprise"
+
+    def get_effective_threshold(
+        self,
+        resource_type: str,
+        severity_level: str,
+        member_count: int = 10
+    ) -> float:
+        """
+        Get context-adjusted threshold for a given resource type and team size.
+
+        Args:
+            resource_type: Type of resource (atp, token, credit, etc.)
+            severity_level: Severity to check (medium, high, critical)
+            member_count: Team member count for size adjustment
+
+        Returns:
+            Adjusted threshold value
+        """
+        # Get base threshold for resource type
+        resource_type = resource_type.lower() if resource_type else "default"
+        thresholds = self.resource_thresholds.get(
+            resource_type, self.resource_thresholds["default"]
+        )
+        base_threshold = thresholds.get(severity_level, thresholds.get("medium", 100))
+
+        # Apply team size multiplier
+        size_category = self.get_team_size_category(member_count)
+        multiplier = self.team_size_multipliers.get(size_category, 1.0)
+
+        return base_threshold * multiplier
+
+    def classify_amount(
+        self,
+        amount: float,
+        resource_type: str = "default",
+        member_count: int = 10
+    ) -> str:
+        """
+        Classify severity based on amount, resource type, and team size.
+
+        Args:
+            amount: The amount value
+            resource_type: Type of resource
+            member_count: Team member count
+
+        Returns:
+            Severity level: "low", "medium", "high", or "critical"
+        """
+        # Check each severity level from highest to lowest
+        for severity in ["critical", "high", "medium"]:
+            threshold = self.get_effective_threshold(
+                resource_type, severity, member_count
+            )
+            if amount >= threshold:
+                return severity
+
+        return "low"
+
+
+@dataclass
 class FederatedTeam:
     """A team's public profile in the federation registry."""
     team_id: str
@@ -116,6 +233,9 @@ class FederationRegistry:
     SEVERITY_MEDIUM = "medium"
     SEVERITY_HIGH = "high"
     SEVERITY_CRITICAL = "critical"
+
+    # Default amount threshold policy (Track BG)
+    DEFAULT_AMOUNT_THRESHOLD_POLICY = AmountThresholdPolicy()
 
     # Default adaptive threshold policies per severity level
     # These can be overridden per-federation
@@ -1549,20 +1669,33 @@ class FederationRegistry:
                            f"Valid: {list(self.DEFAULT_SEVERITY_POLICIES.keys())}")
         return dict(self.DEFAULT_SEVERITY_POLICIES[severity])
 
-    def classify_action_severity(self, action_type: str, parameters: Dict = None) -> str:
+    def classify_action_severity(
+        self,
+        action_type: str,
+        parameters: Dict = None,
+        team_id: str = None,
+        amount_policy: AmountThresholdPolicy = None
+    ) -> str:
         """
         Automatically classify action severity based on type and parameters.
 
         This provides default classification. Federation-specific rules can override.
+        Track BG: Now supports context-dependent amount thresholds based on
+        resource type and team size.
 
         Args:
             action_type: Type of cross-team action
-            parameters: Optional action parameters
+            parameters: Optional action parameters including:
+                - amount: Numeric value for threshold checking
+                - resource_type: Type of resource (atp, token, credit, etc.)
+            team_id: Optional team ID for size-aware thresholds
+            amount_policy: Optional custom AmountThresholdPolicy
 
         Returns:
             Severity level: "low", "medium", "high", or "critical"
         """
         parameters = parameters or {}
+        policy = amount_policy or self.DEFAULT_AMOUNT_THRESHOLD_POLICY
 
         # Critical actions: irreversible, high-impact
         critical_actions = {
@@ -1580,13 +1713,23 @@ class FederationRegistry:
         if action_type in high_actions:
             return self.SEVERITY_HIGH
 
-        # Check parameters for severity hints
+        # Check parameters for context-dependent severity (Track BG)
         amount = parameters.get("amount", 0)
-        if isinstance(amount, (int, float)):
-            if amount > 1000:
-                return self.SEVERITY_HIGH
-            if amount > 100:
-                return self.SEVERITY_MEDIUM
+        if isinstance(amount, (int, float)) and amount > 0:
+            # Get resource type from parameters (default: "default")
+            resource_type = parameters.get("resource_type", "default")
+
+            # Get team member count for size-aware thresholds
+            member_count = 10  # Default for unknown teams
+            if team_id:
+                team = self.get_team(team_id)
+                if team:
+                    member_count = team.member_count or 10
+
+            # Use context-dependent classification
+            amount_severity = policy.classify_amount(amount, resource_type, member_count)
+            if amount_severity in (self.SEVERITY_CRITICAL, self.SEVERITY_HIGH, self.SEVERITY_MEDIUM):
+                return amount_severity
 
         # Medium: standard operations
         medium_actions = {
@@ -1598,6 +1741,105 @@ class FederationRegistry:
 
         # Default to low for unknown actions
         return self.SEVERITY_LOW
+
+    def classify_action_severity_detailed(
+        self,
+        action_type: str,
+        parameters: Dict = None,
+        team_id: str = None,
+        amount_policy: AmountThresholdPolicy = None
+    ) -> Dict:
+        """
+        Classify action severity with detailed breakdown of classification factors.
+
+        Track BG: Provides transparency into how severity was determined.
+
+        Args:
+            action_type: Type of cross-team action
+            parameters: Optional action parameters
+            team_id: Optional team ID for size-aware thresholds
+            amount_policy: Optional custom AmountThresholdPolicy
+
+        Returns:
+            Dict with severity, classification_reason, thresholds_used, etc.
+        """
+        parameters = parameters or {}
+        policy = amount_policy or self.DEFAULT_AMOUNT_THRESHOLD_POLICY
+
+        result = {
+            "severity": "low",
+            "classification_reason": "default",
+            "action_type": action_type,
+            "parameters": parameters,
+            "thresholds_used": None,
+            "team_size_category": None,
+            "team_member_count": None,
+        }
+
+        # Critical actions
+        critical_actions = {
+            "team_dissolution", "federation_exit", "admin_transfer",
+            "key_rotation", "emergency_override", "policy_override",
+        }
+        if action_type in critical_actions:
+            result["severity"] = self.SEVERITY_CRITICAL
+            result["classification_reason"] = "action_type_critical"
+            return result
+
+        # High-impact actions
+        high_actions = {
+            "resource_transfer", "role_change", "access_grant",
+            "member_removal", "permission_escalation", "config_change",
+        }
+        if action_type in high_actions:
+            result["severity"] = self.SEVERITY_HIGH
+            result["classification_reason"] = "action_type_high"
+            return result
+
+        # Amount-based classification
+        amount = parameters.get("amount", 0)
+        if isinstance(amount, (int, float)) and amount > 0:
+            resource_type = parameters.get("resource_type", "default")
+
+            # Get team context
+            member_count = 10
+            if team_id:
+                team = self.get_team(team_id)
+                if team:
+                    member_count = team.member_count or 10
+
+            result["team_member_count"] = member_count
+            result["team_size_category"] = policy.get_team_size_category(member_count)
+
+            # Calculate effective thresholds
+            thresholds = {
+                "medium": policy.get_effective_threshold(resource_type, "medium", member_count),
+                "high": policy.get_effective_threshold(resource_type, "high", member_count),
+                "critical": policy.get_effective_threshold(resource_type, "critical", member_count),
+            }
+            result["thresholds_used"] = thresholds
+            result["resource_type"] = resource_type
+            result["amount"] = amount
+
+            # Classify
+            amount_severity = policy.classify_amount(amount, resource_type, member_count)
+            if amount_severity != "low":
+                result["severity"] = amount_severity
+                result["classification_reason"] = f"amount_exceeds_{amount_severity}_threshold"
+                return result
+
+        # Medium actions
+        medium_actions = {
+            "proposal_submit", "resource_allocation", "schedule_change",
+            "notification", "status_update",
+        }
+        if action_type in medium_actions:
+            result["severity"] = self.SEVERITY_MEDIUM
+            result["classification_reason"] = "action_type_medium"
+            return result
+
+        result["classification_reason"] = "default_low"
+        return result
 
     def _row_to_team(self, row) -> FederatedTeam:
         """Convert database row to FederatedTeam."""
