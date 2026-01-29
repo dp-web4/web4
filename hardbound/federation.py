@@ -1059,6 +1059,8 @@ class FederationRegistry:
         target_team_ids: List[str],
         required_approvals: int = None,
         parameters: Dict = None,
+        require_outsider: bool = False,
+        outsider_team_ids: List[str] = None,
     ) -> Dict:
         """
         Create a proposal that requires approval from multiple federation teams.
@@ -1077,6 +1079,10 @@ class FederationRegistry:
             target_team_ids: Teams that must approve
             required_approvals: Number of target team approvals needed (default: all)
             parameters: Action-specific parameters
+            require_outsider: If True, at least one approval must come from a team
+                             not in the proposing group (anti-collusion measure)
+            outsider_team_ids: Optional list of eligible outsider teams.
+                               If None, any team not in target_team_ids qualifies.
 
         Returns:
             Cross-team proposal record
@@ -1116,6 +1122,10 @@ class FederationRegistry:
             "created_at": now.isoformat(),
             "closed_at": "",
             "outcome": "",
+            # Outsider requirement for anti-collusion
+            "require_outsider": require_outsider,
+            "outsider_team_ids": outsider_team_ids or [],
+            "has_outsider_approval": False,
         }
 
         # Persist to database
@@ -1198,8 +1208,24 @@ class FederationRegistry:
             timestamp=now,
         )
 
+        # Check if this is an outsider approval
+        if proposal.get("require_outsider"):
+            outsider_ids = proposal.get("outsider_team_ids", [])
+            if outsider_ids:
+                # Specific outsider list provided
+                if approving_team_id in outsider_ids:
+                    proposal["has_outsider_approval"] = True
+            else:
+                # Any team not in target list is an outsider
+                if approving_team_id not in proposal["target_team_ids"]:
+                    proposal["has_outsider_approval"] = True
+
         # Check if threshold met
-        if len(proposal["approvals"]) >= proposal["required_approvals"]:
+        approvals_met = len(proposal["approvals"]) >= proposal["required_approvals"]
+        outsider_met = (not proposal.get("require_outsider") or
+                       proposal.get("has_outsider_approval", False))
+
+        if approvals_met and outsider_met:
             proposal["status"] = "approved"
             proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
             proposal["outcome"] = "approved"
@@ -1240,6 +1266,71 @@ class FederationRegistry:
         proposal["status"] = "rejected"
         proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
         proposal["outcome"] = "rejected"
+
+        self._save_xteam_proposal(proposal)
+        return proposal
+
+    def approve_as_outsider(
+        self,
+        proposal_id: str,
+        outsider_team_id: str,
+        approver_lct: str,
+    ) -> Dict:
+        """
+        Approve a cross-team proposal as an outsider (neutral third party).
+
+        Only valid for proposals with require_outsider=True.
+        The outsider team must be in outsider_team_ids (if specified) or
+        must not be in target_team_ids.
+
+        Args:
+            proposal_id: The proposal to approve
+            outsider_team_id: The outsider team providing validation
+            approver_lct: LCT of the approving entity
+
+        Returns:
+            Updated proposal
+        """
+        proposal = self._load_xteam_proposal(proposal_id)
+        if not proposal:
+            raise ValueError(f"Proposal not found: {proposal_id}")
+
+        if proposal["status"] != "pending":
+            raise ValueError(f"Proposal not pending: {proposal['status']}")
+
+        if not proposal.get("require_outsider"):
+            raise ValueError("This proposal does not require outsider approval")
+
+        # Validate outsider eligibility
+        outsider_ids = proposal.get("outsider_team_ids", [])
+        if outsider_ids:
+            if outsider_team_id not in outsider_ids:
+                raise ValueError(f"Team {outsider_team_id} not an eligible outsider")
+        else:
+            # Must not be in target list
+            if outsider_team_id in proposal["target_team_ids"]:
+                raise ValueError(f"Team {outsider_team_id} is a target, not an outsider")
+            if outsider_team_id == proposal["proposing_team_id"]:
+                raise ValueError("Proposing team cannot be an outsider")
+
+        if proposal.get("has_outsider_approval"):
+            raise ValueError("Proposal already has outsider approval")
+
+        # Record outsider approval
+        now = datetime.now(timezone.utc).isoformat()
+        proposal["outsider_approval"] = {
+            "team_id": outsider_team_id,
+            "approver_lct": approver_lct,
+            "timestamp": now,
+        }
+        proposal["has_outsider_approval"] = True
+
+        # Check if now fully approved
+        approvals_met = len(proposal["approvals"]) >= proposal["required_approvals"]
+        if approvals_met:
+            proposal["status"] = "approved"
+            proposal["closed_at"] = now
+            proposal["outcome"] = "approved"
 
         self._save_xteam_proposal(proposal)
         return proposal

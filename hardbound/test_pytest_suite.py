@@ -3263,3 +3263,128 @@ class TestTemporalPatternDetection:
         assert report["total_proposals"] == 3
         assert report["flagged_count"] == 3  # All should be flagged (instant approval)
         assert report["health"] == "critical"
+
+
+class TestOutsiderRequirement:
+    """Tests for outsider approval requirement on critical proposals."""
+
+    def test_proposal_needs_outsider(self):
+        """Proposal with require_outsider waits for outsider approval."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "outsider_need.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:outsider", "Outsider")
+
+        # Create proposal requiring outsider
+        proposal = fed.create_cross_team_proposal(
+            "team:a", "admin:a", "critical_action", "Needs neutral approval",
+            target_team_ids=["team:b"],
+            require_outsider=True,
+        )
+
+        # B approves (target approval)
+        updated = fed.approve_cross_team_proposal(
+            proposal["proposal_id"], "team:b", "admin:b"
+        )
+
+        # Still pending because no outsider
+        assert updated["status"] == "pending"
+        assert updated["has_outsider_approval"] == False
+
+    def test_outsider_approval_completes(self):
+        """Adding outsider approval completes the proposal."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "outsider_complete.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:neutral", "Neutral")
+
+        proposal = fed.create_cross_team_proposal(
+            "team:a", "admin:a", "critical", "Test",
+            target_team_ids=["team:b"],
+            require_outsider=True,
+        )
+
+        # B approves
+        fed.approve_cross_team_proposal(proposal["proposal_id"], "team:b", "admin:b")
+
+        # Outsider approves
+        updated = fed.approve_as_outsider(
+            proposal["proposal_id"], "team:neutral", "admin:neutral"
+        )
+
+        assert updated["status"] == "approved"
+        assert updated["has_outsider_approval"] == True
+        assert updated["outsider_approval"]["team_id"] == "team:neutral"
+
+    def test_target_cannot_be_outsider(self):
+        """Target team cannot also serve as outsider."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "outsider_invalid.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+
+        proposal = fed.create_cross_team_proposal(
+            "team:a", "admin:a", "action", "Test",
+            target_team_ids=["team:b"],
+            require_outsider=True,
+        )
+
+        # B tries to be outsider (should fail - they're a target)
+        try:
+            fed.approve_as_outsider(proposal["proposal_id"], "team:b", "admin:b")
+            assert False, "Should have raised ValueError"
+        except ValueError as e:
+            assert "target" in str(e).lower()
+
+    def test_specific_outsider_list(self):
+        """Can specify exact list of eligible outsiders."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "outsider_list.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:auditor", "Auditor")
+        fed.register_team("team:random", "Random")
+
+        proposal = fed.create_cross_team_proposal(
+            "team:a", "admin:a", "audit_action", "Needs auditor approval",
+            target_team_ids=["team:b"],
+            require_outsider=True,
+            outsider_team_ids=["team:auditor"],  # Only auditor can be outsider
+        )
+
+        fed.approve_cross_team_proposal(proposal["proposal_id"], "team:b", "admin:b")
+
+        # Random team cannot be outsider
+        try:
+            fed.approve_as_outsider(proposal["proposal_id"], "team:random", "admin:random")
+            assert False, "Should have raised ValueError"
+        except ValueError as e:
+            assert "eligible" in str(e).lower()
+
+        # Auditor can be outsider
+        updated = fed.approve_as_outsider(
+            proposal["proposal_id"], "team:auditor", "admin:auditor"
+        )
+        assert updated["status"] == "approved"
