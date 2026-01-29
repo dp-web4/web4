@@ -1061,6 +1061,8 @@ class FederationRegistry:
         parameters: Dict = None,
         require_outsider: bool = False,
         outsider_team_ids: List[str] = None,
+        voting_mode: str = "veto",
+        approval_threshold: float = 0.5,
     ) -> Dict:
         """
         Create a proposal that requires approval from multiple federation teams.
@@ -1070,6 +1072,10 @@ class FederationRegistry:
         - Shared resource allocation
         - Cross-team access grants
         - Federation policy changes
+
+        Voting modes:
+        - "veto": Single rejection blocks proposal (default, strong minority protection)
+        - "weighted": Reputation-weighted voting, passes if weighted approval >= threshold
 
         Args:
             proposing_team_id: Team initiating the proposal
@@ -1083,10 +1089,18 @@ class FederationRegistry:
                              not in the proposing group (anti-collusion measure)
             outsider_team_ids: Optional list of eligible outsider teams.
                                If None, any team not in target_team_ids qualifies.
+            voting_mode: "veto" (default) or "weighted"
+            approval_threshold: For weighted mode, required weighted approval ratio (0.0-1.0)
 
         Returns:
             Cross-team proposal record
         """
+        # Validate voting mode
+        if voting_mode not in ("veto", "weighted"):
+            raise ValueError(f"Invalid voting_mode: {voting_mode}")
+        if voting_mode == "weighted" and not (0.0 < approval_threshold <= 1.0):
+            raise ValueError(f"approval_threshold must be between 0 and 1")
+
         # Validate proposing team
         proposing_team = self.get_team(proposing_team_id)
         if not proposing_team or proposing_team.status != FederationStatus.ACTIVE:
@@ -1126,6 +1140,9 @@ class FederationRegistry:
             "require_outsider": require_outsider,
             "outsider_team_ids": outsider_team_ids or [],
             "has_outsider_approval": False,
+            # Voting mode configuration
+            "voting_mode": voting_mode,
+            "approval_threshold": approval_threshold,
         }
 
         # Persist to database
@@ -1220,10 +1237,21 @@ class FederationRegistry:
                 if approving_team_id not in proposal["target_team_ids"]:
                     proposal["has_outsider_approval"] = True
 
-        # Check if threshold met
-        approvals_met = len(proposal["approvals"]) >= proposal["required_approvals"]
+        # Check if threshold met (depends on voting mode)
+        voting_mode = proposal.get("voting_mode", "veto")
         outsider_met = (not proposal.get("require_outsider") or
                        proposal.get("has_outsider_approval", False))
+
+        if voting_mode == "weighted":
+            # Calculate weighted approval ratio
+            weighted_result = self._calculate_weighted_votes(proposal)
+            proposal["weighted_approval"] = weighted_result["weighted_approval"]
+            proposal["weighted_rejection"] = weighted_result["weighted_rejection"]
+            threshold = proposal.get("approval_threshold", 0.5)
+            approvals_met = weighted_result["weighted_approval"] >= threshold
+        else:
+            # Veto mode: need required_approvals count
+            approvals_met = len(proposal["approvals"]) >= proposal["required_approvals"]
 
         if approvals_met and outsider_met:
             proposal["status"] = "approved"
@@ -1232,6 +1260,38 @@ class FederationRegistry:
 
         self._save_xteam_proposal(proposal)
         return proposal
+
+    def _calculate_weighted_votes(self, proposal: Dict) -> Dict:
+        """
+        Calculate reputation-weighted voting totals.
+
+        Each team's vote is weighted by their witness_score (reputation).
+        """
+        target_teams = proposal["target_team_ids"]
+        approvals = proposal.get("approvals", {})
+        rejections = proposal.get("rejections", {})
+
+        total_weight = 0.0
+        approval_weight = 0.0
+        rejection_weight = 0.0
+
+        for team_id in target_teams:
+            team = self.get_team(team_id)
+            weight = team.witness_score if team else 1.0
+            total_weight += weight
+
+            if team_id in approvals:
+                approval_weight += weight
+            if team_id in rejections:
+                rejection_weight += weight
+
+        return {
+            "total_weight": total_weight,
+            "approval_weight": approval_weight,
+            "rejection_weight": rejection_weight,
+            "weighted_approval": approval_weight / total_weight if total_weight > 0 else 0.0,
+            "weighted_rejection": rejection_weight / total_weight if total_weight > 0 else 0.0,
+        }
 
     def reject_cross_team_proposal(
         self,
@@ -1243,7 +1303,8 @@ class FederationRegistry:
         """
         Reject a cross-team proposal on behalf of a target team.
 
-        A single rejection is sufficient to block the proposal (veto power).
+        In veto mode: single rejection blocks proposal.
+        In weighted mode: rejection is counted as negative vote weight.
         """
         proposal = self._load_xteam_proposal(proposal_id)
         if not proposal:
@@ -1262,10 +1323,25 @@ class FederationRegistry:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-        # Single rejection = proposal rejected
-        proposal["status"] = "rejected"
-        proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
-        proposal["outcome"] = "rejected"
+        voting_mode = proposal.get("voting_mode", "veto")
+
+        if voting_mode == "veto":
+            # Veto mode: single rejection blocks proposal
+            proposal["status"] = "rejected"
+            proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
+            proposal["outcome"] = "rejected"
+        else:
+            # Weighted mode: check if rejection weight is enough to block
+            weighted_result = self._calculate_weighted_votes(proposal)
+            proposal["weighted_approval"] = weighted_result["weighted_approval"]
+            proposal["weighted_rejection"] = weighted_result["weighted_rejection"]
+
+            # Rejected if rejection weight exceeds (1 - threshold)
+            threshold = proposal.get("approval_threshold", 0.5)
+            if weighted_result["weighted_rejection"] > (1 - threshold):
+                proposal["status"] = "rejected"
+                proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
+                proposal["outcome"] = "rejected"
 
         self._save_xteam_proposal(proposal)
         return proposal

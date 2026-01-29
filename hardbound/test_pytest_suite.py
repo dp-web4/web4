@@ -3388,3 +3388,148 @@ class TestOutsiderRequirement:
             proposal["proposal_id"], "team:auditor", "admin:auditor"
         )
         assert updated["status"] == "approved"
+
+
+class TestWeightedVoting:
+    """Tests for reputation-weighted voting mode."""
+
+    def test_weighted_mode_basic(self):
+        """Weighted voting uses team reputation for vote weight."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        import sqlite3
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "weighted_basic.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Register proposer and target teams with different reputations
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:high", "High Rep")
+        fed.register_team("team:low", "Low Rep")
+
+        # Manually set witness scores for target teams
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("UPDATE federated_teams SET witness_score = 0.9 WHERE team_id = 'team:high'")
+            conn.execute("UPDATE federated_teams SET witness_score = 0.3 WHERE team_id = 'team:low'")
+
+        # Create weighted voting proposal (need >50% weighted approval)
+        proposal = fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "action", "Test",
+            target_team_ids=["team:high", "team:low"],
+            voting_mode="weighted",
+            approval_threshold=0.5,
+        )
+
+        # Just high-rep team approves
+        updated = fed.approve_cross_team_proposal(
+            proposal["proposal_id"], "team:high", "admin:high"
+        )
+
+        # High rep = 0.9, Low rep = 0.3, total = 1.2
+        # Weighted approval = 0.9 / 1.2 = 0.75 > 0.5
+        assert updated["status"] == "approved"
+        assert updated["weighted_approval"] > 0.5
+
+    def test_weighted_rejection_not_veto(self):
+        """In weighted mode, single rejection doesn't block if insufficient weight."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        import sqlite3
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "weighted_no_veto.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        # Proposer and target teams (high rep and low rep)
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:high", "High Rep")
+        fed.register_team("team:low", "Low Rep")
+
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("UPDATE federated_teams SET witness_score = 0.9 WHERE team_id = 'team:high'")
+            conn.execute("UPDATE federated_teams SET witness_score = 0.1 WHERE team_id = 'team:low'")
+
+        proposal = fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "action", "Test",
+            target_team_ids=["team:high", "team:low"],
+            voting_mode="weighted",
+            approval_threshold=0.5,
+        )
+
+        # Low-rep team rejects (doesn't have enough weight to veto)
+        updated = fed.reject_cross_team_proposal(
+            proposal["proposal_id"], "team:low", "admin:low", reason="Don't like it"
+        )
+
+        # Rejection weight = 0.1 / 1.0 = 0.1, not enough to block (need > 0.5)
+        assert updated["status"] == "pending"  # Still pending
+
+        # High-rep approves - should pass
+        updated = fed.approve_cross_team_proposal(
+            proposal["proposal_id"], "team:high", "admin:high"
+        )
+        assert updated["status"] == "approved"
+
+    def test_high_weight_rejection_blocks(self):
+        """High-weight rejection in weighted mode blocks proposal."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        import sqlite3
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "weighted_block.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:proposer", "Proposer")
+        fed.register_team("team:high", "High Rep")
+        fed.register_team("team:low", "Low Rep")
+
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("UPDATE federated_teams SET witness_score = 0.8 WHERE team_id = 'team:high'")
+            conn.execute("UPDATE federated_teams SET witness_score = 0.2 WHERE team_id = 'team:low'")
+
+        proposal = fed.create_cross_team_proposal(
+            "team:proposer", "admin:p", "action", "Test",
+            target_team_ids=["team:high", "team:low"],
+            voting_mode="weighted",
+            approval_threshold=0.5,
+        )
+
+        # High-rep team rejects (0.8 / 1.0 = 0.8 > 0.5)
+        updated = fed.reject_cross_team_proposal(
+            proposal["proposal_id"], "team:high", "admin:high", reason="Security risk"
+        )
+
+        assert updated["status"] == "rejected"
+
+    def test_veto_mode_default(self):
+        """Default mode is veto - single rejection blocks."""
+        from hardbound.federation import FederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "veto_default.db"
+        fed = FederationRegistry(db_path=db_path)
+
+        fed.register_team("team:a", "A")
+        fed.register_team("team:b", "B")
+        fed.register_team("team:c", "C")
+
+        # Default voting mode (veto)
+        proposal = fed.create_cross_team_proposal(
+            "team:a", "admin:a", "action", "Test",
+            target_team_ids=["team:b", "team:c"],
+        )
+
+        assert proposal["voting_mode"] == "veto"
+
+        # B approves
+        fed.approve_cross_team_proposal(proposal["proposal_id"], "team:b", "admin:b")
+
+        # C rejects - should block even though B approved
+        updated = fed.reject_cross_team_proposal(
+            proposal["proposal_id"], "team:c", "admin:c"
+        )
+
+        assert updated["status"] == "rejected"
