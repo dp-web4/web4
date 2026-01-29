@@ -393,11 +393,8 @@ def test_rate_limiter():
     assert not bucket.consume(1), "Should be empty"
     print(f"  6th consume failed (expected)")
 
-    # Test rate limiter with governance ledger
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parent.parent / "claude-code-plugin"))
-    from governance import Ledger
+    # Test rate limiter with local ledger
+    from hardbound.ledger import Ledger
 
     ledger = Ledger()
     limiter = RateLimiter(ledger)

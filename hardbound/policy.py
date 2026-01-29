@@ -30,7 +30,7 @@ from typing import Optional, Dict, List, Any, TYPE_CHECKING
 from enum import Enum
 
 if TYPE_CHECKING:
-    from governance import Ledger
+    from .ledger import Ledger
 
 
 class ApprovalType(Enum):

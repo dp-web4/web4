@@ -25,7 +25,7 @@ from enum import Enum
 from pathlib import Path
 
 if TYPE_CHECKING:
-    from governance import Ledger
+    from .ledger import Ledger
 
 
 class RateLimitScope(Enum):

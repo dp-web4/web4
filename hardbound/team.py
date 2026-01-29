@@ -27,10 +27,8 @@ from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
-# Import governance components
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent / "claude-code-plugin"))
-from governance import Ledger
+# Import governance components (self-contained)
+from .ledger import Ledger
 
 # Import trust decay, policy, and admin binding
 from .trust_decay import TrustDecayCalculator, DecayConfig

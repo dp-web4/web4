@@ -25,7 +25,6 @@ from datetime import datetime, timezone, timedelta
 
 # Ensure imports work
 sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "claude-code-plugin"))
 
 
 def test_unified_audit_chain():
@@ -36,7 +35,7 @@ def test_unified_audit_chain():
     Hardbound team queries the same ledger for audit trail.
     Both should see the same chain.
     """
-    from governance import Ledger
+    from hardbound.ledger import Ledger
     from hardbound.team import Team, TeamConfig
 
     print("Test 1: Unified Audit Chain")

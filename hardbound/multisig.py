@@ -35,7 +35,7 @@ from pathlib import Path
 if TYPE_CHECKING:
     from .team import Team
     from .federation import FederationRegistry
-    from governance import Ledger
+    from .ledger import Ledger
 
 
 class ProposalStatus(Enum):

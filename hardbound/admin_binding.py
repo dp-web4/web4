@@ -42,9 +42,8 @@ except ImportError:
         TPM2_AVAILABLE = False
         TPM2Provider = None
 
-# Import governance
-sys.path.insert(0, str(Path(__file__).parent.parent / "claude-code-plugin"))
-from governance import Ledger
+# Import governance (self-contained)
+from .ledger import Ledger
 
 if TYPE_CHECKING:
     from .team import Team
