@@ -7192,5 +7192,237 @@ class TestTrustMaintenance:
         assert cost_high > cost_low
 
 
+class TestFederationGovernance:
+    """
+    Track BU: Federation Governance Integration Tests
+
+    Tests governance proposals, voting, and execution.
+    """
+
+    def test_create_proposal_requires_presence(self):
+        """Proposals require minimum presence."""
+        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
+        from hardbound.economic_federation import EconomicFederationRegistry
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        economic = EconomicFederationRegistry(db_path=tmp_dir / "economic.db")
+        binding = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        governance = FederationGovernance(economic, binding)
+
+        # Register federation with low presence
+        binding.register_federation_with_binding("fed:low", "Low", initial_trust=0.9)
+        economic.register_federation("fed:low", "Low", initial_atp=500)
+        binding.bind_team_to_federation("fed:low", "team:only")
+
+        # Try to create proposal (should fail due to low presence)
+        proposal, error = governance.create_proposal(
+            "fed:low",
+            "lct:proposer",
+            GovernanceActionType.FEDERATION_POLICY_CHANGE,
+            "Test proposal",
+        )
+
+        assert proposal is None
+        assert "presence" in error.lower()
+
+    def test_create_proposal_requires_atp(self):
+        """Proposals require sufficient ATP."""
+        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
+        from hardbound.economic_federation import EconomicFederationRegistry
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        economic = EconomicFederationRegistry(db_path=tmp_dir / "economic.db")
+        binding = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        governance = FederationGovernance(economic, binding)
+
+        # Register federation with good presence but no ATP
+        binding.register_federation_with_binding("fed:poor", "Poor", initial_trust=0.9)
+        economic.register_federation("fed:poor", "Poor", initial_atp=5)  # Very low ATP
+
+        for i in range(4):
+            binding.bind_team_to_federation("fed:poor", f"team:{i}")
+        binding.build_internal_presence("fed:poor")
+
+        # Try to create proposal (should fail due to low ATP)
+        proposal, error = governance.create_proposal(
+            "fed:poor",
+            "lct:proposer",
+            GovernanceActionType.FEDERATION_POLICY_CHANGE,
+            "Test proposal",
+        )
+
+        assert proposal is None
+        assert "atp" in error.lower()
+
+    def test_proposal_creation_locks_atp(self):
+        """Creating proposal locks ATP."""
+        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
+        from hardbound.economic_federation import EconomicFederationRegistry
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        economic = EconomicFederationRegistry(db_path=tmp_dir / "economic.db")
+        binding = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        governance = FederationGovernance(economic, binding)
+
+        # Register well-funded federation
+        binding.register_federation_with_binding("fed:rich", "Rich", initial_trust=0.9)
+        economic.register_federation("fed:rich", "Rich", initial_atp=1000)
+
+        for i in range(5):
+            binding.bind_team_to_federation("fed:rich", f"team:{i}")
+        binding.build_internal_presence("fed:rich")
+
+        balance_before = economic.get_balance("fed:rich")
+
+        # Create proposal
+        proposal, error = governance.create_proposal(
+            "fed:rich",
+            "lct:proposer",
+            GovernanceActionType.TRUST_ESTABLISHMENT,
+            "Test proposal",
+        )
+
+        assert proposal is not None
+        assert error == ""
+
+        balance_after = economic.get_balance("fed:rich")
+        assert balance_after < balance_before
+        assert balance_before - balance_after == proposal.atp_cost
+
+    def test_voting_with_weighted_power(self):
+        """Votes are weighted by presence and trust."""
+        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
+        from hardbound.economic_federation import EconomicFederationRegistry
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        economic = EconomicFederationRegistry(db_path=tmp_dir / "economic.db")
+        binding = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        governance = FederationGovernance(economic, binding)
+
+        # Setup federations
+        binding.register_federation_with_binding("fed:proposer", "Proposer", initial_trust=0.9)
+        binding.register_federation_with_binding("fed:voter", "Voter", initial_trust=0.8)
+        economic.register_federation("fed:proposer", "Proposer", initial_atp=500)
+        economic.register_federation("fed:voter", "Voter", initial_atp=500)
+
+        for i in range(4):
+            binding.bind_team_to_federation("fed:proposer", f"team:p:{i}")
+            binding.bind_team_to_federation("fed:voter", f"team:v:{i}")
+        binding.build_internal_presence("fed:proposer")
+        binding.build_internal_presence("fed:voter")
+
+        # Create proposal
+        proposal, _ = governance.create_proposal(
+            "fed:proposer",
+            "lct:proposer",
+            GovernanceActionType.TRUST_ESTABLISHMENT,
+            "Test proposal",
+        )
+
+        # Vote
+        success, error = governance.vote_on_proposal(
+            proposal.proposal_id, "fed:voter", "approve"
+        )
+
+        assert success
+        assert error == ""
+
+        votes = governance.get_proposal_votes(proposal.proposal_id)
+        assert len(votes) == 1
+        assert votes[0].weight > 0
+
+    def test_governance_readiness_check(self):
+        """Governance readiness identifies gaps."""
+        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
+        from hardbound.economic_federation import EconomicFederationRegistry
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        economic = EconomicFederationRegistry(db_path=tmp_dir / "economic.db")
+        binding = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        governance = FederationGovernance(economic, binding)
+
+        # Register low-presence federation with insufficient ATP
+        binding.register_federation_with_binding("fed:new", "New", initial_trust=0.5)
+        economic.register_federation("fed:new", "New", initial_atp=10)  # Very low ATP
+
+        readiness = governance.check_governance_readiness("fed:new")
+
+        # Not ready because can't propose (low ATP and/or presence)
+        assert readiness["ready"] == False
+        # Should have gaps related to ATP or presence
+        assert len(readiness["gaps"]) > 0
+        # Can vote at 0.3 presence (threshold)
+        assert readiness["capabilities"]["can_vote"] == True
+        # Can't propose without sufficient ATP
+        assert readiness["capabilities"]["can_propose"] == False
+
+    def test_voting_power_calculation(self):
+        """Voting power combines presence and trust."""
+        from hardbound.governance_federation import FederationGovernance
+        from hardbound.economic_federation import EconomicFederationRegistry
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        economic = EconomicFederationRegistry(db_path=tmp_dir / "economic.db")
+        binding = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        governance = FederationGovernance(economic, binding)
+
+        # Register federation with presence
+        binding.register_federation_with_binding("fed:test", "Test", initial_trust=0.9)
+        economic.register_federation("fed:test", "Test", initial_atp=500)
+
+        for i in range(5):
+            binding.bind_team_to_federation("fed:test", f"team:{i}")
+        binding.build_internal_presence("fed:test")
+
+        power = governance.get_voting_power("fed:test")
+
+        assert "voting_weight" in power
+        assert "presence_score" in power
+        assert power["voting_weight"] > 0
+        assert power["can_vote"] == True
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
