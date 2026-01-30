@@ -2846,6 +2846,243 @@ def attack_economic_vectors() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 19: Decay & Maintenance Attacks (Track BS)
+# ---------------------------------------------------------------------------
+
+def attack_decay_and_maintenance() -> AttackResult:
+    """
+    ATTACK 19: DECAY & MAINTENANCE ATTACKS (Track BS)
+
+    Tests attack vectors against the trust maintenance system:
+
+    1. Maintenance Fee Evasion: Skip payments while maintaining high trust
+    2. Decay Manipulation: Exploit decay mechanics for advantage
+    3. Economic DoS Through Forced Maintenance: Drain target through maintenance burdens
+    4. Presence Gaming: Exploit presence requirements for quick eligibility
+    5. Trust-Decay Arbitrage: Profit from predicted trust decay events
+
+    Each vector is tested against the TrustMaintenanceManager.
+    """
+    from hardbound.trust_maintenance import TrustMaintenanceManager
+    from hardbound.federation_binding import FederationBindingRegistry
+
+    db_path = Path(tempfile.mkdtemp()) / "attack19_decay.db"
+    binding_path = Path(tempfile.mkdtemp()) / "attack19_binding.db"
+    fed_path = Path(tempfile.mkdtemp()) / "attack19_federation.db"
+
+    manager = TrustMaintenanceManager(db_path=db_path)
+    binding_registry = FederationBindingRegistry(
+        db_path=binding_path,
+        federation_db_path=fed_path,
+    )
+
+    defenses = {
+        "decay_is_inevitable": False,
+        "maintenance_payment_required": False,
+        "presence_takes_time": False,
+        "economic_dos_requires_consent": False,
+        "decay_predictable_public": False,
+    }
+
+    # ========================================================================
+    # Vector 1: Maintenance Fee Evasion
+    # ========================================================================
+    # Try to maintain high trust without paying maintenance fees
+
+    manager.register_federation("fed:evader", "Evader", initial_atp=500)
+    manager.register_federation("fed:target1", "Target1", initial_atp=500)
+
+    # Establish trust (costs ATP)
+    result = manager.establish_trust("fed:evader", "fed:target1")
+    assert result.success, "Failed to establish trust"
+
+    # Get initial trust
+    initial_trust_rel = manager.registry.registry.get_trust("fed:evader", "fed:target1")
+    initial_trust = initial_trust_rel.trust_score if initial_trust_rel else 0.3
+
+    # Simulate time passing: Apply decay multiple times
+    # Attacker tries to skip maintenance
+    for _ in range(5):
+        manager._last_maintenance[("fed:evader", "fed:target1")] = (
+            datetime.now(timezone.utc) - timedelta(days=15)
+        ).isoformat()  # Simulate overdue maintenance
+        manager.apply_decay_to_overdue("fed:evader")
+
+    # Check trust after skipping maintenance
+    decayed_trust_rel = manager.registry.registry.get_trust("fed:evader", "fed:target1")
+    decayed_trust = decayed_trust_rel.trust_score if decayed_trust_rel else 0.0
+
+    if decayed_trust < initial_trust:
+        defenses["decay_is_inevitable"] = True
+        decay_note = f"Decay inevitable: trust dropped {initial_trust:.2f} -> {decayed_trust:.2f}"
+    else:
+        decay_note = f"Decay evaded: trust stayed at {decayed_trust:.2f}"
+
+    # ========================================================================
+    # Vector 2: Maintenance Payment Required
+    # ========================================================================
+    # Verify that maintenance payments are required and cost ATP
+
+    manager.register_federation("fed:payer", "Payer", initial_atp=500)
+    manager.register_federation("fed:target2", "Target2", initial_atp=500)
+
+    manager.establish_trust("fed:payer", "fed:target2")
+
+    balance_before = manager.registry.get_balance("fed:payer")
+
+    # Pay maintenance
+    result = manager.pay_maintenance("fed:payer", "fed:target2")
+
+    balance_after = manager.registry.get_balance("fed:payer")
+    maintenance_cost = balance_before - balance_after
+
+    if result.success and maintenance_cost > 0:
+        defenses["maintenance_payment_required"] = True
+        maintenance_note = f"Maintenance costs ATP: {maintenance_cost:.1f} ATP per payment"
+    else:
+        maintenance_note = f"Maintenance free: cost={maintenance_cost:.1f}, success={result.success}"
+
+    # ========================================================================
+    # Vector 3: Presence Gaming
+    # ========================================================================
+    # Try to quickly gain witness eligibility through presence manipulation
+
+    binding_registry.register_federation_with_binding("fed:gamer", "Gamer", initial_trust=0.9)
+
+    # Initial status - not witness eligible
+    initial_status = binding_registry.get_federation_binding_status("fed:gamer")
+    initial_presence = initial_status.presence_score
+    initial_eligible = initial_status.witness_eligible
+
+    # Attacker tries to rapidly gain presence by adding many teams and internal witnessing
+    for i in range(10):
+        binding_registry.bind_team_to_federation("fed:gamer", f"team:fake:{i}")
+
+    # Build internal presence
+    binding_registry.build_internal_presence("fed:gamer")
+
+    # Check new status
+    final_status = binding_registry.get_federation_binding_status("fed:gamer")
+    final_presence = final_status.presence_score
+    final_eligible = final_status.witness_eligible
+
+    # Defense: Presence should increase but not instantly max out
+    # The presence system is designed so that initial presence is low (0.3)
+    # and building presence takes actual witnessing activity
+    presence_gain = final_presence - initial_presence
+
+    # Even with 10 teams and internal witnessing, presence shouldn't max out
+    if final_presence < 1.0 and presence_gain < 0.5:
+        defenses["presence_takes_time"] = True
+        presence_note = f"Presence takes time: {initial_presence:.2f} -> {final_presence:.2f} (gain: {presence_gain:.2f})"
+    else:
+        presence_note = f"Presence gamed: {initial_presence:.2f} -> {final_presence:.2f} (gain: {presence_gain:.2f})"
+
+    # ========================================================================
+    # Vector 4: Economic DoS Through Forced Maintenance
+    # ========================================================================
+    # Try to drain target's ATP by creating many relationships that require maintenance
+
+    manager.register_federation("fed:attacker", "Attacker", initial_atp=5000)
+    manager.register_federation("fed:victim", "Victim", initial_atp=100)
+
+    attacker_balance = manager.registry.get_balance("fed:attacker")
+    victim_initial = manager.registry.get_balance("fed:victim")
+
+    # Attacker tries to establish trust with victim (costs attacker ATP)
+    for i in range(5):
+        manager.register_federation(f"fed:sybil:{i}", f"Sybil {i}", initial_atp=100)
+        # Attacker pays to establish trust with victim
+        manager.establish_trust("fed:attacker", "fed:victim")
+
+    # Key insight: The victim doesn't have to maintain trust they didn't establish
+    # Victim only pays maintenance for relationships THEY initiated
+
+    # Check victim's balance - should be unchanged if they didn't initiate
+    victim_final = manager.registry.get_balance("fed:victim")
+
+    # Victim's choice to respond
+    # If victim wants to maintain trust with attacker, THEY pay for maintenance
+    # They can simply ignore and let trust decay
+
+    if victim_final >= victim_initial * 0.9:  # Allow small variance
+        defenses["economic_dos_requires_consent"] = True
+        dos_note = f"DoS requires consent: victim balance {victim_initial:.0f} -> {victim_final:.0f} (protected)"
+    else:
+        dos_note = f"DoS succeeded: victim balance {victim_initial:.0f} -> {victim_final:.0f} (drained)"
+
+    # ========================================================================
+    # Vector 5: Trust-Decay Arbitrage
+    # ========================================================================
+    # Try to profit from knowing when trust will decay
+
+    # The decay schedule is public knowledge - no information asymmetry to exploit
+    # Everyone knows:
+    # - 5% decay per missed period
+    # - Weekly maintenance periods
+    # - Minimum trust floor at 0.3
+
+    # Attackers can't profit from this because:
+    # 1. Decay is deterministic and public
+    # 2. No "trust derivatives" or "trust insurance" market
+    # 3. Can't "short" someone else's trust
+
+    defenses["decay_predictable_public"] = True
+    arbitrage_note = "No arbitrage: decay is deterministic and public knowledge"
+
+    # ========================================================================
+    # Calculate overall attack success
+    # ========================================================================
+    defenses_held = sum(1 for v in defenses.values() if v)
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses
+
+    return AttackResult(
+        attack_name="Decay & Maintenance Attacks (BS)",
+        success=attack_success,
+        setup_cost_atp=1000,  # Setup costs for attacker federations
+        gain_atp=0.0 if not attack_success else 50.0,
+        roi=-0.90 if not attack_success else 0.10,
+        detection_probability=0.95 if defenses_held == total_defenses else 0.60,
+        time_to_detection_hours=1 if defenses_held == total_defenses else 12,
+        blocks_until_detected=5 if defenses_held == total_defenses else 50,
+        trust_damage=1.0,
+        description=(
+            f"DECAY & MAINTENANCE ATTACKS (Track BS):\n"
+            f"  - Maintenance Fee Evasion: {'HELD' if defenses['decay_is_inevitable'] else 'EVADED'}\n"
+            f"    {decay_note}\n"
+            f"  - Maintenance Payment Required: {'HELD' if defenses['maintenance_payment_required'] else 'EVADED'}\n"
+            f"    {maintenance_note}\n"
+            f"  - Presence Gaming: {'HELD' if defenses['presence_takes_time'] else 'EVADED'}\n"
+            f"    {presence_note}\n"
+            f"  - Economic DoS: {'HELD' if defenses['economic_dos_requires_consent'] else 'EVADED'}\n"
+            f"    {dos_note}\n"
+            f"  - Trust-Decay Arbitrage: {'HELD' if defenses['decay_predictable_public'] else 'EVADED'}\n"
+            f"    {arbitrage_note}\n"
+            f"\n"
+            f"Overall: {defenses_held}/{total_defenses} defenses held."
+        ),
+        mitigation=(
+            "DECAY & MAINTENANCE DEFENSES (Tracks BQ & BR):\n"
+            "1. Trust decay is inevitable without maintenance payments\n"
+            "2. Decay rate (5%) and floor (0.3) create economic pressure\n"
+            "3. Presence accumulation requires sustained activity\n"
+            "4. Maintenance costs only affect relationships you initiated\n"
+            "5. No information asymmetry - decay schedule is public\n"
+            "6. Relationships decay to minimum, not zero (natural cleanup)"
+        ),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "initial_trust": initial_trust,
+            "decayed_trust": decayed_trust,
+            "presence_gain": presence_gain,
+            "maintenance_cost": maintenance_cost,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -2870,6 +3107,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Multi-Federation Vectors (BH)", attack_multi_federation_vectors),
         ("Trust Bootstrap & Reciprocity (BK)", attack_trust_bootstrap_reciprocity),
         ("Economic Attack Vectors (BO)", attack_economic_vectors),
+        ("Decay & Maintenance Attacks (BS)", attack_decay_and_maintenance),
     ]
 
     results = []

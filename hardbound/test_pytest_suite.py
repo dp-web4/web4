@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 18  # 12 original + Attack 13-18
+        assert len(results) == 19  # 12 original + Attack 13-19
 
 
 class TestEndToEndIntegration:
@@ -5588,6 +5588,41 @@ class TestEconomicAttack:
         assert result.raw_data["defenses"]["collusion_is_expensive"] == True
         # Collusion should cost at least 50 ATP
         assert result.raw_data["collusion_cost"] >= 50
+
+
+class TestDecayMaintenanceAttack:
+    """Tests for Attack 19 - Decay & maintenance attacks (Track BS)."""
+
+    def test_attack_simulation_runs(self):
+        """Attack 19 runs without errors."""
+        from hardbound.attack_simulations import attack_decay_and_maintenance
+        result = attack_decay_and_maintenance()
+        assert result is not None
+        assert result.attack_name == "Decay & Maintenance Attacks (BS)"
+
+    def test_decay_is_inevitable(self):
+        """Trust decay happens when maintenance is skipped."""
+        from hardbound.attack_simulations import attack_decay_and_maintenance
+        result = attack_decay_and_maintenance()
+
+        assert result.raw_data["defenses"]["decay_is_inevitable"] == True
+        # Trust should have decayed
+        assert result.raw_data["decayed_trust"] < result.raw_data["initial_trust"]
+
+    def test_maintenance_requires_payment(self):
+        """Maintenance payments cost ATP."""
+        from hardbound.attack_simulations import attack_decay_and_maintenance
+        result = attack_decay_and_maintenance()
+
+        assert result.raw_data["defenses"]["maintenance_payment_required"] == True
+        assert result.raw_data["maintenance_cost"] > 0
+
+    def test_economic_dos_blocked(self):
+        """Economic DoS requires victim consent."""
+        from hardbound.attack_simulations import attack_decay_and_maintenance
+        result = attack_decay_and_maintenance()
+
+        assert result.raw_data["defenses"]["economic_dos_requires_consent"] == True
 
 
 class TestTrustEconomics:

@@ -556,6 +556,16 @@ class LCTBindingChain:
         # Get chain validation
         chain_validation = self.validate_chain(lct_id)
 
+        # Track BS fix: Presence formula with diminishing returns to prevent gaming
+        # - Base presence: 0.3
+        # - Each unique witness contributes more than raw events (diversity valued)
+        # - Formula: 0.3 + 0.7 * (1 - 0.9^unique_witnesses)
+        #   This asymptotically approaches 1.0 as witnesses increase
+        #   ~0.37 with 1 witness, ~0.43 with 2, ~0.57 with 5, ~0.72 with 10
+        unique_witness_count = len(witnesses)
+        presence_bonus = 0.7 * (1 - (0.9 ** unique_witness_count))
+        presence_score = min(1.0, 0.3 + presence_bonus)
+
         return {
             "lct_id": lct_id,
             "entity_type": node.entity_type,
@@ -564,10 +574,10 @@ class LCTBindingChain:
             "chain_valid": chain_validation["valid"],
             "chain_depth": chain_validation["chain_depth"],
             "root_lct": chain_validation["root"],
-            "unique_witnesses": len(witnesses),
+            "unique_witnesses": unique_witness_count,
             "total_witness_events": total_witness_count,
             "accumulated_trust_contribution": accumulated_trust,
-            "presence_score": min(1.0, 0.3 + (total_witness_count * 0.1)),  # Presence formula
+            "presence_score": presence_score,
             "witnesses": [
                 {
                     "witness_lct": w["witness_lct"],
