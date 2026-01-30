@@ -6563,5 +6563,137 @@ class TestFederationBinding:
         assert "fed:c" not in fed_ids
 
 
+class TestTrustMaintenance:
+    """
+    Track BQ: Trust Decay with Economic Maintenance Tests
+
+    Tests that trust decays without maintenance and maintenance costs ATP.
+    """
+
+    def test_maintenance_status_tracked(self):
+        """Maintenance status is tracked for trust relationships."""
+        from hardbound.trust_maintenance import TrustMaintenanceManager
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "maintenance_status.db"
+        manager = TrustMaintenanceManager(db_path=db_path)
+
+        manager.register_federation("fed:a", "A", initial_atp=1000)
+        manager.register_federation("fed:b", "B", initial_atp=1000)
+        manager.establish_trust("fed:a", "fed:b")
+
+        status = manager.get_maintenance_status("fed:a", "fed:b")
+
+        assert status is not None
+        assert status.source_federation == "fed:a"
+        assert status.target_federation == "fed:b"
+        assert status.days_until_due >= 0
+
+    def test_decay_calculation(self):
+        """Trust decays correctly toward minimum."""
+        from hardbound.trust_maintenance import TrustMaintenanceManager
+
+        manager = TrustMaintenanceManager()
+
+        # Start at 0.8
+        trust = 0.8
+        decayed = manager._calculate_decay(trust)
+
+        # Should decay toward minimum (0.3)
+        assert decayed < trust
+        assert decayed > manager.DECAY_MINIMUM
+
+        # Multiple decay periods (100 weeks = ~2 years)
+        for _ in range(100):
+            decayed = manager._calculate_decay(decayed)
+
+        # Should approach but not go below minimum
+        assert decayed >= manager.DECAY_MINIMUM
+        # After 100 periods, should be very close to minimum
+        assert abs(decayed - manager.DECAY_MINIMUM) < 0.05
+
+    def test_maintenance_prevents_decay(self):
+        """Paying maintenance resets decay timer."""
+        from hardbound.trust_maintenance import TrustMaintenanceManager
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "maintenance_payment.db"
+        manager = TrustMaintenanceManager(db_path=db_path)
+
+        manager.register_federation("fed:a", "A", initial_atp=1000)
+        manager.register_federation("fed:b", "B", initial_atp=1000)
+        manager.establish_trust("fed:a", "fed:b")
+
+        # Pay maintenance
+        result = manager.pay_maintenance("fed:a", "fed:b")
+
+        assert result.success == True
+        assert result.atp_cost > 0
+
+        # Check that timer was reset
+        status = manager.get_maintenance_status("fed:a", "fed:b")
+        assert status.days_until_due == manager.MAINTENANCE_PERIOD_DAYS - 1 or status.days_until_due == manager.MAINTENANCE_PERIOD_DAYS
+
+    def test_maintenance_cost_simulation(self):
+        """Can simulate maintenance costs over time."""
+        from hardbound.trust_maintenance import TrustMaintenanceManager
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "cost_simulation.db"
+        manager = TrustMaintenanceManager(db_path=db_path)
+
+        manager.register_federation("fed:a", "A", initial_atp=1000)
+        manager.register_federation("fed:b", "B", initial_atp=1000)
+        manager.register_federation("fed:c", "C", initial_atp=1000)
+        manager.establish_trust("fed:a", "fed:b")
+        manager.establish_trust("fed:a", "fed:c")
+
+        simulation = manager.simulate_maintenance_costs("fed:a", periods=4)
+
+        assert simulation["relationships"] == 2
+        assert simulation["cost_per_period"] > 0
+        assert simulation["total_projected_cost"] == simulation["cost_per_period"] * 4
+
+    def test_federation_health_assessment(self):
+        """Federation health considers balance vs maintenance costs."""
+        from hardbound.trust_maintenance import TrustMaintenanceManager
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "health.db"
+        manager = TrustMaintenanceManager(db_path=db_path)
+
+        manager.register_federation("fed:rich", "Rich", initial_atp=10000)
+        manager.register_federation("fed:poor", "Poor", initial_atp=50)
+        manager.register_federation("fed:target", "Target", initial_atp=1000)
+
+        manager.establish_trust("fed:rich", "fed:target")
+        manager.establish_trust("fed:poor", "fed:target")
+
+        # Rich federation should be healthy
+        rich_health = manager.get_federation_health("fed:rich")
+        assert rich_health["health"] == "healthy"
+
+        # Poor federation (20 ATP left after establish) may struggle
+        poor_health = manager.get_federation_health("fed:poor")
+        # Has some balance but less runway
+        assert poor_health["months_sustainable"] < rich_health["months_sustainable"]
+
+    def test_higher_trust_costs_more_to_maintain(self):
+        """Higher trust levels have higher maintenance costs."""
+        from hardbound.trust_maintenance import TrustMaintenanceManager
+
+        manager = TrustMaintenanceManager()
+
+        # Calculate maintenance for different trust levels
+        cost_low, _ = manager.registry.economics.calculate_maintain_cost(0.5, is_cross_federation=True)
+        cost_high, _ = manager.registry.economics.calculate_maintain_cost(0.9, is_cross_federation=True)
+
+        assert cost_high > cost_low
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
