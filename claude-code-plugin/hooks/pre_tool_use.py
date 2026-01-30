@@ -73,9 +73,16 @@ def get_rate_limiter():
     return _rate_limiter
 
 
-def evaluate_policy(session, tool_name: str, category: str, target: str):
+def evaluate_policy(session, tool_name: str, category: str, target: str, full_command: str = None):
     """
     Evaluate tool call against policy entity.
+
+    Args:
+        session: Session dict with policy_entity_id
+        tool_name: Name of the tool (e.g., "Bash", "Write")
+        category: Tool category (e.g., "command", "file_write")
+        target: Target of the operation (file path, command, URL)
+        full_command: For Bash tools, the full command string (enables command_patterns matching)
 
     Returns:
         Tuple of (decision, evaluation_dict) where decision is "allow", "deny", or "warn"
@@ -96,7 +103,7 @@ def evaluate_policy(session, tool_name: str, category: str, target: str):
 
         # Evaluate with rate limiter
         rate_limiter = get_rate_limiter()
-        evaluation = policy_entity.evaluate(tool_name, category, target, rate_limiter)
+        evaluation = policy_entity.evaluate(tool_name, category, target, rate_limiter, full_command)
 
         eval_dict = {
             "decision": evaluation.decision,
@@ -394,7 +401,9 @@ def main():
     # Evaluate policy - society's law
     category = r6["request"]["category"]
     target = r6["request"]["target"]
-    decision, policy_eval = evaluate_policy(session, tool_name, category, target)
+    # For Bash tools, pass full command to enable command_patterns matching
+    full_command = tool_input.get("command") if tool_name == "Bash" else None
+    decision, policy_eval = evaluate_policy(session, tool_name, category, target, full_command)
 
     # Add policy evaluation to R6 record
     if policy_eval:

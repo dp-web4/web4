@@ -45,6 +45,11 @@ class PolicyMatch:
     target_patterns: Optional[List[str]] = None
     target_patterns_are_regex: bool = False
     rate_limit: Optional[RateLimitSpec] = None
+    # For Bash: match against full command (not just first word)
+    command_patterns: Optional[List[str]] = None
+    command_patterns_are_regex: bool = False
+    # Negative match: rule fires if pattern is NOT found (for "git push without PAT")
+    command_must_not_contain: Optional[List[str]] = None
 
 
 @dataclass
@@ -107,6 +112,20 @@ SAFETY_RULES = [
         decision="warn",
         reason="Network access flagged by safety preset",
         match=PolicyMatch(categories=["network"]),
+    ),
+    # Git push without PAT will fail on WSL - warn to save token burn
+    PolicyRule(
+        id="warn-git-push-no-pat",
+        name="Warn on git push without PAT authentication",
+        priority=8,
+        decision="warn",
+        reason="git push without PAT will fail on WSL. Use: grep GITHUB_PAT ../.env | cut -d= -f2 | xargs -I {} git push https://user:{}@github.com/...",
+        match=PolicyMatch(
+            tools=["Bash"],
+            command_patterns=[r"git\s+push"],
+            command_patterns_are_regex=True,
+            command_must_not_contain=["GITHUB_PAT", "@github.com"],
+        ),
     ),
 ]
 
