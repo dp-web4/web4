@@ -161,6 +161,235 @@ class TestEndToEndIntegration:
         assert "multisig_external_witness" in action_types
 
 
+class TestFullStackIntegration:
+    """
+    Track BT: Full Stack Integration Test
+
+    End-to-end test combining ALL hardbound systems:
+    1. Federation registration with LCT binding
+    2. Trust establishment with ATP economics
+    3. Presence accumulation through witnessing
+    4. Maintenance cycles with decay
+    5. Cross-federation witnessing with presence requirements
+    """
+
+    def test_complete_federation_lifecycle(self):
+        """
+        Complete lifecycle test:
+        - Register federations with bindings
+        - Establish trust (costs ATP)
+        - Build presence through internal activity
+        - Maintain trust (or let it decay)
+        - Cross-federation witness eligibility
+        """
+        from hardbound.federation_binding import FederationBindingRegistry
+        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from pathlib import Path
+        import tempfile
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        binding_registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+        maintenance_manager = TrustMaintenanceManager(db_path=tmp_dir / "maintenance.db")
+
+        # === PHASE 1: Register federations ===
+        # Alpha: Well-funded, will be active
+        # Beta: Moderate funds, will build presence
+        # Gamma: Low funds, will struggle
+
+        alpha_profile, alpha_root = binding_registry.register_federation_with_binding(
+            "fed:alpha", "Alpha Federation", initial_trust=0.9
+        )
+        assert alpha_root.lct_id == "lct:federation:fed:alpha"
+
+        beta_profile, beta_root = binding_registry.register_federation_with_binding(
+            "fed:beta", "Beta Federation", initial_trust=0.8
+        )
+
+        gamma_profile, gamma_root = binding_registry.register_federation_with_binding(
+            "fed:gamma", "Gamma Federation", initial_trust=0.7
+        )
+
+        # Register in maintenance manager
+        maintenance_manager.register_federation("fed:alpha", "Alpha", initial_atp=1000)
+        maintenance_manager.register_federation("fed:beta", "Beta", initial_atp=500)
+        maintenance_manager.register_federation("fed:gamma", "Gamma", initial_atp=50)
+
+        # === PHASE 2: Build internal structure (teams) ===
+        for i in range(4):
+            binding_registry.bind_team_to_federation("fed:alpha", f"team:alpha:{i}")
+        for i in range(3):
+            binding_registry.bind_team_to_federation("fed:beta", f"team:beta:{i}")
+        binding_registry.bind_team_to_federation("fed:gamma", "team:gamma:0")
+
+        # Verify team binding
+        alpha_teams = binding_registry.get_federation_teams("fed:alpha")
+        assert len(alpha_teams) == 4
+
+        # === PHASE 3: Build presence through internal witnessing ===
+        alpha_presence_result = binding_registry.build_internal_presence("fed:alpha")
+        assert alpha_presence_result["witnesses_added"] > 0
+
+        beta_presence_result = binding_registry.build_internal_presence("fed:beta")
+        assert beta_presence_result["witnesses_added"] > 0
+
+        # Gamma can't build internal presence (only 1 team)
+        gamma_presence_result = binding_registry.build_internal_presence("fed:gamma")
+        assert "error" in gamma_presence_result
+
+        # === PHASE 4: Check presence levels ===
+        alpha_status = binding_registry.get_federation_binding_status("fed:alpha")
+        beta_status = binding_registry.get_federation_binding_status("fed:beta")
+        gamma_status = binding_registry.get_federation_binding_status("fed:gamma")
+
+        # Alpha and Beta should be witness-eligible
+        assert alpha_status.witness_eligible == True
+        assert beta_status.witness_eligible == True
+        assert gamma_status.witness_eligible == False  # Low presence
+
+        # === PHASE 5: Establish trust relationships (costs ATP) ===
+        result = maintenance_manager.establish_trust("fed:alpha", "fed:beta")
+        assert result.success
+        assert result.atp_cost > 0
+
+        # Alpha balance should be reduced
+        alpha_balance = maintenance_manager.registry.get_balance("fed:alpha")
+        assert alpha_balance < 1000
+
+        # Create a truly poor federation to test ATP gating
+        maintenance_manager.register_federation("fed:poor", "Poor", initial_atp=5)
+        result = maintenance_manager.establish_trust("fed:poor", "fed:alpha")
+        assert not result.success
+        assert "Insufficient ATP" in str(result.error)
+
+        # === PHASE 6: Check presence-weighted trust ===
+        trust_info = binding_registry.calculate_presence_weighted_trust(
+            "fed:alpha", "fed:beta", base_trust=0.6
+        )
+        # Beta has good presence, so trust should be unchanged or boosted
+        assert trust_info["presence_multiplier"] >= 1.0
+
+        # Trust toward low-presence gamma should be reduced
+        gamma_trust_info = binding_registry.calculate_presence_weighted_trust(
+            "fed:alpha", "fed:gamma", base_trust=0.6
+        )
+        assert gamma_trust_info["presence_multiplier"] < 1.0
+        assert gamma_trust_info["weighted_trust"] < gamma_trust_info["base_trust"]
+
+        # === PHASE 7: Cross-federation witnessing ===
+        # Alpha can witness Beta (Alpha has sufficient presence)
+        witness_rel = binding_registry.cross_federation_witness("fed:alpha", "fed:beta")
+        assert witness_rel is not None
+
+        # Validate the witness relationship
+        validation = binding_registry.validate_cross_federation_witness("fed:alpha", "fed:beta")
+        assert validation["valid"] == True
+
+        # === PHASE 8: Maintenance and decay ===
+        # Get maintenance status
+        status = maintenance_manager.get_maintenance_status("fed:alpha", "fed:beta")
+        assert status is not None
+        assert status.maintenance_cost > 0
+
+        # Pay maintenance (keeps trust from decaying)
+        result = maintenance_manager.pay_maintenance("fed:alpha", "fed:beta")
+        assert result.success
+
+        # === PHASE 9: Federation health assessment ===
+        health = maintenance_manager.get_federation_health("fed:alpha")
+        assert health["health"] in ("healthy", "warning")
+
+        # Gamma should be in poor health (low funds)
+        gamma_health = maintenance_manager.get_federation_health("fed:gamma")
+        # Gamma has no relationships, so health depends on balance
+
+        # === PHASE 10: Presence ranking ===
+        rankings = binding_registry.get_presence_ranking()
+        assert len(rankings) == 3
+        # Alpha should have highest presence (most teams, most witnessing)
+        assert rankings[0]["federation_id"] == "fed:alpha"
+
+    def test_trust_decay_over_time(self):
+        """Test that trust decays without maintenance."""
+        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from datetime import datetime, timezone, timedelta
+        from pathlib import Path
+        import tempfile
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        manager = TrustMaintenanceManager(db_path=tmp_dir / "decay_test.db")
+
+        manager.register_federation("fed:decay_a", "Decay A", initial_atp=500)
+        manager.register_federation("fed:decay_b", "Decay B", initial_atp=500)
+
+        # Establish trust
+        result = manager.establish_trust("fed:decay_a", "fed:decay_b")
+        assert result.success
+
+        # Get initial trust
+        initial_rel = manager.registry.registry.get_trust("fed:decay_a", "fed:decay_b")
+        initial_trust = initial_rel.trust_score
+
+        # Simulate multiple missed maintenance periods
+        for _ in range(10):
+            # Set maintenance as overdue
+            manager._last_maintenance[("fed:decay_a", "fed:decay_b")] = (
+                datetime.now(timezone.utc) - timedelta(days=15)
+            ).isoformat()
+            manager.apply_decay_to_overdue("fed:decay_a")
+
+        # Trust should have decayed
+        final_rel = manager.registry.registry.get_trust("fed:decay_a", "fed:decay_b")
+        final_trust = final_rel.trust_score
+
+        assert final_trust < initial_trust
+        # Trust should be approaching minimum (0.3)
+        assert final_trust < 0.5
+
+    def test_presence_permission_gating(self):
+        """Test that presence gates federation capabilities."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        from pathlib import Path
+        import tempfile
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "perm_binding.db",
+            federation_db_path=tmp_dir / "perm_federation.db",
+        )
+
+        # Create federations with different activity levels
+        registry.register_federation_with_binding("fed:active", "Active", initial_trust=0.9)
+        registry.register_federation_with_binding("fed:inactive", "Inactive", initial_trust=0.9)
+
+        # Build presence for active federation
+        for i in range(5):
+            registry.bind_team_to_federation("fed:active", f"team:active:{i}")
+        registry.build_internal_presence("fed:active")
+
+        # Inactive has only 1 team
+        registry.bind_team_to_federation("fed:inactive", "team:inactive:0")
+
+        # Check witness permission
+        active_witness = registry.check_presence_permission("fed:active", "witness")
+        inactive_witness = registry.check_presence_permission("fed:inactive", "witness")
+
+        assert active_witness["has_permission"] == True
+        assert inactive_witness["has_permission"] == False
+        assert inactive_witness["gap"] > 0
+        assert inactive_witness["suggestion"] is not None
+
+        # Check critical vote permission (higher threshold)
+        active_vote = registry.check_presence_permission("fed:active", "vote_critical")
+        # May or may not have permission depending on exact presence
+
+        # Check lead permission (highest threshold)
+        active_lead = registry.check_presence_permission("fed:active", "lead_federation")
+        # Likely doesn't have permission yet (0.6 required)
+
+
 class TestStandaloneComponents:
     """Individual component tests that don't require shared state."""
 
