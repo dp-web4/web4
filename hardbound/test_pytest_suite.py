@@ -5552,6 +5552,135 @@ class TestTrustBootstrapAttack:
         assert defenses["reciprocity_detected"] == True
 
 
+class TestTrustEconomics:
+    """Tests for Track BL - ATP cost layer for trust operations."""
+
+    def test_cost_policy_defaults(self):
+        """Default cost policy has reasonable values."""
+        from hardbound.trust_economics import TrustCostPolicy
+
+        policy = TrustCostPolicy()
+
+        assert policy.establish_base_cost > 0
+        assert policy.maintain_base_cost > 0
+        assert policy.cross_fed_multiplier > 1.0
+
+    def test_establish_cost_calculation(self):
+        """Establish trust cost calculation works."""
+        from hardbound.trust_economics import TrustEconomicsEngine
+
+        engine = TrustEconomicsEngine()
+
+        # Regular establishment
+        cost, breakdown = engine.calculate_establish_cost(is_cross_federation=False)
+        assert cost == 10.0  # Base cost
+        assert breakdown["cross_fed_multiplier"] == 1.0
+
+        # Cross-federation (3x)
+        cost_xfed, breakdown_xfed = engine.calculate_establish_cost(is_cross_federation=True)
+        assert cost_xfed == 30.0  # 10 * 3
+        assert breakdown_xfed["cross_fed_multiplier"] == 3.0
+
+    def test_maintain_cost_scales_with_trust(self):
+        """Higher trust levels cost more to maintain."""
+        from hardbound.trust_economics import TrustEconomicsEngine
+
+        engine = TrustEconomicsEngine()
+
+        cost_low, _ = engine.calculate_maintain_cost(0.5)
+        cost_high, _ = engine.calculate_maintain_cost(0.9)
+
+        assert cost_high > cost_low
+        # 0.5 = 1.0x, 0.9 = 3.0x
+        assert cost_high / cost_low == 3.0
+
+    def test_increase_cost_calculation(self):
+        """Trust increase cost calculated correctly."""
+        from hardbound.trust_economics import TrustEconomicsEngine
+
+        engine = TrustEconomicsEngine()
+
+        cost, breakdown = engine.calculate_increase_cost(0.5, 0.8)
+
+        assert breakdown["increments"] == 3  # 0.5 -> 0.6 -> 0.7 -> 0.8
+        assert cost > 0
+
+    def test_entity_balance_management(self):
+        """Entity balance tracking works."""
+        from hardbound.trust_economics import TrustEconomicsEngine, TrustOperationType
+
+        engine = TrustEconomicsEngine()
+
+        engine.initialize_balance("test:entity", 500.0)
+        assert engine.get_balance("test:entity") == 500.0
+        assert engine.can_afford("test:entity", 400.0)
+        assert not engine.can_afford("test:entity", 600.0)
+
+        # Charge operation
+        txn = engine.charge_operation(
+            "test:entity",
+            TrustOperationType.ESTABLISH,
+            "test:target",
+            100.0,
+        )
+
+        assert txn is not None
+        assert engine.get_balance("test:entity") == 400.0
+
+    def test_insufficient_funds_rejected(self):
+        """Operations fail with insufficient funds."""
+        from hardbound.trust_economics import TrustEconomicsEngine, TrustOperationType
+
+        engine = TrustEconomicsEngine()
+        engine.initialize_balance("poor:entity", 10.0)
+
+        txn = engine.charge_operation(
+            "poor:entity",
+            TrustOperationType.ESTABLISH,
+            "target",
+            100.0,
+        )
+
+        assert txn is None
+        assert engine.get_balance("poor:entity") == 10.0  # Unchanged
+
+    def test_sybil_attack_cost_estimation(self):
+        """Sybil attack becomes exponentially expensive."""
+        from hardbound.trust_economics import TrustEconomicsEngine
+
+        engine = TrustEconomicsEngine()
+
+        est_2 = engine.estimate_sybil_attack_cost(2)
+        est_5 = engine.estimate_sybil_attack_cost(5)
+        est_10 = engine.estimate_sybil_attack_cost(10)
+
+        # Cost should grow faster than linear
+        assert est_5["total_attack_cost"] > est_2["total_attack_cost"] * 2
+        assert est_10["total_attack_cost"] > est_5["total_attack_cost"] * 2
+
+        # Cost per fake federation increases
+        assert est_10["cost_per_fake_federation"] > est_5["cost_per_fake_federation"]
+
+    def test_cost_summary_tracking(self):
+        """Cost summary tracks operations correctly."""
+        from hardbound.trust_economics import TrustEconomicsEngine, TrustOperationType
+
+        engine = TrustEconomicsEngine()
+        engine.initialize_balance("fed:tracker", 1000.0)
+
+        # Multiple operations
+        engine.charge_operation("fed:tracker", TrustOperationType.ESTABLISH, "a", 30.0)
+        engine.charge_operation("fed:tracker", TrustOperationType.ESTABLISH, "b", 30.0)
+        engine.charge_operation("fed:tracker", TrustOperationType.MAINTAIN, "a", 10.0)
+
+        summary = engine.get_entity_costs_summary("fed:tracker")
+
+        assert summary["total_spent"] == 70.0
+        assert summary["current_balance"] == 930.0
+        assert summary["operations_by_type"]["establish"] == 2
+        assert summary["operations_by_type"]["maintain"] == 1
+
+
 class TestFederationReciprocity:
     """Tests for Track BJ - Federation-level reciprocity detection."""
 
