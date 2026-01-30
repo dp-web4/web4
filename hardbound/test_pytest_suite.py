@@ -7424,5 +7424,164 @@ class TestFederationGovernance:
         assert power["can_vote"] == True
 
 
+class TestReputationAggregation:
+    """
+    Track BV: Reputation Aggregation Tests
+
+    Tests reputation calculation from trust relationships.
+    """
+
+    def test_reputation_from_incoming_trust(self):
+        """Reputation increases with incoming trust."""
+        from hardbound.reputation_aggregation import ReputationAggregator, ReputationTier
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "federation.db")
+        aggregator = ReputationAggregator(registry)
+
+        # Register federations
+        registry.register_federation("fed:target", "Target")
+        registry.register_federation("fed:source1", "Source1")
+        registry.register_federation("fed:source2", "Source2")
+
+        # No trust yet
+        initial = aggregator.calculate_reputation("fed:target")
+        assert initial.global_reputation == 0.0
+        assert initial.tier == ReputationTier.UNKNOWN
+
+        # Add incoming trust
+        registry.establish_trust("fed:source1", "fed:target", FederationRelationship.PEER, initial_trust=0.6)
+        registry.establish_trust("fed:source2", "fed:target", FederationRelationship.PEER, initial_trust=0.7)
+
+        # Reputation should increase
+        with_trust = aggregator.calculate_reputation("fed:target", force_refresh=True)
+        assert with_trust.global_reputation > 0
+        assert with_trust.incoming_trust_count == 2
+
+    def test_reputation_tiers(self):
+        """Reputation tiers are assigned correctly."""
+        from hardbound.reputation_aggregation import ReputationAggregator, ReputationTier
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "federation.db")
+        aggregator = ReputationAggregator(registry)
+
+        # Target with lots of high trust
+        registry.register_federation("fed:popular", "Popular")
+        for i in range(5):
+            registry.register_federation(f"fed:fan{i}", f"Fan{i}")
+            registry.establish_trust(f"fed:fan{i}", "fed:popular", FederationRelationship.PEER, initial_trust=0.8)
+
+        score = aggregator.calculate_reputation("fed:popular")
+        assert score.tier in [ReputationTier.ESTABLISHED, ReputationTier.TRUSTED, ReputationTier.EXEMPLARY]
+        assert score.incoming_trust_count == 5
+
+    def test_reputation_ranking(self):
+        """Federations can be ranked by reputation."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "federation.db")
+        aggregator = ReputationAggregator(registry)
+
+        # Create federations with different popularity
+        registry.register_federation("fed:popular", "Popular")
+        registry.register_federation("fed:medium", "Medium")
+        registry.register_federation("fed:unknown", "Unknown")
+
+        for i in range(3):
+            registry.register_federation(f"fed:source{i}", f"Source{i}")
+            registry.establish_trust(f"fed:source{i}", "fed:popular", FederationRelationship.PEER, initial_trust=0.7)
+            if i < 2:
+                registry.establish_trust(f"fed:source{i}", "fed:medium", FederationRelationship.PEER, initial_trust=0.5)
+
+        ranking = aggregator.get_reputation_ranking(limit=3)
+
+        assert len(ranking) >= 2
+        # Popular should be first (most incoming trust)
+        assert ranking[0].federation_id == "fed:popular"
+
+    def test_reputation_comparison(self):
+        """Can compare reputation between federations."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "federation.db")
+        aggregator = ReputationAggregator(registry)
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+        registry.register_federation("fed:endorser", "Endorser")
+
+        # Only A gets endorsed
+        registry.establish_trust("fed:endorser", "fed:a", FederationRelationship.PEER, initial_trust=0.8)
+
+        comparison = aggregator.compare_reputations("fed:a", "fed:b")
+
+        assert comparison["higher_reputation"] == "fed:a"
+        assert comparison["reputation_a"] > comparison["reputation_b"]
+
+    def test_reputation_permission_check(self):
+        """Can check reputation permissions for actions."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "federation.db")
+        aggregator = ReputationAggregator(registry)
+
+        # New federation with no reputation
+        registry.register_federation("fed:new", "New")
+
+        permission = aggregator.check_reputation_permission("fed:new", "witness_service")
+
+        assert permission["has_permission"] == False
+        assert permission["reputation_gap"] > 0
+        assert permission["suggestion"] is not None
+
+    def test_confidence_increases_with_relationships(self):
+        """Confidence increases with more relationships."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "federation.db")
+        aggregator = ReputationAggregator(registry)
+
+        registry.register_federation("fed:target", "Target")
+        registry.register_federation("fed:source1", "Source1")
+
+        # One relationship
+        registry.establish_trust("fed:source1", "fed:target", FederationRelationship.PEER, initial_trust=0.6)
+        score1 = aggregator.calculate_reputation("fed:target")
+        confidence1 = score1.confidence
+
+        # Add more
+        for i in range(2, 6):
+            registry.register_federation(f"fed:source{i}", f"Source{i}")
+            registry.establish_trust(f"fed:source{i}", "fed:target", FederationRelationship.PEER, initial_trust=0.6)
+
+        score2 = aggregator.calculate_reputation("fed:target", force_refresh=True)
+        confidence2 = score2.confidence
+
+        assert confidence2 > confidence1
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3

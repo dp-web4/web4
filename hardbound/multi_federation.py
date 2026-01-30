@@ -606,6 +606,40 @@ class MultiFederationRegistry:
         """Alias for get_trust_relationship."""
         return self.get_trust_relationship(source_federation_id, target_federation_id)
 
+    def get_all_relationships(self) -> List[InterFederationTrust]:
+        """
+        Get all trust relationships in the registry.
+
+        Track BV: Used for reputation aggregation.
+
+        Returns:
+            List of all InterFederationTrust relationships
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT source_federation_id, target_federation_id, relationship,
+                       established_at, trust_score, witness_allowed,
+                       last_interaction, successful_interactions, failed_interactions
+                FROM inter_federation_trust
+            """).fetchall()
+
+        relationships = []
+        for row in rows:
+            relationships.append(InterFederationTrust(
+                source_federation_id=row["source_federation_id"],
+                target_federation_id=row["target_federation_id"],
+                relationship=FederationRelationship(row["relationship"]),
+                established_at=row["established_at"],
+                trust_score=row["trust_score"],
+                witness_allowed=bool(row["witness_allowed"]),
+                last_interaction=row["last_interaction"] or "",
+                successful_interactions=row["successful_interactions"],
+                failed_interactions=row["failed_interactions"],
+            ))
+
+        return relationships
+
     def update_trust(
         self,
         source_federation_id: str,
