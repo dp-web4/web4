@@ -6147,5 +6147,184 @@ class TestLCTBindingChain:
             assert any("Trust inversion" in issue for issue in validation["issues"])
 
 
+class TestEconomicFederation:
+    """
+    Track BN: Economic Federation Integration Tests
+
+    Tests that trust operations consume ATP and respect economic constraints.
+    """
+
+    def test_federation_gets_initial_balance(self):
+        """Federation registration grants initial ATP balance."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "econ_fed_test.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        profile, balance = registry.register_federation("fed:test", "Test", initial_atp=500)
+
+        assert profile.federation_id == "fed:test"
+        assert balance == 500
+        assert registry.get_balance("fed:test") == 500
+
+    def test_establish_trust_costs_atp(self):
+        """Establishing trust deducts ATP from source federation."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "establish_cost.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A", initial_atp=1000)
+        registry.register_federation("fed:b", "B", initial_atp=1000)
+
+        initial_balance = registry.get_balance("fed:a")
+        result = registry.establish_trust("fed:a", "fed:b")
+
+        assert result.success == True
+        assert result.atp_cost > 0  # Should cost something
+        assert registry.get_balance("fed:a") == initial_balance - result.atp_cost
+
+    def test_insufficient_atp_blocks_operation(self):
+        """Operations fail when federation has insufficient ATP."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "insufficient.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        # Give very little ATP
+        registry.register_federation("fed:poor", "Poor", initial_atp=5)
+        registry.register_federation("fed:rich", "Rich", initial_atp=1000)
+
+        result = registry.establish_trust("fed:poor", "fed:rich")
+
+        assert result.success == False
+        assert "Insufficient ATP" in result.error
+
+    def test_recording_success_costs_atp(self):
+        """Recording successful interactions costs ATP."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "record_cost.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A", initial_atp=1000)
+        registry.register_federation("fed:b", "B", initial_atp=1000)
+        registry.establish_trust("fed:a", "fed:b")
+
+        balance_before = registry.get_balance("fed:a")
+        result = registry.record_interaction("fed:a", "fed:b", success=True)
+
+        assert result.success == True
+        assert result.atp_cost > 0
+        assert registry.get_balance("fed:a") == balance_before - result.atp_cost
+
+    def test_recording_failure_is_free(self):
+        """Recording failed interactions is free (failure is punishment)."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "failure_free.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A", initial_atp=1000)
+        registry.register_federation("fed:b", "B", initial_atp=1000)
+        registry.establish_trust("fed:a", "fed:b")
+
+        balance_before = registry.get_balance("fed:a")
+        result = registry.record_interaction("fed:a", "fed:b", success=False)
+
+        assert result.success == True
+        assert result.atp_cost == 0
+        assert registry.get_balance("fed:a") == balance_before
+
+    def test_economic_summary(self):
+        """Federation economics summary is generated."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "summary.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A", initial_atp=1000)
+        registry.register_federation("fed:b", "B", initial_atp=1000)
+        registry.establish_trust("fed:a", "fed:b")
+
+        summary = registry.get_federation_economics("fed:a")
+
+        assert "current_balance" in summary
+        assert "costs_30_day" in summary
+        assert "health" in summary
+        assert summary["current_balance"] < 1000  # Should have spent some
+
+    def test_operation_impact_estimate(self):
+        """Operation impact can be estimated before execution."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        from hardbound.trust_economics import TrustOperationType
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "estimate.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A", initial_atp=1000)
+
+        estimate = registry.estimate_operation_impact(
+            "fed:a",
+            TrustOperationType.ESTABLISH
+        )
+
+        assert "estimated_cost" in estimate
+        assert "can_afford" in estimate
+        assert estimate["can_afford"] == True
+        assert estimate["estimated_cost"] > 0
+
+    def test_cross_federation_multiplier(self):
+        """Cross-federation operations cost more due to multiplier."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "multiplier.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A", initial_atp=1000)
+        registry.register_federation("fed:b", "B", initial_atp=1000)
+
+        result = registry.establish_trust("fed:a", "fed:b")
+
+        # Cross-federation multiplier is 3x, base is 10, so cost = 30
+        assert result.atp_cost == 30.0
+
+    def test_trust_increase_respects_bootstrap_limits(self):
+        """Trust increases are blocked if bootstrap limits not met."""
+        from hardbound.economic_federation import EconomicFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "bootstrap.db"
+        registry = EconomicFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A", initial_atp=1000)
+        registry.register_federation("fed:b", "B", initial_atp=1000)
+        registry.establish_trust("fed:a", "fed:b")
+
+        # Try to increase trust beyond what bootstrap limits allow
+        result = registry.increase_trust("fed:a", "fed:b", target_trust=0.9)
+
+        # Should fail because no interactions yet (max is 0.5)
+        assert result.success == False
+        assert "bootstrap limits" in result.error or "capped" in result.error.lower()
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3

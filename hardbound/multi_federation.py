@@ -597,6 +597,52 @@ class MultiFederationRegistry:
                 failed_interactions=failed,
             )
 
+    # Alias for economic_federation compatibility
+    def get_trust(
+        self,
+        source_federation_id: str,
+        target_federation_id: str,
+    ) -> Optional[InterFederationTrust]:
+        """Alias for get_trust_relationship."""
+        return self.get_trust_relationship(source_federation_id, target_federation_id)
+
+    def update_trust(
+        self,
+        source_federation_id: str,
+        target_federation_id: str,
+        new_trust_score: float,
+    ) -> float:
+        """
+        Update the trust score for an existing relationship.
+
+        Track BN: Used by EconomicFederationRegistry for trust increases.
+
+        Args:
+            source_federation_id: Federation updating trust
+            target_federation_id: Federation being trusted
+            new_trust_score: New trust score
+
+        Returns:
+            The actual trust score after update (may be capped)
+        """
+        # Apply bootstrap limits
+        max_by_age = self._get_max_trust_by_age(
+            self.get_federation(target_federation_id).created_at
+        )
+        max_by_interactions = self._get_max_trust_by_interactions(
+            source_federation_id, target_federation_id
+        )
+        effective_trust = min(new_trust_score, max_by_age, max_by_interactions)
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                UPDATE inter_federation_trust
+                SET trust_score = ?
+                WHERE source_federation_id = ? AND target_federation_id = ?
+            """, (effective_trust, source_federation_id, target_federation_id))
+
+        return effective_trust
+
     def find_eligible_witness_federations(
         self,
         requesting_federation_id: str,
