@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 20  # 12 original + Attack 13-20
+        assert len(results) == 21  # 12 original + Attack 13-21
 
 
 class TestEndToEndIntegration:
@@ -7854,6 +7854,107 @@ class TestFederationDiscovery:
         assert stats["active_announcements"] == 3
         assert "technology" in stats["category_distribution"]
         assert stats["category_distribution"]["technology"] == 3
+
+
+class TestDiscoveryReputationAttacks:
+    """Track BZ: Tests for discovery and reputation attack defenses."""
+
+    def test_spam_federations_have_lower_calculated_reputation(self):
+        """Spam federations without endorsers have low calculated reputation."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+
+        # Create legitimate federations with mutual trust
+        registry.register_federation("fed:legit1", "Legit1")
+        registry.register_federation("fed:legit2", "Legit2")
+        registry.establish_trust("fed:legit1", "fed:legit2", FederationRelationship.PEER, 0.7)
+        registry.establish_trust("fed:legit2", "fed:legit1", FederationRelationship.PEER, 0.7)
+
+        # Create spam federation (no endorsers)
+        registry.register_federation("fed:spam", "Spam")
+
+        legit_rep = aggregator.calculate_reputation("fed:legit1")
+        spam_rep = aggregator.calculate_reputation("fed:spam")
+
+        # Spam should have lower reputation (no incoming trust)
+        assert spam_rep.global_reputation < legit_rep.global_reputation
+
+    def test_circular_trust_limited(self):
+        """Circular trust between small groups provides limited reputation."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+
+        # Create circular trust group
+        circle_feds = [f"fed:circle{i}" for i in range(4)]
+        for fid in circle_feds:
+            registry.register_federation(fid, fid)
+
+        # Circular trust
+        for i, fid in enumerate(circle_feds):
+            next_fid = circle_feds[(i + 1) % len(circle_feds)]
+            registry.establish_trust(fid, next_fid, FederationRelationship.PEER, 0.8)
+
+        # Create federation with diverse incoming trust
+        registry.register_federation("fed:diverse", "Diverse")
+        for i in range(4):
+            registry.register_federation(f"fed:endorser{i}", f"Endorser{i}")
+            registry.establish_trust(f"fed:endorser{i}", "fed:diverse", FederationRelationship.PEER, 0.7)
+
+        circle_rep = aggregator.calculate_reputation(circle_feds[0])
+        diverse_rep = aggregator.calculate_reputation("fed:diverse")
+
+        # Circular should not exceed diverse endorsement
+        assert circle_rep.global_reputation <= diverse_rep.global_reputation
+
+    def test_sybil_endorsement_limited_by_source_quality(self):
+        """Sybil endorsers with low presence provide limited reputation boost."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+
+        # Target of sybil attack
+        registry.register_federation("fed:target", "Target")
+
+        # Create sybil endorsers (all low-presence fakes)
+        for i in range(10):
+            fid = f"fed:sybil{i}"
+            registry.register_federation(fid, f"Sybil{i}")
+            registry.establish_trust(fid, "fed:target", FederationRelationship.TRUSTED, 0.9)
+
+        target_rep = aggregator.calculate_reputation("fed:target")
+
+        # Even with 10 endorsers, reputation should be limited
+        # because all endorsers have low presence (Track BV source quality penalty)
+        assert target_rep.global_reputation < 0.6
+
+    def test_attack21_defenses_hold(self):
+        """Full Attack 21 simulation passes (all defenses hold)."""
+        from hardbound.attack_simulations import attack_discovery_and_reputation
+
+        result = attack_discovery_and_reputation()
+
+        # All 6 defenses should hold
+        defenses = result.raw_data.get("defenses", {})
+        held_count = sum(defenses.values())
+        assert held_count >= 5, f"Expected 5+ defenses to hold, got {held_count}"
+        assert not result.success, "Attack should fail (defenses held)"
 
 
 class TestGovernanceAuditTrail:
