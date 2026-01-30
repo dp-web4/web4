@@ -65,6 +65,8 @@ class InterFederationTrust:
     trust_score: float = 0.5  # How much source trusts target (0-1)
     witness_allowed: bool = True  # Can target witness for source's proposals
     last_interaction: str = ""
+    successful_interactions: int = 0  # Track BI: Count of successful interactions
+    failed_interactions: int = 0  # Track BI: Count of failed interactions
 
 
 @dataclass
@@ -98,6 +100,33 @@ class MultiFederationRegistry:
 
     # Minimum trust score for cross-federation witnessing
     MIN_CROSS_FED_TRUST = 0.4
+
+    # Trust Bootstrap Limits (Track BI)
+    # Maximum trust that can be claimed for a new relationship
+    MAX_INITIAL_TRUST = 0.5
+
+    # Maximum trust boost per successful interaction
+    TRUST_INCREMENT_PER_SUCCESS = 0.05
+
+    # Federation age requirements (days) for trust levels
+    TRUST_AGE_REQUIREMENTS = {
+        0.5: 0,     # Immediate - up to 0.5
+        0.6: 7,     # 1 week - up to 0.6
+        0.7: 30,    # 1 month - up to 0.7
+        0.8: 90,    # 3 months - up to 0.8
+        0.9: 180,   # 6 months - up to 0.9
+        1.0: 365,   # 1 year - up to 1.0
+    }
+
+    # Minimum successful interactions for trust levels
+    TRUST_INTERACTION_REQUIREMENTS = {
+        0.5: 0,     # No interactions needed for baseline
+        0.6: 3,     # 3 successful interactions
+        0.7: 10,    # 10 successful interactions
+        0.8: 25,    # 25 successful interactions
+        0.9: 50,    # 50 successful interactions
+        1.0: 100,   # 100 successful interactions
+    }
 
     def __init__(self, db_path: Optional[str] = None):
         """
@@ -142,9 +171,21 @@ class MultiFederationRegistry:
                     trust_score REAL DEFAULT 0.5,
                     witness_allowed INTEGER DEFAULT 1,
                     last_interaction TEXT DEFAULT '',
+                    successful_interactions INTEGER DEFAULT 0,
+                    failed_interactions INTEGER DEFAULT 0,
                     UNIQUE(source_federation_id, target_federation_id)
                 )
             """)
+
+            # Migration: add columns if they don't exist
+            try:
+                conn.execute("ALTER TABLE inter_federation_trust ADD COLUMN successful_interactions INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                conn.execute("ALTER TABLE inter_federation_trust ADD COLUMN failed_interactions INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
 
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS cross_federation_proposals (
@@ -252,24 +293,36 @@ class MultiFederationRegistry:
         """
         Establish a trust relationship between two federations.
 
+        Track BI: Applies trust bootstrap limits to prevent gaming.
+
         Args:
             source_federation_id: Federation establishing the trust
             target_federation_id: Federation being trusted
             relationship: Type of relationship
-            initial_trust: Initial trust score (0-1)
+            initial_trust: Requested initial trust score (0-1), will be capped
             witness_allowed: Whether target can witness for source
 
         Returns:
-            InterFederationTrust record
+            InterFederationTrust record with capped trust score
         """
         now = datetime.now(timezone.utc).isoformat()
+
+        # Track BI: Apply bootstrap limits
+        # 1. Cap initial trust at MAX_INITIAL_TRUST
+        effective_trust = min(initial_trust, self.MAX_INITIAL_TRUST)
+
+        # 2. Further cap based on target federation age
+        target_fed = self.get_federation(target_federation_id)
+        if target_fed:
+            max_by_age = self._get_max_trust_by_age(target_fed.created_at)
+            effective_trust = min(effective_trust, max_by_age)
 
         trust = InterFederationTrust(
             source_federation_id=source_federation_id,
             target_federation_id=target_federation_id,
             relationship=relationship,
             established_at=now,
-            trust_score=initial_trust,
+            trust_score=effective_trust,
             witness_allowed=witness_allowed,
         )
 
@@ -277,8 +330,9 @@ class MultiFederationRegistry:
             conn.execute("""
                 INSERT OR REPLACE INTO inter_federation_trust
                 (source_federation_id, target_federation_id, relationship,
-                 established_at, trust_score, witness_allowed)
-                VALUES (?, ?, ?, ?, ?, ?)
+                 established_at, trust_score, witness_allowed,
+                 successful_interactions, failed_interactions)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0)
             """, (
                 trust.source_federation_id,
                 trust.target_federation_id,
@@ -289,6 +343,221 @@ class MultiFederationRegistry:
             ))
 
         return trust
+
+    def _get_max_trust_by_age(self, created_at: str) -> float:
+        """
+        Calculate maximum trust allowed based on federation age.
+
+        Track BI: Newer federations have lower trust ceilings.
+        """
+        try:
+            created = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            age_days = (datetime.now(timezone.utc) - created).days
+
+            max_trust = 0.5  # Default
+            for trust_level, required_days in sorted(self.TRUST_AGE_REQUIREMENTS.items()):
+                if age_days >= required_days:
+                    max_trust = trust_level
+            return max_trust
+        except (ValueError, TypeError):
+            return 0.5  # Default if parsing fails
+
+    def _get_max_trust_by_interactions(
+        self,
+        source_federation_id: str,
+        target_federation_id: str,
+    ) -> float:
+        """
+        Calculate maximum trust allowed based on successful interactions.
+
+        Track BI: Trust must be earned through successful collaborations.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("""
+                SELECT successful_interactions
+                FROM inter_federation_trust
+                WHERE source_federation_id = ? AND target_federation_id = ?
+            """, (source_federation_id, target_federation_id)).fetchone()
+
+            if not row:
+                return 0.5
+
+            interactions = row[0] or 0
+            max_trust = 0.5
+            for trust_level, required_interactions in sorted(self.TRUST_INTERACTION_REQUIREMENTS.items()):
+                if interactions >= required_interactions:
+                    max_trust = trust_level
+            return max_trust
+
+    def record_interaction(
+        self,
+        source_federation_id: str,
+        target_federation_id: str,
+        success: bool,
+        auto_adjust_trust: bool = True,
+    ) -> Dict:
+        """
+        Record an interaction between federations and optionally adjust trust.
+
+        Track BI: Trust is earned through successful interactions.
+
+        Args:
+            source_federation_id: Federation that initiated
+            target_federation_id: Federation that participated
+            success: Whether the interaction was successful
+            auto_adjust_trust: Whether to automatically adjust trust scores
+
+        Returns:
+            Updated trust status
+        """
+        now = datetime.now(timezone.utc).isoformat()
+
+        with sqlite3.connect(self.db_path) as conn:
+            # Update interaction counts
+            if success:
+                conn.execute("""
+                    UPDATE inter_federation_trust
+                    SET successful_interactions = successful_interactions + 1,
+                        last_interaction = ?
+                    WHERE source_federation_id = ? AND target_federation_id = ?
+                """, (now, source_federation_id, target_federation_id))
+            else:
+                conn.execute("""
+                    UPDATE inter_federation_trust
+                    SET failed_interactions = failed_interactions + 1,
+                        last_interaction = ?
+                    WHERE source_federation_id = ? AND target_federation_id = ?
+                """, (now, source_federation_id, target_federation_id))
+
+            # Get current trust data
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("""
+                SELECT trust_score, successful_interactions, failed_interactions
+                FROM inter_federation_trust
+                WHERE source_federation_id = ? AND target_federation_id = ?
+            """, (source_federation_id, target_federation_id)).fetchone()
+
+            if not row:
+                return {"error": "No trust relationship found"}
+
+            current_trust = row["trust_score"]
+            successful = row["successful_interactions"]
+            failed = row["failed_interactions"]
+
+            # Calculate new trust if auto-adjusting
+            new_trust = current_trust
+            if auto_adjust_trust:
+                # Get caps
+                max_by_age = self._get_max_trust_by_age(
+                    self.get_federation(target_federation_id).created_at
+                    if self.get_federation(target_federation_id) else now
+                )
+                max_by_interactions = self._get_max_trust_by_interactions(
+                    source_federation_id, target_federation_id
+                )
+                max_trust = min(max_by_age, max_by_interactions)
+
+                if success:
+                    # Increase trust up to cap
+                    new_trust = min(
+                        current_trust + self.TRUST_INCREMENT_PER_SUCCESS,
+                        max_trust
+                    )
+                else:
+                    # Decrease trust on failure
+                    new_trust = max(0.1, current_trust - 0.1)
+
+                conn.execute("""
+                    UPDATE inter_federation_trust
+                    SET trust_score = ?
+                    WHERE source_federation_id = ? AND target_federation_id = ?
+                """, (new_trust, source_federation_id, target_federation_id))
+
+        return {
+            "source_federation": source_federation_id,
+            "target_federation": target_federation_id,
+            "success": success,
+            "previous_trust": current_trust,
+            "new_trust": new_trust,
+            "successful_interactions": successful,
+            "failed_interactions": failed,
+            "trust_adjusted": auto_adjust_trust,
+        }
+
+    def get_trust_bootstrap_status(
+        self,
+        source_federation_id: str,
+        target_federation_id: str,
+    ) -> Dict:
+        """
+        Get detailed trust bootstrap status between two federations.
+
+        Track BI: Transparency into trust constraints.
+
+        Returns:
+            Dict with current trust, caps, and requirements for increase
+        """
+        trust = self.get_trust_relationship(source_federation_id, target_federation_id)
+        target_fed = self.get_federation(target_federation_id)
+
+        if not trust:
+            return {"error": "No trust relationship exists"}
+
+        # Get interaction counts
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("""
+                SELECT successful_interactions, failed_interactions
+                FROM inter_federation_trust
+                WHERE source_federation_id = ? AND target_federation_id = ?
+            """, (source_federation_id, target_federation_id)).fetchone()
+            successful = row[0] if row else 0
+            failed = row[1] if row else 0
+
+        # Calculate caps
+        max_by_age = self._get_max_trust_by_age(
+            target_fed.created_at if target_fed else datetime.now(timezone.utc).isoformat()
+        )
+        max_by_interactions = self._get_max_trust_by_interactions(
+            source_federation_id, target_federation_id
+        )
+        effective_cap = min(max_by_age, max_by_interactions)
+
+        # Calculate what's needed for next level
+        next_level = None
+        interactions_needed = None
+        days_needed = None
+
+        for trust_level in sorted(self.TRUST_AGE_REQUIREMENTS.keys()):
+            if trust_level > trust.trust_score:
+                next_level = trust_level
+                interactions_needed = max(
+                    0,
+                    self.TRUST_INTERACTION_REQUIREMENTS.get(trust_level, 0) - successful
+                )
+                if target_fed:
+                    created = datetime.fromisoformat(target_fed.created_at.replace('Z', '+00:00'))
+                    current_age = (datetime.now(timezone.utc) - created).days
+                    days_needed = max(
+                        0,
+                        self.TRUST_AGE_REQUIREMENTS.get(trust_level, 0) - current_age
+                    )
+                break
+
+        return {
+            "source_federation": source_federation_id,
+            "target_federation": target_federation_id,
+            "current_trust": trust.trust_score,
+            "max_initial_trust": self.MAX_INITIAL_TRUST,
+            "max_trust_by_age": max_by_age,
+            "max_trust_by_interactions": max_by_interactions,
+            "effective_trust_cap": effective_cap,
+            "successful_interactions": successful,
+            "failed_interactions": failed,
+            "next_trust_level": next_level,
+            "interactions_needed_for_next": interactions_needed,
+            "days_needed_for_next": days_needed,
+            "can_increase": trust.trust_score < effective_cap,
+        }
 
     def get_trust_relationship(
         self,
@@ -306,6 +575,16 @@ class MultiFederationRegistry:
             if not row:
                 return None
 
+            # Handle columns that may not exist in older schemas
+            try:
+                successful = row["successful_interactions"] or 0
+            except (KeyError, IndexError):
+                successful = 0
+            try:
+                failed = row["failed_interactions"] or 0
+            except (KeyError, IndexError):
+                failed = 0
+
             return InterFederationTrust(
                 source_federation_id=row["source_federation_id"],
                 target_federation_id=row["target_federation_id"],
@@ -314,6 +593,8 @@ class MultiFederationRegistry:
                 trust_score=row["trust_score"],
                 witness_allowed=bool(row["witness_allowed"]),
                 last_interaction=row["last_interaction"] or "",
+                successful_interactions=successful,
+                failed_interactions=failed,
             )
 
     def find_eligible_witness_federations(

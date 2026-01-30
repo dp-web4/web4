@@ -4739,21 +4739,23 @@ class TestMultiFederation:
         registry.register_federation("fed:a", "A")
         registry.register_federation("fed:b", "B")
 
+        # Track BI: Trust is capped by MAX_INITIAL_TRUST (0.5) for new federations
         trust = registry.establish_trust(
             "fed:a", "fed:b",
             FederationRelationship.ALLIED,
-            initial_trust=0.8,
+            initial_trust=0.8,  # Requested 0.8, but will be capped
         )
 
         assert trust.source_federation_id == "fed:a"
         assert trust.target_federation_id == "fed:b"
         assert trust.relationship == FederationRelationship.ALLIED
-        assert trust.trust_score == 0.8
+        # Trust is capped at MAX_INITIAL_TRUST for new federations
+        assert trust.trust_score == registry.MAX_INITIAL_TRUST  # 0.5
 
         # Retrieve the relationship
         retrieved = registry.get_trust_relationship("fed:a", "fed:b")
         assert retrieved is not None
-        assert retrieved.trust_score == 0.8
+        assert retrieved.trust_score == registry.MAX_INITIAL_TRUST  # 0.5
 
     def test_eligible_witness_federations(self):
         """Can find eligible witness federations."""
@@ -4770,18 +4772,20 @@ class TestMultiFederation:
         registry.register_federation("fed:trusted", "Trusted")
         registry.register_federation("fed:untrusted", "Untrusted")
 
-        # Only establish trust with one
+        # Track BI: Initial trust capped at 0.5 for new federations
+        # But still above MIN_CROSS_FED_TRUST (0.4) so witness eligible
         registry.establish_trust(
             "fed:requester", "fed:trusted",
             FederationRelationship.PEER,
-            initial_trust=0.6,
+            initial_trust=0.6,  # Will be capped to 0.5
         )
 
         eligible = registry.find_eligible_witness_federations("fed:requester")
 
         assert len(eligible) == 1
         assert eligible[0][0] == "fed:trusted"
-        assert eligible[0][1] == 0.6
+        # Capped at MAX_INITIAL_TRUST (0.5)
+        assert eligible[0][1] == registry.MAX_INITIAL_TRUST  # 0.5
 
     def test_cross_federation_proposal(self):
         """Cross-federation proposals can be created and approved."""
@@ -5335,6 +5339,181 @@ class TestMultiFederationAttack:
         except ValueError as e:
             # Expected - low trust rejected
             assert "trust" in str(e).lower()
+
+
+class TestTrustBootstrapLimits:
+    """Tests for Track BI - Trust bootstrap limits."""
+
+    def test_initial_trust_capped(self):
+        """Initial trust is capped at MAX_INITIAL_TRUST."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "trust_cap_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        # Register federations
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+
+        # Try to establish trust at 0.9 - should be capped
+        trust = registry.establish_trust("fed:a", "fed:b", initial_trust=0.9)
+
+        # Should be capped at MAX_INITIAL_TRUST (0.5)
+        assert trust.trust_score <= registry.MAX_INITIAL_TRUST
+        assert trust.trust_score == 0.5
+
+    def test_trust_grows_with_interactions(self):
+        """Trust increases with successful interactions (when age permits)."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+        from datetime import datetime, timezone, timedelta
+
+        db_path = Path(tempfile.mkdtemp()) / "trust_grow_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+
+        # Backdate fed:b to 30 days ago to allow higher trust
+        with sqlite3.connect(db_path) as conn:
+            old_date = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+            conn.execute(
+                "UPDATE federations SET created_at = ? WHERE federation_id = 'fed:b'",
+                (old_date,)
+            )
+
+        trust = registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+        initial_trust = trust.trust_score
+
+        # Record successful interactions (need 3 for 0.6 level)
+        for _ in range(5):
+            result = registry.record_interaction("fed:a", "fed:b", success=True)
+
+        # Trust should have increased (age allows 0.7, interactions allow 0.6)
+        updated_trust = registry.get_trust_relationship("fed:a", "fed:b")
+        assert updated_trust.trust_score > initial_trust
+        assert updated_trust.successful_interactions == 5
+
+    def test_trust_blocked_by_age_requirement(self):
+        """New federations can't exceed age-based trust cap."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "trust_age_cap_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        # New federations (created just now)
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+
+        trust = registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+
+        # Even with many interactions, trust capped by age
+        for _ in range(10):
+            registry.record_interaction("fed:a", "fed:b", success=True)
+
+        updated_trust = registry.get_trust_relationship("fed:a", "fed:b")
+        # Trust stays at 0.5 because federation is brand new (needs 7 days for 0.6)
+        assert updated_trust.trust_score == 0.5
+        assert updated_trust.successful_interactions == 10
+
+        # Bootstrap status confirms age is the limiting factor
+        status = registry.get_trust_bootstrap_status("fed:a", "fed:b")
+        assert status["max_trust_by_age"] == 0.5
+        assert status["max_trust_by_interactions"] == 0.7  # Has 10 interactions (0.7 needs 10)
+        assert status["effective_trust_cap"] == 0.5  # min of the two (age caps it)
+
+    def test_trust_decreases_on_failure(self):
+        """Trust decreases with failed interactions."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "trust_fail_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+
+        trust = registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+        initial_trust = trust.trust_score
+
+        # Record failed interaction
+        result = registry.record_interaction("fed:a", "fed:b", success=False)
+
+        # Trust should have decreased
+        assert result["new_trust"] < initial_trust
+        updated_trust = registry.get_trust_relationship("fed:a", "fed:b")
+        assert updated_trust.failed_interactions == 1
+
+    def test_bootstrap_status_shows_limits(self):
+        """Bootstrap status shows trust caps and requirements."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "bootstrap_status_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+
+        # Get status
+        status = registry.get_trust_bootstrap_status("fed:a", "fed:b")
+
+        assert "current_trust" in status
+        assert "max_initial_trust" in status
+        assert "effective_trust_cap" in status
+        assert "successful_interactions" in status
+        assert status["max_initial_trust"] == registry.MAX_INITIAL_TRUST
+
+    def test_trust_requires_interactions_for_higher_levels(self):
+        """Higher trust levels require more interactions."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "trust_interaction_req.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+
+        # Status should show interactions needed
+        status = registry.get_trust_bootstrap_status("fed:a", "fed:b")
+
+        # With 0 interactions, should need more for 0.6 level (3 interactions required)
+        assert status["next_trust_level"] == 0.6
+        assert status["interactions_needed_for_next"] == 3
+
+    def test_interaction_counts_tracked(self):
+        """Interaction counts are properly tracked."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "interaction_count_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+
+        # Record mix of interactions
+        registry.record_interaction("fed:a", "fed:b", success=True)
+        registry.record_interaction("fed:a", "fed:b", success=True)
+        registry.record_interaction("fed:a", "fed:b", success=False)
+        registry.record_interaction("fed:a", "fed:b", success=True)
+
+        trust = registry.get_trust_relationship("fed:a", "fed:b")
+        assert trust.successful_interactions == 3
+        assert trust.failed_interactions == 1
 
 
 # Import sqlite3 at module level for tests that need it
