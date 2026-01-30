@@ -879,6 +879,237 @@ class MultiFederationRegistry:
             "current_status": row["status"],
         }
 
+    # =========================================================================
+    # Track BJ: Federation-Level Reciprocity Detection
+    # =========================================================================
+
+    # Maximum reciprocity ratio before flagging (Track BJ)
+    MAX_FEDERATION_RECIPROCITY = 0.7  # >70% reciprocal = suspicious
+
+    # Minimum approvals to analyze
+    MIN_APPROVALS_FOR_ANALYSIS = 5
+
+    def analyze_federation_reciprocity(
+        self,
+        federation_id: str,
+        time_window_days: int = 30,
+    ) -> Dict:
+        """
+        Analyze reciprocal approval patterns between federations.
+
+        Track BJ: Detects collusion where federations approve each other's
+        proposals at suspiciously high rates.
+
+        Args:
+            federation_id: Federation to analyze
+            time_window_days: Number of days to look back
+
+        Returns:
+            Dict with reciprocity analysis
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=time_window_days)).isoformat()
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            # Get all proposals this federation approved
+            rows = conn.execute("""
+                SELECT proposal_id, proposing_federation_id, federation_approvals
+                FROM cross_federation_proposals
+                WHERE created_at >= ?
+                  AND status IN ('approved', 'pending')
+            """, (cutoff,)).fetchall()
+
+        # Count approvals given to each federation
+        approvals_given: Dict[str, int] = {}
+        approvals_received: Dict[str, int] = {}
+
+        for row in rows:
+            proposer = row["proposing_federation_id"]
+            approvals = json.loads(row["federation_approvals"])
+
+            # Did this federation approve this proposal?
+            if federation_id in approvals and approvals[federation_id].get("approved"):
+                if proposer != federation_id:  # Don't count self-approval
+                    approvals_given[proposer] = approvals_given.get(proposer, 0) + 1
+
+            # Did this federation propose and get approval?
+            if proposer == federation_id:
+                for approver, details in approvals.items():
+                    if approver != federation_id and details.get("approved"):
+                        approvals_received[approver] = approvals_received.get(approver, 0) + 1
+
+        # Calculate reciprocity ratios
+        reciprocity_scores = {}
+        for partner_fed in set(approvals_given.keys()) | set(approvals_received.keys()):
+            given = approvals_given.get(partner_fed, 0)
+            received = approvals_received.get(partner_fed, 0)
+            total = given + received
+
+            if total >= self.MIN_APPROVALS_FOR_ANALYSIS:
+                # Reciprocity = min(given, received) / max(given, received)
+                # High ratio means balanced give/take (potentially collusion)
+                if max(given, received) > 0:
+                    reciprocity = min(given, received) / max(given, received)
+                else:
+                    reciprocity = 0.0
+
+                reciprocity_scores[partner_fed] = {
+                    "approvals_given": given,
+                    "approvals_received": received,
+                    "total_interactions": total,
+                    "reciprocity_ratio": reciprocity,
+                    "suspicious": reciprocity > self.MAX_FEDERATION_RECIPROCITY,
+                }
+
+        # Identify suspicious pairs
+        suspicious_pairs = [
+            (partner, data) for partner, data in reciprocity_scores.items()
+            if data["suspicious"]
+        ]
+
+        return {
+            "federation_id": federation_id,
+            "time_window_days": time_window_days,
+            "partner_analysis": reciprocity_scores,
+            "total_approvals_given": sum(approvals_given.values()),
+            "total_approvals_received": sum(approvals_received.values()),
+            "suspicious_partners": [p[0] for p in suspicious_pairs],
+            "suspicion_count": len(suspicious_pairs),
+            "has_suspicious_patterns": len(suspicious_pairs) > 0,
+        }
+
+    def get_federation_collusion_report(
+        self,
+        time_window_days: int = 30,
+    ) -> Dict:
+        """
+        Generate system-wide federation collusion report.
+
+        Track BJ: Identifies all suspicious reciprocity patterns.
+
+        Returns:
+            Dict with system-wide collusion analysis
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            federations = conn.execute(
+                "SELECT federation_id FROM federations WHERE status = 'active'"
+            ).fetchall()
+
+        federation_ids = [f[0] for f in federations]
+
+        # Analyze each federation
+        analyses = {}
+        for fed_id in federation_ids:
+            analyses[fed_id] = self.analyze_federation_reciprocity(
+                fed_id, time_window_days
+            )
+
+        # Find mutual suspicion (both sides flag each other)
+        collusion_rings = []
+        checked = set()
+        for fed_id, analysis in analyses.items():
+            for partner in analysis["suspicious_partners"]:
+                pair = tuple(sorted([fed_id, partner]))
+                if pair not in checked:
+                    checked.add(pair)
+                    # Check if partner also flagged fed_id
+                    if (partner in analyses and
+                        fed_id in analyses[partner]["suspicious_partners"]):
+                        collusion_rings.append({
+                            "federations": list(pair),
+                            "mutual_suspicion": True,
+                            "fed_a_to_b": analyses[fed_id]["partner_analysis"].get(partner),
+                            "fed_b_to_a": analyses[partner]["partner_analysis"].get(fed_id),
+                        })
+
+        return {
+            "time_window_days": time_window_days,
+            "federations_analyzed": len(federation_ids),
+            "individual_analyses": analyses,
+            "collusion_rings": collusion_rings,
+            "total_suspicious_pairs": len(collusion_rings),
+            "overall_health": "healthy" if len(collusion_rings) == 0 else "warning",
+        }
+
+    def check_approval_for_collusion(
+        self,
+        proposal_id: str,
+        approving_federation_id: str,
+    ) -> Dict:
+        """
+        Check if approving a proposal would contribute to suspicious patterns.
+
+        Track BJ: Pre-approval collusion check.
+
+        Args:
+            proposal_id: Proposal being approved
+            approving_federation_id: Federation about to approve
+
+        Returns:
+            Dict with collusion risk assessment
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT proposing_federation_id FROM cross_federation_proposals WHERE proposal_id = ?",
+                (proposal_id,)
+            ).fetchone()
+
+        if not row:
+            return {"error": "Proposal not found"}
+
+        proposer = row["proposing_federation_id"]
+
+        if proposer == approving_federation_id:
+            return {
+                "proposal_id": proposal_id,
+                "approving_federation": approving_federation_id,
+                "proposing_federation": proposer,
+                "collusion_risk": "none",
+                "reason": "Self-approval (proposer)",
+            }
+
+        # Analyze current reciprocity with proposer
+        analysis = self.analyze_federation_reciprocity(approving_federation_id)
+        partner_data = analysis["partner_analysis"].get(proposer)
+
+        if not partner_data:
+            return {
+                "proposal_id": proposal_id,
+                "approving_federation": approving_federation_id,
+                "proposing_federation": proposer,
+                "collusion_risk": "low",
+                "reason": "Insufficient history to assess",
+                "current_reciprocity": None,
+            }
+
+        # Calculate what reciprocity would be after this approval
+        new_given = partner_data["approvals_given"] + 1
+        new_received = partner_data["approvals_received"]
+        new_reciprocity = (
+            min(new_given, new_received) / max(new_given, new_received)
+            if max(new_given, new_received) > 0 else 0.0
+        )
+
+        risk_level = "low"
+        if new_reciprocity > self.MAX_FEDERATION_RECIPROCITY:
+            risk_level = "high"
+        elif new_reciprocity > self.MAX_FEDERATION_RECIPROCITY - 0.1:
+            risk_level = "medium"
+
+        return {
+            "proposal_id": proposal_id,
+            "approving_federation": approving_federation_id,
+            "proposing_federation": proposer,
+            "current_reciprocity": partner_data["reciprocity_ratio"],
+            "projected_reciprocity": new_reciprocity,
+            "collusion_risk": risk_level,
+            "threshold": self.MAX_FEDERATION_RECIPROCITY,
+            "already_suspicious": partner_data["suspicious"],
+            "would_become_suspicious": new_reciprocity > self.MAX_FEDERATION_RECIPROCITY,
+        }
+
 
 # Self-test
 if __name__ == "__main__":

@@ -5516,5 +5516,149 @@ class TestTrustBootstrapLimits:
         assert trust.failed_interactions == 1
 
 
+class TestFederationReciprocity:
+    """Tests for Track BJ - Federation-level reciprocity detection."""
+
+    def test_analyze_federation_reciprocity(self):
+        """Basic reciprocity analysis works."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "reciprocity_test.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        # Setup federations
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+        registry.establish_trust("fed:b", "fed:a", initial_trust=0.5)
+
+        # Analyze (should return even with no approvals)
+        analysis = registry.analyze_federation_reciprocity("fed:a")
+
+        assert "federation_id" in analysis
+        assert analysis["federation_id"] == "fed:a"
+        assert "suspicious_partners" in analysis
+        assert "has_suspicious_patterns" in analysis
+
+    def test_reciprocal_approvals_detected(self):
+        """Mutual approval patterns are detected as suspicious."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "reciprocal_detect.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        # Setup federations
+        registry.register_federation("fed:a", "Federation A")
+        registry.register_federation("fed:b", "Federation B")
+        registry.register_federation("fed:witness", "Witness")
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+        registry.establish_trust("fed:b", "fed:a", initial_trust=0.5)
+        registry.establish_trust("fed:a", "fed:witness", initial_trust=0.5)
+
+        # Create reciprocal approvals: A proposes, B approves; B proposes, A approves
+        # Need at least MIN_APPROVALS_FOR_ANALYSIS (5) total
+        for i in range(4):
+            # A proposes, B approves
+            p1 = registry.create_cross_federation_proposal(
+                "fed:a", f"team:a:{i}", ["fed:b"],
+                f"action_{i}", f"Test {i}"
+            )
+            registry.approve_from_federation(p1.proposal_id, "fed:b", [f"team:b:{i}"])
+
+            # B proposes, A approves
+            p2 = registry.create_cross_federation_proposal(
+                "fed:b", f"team:b:{i}", ["fed:a"],
+                f"action_{i}", f"Test {i}"
+            )
+            registry.approve_from_federation(p2.proposal_id, "fed:a", [f"team:a:{i}"])
+
+        # Analyze reciprocity
+        analysis = registry.analyze_federation_reciprocity("fed:a")
+
+        # Should detect high reciprocity with fed:b
+        if "fed:b" in analysis["partner_analysis"]:
+            partner_data = analysis["partner_analysis"]["fed:b"]
+            # 4 given (A approved B's proposals), 4 received (B approved A's proposals)
+            assert partner_data["approvals_given"] == 4
+            assert partner_data["approvals_received"] == 4
+            # Perfect reciprocity = 1.0 (suspicious)
+            assert partner_data["reciprocity_ratio"] == 1.0
+            assert partner_data["suspicious"] == True
+
+    def test_collusion_report(self):
+        """System-wide collusion report works."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "collusion_report.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        # Setup
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+        registry.register_federation("fed:c", "C")
+
+        # Generate report
+        report = registry.get_federation_collusion_report()
+
+        assert "federations_analyzed" in report
+        assert report["federations_analyzed"] == 3
+        assert "collusion_rings" in report
+        assert "overall_health" in report
+
+    def test_pre_approval_collusion_check(self):
+        """Pre-approval check assesses collusion risk."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "pre_approval_check.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+        registry.establish_trust("fed:a", "fed:b", initial_trust=0.5)
+        registry.establish_trust("fed:b", "fed:a", initial_trust=0.5)
+
+        # Create proposal
+        proposal = registry.create_cross_federation_proposal(
+            "fed:a", "team:a", ["fed:b"], "test", "Test"
+        )
+
+        # Check collusion risk before approving
+        check = registry.check_approval_for_collusion(
+            proposal.proposal_id, "fed:b"
+        )
+
+        assert "collusion_risk" in check
+        assert check["proposing_federation"] == "fed:a"
+        assert check["approving_federation"] == "fed:b"
+        # No history, so risk should be low
+        assert check["collusion_risk"] == "low"
+
+    def test_healthy_federation_no_flags(self):
+        """Federations without suspicious patterns are healthy."""
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        db_path = Path(tempfile.mkdtemp()) / "healthy_fed.db"
+        registry = MultiFederationRegistry(db_path=db_path)
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+
+        # No proposals, no approvals
+        analysis = registry.analyze_federation_reciprocity("fed:a")
+
+        assert analysis["has_suspicious_patterns"] == False
+        assert len(analysis["suspicious_partners"]) == 0
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
