@@ -203,9 +203,8 @@ def load_or_create_session(session_id):
     heartbeat = get_session_heartbeat(session_id)
     heartbeat.record("session_recovered", 0)
 
-    # Log recovery
-    policy_name = policy_entity_id.split(":")[1] if policy_entity_id else "none"
-    print(f"[Web4] Session recovered: {session['token']['token_id'].split(':')[-1]} [policy:{policy_name}]", file=sys.stderr)
+    # Session recovered - logging removed to avoid Claude Code "hook error" warnings
+    # (Claude Code displays any stderr output as "hook error" even for informational messages)
 
     return session
 
@@ -551,11 +550,8 @@ def main():
     session["timing_coherence"] = timing_coherence
     save_session(session)
 
-    # Show R6 status if verbose
-    if session["preferences"]["audit_level"] == "verbose":
-        coherence_indicator = "●" if timing_coherence >= 0.8 else "◐" if timing_coherence >= 0.5 else "○"
-        policy_indicator = f"[{decision}]" if policy_eval else ""
-        print(f"[R6] {r6['request']['category']}:{r6['request']['target'][:30]} {coherence_indicator}{timing_coherence:.2f} {policy_indicator}", file=sys.stderr)
+    # Verbose R6 status removed - stderr output causes Claude Code "hook error" warnings
+    # R6 data is still logged to r6_log/ for audit purposes
 
     # Record rate limit usage for allowed actions
     if decision == "allow" and policy_eval and policy_eval.get("rule_id"):
