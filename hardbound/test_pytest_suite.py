@@ -6364,5 +6364,204 @@ class TestEconomicFederation:
         assert "bootstrap limits" in result.error or "capped" in result.error.lower()
 
 
+class TestFederationBinding:
+    """
+    Track BP: Federation Binding - LCT Chain + Federation Integration Tests
+
+    Tests that federations have LCT roots and teams are bound as children.
+    """
+
+    def test_federation_gets_root_lct(self):
+        """Federation registration creates a root LCT node."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        profile, root = registry.register_federation_with_binding(
+            "fed:test", "Test Federation", initial_trust=0.9
+        )
+
+        assert profile.federation_id == "fed:test"
+        assert root.lct_id == "lct:federation:fed:test"
+        assert root.entity_type == "federation"
+        assert root.trust_level == 0.9
+
+    def test_team_binding_derives_trust(self):
+        """Teams bound to federation have derived trust."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:parent", "Parent", initial_trust=0.9)
+        team = registry.bind_team_to_federation("fed:parent", "team:1")
+
+        assert team.entity_type == "team"
+        assert team.trust_level < 0.9  # Derived, so lower
+        assert team.parent_lct == "lct:federation:fed:parent"
+
+    def test_get_federation_teams(self):
+        """Can retrieve all teams bound to a federation."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:a", "A")
+        registry.bind_team_to_federation("fed:a", "team:1")
+        registry.bind_team_to_federation("fed:a", "team:2")
+        registry.bind_team_to_federation("fed:a", "team:3")
+
+        teams = registry.get_federation_teams("fed:a")
+        assert len(teams) == 3
+
+    def test_binding_status_shows_validity(self):
+        """Binding status reports chain validity and presence."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:test", "Test", initial_trust=0.9)
+        registry.bind_team_to_federation("fed:test", "team:1")
+
+        status = registry.get_federation_binding_status("fed:test")
+
+        assert status.chain_valid == True
+        assert status.team_count == 1
+        assert status.presence_score >= 0.3
+
+    def test_witness_eligibility_requires_presence(self):
+        """Federations need sufficient presence to be eligible witnesses."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:new", "New", initial_trust=0.9)
+
+        status = registry.get_federation_binding_status("fed:new")
+
+        # New federation has low presence (0.3) < MIN_WITNESS_PRESENCE (0.4)
+        assert status.presence_score < registry.MIN_WITNESS_PRESENCE
+        assert status.witness_eligible == False
+
+    def test_cross_federation_witnessing(self):
+        """Federations can witness each other when eligible."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:alpha", "Alpha", initial_trust=0.9)
+        registry.register_federation_with_binding("fed:beta", "Beta", initial_trust=0.8)
+
+        # Add teams and build presence
+        for i in range(3):
+            registry.bind_team_to_federation("fed:alpha", f"team:{i}")
+
+        # Build presence by having teams witness root
+        teams = registry.get_federation_teams("fed:alpha")
+        root_lct = registry._federation_lcts["fed:alpha"]
+        for team in teams:
+            registry.binding_chain.witness(team.lct_id, root_lct)
+
+        # Now Alpha should be eligible
+        alpha_status = registry.get_federation_binding_status("fed:alpha")
+        assert alpha_status.witness_eligible == True
+
+        # Alpha can witness Beta
+        rel = registry.cross_federation_witness("fed:alpha", "fed:beta")
+        assert rel is not None
+
+    def test_binding_trust_calculation(self):
+        """Federation binding trust is calculated from components."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:test", "Test", initial_trust=0.9)
+        registry.bind_team_to_federation("fed:test", "team:1")
+
+        trust = registry.get_federation_trust_from_binding("fed:test")
+
+        assert trust["valid"] == True
+        assert trust["binding_trust"] > 0
+        assert "components" in trust
+        assert "base_trust" in trust["components"]
+
+    def test_find_eligible_witnesses(self):
+        """Can find federations eligible to witness for another."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        # Create federations
+        registry.register_federation_with_binding("fed:a", "A", initial_trust=0.9)
+        registry.register_federation_with_binding("fed:b", "B", initial_trust=0.8)
+        registry.register_federation_with_binding("fed:c", "C", initial_trust=0.7)
+
+        # Build presence for A and B
+        for fed_id in ["fed:a", "fed:b"]:
+            for i in range(3):
+                registry.bind_team_to_federation(fed_id, f"team:{fed_id}:{i}")
+            teams = registry.get_federation_teams(fed_id)
+            root_lct = registry._federation_lcts[fed_id]
+            for team in teams:
+                registry.binding_chain.witness(team.lct_id, root_lct)
+
+        # Find eligible witnesses for C
+        eligible = registry.get_eligible_federation_witnesses("fed:c")
+
+        # A and B should be eligible, C excluded (requesting)
+        fed_ids = [e[0] for e in eligible]
+        assert "fed:a" in fed_ids
+        assert "fed:b" in fed_ids
+        assert "fed:c" not in fed_ids
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
