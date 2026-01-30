@@ -5825,5 +5825,327 @@ class TestFederationReciprocity:
         assert len(analysis["suspicious_partners"]) == 0
 
 
+class TestLCTBindingChain:
+    """
+    Track BM: LCT Binding Chain Validation Tests
+
+    Tests the hierarchical LCT binding system that implements:
+    - Parent-child binding relationships
+    - Trust derivation down the chain
+    - Witness relationships between nodes
+    - Chain validation and presence proof generation
+    """
+
+    def test_root_node_creation(self):
+        """Root nodes are created with correct properties."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()  # In-memory
+
+        root = chain.create_root_node(
+            "lct:root:001",
+            "hardware",
+            BindingType.HARDWARE,
+            initial_trust=0.9,
+            metadata={"serial": "ABC123"}
+        )
+
+        assert root.lct_id == "lct:root:001"
+        assert root.entity_type == "hardware"
+        assert root.binding_type == BindingType.HARDWARE
+        assert root.trust_level == 0.9
+        assert root.parent_lct is None
+        assert root.metadata["serial"] == "ABC123"
+
+    def test_child_binding(self):
+        """Children are bound with derived trust."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        root = chain.create_root_node(
+            "lct:root:002",
+            "hardware",
+            BindingType.HARDWARE,
+            initial_trust=0.9
+        )
+
+        child = chain.bind_child(
+            root.lct_id,
+            "lct:child:001",
+            "software",
+            BindingType.DERIVED
+        )
+
+        assert child.parent_lct == root.lct_id
+        # Child trust is derived (parent - 0.1)
+        assert child.trust_level == 0.8
+
+    def test_chain_depth_limit(self):
+        """Chain depth is limited to MAX_CHAIN_DEPTH."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        import pytest
+
+        chain = LCTBindingChain()
+
+        # Create root
+        current = chain.create_root_node(
+            "lct:depth:root",
+            "hardware",
+            BindingType.HARDWARE,
+            initial_trust=0.99  # High enough to reach depth 10
+        )
+
+        # Create chain up to max depth
+        for i in range(chain.MAX_CHAIN_DEPTH):
+            current = chain.bind_child(
+                current.lct_id,
+                f"lct:depth:{i}",
+                "derived",
+                BindingType.DERIVED
+            )
+
+        # Next binding should fail
+        with pytest.raises(ValueError, match="Maximum chain depth"):
+            chain.bind_child(
+                current.lct_id,
+                "lct:depth:overflow",
+                "derived",
+                BindingType.DERIVED
+            )
+
+    def test_trust_flows_downward(self):
+        """Trust decreases down the binding chain."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        root = chain.create_root_node("lct:trust:root", "hardware", BindingType.HARDWARE, 0.9)
+        child1 = chain.bind_child(root.lct_id, "lct:trust:c1", "software", BindingType.DERIVED)
+        child2 = chain.bind_child(child1.lct_id, "lct:trust:c2", "software", BindingType.DERIVED)
+        child3 = chain.bind_child(child2.lct_id, "lct:trust:c3", "software", BindingType.DERIVED)
+
+        # Note: bind_child:
+        # 1. Derives trust as parent_trust - 0.1
+        # 2. Then parent witnesses child (+0.05 in DB)
+        # But the RETURNED node has the pre-witness value
+
+        # child1 returned: 0.9 - 0.1 = 0.8
+        assert child1.trust_level == 0.8
+
+        # child2 derivation uses child1's CURRENT trust in DB (0.85)
+        # child2 returned: 0.85 - 0.1 = 0.75
+        assert abs(child2.trust_level - 0.75) < 0.001
+
+        # child3 derivation uses child2's CURRENT trust in DB (0.80)
+        # child3 returned: 0.80 - 0.1 = 0.70
+        assert abs(child3.trust_level - 0.70) < 0.001
+
+        # After all bindings, re-fetch to see actual trust with witness boosts
+        child1_actual = chain.get_node(child1.lct_id)
+        child2_actual = chain.get_node(child2.lct_id)
+        child3_actual = chain.get_node(child3.lct_id)
+
+        # Trust still flows downward (each level is lower than parent)
+        assert root.trust_level > child1_actual.trust_level
+        assert child1_actual.trust_level > child2_actual.trust_level
+        assert child2_actual.trust_level > child3_actual.trust_level
+
+    def test_witnessing_requires_minimum_trust(self):
+        """Witnesses must have minimum trust level."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        import pytest
+
+        chain = LCTBindingChain()
+
+        # Create low-trust node
+        low_trust = chain.create_root_node(
+            "lct:witness:low",
+            "software",
+            BindingType.SOFTWARE,
+            initial_trust=0.2  # Below MIN_WITNESS_TRUST
+        )
+
+        high_trust = chain.create_root_node(
+            "lct:witness:high",
+            "hardware",
+            BindingType.HARDWARE,
+            initial_trust=0.8
+        )
+
+        # Low trust node cannot witness
+        with pytest.raises(ValueError, match="Witness trust too low"):
+            chain.witness(low_trust.lct_id, high_trust.lct_id)
+
+        # High trust can witness
+        rel = chain.witness(high_trust.lct_id, low_trust.lct_id)
+        assert rel.witness_lct == high_trust.lct_id
+        assert rel.subject_lct == low_trust.lct_id
+
+    def test_witnessing_increases_trust(self):
+        """Witnessing contributes to subject's trust."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        witness = chain.create_root_node("lct:w:main", "hardware", BindingType.HARDWARE, 0.8)
+        subject = chain.create_root_node("lct:w:subject", "software", BindingType.SOFTWARE, 0.5)
+
+        initial_trust = subject.trust_level
+
+        # Witness multiple times
+        chain.witness(witness.lct_id, subject.lct_id)
+        chain.witness(witness.lct_id, subject.lct_id)
+        chain.witness(witness.lct_id, subject.lct_id)
+
+        # Re-fetch subject to get updated trust
+        updated_subject = chain.get_node(subject.lct_id)
+
+        # Trust should have increased (3 witnesses * 0.05 = 0.15)
+        expected = initial_trust + 3 * chain.TRUST_PER_WITNESS
+        # Use approximate comparison due to floating point
+        assert abs(updated_subject.trust_level - expected) < 0.001
+
+    def test_chain_validation_valid_chain(self):
+        """Valid chains pass validation."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        root = chain.create_root_node("lct:valid:root", "hardware", BindingType.HARDWARE, 0.9)
+        child = chain.bind_child(root.lct_id, "lct:valid:child", "software", BindingType.DERIVED)
+        grandchild = chain.bind_child(child.lct_id, "lct:valid:grandchild", "software", BindingType.DERIVED)
+
+        validation = chain.validate_chain(grandchild.lct_id)
+
+        assert validation["valid"] == True
+        assert validation["chain_depth"] == 2
+        assert validation["root"] == root.lct_id
+        assert root.lct_id in validation["ancestors"]
+        assert child.lct_id in validation["ancestors"]
+        assert len(validation["issues"]) == 0
+
+    def test_chain_validation_detects_missing_witness(self):
+        """Validation detects missing witness relationships."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        root = chain.create_root_node("lct:missing:root", "hardware", BindingType.HARDWARE, 0.9)
+        child = chain.bind_child(root.lct_id, "lct:missing:child", "software", BindingType.DERIVED)
+
+        # Manually delete the witness relationship using chain's internal connection
+        conn = chain._get_conn()
+        conn.execute("DELETE FROM witness_relationships WHERE subject_lct = ?", (child.lct_id,))
+        conn.commit()
+
+        validation = chain.validate_chain(child.lct_id)
+
+        assert validation["valid"] == False
+        assert any("Missing witness relationship" in issue for issue in validation["issues"])
+
+    def test_presence_proof_generation(self):
+        """Presence proofs are generated correctly."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        # Use high root trust to avoid trust inversion with witnessing
+        root = chain.create_root_node("lct:proof:root", "hardware", BindingType.HARDWARE, 1.0)
+        child = chain.bind_child(root.lct_id, "lct:proof:child", "software", BindingType.DERIVED)
+
+        # Add extra witnesses (won't cause trust inversion with 1.0 root)
+        witness2 = chain.create_root_node("lct:proof:witness2", "hardware", BindingType.HARDWARE, 0.7)
+        chain.witness(witness2.lct_id, child.lct_id)
+
+        proof = chain.get_presence_proof(child.lct_id)
+
+        assert proof["lct_id"] == child.lct_id
+        assert proof["chain_valid"] == True
+        assert proof["chain_depth"] == 1
+        assert proof["root_lct"] == root.lct_id
+        assert proof["unique_witnesses"] >= 1
+        assert proof["presence_score"] >= 0.3
+
+    def test_ancestors_and_descendants(self):
+        """Ancestor and descendant queries work correctly."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        # Create hierarchy: root -> A -> B, root -> C
+        root = chain.create_root_node("lct:hier:root", "hardware", BindingType.HARDWARE, 0.9)
+        child_a = chain.bind_child(root.lct_id, "lct:hier:a", "software", BindingType.DERIVED)
+        child_b = chain.bind_child(child_a.lct_id, "lct:hier:b", "software", BindingType.DERIVED)
+        child_c = chain.bind_child(root.lct_id, "lct:hier:c", "software", BindingType.DERIVED)
+
+        # Test ancestors
+        ancestors_b = chain.get_ancestors(child_b.lct_id)
+        ancestor_ids = [a.lct_id for a in ancestors_b]
+        assert child_a.lct_id in ancestor_ids
+        assert root.lct_id in ancestor_ids
+        assert len(ancestors_b) == 2
+
+        # Test descendants
+        descendants_root = chain.get_descendants(root.lct_id)
+        descendant_ids = [d.lct_id for d in descendants_root]
+        assert child_a.lct_id in descendant_ids
+        assert child_b.lct_id in descendant_ids
+        assert child_c.lct_id in descendant_ids
+        assert len(descendants_root) == 3
+
+    def test_peer_witnessing(self):
+        """Peer nodes can witness each other, but excessive witnessing causes trust inversion."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        # Use 1.0 trust for root to allow more witnessing headroom
+        root = chain.create_root_node("lct:peer:root", "hardware", BindingType.HARDWARE, 1.0)
+        peer1 = chain.bind_child(root.lct_id, "lct:peer:1", "software", BindingType.DERIVED)
+        peer2 = chain.bind_child(root.lct_id, "lct:peer:2", "software", BindingType.DERIVED)
+        peer3 = chain.bind_child(root.lct_id, "lct:peer:3", "software", BindingType.DERIVED)
+
+        # Peers witness each other (circular)
+        chain.witness(peer1.lct_id, peer2.lct_id)
+        chain.witness(peer2.lct_id, peer3.lct_id)
+        chain.witness(peer3.lct_id, peer1.lct_id)
+
+        # With 1.0 root trust, peers start at 0.9 + 0.05 (parent witness) = 0.95
+        # After peer witnessing, they get +0.05 = 1.0, which is capped at max
+        # Chain should still be valid since children <= parent
+        for peer in [peer1, peer2, peer3]:
+            validation = chain.validate_chain(peer.lct_id)
+            assert validation["valid"] == True
+
+        # Check presence proofs show multiple witnesses
+        proof1 = chain.get_presence_proof(peer1.lct_id)
+        # Witnessed by root (via binding) and peer3
+        assert proof1["unique_witnesses"] >= 2
+
+    def test_peer_witnessing_detects_trust_inversion(self):
+        """Chain validation detects when witnessing causes trust to exceed parent."""
+        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+
+        chain = LCTBindingChain()
+
+        # Use lower root trust so peer witnessing will cause inversion
+        root = chain.create_root_node("lct:invert:root", "hardware", BindingType.HARDWARE, 0.9)
+        peer1 = chain.bind_child(root.lct_id, "lct:invert:1", "software", BindingType.DERIVED)
+        peer2 = chain.bind_child(root.lct_id, "lct:invert:2", "software", BindingType.DERIVED)
+
+        # After binding: peers are at 0.8 + 0.05 = 0.85
+        # After peer witnessing: peer2 gets +0.05 = 0.90, peer1 gets +0.05 = 0.90
+        # Root is 0.9, so trust inversion occurs
+        chain.witness(peer1.lct_id, peer2.lct_id)
+        chain.witness(peer2.lct_id, peer1.lct_id)
+
+        # Validation should detect trust inversion
+        for peer in [peer1, peer2]:
+            validation = chain.validate_chain(peer.lct_id)
+            assert validation["valid"] == False
+            assert any("Trust inversion" in issue for issue in validation["issues"])
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
