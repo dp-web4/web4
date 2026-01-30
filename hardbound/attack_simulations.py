@@ -2474,6 +2474,181 @@ def attack_multi_federation_vectors() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 17: Trust Bootstrap & Reciprocity Exploitation (Track BK)
+# ---------------------------------------------------------------------------
+
+def attack_trust_bootstrap_reciprocity() -> AttackResult:
+    """
+    ATTACK: Test the new defenses from Tracks BI and BJ.
+
+    Track BK: Verifies that trust bootstrap limits and reciprocity detection
+    close the gaps identified in Attack 16.
+
+    Attack scenarios:
+    1. Trust inflation - Try to claim high initial trust (should be capped)
+    2. Rapid trust building - Try to accelerate trust through fake interactions
+    3. Reciprocity evasion - Try to avoid collusion detection patterns
+    4. Bootstrap with interactions - Build trust legitimately to see caps work
+    """
+    from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+
+    db_path = Path(tempfile.mkdtemp()) / "attack_trust_bootstrap.db"
+    registry = MultiFederationRegistry(db_path=db_path)
+
+    defenses = {
+        "initial_trust_capped": False,
+        "age_requirement_enforced": False,
+        "reciprocity_detected": False,
+        "pre_approval_check_works": False,
+    }
+
+    # ========================================================================
+    # Setup: Create federations
+    # ========================================================================
+    registry.register_federation("fed:attacker1", "Attacker Alpha")
+    registry.register_federation("fed:attacker2", "Attacker Beta")
+    registry.register_federation("fed:witness", "Corrupt Witness")
+
+    # ========================================================================
+    # Attack 1: Trust Inflation - Try to claim high initial trust
+    # ========================================================================
+    trust1 = registry.establish_trust(
+        "fed:attacker1", "fed:attacker2",
+        relationship=FederationRelationship.TRUSTED,
+        initial_trust=0.95  # Claim very high trust
+    )
+
+    # Defense: Should be capped at MAX_INITIAL_TRUST (0.5)
+    if trust1.trust_score <= registry.MAX_INITIAL_TRUST:
+        defenses["initial_trust_capped"] = True
+        trust_cap_note = f"Trust capped: requested 0.95, got {trust1.trust_score}"
+    else:
+        trust_cap_note = f"Trust NOT capped: {trust1.trust_score}"
+
+    # ========================================================================
+    # Attack 2: Rapid Trust Building - Try to accelerate via interactions
+    # ========================================================================
+    # Record many successful interactions to try to boost trust
+    for _ in range(20):
+        registry.record_interaction("fed:attacker1", "fed:attacker2", success=True)
+
+    # Check if trust increased (should be capped by age)
+    updated_trust = registry.get_trust_relationship("fed:attacker1", "fed:attacker2")
+    status = registry.get_trust_bootstrap_status("fed:attacker1", "fed:attacker2")
+
+    # Defense: Trust should still be capped at 0.5 due to age (0 days)
+    if updated_trust.trust_score == 0.5 and status["max_trust_by_age"] == 0.5:
+        defenses["age_requirement_enforced"] = True
+        age_note = f"Age cap enforced: trust={updated_trust.trust_score}, max_by_age={status['max_trust_by_age']}"
+    else:
+        age_note = f"Age cap NOT enforced: trust={updated_trust.trust_score}"
+
+    # ========================================================================
+    # Attack 3: Reciprocity Pattern - Create mutual approvals
+    # ========================================================================
+    registry.establish_trust("fed:attacker2", "fed:attacker1", initial_trust=0.5)
+    registry.establish_trust("fed:attacker1", "fed:witness", initial_trust=0.5)
+
+    # Create reciprocal approval pattern
+    for i in range(6):  # Need >MIN_APPROVALS_FOR_ANALYSIS (5)
+        # Attacker1 proposes, Attacker2 approves
+        p1 = registry.create_cross_federation_proposal(
+            "fed:attacker1", f"team:a1:{i}", ["fed:attacker2"],
+            f"collude_{i}", f"Collusion test {i}"
+        )
+        registry.approve_from_federation(p1.proposal_id, "fed:attacker2", [f"team:a2:{i}"])
+
+        # Attacker2 proposes, Attacker1 approves
+        p2 = registry.create_cross_federation_proposal(
+            "fed:attacker2", f"team:a2:{i}", ["fed:attacker1"],
+            f"collude_{i}", f"Collusion test {i}"
+        )
+        registry.approve_from_federation(p2.proposal_id, "fed:attacker1", [f"team:a1:{i}"])
+
+    # Check if reciprocity was detected
+    analysis = registry.analyze_federation_reciprocity("fed:attacker1")
+    collusion_report = registry.get_federation_collusion_report()
+
+    if analysis["has_suspicious_patterns"]:
+        defenses["reciprocity_detected"] = True
+        reciprocity_note = f"Reciprocity detected: {analysis['suspicious_partners']}"
+    else:
+        reciprocity_note = "Reciprocity NOT detected"
+
+    # ========================================================================
+    # Attack 4: Pre-Approval Check Evasion
+    # ========================================================================
+    # Create a new proposal and check if pre-approval check catches risk
+    p_new = registry.create_cross_federation_proposal(
+        "fed:attacker1", "team:test", ["fed:attacker2"],
+        "test_evasion", "Test pre-approval check"
+    )
+    check = registry.check_approval_for_collusion(p_new.proposal_id, "fed:attacker2")
+
+    # Should show high risk due to existing reciprocal pattern
+    if check.get("collusion_risk") in ("high", "medium") or check.get("already_suspicious"):
+        defenses["pre_approval_check_works"] = True
+        pre_check_note = f"Pre-approval check works: risk={check.get('collusion_risk')}"
+    else:
+        pre_check_note = f"Pre-approval check failed: risk={check.get('collusion_risk')}"
+
+    # ========================================================================
+    # RESULTS
+    # ========================================================================
+    defenses_held = sum(1 for v in defenses.values() if v)
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses
+
+    return AttackResult(
+        attack_name="Trust Bootstrap & Reciprocity (BK)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=80.0 if attack_success else 0.0,
+        roi=-0.60 if not attack_success else 0.40,
+        detection_probability=0.95 if defenses_held == total_defenses else 0.70,
+        time_to_detection_hours=4 if defenses_held == total_defenses else 48,
+        blocks_until_detected=20 if defenses_held == total_defenses else 150,
+        trust_damage=2.5,
+        description=(
+            f"TRUST BOOTSTRAP & RECIPROCITY TEST (Track BK):\n"
+            f"  - Initial Trust Capped: {'HELD' if defenses['initial_trust_capped'] else 'EVADED'}\n"
+            f"    {trust_cap_note}\n"
+            f"  - Age Requirement Enforced: {'HELD' if defenses['age_requirement_enforced'] else 'EVADED'}\n"
+            f"    {age_note}\n"
+            f"  - Reciprocity Detected: {'HELD' if defenses['reciprocity_detected'] else 'EVADED'}\n"
+            f"    {reciprocity_note}\n"
+            f"  - Pre-Approval Check Works: {'HELD' if defenses['pre_approval_check_works'] else 'EVADED'}\n"
+            f"    {pre_check_note}\n"
+            f"\n"
+            f"Overall: {defenses_held}/{total_defenses} defenses held.\n"
+            f"\n"
+            f"GAPS CLOSED from Attack 16:\n"
+            f"  - Trust bootstrap: NOW BLOCKED by age + interaction requirements\n"
+            f"  - Federation reciprocity: NOW DETECTED by analyze_federation_reciprocity()"
+        ),
+        mitigation=(
+            "DEFENSES IMPLEMENTED (Tracks BI & BJ):\n"
+            "1. MAX_INITIAL_TRUST = 0.5 caps all new trust relationships\n"
+            "2. Age requirements: 7d→0.6, 30d→0.7, 90d→0.8, 180d→0.9, 365d→1.0\n"
+            "3. Interaction requirements: 3→0.6, 10→0.7, 25→0.8, 50→0.9, 100→1.0\n"
+            "4. Federation reciprocity analysis detects mutual approval patterns\n"
+            "5. Pre-approval collusion check assesses risk before approving\n"
+            "6. System-wide collusion report identifies suspicious federation pairs"
+        ),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "trust_cap_note": trust_cap_note,
+            "age_note": age_note,
+            "reciprocity_note": reciprocity_note,
+            "pre_check_note": pre_check_note,
+            "analysis": analysis,
+            "collusion_report_health": collusion_report["overall_health"],
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -2496,6 +2671,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Advanced Defenses (AU-AW)", attack_advanced_defenses),
         ("New Mechanisms (AY-BB)", attack_new_mechanisms),
         ("Multi-Federation Vectors (BH)", attack_multi_federation_vectors),
+        ("Trust Bootstrap & Reciprocity (BK)", attack_trust_bootstrap_reciprocity),
     ]
 
     results = []

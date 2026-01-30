@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 16  # 12 original + Attack 13 + Attack 14 + Attack 15 + Attack 16
+        assert len(results) == 17  # 12 original + Attack 13-17
 
 
 class TestEndToEndIntegration:
@@ -5514,6 +5514,42 @@ class TestTrustBootstrapLimits:
         trust = registry.get_trust_relationship("fed:a", "fed:b")
         assert trust.successful_interactions == 3
         assert trust.failed_interactions == 1
+
+
+class TestTrustBootstrapAttack:
+    """Tests for Attack 17 - Trust bootstrap & reciprocity exploitation (Track BK)."""
+
+    def test_attack_simulation_runs(self):
+        """Attack 17 runs without errors."""
+        from hardbound.attack_simulations import attack_trust_bootstrap_reciprocity
+        result = attack_trust_bootstrap_reciprocity()
+        assert result is not None
+        assert result.attack_name == "Trust Bootstrap & Reciprocity (BK)"
+
+    def test_all_defenses_hold(self):
+        """All trust bootstrap defenses should hold."""
+        from hardbound.attack_simulations import attack_trust_bootstrap_reciprocity
+        result = attack_trust_bootstrap_reciprocity()
+
+        defenses = result.raw_data["defenses"]
+        defenses_held = sum(1 for v in defenses.values() if v)
+
+        # All 4 defenses should hold
+        assert defenses_held == 4, f"Only {defenses_held}/4 defenses held: {defenses}"
+
+    def test_gaps_from_attack_16_closed(self):
+        """The gaps identified in Attack 16 are now closed."""
+        from hardbound.attack_simulations import attack_trust_bootstrap_reciprocity
+        result = attack_trust_bootstrap_reciprocity()
+
+        defenses = result.raw_data["defenses"]
+
+        # Trust bootstrap gap - now closed
+        assert defenses["initial_trust_capped"] == True
+        assert defenses["age_requirement_enforced"] == True
+
+        # Reciprocity gap - now closed
+        assert defenses["reciprocity_detected"] == True
 
 
 class TestFederationReciprocity:
