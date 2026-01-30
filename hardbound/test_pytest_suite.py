@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 17  # 12 original + Attack 13-17
+        assert len(results) == 18  # 12 original + Attack 13-18
 
 
 class TestEndToEndIntegration:
@@ -5550,6 +5550,44 @@ class TestTrustBootstrapAttack:
 
         # Reciprocity gap - now closed
         assert defenses["reciprocity_detected"] == True
+
+
+class TestEconomicAttack:
+    """Tests for Attack 18 - Economic attack vectors (Track BO)."""
+
+    def test_attack_simulation_runs(self):
+        """Attack 18 runs without errors."""
+        from hardbound.attack_simulations import attack_economic_vectors
+        result = attack_economic_vectors()
+        assert result is not None
+        assert result.attack_name == "Economic Attack Vectors (BO)"
+
+    def test_all_defenses_hold(self):
+        """All economic defenses should hold."""
+        from hardbound.attack_simulations import attack_economic_vectors
+        result = attack_economic_vectors()
+
+        defenses = result.raw_data["defenses"]
+        defenses_held = sum(1 for v in defenses.values() if v)
+
+        # All 5 defenses should hold
+        assert defenses_held == 5, f"Only {defenses_held}/5 defenses held: {defenses}"
+
+    def test_atp_gating_effective(self):
+        """ATP gating blocks operations with insufficient funds."""
+        from hardbound.attack_simulations import attack_economic_vectors
+        result = attack_economic_vectors()
+
+        assert result.raw_data["defenses"]["atp_gating_works"] == True
+
+    def test_collusion_is_expensive(self):
+        """Collusion has significant ATP cost."""
+        from hardbound.attack_simulations import attack_economic_vectors
+        result = attack_economic_vectors()
+
+        assert result.raw_data["defenses"]["collusion_is_expensive"] == True
+        # Collusion should cost at least 50 ATP
+        assert result.raw_data["collusion_cost"] >= 50
 
 
 class TestTrustEconomics:
