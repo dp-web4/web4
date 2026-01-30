@@ -7621,5 +7621,200 @@ class TestReputationAggregation:
         assert confidence2 > confidence1
 
 
+class TestGovernanceAuditTrail:
+    """Track BX: Tests for governance audit trail with cryptographic hash chain."""
+
+    def test_record_event_creates_hash_chain(self):
+        """Recording events creates linked hash chain."""
+        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = GovernanceAuditTrail(db_path=tmp_dir / "audit.db")
+
+        # First record links to genesis
+        r1 = audit.record_event(
+            AuditEventType.PROPOSAL_CREATED,
+            "fed:alpha",
+            "lct:alice",
+            event_data={"action": "create_alliance"},
+            proposal_id="prop:001"
+        )
+        assert r1.previous_hash == "genesis"
+        assert r1.record_hash != ""
+        assert len(r1.record_hash) == 64  # SHA-256
+
+        # Second record links to first
+        r2 = audit.record_event(
+            AuditEventType.PROPOSAL_VOTED,
+            "fed:beta",
+            "lct:bob",
+            event_data={"vote": "approve"},
+            proposal_id="prop:001"
+        )
+        assert r2.previous_hash == r1.record_hash
+        assert r2.record_hash != r1.record_hash
+
+    def test_verify_chain_integrity_valid(self):
+        """Chain verification passes for untampered records."""
+        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = GovernanceAuditTrail(db_path=tmp_dir / "audit.db")
+
+        # Add multiple records
+        for i in range(5):
+            audit.record_event(
+                AuditEventType.TRUST_UPDATED,
+                "fed:main",
+                f"lct:user{i}",
+                event_data={"delta": 0.1 * i}
+            )
+
+        verification = audit.verify_chain_integrity()
+
+        assert verification["valid"] == True
+        assert verification["records_checked"] == 5
+        assert verification["issues"] == []
+
+    def test_get_federation_history(self):
+        """Can query audit history for a specific federation."""
+        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = GovernanceAuditTrail(db_path=tmp_dir / "audit.db")
+
+        # Mix of records from different federations
+        audit.record_event(AuditEventType.TRUST_ESTABLISHED, "fed:alpha", "lct:a1")
+        audit.record_event(AuditEventType.TRUST_ESTABLISHED, "fed:beta", "lct:b1")
+        audit.record_event(AuditEventType.PROPOSAL_CREATED, "fed:alpha", "lct:a2")
+        audit.record_event(AuditEventType.TRUST_UPDATED, "fed:gamma", "lct:g1")
+        audit.record_event(AuditEventType.PROPOSAL_VOTED, "fed:alpha", "lct:a3")
+
+        history = audit.get_federation_history("fed:alpha")
+
+        assert len(history) == 3
+        assert all(r.federation_id == "fed:alpha" for r in history)
+
+    def test_get_proposal_history(self):
+        """Can track full lifecycle of a proposal."""
+        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = GovernanceAuditTrail(db_path=tmp_dir / "audit.db")
+
+        proposal_id = "gov:alpha:p001"
+
+        # Record proposal lifecycle
+        r1 = audit.record_event(
+            AuditEventType.PROPOSAL_CREATED, "fed:alpha", "lct:proposer",
+            proposal_id=proposal_id
+        )
+        audit.record_event(
+            AuditEventType.PROPOSAL_VOTED, "fed:beta", "lct:voter1",
+            proposal_id=proposal_id, event_data={"vote": "approve"}
+        )
+        audit.record_event(
+            AuditEventType.PROPOSAL_VOTED, "fed:gamma", "lct:voter2",
+            proposal_id=proposal_id, event_data={"vote": "approve"}
+        )
+        audit.record_event(
+            AuditEventType.PROPOSAL_APPROVED, "fed:alpha", "system",
+            proposal_id=proposal_id
+        )
+
+        history = audit.get_proposal_history(proposal_id)
+
+        assert len(history) == 4
+        event_types = [r.event_type for r in history]
+        assert AuditEventType.PROPOSAL_CREATED in event_types
+        assert AuditEventType.PROPOSAL_APPROVED in event_types
+
+    def test_export_for_compliance(self):
+        """Compliance export includes verification and all records."""
+        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = GovernanceAuditTrail(db_path=tmp_dir / "audit.db")
+
+        # Record events for target federation
+        audit.record_event(
+            AuditEventType.PROPOSAL_CREATED, "fed:target", "lct:admin",
+            proposal_id="prop:c1"
+        )
+        audit.record_event(
+            AuditEventType.PROPOSAL_APPROVED, "fed:target", "system",
+            proposal_id="prop:c1"
+        )
+        # Another federation's event (should not be in export)
+        audit.record_event(
+            AuditEventType.TRUST_UPDATED, "fed:other", "lct:user"
+        )
+
+        export = audit.export_for_compliance("fed:target")
+
+        assert export["federation_id"] == "fed:target"
+        assert export["record_count"] == 2
+        assert export["global_chain_verified"] == True
+        assert export["record_hashes_verified"] == True
+        assert len(export["records"]) == 2
+
+    def test_statistics(self):
+        """Statistics correctly count events by type."""
+        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = GovernanceAuditTrail(db_path=tmp_dir / "audit.db")
+
+        # Add various events
+        audit.record_event(AuditEventType.PROPOSAL_CREATED, "fed:a", "lct:1")
+        audit.record_event(AuditEventType.PROPOSAL_CREATED, "fed:a", "lct:2")
+        audit.record_event(AuditEventType.PROPOSAL_VOTED, "fed:a", "lct:3")
+        audit.record_event(AuditEventType.TRUST_ESTABLISHED, "fed:b", "lct:4")
+
+        stats = audit.get_statistics()
+
+        assert stats["total_records"] == 4
+        assert stats["by_event_type"]["proposal_created"] == 2
+        assert stats["by_event_type"]["proposal_voted"] == 1
+        assert stats["by_event_type"]["trust_established"] == 1
+
+    def test_filter_by_event_type(self):
+        """Can filter federation history by event types."""
+        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = GovernanceAuditTrail(db_path=tmp_dir / "audit.db")
+
+        # Various events for same federation
+        audit.record_event(AuditEventType.PROPOSAL_CREATED, "fed:main", "lct:a")
+        audit.record_event(AuditEventType.PROPOSAL_VOTED, "fed:main", "lct:b")
+        audit.record_event(AuditEventType.TRUST_UPDATED, "fed:main", "lct:c")
+        audit.record_event(AuditEventType.PROPOSAL_APPROVED, "fed:main", "lct:d")
+
+        # Filter to only proposal events
+        history = audit.get_federation_history(
+            "fed:main",
+            event_types=[AuditEventType.PROPOSAL_CREATED, AuditEventType.PROPOSAL_APPROVED]
+        )
+
+        assert len(history) == 2
+        assert all(r.event_type in [AuditEventType.PROPOSAL_CREATED, AuditEventType.PROPOSAL_APPROVED]
+                   for r in history)
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
