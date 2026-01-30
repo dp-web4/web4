@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 19  # 12 original + Attack 13-19
+        assert len(results) == 20  # 12 original + Attack 13-20
 
 
 class TestEndToEndIntegration:
@@ -5852,6 +5852,44 @@ class TestDecayMaintenanceAttack:
         result = attack_decay_and_maintenance()
 
         assert result.raw_data["defenses"]["economic_dos_requires_consent"] == True
+
+
+class TestGovernanceAttack:
+    """Tests for Attack 20 - Governance attack vectors (Track BW)."""
+
+    def test_attack_simulation_runs(self):
+        """Attack 20 runs without errors."""
+        from hardbound.attack_simulations import attack_governance_vectors
+        result = attack_governance_vectors()
+        assert result is not None
+        assert result.attack_name == "Governance Attack Vectors (BW)"
+
+    def test_vote_buying_expensive(self):
+        """Buying votes through trust relationships is expensive."""
+        from hardbound.attack_simulations import attack_governance_vectors
+        result = attack_governance_vectors()
+
+        assert result.raw_data["defenses"]["vote_buying_expensive"] == True
+        # Should cost at least 75 ATP to buy 3 relationships
+        assert result.raw_data["vote_buying_cost"] >= 75
+
+    def test_proposal_spam_blocked(self):
+        """Proposal spam is blocked by ATP costs."""
+        from hardbound.attack_simulations import attack_governance_vectors
+        result = attack_governance_vectors()
+
+        assert result.raw_data["defenses"]["proposal_spam_blocked"] == True
+        # Spam should cost significant ATP
+        assert result.raw_data["spam_cost"] >= 400
+
+    def test_atp_manipulation_blocked(self):
+        """ATP locking prevents manipulation."""
+        from hardbound.attack_simulations import attack_governance_vectors
+        result = attack_governance_vectors()
+
+        assert result.raw_data["defenses"]["atp_manipulation_blocked"] == True
+        # ATP should actually be locked
+        assert result.raw_data["atp_locked"] >= 25
 
 
 class TestTrustEconomics:

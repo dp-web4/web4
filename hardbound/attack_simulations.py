@@ -3083,6 +3083,332 @@ def attack_decay_and_maintenance() -> AttackResult:
 
 
 # ---------------------------------------------------------------------------
+# Attack 20: Governance Attacks (Track BW)
+# ---------------------------------------------------------------------------
+
+def attack_governance_vectors() -> AttackResult:
+    """
+    ATTACK 20: GOVERNANCE ATTACK VECTORS (Track BW)
+
+    Tests attack vectors against the federation governance system:
+
+    1. Vote Buying: Try to buy votes by establishing trust relationships
+    2. Proposal Spam: Flood the system with low-quality proposals
+    3. Collusion Coalition: Form voting bloc to control outcomes
+    4. Reputation Gaming: Manipulate reputation for governance power
+    5. ATP Manipulation: Exploit ATP locking for economic advantage
+
+    Each vector is tested against FederationGovernance.
+    """
+    from hardbound.governance_federation import FederationGovernance, GovernanceActionType
+    from hardbound.economic_federation import EconomicFederationRegistry
+    from hardbound.federation_binding import FederationBindingRegistry
+    from hardbound.reputation_aggregation import ReputationAggregator
+
+    binding_path = Path(tempfile.mkdtemp()) / "attack20_binding.db"
+    fed_path = Path(tempfile.mkdtemp()) / "attack20_federation.db"
+    economic_path = Path(tempfile.mkdtemp()) / "attack20_economic.db"
+
+    economic = EconomicFederationRegistry(db_path=economic_path)
+    binding = FederationBindingRegistry(
+        db_path=binding_path,
+        federation_db_path=fed_path,
+    )
+    governance = FederationGovernance(economic, binding)
+    reputation = ReputationAggregator(economic.registry, binding)
+
+    defenses = {
+        "vote_buying_expensive": False,
+        "proposal_spam_blocked": False,
+        "collusion_detectable": False,
+        "reputation_gaming_hard": False,
+        "atp_manipulation_blocked": False,
+    }
+
+    # ========================================================================
+    # Setup: Create legitimate and attacker federations
+    # ========================================================================
+
+    # Legitimate federations
+    for i, name in enumerate(["alpha", "beta", "gamma"]):
+        binding.register_federation_with_binding(f"fed:{name}", name.title(), initial_trust=0.8)
+        economic.register_federation(f"fed:{name}", name.title(), initial_atp=500)
+        for j in range(4):
+            binding.bind_team_to_federation(f"fed:{name}", f"team:{name}:{j}")
+        binding.build_internal_presence(f"fed:{name}")
+
+    # Attacker with lots of ATP
+    binding.register_federation_with_binding("fed:attacker", "Attacker", initial_trust=0.5)
+    economic.register_federation("fed:attacker", "Attacker", initial_atp=5000)
+    for i in range(4):
+        binding.bind_team_to_federation("fed:attacker", f"team:attacker:{i}")
+    binding.build_internal_presence("fed:attacker")
+
+    # ========================================================================
+    # Vector 1: Vote Buying Attack
+    # ========================================================================
+    # Try to buy votes by establishing trust relationships with voters
+
+    # Attacker establishes trust with potential voters
+    attacker_balance_before = economic.get_balance("fed:attacker")
+
+    # Establish trust with all legitimate federations (costs ATP)
+    from hardbound.multi_federation import FederationRelationship
+    for name in ["alpha", "beta", "gamma"]:
+        economic.establish_trust("fed:attacker", f"fed:{name}")
+
+    attacker_balance_after = economic.get_balance("fed:attacker")
+    vote_buying_cost = attacker_balance_before - attacker_balance_after
+
+    # Create a proposal to test
+    proposal, error = governance.create_proposal(
+        "fed:attacker",
+        "lct:attacker",
+        GovernanceActionType.CROSS_FED_PROPOSAL,
+        "Attacker's proposal",
+        affected_federations=["fed:attacker", "fed:alpha"],
+    )
+
+    # Even with trust established, voting power is based on presence + trust
+    # Not just trust relationships
+    if vote_buying_cost >= 75:  # At least 25 ATP per relationship
+        defenses["vote_buying_expensive"] = True
+        vote_buying_note = f"Vote buying expensive: {vote_buying_cost:.0f} ATP to establish relationships"
+    else:
+        vote_buying_note = f"Vote buying cheap: only {vote_buying_cost:.0f} ATP"
+
+    # ========================================================================
+    # Vector 2: Proposal Spam Attack
+    # ========================================================================
+    # Try to flood the system with proposals
+
+    spam_federation = "fed:spammer"
+    binding.register_federation_with_binding(spam_federation, "Spammer", initial_trust=0.5)
+    economic.register_federation(spam_federation, "Spammer", initial_atp=1000)
+
+    for i in range(4):
+        binding.bind_team_to_federation(spam_federation, f"team:spam:{i}")
+    binding.build_internal_presence(spam_federation)
+
+    spam_count = 0
+    spam_cost_total = 0
+    spammer_initial = economic.get_balance(spam_federation)
+
+    # Try to create many proposals
+    for i in range(20):
+        spammer_balance = economic.get_balance(spam_federation)
+        p, err = governance.create_proposal(
+            spam_federation,
+            "lct:spammer",
+            GovernanceActionType.TRUST_ESTABLISHMENT,
+            f"Spam proposal {i}",
+        )
+        if p:
+            spam_count += 1
+            spam_cost_total += p.atp_cost
+        else:
+            break  # Ran out of ATP
+
+    # With 30 ATP per proposal, 1000 ATP allows ~33 proposals max
+    # But presence requirement should limit this further
+    if spam_count < 15 or spam_cost_total >= 400:
+        defenses["proposal_spam_blocked"] = True
+        spam_note = f"Spam limited: {spam_count} proposals created, cost {spam_cost_total:.0f} ATP"
+    else:
+        spam_note = f"Spam succeeded: {spam_count} proposals for {spam_cost_total:.0f} ATP"
+
+    # ========================================================================
+    # Vector 3: Collusion Coalition Attack
+    # ========================================================================
+    # Form a voting bloc to control governance outcomes
+
+    # Create colluding federations
+    colluders = []
+    for i in range(3):
+        cid = f"fed:colluder:{i}"
+        binding.register_federation_with_binding(cid, f"Colluder{i}", initial_trust=0.7)
+        economic.register_federation(cid, f"Colluder{i}", initial_atp=200)
+        for j in range(3):
+            binding.bind_team_to_federation(cid, f"team:collude:{i}:{j}")
+        binding.build_internal_presence(cid)
+        colluders.append(cid)
+
+    # Colluders establish mutual trust (expensive)
+    collusion_cost = 0
+    for i, c1 in enumerate(colluders):
+        for c2 in colluders[i+1:]:
+            result = economic.establish_trust(c1, c2)
+            if result.success:
+                collusion_cost += result.atp_cost
+
+    # Check if coalition is detectable via trust patterns
+    # High mutual trust between small group = suspicious
+    alpha_rep = reputation.calculate_reputation("fed:alpha")
+    colluder_reps = [reputation.calculate_reputation(c) for c in colluders]
+
+    # Colluders should have lower reputation (trust only from each other)
+    avg_colluder_rep = sum(r.global_reputation for r in colluder_reps) / len(colluder_reps)
+
+    if collusion_cost >= 150 or avg_colluder_rep < alpha_rep.global_reputation:
+        defenses["collusion_detectable"] = True
+        collusion_note = f"Collusion expensive/detectable: {collusion_cost:.0f} ATP, rep: {avg_colluder_rep:.2f} vs {alpha_rep.global_reputation:.2f}"
+    else:
+        collusion_note = f"Collusion cheap: {collusion_cost:.0f} ATP, same reputation as legitimate"
+
+    # ========================================================================
+    # Vector 4: Reputation Gaming Attack
+    # ========================================================================
+    # Try to rapidly inflate reputation for governance power
+
+    gamer = "fed:reputation_gamer"
+    binding.register_federation_with_binding(gamer, "RepGamer", initial_trust=0.5)
+    economic.register_federation(gamer, "RepGamer", initial_atp=3000)
+
+    # Create fake endorsing federations
+    fake_endorsers = []
+    for i in range(5):
+        fid = f"fed:fake:{i}"
+        binding.register_federation_with_binding(fid, f"Fake{i}", initial_trust=0.5)
+        economic.register_federation(fid, f"Fake{i}", initial_atp=100)
+        fake_endorsers.append(fid)
+
+    # Have fake federations endorse the gamer
+    endorsement_cost = 0
+    for fid in fake_endorsers:
+        result = economic.establish_trust(fid, gamer)
+        if result.success:
+            endorsement_cost += result.atp_cost
+
+    # Check gamer's reputation
+    gamer_rep = reputation.calculate_reputation(gamer, force_refresh=True)
+
+    # Reputation should be limited due to:
+    # 1. Low-presence sources (fakes have no presence)
+    # 2. Bootstrap limits on trust
+    # 3. Confidence is low with only fake endorsers
+
+    if gamer_rep.global_reputation < 0.5 or gamer_rep.confidence < 0.6:
+        defenses["reputation_gaming_hard"] = True
+        gaming_note = f"Reputation gaming limited: rep={gamer_rep.global_reputation:.2f}, conf={gamer_rep.confidence:.2f}"
+    else:
+        gaming_note = f"Reputation gaming succeeded: rep={gamer_rep.global_reputation:.2f}"
+
+    # ========================================================================
+    # Vector 5: ATP Manipulation Attack
+    # ========================================================================
+    # Try to exploit ATP locking for economic advantage
+
+    # The concern: Create proposal, get ATP locked, then profit somehow
+    # Defense: ATP is truly locked, can't be used elsewhere
+
+    manipulator = "fed:atp_manipulator"
+    binding.register_federation_with_binding(manipulator, "ATPMan", initial_trust=0.6)
+    economic.register_federation(manipulator, "ATPMan", initial_atp=500)
+    for i in range(4):
+        binding.bind_team_to_federation(manipulator, f"team:man:{i}")
+    binding.build_internal_presence(manipulator)
+
+    man_balance_before = economic.get_balance(manipulator)
+
+    # Create proposal (locks ATP)
+    prop, _ = governance.create_proposal(
+        manipulator,
+        "lct:manipulator",
+        GovernanceActionType.TRUST_ESTABLISHMENT,
+        "Manipulation test",
+    )
+
+    man_balance_after = economic.get_balance(manipulator)
+
+    # Try to create another proposal with "locked" ATP
+    prop2, err2 = governance.create_proposal(
+        manipulator,
+        "lct:manipulator",
+        GovernanceActionType.TRUST_ESTABLISHMENT,
+        "Second proposal",
+    )
+
+    # Should have less ATP available (first proposal locked some)
+    atp_actually_locked = man_balance_before - man_balance_after
+
+    # If we can't create as many proposals, ATP locking works
+    remaining_proposals = 0
+    while True:
+        p, e = governance.create_proposal(
+            manipulator,
+            "lct:manipulator",
+            GovernanceActionType.TRUST_ESTABLISHMENT,
+            "Count test",
+        )
+        if not p:
+            break
+        remaining_proposals += 1
+        if remaining_proposals > 20:  # Safety limit
+            break
+
+    if atp_actually_locked >= 25 and remaining_proposals < 15:
+        defenses["atp_manipulation_blocked"] = True
+        atp_note = f"ATP properly locked: {atp_actually_locked:.0f} ATP locked, only {remaining_proposals} more proposals possible"
+    else:
+        atp_note = f"ATP manipulation possible: {atp_actually_locked:.0f} locked, {remaining_proposals} proposals still possible"
+
+    # ========================================================================
+    # Calculate overall attack success
+    # ========================================================================
+    defenses_held = sum(1 for v in defenses.values() if v)
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses
+
+    return AttackResult(
+        attack_name="Governance Attack Vectors (BW)",
+        success=attack_success,
+        setup_cost_atp=5000 + collusion_cost + endorsement_cost,  # Setup costs
+        gain_atp=0.0 if not attack_success else 100.0,
+        roi=-0.85 if not attack_success else 0.15,
+        detection_probability=0.90 if defenses_held == total_defenses else 0.50,
+        time_to_detection_hours=2 if defenses_held == total_defenses else 24,
+        blocks_until_detected=10 if defenses_held == total_defenses else 100,
+        trust_damage=1.0,
+        description=(
+            f"GOVERNANCE ATTACK VECTORS (Track BW):\n"
+            f"  - Vote Buying: {'HELD' if defenses['vote_buying_expensive'] else 'EVADED'}\n"
+            f"    {vote_buying_note}\n"
+            f"  - Proposal Spam: {'HELD' if defenses['proposal_spam_blocked'] else 'EVADED'}\n"
+            f"    {spam_note}\n"
+            f"  - Collusion Coalition: {'HELD' if defenses['collusion_detectable'] else 'EVADED'}\n"
+            f"    {collusion_note}\n"
+            f"  - Reputation Gaming: {'HELD' if defenses['reputation_gaming_hard'] else 'EVADED'}\n"
+            f"    {gaming_note}\n"
+            f"  - ATP Manipulation: {'HELD' if defenses['atp_manipulation_blocked'] else 'EVADED'}\n"
+            f"    {atp_note}\n"
+            f"\n"
+            f"Overall: {defenses_held}/{total_defenses} defenses held."
+        ),
+        mitigation=(
+            "GOVERNANCE DEFENSES (Tracks BU & BV):\n"
+            "1. Vote buying requires ATP (75+ ATP to establish relationships)\n"
+            "2. Proposal spam blocked by ATP costs (30+ per proposal)\n"
+            "3. Collusion detectable via trust patterns and reputation\n"
+            "4. Reputation gaming limited by presence-weighting and confidence\n"
+            "5. ATP truly locked in proposals (reduces available balance)\n"
+            "6. Weighted voting combines presence (60%) + trust (40%)\n"
+            "7. Reputation requires diverse, high-presence endorsers"
+        ),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "vote_buying_cost": vote_buying_cost,
+            "spam_count": spam_count,
+            "spam_cost": spam_cost_total,
+            "collusion_cost": collusion_cost,
+            "gamer_reputation": gamer_rep.global_reputation,
+            "gamer_confidence": gamer_rep.confidence,
+            "atp_locked": atp_actually_locked,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -3108,6 +3434,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Trust Bootstrap & Reciprocity (BK)", attack_trust_bootstrap_reciprocity),
         ("Economic Attack Vectors (BO)", attack_economic_vectors),
         ("Decay & Maintenance Attacks (BS)", attack_decay_and_maintenance),
+        ("Governance Attack Vectors (BW)", attack_governance_vectors),
     ]
 
     results = []

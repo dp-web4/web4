@@ -252,30 +252,55 @@ class ReputationAggregator:
         Weight incoming trust by source federation's presence.
 
         Trust from high-presence federations counts more.
+        Track BW fix: Also penalizes if NO endorser has high presence.
         """
         if not incoming_trust:
             return 0.0
 
         weighted_sum = 0.0
         weight_total = 0.0
+        max_source_presence = 0.0
 
         for trust in incoming_trust:
             # Get source presence
-            source_presence = 0.5  # Default if no binding registry
+            source_presence = 0.3  # Default baseline (low)
             if self.binding:
                 status = self.binding.get_federation_binding_status(trust.source_federation_id)
                 if status:
                     source_presence = status.presence_score
 
-            # Weight: presence affects how much this trust "counts"
-            weight = 0.5 + (source_presence * 0.5)  # 0.5 to 1.0 range
+            max_source_presence = max(max_source_presence, source_presence)
+
+            # Track BW fix: Weight presence more aggressively to prevent fake endorser attacks
+            # Low presence (< 0.4): weight is reduced significantly
+            # Formula: presence^2 for sub-0.4, linear above
+            # This makes fake (low-presence) endorsers much less valuable
+            if source_presence < 0.4:
+                weight = source_presence * source_presence * 2.5  # 0.3^2 * 2.5 = 0.225
+            else:
+                weight = 0.4 + (source_presence - 0.4) * 1.0  # 0.4 at 0.4, 1.0 at 1.0
+
             weighted_sum += trust.trust_score * weight
             weight_total += weight
 
         if weight_total == 0:
             return 0.0
 
-        return weighted_sum / weight_total
+        base_weighted = weighted_sum / weight_total
+
+        # Track BW fix: Penalize if no endorser has high presence
+        # If best endorser has low presence, reputation is capped
+        # This prevents Sybil attacks with many low-presence fake endorsers
+        if max_source_presence < 0.4:
+            # All endorsers are low-presence: cap at 0.4
+            source_quality_multiplier = max_source_presence / 0.4  # 0.75 at 0.3 presence
+            return base_weighted * source_quality_multiplier
+        elif max_source_presence < 0.6:
+            # Best endorser is medium presence: slight reduction
+            source_quality_multiplier = 0.8 + (max_source_presence - 0.4) * 0.5
+            return base_weighted * source_quality_multiplier
+
+        return base_weighted
 
     def _calculate_recent_activity(self, federation_id: str) -> float:
         """
