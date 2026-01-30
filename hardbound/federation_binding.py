@@ -437,6 +437,224 @@ class FederationBindingRegistry:
             "valid": True,
         }
 
+    # === Track BR: Presence Accumulation ===
+
+    def build_internal_presence(
+        self,
+        federation_id: str,
+    ) -> Dict:
+        """
+        Build presence through internal witnessing within the federation.
+
+        Track BR: Internal activity contributes to presence score.
+
+        Teams witness each other and the root, building presence.
+
+        Returns:
+            Dict with presence building results
+        """
+        if federation_id not in self._federation_lcts:
+            return {"error": "Federation not registered", "witnesses_added": 0}
+
+        root_lct = self._federation_lcts[federation_id]
+        teams = self.get_federation_teams(federation_id)
+
+        if len(teams) < 2:
+            return {
+                "error": "Need at least 2 teams for internal witnessing",
+                "witnesses_added": 0,
+            }
+
+        witnesses_added = 0
+
+        # Have each team witness the root
+        for team in teams:
+            try:
+                self.binding_chain.witness(team.lct_id, root_lct)
+                witnesses_added += 1
+            except ValueError:
+                pass  # May fail if trust too low
+
+        # Have teams witness each other (sequential)
+        for i, team in enumerate(teams):
+            if i > 0:
+                try:
+                    self.binding_chain.witness(teams[i-1].lct_id, team.lct_id)
+                    witnesses_added += 1
+                except ValueError:
+                    pass
+
+        # Get updated status
+        status = self.get_federation_binding_status(federation_id)
+
+        return {
+            "federation_id": federation_id,
+            "witnesses_added": witnesses_added,
+            "new_presence": status.presence_score,
+            "witness_eligible": status.witness_eligible,
+        }
+
+    def get_presence_ranking(self) -> List[Dict]:
+        """
+        Get all federations ranked by presence score.
+
+        Track BR: Presence determines influence and eligibility.
+
+        Returns:
+            List of federation info dicts, sorted by presence (highest first)
+        """
+        rankings = []
+
+        for fed_id in self._federation_lcts:
+            status = self.get_federation_binding_status(fed_id)
+            trust_info = self.get_federation_trust_from_binding(fed_id)
+
+            rankings.append({
+                "federation_id": fed_id,
+                "presence_score": status.presence_score,
+                "binding_trust": trust_info.get("binding_trust", 0),
+                "team_count": status.team_count,
+                "chain_valid": status.chain_valid,
+                "witness_eligible": status.witness_eligible,
+            })
+
+        rankings.sort(key=lambda x: x["presence_score"], reverse=True)
+        return rankings
+
+    def calculate_presence_weighted_trust(
+        self,
+        source_federation_id: str,
+        target_federation_id: str,
+        base_trust: float,
+    ) -> Dict:
+        """
+        Calculate trust weighted by target's presence score.
+
+        Track BR: Higher presence = more trustworthy.
+
+        The presence multiplier adjusts base trust:
+        - Low presence (< 0.4): Trust reduced
+        - Medium presence (0.4-0.6): Trust unchanged
+        - High presence (> 0.6): Trust boosted
+
+        Args:
+            source_federation_id: Federation establishing trust
+            target_federation_id: Federation being trusted
+            base_trust: Initial trust level (before presence weighting)
+
+        Returns:
+            Dict with weighted trust and breakdown
+        """
+        target_status = self.get_federation_binding_status(target_federation_id)
+        presence = target_status.presence_score
+
+        # Calculate presence multiplier
+        if presence < 0.4:
+            # Low presence: reduce trust (0.8x at 0.3)
+            multiplier = 0.5 + (presence * 1.25)  # 0.875 at 0.3, 1.0 at 0.4
+        elif presence < 0.6:
+            # Medium presence: neutral zone
+            multiplier = 1.0
+        else:
+            # High presence: boost trust (up to 1.2x at 1.0)
+            multiplier = 1.0 + (presence - 0.6) * 0.5  # 1.0 at 0.6, 1.2 at 1.0
+
+        weighted_trust = min(1.0, base_trust * multiplier)
+
+        return {
+            "source_federation": source_federation_id,
+            "target_federation": target_federation_id,
+            "base_trust": base_trust,
+            "target_presence": presence,
+            "presence_multiplier": multiplier,
+            "weighted_trust": weighted_trust,
+            "trust_adjustment": weighted_trust - base_trust,
+        }
+
+    def get_presence_requirements(
+        self,
+        action_type: str,
+    ) -> Dict:
+        """
+        Get presence requirements for different actions.
+
+        Track BR: Presence gates certain capabilities.
+
+        Args:
+            action_type: Type of action (witness, propose, vote, etc.)
+
+        Returns:
+            Dict with presence thresholds
+        """
+        requirements = {
+            "witness": {
+                "min_presence": self.MIN_WITNESS_PRESENCE,
+                "description": "Provide external witness for proposals",
+            },
+            "propose_cross_fed": {
+                "min_presence": 0.35,
+                "description": "Create cross-federation proposals",
+            },
+            "vote_critical": {
+                "min_presence": 0.5,
+                "description": "Vote on critical multi-federation actions",
+            },
+            "lead_federation": {
+                "min_presence": 0.6,
+                "description": "Lead or coordinate multi-federation efforts",
+            },
+        }
+
+        if action_type in requirements:
+            return requirements[action_type]
+        else:
+            return {
+                "error": f"Unknown action type: {action_type}",
+                "available_types": list(requirements.keys()),
+            }
+
+    def check_presence_permission(
+        self,
+        federation_id: str,
+        action_type: str,
+    ) -> Dict:
+        """
+        Check if a federation has sufficient presence for an action.
+
+        Track BR: Presence as permission system.
+
+        Args:
+            federation_id: Federation to check
+            action_type: Action requiring presence
+
+        Returns:
+            Dict with permission status and gap analysis
+        """
+        requirements = self.get_presence_requirements(action_type)
+
+        if "error" in requirements:
+            return requirements
+
+        status = self.get_federation_binding_status(federation_id)
+        min_required = requirements["min_presence"]
+
+        has_permission = status.presence_score >= min_required
+        gap = max(0, min_required - status.presence_score)
+
+        return {
+            "federation_id": federation_id,
+            "action_type": action_type,
+            "has_permission": has_permission,
+            "current_presence": status.presence_score,
+            "required_presence": min_required,
+            "gap": gap,
+            "description": requirements["description"],
+            "suggestion": (
+                None if has_permission
+                else f"Need {gap:.2f} more presence. Add teams and build internal witnesses."
+            ),
+        }
+
 
 # Self-test
 if __name__ == "__main__":

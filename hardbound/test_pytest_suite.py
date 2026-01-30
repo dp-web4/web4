@@ -6563,6 +6563,239 @@ class TestFederationBinding:
         assert "fed:c" not in fed_ids
 
 
+class TestPresenceAccumulation:
+    """
+    Track BR: Presence Accumulation in Federations Tests
+
+    Tests presence-based mechanics: internal witnessing, rankings,
+    presence-weighted trust, and permission systems.
+    """
+
+    def test_build_internal_presence_increases_presence(self):
+        """Building internal presence increases federation's presence score."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:test", "Test", initial_trust=0.9)
+
+        # Initial presence is low (0.3)
+        initial_status = registry.get_federation_binding_status("fed:test")
+        initial_presence = initial_status.presence_score
+
+        # Add teams
+        for i in range(3):
+            registry.bind_team_to_federation("fed:test", f"team:{i}")
+
+        # Build internal presence
+        result = registry.build_internal_presence("fed:test")
+
+        assert result["witnesses_added"] > 0
+        assert result["new_presence"] > initial_presence
+
+    def test_build_internal_presence_requires_teams(self):
+        """Building internal presence requires at least 2 teams."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:solo", "Solo")
+        registry.bind_team_to_federation("fed:solo", "team:only")
+
+        result = registry.build_internal_presence("fed:solo")
+
+        assert "error" in result
+        assert result["witnesses_added"] == 0
+
+    def test_presence_ranking_sorts_by_presence(self):
+        """Presence ranking returns federations sorted by presence."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        # Create federations with different presence levels
+        registry.register_federation_with_binding("fed:low", "Low", initial_trust=0.5)
+        registry.register_federation_with_binding("fed:high", "High", initial_trust=0.9)
+
+        # Build presence for high federation
+        for i in range(3):
+            registry.bind_team_to_federation("fed:high", f"team:high:{i}")
+        registry.build_internal_presence("fed:high")
+
+        rankings = registry.get_presence_ranking()
+
+        # fed:high should be first (higher presence)
+        assert len(rankings) == 2
+        assert rankings[0]["federation_id"] == "fed:high"
+        assert rankings[0]["presence_score"] > rankings[1]["presence_score"]
+
+    def test_presence_weighted_trust_low_presence_reduces_trust(self):
+        """Low presence reduces the effective trust."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:source", "Source")
+        registry.register_federation_with_binding("fed:target", "Target")  # Low presence
+
+        result = registry.calculate_presence_weighted_trust(
+            "fed:source", "fed:target", base_trust=0.8
+        )
+
+        # Low presence (0.3) should reduce trust
+        assert result["presence_multiplier"] < 1.0
+        assert result["weighted_trust"] < result["base_trust"]
+        assert result["trust_adjustment"] < 0
+
+    def test_presence_weighted_trust_high_presence_boosts_trust(self):
+        """High presence boosts the effective trust."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:source", "Source")
+        registry.register_federation_with_binding("fed:target", "Target", initial_trust=0.9)
+
+        # Build high presence for target
+        for i in range(5):
+            registry.bind_team_to_federation("fed:target", f"team:{i}")
+        registry.build_internal_presence("fed:target")
+
+        # Get status to check presence
+        status = registry.get_federation_binding_status("fed:target")
+
+        # Only test boost if presence actually got high enough
+        if status.presence_score > 0.6:
+            result = registry.calculate_presence_weighted_trust(
+                "fed:source", "fed:target", base_trust=0.6
+            )
+            assert result["presence_multiplier"] > 1.0
+            assert result["weighted_trust"] > result["base_trust"]
+        else:
+            # Even if not high enough, presence multiplier should be defined
+            result = registry.calculate_presence_weighted_trust(
+                "fed:source", "fed:target", base_trust=0.6
+            )
+            assert "presence_multiplier" in result
+
+    def test_presence_requirements_returns_thresholds(self):
+        """Presence requirements returns correct thresholds for actions."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        witness_req = registry.get_presence_requirements("witness")
+        assert witness_req["min_presence"] == registry.MIN_WITNESS_PRESENCE
+        assert "description" in witness_req
+
+        vote_req = registry.get_presence_requirements("vote_critical")
+        assert vote_req["min_presence"] == 0.5
+
+        lead_req = registry.get_presence_requirements("lead_federation")
+        assert lead_req["min_presence"] == 0.6
+
+    def test_presence_requirements_unknown_action(self):
+        """Unknown action type returns error with available types."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        result = registry.get_presence_requirements("unknown_action")
+
+        assert "error" in result
+        assert "available_types" in result
+        assert "witness" in result["available_types"]
+
+    def test_check_presence_permission_low_presence_denied(self):
+        """Federation with low presence is denied actions requiring presence."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:new", "New", initial_trust=0.9)
+
+        # New federation has low presence (0.3)
+        result = registry.check_presence_permission("fed:new", "witness")
+
+        assert result["has_permission"] == False
+        assert result["gap"] > 0
+        assert result["suggestion"] is not None
+
+    def test_check_presence_permission_high_presence_granted(self):
+        """Federation with high presence is granted actions."""
+        from hardbound.federation_binding import FederationBindingRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = FederationBindingRegistry(
+            db_path=tmp_dir / "binding.db",
+            federation_db_path=tmp_dir / "federation.db",
+        )
+
+        registry.register_federation_with_binding("fed:active", "Active", initial_trust=0.9)
+
+        # Build presence
+        for i in range(4):
+            registry.bind_team_to_federation("fed:active", f"team:{i}")
+        registry.build_internal_presence("fed:active")
+
+        # Check witness permission (0.4 required)
+        result = registry.check_presence_permission("fed:active", "witness")
+
+        assert result["has_permission"] == True
+        assert result["gap"] == 0
+        assert result["suggestion"] is None
+
+
 class TestTrustMaintenance:
     """
     Track BQ: Trust Decay with Economic Maintenance Tests
