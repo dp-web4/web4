@@ -7621,6 +7621,241 @@ class TestReputationAggregation:
         assert confidence2 > confidence1
 
 
+class TestFederationDiscovery:
+    """Track BY: Tests for federation discovery protocol."""
+
+    def test_publish_announcement(self):
+        """Can publish discovery announcement for a federation."""
+        from hardbound.federation_discovery import (
+            FederationDiscovery, DiscoveryCategory, AnnouncementStatus
+        )
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        discovery = FederationDiscovery(registry, db_path=tmp_dir / "disc.db")
+
+        # Register federation first
+        registry.register_federation("fed:test", "Test Federation")
+
+        # Publish announcement
+        ann = discovery.publish_announcement(
+            "fed:test",
+            "Test Discovery",
+            "A test federation for discovery",
+            [DiscoveryCategory.TECHNOLOGY, DiscoveryCategory.RESEARCH],
+            min_reputation=0.3,
+        )
+
+        assert ann.federation_id == "fed:test"
+        assert ann.display_name == "Test Discovery"
+        assert DiscoveryCategory.TECHNOLOGY in ann.categories
+        assert ann.status == AnnouncementStatus.ACTIVE
+        assert ann.verification_hash != ""
+
+    def test_discover_by_category(self):
+        """Can discover federations by category."""
+        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        discovery = FederationDiscovery(registry, db_path=tmp_dir / "disc.db")
+
+        # Register and announce multiple federations
+        registry.register_federation("fed:tech1", "Tech1")
+        registry.register_federation("fed:tech2", "Tech2")
+        registry.register_federation("fed:finance", "Finance")
+        registry.register_federation("fed:seeker", "Seeker")
+
+        discovery.publish_announcement(
+            "fed:tech1", "Tech One", "Technology",
+            [DiscoveryCategory.TECHNOLOGY],
+        )
+        discovery.publish_announcement(
+            "fed:tech2", "Tech Two", "Also tech",
+            [DiscoveryCategory.TECHNOLOGY, DiscoveryCategory.INFRASTRUCTURE],
+        )
+        discovery.publish_announcement(
+            "fed:finance", "Finance Co", "Money stuff",
+            [DiscoveryCategory.FINANCE],
+        )
+        discovery.publish_announcement(
+            "fed:seeker", "Seeker", "Looking",
+            [DiscoveryCategory.RESEARCH],
+        )
+
+        # Search for tech federations
+        results = discovery.discover_federations(
+            "fed:seeker",
+            categories=[DiscoveryCategory.TECHNOLOGY],
+        )
+
+        assert len(results) == 2
+        fed_ids = [r["federation_id"] for r in results]
+        assert "fed:tech1" in fed_ids
+        assert "fed:tech2" in fed_ids
+        assert "fed:finance" not in fed_ids
+
+    def test_handshake_initiation(self):
+        """Can initiate connection handshake."""
+        from hardbound.federation_discovery import (
+            FederationDiscovery, DiscoveryCategory, HandshakeStatus
+        )
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        discovery = FederationDiscovery(registry, db_path=tmp_dir / "disc.db")
+
+        registry.register_federation("fed:initiator", "Initiator")
+        registry.register_federation("fed:target", "Target")
+
+        discovery.publish_announcement(
+            "fed:initiator", "Initiator", "Wants to connect",
+            [DiscoveryCategory.TECHNOLOGY],
+        )
+        discovery.publish_announcement(
+            "fed:target", "Target", "Open to connections",
+            [DiscoveryCategory.TECHNOLOGY],
+            min_reputation=0.2,
+        )
+
+        # Initiate handshake
+        hs = discovery.initiate_handshake(
+            "fed:initiator",
+            "fed:target",
+            message="Let's collaborate!",
+            proposed_relationship=FederationRelationship.PEER,
+        )
+
+        assert hs.status == HandshakeStatus.PENDING
+        assert hs.initiator_federation_id == "fed:initiator"
+        assert hs.target_federation_id == "fed:target"
+
+    def test_handshake_acceptance_establishes_trust(self):
+        """Accepting handshake establishes trust relationship."""
+        from hardbound.federation_discovery import (
+            FederationDiscovery, DiscoveryCategory, HandshakeStatus
+        )
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        discovery = FederationDiscovery(registry, db_path=tmp_dir / "disc.db")
+
+        registry.register_federation("fed:alice", "Alice")
+        registry.register_federation("fed:bob", "Bob")
+
+        discovery.publish_announcement("fed:alice", "Alice", "...", [DiscoveryCategory.RESEARCH])
+        discovery.publish_announcement("fed:bob", "Bob", "...", [DiscoveryCategory.RESEARCH])
+
+        # Initiate and accept
+        hs = discovery.initiate_handshake("fed:alice", "fed:bob")
+        accepted = discovery.respond_to_handshake(hs.handshake_id, accept=True)
+
+        assert accepted.status == HandshakeStatus.ACCEPTED
+
+        # Verify trust established (bidirectional for PEER)
+        relationships = registry.get_all_relationships()
+        sources = [r.source_federation_id for r in relationships]
+        targets = [r.target_federation_id for r in relationships]
+
+        assert "fed:alice" in sources
+        assert "fed:bob" in targets
+
+    def test_handshake_rejection(self):
+        """Rejecting handshake does not establish trust."""
+        from hardbound.federation_discovery import (
+            FederationDiscovery, DiscoveryCategory, HandshakeStatus
+        )
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        discovery = FederationDiscovery(registry, db_path=tmp_dir / "disc.db")
+
+        registry.register_federation("fed:sender", "Sender")
+        registry.register_federation("fed:receiver", "Receiver")
+
+        discovery.publish_announcement("fed:sender", "Sender", "...", [DiscoveryCategory.FINANCE])
+        discovery.publish_announcement("fed:receiver", "Receiver", "...", [DiscoveryCategory.FINANCE])
+
+        hs = discovery.initiate_handshake("fed:sender", "fed:receiver")
+        rejected = discovery.respond_to_handshake(
+            hs.handshake_id,
+            accept=False,
+            response_message="Not interested"
+        )
+
+        assert rejected.status == HandshakeStatus.REJECTED
+
+        # No trust relationship
+        relationships = registry.get_all_relationships()
+        assert len(relationships) == 0
+
+    def test_reputation_requirement_blocks_low_rep(self):
+        """Federations below reputation threshold cannot initiate handshake."""
+        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+        import pytest
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        discovery = FederationDiscovery(registry, db_path=tmp_dir / "disc.db")
+
+        registry.register_federation("fed:low_rep", "Low Rep")
+        registry.register_federation("fed:high_req", "High Req")
+
+        discovery.publish_announcement("fed:low_rep", "Low Rep", "...", [DiscoveryCategory.TECHNOLOGY])
+        discovery.publish_announcement(
+            "fed:high_req", "High Req", "Only high rep partners",
+            [DiscoveryCategory.TECHNOLOGY],
+            min_reputation=0.8,  # High requirement
+        )
+
+        # Low rep federation (default 0.5) cannot connect to high req
+        with pytest.raises(ValueError, match="reputation.*below"):
+            discovery.initiate_handshake("fed:low_rep", "fed:high_req")
+
+    def test_discovery_statistics(self):
+        """Can get discovery network statistics."""
+        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        discovery = FederationDiscovery(registry, db_path=tmp_dir / "disc.db")
+
+        # Create some federations
+        for i in range(3):
+            registry.register_federation(f"fed:{i}", f"Fed {i}")
+            discovery.publish_announcement(
+                f"fed:{i}", f"Fed {i}", "...",
+                [DiscoveryCategory.TECHNOLOGY],
+            )
+
+        stats = discovery.get_discovery_statistics()
+
+        assert stats["active_announcements"] == 3
+        assert "technology" in stats["category_distribution"]
+        assert stats["category_distribution"]["technology"] == 3
+
+
 class TestGovernanceAuditTrail:
     """Track BX: Tests for governance audit trail with cryptographic hash chain."""
 
