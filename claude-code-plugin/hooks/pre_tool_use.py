@@ -125,6 +125,108 @@ SESSION_DIR = WEB4_DIR / "sessions"
 R6_LOG_DIR = WEB4_DIR / "r6"
 
 
+def check_git_push_divergence(command: str) -> tuple:
+    """
+    Check if a git push command might fail due to remote divergence.
+
+    This is a heuristic check that runs before git push to catch the common
+    case where remote has commits we don't have locally.
+
+    Future: This will be augmented with model-based reasoning for more
+    sophisticated governance decisions.
+
+    Args:
+        command: The bash command being executed
+
+    Returns:
+        (should_block, reason) - (True, "reason") to block, (False, None) to allow
+    """
+    import re
+    import subprocess
+
+    # Only check git push commands
+    if not re.search(r'\bgit\s+push\b', command):
+        return False, None
+
+    # Don't block force push - user explicitly wants to override
+    if re.search(r'\bgit\s+push\s+.*(-f|--force)', command):
+        return False, None
+
+    try:
+        # Get the repo root (if we're in a git repo)
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode != 0:
+            # Not in a git repo - let git push fail naturally
+            return False, None
+
+        # Fetch to get current remote state (quiet, no output)
+        subprocess.run(
+            ["git", "fetch", "--quiet"],
+            capture_output=True,
+            timeout=30
+        )
+
+        # Get local HEAD
+        local = subprocess.run(
+            ["git", "rev-parse", "@"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if local.returncode != 0:
+            return False, None
+        local_ref = local.stdout.strip()
+
+        # Get upstream HEAD
+        remote = subprocess.run(
+            ["git", "rev-parse", "@{u}"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if remote.returncode != 0:
+            # No upstream configured - allow push to set it
+            return False, None
+        remote_ref = remote.stdout.strip()
+
+        # Get merge base
+        base = subprocess.run(
+            ["git", "merge-base", "@", "@{u}"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if base.returncode != 0:
+            return False, None
+        base_ref = base.stdout.strip()
+
+        # Determine divergence state
+        if local_ref == remote_ref:
+            # Already up to date - push will be a no-op but that's fine
+            return False, None
+        elif local_ref == base_ref:
+            # Local is behind remote - push will fail, need to pull first
+            return True, "Remote has commits you don't have. Run 'git pull --rebase' first."
+        elif remote_ref == base_ref:
+            # Local is ahead - normal push, allow
+            return False, None
+        else:
+            # Diverged - both have unique commits
+            return True, "Local and remote have diverged. Run 'git pull --rebase' to sync before pushing."
+
+    except subprocess.TimeoutExpired:
+        # Don't block on timeout - let git handle it
+        return False, None
+    except Exception:
+        # Don't block on errors - let git handle it
+        return False, None
+
+
 def create_session_token():
     """Create a software-bound session token (mirrors session_start.py)."""
     seed = f"{os.uname().nodename}:{os.getuid()}:{datetime.now(timezone.utc).isoformat()}"
@@ -403,6 +505,25 @@ def main():
     target = r6["request"]["target"]
     # For Bash tools, pass full command to enable command_patterns matching
     full_command = tool_input.get("command") if tool_name == "Bash" else None
+
+    # Git push divergence check (heuristic - will be model-augmented later)
+    if tool_name == "Bash" and full_command:
+        should_block, divergence_reason = check_git_push_divergence(full_command)
+        if should_block:
+            r6["git_check"] = {
+                "blocked": True,
+                "reason": divergence_reason,
+            }
+            r6["result"] = {
+                "status": "blocked",
+                "reason": divergence_reason,
+                "rule_id": "git-divergence-check",
+            }
+            log_r6(r6)
+            print(f"[Web4/Git] BLOCKED: {divergence_reason}", file=sys.stderr)
+            print(json.dumps({"decision": "deny", "reason": divergence_reason}))
+            sys.exit(0)
+
     decision, policy_eval = evaluate_policy(session, tool_name, category, target, full_command)
 
     # Add policy evaluation to R6 record
