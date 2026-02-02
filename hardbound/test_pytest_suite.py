@@ -9082,5 +9082,143 @@ class TestFederationRecovery:
         assert recovery.get_federation_status("fed:bad") == RecoveryStatus.REVOKED
 
 
+class TestPartitionResilience:
+    """Track CI: Tests for network partition resilience."""
+
+    def test_analyze_network_resilience(self):
+        """Can analyze network resilience to partitions."""
+        from hardbound.partition_resilience import PartitionResilienceManager, PartitionRisk
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        resilience = PartitionResilienceManager(registry, db_path=tmp_dir / "res.db")
+
+        # Create a simple network with a bridge
+        for fed in ["fed:a1", "fed:a2", "fed:bridge", "fed:b1", "fed:b2"]:
+            registry.register_federation(fed, fed.replace("fed:", "").title())
+
+        # Connect cluster A
+        registry.establish_trust("fed:a1", "fed:a2", FederationRelationship.ALLIED, 0.8)
+        # Connect bridge
+        registry.establish_trust("fed:a1", "fed:bridge", FederationRelationship.ALLIED, 0.9)
+        registry.establish_trust("fed:bridge", "fed:b1", FederationRelationship.ALLIED, 0.9)
+        # Connect cluster B
+        registry.establish_trust("fed:b1", "fed:b2", FederationRelationship.ALLIED, 0.8)
+
+        analysis = resilience.analyze_network_resilience()
+
+        assert "risk_level" in analysis
+        assert "bridge_nodes" in analysis
+        assert "recommendations" in analysis
+
+    def test_detect_partition_status(self):
+        """Can detect if network is partitioned."""
+        from hardbound.partition_resilience import PartitionResilienceManager
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        resilience = PartitionResilienceManager(registry, db_path=tmp_dir / "res.db")
+
+        # Create two disconnected clusters
+        registry.register_federation("fed:a1", "A1")
+        registry.register_federation("fed:a2", "A2")
+        registry.register_federation("fed:b1", "B1")
+        registry.register_federation("fed:b2", "B2")
+
+        registry.establish_trust("fed:a1", "fed:a2", FederationRelationship.ALLIED, 0.8)
+        registry.establish_trust("fed:b1", "fed:b2", FederationRelationship.ALLIED, 0.8)
+        # No connection between clusters
+
+        status = resilience.check_partition_status()
+
+        # Should detect partition (two disconnected clusters)
+        assert "partitioned" in status
+
+    def test_partition_alerts(self):
+        """Can create and manage partition alerts."""
+        from hardbound.partition_resilience import PartitionResilienceManager, PartitionRisk
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        resilience = PartitionResilienceManager(registry, db_path=tmp_dir / "res.db")
+
+        # Create alert
+        alert = resilience.create_partition_alert(
+            PartitionRisk.HIGH,
+            ["fed:a1", "fed:a2"],
+            ["fed:bridge"],
+            "Bridge node failure detected"
+        )
+
+        assert alert.alert_id is not None
+        assert alert.risk_level == PartitionRisk.HIGH
+
+        # Get active alerts
+        active = resilience.get_active_alerts()
+        assert len(active) == 1
+
+        # Resolve alert
+        resilience.resolve_alert(alert.alert_id)
+        active_after = resilience.get_active_alerts()
+        assert len(active_after) == 0
+
+    def test_partition_event_recording(self):
+        """Can record and verify partition events."""
+        from hardbound.partition_resilience import PartitionResilienceManager
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        resilience = PartitionResilienceManager(registry, db_path=tmp_dir / "res.db")
+
+        # Record partition event
+        event = resilience.record_partition_event(
+            partition_a=["fed:a1", "fed:a2"],
+            partition_b=["fed:b1", "fed:b2"],
+            bridge_failures=["fed:bridge"]
+        )
+
+        assert event.event_id is not None
+        assert event.detected_at is not None
+        assert len(event.partition_a) == 2
+
+    def test_resilience_history(self):
+        """Resilience snapshots are tracked over time."""
+        from hardbound.partition_resilience import PartitionResilienceManager
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        resilience = PartitionResilienceManager(registry, db_path=tmp_dir / "res.db")
+
+        # Create simple network
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+        registry.establish_trust("fed:a", "fed:b", FederationRelationship.ALLIED, 0.8)
+
+        # Run analysis (creates snapshot)
+        resilience.analyze_network_resilience()
+
+        # Get history
+        history = resilience.get_resilience_history(limit=10)
+
+        assert len(history) >= 1
+        assert "overall_risk" in history[0]
+        assert "avg_redundancy" in history[0]
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
