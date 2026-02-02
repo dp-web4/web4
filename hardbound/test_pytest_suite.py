@@ -7916,6 +7916,144 @@ class TestFederationDiscovery:
         assert fed_scores["fed:popular"] > fed_scores["fed:unknown"]
 
 
+class TestReputationHistory:
+    """Track CB: Tests for reputation history tracking."""
+
+    def test_take_snapshot(self):
+        """Can take reputation snapshot."""
+        from hardbound.reputation_history import ReputationHistory
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+        history = ReputationHistory(aggregator, db_path=tmp_dir / "history.db")
+
+        registry.register_federation("fed:test", "Test")
+        registry.register_federation("fed:endorser", "Endorser")
+        registry.establish_trust("fed:endorser", "fed:test", FederationRelationship.PEER, 0.7)
+
+        snapshot = history.take_snapshot("fed:test")
+
+        assert snapshot.federation_id == "fed:test"
+        assert snapshot.global_reputation > 0
+        assert snapshot.incoming_trust_count == 1
+
+    def test_change_detection(self):
+        """Significant changes are detected and recorded."""
+        from hardbound.reputation_history import ReputationHistory
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+        history = ReputationHistory(aggregator, db_path=tmp_dir / "history.db")
+
+        registry.register_federation("fed:target", "Target")
+        registry.register_federation("fed:endorser1", "Endorser1")
+
+        # Initial snapshot
+        history.take_snapshot("fed:target")
+
+        # Add endorsement - creates significant change
+        registry.establish_trust("fed:endorser1", "fed:target", FederationRelationship.PEER, 0.8)
+        history.take_snapshot("fed:target")
+
+        changes = history.get_reputation_changes("fed:target")
+        assert len(changes) >= 1
+        assert changes[0].cause == "trust_added"
+
+    def test_trend_analysis(self):
+        """Trend analysis identifies rising/stable/declining patterns."""
+        from hardbound.reputation_history import ReputationHistory, ReputationTrend
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+        history = ReputationHistory(aggregator, db_path=tmp_dir / "history.db")
+
+        registry.register_federation("fed:rising", "Rising")
+
+        # Take snapshots as endorsements added (rising trend)
+        history.take_snapshot("fed:rising")
+
+        for i in range(3):
+            registry.register_federation(f"fed:e{i}", f"E{i}")
+            registry.establish_trust(f"fed:e{i}", "fed:rising", FederationRelationship.PEER, 0.7)
+            history.take_snapshot("fed:rising")
+
+        trend = history.analyze_trend("fed:rising")
+
+        assert trend["trend"] == ReputationTrend.RISING.value
+        assert trend["end_reputation"] > trend["start_reputation"]
+
+    def test_anomaly_detection(self):
+        """Large sudden changes are flagged as anomalies."""
+        from hardbound.reputation_history import ReputationHistory
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+        history = ReputationHistory(aggregator, db_path=tmp_dir / "history.db")
+
+        registry.register_federation("fed:sudden", "Sudden")
+
+        # Initial snapshot with some reputation
+        registry.register_federation("fed:e0", "E0")
+        registry.establish_trust("fed:e0", "fed:sudden", FederationRelationship.PEER, 0.3)
+        history.take_snapshot("fed:sudden")
+
+        # Sudden large change - add many endorsers at once
+        for i in range(1, 8):
+            registry.register_federation(f"fed:e{i}", f"E{i}")
+            registry.establish_trust(f"fed:e{i}", "fed:sudden", FederationRelationship.PEER, 0.8)
+
+        history.take_snapshot("fed:sudden")
+
+        # Check for anomalies
+        anomalies = history.detect_anomalies("fed:sudden", threshold=0.3)
+        assert len(anomalies) >= 1
+
+    def test_timeline_retrieval(self):
+        """Can retrieve reputation timeline for a federation."""
+        from hardbound.reputation_history import ReputationHistory
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+        history = ReputationHistory(aggregator, db_path=tmp_dir / "history.db")
+
+        registry.register_federation("fed:timeline", "Timeline")
+
+        # Take multiple snapshots
+        for _ in range(5):
+            history.take_snapshot("fed:timeline")
+
+        timeline = history.get_reputation_timeline("fed:timeline")
+
+        assert len(timeline) == 5
+        # Most recent first
+        assert timeline[0].timestamp >= timeline[-1].timestamp
+
+
 class TestDiscoveryReputationAttacks:
     """Track BZ: Tests for discovery and reputation attack defenses."""
 
