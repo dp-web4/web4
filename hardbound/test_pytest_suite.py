@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 23  # 12 original + Attack 13-23
+        assert len(results) == 26  # 12 original + Attack 13-26 (CI, CJ, CK tracks)
 
 
 class TestEndToEndIntegration:
