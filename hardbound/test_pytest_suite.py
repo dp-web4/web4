@@ -34,8 +34,8 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        # 29 attacks: original + tracks CI-CK (27-28) + CL-CN (29-31) = 29 total
-        assert len(results) == 29
+        # 30 attacks: original + tracks CI-CN + CP = 30 total
+        assert len(results) == 30
 
         # Track CO: Verify NO attacks succeed (all defenses hold)
         successful_attacks = [r for r in results if r.success]

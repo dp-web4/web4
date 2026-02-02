@@ -826,6 +826,20 @@ class MultiFederationRegistry:
                         f"and {other_fed}: {reason}"
                     )
 
+        # Track CP: Check federation status - no proposals involving quarantined/suspended
+        all_affected = affected_federation_ids + [proposing_federation_id]
+        with sqlite3.connect(self.db_path) as conn:
+            for fed_id in set(all_affected):
+                row = conn.execute(
+                    "SELECT status FROM federations WHERE federation_id = ?",
+                    (fed_id,)
+                ).fetchone()
+                if row and row[0] != "active":
+                    raise ValueError(
+                        f"Federation {fed_id} is not active (status: {row[0]}). "
+                        f"Cannot create proposals involving quarantined or suspended federations."
+                    )
+
         now = datetime.now(timezone.utc).isoformat()
         proposal_id = f"xfed:{hashlib.sha256(f'{proposing_team_id}:{now}'.encode()).hexdigest()[:12]}"
 

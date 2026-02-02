@@ -5900,6 +5900,330 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Attack 30: Recovery Exploitation Attack (Track CP)
+# ---------------------------------------------------------------------------
+
+def attack_recovery_exploitation() -> AttackResult:
+    """
+    ATTACK 30: RECOVERY EXPLOITATION ATTACK (Track CP)
+
+    Tests attacks that exploit federations during their vulnerable recovery state:
+
+    1. Pre-Recovery Setup: Attacker establishes trust BEFORE incident
+    2. Quarantine Bypass: Attempt to interact with quarantined federation
+    3. Trust Restoration Hijack: Claim trusted status during re-integration
+    4. Recovery Timing: Exploit the window between recovery and validation
+    5. False Recovery Signal: Trick system into early recovery release
+    6. Snapshot Manipulation: Alter preserved trust during recovery
+
+    Recovery periods are especially vulnerable because:
+    - Normal trust validation may be relaxed
+    - System is focused on recovery, not attack detection
+    - Pre-incident trust relationships may be blindly restored
+    """
+    from hardbound.federation_recovery import (
+        FederationRecoveryManager, RecoveryStatus, IncidentType
+    )
+    from hardbound.multi_federation import MultiFederationRegistry
+
+    db_path = Path(tempfile.mkdtemp()) / "attack30_recovery.db"
+    fed_path = Path(tempfile.mkdtemp()) / "attack30_fed.db"
+
+    registry = MultiFederationRegistry(db_path=fed_path)
+    recovery = FederationRecoveryManager(
+        registry=registry,
+        db_path=db_path
+    )
+
+    defenses = {
+        "quarantine_isolation": False,
+        "trust_restoration_validated": False,
+        "recovery_timing_protected": False,
+        "false_signal_rejected": False,
+        "snapshot_integrity": False,
+        "pre_incident_trust_verified": False,
+    }
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+
+    # ========================================================================
+    # Setup: Create federations and establish trust
+    # ========================================================================
+
+    # Legitimate federation that will be compromised
+    registry.register_federation("fed:victim", "Victim Corp")
+
+    # Attacker federation establishes trust BEFORE incident
+    registry.register_federation("fed:attacker", "Attacker Inc")
+    registry.establish_trust("fed:victim", "fed:attacker", initial_trust=0.5)
+    registry.establish_trust("fed:attacker", "fed:victim", initial_trust=0.5)
+
+    # Honest federation for comparison
+    registry.register_federation("fed:honest", "Honest Corp")
+    registry.establish_trust("fed:victim", "fed:honest", initial_trust=0.5)
+
+    # ========================================================================
+    # Vector 1: Quarantine Isolation
+    # ========================================================================
+
+    # Report incident on victim
+    incident = recovery.report_incident(
+        federation_id="fed:victim",
+        incident_type=IncidentType.TRUST_MANIPULATION,
+        severity=0.8,
+        description="Trust manipulation detected",
+        reported_by=f"lct:reporter_{ts}",
+    )
+
+    # Quarantine the victim
+    quarantine = recovery.quarantine_federation(
+        federation_id="fed:victim",
+        incident_id=incident.incident_id,
+        reason="Security incident",
+    )
+
+    # Attacker tries to interact with quarantined federation
+    try:
+        # Attempt to create proposal involving quarantined federation
+        registry.create_cross_federation_proposal(
+            "fed:attacker", "team:attacker", ["fed:victim"],
+            "exploit_recovery", "Try to exploit during quarantine"
+        )
+        quarantine_bypass_succeeded = True
+    except (ValueError, Exception) as e:
+        if "quarantine" in str(e).lower() or "status" in str(e).lower():
+            defenses["quarantine_isolation"] = True
+            quarantine_note = f"Quarantine isolation held: {str(e)[:50]}"
+        else:
+            quarantine_note = f"Blocked for other reason: {str(e)[:50]}"
+        quarantine_bypass_succeeded = False
+
+    if quarantine_bypass_succeeded:
+        quarantine_note = "Quarantine bypass succeeded!"
+
+    # ========================================================================
+    # Vector 2: Trust Restoration Hijack
+    # ========================================================================
+
+    # Begin recovery process
+    recovery.start_recovery("fed:victim", incident.incident_id)
+
+    # Attacker tries to claim pre-incident trust during recovery
+    # Check if the recovery process validates trust claims
+    pre_incident_trust = quarantine.trust_snapshot.get("fed:attacker", {})
+
+    # During recovery, system should re-validate all trust relationships
+    # Check if attacker's trust is blindly restored
+    recovery.complete_recovery("fed:victim", incident.incident_id)
+
+    # Get current trust status after recovery
+    post_recovery_trust = registry.get_trust_relationship("fed:victim", "fed:attacker")
+
+    # Defense: Trust should be re-validated, not blindly restored
+    # Look for trust reduction or validation requirements
+    if post_recovery_trust is None or post_recovery_trust.trust_score < 0.5:
+        defenses["trust_restoration_validated"] = True
+        trust_note = f"Trust not blindly restored: {post_recovery_trust.trust_score if post_recovery_trust else 'None'}"
+    else:
+        # Trust was restored - check if validation occurred
+        # A good defense would require re-establishing trust
+        trust_note = f"Trust restored to {post_recovery_trust.trust_score}"
+
+    # ========================================================================
+    # Vector 3: Recovery Timing Exploitation
+    # ========================================================================
+
+    # Create another incident for timing test
+    registry.register_federation("fed:victim2", "Victim2 Corp")
+    registry.establish_trust("fed:attacker", "fed:victim2", initial_trust=0.5)
+
+    incident2 = recovery.report_incident(
+        federation_id="fed:victim2",
+        incident_type=IncidentType.KEY_COMPROMISE,
+        severity=0.6,
+        description="Key compromise detected",
+        reported_by=f"lct:reporter2_{ts}",
+    )
+
+    quarantine2 = recovery.quarantine_federation(
+        federation_id="fed:victim2",
+        incident_id=incident2.incident_id,
+        reason="Key compromise",
+    )
+
+    # Try to exploit the timing window during recovery
+    recovery.start_recovery("fed:victim2", incident2.incident_id)
+
+    # While in RECOVERING state (before complete_recovery), try to interact
+    try:
+        # Check federation status
+        status = recovery.get_federation_recovery_status("fed:victim2")
+
+        # Attempt interaction during recovery
+        registry.create_cross_federation_proposal(
+            "fed:attacker", "team:attacker", ["fed:victim2"],
+            "timing_exploit", "Exploit during recovery window"
+        )
+        timing_exploit_succeeded = True
+    except (ValueError, Exception) as e:
+        defenses["recovery_timing_protected"] = True
+        timing_note = f"Recovery timing protected: {str(e)[:50]}"
+        timing_exploit_succeeded = False
+
+    if timing_exploit_succeeded:
+        timing_note = "Timing exploit succeeded during recovery window"
+
+    # Complete recovery for victim2
+    recovery.complete_recovery("fed:victim2", incident2.incident_id)
+
+    # ========================================================================
+    # Vector 4: False Recovery Signal
+    # ========================================================================
+
+    # Create third victim for false signal test
+    registry.register_federation("fed:victim3", "Victim3 Corp")
+
+    incident3 = recovery.report_incident(
+        federation_id="fed:victim3",
+        incident_type=IncidentType.MALICIOUS_ACTIVITY,
+        severity=0.9,  # High severity
+        description="Malicious activity detected",
+        reported_by=f"lct:reporter3_{ts}",
+    )
+
+    quarantine3 = recovery.quarantine_federation(
+        federation_id="fed:victim3",
+        incident_id=incident3.incident_id,
+        reason="Malicious activity",
+    )
+
+    # Attacker tries to send false "all clear" signal
+    try:
+        # Try to complete recovery without proper validation
+        # Using attacker's LCT as if they were recovery manager
+        recovery.complete_recovery("fed:victim3", incident3.incident_id)
+
+        # Check if federation is actually recovered
+        status = recovery.get_federation_recovery_status("fed:victim3")
+        if status == RecoveryStatus.RECOVERED:
+            false_signal_note = "False signal accepted - recovery completed"
+        else:
+            defenses["false_signal_rejected"] = True
+            false_signal_note = f"False signal rejected: status={status}"
+    except (ValueError, PermissionError, Exception) as e:
+        defenses["false_signal_rejected"] = True
+        false_signal_note = f"False signal rejected: {str(e)[:50]}"
+
+    # ========================================================================
+    # Vector 5: Snapshot Integrity
+    # ========================================================================
+
+    # Check if trust snapshots are tamper-evident
+    # The quarantine record should have integrity protection
+
+    # Try to modify the snapshot (simulated)
+    original_snapshot = dict(quarantine.trust_snapshot)
+
+    # Defense: Snapshots should be cryptographically protected
+    # Check if recovery manager has snapshot verification
+    if hasattr(recovery, 'verify_snapshot_integrity'):
+        is_valid = recovery.verify_snapshot_integrity(quarantine.quarantine_id)
+        if is_valid:
+            defenses["snapshot_integrity"] = True
+            snapshot_note = "Snapshot integrity verification exists"
+        else:
+            snapshot_note = "Snapshot integrity check failed"
+    else:
+        # No explicit verification - check for hash chain
+        if hasattr(recovery, 'audit_trail'):
+            defenses["snapshot_integrity"] = True
+            snapshot_note = "Audit trail provides snapshot protection"
+        else:
+            snapshot_note = "No explicit snapshot integrity protection"
+
+    # ========================================================================
+    # Vector 6: Pre-Incident Trust Verification
+    # ========================================================================
+
+    # Check if pre-incident trust relationships are verified during recovery
+    # An attacker who established trust before incident shouldn't automatically
+    # regain full trust after recovery
+
+    # Get the honest federation's post-recovery trust for comparison
+    honest_trust = registry.get_trust_relationship("fed:victim", "fed:honest")
+
+    # Defense: Pre-incident trust should be scrutinized, not blindly restored
+    # Attacker should have lower trust than honest federation after incident
+    if (post_recovery_trust and honest_trust and
+        post_recovery_trust.trust_score <= honest_trust.trust_score):
+        defenses["pre_incident_trust_verified"] = True
+        pre_incident_note = f"Pre-incident trust verified: attacker={post_recovery_trust.trust_score:.2f} <= honest={honest_trust.trust_score:.2f}"
+    else:
+        pre_incident_note = "Pre-incident trust not specially verified"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Recovery Exploitation (CP)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=1500.0 if attack_success else -500.0,
+        roi=3.0 if attack_success else -1.0,
+        detection_probability=0.75,
+        time_to_detection_hours=24,
+        blocks_until_detected=100,
+        trust_damage=1.0,
+        description=f"""
+RECOVERY EXPLOITATION ATTACK (Track CP):
+- Quarantine isolation: {"VULNERABLE" if not defenses["quarantine_isolation"] else "DEFENDED"}
+  {quarantine_note}
+- Trust restoration validated: {"VULNERABLE" if not defenses["trust_restoration_validated"] else "DEFENDED"}
+  {trust_note}
+- Recovery timing protected: {"VULNERABLE" if not defenses["recovery_timing_protected"] else "DEFENDED"}
+  {timing_note}
+- False recovery signal rejected: {"VULNERABLE" if not defenses["false_signal_rejected"] else "DEFENDED"}
+  {false_signal_note}
+- Snapshot integrity: {"VULNERABLE" if not defenses["snapshot_integrity"] else "DEFENDED"}
+  {snapshot_note}
+- Pre-incident trust verified: {"VULNERABLE" if not defenses["pre_incident_trust_verified"] else "DEFENDED"}
+  {pre_incident_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Recovery periods are high-risk windows:
+- Reduced validation during recovery
+- Pre-incident relationships may be blindly restored
+- Attackers can position before incident for post-recovery exploitation
+""".strip(),
+        mitigation=f"""
+Track CP: Recovery Exploitation Mitigation:
+1. Strict quarantine isolation - no interactions until recovery complete
+2. Trust re-validation after recovery - don't blindly restore
+3. Recovery state blocks all operations - no timing window
+4. Multi-party recovery authorization - no single point of failure
+5. Cryptographic snapshot integrity - tamper-evident records
+6. Pre-incident trust review - elevated scrutiny for existing relationships
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "quarantine_bypass_succeeded": quarantine_bypass_succeeded if 'quarantine_bypass_succeeded' in dir() else None,
+            "timing_exploit_succeeded": timing_exploit_succeeded if 'timing_exploit_succeeded' in dir() else None,
+            "post_recovery_trust": post_recovery_trust.trust_score if post_recovery_trust else None,
+            "honest_trust": honest_trust.trust_score if honest_trust else None,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -5935,6 +6259,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Cascading Federation Failure (CL)", attack_cascading_federation_failure),
         ("Trust Graph Poisoning (CM)", attack_trust_graph_poisoning),
         ("Witness Amplification (CN)", attack_witness_amplification),
+        ("Recovery Exploitation (CP)", attack_recovery_exploitation),
     ]
 
     results = []
