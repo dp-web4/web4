@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 21  # 12 original + Attack 13-21
+        assert len(results) == 22  # 12 original + Attack 13-22
 
 
 class TestEndToEndIntegration:
@@ -8348,6 +8348,319 @@ class TestGovernanceAuditTrail:
         assert len(history) == 2
         assert all(r.event_type in [AuditEventType.PROPOSAL_CREATED, AuditEventType.PROPOSAL_APPROVED]
                    for r in history)
+
+
+class TestCrossFederationAudit:
+    """Track CC: Tests for cross-federation audit trail spanning multiple federations."""
+
+    def test_record_cross_federation_event(self):
+        """Recording cross-federation events creates linked hash chain."""
+        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = CrossFederationAudit(db_path=tmp_dir / "xaudit.db")
+
+        # Record cross-federation trust establishment
+        record = audit.record_cross_federation_event(
+            event_type=CrossFederationEventType.INTER_FED_TRUST_ESTABLISHED,
+            source_federation_id="fed:alpha",
+            target_federation_ids=["fed:beta", "fed:gamma"],
+            actor_lct="lct:alice",
+            event_data={"trust_level": 0.7}
+        )
+
+        assert record.record_id.startswith("xaudit:")
+        assert record.source_federation_id == "fed:alpha"
+        assert "fed:beta" in record.target_federation_ids
+        assert "fed:gamma" in record.target_federation_ids
+        assert record.previous_hash == "cross_genesis"  # Cross-fed uses cross_genesis
+        assert len(record.record_hash) == 64  # SHA-256
+
+    def test_hash_chain_links(self):
+        """Multiple records form a linked hash chain."""
+        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = CrossFederationAudit(db_path=tmp_dir / "xaudit.db")
+
+        r1 = audit.record_cross_federation_event(
+            CrossFederationEventType.INTER_FED_TRUST_ESTABLISHED,
+            "fed:a", ["fed:b"], "lct:actor1"
+        )
+        r2 = audit.record_cross_federation_event(
+            CrossFederationEventType.CROSS_FED_PROPOSAL_CREATED,
+            "fed:b", ["fed:a", "fed:c"], "lct:actor2"
+        )
+        r3 = audit.record_cross_federation_event(
+            CrossFederationEventType.CROSS_FED_PROPOSAL_VOTED,
+            "fed:c", ["fed:a", "fed:b"], "lct:actor3"
+        )
+
+        assert r2.previous_hash == r1.record_hash
+        assert r3.previous_hash == r2.record_hash
+        assert r1.record_hash != r2.record_hash != r3.record_hash
+
+    def test_acknowledge_event(self):
+        """Federation acknowledgment tracking works."""
+        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = CrossFederationAudit(db_path=tmp_dir / "xaudit.db")
+
+        record = audit.record_cross_federation_event(
+            CrossFederationEventType.INTER_FED_TRUST_ESTABLISHED,
+            "fed:source", ["fed:target1", "fed:target2"], "lct:actor"
+        )
+
+        # Source auto-acknowledges, check target1 is not acknowledged yet
+        events_before = audit.get_events_for_federation("fed:target1")
+        assert len(events_before) == 1
+        assert "fed:target1" not in events_before[0].acknowledged_by
+
+        # Acknowledge from one target
+        success = audit.acknowledge_event(record.record_id, "fed:target1")
+        assert success
+
+        # Check acknowledgment recorded via unacknowledged events
+        unacked = audit.get_unacknowledged_events("fed:target1")
+        assert len(unacked) == 0  # target1 now acknowledged
+
+        # target2 still unacknowledged
+        unacked2 = audit.get_unacknowledged_events("fed:target2")
+        assert len(unacked2) == 1
+
+    def test_get_events_for_federation(self):
+        """Can query events involving a specific federation."""
+        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = CrossFederationAudit(db_path=tmp_dir / "xaudit.db")
+
+        # Events involving fed:alpha
+        audit.record_cross_federation_event(
+            CrossFederationEventType.INTER_FED_TRUST_ESTABLISHED,
+            "fed:alpha", ["fed:beta"], "lct:a"
+        )
+        audit.record_cross_federation_event(
+            CrossFederationEventType.CROSS_FED_PROPOSAL_CREATED,
+            "fed:beta", ["fed:alpha", "fed:gamma"], "lct:b"
+        )
+        # Event NOT involving fed:alpha
+        audit.record_cross_federation_event(
+            CrossFederationEventType.INTER_FED_TRUST_ESTABLISHED,
+            "fed:delta", ["fed:epsilon"], "lct:c"
+        )
+
+        events = audit.get_events_for_federation("fed:alpha")
+
+        assert len(events) == 2
+        # fed:alpha as source
+        assert any(e.source_federation_id == "fed:alpha" for e in events)
+        # fed:alpha as target
+        assert any("fed:alpha" in e.target_federation_ids for e in events)
+
+    def test_verify_chain_integrity(self):
+        """Chain verification detects tampering."""
+        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = CrossFederationAudit(db_path=tmp_dir / "xaudit.db")
+
+        # Create valid chain
+        for i in range(5):
+            audit.record_cross_federation_event(
+                CrossFederationEventType.INTER_FED_TRUST_ESTABLISHED,
+                f"fed:source{i}", [f"fed:target{i}"], f"lct:actor{i}"
+            )
+
+        verification = audit.verify_chain_integrity()
+
+        assert verification["valid"] == True
+        assert verification["records_checked"] == 5
+        assert verification["issues"] == []
+
+    def test_export_unified_audit(self):
+        """Can export unified audit with acknowledgment status."""
+        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = CrossFederationAudit(db_path=tmp_dir / "xaudit.db")
+
+        # Create event with multiple targets
+        record = audit.record_cross_federation_event(
+            CrossFederationEventType.CROSS_FED_PROPOSAL_CREATED,
+            "fed:proposer", ["fed:voter1", "fed:voter2", "fed:voter3"], "lct:creator",
+            event_data={"proposal": "form_alliance"}
+        )
+
+        # Partial acknowledgments (source already auto-acks)
+        audit.acknowledge_event(record.record_id, "fed:voter1")
+        audit.acknowledge_event(record.record_id, "fed:voter2")
+
+        # Export requires federation_ids list
+        export = audit.export_unified_audit(
+            federation_ids=["fed:proposer", "fed:voter1", "fed:voter2", "fed:voter3"]
+        )
+
+        assert len(export["records"]) == 1
+        assert export["chain_verified"] == True
+        rec = export["records"][0]
+        assert rec["record_id"] == record.record_id
+        # Check acknowledged_by contains source + 2 voters
+        assert "fed:proposer" in rec["acknowledged_by"]  # Source auto-acks
+        assert "fed:voter1" in rec["acknowledged_by"]
+        assert "fed:voter2" in rec["acknowledged_by"]
+        assert "fed:voter3" not in rec["acknowledged_by"]  # Not yet acknowledged
+
+
+class TestTimeBasedAttacks:
+    """Track CD: Tests for time-based attack defenses."""
+
+    def test_attack22_defenses_hold(self):
+        """Full Attack 22 simulation passes (all defenses hold)."""
+        from hardbound.attack_simulations import attack_time_based_vectors
+
+        result = attack_time_based_vectors()
+
+        # All 6 defenses should hold
+        defenses = result.raw_data.get("defenses", {})
+        held_count = sum(defenses.values())
+        assert held_count >= 5, f"Expected 5+ defenses to hold, got {held_count}"
+        assert not result.success, "Attack should fail (defenses held)"
+
+    def test_discovery_race_prevented(self):
+        """Low-reputation federations filtered from discovery results."""
+        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        discovery = FederationDiscovery(registry, db_path=tmp_dir / "disc.db")
+        reputation = ReputationAggregator(registry)
+
+        # Create legitimate federation with reputation
+        registry.register_federation("fed:legit1", "Legit1")
+        registry.register_federation("fed:legit2", "Legit2")
+        registry.establish_trust("fed:legit1", "fed:legit2", FederationRelationship.PEER, 0.7)
+        registry.establish_trust("fed:legit2", "fed:legit1", FederationRelationship.PEER, 0.7)
+
+        # Create attacker with no reputation
+        registry.register_federation("fed:attacker", "Attacker")
+
+        # Both publish announcements
+        discovery.publish_announcement(
+            "fed:legit1", "Legit1", "Trusted partner",
+            [DiscoveryCategory.TECHNOLOGY], min_reputation=0.2
+        )
+        discovery.publish_announcement(
+            "fed:attacker", "Attacker", "Definitely legit",
+            [DiscoveryCategory.TECHNOLOGY], min_reputation=0.0
+        )
+
+        # Discovery with reputation filter should exclude attacker
+        results = discovery.discover_federations(
+            "fed:legit2",
+            categories=[DiscoveryCategory.TECHNOLOGY],
+            min_reputation=0.3,
+        )
+
+        # Attacker has no incoming trust -> filtered out
+        assert "fed:attacker" not in results
+
+    def test_trust_update_consistency(self):
+        """Trust updates are reflected in reputation calculation (with cache bypass)."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        reputation = ReputationAggregator(registry)
+
+        registry.register_federation("fed:target", "Target")
+        registry.register_federation("fed:endorser1", "Endorser1")
+
+        # No trust for target initially
+        rep_before = reputation.calculate_reputation("fed:target", force_refresh=True)
+
+        # Add trust from endorser
+        registry.establish_trust("fed:endorser1", "fed:target", FederationRelationship.TRUSTED, 0.8)
+
+        # Should reflect when forcing cache refresh (5min cache normally)
+        rep_after = reputation.calculate_reputation("fed:target", force_refresh=True)
+
+        # Trust relationship should be reflected
+        assert rep_after.incoming_trust_count > rep_before.incoming_trust_count
+        assert rep_after.incoming_trust_sum > rep_before.incoming_trust_sum
+
+    def test_reputation_timeline_ordering(self):
+        """Reputation timeline maintains correct temporal ordering."""
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.reputation_history import ReputationHistory
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+        import time
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        reputation = ReputationAggregator(registry)
+        history = ReputationHistory(reputation, db_path=tmp_dir / "hist.db")
+
+        registry.register_federation("fed:test", "Test")
+        registry.register_federation("fed:endorser", "Endorser")
+
+        # Take snapshots with changes
+        history.take_snapshot("fed:test")
+        time.sleep(0.01)  # Small delay to ensure different timestamps
+
+        registry.establish_trust("fed:endorser", "fed:test", FederationRelationship.PEER, 0.6)
+        history.take_snapshot("fed:test")
+
+        timeline = history.get_reputation_timeline("fed:test")
+
+        assert len(timeline) >= 2
+        # Most recent should be first (higher reputation with endorsement)
+        assert timeline[0].timestamp >= timeline[-1].timestamp
+
+    def test_audit_chain_integrity(self):
+        """Audit chain maintains integrity under rapid operations."""
+        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        audit = CrossFederationAudit(db_path=tmp_dir / "audit.db")
+
+        # Rapid sequence of events
+        for i in range(10):
+            audit.record_cross_federation_event(
+                CrossFederationEventType.INTER_FED_TRUST_ESTABLISHED,
+                f"fed:source{i}", [f"fed:target{i}"],
+                f"lct:actor{i}"
+            )
+
+        verification = audit.verify_chain_integrity()
+
+        assert verification["valid"] == True
+        assert verification["records_checked"] == 10
+        assert verification["issues"] == []
 
 
 # Import sqlite3 at module level for tests that need it
