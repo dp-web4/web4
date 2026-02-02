@@ -8811,5 +8811,140 @@ class TestFederationHealthMonitor:
             assert alert_id not in [a.alert_id for a in active]
 
 
+class TestTrustNetworkAnalyzer:
+    """Track CG: Tests for trust network analysis and visualization."""
+
+    def test_build_network(self):
+        """Network is built from registry relationships."""
+        from hardbound.trust_network import TrustNetworkAnalyzer
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+        registry.establish_trust("fed:a", "fed:b", FederationRelationship.PEER, 0.6)
+
+        analyzer = TrustNetworkAnalyzer(registry)
+        nodes, edges = analyzer.build_network()
+
+        assert len(nodes) == 2
+        assert len(edges) == 1
+        assert "fed:a" in nodes
+        assert "fed:b" in nodes
+
+    def test_find_trust_path(self):
+        """Trust paths can be found between federations."""
+        from hardbound.trust_network import TrustNetworkAnalyzer
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+        registry.register_federation("fed:c", "C")
+        registry.establish_trust("fed:a", "fed:b", FederationRelationship.PEER, 0.8)
+        registry.establish_trust("fed:b", "fed:c", FederationRelationship.PEER, 0.5)
+
+        analyzer = TrustNetworkAnalyzer(registry)
+        analyzer.build_network()
+
+        path = analyzer.find_trust_path("fed:a", "fed:c")
+
+        assert path is not None
+        assert path.path == ["fed:a", "fed:b", "fed:c"]
+        assert path.hops == 2
+        # Trust product: 0.5 * 0.5 = 0.25 (capped at 0.5 each)
+        assert path.total_trust > 0
+
+    def test_detect_clusters(self):
+        """Clusters of connected federations are detected."""
+        from hardbound.trust_network import TrustNetworkAnalyzer
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+
+        # Create two separate clusters
+        registry.register_federation("fed:a1", "A1")
+        registry.register_federation("fed:a2", "A2")
+        registry.register_federation("fed:b1", "B1")
+        registry.register_federation("fed:b2", "B2")
+
+        # Cluster A
+        registry.establish_trust("fed:a1", "fed:a2", FederationRelationship.PEER, 0.7)
+        registry.establish_trust("fed:a2", "fed:a1", FederationRelationship.PEER, 0.6)
+
+        # Cluster B (separate)
+        registry.establish_trust("fed:b1", "fed:b2", FederationRelationship.PEER, 0.8)
+        registry.establish_trust("fed:b2", "fed:b1", FederationRelationship.PEER, 0.7)
+
+        analyzer = TrustNetworkAnalyzer(registry)
+        analyzer.build_network()
+
+        clusters = analyzer.detect_clusters()
+
+        # Should find 2 clusters
+        assert len(clusters) == 2
+
+    def test_detect_anomalies(self):
+        """Network anomalies are detected."""
+        from hardbound.trust_network import TrustNetworkAnalyzer
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+
+        registry.register_federation("fed:giver", "Giver")
+        registry.register_federation("fed:receiver", "Receiver")
+
+        # One-way trust: giver trusts receiver but not vice versa
+        registry.establish_trust("fed:giver", "fed:receiver", FederationRelationship.TRUSTED, 0.9)
+
+        analyzer = TrustNetworkAnalyzer(registry)
+        analyzer.build_network()
+
+        anomalies = analyzer.detect_anomalies()
+
+        # Should detect receiver as trust_receiver_no_giver
+        anomaly_types = [a.anomaly_type for a in anomalies]
+        assert "trust_receiver_no_giver" in anomaly_types
+
+    def test_export_graph(self):
+        """Network can be exported as graph data structure."""
+        from hardbound.trust_network import TrustNetworkAnalyzer
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+        registry.establish_trust("fed:a", "fed:b", FederationRelationship.PEER, 0.6)
+
+        analyzer = TrustNetworkAnalyzer(registry)
+        analyzer.build_network()
+
+        export = analyzer.export_graph()
+
+        assert "nodes" in export
+        assert "edges" in export
+        assert "metadata" in export
+        assert len(export["nodes"]) == 2
+        assert len(export["edges"]) == 1
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
