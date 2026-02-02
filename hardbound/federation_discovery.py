@@ -153,6 +153,7 @@ class FederationDiscovery:
     Federation discovery and connection protocol.
 
     Track BY: Protocol for federations to find each other.
+    Track CA: Integrated with ReputationAggregator for dynamic reputation.
 
     Features:
     - Publish announcements with capabilities/requirements
@@ -160,12 +161,14 @@ class FederationDiscovery:
     - Handshake protocol for secure connection
     - Reputation-gated discovery (spam protection)
     - Category-based matching
+    - Dynamic reputation from ReputationAggregator (Track CA)
     """
 
     def __init__(
         self,
         registry: MultiFederationRegistry,
         db_path: Optional[Path] = None,
+        reputation_aggregator: Optional['ReputationAggregator'] = None,
     ):
         """
         Initialize discovery protocol.
@@ -173,8 +176,10 @@ class FederationDiscovery:
         Args:
             registry: Multi-federation registry for trust operations
             db_path: Path to SQLite database (None for in-memory)
+            reputation_aggregator: Optional aggregator for dynamic reputation (Track CA)
         """
         self.registry = registry
+        self._reputation_aggregator = reputation_aggregator
 
         if db_path:
             self.db_path = Path(db_path)
@@ -183,6 +188,27 @@ class FederationDiscovery:
             self.db_path = ":memory:"
 
         self._init_db()
+
+    def _get_reputation(self, federation_id: str) -> float:
+        """
+        Get reputation for a federation.
+
+        Track CA: Uses ReputationAggregator if available, otherwise static score.
+
+        Args:
+            federation_id: Federation to get reputation for
+
+        Returns:
+            Reputation score (0-1)
+        """
+        if self._reputation_aggregator:
+            # Use dynamic calculated reputation
+            score = self._reputation_aggregator.calculate_reputation(federation_id)
+            return score.global_reputation
+
+        # Fallback to static reputation_score
+        fed = self.registry.get_federation(federation_id)
+        return fed.reputation_score if fed else 0.5
 
     def _init_db(self):
         """Initialize database schema."""
@@ -427,7 +453,8 @@ class FederationDiscovery:
             if not seeker_fed:
                 return []
 
-            seeker_reputation = seeker_fed.reputation_score
+            # Track CA: Use dynamic reputation if aggregator available
+            seeker_reputation = self._get_reputation(seeker_federation_id)
 
             # Get already connected federations
             connected = set()
@@ -471,9 +498,13 @@ class FederationDiscovery:
                     if not category_match:
                         continue
 
-                # Get target federation's reputation
+                # Get target federation's reputation (Track CA: dynamic)
                 target_fed = self.registry.get_federation(announcement.federation_id)
-                if not target_fed or target_fed.reputation_score < min_reputation:
+                if not target_fed:
+                    continue
+
+                target_reputation = self._get_reputation(announcement.federation_id)
+                if target_reputation < min_reputation:
                     continue
 
                 # Calculate match score
@@ -482,6 +513,7 @@ class FederationDiscovery:
                     announcement,
                     target_fed,
                     categories,
+                    target_reputation,  # Track CA: pass calculated reputation
                 )
 
                 results.append({
@@ -489,7 +521,7 @@ class FederationDiscovery:
                     "display_name": announcement.display_name,
                     "description": announcement.description,
                     "categories": [c.value for c in announcement.categories],
-                    "reputation": target_fed.reputation_score,
+                    "reputation": target_reputation,  # Track CA: use calculated reputation
                     "match_score": match_score,
                     "requirements": {
                         "min_reputation": announcement.min_reputation,
@@ -512,12 +544,19 @@ class FederationDiscovery:
         announcement: FederationAnnouncement,
         target_fed: FederationProfile,
         search_categories: Optional[List[DiscoveryCategory]],
+        target_reputation: Optional[float] = None,
     ) -> float:
-        """Calculate how well a federation matches the seeker's interests."""
+        """
+        Calculate how well a federation matches the seeker's interests.
+
+        Track CA: Now accepts pre-calculated reputation for efficiency.
+        """
         score = 0.0
 
         # Base reputation component (0-0.4)
-        score += min(target_fed.reputation_score * 0.4, 0.4)
+        # Track CA: Use provided reputation or fallback to profile
+        rep = target_reputation if target_reputation is not None else target_fed.reputation_score
+        score += min(rep * 0.4, 0.4)
 
         # Category match (0-0.3)
         if search_categories:
@@ -582,11 +621,14 @@ class FederationDiscovery:
             raise ValueError(f"Target {target_federation_id} not registered")
 
         # Check target's announcement requirements
+        # Track CA: Use dynamic reputation if aggregator available
+        initiator_reputation = self._get_reputation(initiator_federation_id)
+
         target_ann = self.get_announcement(target_federation_id)
         if target_ann:
-            if initiator.reputation_score < target_ann.min_reputation:
+            if initiator_reputation < target_ann.min_reputation:
                 raise ValueError(
-                    f"Initiator reputation {initiator.reputation_score:.2f} below "
+                    f"Initiator reputation {initiator_reputation:.2f} below "
                     f"target minimum {target_ann.min_reputation:.2f}"
                 )
             if target_ann.current_connections >= target_ann.max_connections:

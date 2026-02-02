@@ -7855,6 +7855,66 @@ class TestFederationDiscovery:
         assert "technology" in stats["category_distribution"]
         assert stats["category_distribution"]["technology"] == 3
 
+    def test_discovery_with_reputation_aggregator(self):
+        """Track CA: Discovery uses ReputationAggregator for dynamic reputation."""
+        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
+        from hardbound.reputation_aggregation import ReputationAggregator
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "fed.db")
+        aggregator = ReputationAggregator(registry)
+
+        # Create discovery with aggregator (Track CA integration)
+        discovery = FederationDiscovery(
+            registry,
+            db_path=tmp_dir / "disc.db",
+            reputation_aggregator=aggregator,
+        )
+
+        # Create federations with different trust levels
+        registry.register_federation("fed:popular", "Popular")
+        registry.register_federation("fed:unknown", "Unknown")
+        registry.register_federation("fed:seeker", "Seeker")
+
+        # Popular gets endorsed by multiple sources
+        for i in range(3):
+            registry.register_federation(f"fed:endorser{i}", f"Endorser{i}")
+            registry.establish_trust(f"fed:endorser{i}", "fed:popular", FederationRelationship.PEER, 0.7)
+
+        # Seeker also gets one endorsement so it meets min_reputation
+        registry.establish_trust("fed:endorser0", "fed:seeker", FederationRelationship.PEER, 0.5)
+
+        # Publish with low min_reputation to allow discovery
+        discovery.publish_announcement(
+            "fed:popular", "Popular", "...", [DiscoveryCategory.TECHNOLOGY],
+            min_reputation=0.0,  # Allow anyone to find
+        )
+        discovery.publish_announcement(
+            "fed:unknown", "Unknown", "...", [DiscoveryCategory.TECHNOLOGY],
+            min_reputation=0.0,
+        )
+        discovery.publish_announcement(
+            "fed:seeker", "Seeker", "...", [DiscoveryCategory.TECHNOLOGY],
+            min_reputation=0.0,
+        )
+
+        # Search should rank popular higher due to calculated reputation
+        results = discovery.discover_federations(
+            "fed:seeker",
+            categories=[DiscoveryCategory.TECHNOLOGY],
+        )
+
+        # Popular should have higher match_score due to reputation
+        fed_scores = {r["federation_id"]: r["match_score"] for r in results}
+
+        assert "fed:popular" in fed_scores
+        assert "fed:unknown" in fed_scores
+        # Popular has more endorsers -> higher reputation -> higher match score
+        assert fed_scores["fed:popular"] > fed_scores["fed:unknown"]
+
 
 class TestDiscoveryReputationAttacks:
     """Track BZ: Tests for discovery and reputation attack defenses."""
