@@ -8946,5 +8946,141 @@ class TestTrustNetworkAnalyzer:
         assert len(export["edges"]) == 1
 
 
+class TestFederationRecovery:
+    """Track CH: Tests for federation recovery mechanisms."""
+
+    def test_report_incident(self):
+        """Incidents can be reported and recorded."""
+        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        recovery = FederationRecoveryManager(registry, db_path=tmp_dir / "rec.db")
+
+        registry.register_federation("fed:test", "Test")
+
+        incident = recovery.report_incident(
+            "fed:test",
+            IncidentType.TRUST_MANIPULATION,
+            severity=0.5,
+            description="Test incident",
+            reported_by="lct:reporter",
+        )
+
+        assert incident.incident_id.startswith("incident:")
+        assert incident.severity == 0.5
+        assert incident.status == "open"
+
+    def test_auto_quarantine_high_severity(self):
+        """High severity incidents trigger auto-quarantine."""
+        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        recovery = FederationRecoveryManager(registry, db_path=tmp_dir / "rec.db")
+
+        registry.register_federation("fed:test", "Test")
+
+        # Report high severity incident (>= 0.7 threshold)
+        recovery.report_incident(
+            "fed:test",
+            IncidentType.KEY_COMPROMISE,
+            severity=0.8,
+            description="Critical incident",
+            reported_by="lct:security",
+        )
+
+        status = recovery.get_federation_status("fed:test")
+        assert status == RecoveryStatus.QUARANTINED
+
+    def test_recovery_workflow(self):
+        """Full recovery workflow: quarantine -> recover -> complete."""
+        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        recovery = FederationRecoveryManager(registry, db_path=tmp_dir / "rec.db")
+
+        registry.register_federation("fed:test", "Test")
+
+        # Create incident -> auto-quarantine
+        recovery.report_incident(
+            "fed:test", IncidentType.MALICIOUS_ACTIVITY,
+            severity=0.75, description="Attack detected",
+            reported_by="lct:monitor"
+        )
+        assert recovery.get_federation_status("fed:test") == RecoveryStatus.QUARANTINED
+
+        # Start recovery
+        success = recovery.start_recovery("fed:test", "lct:admin")
+        assert success
+        assert recovery.get_federation_status("fed:test") == RecoveryStatus.RECOVERING
+
+        # Complete recovery
+        success, message = recovery.complete_recovery("fed:test", "lct:admin")
+        assert success
+        assert recovery.get_federation_status("fed:test") == RecoveryStatus.RECOVERED
+
+    def test_quarantine_preserves_trust_snapshot(self):
+        """Quarantine preserves trust relationship snapshot."""
+        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        recovery = FederationRecoveryManager(registry, db_path=tmp_dir / "rec.db")
+
+        registry.register_federation("fed:test", "Test")
+        registry.register_federation("fed:partner", "Partner")
+        registry.establish_trust("fed:partner", "fed:test", FederationRelationship.TRUSTED, 0.8)
+
+        # Quarantine
+        incident = recovery.report_incident(
+            "fed:test", IncidentType.SYBIL_ATTACK,
+            severity=0.9, description="Sybil detected",
+            reported_by="lct:detector"
+        )
+
+        quarantine = recovery.get_quarantine_record("fed:test")
+        assert quarantine is not None
+        assert len(quarantine.trust_snapshot.get("incoming", [])) > 0
+
+    def test_revoke_federation(self):
+        """Federations can be permanently revoked."""
+        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        recovery = FederationRecoveryManager(registry, db_path=tmp_dir / "rec.db")
+
+        registry.register_federation("fed:bad", "Bad Actor")
+
+        # Report incident
+        recovery.report_incident(
+            "fed:bad", IncidentType.MALICIOUS_ACTIVITY,
+            severity=0.95, description="Confirmed malicious",
+            reported_by="lct:admin"
+        )
+
+        # Revoke
+        success = recovery.revoke_federation("fed:bad", "lct:admin", "Confirmed attack")
+        assert success
+        assert recovery.get_federation_status("fed:bad") == RecoveryStatus.REVOKED
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
