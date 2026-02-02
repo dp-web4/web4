@@ -95,6 +95,12 @@ class LCTBindingChain:
     # Maximum depth of binding chain
     MAX_CHAIN_DEPTH = 10
 
+    # Track CN: Trust inheritance constraints to prevent weight gaming
+    # Children inherit at most this fraction of parent's trust
+    TRUST_INHERITANCE_RATIO = 0.85  # Child gets max 85% of parent trust
+    # Maximum trust for derived nodes (prevents gaming via high-trust witnesses)
+    MAX_DERIVED_TRUST = 0.75
+
     def __init__(self, db_path: Optional[str] = None):
         """
         Initialize the binding chain manager.
@@ -256,8 +262,17 @@ class LCTBindingChain:
         if depth >= self.MAX_CHAIN_DEPTH:
             raise ValueError(f"Maximum chain depth ({self.MAX_CHAIN_DEPTH}) exceeded")
 
-        # Child trust is derived from parent (slightly lower)
-        child_trust = max(0.1, parent.trust_level - 0.1)
+        # Track CN: Child trust uses proportional decay AND ceiling to prevent weight gaming
+        # Apply both inheritance ratio AND maximum ceiling
+        # This prevents high-trust witnesses from conferring arbitrary authority to children
+        proportional_trust = parent.trust_level * self.TRUST_INHERITANCE_RATIO
+        linear_trust = parent.trust_level - 0.1
+        child_trust = min(
+            proportional_trust,
+            linear_trust,
+            self.MAX_DERIVED_TRUST,  # Hard ceiling for derived trust
+        )
+        child_trust = max(0.1, child_trust)  # Minimum floor
 
         now = datetime.now(timezone.utc).isoformat()
 

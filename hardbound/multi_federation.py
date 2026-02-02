@@ -714,6 +714,80 @@ class MultiFederationRegistry:
             if row[0] not in exclude
         ]
 
+    # Track CO: Collusion detection thresholds
+    COLLUSION_RECIPROCITY_WINDOW_DAYS = 30  # Look back period for reciprocity
+    COLLUSION_PROPOSAL_THRESHOLD = 3  # Max mutual proposals before flagged
+    COLLUSION_RATIO_THRESHOLD = 0.7  # Max proportion of mutual proposals
+
+    def detect_collusion_pattern(
+        self,
+        federation_a: str,
+        federation_b: str,
+    ) -> Tuple[bool, str]:
+        """
+        Track CO: Detect potential collusion between two federations.
+
+        Checks for reciprocal proposal patterns that suggest collusion:
+        - High proportion of proposals only affecting each other
+        - Lack of external federation involvement
+        - Rapid mutual approval patterns
+
+        Args:
+            federation_a: First federation to check
+            federation_b: Second federation to check
+
+        Returns:
+            (is_suspicious, reason) - True if collusion pattern detected
+        """
+        cutoff = (datetime.now(timezone.utc) -
+                  timedelta(days=self.COLLUSION_RECIPROCITY_WINDOW_DAYS)).isoformat()
+
+        with sqlite3.connect(self.db_path) as conn:
+            # Count proposals from A affecting B
+            a_to_b = conn.execute("""
+                SELECT COUNT(*) FROM cross_federation_proposals
+                WHERE proposing_federation_id = ?
+                  AND affected_federation_ids LIKE ?
+                  AND created_at >= ?
+            """, (federation_a, f'%{federation_b}%', cutoff)).fetchone()[0]
+
+            # Count proposals from B affecting A
+            b_to_a = conn.execute("""
+                SELECT COUNT(*) FROM cross_federation_proposals
+                WHERE proposing_federation_id = ?
+                  AND affected_federation_ids LIKE ?
+                  AND created_at >= ?
+            """, (federation_b, f'%{federation_a}%', cutoff)).fetchone()[0]
+
+            # Count all proposals from A
+            all_from_a = conn.execute("""
+                SELECT COUNT(*) FROM cross_federation_proposals
+                WHERE proposing_federation_id = ?
+                  AND created_at >= ?
+            """, (federation_a, cutoff)).fetchone()[0]
+
+            # Count all proposals from B
+            all_from_b = conn.execute("""
+                SELECT COUNT(*) FROM cross_federation_proposals
+                WHERE proposing_federation_id = ?
+                  AND created_at >= ?
+            """, (federation_b, cutoff)).fetchone()[0]
+
+        mutual_count = a_to_b + b_to_a
+        total_count = max(all_from_a + all_from_b, 1)
+
+        # Check 1: Absolute threshold
+        if mutual_count >= self.COLLUSION_PROPOSAL_THRESHOLD:
+            return (True, f"Exceeded mutual proposal threshold: {mutual_count} >= {self.COLLUSION_PROPOSAL_THRESHOLD}")
+
+        # Check 2: Ratio threshold
+        if total_count >= 2:  # Need minimum data
+            ratio = mutual_count / total_count
+            if ratio >= self.COLLUSION_RATIO_THRESHOLD:
+                return (True, f"High mutual proposal ratio: {ratio:.1%} >= {self.COLLUSION_RATIO_THRESHOLD:.0%}")
+
+        return (False, f"No collusion pattern detected (mutual={mutual_count}, total={total_count})")
+
     def create_cross_federation_proposal(
         self,
         proposing_federation_id: str,
@@ -736,7 +810,22 @@ class MultiFederationRegistry:
 
         Returns:
             CrossFederationProposal object
+
+        Raises:
+            ValueError: If collusion pattern detected between affected federations
         """
+        # Track CO: Check for collusion patterns
+        for other_fed in affected_federation_ids:
+            if other_fed != proposing_federation_id:
+                is_suspicious, reason = self.detect_collusion_pattern(
+                    proposing_federation_id, other_fed
+                )
+                if is_suspicious:
+                    raise ValueError(
+                        f"Collusion pattern detected between {proposing_federation_id} "
+                        f"and {other_fed}: {reason}"
+                    )
+
         now = datetime.now(timezone.utc).isoformat()
         proposal_id = f"xfed:{hashlib.sha256(f'{proposing_team_id}:{now}'.encode()).hexdigest()[:12]}"
 
