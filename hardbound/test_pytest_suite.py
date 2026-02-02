@@ -34,7 +34,7 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        assert len(results) == 22  # 12 original + Attack 13-22
+        assert len(results) == 23  # 12 original + Attack 13-23
 
 
 class TestEndToEndIntegration:
@@ -8661,6 +8661,154 @@ class TestTimeBasedAttacks:
         assert verification["valid"] == True
         assert verification["records_checked"] == 10
         assert verification["issues"] == []
+
+
+class TestFederationHealthMonitor:
+    """Track CE: Tests for federation health monitoring."""
+
+    def test_check_health_returns_report(self):
+        """Health check returns comprehensive report."""
+        from hardbound.federation_health import FederationHealthMonitor, HealthLevel
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        monitor = FederationHealthMonitor(registry, db_path=tmp_dir / "health.db")
+
+        registry.register_federation("fed:test", "Test")
+
+        report = monitor.check_health("fed:test")
+
+        assert report.federation_id == "fed:test"
+        assert 0.0 <= report.overall_health <= 1.0
+        assert report.health_level in HealthLevel
+        assert report.trust_health is not None
+        assert report.reputation_health is not None
+
+    def test_trust_health_improves_with_relationships(self):
+        """Trust health improves with more trust relationships."""
+        from hardbound.federation_health import FederationHealthMonitor
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        monitor = FederationHealthMonitor(registry, db_path=tmp_dir / "health.db")
+
+        registry.register_federation("fed:target", "Target")
+        registry.register_federation("fed:endorser1", "Endorser1")
+        registry.register_federation("fed:endorser2", "Endorser2")
+
+        # Check health before trust
+        report_before = monitor.check_health("fed:target", record_history=False)
+        trust_before = report_before.trust_health.score
+
+        # Add trust relationships
+        registry.establish_trust("fed:endorser1", "fed:target", FederationRelationship.PEER, 0.7)
+        registry.establish_trust("fed:endorser2", "fed:target", FederationRelationship.TRUSTED, 0.8)
+
+        # Check health after trust
+        report_after = monitor.check_health("fed:target", record_history=False)
+        trust_after = report_after.trust_health.score
+
+        assert trust_after > trust_before
+
+    def test_health_history_recorded(self):
+        """Health checks are recorded in history."""
+        from hardbound.federation_health import FederationHealthMonitor
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        monitor = FederationHealthMonitor(registry, db_path=tmp_dir / "health.db")
+
+        registry.register_federation("fed:test", "Test")
+
+        # Check health multiple times
+        monitor.check_health("fed:test", record_history=True)
+        monitor.check_health("fed:test", record_history=True)
+        monitor.check_health("fed:test", record_history=True)
+
+        history = monitor.get_health_history("fed:test")
+
+        assert len(history) == 3
+
+    def test_alerts_generated_for_low_trust(self):
+        """Alerts generated for federations with low trust diversity."""
+        from hardbound.federation_health import FederationHealthMonitor, AlertType
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        monitor = FederationHealthMonitor(registry, db_path=tmp_dir / "health.db")
+
+        # Federation with no trust relationships
+        registry.register_federation("fed:isolated", "Isolated")
+
+        report = monitor.check_health("fed:isolated")
+
+        # Should have low trust diversity alert
+        alert_types = [a.alert_type for a in report.alerts]
+        assert AlertType.LOW_TRUST_DIVERSITY in alert_types
+
+    def test_network_health_summary(self):
+        """Network health provides aggregate statistics."""
+        from hardbound.federation_health import FederationHealthMonitor
+        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        monitor = FederationHealthMonitor(registry, db_path=tmp_dir / "health.db")
+
+        registry.register_federation("fed:a", "A")
+        registry.register_federation("fed:b", "B")
+        registry.register_federation("fed:c", "C")
+        registry.establish_trust("fed:a", "fed:b", FederationRelationship.PEER, 0.6)
+        registry.establish_trust("fed:b", "fed:c", FederationRelationship.PEER, 0.7)
+
+        network = monitor.get_network_health()
+
+        assert network["total_federations"] == 3
+        assert "avg_health" in network
+        assert "health_distribution" in network
+
+    def test_acknowledge_and_resolve_alerts(self):
+        """Alerts can be acknowledged and resolved."""
+        from hardbound.federation_health import FederationHealthMonitor
+        from hardbound.multi_federation import MultiFederationRegistry
+        import tempfile
+        from pathlib import Path
+
+        tmp_dir = Path(tempfile.mkdtemp())
+        registry = MultiFederationRegistry(db_path=tmp_dir / "reg.db")
+        monitor = FederationHealthMonitor(registry, db_path=tmp_dir / "health.db")
+
+        registry.register_federation("fed:test", "Test")
+        report = monitor.check_health("fed:test")
+
+        if report.alerts:
+            alert_id = report.alerts[0].alert_id
+
+            # Acknowledge
+            success = monitor.acknowledge_alert(alert_id)
+            assert success
+
+            # Resolve
+            success = monitor.resolve_alert(alert_id)
+            assert success
+
+            # Should no longer be in active alerts
+            active = monitor.get_active_alerts("fed:test")
+            assert alert_id not in [a.alert_id for a in active]
 
 
 # Import sqlite3 at module level for tests that need it

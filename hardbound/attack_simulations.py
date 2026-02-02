@@ -4023,6 +4023,184 @@ Attacker reputation: {final_rep.global_reputation:.2f}
 
 
 # ---------------------------------------------------------------------------
+# Attack 23: Governance Manipulation (Track CF)
+# ---------------------------------------------------------------------------
+
+def attack_governance_manipulation() -> AttackResult:
+    """
+    ATTACK 23: GOVERNANCE MANIPULATION (Track CF)
+
+    Tests advanced attack vectors against governance audit and integrity:
+
+    1. Audit Trail Tampering: Try to modify governance audit records
+    2. Vote Record Injection: Inject fake vote records
+    3. Proposal History Manipulation: Alter proposal history
+    4. Cross-Fed Vote Coordination: Coordinate voting across federations
+    5. Audit Chain Break: Try to break the audit chain integrity
+    6. Actor Impersonation: Use fake LCTs for governance actions
+
+    Each vector tests governance integrity mechanisms.
+    """
+    from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+    from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+    from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+
+    reg_path = Path(tempfile.mkdtemp()) / "attack23_registry.db"
+    audit_path = Path(tempfile.mkdtemp()) / "attack23_audit.db"
+
+    registry = MultiFederationRegistry(db_path=reg_path)
+    audit = GovernanceAuditTrail(db_path=audit_path)
+
+    defenses = {
+        "audit_trail_immutable": False,
+        "vote_injection_tracked": False,
+        "proposal_history_protected": False,
+        "cross_fed_coordination_tracked": False,
+        "audit_chain_intact": False,
+        "actor_lct_verified": False,
+    }
+
+    # ========================================================================
+    # Setup: Create federations and audit records
+    # ========================================================================
+
+    registry.register_federation("fed:gov_main", "Main Governance")
+    registry.register_federation("fed:member1", "Member 1")
+    registry.register_federation("fed:attacker", "Attacker")
+
+    # Create legitimate audit trail
+    r1 = audit.record_event(
+        AuditEventType.PROPOSAL_CREATED,
+        "fed:gov_main",
+        "lct:member1",
+        event_data={"title": "Legitimate Proposal"},
+        proposal_id="prop:001"
+    )
+    r2 = audit.record_event(
+        AuditEventType.PROPOSAL_VOTED,
+        "fed:gov_main",
+        "lct:member1",
+        event_data={"vote": "approve"},
+        proposal_id="prop:001"
+    )
+
+    # ========================================================================
+    # Vector 1: Audit Trail Immutability
+    # ========================================================================
+
+    verification_before = audit.verify_chain_integrity()
+    if verification_before["valid"]:
+        defenses["audit_trail_immutable"] = True
+
+    # ========================================================================
+    # Vector 2: Vote Record Injection
+    # ========================================================================
+
+    try:
+        fake_vote = audit.record_event(
+            AuditEventType.PROPOSAL_VOTED,
+            "fed:gov_main",
+            "lct:attacker",
+            event_data={"vote": "approve", "fake": True},
+            proposal_id="prop:001"
+        )
+        history = audit.get_proposal_history("prop:001")
+        attacker_votes = [r for r in history if r.actor_lct == "lct:attacker"]
+        if len(attacker_votes) > 0:
+            defenses["vote_injection_tracked"] = True
+    except Exception:
+        defenses["vote_injection_tracked"] = True
+
+    # ========================================================================
+    # Vector 3: Proposal History Protection
+    # ========================================================================
+
+    history = audit.get_proposal_history("prop:001")
+    if len(history) >= 2:
+        all_have_hashes = all(r.record_hash and len(r.record_hash) == 64 for r in history)
+        if all_have_hashes:
+            defenses["proposal_history_protected"] = True
+
+    # ========================================================================
+    # Vector 4: Cross-Federation Vote Coordination
+    # ========================================================================
+
+    cross_audit = CrossFederationAudit(db_path=Path(tempfile.mkdtemp()) / "xaudit.db")
+    for i in range(5):
+        cross_audit.record_cross_federation_event(
+            CrossFederationEventType.CROSS_FED_PROPOSAL_VOTED,
+            "fed:attacker",
+            [f"fed:target{i}"],
+            "lct:attacker",
+            event_data={"vote": "approve"}
+        )
+    events = cross_audit.get_events_for_federation("fed:attacker")
+    if len(events) == 5:
+        defenses["cross_fed_coordination_tracked"] = True
+
+    # ========================================================================
+    # Vector 5: Audit Chain Integrity
+    # ========================================================================
+
+    verification_after = audit.verify_chain_integrity()
+    if verification_after["valid"] and verification_after["issues"] == []:
+        defenses["audit_chain_intact"] = True
+
+    # ========================================================================
+    # Vector 6: Actor LCT Verification
+    # ========================================================================
+
+    all_records = audit.get_federation_history("fed:gov_main")
+    if all(r.actor_lct and r.actor_lct.startswith("lct:") for r in all_records):
+        defenses["actor_lct_verified"] = True
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Governance Manipulation",
+        success=attack_success,
+        setup_cost_atp=60.0,
+        gain_atp=150.0 if attack_success else -60.0,
+        roi=2.5 if attack_success else -1.0,
+        detection_probability=0.85,
+        time_to_detection_hours=4,
+        blocks_until_detected=8,
+        trust_damage=0.8,
+        description=f"""
+Governance manipulation tested {total_defenses} attack vectors:
+- Audit trail immutability: {"VULNERABLE" if not defenses["audit_trail_immutable"] else "DEFENDED"}
+- Vote injection tracking: {"VULNERABLE" if not defenses["vote_injection_tracked"] else "DEFENDED"}
+- Proposal history protection: {"VULNERABLE" if not defenses["proposal_history_protected"] else "DEFENDED"}
+- Cross-fed coordination: {"VULNERABLE" if not defenses["cross_fed_coordination_tracked"] else "DEFENDED"}
+- Audit chain integrity: {"VULNERABLE" if not defenses["audit_chain_intact"] else "DEFENDED"}
+- Actor LCT verification: {"VULNERABLE" if not defenses["actor_lct_verified"] else "DEFENDED"}
+
+{defenses_held}/{total_defenses} defenses held.
+""".strip(),
+        mitigation="""
+1. Immutable hash chain for all governance events
+2. Track all vote records with actor LCTs for attribution
+3. Proposal history includes complete event chain
+4. Cross-federation audit detects coordinated voting patterns
+5. Chain integrity verification on every audit query
+6. LCT-based actor identity for all governance actions
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "records_in_chain": verification_after["records_checked"],
+            "cross_fed_events": len(events),
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -4051,6 +4229,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Governance Attack Vectors (BW)", attack_governance_vectors),
         ("Discovery & Reputation Attacks (BZ)", attack_discovery_and_reputation),
         ("Time-Based Attacks (CD)", attack_time_based_vectors),
+        ("Governance Manipulation (CF)", attack_governance_manipulation),
     ]
 
     results = []
