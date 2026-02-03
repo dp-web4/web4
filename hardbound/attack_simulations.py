@@ -7769,6 +7769,2049 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Attack 36: MRH (Markov Relevancy Horizon) Exploitation
+# ---------------------------------------------------------------------------
+
+def attack_mrh_exploitation() -> AttackResult:
+    """
+    ATTACK: Exploit Markov Relevancy Horizon (MRH) weaknesses.
+
+    The MRH defines an entity's context through its relationship graph.
+    Attacks target:
+    1. Graph traversal depth manipulation (horizon bypass)
+    2. Role-context confusion (exploiting role-specific trust)
+    3. Edge weight manipulation (trust propagation poisoning)
+    4. Semantic relationship spoofing (false relationship types)
+    5. Horizon boundary attacks (trust leakage across boundaries)
+
+    MRH is the RDF graph structure that defines context through:
+    - Bound relationships (permanent hierarchical)
+    - Paired relationships (session operational)
+    - Witness relationships (validation context)
+    """
+
+    defenses = {
+        "horizon_depth_enforced": False,
+        "role_context_validation": False,
+        "edge_weight_bounds": False,
+        "relationship_type_verification": False,
+        "trust_propagation_decay": False,
+        "circular_reference_detection": False,
+        "cross_horizon_isolation": False,
+        "semantic_consistency_check": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Horizon Depth Enforcement
+    # ========================================================================
+    # Attacker tries to access entities beyond the horizon depth (default 3 hops)
+    # by chaining through intermediate nodes
+
+    class MRHNode:
+        def __init__(self, lct_id: str, entity_type: str = "agent"):
+            self.lct_id = lct_id
+            self.entity_type = entity_type
+            self.trust_scores = {"capability": 0.5, "intent": 0.5, "context": 0.5}
+            self.relationships: Dict[str, List["MRHEdge"]] = defaultdict(list)
+
+    class MRHEdge:
+        def __init__(self, source: str, target: str, relation: str,
+                     probability: float = 1.0, distance: int = 1):
+            self.source = source
+            self.target = target
+            self.relation = relation
+            self.probability = probability
+            self.distance = distance
+            self.timestamp = datetime.now(timezone.utc)
+
+    class MRHGraph:
+        """Simulated MRH graph with defense mechanisms."""
+
+        def __init__(self, horizon_depth: int = 3):
+            self.horizon_depth = horizon_depth
+            self.nodes: Dict[str, MRHNode] = {}
+            self.edges: List[MRHEdge] = []
+            self.relationship_types = {
+                "boundTo", "pairedWith", "witnessedBy",
+                "parentBinding", "childBinding", "siblingBinding",
+                "energyPairing", "dataPairing", "servicePairing",
+                "timeWitness", "auditWitness", "oracleWitness"
+            }
+
+        def add_node(self, lct_id: str, entity_type: str = "agent") -> MRHNode:
+            node = MRHNode(lct_id, entity_type)
+            self.nodes[lct_id] = node
+            return node
+
+        def add_edge(self, source: str, target: str, relation: str,
+                     probability: float = 1.0) -> Optional[MRHEdge]:
+            # Defense: Verify relationship type is valid
+            if relation not in self.relationship_types:
+                return None  # Reject unknown relationship types
+
+            # Defense: Bound probability weights
+            probability = max(0.0, min(1.0, probability))
+
+            edge = MRHEdge(source, target, relation, probability)
+            self.edges.append(edge)
+
+            if source in self.nodes:
+                self.nodes[source].relationships[relation].append(edge)
+
+            return edge
+
+        def query_context(self, origin: str, max_depth: Optional[int] = None) -> List[str]:
+            """Query entities within horizon - with depth enforcement."""
+            depth = max_depth if max_depth is not None else self.horizon_depth
+
+            # Defense: Enforce horizon depth limit
+            depth = min(depth, self.horizon_depth)
+
+            visited = set()
+            result = []
+            queue = [(origin, 0)]
+
+            while queue:
+                current, current_depth = queue.pop(0)
+
+                if current in visited:
+                    continue
+
+                visited.add(current)
+
+                if current != origin:
+                    result.append(current)
+
+                # Defense: Stop at horizon boundary
+                if current_depth >= depth:
+                    continue
+
+                if current in self.nodes:
+                    for rel_type, edges in self.nodes[current].relationships.items():
+                        for edge in edges:
+                            if edge.target not in visited:
+                                queue.append((edge.target, current_depth + 1))
+
+            return result
+
+        def calculate_trust_path(self, path: List[str], decay_rate: float = 0.8) -> float:
+            """Calculate trust along path with decay."""
+            if len(path) < 2:
+                return 1.0
+
+            trust = 1.0
+            for i in range(len(path) - 1):
+                source, target = path[i], path[i + 1]
+                # Find edge
+                edge_trust = 0.5  # default
+                if source in self.nodes:
+                    for edges in self.nodes[source].relationships.values():
+                        for edge in edges:
+                            if edge.target == target:
+                                edge_trust = edge.probability
+                                break
+
+                # Defense: Apply decay per hop
+                trust *= edge_trust * (decay_rate ** (i + 1))
+
+            return trust
+
+        def detect_circular_references(self, origin: str) -> List[List[str]]:
+            """Detect cycles in the MRH graph."""
+            cycles = []
+            visited = set()
+            path = []
+
+            def dfs(node: str):
+                if node in visited:
+                    # Found cycle
+                    if node in path:
+                        cycle_start = path.index(node)
+                        cycles.append(path[cycle_start:] + [node])
+                    return
+
+                visited.add(node)
+                path.append(node)
+
+                if node in self.nodes:
+                    for edges in self.nodes[node].relationships.values():
+                        for edge in edges:
+                            dfs(edge.target)
+
+                path.pop()
+
+            dfs(origin)
+            return cycles
+
+    # Test 1: Horizon depth bypass attempt
+    graph = MRHGraph(horizon_depth=3)
+
+    # Create a chain of 10 nodes
+    for i in range(10):
+        graph.add_node(f"node_{i}")
+    for i in range(9):
+        graph.add_edge(f"node_{i}", f"node_{i+1}", "pairedWith", 0.9)
+
+    # Attacker tries to query beyond horizon
+    result = graph.query_context("node_0", max_depth=10)
+
+    # Defense should limit to horizon depth (3 hops = nodes 1,2,3)
+    if len(result) <= 3:
+        defenses["horizon_depth_enforced"] = True
+        horizon_note = f"Horizon enforced: only {len(result)} nodes reachable (expected ≤3)"
+    else:
+        horizon_note = f"Horizon bypass: {len(result)} nodes reachable (should be ≤3)"
+
+    # ========================================================================
+    # Defense 2: Role-Context Validation
+    # ========================================================================
+    # Attacker tries to use trust from one role in a different context
+
+    class RoleContextValidator:
+        """Validates trust is used only in appropriate role context."""
+
+        def __init__(self):
+            self.role_trust: Dict[str, Dict[str, float]] = {}  # entity -> role -> trust
+            self.role_interactions: Dict[str, set] = {}  # role -> allowed interaction types
+
+            # Define which roles can do what
+            self.role_interactions = {
+                "surgeon": {"medical_procedure", "consultation"},
+                "mechanic": {"vehicle_repair", "inspection"},
+                "developer": {"code_review", "deployment"},
+                "admin": {"system_config", "user_management"},
+            }
+
+        def set_trust(self, entity: str, role: str, trust: float):
+            if entity not in self.role_trust:
+                self.role_trust[entity] = {}
+            self.role_trust[entity][role] = trust
+
+        def get_trust_for_action(self, entity: str, role: str, action_type: str) -> float:
+            """Get trust only if role matches action type."""
+            # Defense: Verify role can perform action
+            if role not in self.role_interactions:
+                return 0.0
+
+            if action_type not in self.role_interactions[role]:
+                return 0.0  # No trust outside role context
+
+            return self.role_trust.get(entity, {}).get(role, 0.0)
+
+    validator = RoleContextValidator()
+    validator.set_trust("alice", "surgeon", 0.95)
+    validator.set_trust("alice", "mechanic", 0.2)
+
+    # Attacker tries to use surgeon trust for mechanical work
+    surgeon_trust_for_surgery = validator.get_trust_for_action("alice", "surgeon", "medical_procedure")
+    surgeon_trust_for_repair = validator.get_trust_for_action("alice", "surgeon", "vehicle_repair")
+
+    if surgeon_trust_for_surgery > 0.9 and surgeon_trust_for_repair == 0.0:
+        defenses["role_context_validation"] = True
+        role_note = f"Role isolation works: surgery={surgeon_trust_for_surgery:.2f}, repair={surgeon_trust_for_repair:.2f}"
+    else:
+        role_note = f"Role confusion: surgery={surgeon_trust_for_surgery:.2f}, repair={surgeon_trust_for_repair:.2f}"
+
+    # ========================================================================
+    # Defense 3: Edge Weight Bounds
+    # ========================================================================
+    # Attacker tries to create edges with invalid probability weights
+
+    graph2 = MRHGraph()
+    graph2.add_node("attacker")
+    graph2.add_node("target")
+
+    # Try to create edges with extreme weights
+    edge1 = graph2.add_edge("attacker", "target", "pairedWith", probability=999.0)
+    edge2 = graph2.add_edge("attacker", "target", "witnessedBy", probability=-1.0)
+
+    weights_bounded = True
+    if edge1 and edge1.probability > 1.0:
+        weights_bounded = False
+    if edge2 and edge2.probability < 0.0:
+        weights_bounded = False
+
+    if weights_bounded:
+        defenses["edge_weight_bounds"] = True
+        weight_note = f"Weights bounded: {edge1.probability if edge1 else 'N/A':.2f}, {edge2.probability if edge2 else 'N/A':.2f}"
+    else:
+        weight_note = "Weights unbounded - attack possible"
+
+    # ========================================================================
+    # Defense 4: Relationship Type Verification
+    # ========================================================================
+    # Attacker tries to create fake relationship types
+
+    graph3 = MRHGraph()
+    graph3.add_node("attacker")
+    graph3.add_node("victim")
+
+    # Try to create a fake relationship type
+    fake_edge = graph3.add_edge("attacker", "victim", "superTrust", probability=1.0)
+    valid_edge = graph3.add_edge("attacker", "victim", "pairedWith", probability=0.5)
+
+    if fake_edge is None and valid_edge is not None:
+        defenses["relationship_type_verification"] = True
+        rel_note = "Fake relationship rejected, valid accepted"
+    else:
+        rel_note = f"Relationship spoofing possible: fake={fake_edge is not None}"
+
+    # ========================================================================
+    # Defense 5: Trust Propagation Decay
+    # ========================================================================
+    # Attacker tries to amplify trust through long chains
+
+    graph4 = MRHGraph()
+    for i in range(6):
+        graph4.add_node(f"chain_{i}")
+    for i in range(5):
+        graph4.add_edge(f"chain_{i}", f"chain_{i+1}", "pairedWith", probability=0.95)
+
+    # Calculate trust along path
+    path = [f"chain_{i}" for i in range(6)]
+    path_trust = graph4.calculate_trust_path(path, decay_rate=0.8)
+
+    # With 5 hops and decay, trust should be significantly reduced
+    # 0.95 * 0.8 * 0.95 * 0.64 * 0.95 * 0.512 * 0.95 * 0.4096 * 0.95 * 0.327 = very small
+    # Actually: trust *= edge_trust * decay^hop
+    expected_decay = 0.95 * 0.8 * 0.95 * (0.8**2) * 0.95 * (0.8**3) * 0.95 * (0.8**4) * 0.95 * (0.8**5)
+
+    if path_trust < 0.3:  # Should be heavily decayed
+        defenses["trust_propagation_decay"] = True
+        decay_note = f"Trust decayed to {path_trust:.4f} over 5 hops"
+    else:
+        decay_note = f"Insufficient decay: {path_trust:.4f} (should be <0.3)"
+
+    # ========================================================================
+    # Defense 6: Circular Reference Detection
+    # ========================================================================
+    # Attacker creates trust cycles to amplify reputation
+
+    graph5 = MRHGraph()
+    graph5.add_node("a")
+    graph5.add_node("b")
+    graph5.add_node("c")
+    graph5.add_edge("a", "b", "witnessedBy", 0.9)
+    graph5.add_edge("b", "c", "witnessedBy", 0.9)
+    graph5.add_edge("c", "a", "witnessedBy", 0.9)  # Creates cycle
+
+    cycles = graph5.detect_circular_references("a")
+
+    if len(cycles) > 0:
+        defenses["circular_reference_detection"] = True
+        cycle_note = f"Detected {len(cycles)} cycle(s): {cycles[0] if cycles else 'none'}"
+    else:
+        cycle_note = "Cycles not detected - amplification possible"
+
+    # ========================================================================
+    # Defense 7: Cross-Horizon Isolation
+    # ========================================================================
+    # Attacker tries to leak trust information across horizon boundaries
+
+    class IsolatedMRH:
+        """MRH with strict horizon isolation."""
+
+        def __init__(self, origin: str, horizon_depth: int = 3):
+            self.origin = origin
+            self.horizon_depth = horizon_depth
+            self.in_horizon: set = set()
+            self.out_of_horizon: set = set()
+
+        def classify_node(self, node: str, distance: int):
+            if distance <= self.horizon_depth:
+                self.in_horizon.add(node)
+            else:
+                self.out_of_horizon.add(node)
+
+        def can_access(self, node: str) -> bool:
+            """Strict isolation - can only access in-horizon nodes."""
+            return node in self.in_horizon and node not in self.out_of_horizon
+
+        def get_trust_from_outside(self, node: str) -> float:
+            """Reject trust from outside horizon."""
+            if node in self.out_of_horizon:
+                return 0.0  # No trust leakage
+            return 0.5  # Normal trust for in-horizon
+
+    iso_mrh = IsolatedMRH("origin")
+    iso_mrh.classify_node("near", 2)
+    iso_mrh.classify_node("far", 5)
+
+    near_trust = iso_mrh.get_trust_from_outside("near")
+    far_trust = iso_mrh.get_trust_from_outside("far")
+
+    if near_trust > 0 and far_trust == 0:
+        defenses["cross_horizon_isolation"] = True
+        iso_note = f"Horizon isolation: near={near_trust:.2f}, far={far_trust:.2f}"
+    else:
+        iso_note = f"Trust leakage: near={near_trust:.2f}, far={far_trust:.2f}"
+
+    # ========================================================================
+    # Defense 8: Semantic Consistency Check
+    # ========================================================================
+    # Attacker creates semantically inconsistent relationships
+
+    class SemanticValidator:
+        """Validates semantic consistency of relationships."""
+
+        def __init__(self):
+            # Define incompatible relationship combinations
+            self.incompatible = {
+                ("boundTo", "boundTo"): "circular_binding",  # Can't bind both ways
+                ("parentBinding", "childBinding"): "parent_child_conflict",
+            }
+            self.relationships: List[Tuple[str, str, str]] = []
+
+        def add_relationship(self, source: str, target: str, rel_type: str) -> Tuple[bool, str]:
+            # Check for semantic inconsistency
+            for (s, t, r) in self.relationships:
+                # Check reverse relationship conflict
+                if s == target and t == source:
+                    if (r, rel_type) in self.incompatible or (rel_type, r) in self.incompatible:
+                        return False, f"Semantic conflict: {r} vs {rel_type}"
+
+            self.relationships.append((source, target, rel_type))
+            return True, "OK"
+
+    sem_val = SemanticValidator()
+    ok1, _ = sem_val.add_relationship("a", "b", "parentBinding")
+    ok2, msg = sem_val.add_relationship("b", "a", "childBinding")
+
+    if ok1 and not ok2:
+        defenses["semantic_consistency_check"] = True
+        sem_note = f"Semantic validation: {msg}"
+    else:
+        sem_note = f"Semantic inconsistency allowed: parent={ok1}, child={ok2}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2  # Fewer than 6/8 defenses
+
+    return AttackResult(
+        attack_name="MRH Exploitation (CV)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=1200.0 if attack_success else -150.0,
+        roi=8.0 if attack_success else -1.0,
+        detection_probability=0.70,
+        time_to_detection_hours=6,
+        blocks_until_detected=30,
+        trust_damage=0.65,
+        description=f"""
+MRH (MARKOV RELEVANCY HORIZON) EXPLOITATION ATTACK (Track CV):
+- Horizon depth enforcement: {"DEFENDED" if defenses["horizon_depth_enforced"] else "VULNERABLE"}
+  {horizon_note}
+- Role-context validation: {"DEFENDED" if defenses["role_context_validation"] else "VULNERABLE"}
+  {role_note}
+- Edge weight bounds: {"DEFENDED" if defenses["edge_weight_bounds"] else "VULNERABLE"}
+  {weight_note}
+- Relationship type verification: {"DEFENDED" if defenses["relationship_type_verification"] else "VULNERABLE"}
+  {rel_note}
+- Trust propagation decay: {"DEFENDED" if defenses["trust_propagation_decay"] else "VULNERABLE"}
+  {decay_note}
+- Circular reference detection: {"DEFENDED" if defenses["circular_reference_detection"] else "VULNERABLE"}
+  {cycle_note}
+- Cross-horizon isolation: {"DEFENDED" if defenses["cross_horizon_isolation"] else "VULNERABLE"}
+  {iso_note}
+- Semantic consistency check: {"DEFENDED" if defenses["semantic_consistency_check"] else "VULNERABLE"}
+  {sem_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+MRH exploitation undermines the context-based trust model that is
+fundamental to Web4. Successful attacks allow:
+- Context expansion beyond legitimate boundaries
+- Trust inflation through graph manipulation
+- Role confusion enabling unauthorized actions
+""".strip(),
+        mitigation=f"""
+Track CV: MRH Exploitation Mitigation:
+1. Enforce strict horizon depth limits at query time
+2. Validate role context before allowing trust-based actions
+3. Bound all edge weights to [0.0, 1.0] range
+4. Whitelist valid relationship types, reject unknown
+5. Apply multiplicative decay on trust propagation
+6. Detect and prevent circular trust references
+7. Isolate trust calculations within horizon boundaries
+8. Validate semantic consistency of relationship graphs
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 37: V3 Value Tensor Manipulation
+# ---------------------------------------------------------------------------
+
+def attack_v3_value_tensor_manipulation() -> AttackResult:
+    """
+    ATTACK: Exploit V3 (Value Tensor) weaknesses.
+
+    The V3 Tensor quantifies value creation through:
+    1. Valuation (subjective worth perceived by recipients)
+    2. Veracity (objective accuracy and truthfulness)
+    3. Validity (confirmed value transfer)
+
+    Attacks target:
+    1. Valuation inflation through colluding recipients
+    2. Veracity gaming through selective claim verification
+    3. Validity manipulation through fake transfer confirmations
+    4. Cross-context value smuggling
+    5. ATP-V3 price manipulation
+    6. Witness collusion for false attestation
+    7. Temporal V3 gaming (exploiting recency weighting)
+    """
+
+    defenses = {
+        "valuation_inflation_detected": False,
+        "veracity_gaming_blocked": False,
+        "validity_manipulation_blocked": False,
+        "cross_context_isolation": False,
+        "atp_price_bounds": False,
+        "witness_collusion_detection": False,
+        "temporal_gaming_detection": False,
+        "aggregate_anomaly_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Valuation Inflation Detection
+    # ========================================================================
+    # Attacker colludes with recipients to inflate valuation scores
+
+    class V3Tensor:
+        def __init__(self, entity_id: str):
+            self.entity_id = entity_id
+            self.transactions: List[Dict] = []
+            self.by_context: Dict[str, Dict] = defaultdict(lambda: {
+                "transactions": 0,
+                "total_valuation": 0.0,
+                "veracity_sum": 0.0,
+                "validity_count": 0,
+            })
+
+        def record_transaction(self, context: str, valuation: float, veracity: float,
+                               validity: bool, recipient: str, witnesses: List[str]) -> bool:
+            """Record a value transaction."""
+            self.transactions.append({
+                "timestamp": datetime.now(timezone.utc),
+                "context": context,
+                "valuation": valuation,
+                "veracity": veracity,
+                "validity": validity,
+                "recipient": recipient,
+                "witnesses": witnesses,
+            })
+
+            ctx = self.by_context[context]
+            ctx["transactions"] += 1
+            ctx["total_valuation"] += valuation
+            ctx["veracity_sum"] += veracity
+            if validity:
+                ctx["validity_count"] += 1
+
+            return True
+
+        def get_aggregate(self) -> Dict:
+            if not self.transactions:
+                return {"valuation": 0.0, "veracity": 0.0, "validity": 0.0}
+
+            total_val = sum(t["valuation"] for t in self.transactions)
+            avg_ver = sum(t["veracity"] for t in self.transactions) / len(self.transactions)
+            val_rate = sum(1 for t in self.transactions if t["validity"]) / len(self.transactions)
+
+            return {
+                "total_valuation": total_val,
+                "average_valuation": total_val / len(self.transactions),
+                "veracity": avg_ver,
+                "validity": val_rate,
+                "transaction_count": len(self.transactions),
+            }
+
+    class V3AntiGaming:
+        """Detect gaming attempts on V3 tensors."""
+
+        def __init__(self):
+            self.recipient_patterns: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+            self.witness_patterns: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+
+        def check_valuation_inflation(self, entity: str, recipient: str, valuation: float) -> Tuple[bool, str]:
+            """Detect repeated high valuations from same recipient."""
+            key = f"{entity}:{recipient}"
+            self.recipient_patterns[entity][recipient] += 1
+
+            # Defense: Flag if same recipient gives too many high valuations
+            count = self.recipient_patterns[entity][recipient]
+            if count > 5 and valuation > 0.9:
+                return True, f"Suspicious pattern: {recipient} gave {count} high valuations to {entity}"
+
+            return False, "OK"
+
+        def check_witness_collusion(self, witnesses: List[str], entity: str) -> Tuple[bool, str]:
+            """Detect repeated witness patterns."""
+            witness_key = ":".join(sorted(witnesses))
+            self.witness_patterns[entity][witness_key] += 1
+
+            count = self.witness_patterns[entity][witness_key]
+            if count > 3:
+                return True, f"Same witnesses attesting repeatedly ({count} times)"
+
+            return False, "OK"
+
+    anti_gaming = V3AntiGaming()
+    attacker_v3 = V3Tensor("attacker")
+
+    # Attacker tries to inflate valuation with colluding recipient
+    inflation_detected = False
+    for i in range(10):
+        detected, msg = anti_gaming.check_valuation_inflation("attacker", "colluding_recipient", 0.95)
+        attacker_v3.record_transaction(
+            context="fake_work",
+            valuation=0.95,
+            veracity=0.9,
+            validity=True,
+            recipient="colluding_recipient",
+            witnesses=["witness1", "witness2"]
+        )
+        if detected:
+            inflation_detected = True
+            break
+
+    if inflation_detected:
+        defenses["valuation_inflation_detected"] = True
+        val_note = f"Detected valuation inflation after {i+1} transactions"
+    else:
+        val_note = "Valuation inflation not detected"
+
+    # ========================================================================
+    # Defense 2: Veracity Gaming Detection
+    # ========================================================================
+    # Attacker makes many easy-to-verify claims to inflate veracity
+
+    class VeracityValidator:
+        """Validate veracity claims with anti-gaming."""
+
+        def __init__(self):
+            self.claim_complexity: Dict[str, List[float]] = defaultdict(list)
+
+        def record_claim(self, entity: str, verified: bool, complexity: float):
+            """Record a claim with its complexity."""
+            self.claim_complexity[entity].append(complexity)
+
+        def get_weighted_veracity(self, entity: str) -> float:
+            """Weight veracity by claim complexity."""
+            claims = self.claim_complexity.get(entity, [])
+            if not claims:
+                return 0.0
+
+            # Defense: Weight by complexity - trivial claims count less
+            total_weight = sum(claims)
+            if total_weight == 0:
+                return 0.0
+
+            # Simple claims (complexity < 0.3) are downweighted
+            weighted = sum(c * min(1.0, c / 0.3) for c in claims)
+            return weighted / len(claims)
+
+    veracity_val = VeracityValidator()
+
+    # Attacker makes many trivial claims (complexity 0.1)
+    for _ in range(20):
+        veracity_val.record_claim("attacker", verified=True, complexity=0.1)
+
+    # Honest user makes fewer but substantial claims
+    for _ in range(5):
+        veracity_val.record_claim("honest", verified=True, complexity=0.8)
+
+    attacker_score = veracity_val.get_weighted_veracity("attacker")
+    honest_score = veracity_val.get_weighted_veracity("honest")
+
+    if honest_score > attacker_score:
+        defenses["veracity_gaming_blocked"] = True
+        ver_note = f"Gaming blocked: honest={honest_score:.3f}, attacker={attacker_score:.3f}"
+    else:
+        ver_note = f"Gaming succeeded: attacker={attacker_score:.3f} >= honest={honest_score:.3f}"
+
+    # ========================================================================
+    # Defense 3: Validity Manipulation Detection
+    # ========================================================================
+    # Attacker creates fake transfer confirmations
+
+    class ValidityTracker:
+        """Track validity with confirmation requirements."""
+
+        def __init__(self):
+            self.transfers: Dict[str, Dict] = {}
+
+        def initiate_transfer(self, transfer_id: str, sender: str, recipient: str, value: float) -> str:
+            """Initiate a value transfer."""
+            self.transfers[transfer_id] = {
+                "sender": sender,
+                "recipient": recipient,
+                "value": value,
+                "sender_confirmed": False,
+                "recipient_confirmed": False,
+                "witness_confirmed": False,
+                "status": "pending"
+            }
+            return transfer_id
+
+        def confirm_transfer(self, transfer_id: str, confirmer: str, is_witness: bool = False) -> Tuple[bool, str]:
+            """Confirm transfer - requires multiple parties."""
+            if transfer_id not in self.transfers:
+                return False, "Transfer not found"
+
+            t = self.transfers[transfer_id]
+
+            # Defense: Require BOTH parties + witness to confirm
+            if is_witness:
+                t["witness_confirmed"] = True
+            elif confirmer == t["sender"]:
+                t["sender_confirmed"] = True
+            elif confirmer == t["recipient"]:
+                t["recipient_confirmed"] = True
+            else:
+                return False, "Unknown confirmer"
+
+            # Only valid when all three confirm
+            if t["sender_confirmed"] and t["recipient_confirmed"] and t["witness_confirmed"]:
+                t["status"] = "valid"
+                return True, "Transfer validated"
+
+            return False, f"Awaiting: sender={not t['sender_confirmed']}, recipient={not t['recipient_confirmed']}, witness={not t['witness_confirmed']}"
+
+    validity_tracker = ValidityTracker()
+    validity_tracker.initiate_transfer("tx1", "attacker", "fake_recipient", 100.0)
+
+    # Attacker tries to confirm as both sender AND recipient
+    validity_tracker.confirm_transfer("tx1", "attacker")
+    validity_tracker.confirm_transfer("tx1", "attacker")  # Trying to double-confirm
+
+    # Can attacker fake validity?
+    tx = validity_tracker.transfers["tx1"]
+    if tx["status"] != "valid":
+        defenses["validity_manipulation_blocked"] = True
+        valid_note = f"Manipulation blocked: requires recipient + witness confirmation"
+    else:
+        valid_note = "Attacker self-validated transfer"
+
+    # ========================================================================
+    # Defense 4: Cross-Context Value Isolation
+    # ========================================================================
+    # Attacker tries to use V3 from one context in another
+
+    class ContextualV3:
+        """V3 tensors isolated by context."""
+
+        def __init__(self, entity_id: str):
+            self.entity_id = entity_id
+            self.context_v3: Dict[str, Dict] = {}
+
+        def set_context_v3(self, context: str, valuation: float, veracity: float, validity: float):
+            self.context_v3[context] = {
+                "valuation": valuation,
+                "veracity": veracity,
+                "validity": validity,
+            }
+
+        def get_v3_for_action(self, action_context: str, claimed_context: str) -> float:
+            """Get V3 only if contexts match."""
+            # Defense: Strict context matching
+            if action_context != claimed_context:
+                return 0.0  # No cross-context trust
+
+            ctx = self.context_v3.get(action_context, {})
+            return ctx.get("valuation", 0.0) * ctx.get("veracity", 0.0) * ctx.get("validity", 0.0)
+
+    ctx_v3 = ContextualV3("attacker")
+    ctx_v3.set_context_v3("data_analysis", 0.95, 0.90, 0.98)
+    ctx_v3.set_context_v3("surgery", 0.10, 0.10, 0.50)
+
+    # Attacker tries to use data_analysis V3 for surgery
+    legitimate = ctx_v3.get_v3_for_action("data_analysis", "data_analysis")
+    smuggled = ctx_v3.get_v3_for_action("surgery", "data_analysis")
+
+    if legitimate > 0.5 and smuggled == 0.0:
+        defenses["cross_context_isolation"] = True
+        ctx_note = f"Context isolated: legitimate={legitimate:.3f}, smuggled={smuggled:.3f}"
+    else:
+        ctx_note = f"Cross-context leak: legitimate={legitimate:.3f}, smuggled={smuggled:.3f}"
+
+    # ========================================================================
+    # Defense 5: ATP Price Bounds
+    # ========================================================================
+    # Attacker tries to manipulate ATP pricing via V3 scores
+
+    class ATPPricing:
+        """ATP pricing with bounds and anti-manipulation."""
+
+        MIN_PRICE = 1.0
+        MAX_PRICE = 1000.0
+        MAX_MULTIPLIER = 5.0
+
+        def calculate_price(self, base_cost: float, v3_valuation: float,
+                           v3_veracity: float, v3_validity: float) -> float:
+            """Calculate ATP price with bounds."""
+            # Defense: Bound individual factors
+            val = max(0.0, min(1.0, v3_valuation))
+            ver = max(0.0, min(1.0, v3_veracity))
+            valid = max(0.0, min(1.0, v3_validity))
+
+            multiplier = 1 + val * ver * valid
+
+            # Defense: Cap multiplier
+            multiplier = min(multiplier, self.MAX_MULTIPLIER)
+
+            price = base_cost * multiplier
+
+            # Defense: Enforce price bounds
+            return max(self.MIN_PRICE, min(self.MAX_PRICE, price))
+
+    pricing = ATPPricing()
+
+    # Attacker tries extreme values
+    normal_price = pricing.calculate_price(10.0, 0.8, 0.9, 0.95)
+    inflated_price = pricing.calculate_price(10.0, 999.0, 999.0, 999.0)
+
+    if inflated_price <= ATPPricing.MAX_PRICE and inflated_price <= 10.0 * ATPPricing.MAX_MULTIPLIER:
+        defenses["atp_price_bounds"] = True
+        price_note = f"Prices bounded: normal={normal_price:.1f}, inflated attempt={inflated_price:.1f}"
+    else:
+        price_note = f"Price manipulation: normal={normal_price:.1f}, inflated={inflated_price:.1f}"
+
+    # ========================================================================
+    # Defense 6: Witness Collusion Detection
+    # ========================================================================
+    # Attacker uses same witness group repeatedly
+
+    collusion_detected = False
+    for i in range(5):
+        detected, msg = anti_gaming.check_witness_collusion(
+            ["shill1", "shill2", "shill3"],
+            "attacker"
+        )
+        if detected:
+            collusion_detected = True
+            break
+
+    if collusion_detected:
+        defenses["witness_collusion_detection"] = True
+        witness_note = f"Witness collusion detected after {i+1} attestations"
+    else:
+        witness_note = "Witness collusion not detected"
+
+    # ========================================================================
+    # Defense 7: Temporal Gaming Detection
+    # ========================================================================
+    # Attacker tries to exploit recency weighting by bursting transactions
+
+    class TemporalV3Analyzer:
+        """Detect temporal gaming patterns in V3."""
+
+        def __init__(self, window_minutes: int = 60):
+            self.window = timedelta(minutes=window_minutes)
+            self.transactions: List[Tuple[datetime, float]] = []
+
+        def record_transaction(self, timestamp: datetime, valuation: float):
+            self.transactions.append((timestamp, valuation))
+
+        def detect_burst(self, threshold_count: int = 10, threshold_minutes: int = 5) -> Tuple[bool, str]:
+            """Detect transaction bursts."""
+            if len(self.transactions) < threshold_count:
+                return False, "Insufficient data"
+
+            # Sort by time
+            sorted_txns = sorted(self.transactions, key=lambda x: x[0])
+
+            # Look for bursts
+            for i in range(len(sorted_txns) - threshold_count + 1):
+                window_txns = sorted_txns[i:i + threshold_count]
+                time_span = (window_txns[-1][0] - window_txns[0][0]).total_seconds() / 60
+
+                if time_span < threshold_minutes:
+                    return True, f"Burst detected: {threshold_count} transactions in {time_span:.1f} minutes"
+
+            return False, "No burst detected"
+
+    temporal = TemporalV3Analyzer()
+    now = datetime.now(timezone.utc)
+
+    # Attacker bursts transactions
+    for i in range(15):
+        temporal.record_transaction(now + timedelta(seconds=i * 10), 0.9)
+
+    burst_detected, burst_msg = temporal.detect_burst()
+
+    if burst_detected:
+        defenses["temporal_gaming_detection"] = True
+        temporal_note = f"Temporal gaming detected: {burst_msg}"
+    else:
+        temporal_note = "Burst not detected - temporal gaming possible"
+
+    # ========================================================================
+    # Defense 8: Aggregate Anomaly Detection
+    # ========================================================================
+    # Detect statistically anomalous V3 patterns
+
+    class V3AnomalyDetector:
+        """Detect anomalous V3 patterns."""
+
+        def __init__(self):
+            self.entity_v3s: Dict[str, List[Dict]] = defaultdict(list)
+
+        def record(self, entity: str, v3: Dict):
+            self.entity_v3s[entity].append(v3)
+
+        def detect_anomaly(self, entity: str) -> Tuple[bool, str]:
+            """Detect if entity's V3 is anomalous."""
+            entity_data = self.entity_v3s.get(entity, [])
+            if len(entity_data) < 5:
+                return False, "Insufficient history"
+
+            # Check for unrealistic patterns
+            valuations = [d.get("valuation", 0) for d in entity_data]
+            avg_val = sum(valuations) / len(valuations)
+            variance = sum((v - avg_val) ** 2 for v in valuations) / len(valuations)
+
+            # Defense: Perfect scores with zero variance is suspicious
+            if avg_val > 0.95 and variance < 0.01:
+                return True, f"Suspiciously perfect: avg={avg_val:.3f}, variance={variance:.5f}"
+
+            return False, "No anomaly detected"
+
+    anomaly = V3AnomalyDetector()
+
+    # Attacker maintains perfect scores
+    for i in range(10):
+        anomaly.record("attacker", {"valuation": 0.99, "veracity": 0.99, "validity": 1.0})
+
+    # Honest user has natural variation
+    import random
+    random.seed(42)
+    for i in range(10):
+        anomaly.record("honest", {
+            "valuation": 0.7 + random.random() * 0.2,
+            "veracity": 0.75 + random.random() * 0.15,
+            "validity": 1.0 if random.random() > 0.05 else 0.0
+        })
+
+    attacker_anomaly, attacker_msg = anomaly.detect_anomaly("attacker")
+    honest_anomaly, _ = anomaly.detect_anomaly("honest")
+
+    if attacker_anomaly and not honest_anomaly:
+        defenses["aggregate_anomaly_detection"] = True
+        anomaly_note = f"Anomaly detected: {attacker_msg}"
+    else:
+        anomaly_note = f"Anomaly detection: attacker={attacker_anomaly}, honest={honest_anomaly}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2  # Fewer than 6/8 defenses
+
+    return AttackResult(
+        attack_name="V3 Value Tensor Manipulation (CW)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=1500.0 if attack_success else -200.0,
+        roi=7.5 if attack_success else -1.0,
+        detection_probability=0.75,
+        time_to_detection_hours=8,
+        blocks_until_detected=40,
+        trust_damage=0.60,
+        description=f"""
+V3 (VALUE TENSOR) MANIPULATION ATTACK (Track CW):
+- Valuation inflation detection: {"DEFENDED" if defenses["valuation_inflation_detected"] else "VULNERABLE"}
+  {val_note}
+- Veracity gaming blocked: {"DEFENDED" if defenses["veracity_gaming_blocked"] else "VULNERABLE"}
+  {ver_note}
+- Validity manipulation blocked: {"DEFENDED" if defenses["validity_manipulation_blocked"] else "VULNERABLE"}
+  {valid_note}
+- Cross-context isolation: {"DEFENDED" if defenses["cross_context_isolation"] else "VULNERABLE"}
+  {ctx_note}
+- ATP price bounds: {"DEFENDED" if defenses["atp_price_bounds"] else "VULNERABLE"}
+  {price_note}
+- Witness collusion detection: {"DEFENDED" if defenses["witness_collusion_detection"] else "VULNERABLE"}
+  {witness_note}
+- Temporal gaming detection: {"DEFENDED" if defenses["temporal_gaming_detection"] else "VULNERABLE"}
+  {temporal_note}
+- Aggregate anomaly detection: {"DEFENDED" if defenses["aggregate_anomaly_detection"] else "VULNERABLE"}
+  {anomaly_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+V3 manipulation attacks undermine the value measurement system.
+Successful attacks allow:
+- Inflated valuation scores for worthless work
+- False veracity claims through trivial verification
+- Fake validity confirmations bypassing delivery
+- Cross-context value smuggling
+""".strip(),
+        mitigation=f"""
+Track CW: V3 Value Tensor Manipulation Mitigation:
+1. Detect repeated high valuations from same recipient
+2. Weight veracity by claim complexity, not just count
+3. Require multi-party confirmation for validity
+4. Strictly isolate V3 tensors by context
+5. Bound ATP pricing multipliers and enforce min/max
+6. Detect repeated witness groups
+7. Detect transaction bursts in short time windows
+8. Flag statistically anomalous V3 patterns
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 38: Concurrent Race Conditions
+# ---------------------------------------------------------------------------
+
+def attack_concurrent_race_conditions() -> AttackResult:
+    """
+    ATTACK: Exploit race conditions in concurrent operations.
+
+    Most blockchain/trust systems assume sequential operations.
+    Concurrent attacks target:
+    1. Double-spend of ATP tokens
+    2. Trust score TOCTOU (time-of-check-time-of-use)
+    3. Witness attestation races
+    4. R6 request ordering manipulation
+    5. Heartbeat timing attacks
+    6. Federation state inconsistency
+    7. Multi-sig race conditions
+    8. Reputation update races
+
+    These attacks require careful timing but can be devastating
+    if the system lacks proper concurrency controls.
+    """
+    import threading
+    import queue
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    defenses = {
+        "atp_double_spend_blocked": False,
+        "trust_toctou_protected": False,
+        "witness_race_protected": False,
+        "r6_ordering_enforced": False,
+        "heartbeat_serialization": False,
+        "federation_consistency": False,
+        "multisig_atomic": False,
+        "reputation_serialized": False,
+    }
+
+    # ========================================================================
+    # Defense 1: ATP Double-Spend Protection
+    # ========================================================================
+    # Attacker tries to spend same ATP twice via concurrent requests
+
+    class ATPLedger:
+        """ATP ledger with concurrency protection."""
+
+        def __init__(self, initial_balance: float = 1000.0):
+            self.balance = initial_balance
+            self._lock = threading.Lock()
+            self.transactions: List[Dict] = []
+            self.failed_attempts = 0
+
+        def spend(self, amount: float, purpose: str) -> Tuple[bool, str]:
+            """Spend ATP with atomic balance update."""
+            # Defense: Lock for atomic check-and-update
+            with self._lock:
+                if self.balance < amount:
+                    self.failed_attempts += 1
+                    return False, f"Insufficient balance: {self.balance:.2f} < {amount:.2f}"
+
+                # Simulate processing delay that could be exploited
+                # In vulnerable system: balance checked, then updated separately
+                self.balance -= amount
+                self.transactions.append({
+                    "amount": amount,
+                    "purpose": purpose,
+                    "timestamp": datetime.now(timezone.utc),
+                    "remaining": self.balance
+                })
+                return True, f"Spent {amount:.2f}, remaining: {self.balance:.2f}"
+
+    atp_ledger = ATPLedger(initial_balance=100.0)
+
+    # Attack: Try to double-spend by concurrent requests for 80 ATP each
+    results_queue = queue.Queue()
+
+    def double_spend_attempt(ledger: ATPLedger, amount: float, thread_id: int):
+        success, msg = ledger.spend(amount, f"thread_{thread_id}")
+        results_queue.put((thread_id, success, msg))
+
+    threads = []
+    for i in range(5):  # 5 threads trying to spend 80 ATP each (total 400 > 100)
+        t = threading.Thread(target=double_spend_attempt, args=(atp_ledger, 80.0, i))
+        threads.append(t)
+
+    # Start all threads nearly simultaneously
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # Count successful spends
+    successful_spends = 0
+    while not results_queue.empty():
+        thread_id, success, msg = results_queue.get()
+        if success:
+            successful_spends += 1
+
+    # With 100 ATP, should only be able to spend 80 once
+    if successful_spends <= 1 and atp_ledger.balance >= 0:
+        defenses["atp_double_spend_blocked"] = True
+        atp_note = f"Double-spend blocked: {successful_spends} succeeded, balance={atp_ledger.balance:.2f}"
+    else:
+        atp_note = f"Double-spend possible: {successful_spends} succeeded, balance={atp_ledger.balance:.2f}"
+
+    # ========================================================================
+    # Defense 2: Trust Score TOCTOU Protection
+    # ========================================================================
+    # Time-of-check-time-of-use: trust verified, then action executed with stale value
+
+    class TrustManager:
+        """Trust manager with TOCTOU protection."""
+
+        def __init__(self):
+            self.trust_scores: Dict[str, float] = {}
+            self._lock = threading.Lock()
+            self._pending_actions: Dict[str, datetime] = {}
+
+        def set_trust(self, entity: str, score: float):
+            with self._lock:
+                self.trust_scores[entity] = score
+
+        def check_and_execute(self, entity: str, required_trust: float, action: str) -> Tuple[bool, str]:
+            """Atomically check trust and execute action."""
+            with self._lock:
+                current_trust = self.trust_scores.get(entity, 0.0)
+
+                if current_trust < required_trust:
+                    return False, f"Insufficient trust: {current_trust:.2f} < {required_trust:.2f}"
+
+                # Defense: Execute while still holding lock
+                # This prevents trust from being changed between check and use
+                self._pending_actions[f"{entity}:{action}"] = datetime.now(timezone.utc)
+                return True, f"Executed {action} with trust {current_trust:.2f}"
+
+    trust_mgr = TrustManager()
+    trust_mgr.set_trust("attacker", 0.9)
+
+    toctou_results = []
+
+    def toctou_attack(mgr: TrustManager):
+        # Thread 1: Try to execute privileged action
+        success, msg = mgr.check_and_execute("attacker", 0.8, "privileged_action")
+        toctou_results.append(("execute", success, msg))
+
+    def trust_reducer(mgr: TrustManager):
+        # Thread 2: Reduce trust during execution
+        time.sleep(0.001)  # Tiny delay to try to hit the race window
+        mgr.set_trust("attacker", 0.1)
+        toctou_results.append(("reduce", True, "Trust reduced to 0.1"))
+
+    t1 = threading.Thread(target=toctou_attack, args=(trust_mgr,))
+    t2 = threading.Thread(target=trust_reducer, args=(trust_mgr,))
+
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    # Check if action executed with proper trust (not exploited)
+    execute_result = next((r for r in toctou_results if r[0] == "execute"), None)
+    if execute_result and execute_result[1]:
+        # Action executed - verify it was with valid trust at time of execution
+        defenses["trust_toctou_protected"] = True
+        toctou_note = "TOCTOU protected: atomic check-and-execute"
+    else:
+        toctou_note = "TOCTOU vulnerable or action failed"
+
+    # ========================================================================
+    # Defense 3: Witness Attestation Race Protection
+    # ========================================================================
+    # Multiple witnesses racing to attest, causing double-counting
+
+    class WitnessManager:
+        """Witness manager with race protection."""
+
+        def __init__(self):
+            self._lock = threading.Lock()
+            self.attestations: Dict[str, set] = defaultdict(set)
+            self.duplicate_attempts = 0
+
+        def attest(self, subject: str, witness: str) -> Tuple[bool, str]:
+            """Record attestation, preventing duplicates."""
+            with self._lock:
+                if witness in self.attestations[subject]:
+                    self.duplicate_attempts += 1
+                    return False, f"Duplicate attestation from {witness}"
+
+                self.attestations[subject].add(witness)
+                return True, f"Attestation recorded: {witness} -> {subject}"
+
+        def get_witness_count(self, subject: str) -> int:
+            with self._lock:
+                return len(self.attestations[subject])
+
+    witness_mgr = WitnessManager()
+    witness_results = []
+
+    def witness_race(mgr: WitnessManager, subject: str, witness: str):
+        success, msg = mgr.attest(subject, witness)
+        witness_results.append((witness, success))
+
+    # 10 threads all trying to attest as the same witness
+    witness_threads = []
+    for i in range(10):
+        t = threading.Thread(target=witness_race, args=(witness_mgr, "target", "same_witness"))
+        witness_threads.append(t)
+
+    for t in witness_threads:
+        t.start()
+    for t in witness_threads:
+        t.join()
+
+    successful_attestations = sum(1 for r in witness_results if r[1])
+
+    if successful_attestations == 1:
+        defenses["witness_race_protected"] = True
+        witness_note = f"Race protected: 1 attestation, {witness_mgr.duplicate_attempts} duplicates blocked"
+    else:
+        witness_note = f"Race vulnerable: {successful_attestations} attestations succeeded"
+
+    # ========================================================================
+    # Defense 4: R6 Request Ordering Enforcement
+    # ========================================================================
+    # Attacker tries to reorder R6 requests to bypass dependencies
+
+    class R6RequestQueue:
+        """R6 request queue with ordering enforcement."""
+
+        def __init__(self):
+            self._lock = threading.Lock()
+            self.sequence = 0
+            self.requests: List[Dict] = []
+            self.processed: set = set()
+
+        def submit(self, request_id: str, depends_on: Optional[str] = None) -> Tuple[int, str]:
+            """Submit request with ordering."""
+            with self._lock:
+                seq = self.sequence
+                self.sequence += 1
+                self.requests.append({
+                    "id": request_id,
+                    "sequence": seq,
+                    "depends_on": depends_on,
+                    "status": "pending"
+                })
+                return seq, f"Submitted {request_id} at sequence {seq}"
+
+        def process(self, request_id: str) -> Tuple[bool, str]:
+            """Process request, enforcing dependencies."""
+            with self._lock:
+                req = next((r for r in self.requests if r["id"] == request_id), None)
+                if not req:
+                    return False, "Request not found"
+
+                # Defense: Check dependency satisfied
+                if req["depends_on"] and req["depends_on"] not in self.processed:
+                    return False, f"Dependency {req['depends_on']} not satisfied"
+
+                req["status"] = "processed"
+                self.processed.add(request_id)
+                return True, f"Processed {request_id}"
+
+    r6_queue = R6RequestQueue()
+
+    # Submit requests with dependency chain
+    r6_queue.submit("req_1")
+    r6_queue.submit("req_2", depends_on="req_1")
+    r6_queue.submit("req_3", depends_on="req_2")
+
+    # Try to process out of order
+    result_3, _ = r6_queue.process("req_3")  # Should fail - depends on req_2
+    result_1, _ = r6_queue.process("req_1")  # Should succeed
+    result_2, _ = r6_queue.process("req_2")  # Should succeed now
+    result_3_retry, _ = r6_queue.process("req_3")  # Should succeed now
+
+    if not result_3 and result_1 and result_2 and result_3_retry:
+        defenses["r6_ordering_enforced"] = True
+        r6_note = "R6 ordering enforced: out-of-order blocked, in-order succeeded"
+    else:
+        r6_note = f"R6 ordering issue: req_3_early={result_3}, req_1={result_1}, req_2={result_2}"
+
+    # ========================================================================
+    # Defense 5: Heartbeat Serialization
+    # ========================================================================
+    # Multiple heartbeats racing to update state
+
+    class HeartbeatSerializer:
+        """Heartbeat processor with serialization."""
+
+        def __init__(self):
+            self._lock = threading.Lock()
+            self.last_heartbeat = 0
+            self.heartbeat_history: List[int] = []
+            self.out_of_order_attempts = 0
+
+        def process_heartbeat(self, sequence: int) -> Tuple[bool, str]:
+            """Process heartbeat with strict ordering."""
+            with self._lock:
+                if sequence <= self.last_heartbeat:
+                    self.out_of_order_attempts += 1
+                    return False, f"Out of order: {sequence} <= {self.last_heartbeat}"
+
+                self.last_heartbeat = sequence
+                self.heartbeat_history.append(sequence)
+                return True, f"Processed heartbeat {sequence}"
+
+    heartbeat_mgr = HeartbeatSerializer()
+    hb_results = []
+
+    def heartbeat_race(mgr: HeartbeatSerializer, seq: int):
+        success, msg = mgr.process_heartbeat(seq)
+        hb_results.append((seq, success))
+
+    # Race 10 heartbeats with same sequence
+    hb_threads = []
+    for i in range(10):
+        t = threading.Thread(target=heartbeat_race, args=(heartbeat_mgr, 1))
+        hb_threads.append(t)
+
+    for t in hb_threads:
+        t.start()
+    for t in hb_threads:
+        t.join()
+
+    successful_hb = sum(1 for r in hb_results if r[1])
+
+    if successful_hb == 1:
+        defenses["heartbeat_serialization"] = True
+        hb_note = f"Heartbeat serialized: 1 succeeded, {heartbeat_mgr.out_of_order_attempts} blocked"
+    else:
+        hb_note = f"Heartbeat race: {successful_hb} succeeded"
+
+    # ========================================================================
+    # Defense 6: Federation State Consistency
+    # ========================================================================
+    # Concurrent federation updates causing inconsistent state
+
+    class FederationState:
+        """Federation state with consistency protection."""
+
+        def __init__(self):
+            self._lock = threading.Lock()
+            self.members: set = set()
+            self.trust_levels: Dict[str, float] = {}
+            self.version = 0
+            self.conflicts_detected = 0
+
+        def add_member(self, member: str, trust: float) -> Tuple[bool, str]:
+            """Add member atomically."""
+            with self._lock:
+                if member in self.members:
+                    self.conflicts_detected += 1
+                    return False, f"Member {member} already exists"
+
+                self.members.add(member)
+                self.trust_levels[member] = trust
+                self.version += 1
+                return True, f"Added {member} at version {self.version}"
+
+        def update_trust(self, member: str, delta: float) -> Tuple[bool, str]:
+            """Update trust atomically."""
+            with self._lock:
+                if member not in self.members:
+                    return False, f"Member {member} not found"
+
+                self.trust_levels[member] = max(0.0, min(1.0, self.trust_levels[member] + delta))
+                self.version += 1
+                return True, f"Updated {member} to {self.trust_levels[member]:.2f}"
+
+    fed_state = FederationState()
+    fed_results = []
+
+    def federation_race(state: FederationState, member: str, trust: float):
+        success, msg = state.add_member(member, trust)
+        fed_results.append((member, success))
+
+    # Race to add same member
+    fed_threads = []
+    for i in range(5):
+        t = threading.Thread(target=federation_race, args=(fed_state, "racing_member", 0.5))
+        fed_threads.append(t)
+
+    for t in fed_threads:
+        t.start()
+    for t in fed_threads:
+        t.join()
+
+    successful_adds = sum(1 for r in fed_results if r[1])
+
+    if successful_adds == 1 and len(fed_state.members) == 1:
+        defenses["federation_consistency"] = True
+        fed_note = f"Federation consistent: 1 add succeeded, state version={fed_state.version}"
+    else:
+        fed_note = f"Federation inconsistent: {successful_adds} adds, {len(fed_state.members)} members"
+
+    # ========================================================================
+    # Defense 7: Multi-Sig Atomic Operations
+    # ========================================================================
+    # Racing votes causing inconsistent quorum state
+
+    class AtomicMultiSig:
+        """Multi-sig with atomic vote counting."""
+
+        def __init__(self, required_votes: int = 3):
+            self._lock = threading.Lock()
+            self.required = required_votes
+            self.votes: Dict[str, set] = defaultdict(set)
+            self.executed: set = set()
+            self.duplicate_votes = 0
+
+        def vote(self, proposal_id: str, voter: str) -> Tuple[bool, bool, str]:
+            """Cast vote, return (vote_accepted, quorum_reached, message)."""
+            with self._lock:
+                if proposal_id in self.executed:
+                    return False, False, "Already executed"
+
+                if voter in self.votes[proposal_id]:
+                    self.duplicate_votes += 1
+                    return False, False, f"Duplicate vote from {voter}"
+
+                self.votes[proposal_id].add(voter)
+                vote_count = len(self.votes[proposal_id])
+
+                if vote_count >= self.required:
+                    self.executed.add(proposal_id)
+                    return True, True, f"Quorum reached with {vote_count} votes"
+
+                return True, False, f"Vote recorded ({vote_count}/{self.required})"
+
+    multisig = AtomicMultiSig(required_votes=3)
+    ms_results = []
+
+    def multisig_race(ms: AtomicMultiSig, proposal: str, voter: str):
+        accepted, quorum, msg = ms.vote(proposal, voter)
+        ms_results.append((voter, accepted, quorum))
+
+    # Race same voters
+    ms_threads = []
+    for i in range(10):
+        t = threading.Thread(target=multisig_race, args=(multisig, "prop_1", "voter_A"))
+        ms_threads.append(t)
+
+    for t in ms_threads:
+        t.start()
+    for t in ms_threads:
+        t.join()
+
+    successful_votes = sum(1 for r in ms_results if r[1])
+
+    if successful_votes == 1:
+        defenses["multisig_atomic"] = True
+        ms_note = f"Multi-sig atomic: 1 vote accepted, {multisig.duplicate_votes} duplicates blocked"
+    else:
+        ms_note = f"Multi-sig race: {successful_votes} votes accepted"
+
+    # ========================================================================
+    # Defense 8: Reputation Update Serialization
+    # ========================================================================
+    # Racing reputation updates causing drift
+
+    class ReputationLedger:
+        """Reputation ledger with serialized updates."""
+
+        def __init__(self):
+            self._lock = threading.Lock()
+            self.scores: Dict[str, float] = defaultdict(lambda: 0.5)
+            self.update_count = 0
+            self.conflicts = 0
+
+        def update(self, entity: str, delta: float, reason: str) -> Tuple[float, str]:
+            """Update reputation atomically."""
+            with self._lock:
+                old = self.scores[entity]
+                new = max(0.0, min(1.0, old + delta))
+                self.scores[entity] = new
+                self.update_count += 1
+                return new, f"{entity}: {old:.3f} -> {new:.3f} ({reason})"
+
+    rep_ledger = ReputationLedger()
+    rep_results = []
+
+    def reputation_race(ledger: ReputationLedger, entity: str, delta: float, reason: str):
+        score, msg = ledger.update(entity, delta, reason)
+        rep_results.append((reason, score))
+
+    # 10 concurrent +0.05 updates
+    rep_threads = []
+    for i in range(10):
+        t = threading.Thread(target=reputation_race, args=(rep_ledger, "target", 0.05, f"update_{i}"))
+        rep_threads.append(t)
+
+    for t in rep_threads:
+        t.start()
+    for t in rep_threads:
+        t.join()
+
+    final_score = rep_ledger.scores["target"]
+    expected_score = min(1.0, 0.5 + 10 * 0.05)  # 0.5 + 0.5 = 1.0 (capped)
+
+    if abs(final_score - expected_score) < 0.001:
+        defenses["reputation_serialized"] = True
+        rep_note = f"Reputation serialized: final={final_score:.3f}, expected={expected_score:.3f}"
+    else:
+        rep_note = f"Reputation drift: final={final_score:.3f}, expected={expected_score:.3f}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2  # Fewer than 6/8 defenses
+
+    return AttackResult(
+        attack_name="Concurrent Race Conditions (CX)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=2000.0 if attack_success else -300.0,
+        roi=6.7 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=2,
+        blocks_until_detected=10,
+        trust_damage=0.75,
+        description=f"""
+CONCURRENT RACE CONDITION ATTACK (Track CX):
+- ATP double-spend blocked: {"DEFENDED" if defenses["atp_double_spend_blocked"] else "VULNERABLE"}
+  {atp_note}
+- Trust TOCTOU protected: {"DEFENDED" if defenses["trust_toctou_protected"] else "VULNERABLE"}
+  {toctou_note}
+- Witness race protected: {"DEFENDED" if defenses["witness_race_protected"] else "VULNERABLE"}
+  {witness_note}
+- R6 ordering enforced: {"DEFENDED" if defenses["r6_ordering_enforced"] else "VULNERABLE"}
+  {r6_note}
+- Heartbeat serialization: {"DEFENDED" if defenses["heartbeat_serialization"] else "VULNERABLE"}
+  {hb_note}
+- Federation consistency: {"DEFENDED" if defenses["federation_consistency"] else "VULNERABLE"}
+  {fed_note}
+- Multi-sig atomic: {"DEFENDED" if defenses["multisig_atomic"] else "VULNERABLE"}
+  {ms_note}
+- Reputation serialized: {"DEFENDED" if defenses["reputation_serialized"] else "VULNERABLE"}
+  {rep_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Race condition attacks are timing-dependent but devastating.
+They can enable:
+- Double-spending of ATP tokens
+- Privilege escalation via stale trust
+- Duplicate witness attestations
+- R6 dependency bypass
+- State inconsistency across federation
+""".strip(),
+        mitigation=f"""
+Track CX: Concurrent Race Condition Mitigation:
+1. Use atomic check-and-update for ATP balance changes
+2. Hold locks through entire trust verification + action
+3. Track witness attestations in thread-safe sets
+4. Enforce R6 dependency ordering with sequence numbers
+5. Serialize heartbeat processing
+6. Use versioned federation state with conflict detection
+7. Atomic multi-sig vote counting with duplicate detection
+8. Serialize reputation updates to prevent drift
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 39: Attack Chain Combinations
+# ---------------------------------------------------------------------------
+
+def attack_chain_combinations() -> AttackResult:
+    """
+    ATTACK: Combine multiple attack vectors for compound effects.
+
+    Individual defenses may hold, but attack chains exploit:
+    1. Sybil + Trust Inflation: Create identities, boost each other
+    2. Metabolic + ATP: Game state to minimize cost while draining targets
+    3. Witness + Federation: Collude across federation boundaries
+    4. R6 + Recovery: Trigger recovery, exploit weakened state
+    5. MRH + V3: Expand horizon, smuggle value context
+    6. Race + Multi-sig: Time attacks on voting windows
+    7. Decay + Reputation: Let trust decay then pump before action
+    8. Policy + Identity: Bypass policy via confused identity
+
+    These compound attacks are harder to detect because each
+    component may appear benign individually.
+    """
+    import threading
+
+    defenses = {
+        "sybil_inflation_chain_blocked": False,
+        "metabolic_atp_drain_blocked": False,
+        "witness_federation_collusion_blocked": False,
+        "recovery_exploitation_blocked": False,
+        "mrh_v3_smuggling_blocked": False,
+        "race_multisig_blocked": False,
+        "decay_pump_blocked": False,
+        "policy_identity_chain_blocked": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Sybil + Trust Inflation Chain
+    # ========================================================================
+
+    class AntiSybilTrustSystem:
+        def __init__(self):
+            self.entities: Dict[str, Dict] = {}
+            self.witness_graph: Dict[str, set] = defaultdict(set)  # target -> set of witnesses
+            self.creation_times: Dict[str, datetime] = {}
+            self.trust_scores: Dict[str, float] = defaultdict(lambda: 0.1)
+
+        def create_entity(self, entity_id: str, creator: Optional[str] = None):
+            self.entities[entity_id] = {"creator": creator}
+            self.creation_times[entity_id] = datetime.now(timezone.utc)
+
+        def witness(self, witness: str, target: str, boost: float = 0.1) -> Tuple[bool, str]:
+            age_days = (datetime.now(timezone.utc) - self.creation_times.get(witness, datetime.now(timezone.utc))).days
+            effective_boost = boost * 0.1 if age_days < 7 else boost
+
+            # Defense: Block reciprocal witnessing (A->B then B->A)
+            # Check if target already witnessed the witness
+            if target in self.witness_graph.get(witness, set()):
+                return False, f"Reciprocal witnessing blocked: {target} already witnessed {witness}"
+
+            prior = len([w for w in self.witness_graph[target] if w == witness])
+            if prior > 2:
+                return False, f"Witness cap reached"
+
+            self.witness_graph[target].add(witness)
+            old_trust = self.trust_scores[target]
+            self.trust_scores[target] = min(1.0, old_trust + effective_boost)
+            return True, f"Witnessed: {old_trust:.3f} -> {self.trust_scores[target]:.3f}"
+
+    anti_sybil = AntiSybilTrustSystem()
+    sybils = [f"sybil_{i}" for i in range(5)]
+    for s in sybils:
+        anti_sybil.create_entity(s, creator="attacker")
+
+    chain_blocks = 0
+    for i in range(len(sybils)):
+        success, _ = anti_sybil.witness(sybils[i], sybils[(i + 1) % len(sybils)], 0.2)
+        if not success:
+            chain_blocks += 1
+
+    for i in range(len(sybils)):
+        success, _ = anti_sybil.witness(sybils[(i + 1) % len(sybils)], sybils[i], 0.2)
+        if not success:
+            chain_blocks += 1
+
+    max_sybil_trust = max(anti_sybil.trust_scores[s] for s in sybils)
+
+    if max_sybil_trust < 0.3 and chain_blocks >= 5:
+        defenses["sybil_inflation_chain_blocked"] = True
+        sybil_note = f"Sybil chain blocked: max_trust={max_sybil_trust:.3f}, blocks={chain_blocks}"
+    else:
+        sybil_note = f"Sybil inflation: max_trust={max_sybil_trust:.3f}"
+
+    # ========================================================================
+    # Defense 2: Metabolic + ATP Drain Chain
+    # ========================================================================
+
+    class MetabolicATPSystem:
+        def __init__(self):
+            self.states: Dict[str, str] = {}
+            self.atp: Dict[str, float] = defaultdict(lambda: 100.0)
+            self.activity_history: Dict[str, List[Tuple[datetime, str]]] = defaultdict(list)
+
+        def set_state(self, entity: str, state: str):
+            self.states[entity] = state
+            self.activity_history[entity].append((datetime.now(timezone.utc), state))
+
+        def execute_action(self, actor: str, target: str, cost: float) -> Tuple[bool, str]:
+            state = self.states.get(actor, "ACTIVE")
+
+            if state == "SLEEP" and cost > 5.0:
+                return False, f"Cannot execute expensive action from SLEEP"
+
+            history = self.activity_history.get(actor, [])
+            if len(history) >= 3:
+                recent_states = [h[1] for h in history[-3:]]
+                if recent_states.count("SLEEP") >= 2 and cost > 20.0:
+                    return False, "Suspicious pattern: dormant entity attempting expensive action"
+
+            if self.atp[actor] < cost:
+                return False, f"Insufficient ATP"
+
+            self.atp[actor] -= cost
+            return True, f"Executed"
+
+    meta_atp = MetabolicATPSystem()
+    meta_atp.set_state("attacker", "SLEEP")
+    meta_atp.set_state("attacker", "SLEEP")
+    meta_atp.set_state("attacker", "ACTIVE")
+    success, msg = meta_atp.execute_action("attacker", "victim", cost=50.0)
+
+    if not success:
+        defenses["metabolic_atp_drain_blocked"] = True
+        meta_note = f"Metabolic gaming blocked: {msg}"
+    else:
+        meta_note = "Metabolic gaming succeeded"
+
+    # ========================================================================
+    # Defense 3: Witness + Federation Collusion Chain
+    # ========================================================================
+
+    class CrossFederationWitnessSystem:
+        def __init__(self):
+            self.witness_pairs: Dict[str, int] = defaultdict(int)
+            self.attestations: List[Dict] = []
+
+        def attest(self, witness: str, target: str, witness_fed: str, target_fed: str) -> Tuple[bool, str]:
+            pair_key = f"{witness}:{target}"
+            reverse_key = f"{target}:{witness}"
+            self.witness_pairs[pair_key] += 1
+            total_between = self.witness_pairs[pair_key] + self.witness_pairs[reverse_key]
+
+            if total_between > 3:
+                return False, f"Cross-federation collusion detected"
+
+            recent = [a for a in self.attestations
+                      if (datetime.now(timezone.utc) - a["time"]).total_seconds() < 60]
+            fed_pair_recent = [a for a in recent
+                               if {a["witness_fed"], a["target_fed"]} == {witness_fed, target_fed}]
+
+            if len(fed_pair_recent) > 5:
+                return False, f"Coordinated activity detected"
+
+            self.attestations.append({
+                "witness": witness, "target": target,
+                "witness_fed": witness_fed, "target_fed": target_fed,
+                "time": datetime.now(timezone.utc)
+            })
+            return True, "OK"
+
+    cross_fed = CrossFederationWitnessSystem()
+    collusion_blocked = False
+    for i in range(5):
+        s1, _ = cross_fed.attest("colluder_A", "colluder_B", "fed_A", "fed_B")
+        s2, _ = cross_fed.attest("colluder_B", "colluder_A", "fed_B", "fed_A")
+        if not s1 or not s2:
+            collusion_blocked = True
+            break
+
+    if collusion_blocked:
+        defenses["witness_federation_collusion_blocked"] = True
+        fed_col_note = f"Cross-federation collusion blocked"
+    else:
+        fed_col_note = "Cross-federation collusion not detected"
+
+    # ========================================================================
+    # Defense 4: Recovery + Exploitation Chain
+    # ========================================================================
+
+    class RecoveryExploitSystem:
+        def __init__(self):
+            self.in_recovery: Dict[str, bool] = {}
+            self.actions_during_recovery: Dict[str, int] = defaultdict(int)
+
+        def trigger_recovery(self, target: str):
+            self.in_recovery[target] = True
+
+        def execute_during_recovery(self, actor: str, target: str, action: str) -> Tuple[bool, str]:
+            if not self.in_recovery.get(target, False):
+                return True, "Normal"
+
+            self.actions_during_recovery[f"{actor}:{target}"] += 1
+            count = self.actions_during_recovery[f"{actor}:{target}"]
+
+            if count > 2:
+                return False, f"Excessive actions blocked"
+
+            if action in ["trust_transfer", "admin_change", "key_rotation"]:
+                return False, f"Sensitive action blocked during recovery"
+
+            return True, f"Non-sensitive allowed"
+
+    recovery_sys = RecoveryExploitSystem()
+    recovery_sys.trigger_recovery("victim")
+    sensitive_blocked = 0
+    for action in ["trust_transfer", "admin_change", "key_rotation", "normal_op", "normal_op2", "normal_op3"]:
+        success, _ = recovery_sys.execute_during_recovery("attacker", "victim", action)
+        if not success:
+            sensitive_blocked += 1
+
+    if sensitive_blocked >= 4:
+        defenses["recovery_exploitation_blocked"] = True
+        recovery_note = f"Recovery exploitation blocked: {sensitive_blocked} blocked"
+    else:
+        recovery_note = f"Recovery exploitation possible"
+
+    # ========================================================================
+    # Defense 5: MRH + V3 Smuggling Chain
+    # ========================================================================
+
+    class MRHv3Isolator:
+        def __init__(self):
+            self.mrh_contexts: Dict[str, set] = defaultdict(set)
+            self.v3_contexts: Dict[str, Dict[str, float]] = {}
+
+        def set_v3(self, entity: str, context: str, score: float):
+            if entity not in self.v3_contexts:
+                self.v3_contexts[entity] = {}
+            self.v3_contexts[entity][context] = score
+
+        def add_mrh_reach(self, entity: str, context: str):
+            self.mrh_contexts[entity].add(context)
+
+        def get_v3_for_action(self, entity: str, action_context: str) -> Tuple[float, str]:
+            entity_v3 = self.v3_contexts.get(entity, {})
+            if action_context not in entity_v3:
+                if action_context in self.mrh_contexts.get(entity, set()):
+                    return 0.0, f"MRH reach doesn't grant V3 (smuggling blocked)"
+                return 0.0, f"No V3"
+            return entity_v3[action_context], f"Legitimate V3"
+
+    mrh_v3 = MRHv3Isolator()
+    mrh_v3.set_v3("attacker", "trusted_domain", 0.95)
+    mrh_v3.add_mrh_reach("attacker", "target_domain")
+    score, msg = mrh_v3.get_v3_for_action("attacker", "target_domain")
+
+    if score == 0.0 and "smuggling blocked" in msg:
+        defenses["mrh_v3_smuggling_blocked"] = True
+        mrh_v3_note = f"MRH+V3 smuggling blocked"
+    else:
+        mrh_v3_note = f"MRH+V3 smuggling possible: score={score:.2f}"
+
+    # ========================================================================
+    # Defense 6: Race + Multi-sig Chain
+    # ========================================================================
+
+    class RaceMultiSigSystem:
+        def __init__(self):
+            self.proposals: Dict[str, Dict] = {}
+            self.vote_times: Dict[str, List[datetime]] = defaultdict(list)
+
+        def create_proposal(self, prop_id: str):
+            self.proposals[prop_id] = {
+                "created": datetime.now(timezone.utc),
+                "votes": set()
+            }
+
+        def vote(self, prop_id: str, voter: str) -> Tuple[bool, str]:
+            if prop_id not in self.proposals:
+                return False, "Not found"
+
+            now = datetime.now(timezone.utc)
+            self.vote_times[prop_id].append(now)
+            recent = [t for t in self.vote_times[prop_id] if (now - t).total_seconds() < 1]
+
+            if len(recent) > 5:
+                return False, f"Vote flooding detected"
+
+            if voter in self.proposals[prop_id]["votes"]:
+                return False, "Duplicate"
+
+            self.proposals[prop_id]["votes"].add(voter)
+            return True, "Recorded"
+
+    race_ms = RaceMultiSigSystem()
+    race_ms.create_proposal("prop_1")
+    flood_blocked = False
+    for i in range(10):
+        success, msg = race_ms.vote("prop_1", f"voter_{i}")
+        if not success and "flooding" in msg:
+            flood_blocked = True
+            break
+
+    if flood_blocked:
+        defenses["race_multisig_blocked"] = True
+        race_ms_note = f"Race+multi-sig blocked at vote {i+1}"
+    else:
+        race_ms_note = "Flooding not detected"
+
+    # ========================================================================
+    # Defense 7: Decay + Pump Chain
+    # ========================================================================
+
+    class DecayPumpSystem:
+        def __init__(self):
+            self.delta_history: Dict[str, List[float]] = defaultdict(list)
+            self.current_trust: Dict[str, float] = defaultdict(lambda: 0.5)
+
+        def update_trust(self, entity: str, delta: float, reason: str) -> Tuple[bool, str]:
+            old_trust = self.current_trust[entity]
+            new_trust = max(0.0, min(1.0, old_trust + delta))
+
+            # Record this delta
+            self.delta_history[entity].append(delta)
+            history = self.delta_history[entity]
+
+            # Defense: Check for pump after decay pattern
+            # If last 3+ updates were negative and current is large positive
+            if len(history) >= 4:  # Need at least 3 prior + current
+                prior_deltas = history[-4:-1]  # Last 3 before current
+                current_delta = history[-1]
+
+                if all(d < 0 for d in prior_deltas) and current_delta > 0.15:
+                    # Suspicious: continuous decay followed by pump
+                    self.delta_history[entity].pop()  # Reject this update
+                    return False, f"Pump after decay detected: {prior_deltas} then +{current_delta:.2f}"
+
+            self.current_trust[entity] = new_trust
+            return True, f"Updated: {old_trust:.2f} -> {new_trust:.2f}"
+
+    decay_pump = DecayPumpSystem()
+    decay_pump.update_trust("attacker", -0.1, "decay")
+    decay_pump.update_trust("attacker", -0.1, "decay")
+    decay_pump.update_trust("attacker", -0.1, "decay")
+    success, msg = decay_pump.update_trust("attacker", 0.3, "witness_boost")
+
+    if not success and "Pump after decay" in msg:
+        defenses["decay_pump_blocked"] = True
+        decay_note = f"Decay+pump blocked"
+    else:
+        decay_note = f"Decay+pump allowed"
+
+    # ========================================================================
+    # Defense 8: Policy + Identity Chain
+    # ========================================================================
+
+    class PolicyIdentitySystem:
+        def __init__(self):
+            self.policies: Dict[str, Dict] = {}
+            self.entity_roles: Dict[str, set] = defaultdict(set)
+
+        def add_policy(self, name: str, required_role: str, min_trust: float):
+            self.policies[name] = {"required_role": required_role, "min_trust": min_trust}
+
+        def assign_role(self, entity: str, role: str):
+            self.entity_roles[entity].add(role)
+
+        def check_policy(self, entity: str, claimed_identity: Optional[str],
+                        policy_name: str, trust: float) -> Tuple[bool, str]:
+            policy = self.policies.get(policy_name)
+            if not policy:
+                return False, "Policy not found"
+
+            if claimed_identity and claimed_identity != entity:
+                return False, f"Identity confusion blocked"
+
+            if policy["required_role"] not in self.entity_roles.get(entity, set()):
+                return False, f"Role not held"
+
+            if trust < policy["min_trust"]:
+                return False, f"Insufficient trust"
+
+            return True, "Passed"
+
+    pol_id = PolicyIdentitySystem()
+    pol_id.add_policy("admin_action", required_role="admin", min_trust=0.8)
+    pol_id.assign_role("legitimate_admin", "admin")
+    pol_id.assign_role("attacker", "user")
+    success, msg = pol_id.check_policy("attacker", claimed_identity="legitimate_admin",
+                                        policy_name="admin_action", trust=0.9)
+
+    if not success and "confusion blocked" in msg:
+        defenses["policy_identity_chain_blocked"] = True
+        pol_note = f"Policy+identity chain blocked"
+    else:
+        pol_note = f"Policy+identity bypass possible"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Attack Chain Combinations (CY)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=3000.0 if attack_success else -500.0,
+        roi=6.0 if attack_success else -1.0,
+        detection_probability=0.60,
+        time_to_detection_hours=12,
+        blocks_until_detected=60,
+        trust_damage=0.80,
+        description=f"""
+ATTACK CHAIN COMBINATIONS (Track CY):
+- Sybil+Trust inflation: {"DEFENDED" if defenses["sybil_inflation_chain_blocked"] else "VULNERABLE"}
+  {sybil_note}
+- Metabolic+ATP drain: {"DEFENDED" if defenses["metabolic_atp_drain_blocked"] else "VULNERABLE"}
+  {meta_note}
+- Witness+Federation collusion: {"DEFENDED" if defenses["witness_federation_collusion_blocked"] else "VULNERABLE"}
+  {fed_col_note}
+- Recovery exploitation: {"DEFENDED" if defenses["recovery_exploitation_blocked"] else "VULNERABLE"}
+  {recovery_note}
+- MRH+V3 smuggling: {"DEFENDED" if defenses["mrh_v3_smuggling_blocked"] else "VULNERABLE"}
+  {mrh_v3_note}
+- Race+Multi-sig: {"DEFENDED" if defenses["race_multisig_blocked"] else "VULNERABLE"}
+  {race_ms_note}
+- Decay+Pump: {"DEFENDED" if defenses["decay_pump_blocked"] else "VULNERABLE"}
+  {decay_note}
+- Policy+Identity: {"DEFENDED" if defenses["policy_identity_chain_blocked"] else "VULNERABLE"}
+  {pol_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Compound attacks combine multiple vectors that individually
+appear benign. They exploit interactions between systems.
+""".strip(),
+        mitigation=f"""
+Track CY: Attack Chain Combination Mitigation:
+1. Detect sybil coordination with witness pattern analysis
+2. Block expensive actions after prolonged dormancy
+3. Track and limit cross-federation witness pairs
+4. Restrict sensitive operations during recovery state
+5. Isolate V3 scores regardless of MRH reachability
+6. Rate-limit votes to prevent flooding attacks
+7. Detect and block pump attempts after decay periods
+8. Validate identity claims against actual entity
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -7810,6 +9853,10 @@ def run_all_attacks() -> List[AttackResult]:
         ("Admin Binding Exploit (CS)", attack_admin_binding_exploit),
         ("Trust Economics Arbitrage (CT)", attack_trust_economics_arbitrage),
         ("Identity Confabulation (CU)", attack_identity_confabulation),
+        ("MRH Exploitation (CV)", attack_mrh_exploitation),
+        ("V3 Value Tensor Manipulation (CW)", attack_v3_value_tensor_manipulation),
+        ("Concurrent Race Conditions (CX)", attack_concurrent_race_conditions),
+        ("Attack Chain Combinations (CY)", attack_chain_combinations),
     ]
 
     results = []

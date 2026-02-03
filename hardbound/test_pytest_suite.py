@@ -34,8 +34,9 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        # 35 attacks: original 30 + tracks CQ-CU = 35 total
-        assert len(results) == 35
+        # 39 attacks: original 35 + tracks CV-CY = 39 total
+        # CV: MRH Exploitation, CW: V3 Manipulation, CX: Race Conditions, CY: Attack Chains
+        assert len(results) == 39
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
@@ -9274,6 +9275,198 @@ class TestPartitionResilience:
         assert len(history) >= 1
         assert "overall_risk" in history[0]
         assert "avg_redundancy" in history[0]
+
+
+# ---------------------------------------------------------------------------
+# Track CV: MRH Exploitation Tests
+# ---------------------------------------------------------------------------
+
+class TestMRHExploitation:
+    """Track CV: Tests for MRH (Markov Relevancy Horizon) exploitation defenses."""
+
+    def test_attack_simulation_runs(self):
+        """MRH exploitation attack can be executed."""
+        from hardbound.attack_simulations import attack_mrh_exploitation
+        result = attack_mrh_exploitation()
+        assert result.attack_name == "MRH Exploitation (CV)"
+        assert not result.success  # All defenses should hold
+
+    def test_horizon_depth_enforced(self):
+        """Horizon depth limits are properly enforced."""
+        from hardbound.attack_simulations import attack_mrh_exploitation
+        result = attack_mrh_exploitation()
+        assert result.raw_data["defenses"]["horizon_depth_enforced"]
+
+    def test_role_context_validation(self):
+        """Role-context validation prevents cross-role trust leakage."""
+        from hardbound.attack_simulations import attack_mrh_exploitation
+        result = attack_mrh_exploitation()
+        assert result.raw_data["defenses"]["role_context_validation"]
+
+    def test_edge_weight_bounds(self):
+        """Edge weights are properly bounded."""
+        from hardbound.attack_simulations import attack_mrh_exploitation
+        result = attack_mrh_exploitation()
+        assert result.raw_data["defenses"]["edge_weight_bounds"]
+
+    def test_relationship_type_verification(self):
+        """Invalid relationship types are rejected."""
+        from hardbound.attack_simulations import attack_mrh_exploitation
+        result = attack_mrh_exploitation()
+        assert result.raw_data["defenses"]["relationship_type_verification"]
+
+    def test_circular_reference_detection(self):
+        """Circular trust references are detected."""
+        from hardbound.attack_simulations import attack_mrh_exploitation
+        result = attack_mrh_exploitation()
+        assert result.raw_data["defenses"]["circular_reference_detection"]
+
+
+# ---------------------------------------------------------------------------
+# Track CW: V3 Value Tensor Manipulation Tests
+# ---------------------------------------------------------------------------
+
+class TestV3Manipulation:
+    """Track CW: Tests for V3 Value Tensor manipulation defenses."""
+
+    def test_attack_simulation_runs(self):
+        """V3 manipulation attack can be executed."""
+        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        result = attack_v3_value_tensor_manipulation()
+        assert result.attack_name == "V3 Value Tensor Manipulation (CW)"
+        assert not result.success  # All defenses should hold
+
+    def test_valuation_inflation_detected(self):
+        """Valuation inflation from colluding recipients is detected."""
+        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        result = attack_v3_value_tensor_manipulation()
+        assert result.raw_data["defenses"]["valuation_inflation_detected"]
+
+    def test_veracity_gaming_blocked(self):
+        """Trivial claim gaming is blocked."""
+        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        result = attack_v3_value_tensor_manipulation()
+        assert result.raw_data["defenses"]["veracity_gaming_blocked"]
+
+    def test_validity_manipulation_blocked(self):
+        """Self-validation of transfers is blocked."""
+        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        result = attack_v3_value_tensor_manipulation()
+        assert result.raw_data["defenses"]["validity_manipulation_blocked"]
+
+    def test_cross_context_isolation(self):
+        """V3 scores are isolated by context."""
+        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        result = attack_v3_value_tensor_manipulation()
+        assert result.raw_data["defenses"]["cross_context_isolation"]
+
+    def test_witness_collusion_detection(self):
+        """Repeated witness groups are detected."""
+        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        result = attack_v3_value_tensor_manipulation()
+        assert result.raw_data["defenses"]["witness_collusion_detection"]
+
+
+# ---------------------------------------------------------------------------
+# Track CX: Concurrent Race Condition Tests
+# ---------------------------------------------------------------------------
+
+class TestConcurrentRaceConditions:
+    """Track CX: Tests for concurrent race condition defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Race condition attack can be executed."""
+        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        result = attack_concurrent_race_conditions()
+        assert result.attack_name == "Concurrent Race Conditions (CX)"
+        assert not result.success  # All defenses should hold
+
+    def test_atp_double_spend_blocked(self):
+        """ATP double-spend via concurrent requests is blocked."""
+        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        result = attack_concurrent_race_conditions()
+        assert result.raw_data["defenses"]["atp_double_spend_blocked"]
+
+    def test_trust_toctou_protected(self):
+        """Trust TOCTOU (time-of-check-time-of-use) is protected."""
+        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        result = attack_concurrent_race_conditions()
+        assert result.raw_data["defenses"]["trust_toctou_protected"]
+
+    def test_witness_race_protected(self):
+        """Witness attestation races are protected."""
+        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        result = attack_concurrent_race_conditions()
+        assert result.raw_data["defenses"]["witness_race_protected"]
+
+    def test_r6_ordering_enforced(self):
+        """R6 request ordering is enforced."""
+        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        result = attack_concurrent_race_conditions()
+        assert result.raw_data["defenses"]["r6_ordering_enforced"]
+
+    def test_multisig_atomic(self):
+        """Multi-sig voting is atomic."""
+        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        result = attack_concurrent_race_conditions()
+        assert result.raw_data["defenses"]["multisig_atomic"]
+
+
+# ---------------------------------------------------------------------------
+# Track CY: Attack Chain Combination Tests
+# ---------------------------------------------------------------------------
+
+class TestAttackChainCombinations:
+    """Track CY: Tests for compound attack chain defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Attack chain combination can be executed."""
+        from hardbound.attack_simulations import attack_chain_combinations
+        result = attack_chain_combinations()
+        assert result.attack_name == "Attack Chain Combinations (CY)"
+        assert not result.success  # All defenses should hold
+
+    def test_sybil_inflation_chain_blocked(self):
+        """Sybil + trust inflation chain is blocked."""
+        from hardbound.attack_simulations import attack_chain_combinations
+        result = attack_chain_combinations()
+        assert result.raw_data["defenses"]["sybil_inflation_chain_blocked"]
+
+    def test_metabolic_atp_drain_blocked(self):
+        """Metabolic + ATP drain chain is blocked."""
+        from hardbound.attack_simulations import attack_chain_combinations
+        result = attack_chain_combinations()
+        assert result.raw_data["defenses"]["metabolic_atp_drain_blocked"]
+
+    def test_witness_federation_collusion_blocked(self):
+        """Witness + federation collusion is blocked."""
+        from hardbound.attack_simulations import attack_chain_combinations
+        result = attack_chain_combinations()
+        assert result.raw_data["defenses"]["witness_federation_collusion_blocked"]
+
+    def test_recovery_exploitation_blocked(self):
+        """Recovery exploitation is blocked."""
+        from hardbound.attack_simulations import attack_chain_combinations
+        result = attack_chain_combinations()
+        assert result.raw_data["defenses"]["recovery_exploitation_blocked"]
+
+    def test_mrh_v3_smuggling_blocked(self):
+        """MRH + V3 smuggling is blocked."""
+        from hardbound.attack_simulations import attack_chain_combinations
+        result = attack_chain_combinations()
+        assert result.raw_data["defenses"]["mrh_v3_smuggling_blocked"]
+
+    def test_decay_pump_blocked(self):
+        """Decay + pump manipulation is blocked."""
+        from hardbound.attack_simulations import attack_chain_combinations
+        result = attack_chain_combinations()
+        assert result.raw_data["defenses"]["decay_pump_blocked"]
+
+    def test_policy_identity_chain_blocked(self):
+        """Policy + identity chain is blocked."""
+        from hardbound.attack_simulations import attack_chain_combinations
+        result = attack_chain_combinations()
+        assert result.raw_data["defenses"]["policy_identity_chain_blocked"]
 
 
 # Import sqlite3 at module level for tests that need it
