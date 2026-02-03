@@ -34,11 +34,13 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        # 44 attacks: original 35 + tracks CV-DD = 44 total
+        # 50 attacks: original 35 + tracks CV-DD (9) + tracks DE-DJ (6) = 50 total
         # CV: MRH Exploitation, CW: V3 Manipulation, CX: Race Conditions, CY: Attack Chains
         # CZ: Oracle Injection, DA: Metabolism Desync, DB: Checkpoint Replay
         # DC: Semantic Policy Confusion, DD: Accumulation Starvation
-        assert len(results) == 44
+        # DE: Dictionary Entity Poisoning, DF: MCP Relay Injection, DG: ATP Recharge Frontrunning
+        # DH: Cross-Model Dictionary Drift, DI: MRH Scope Inflation, DJ: ADP Metadata Persistence
+        assert len(results) == 50
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
@@ -9724,6 +9726,186 @@ class TestAccumulationStarvation:
         from hardbound.attack_simulations import attack_accumulation_starvation
         result = attack_accumulation_starvation()
         assert result.raw_data["defenses"]["evidence_retention_guarantee"]
+
+
+class TestDictionaryEntityPoisoning:
+    """Track DE: Tests for dictionary entity poisoning defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Dictionary entity poisoning attack can be executed."""
+        from hardbound.attack_simulations import attack_dictionary_entity_poisoning
+        result = attack_dictionary_entity_poisoning()
+        assert result.attack_name == "Dictionary Entity Poisoning (DE)"
+        assert not result.success  # Most defenses should hold
+
+    def test_semantic_diff_audit(self):
+        """Semantic diff audit blocks large changes."""
+        from hardbound.attack_simulations import attack_dictionary_entity_poisoning
+        result = attack_dictionary_entity_poisoning()
+        assert result.raw_data["defenses"]["semantic_diff_audit"]
+
+    def test_edit_trust_threshold(self):
+        """Edit trust threshold is enforced."""
+        from hardbound.attack_simulations import attack_dictionary_entity_poisoning
+        result = attack_dictionary_entity_poisoning()
+        assert result.raw_data["defenses"]["edit_trust_threshold"]
+
+    def test_rollback_capability(self):
+        """Rollback capability exists."""
+        from hardbound.attack_simulations import attack_dictionary_entity_poisoning
+        result = attack_dictionary_entity_poisoning()
+        assert result.raw_data["defenses"]["rollback_capability"]
+
+
+class TestMCPRelayInjection:
+    """Track DF: Tests for MCP relay injection defenses."""
+
+    def test_attack_simulation_runs(self):
+        """MCP relay injection attack can be executed."""
+        from hardbound.attack_simulations import attack_mcp_relay_injection
+        result = attack_mcp_relay_injection()
+        assert result.attack_name == "MCP Relay Injection (DF)"
+        assert not result.success  # Most defenses should hold
+
+    def test_message_signing(self):
+        """Message signing prevents tampering."""
+        from hardbound.attack_simulations import attack_mcp_relay_injection
+        result = attack_mcp_relay_injection()
+        assert result.raw_data["defenses"]["message_signing"]
+
+    def test_nonce_replay_prevention(self):
+        """Nonce prevents replay attacks."""
+        from hardbound.attack_simulations import attack_mcp_relay_injection
+        result = attack_mcp_relay_injection()
+        assert result.raw_data["defenses"]["nonce_replay_prevention"]
+
+    def test_relay_trust_verification(self):
+        """Relay trust is verified."""
+        from hardbound.attack_simulations import attack_mcp_relay_injection
+        result = attack_mcp_relay_injection()
+        assert result.raw_data["defenses"]["relay_trust_verification"]
+
+
+class TestATPRechargeFrontrunning:
+    """Track DG: Tests for ATP recharge frontrunning defenses."""
+
+    def test_attack_simulation_runs(self):
+        """ATP recharge frontrunning attack can be executed."""
+        from hardbound.attack_simulations import attack_atp_recharge_frontrunning
+        result = attack_atp_recharge_frontrunning()
+        assert result.attack_name == "ATP Recharge Frontrunning (DG)"
+        assert not result.success  # Most defenses should hold
+
+    def test_commit_reveal_scheme(self):
+        """Commit-reveal prevents frontrunning."""
+        from hardbound.attack_simulations import attack_atp_recharge_frontrunning
+        result = attack_atp_recharge_frontrunning()
+        assert result.raw_data["defenses"]["commit_reveal_scheme"]
+
+    def test_producer_binding(self):
+        """Producer binding is enforced."""
+        from hardbound.attack_simulations import attack_atp_recharge_frontrunning
+        result = attack_atp_recharge_frontrunning()
+        assert result.raw_data["defenses"]["producer_binding"]
+
+    def test_value_proof_uniqueness(self):
+        """Value proofs can only be claimed once."""
+        from hardbound.attack_simulations import attack_atp_recharge_frontrunning
+        result = attack_atp_recharge_frontrunning()
+        assert result.raw_data["defenses"]["value_proof_uniqueness"]
+
+
+class TestCrossModelDictionaryDrift:
+    """Track DH: Tests for cross-model dictionary drift defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Cross-model dictionary drift attack can be executed."""
+        from hardbound.attack_simulations import attack_cross_model_dictionary_drift
+        result = attack_cross_model_dictionary_drift()
+        assert result.attack_name == "Cross-Model Dictionary Drift (DH)"
+        assert not result.success  # Most defenses should hold
+
+    def test_alignment_drift_monitoring(self):
+        """Alignment drift is monitored."""
+        from hardbound.attack_simulations import attack_cross_model_dictionary_drift
+        result = attack_cross_model_dictionary_drift()
+        assert result.raw_data["defenses"]["alignment_drift_monitoring"]
+
+    def test_bidirectional_consistency(self):
+        """Bidirectional consistency is checked."""
+        from hardbound.attack_simulations import attack_cross_model_dictionary_drift
+        result = attack_cross_model_dictionary_drift()
+        assert result.raw_data["defenses"]["bidirectional_consistency"]
+
+    def test_semantic_canary_terms(self):
+        """Semantic canary terms detect drift."""
+        from hardbound.attack_simulations import attack_cross_model_dictionary_drift
+        result = attack_cross_model_dictionary_drift()
+        assert result.raw_data["defenses"]["semantic_canary_terms"]
+
+
+class TestMRHScopeInflation:
+    """Track DI: Tests for MRH scope inflation defenses."""
+
+    def test_attack_simulation_runs(self):
+        """MRH scope inflation attack can be executed."""
+        from hardbound.attack_simulations import attack_mrh_scope_inflation
+        result = attack_mrh_scope_inflation()
+        assert result.attack_name == "MRH Scope Inflation (DI)"
+        assert not result.success  # Most defenses should hold
+
+    def test_mrh_boundary_verification(self):
+        """MRH boundary verification is enforced."""
+        from hardbound.attack_simulations import attack_mrh_scope_inflation
+        result = attack_mrh_scope_inflation()
+        assert result.raw_data["defenses"]["mrh_boundary_verification"]
+
+    def test_scope_change_authorization(self):
+        """Scope changes require authorization."""
+        from hardbound.attack_simulations import attack_mrh_scope_inflation
+        result = attack_mrh_scope_inflation()
+        assert result.raw_data["defenses"]["scope_change_authorization"]
+
+    def test_cross_domain_scope_isolation(self):
+        """Cross-domain scope isolation is enforced."""
+        from hardbound.attack_simulations import attack_mrh_scope_inflation
+        result = attack_mrh_scope_inflation()
+        assert result.raw_data["defenses"]["cross_domain_scope_isolation"]
+
+
+class TestADPMetadataPersistence:
+    """Track DJ: Tests for ADP metadata persistence defenses."""
+
+    def test_attack_simulation_runs(self):
+        """ADP metadata persistence attack can be executed."""
+        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        result = attack_adp_metadata_persistence()
+        assert result.attack_name == "ADP Metadata Persistence (DJ)"
+        assert not result.success  # Most defenses should hold
+
+    def test_metadata_clearing_verification(self):
+        """Metadata clearing is verified."""
+        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        result = attack_adp_metadata_persistence()
+        assert result.raw_data["defenses"]["metadata_clearing_verification"]
+
+    def test_recharge_isolation(self):
+        """Recharge isolation protects metadata."""
+        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        result = attack_adp_metadata_persistence()
+        assert result.raw_data["defenses"]["recharge_isolation"]
+
+    def test_linkage_prevention(self):
+        """Linkage prevention is active."""
+        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        result = attack_adp_metadata_persistence()
+        assert result.raw_data["defenses"]["linkage_prevention"]
+
+    def test_zero_knowledge_recharge(self):
+        """Zero-knowledge recharge is functional."""
+        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        result = attack_adp_metadata_persistence()
+        assert result.raw_data["defenses"]["zero_knowledge_recharge"]
 
 
 # Import sqlite3 at module level for tests that need it
