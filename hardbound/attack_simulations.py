@@ -4351,6 +4351,11 @@ def attack_network_partition() -> AttackResult:
     # Vector 4: Bridge Node Redundancy
     # ========================================================================
 
+    # CRITICAL: Rebuild analyzer after topology change (a1→b1 connection)
+    # This ensures we're testing the healed network state
+    analyzer = TrustNetworkAnalyzer(registry)
+    analyzer.build_network()
+
     # Check if network has redundant paths (not just single bridge)
     # Use path analysis to see if fed:hub can reach fed:b1 without fed:bridge
     paths = analyzer.find_all_paths("fed:hub", "fed:b1", max_hops=4)
