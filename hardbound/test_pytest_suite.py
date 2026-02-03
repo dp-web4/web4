@@ -34,13 +34,14 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        # 50 attacks: original 35 + tracks CV-DD (9) + tracks DE-DJ (6) = 50 total
+        # 51 attacks: original 35 + tracks CV-DD (9) + tracks DE-DK (7) = 51 total
         # CV: MRH Exploitation, CW: V3 Manipulation, CX: Race Conditions, CY: Attack Chains
         # CZ: Oracle Injection, DA: Metabolism Desync, DB: Checkpoint Replay
         # DC: Semantic Policy Confusion, DD: Accumulation Starvation
         # DE: Dictionary Entity Poisoning, DF: MCP Relay Injection, DG: ATP Recharge Frontrunning
         # DH: Cross-Model Dictionary Drift, DI: MRH Scope Inflation, DJ: ADP Metadata Persistence
-        assert len(results) == 50
+        # DK: Cross-Layer Attack Chains
+        assert len(results) == 51
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
@@ -9906,6 +9907,53 @@ class TestADPMetadataPersistence:
         from hardbound.attack_simulations import attack_adp_metadata_persistence
         result = attack_adp_metadata_persistence()
         assert result.raw_data["defenses"]["zero_knowledge_recharge"]
+
+
+class TestCrossLayerAttackChains:
+    """Track DK: Tests for cross-layer attack chain defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Cross-layer attack chain can be executed."""
+        from hardbound.attack_simulations import attack_cross_layer_chains
+        result = attack_cross_layer_chains()
+        assert result.attack_name == "Cross-Layer Attack Chains (DK)"
+        assert not result.success  # Most defenses should hold
+
+    def test_dictionary_mcp_chain(self):
+        """Dictionary-MCP chain is blocked."""
+        from hardbound.attack_simulations import attack_cross_layer_chains
+        result = attack_cross_layer_chains()
+        assert result.raw_data["defenses"]["dictionary_mcp_chain_blocked"]
+
+    def test_frontrun_sybil_chain(self):
+        """Frontrun-Sybil chain is blocked."""
+        from hardbound.attack_simulations import attack_cross_layer_chains
+        result = attack_cross_layer_chains()
+        assert result.raw_data["defenses"]["frontrun_sybil_chain_blocked"]
+
+    def test_mrh_witness_chain(self):
+        """MRH-Witness chain is blocked."""
+        from hardbound.attack_simulations import attack_cross_layer_chains
+        result = attack_cross_layer_chains()
+        assert result.raw_data["defenses"]["mrh_witness_chain_blocked"]
+
+    def test_metadata_identity_chain(self):
+        """Metadata-Identity chain is blocked."""
+        from hardbound.attack_simulations import attack_cross_layer_chains
+        result = attack_cross_layer_chains()
+        assert result.raw_data["defenses"]["metadata_identity_chain_blocked"]
+
+    def test_mcp_recovery_chain(self):
+        """MCP-Recovery chain is blocked."""
+        from hardbound.attack_simulations import attack_cross_layer_chains
+        result = attack_cross_layer_chains()
+        assert result.raw_data["defenses"]["mcp_recovery_chain_blocked"]
+
+    def test_frontrun_governance_chain(self):
+        """Frontrun-Governance chain is blocked."""
+        from hardbound.attack_simulations import attack_cross_layer_chains
+        result = attack_cross_layer_chains()
+        assert result.raw_data["defenses"]["frontrun_governance_chain_blocked"]
 
 
 # Import sqlite3 at module level for tests that need it

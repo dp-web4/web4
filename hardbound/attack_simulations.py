@@ -14917,6 +14917,463 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Attack 51: Cross-Layer Attack Chains (Track DK)
+# ---------------------------------------------------------------------------
+
+def attack_cross_layer_chains() -> AttackResult:
+    """
+    ATTACK: Combine attacks across different Web4 layers.
+
+    Tests compound attacks involving the new layer-specific attacks (45-50)
+    chained with earlier attacks for multiplicative effect.
+
+    Chains tested:
+    1. Dictionary + MCP: Poison dictionary, use corrupted terms in MCP messages
+    2. ATP Frontrun + Sybil: Create sybils to frontrun legitimate producers
+    3. Model Drift + V3: Drift embeddings to manipulate value tensor calculations
+    4. MRH Inflation + Witness: Expand scope to witness entities outside authorization
+    5. Metadata + Identity: Use persisted metadata to confabulate identity
+    6. Dictionary + Policy: Poison policy terms to bypass restrictions
+    7. MCP + Recovery: Inject during recovery windows when monitoring is reduced
+    8. Frontrun + Governance: Frontrun governance votes by observing intent
+    """
+
+    defenses = {
+        "dictionary_mcp_chain_blocked": False,
+        "frontrun_sybil_chain_blocked": False,
+        "drift_v3_chain_blocked": False,
+        "mrh_witness_chain_blocked": False,
+        "metadata_identity_chain_blocked": False,
+        "dictionary_policy_chain_blocked": False,
+        "mcp_recovery_chain_blocked": False,
+        "frontrun_governance_chain_blocked": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Dictionary + MCP Chain
+    # ========================================================================
+
+    class DictionaryMCPChainDetector:
+        """Detect attacks that use poisoned dictionaries in MCP messages."""
+
+        def __init__(self):
+            self.dictionary_versions: Dict[str, int] = {}
+            self.mcp_dictionary_refs: Dict[str, int] = {}  # message_id -> dict version
+
+        def update_dictionary(self, dict_id: str):
+            self.dictionary_versions[dict_id] = self.dictionary_versions.get(dict_id, 0) + 1
+
+        def send_mcp_message(self, message_id: str, dict_id: str) -> int:
+            """Record dictionary version used in MCP message."""
+            version = self.dictionary_versions.get(dict_id, 0)
+            self.mcp_dictionary_refs[message_id] = version
+            return version
+
+        def verify_message(self, message_id: str, dict_id: str) -> Tuple[bool, str]:
+            """Verify message used current dictionary version."""
+            current_version = self.dictionary_versions.get(dict_id, 0)
+            message_version = self.mcp_dictionary_refs.get(message_id, -1)
+
+            if message_version < current_version - 1:
+                return False, f"Stale dictionary: used v{message_version}, current v{current_version}"
+
+            return True, "Dictionary version valid"
+
+    dict_mcp = DictionaryMCPChainDetector()
+    dict_mcp.update_dictionary("legal_terms")
+    dict_mcp.update_dictionary("legal_terms")  # Simulate poisoning update
+    dict_mcp.update_dictionary("legal_terms")  # Simulate rollback
+
+    # Attacker tries to use stale (poisoned) version
+    dict_mcp.mcp_dictionary_refs["attack_msg"] = 1  # Point to old version
+
+    valid, msg = dict_mcp.verify_message("attack_msg", "legal_terms")
+
+    if not valid:
+        defenses["dictionary_mcp_chain_blocked"] = True
+        dict_mcp_note = f"Dictionary-MCP chain blocked: {msg}"
+    else:
+        dict_mcp_note = f"Chain not blocked: {msg}"
+
+    # ========================================================================
+    # Defense 2: Frontrun + Sybil Chain
+    # ========================================================================
+
+    class FrontrunSybilDetector:
+        """Detect sybils being used for frontrunning."""
+
+        def __init__(self):
+            self.entity_creation_times: Dict[str, datetime] = {}
+            self.frontrun_attempts: Dict[str, List[str]] = defaultdict(list)
+            self.sybil_clusters: Dict[str, set] = defaultdict(set)
+
+        def register_entity(self, entity_id: str, creator: Optional[str] = None):
+            self.entity_creation_times[entity_id] = datetime.now(timezone.utc)
+            if creator:
+                self.sybil_clusters[creator].add(entity_id)
+
+        def attempt_frontrun(self, frontrunner: str, target_value: str) -> Tuple[bool, str]:
+            """Check if frontrunner is part of a sybil cluster."""
+            # Check if frontrunner is young
+            age = datetime.now(timezone.utc) - self.entity_creation_times.get(
+                frontrunner, datetime.now(timezone.utc)
+            )
+            if age.days < 7:
+                # Check if part of a cluster
+                for creator, cluster in self.sybil_clusters.items():
+                    if frontrunner in cluster and len(cluster) >= 3:
+                        return False, f"Sybil cluster detected: {len(cluster)} entities from {creator}"
+
+            self.frontrun_attempts[target_value].append(frontrunner)
+            return True, "Frontrun allowed"
+
+    frontrun_sybil = FrontrunSybilDetector()
+
+    # Attacker creates sybil cluster
+    for i in range(5):
+        frontrun_sybil.register_entity(f"sybil_{i}", creator="attacker")
+
+    # Try to frontrun with sybil
+    valid, msg = frontrun_sybil.attempt_frontrun("sybil_0", "valuable_proof")
+
+    if not valid:
+        defenses["frontrun_sybil_chain_blocked"] = True
+        frontrun_note = f"Frontrun-Sybil chain blocked: {msg}"
+    else:
+        frontrun_note = f"Chain not blocked: {msg}"
+
+    # ========================================================================
+    # Defense 3: Drift + V3 Chain
+    # ========================================================================
+
+    class DriftV3Detector:
+        """Detect embedding drift being used to manipulate V3 calculations."""
+
+        def __init__(self):
+            self.embedding_snapshots: Dict[str, List[float]] = {}
+            self.v3_calculation_embeddings: Dict[str, str] = {}
+
+        def snapshot_embedding(self, term: str, embedding: List[float]):
+            self.embedding_snapshots[term] = embedding
+
+        def calculate_v3(self, entity: str, term: str,
+                        current_embedding: List[float]) -> Tuple[bool, float, str]:
+            """Calculate V3 with drift detection."""
+            baseline = self.embedding_snapshots.get(term)
+
+            if baseline:
+                # Calculate drift
+                drift = sum((a - b) ** 2 for a, b in zip(baseline, current_embedding)) ** 0.5
+                if drift > 0.5:  # High drift
+                    return False, 0.0, f"Embedding drift too high: {drift:.3f}"
+
+            # Simplified V3 calculation
+            v3_score = sum(current_embedding) / len(current_embedding)
+            return True, v3_score, "V3 calculated"
+
+    drift_v3 = DriftV3Detector()
+    drift_v3.snapshot_embedding("value_term", [0.1, 0.2, 0.3, 0.4])
+
+    # Attacker uses drifted embedding
+    drifted = [0.8, 0.9, 0.95, 0.99]  # Drastically different
+    valid, v3, msg = drift_v3.calculate_v3("entity_1", "value_term", drifted)
+
+    if not valid:
+        defenses["drift_v3_chain_blocked"] = True
+        drift_note = f"Drift-V3 chain blocked: {msg}"
+    else:
+        drift_note = f"Chain not blocked: {msg}"
+
+    # ========================================================================
+    # Defense 4: MRH Inflation + Witness Chain
+    # ========================================================================
+
+    class MRHWitnessChainDetector:
+        """Detect MRH inflation being used for unauthorized witnessing."""
+
+        def __init__(self):
+            self.authorized_mrh: Dict[str, set] = {}
+            self.recent_mrh_changes: Dict[str, List[Tuple[datetime, int]]] = defaultdict(list)
+
+        def set_mrh(self, entity: str, mrh: set):
+            old_size = len(self.authorized_mrh.get(entity, set()))
+            self.authorized_mrh[entity] = mrh
+            self.recent_mrh_changes[entity].append((datetime.now(timezone.utc), len(mrh) - old_size))
+
+        def attempt_witness(self, witness: str, target: str) -> Tuple[bool, str]:
+            """Check if witness recently inflated MRH to include target."""
+            if target not in self.authorized_mrh.get(witness, set()):
+                return False, f"Target {target} not in witness MRH"
+
+            # Check for recent inflation
+            changes = self.recent_mrh_changes.get(witness, [])
+            recent_growth = sum(
+                delta for ts, delta in changes
+                if (datetime.now(timezone.utc) - ts).seconds < 3600 and delta > 0
+            )
+
+            if recent_growth > 5:
+                return False, f"Recent MRH inflation detected: +{recent_growth} entities"
+
+            return True, "Witness authorized"
+
+    mrh_witness = MRHWitnessChainDetector()
+
+    # Attacker inflates MRH rapidly
+    mrh_witness.set_mrh("attacker", {"a", "b", "c"})
+    mrh_witness.set_mrh("attacker", {"a", "b", "c", "d", "e", "f", "g", "h", "target"})
+
+    valid, msg = mrh_witness.attempt_witness("attacker", "target")
+
+    if not valid:
+        defenses["mrh_witness_chain_blocked"] = True
+        mrh_note = f"MRH-Witness chain blocked: {msg}"
+    else:
+        mrh_note = f"Chain not blocked: {msg}"
+
+    # ========================================================================
+    # Defense 5: Metadata + Identity Chain
+    # ========================================================================
+
+    class MetadataIdentityChainDetector:
+        """Detect metadata being used for identity confabulation."""
+
+        def __init__(self):
+            self.cleared_metadata_sources: set = set()  # Token IDs that had metadata cleared
+            self.identity_claims: Dict[str, Dict] = {}
+
+        def clear_metadata(self, token_id: str):
+            self.cleared_metadata_sources.add(token_id)
+
+        def claim_identity(self, entity: str, claim: Dict,
+                         evidence_token: Optional[str] = None) -> Tuple[bool, str]:
+            """Verify identity claim doesn't use cleared metadata."""
+            if evidence_token and evidence_token in self.cleared_metadata_sources:
+                return False, f"Evidence from cleared metadata source: {evidence_token}"
+
+            self.identity_claims[entity] = claim
+            return True, "Identity claim recorded"
+
+    meta_identity = MetadataIdentityChainDetector()
+    meta_identity.clear_metadata("old_token_123")
+
+    # Attacker uses cleared token as evidence
+    valid, msg = meta_identity.claim_identity(
+        "attacker", {"role": "admin"}, evidence_token="old_token_123"
+    )
+
+    if not valid:
+        defenses["metadata_identity_chain_blocked"] = True
+        meta_note = f"Metadata-Identity chain blocked: {msg}"
+    else:
+        meta_note = f"Chain not blocked: {msg}"
+
+    # ========================================================================
+    # Defense 6: Dictionary + Policy Chain
+    # ========================================================================
+
+    class DictionaryPolicyChainDetector:
+        """Detect dictionary poisoning affecting policy interpretation."""
+
+        def __init__(self):
+            self.policy_terms: Dict[str, str] = {}
+            self.dictionary_edits: Dict[str, List[datetime]] = defaultdict(list)
+
+        def edit_dictionary(self, term: str, new_definition: str):
+            self.dictionary_edits[term].append(datetime.now(timezone.utc))
+
+        def evaluate_policy(self, policy_term: str) -> Tuple[bool, str]:
+            """Check if policy term was recently edited."""
+            recent_edits = [
+                t for t in self.dictionary_edits.get(policy_term, [])
+                if (datetime.now(timezone.utc) - t).seconds < 3600
+            ]
+
+            if len(recent_edits) > 2:
+                return False, f"Policy term under active manipulation: {len(recent_edits)} recent edits"
+
+            return True, "Policy term stable"
+
+    dict_policy = DictionaryPolicyChainDetector()
+
+    # Attacker rapidly edits policy-critical term
+    for _ in range(5):
+        dict_policy.edit_dictionary("authorized_action", "modified definition")
+
+    valid, msg = dict_policy.evaluate_policy("authorized_action")
+
+    if not valid:
+        defenses["dictionary_policy_chain_blocked"] = True
+        dict_policy_note = f"Dictionary-Policy chain blocked: {msg}"
+    else:
+        dict_policy_note = f"Chain not blocked: {msg}"
+
+    # ========================================================================
+    # Defense 7: MCP + Recovery Chain
+    # ========================================================================
+
+    class MCPRecoveryChainDetector:
+        """Detect MCP injection during recovery windows."""
+
+        def __init__(self):
+            self.recovery_windows: Dict[str, Tuple[datetime, datetime]] = {}
+            self.mcp_messages_during_recovery: List[Dict] = []
+
+        def start_recovery(self, entity: str, duration_seconds: int = 300):
+            start = datetime.now(timezone.utc)
+            end = start + timedelta(seconds=duration_seconds)
+            self.recovery_windows[entity] = (start, end)
+
+        def send_mcp(self, sender: str, receiver: str, message: Dict) -> Tuple[bool, str]:
+            """Validate MCP message not exploiting recovery."""
+            now = datetime.now(timezone.utc)
+
+            # Check if receiver is in recovery
+            if receiver in self.recovery_windows:
+                start, end = self.recovery_windows[receiver]
+                if start <= now <= end:
+                    self.mcp_messages_during_recovery.append({
+                        "sender": sender, "receiver": receiver, "time": now
+                    })
+                    # Block high-privilege messages during recovery
+                    if message.get("privilege", "normal") == "high":
+                        return False, "High-privilege MCP blocked during recovery"
+
+            return True, "MCP message allowed"
+
+    mcp_recovery = MCPRecoveryChainDetector()
+    mcp_recovery.start_recovery("vulnerable_team", duration_seconds=300)
+
+    # Attacker sends high-privilege message during recovery
+    valid, msg = mcp_recovery.send_mcp(
+        "attacker", "vulnerable_team", {"privilege": "high", "action": "modify_policy"}
+    )
+
+    if not valid:
+        defenses["mcp_recovery_chain_blocked"] = True
+        mcp_recovery_note = f"MCP-Recovery chain blocked: {msg}"
+    else:
+        mcp_recovery_note = f"Chain not blocked: {msg}"
+
+    # ========================================================================
+    # Defense 8: Frontrun + Governance Chain
+    # ========================================================================
+
+    class FrontrunGovernanceDetector:
+        """Detect frontrunning of governance votes."""
+
+        def __init__(self):
+            self.vote_intents: Dict[str, List[Tuple[str, datetime]]] = defaultdict(list)
+            self.actual_votes: Dict[str, List[Tuple[str, str, datetime]]] = defaultdict(list)
+
+        def announce_intent(self, proposal_id: str, voter: str):
+            """Record vote intent (before actual vote)."""
+            self.vote_intents[proposal_id].append((voter, datetime.now(timezone.utc)))
+
+        def cast_vote(self, proposal_id: str, voter: str,
+                     vote: str) -> Tuple[bool, str]:
+            """Cast vote with frontrun detection."""
+            now = datetime.now(timezone.utc)
+
+            # Check if voter announced intent
+            intents = self.vote_intents.get(proposal_id, [])
+            voter_intent = [t for v, t in intents if v == voter]
+
+            if not voter_intent:
+                # Voter didn't announce - check if following someone who did
+                other_intents = [(v, t) for v, t in intents if v != voter]
+                if other_intents:
+                    # Someone else announced, then this voter is voting
+                    # Check timing
+                    latest_other = max(t for _, t in other_intents)
+                    time_since_intent = (now - latest_other).seconds
+
+                    if time_since_intent < 60:  # Within 60 seconds of another intent
+                        return False, f"Potential frontrun: voting {time_since_intent}s after intent announcement"
+
+            self.actual_votes[proposal_id].append((voter, vote, now))
+            return True, "Vote recorded"
+
+    frontrun_gov = FrontrunGovernanceDetector()
+
+    # Legitimate voter announces intent
+    frontrun_gov.announce_intent("proposal_123", "honest_voter")
+
+    # Attacker immediately votes after seeing intent
+    valid, msg = frontrun_gov.cast_vote("proposal_123", "attacker", "oppose")
+
+    if not valid:
+        defenses["frontrun_governance_chain_blocked"] = True
+        frontrun_gov_note = f"Frontrun-Governance chain blocked: {msg}"
+    else:
+        frontrun_gov_note = f"Chain not blocked: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Cross-Layer Attack Chains (DK)",
+        success=attack_success,
+        setup_cost_atp=250.0,
+        gain_atp=5000.0 if attack_success else -250.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=36,
+        blocks_until_detected=150,
+        trust_damage=0.90,
+        description=f"""
+CROSS-LAYER ATTACK CHAINS (Track DK):
+- Dictionary + MCP chain: {"DEFENDED" if defenses["dictionary_mcp_chain_blocked"] else "VULNERABLE"}
+  {dict_mcp_note}
+- Frontrun + Sybil chain: {"DEFENDED" if defenses["frontrun_sybil_chain_blocked"] else "VULNERABLE"}
+  {frontrun_note}
+- Drift + V3 chain: {"DEFENDED" if defenses["drift_v3_chain_blocked"] else "VULNERABLE"}
+  {drift_note}
+- MRH + Witness chain: {"DEFENDED" if defenses["mrh_witness_chain_blocked"] else "VULNERABLE"}
+  {mrh_note}
+- Metadata + Identity chain: {"DEFENDED" if defenses["metadata_identity_chain_blocked"] else "VULNERABLE"}
+  {meta_note}
+- Dictionary + Policy chain: {"DEFENDED" if defenses["dictionary_policy_chain_blocked"] else "VULNERABLE"}
+  {dict_policy_note}
+- MCP + Recovery chain: {"DEFENDED" if defenses["mcp_recovery_chain_blocked"] else "VULNERABLE"}
+  {mcp_recovery_note}
+- Frontrun + Governance chain: {"DEFENDED" if defenses["frontrun_governance_chain_blocked"] else "VULNERABLE"}
+  {frontrun_gov_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Cross-layer attacks are multiplicative:
+- Individual layer defenses may hold
+- Chain attacks exploit inter-layer gaps
+- Detection requires cross-layer correlation
+""".strip(),
+        mitigation=f"""
+Track DK: Cross-Layer Attack Chain Mitigation:
+1. Verify dictionary versions in all MCP messages
+2. Correlate sybil detection with frontrun attempts
+3. Track embedding drift impact on value calculations
+4. Monitor MRH changes preceding witness events
+5. Prevent cleared metadata use as identity evidence
+6. Freeze policy evaluation during dictionary instability
+7. Heighten MCP scrutiny during recovery windows
+8. Add delays between intent announcement and voting
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -14973,6 +15430,7 @@ def run_all_attacks() -> List[AttackResult]:
         ("Cross-Model Dictionary Drift (DH)", attack_cross_model_dictionary_drift),
         ("MRH Scope Inflation (DI)", attack_mrh_scope_inflation),
         ("ADP Metadata Persistence (DJ)", attack_adp_metadata_persistence),
+        ("Cross-Layer Attack Chains (DK)", attack_cross_layer_chains),
     ]
 
     results = []
