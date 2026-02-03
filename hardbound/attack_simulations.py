@@ -9812,6 +9812,2463 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Attack 40: Oracle Dependency Injection (Track CZ)
+# ---------------------------------------------------------------------------
+
+def attack_oracle_dependency_injection() -> AttackResult:
+    """
+    ATTACK: Exploit external oracle data dependencies.
+
+    The system relies on external oracles for:
+    - Witness quality scores
+    - Reputation feeds
+    - Metabolic state indicators
+    - Time synchronization
+
+    Attacks target:
+    1. Gradient poisoning (slow manipulation to evade detection)
+    2. Historical rewriting (claim oracle always provided current data)
+    3. Consensus bypass (control majority of oracles)
+    4. Metabolic state confusion (feed false state transitions)
+    5. Commitment bypass (modify data after consumption)
+    6. Rate-of-change exploitation (exceed bounds via incremental changes)
+    7. Oracle rotation gaming (influence which oracle is selected)
+    8. Stale data exploitation (use outdated oracle data advantageously)
+    """
+
+    defenses = {
+        "gradient_poisoning_detected": False,
+        "historical_tampering_blocked": False,
+        "consensus_bypass_blocked": False,
+        "state_confusion_blocked": False,
+        "commitment_enforced": False,
+        "rate_of_change_bounded": False,
+        "oracle_rotation_fair": False,
+        "stale_data_rejected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Gradient Poisoning Detection
+    # ========================================================================
+    # Attacker slowly adjusts oracle values to evade anomaly detection
+
+    class OracleGradientMonitor:
+        """Monitors oracle values for slow poisoning."""
+
+        def __init__(self, max_delta_per_update: float = 0.05):
+            self.max_delta = max_delta_per_update
+            self.history: Dict[str, List[Tuple[datetime, float]]] = defaultdict(list)
+            self.cumulative_deltas: Dict[str, float] = defaultdict(float)
+
+        def record_value(self, oracle_id: str, entity_id: str, value: float) -> Tuple[bool, str]:
+            """Record oracle value and check for gradient poisoning."""
+            key = f"{oracle_id}:{entity_id}"
+            now = datetime.now(timezone.utc)
+
+            if self.history[key]:
+                last_time, last_value = self.history[key][-1]
+                delta = value - last_value
+
+                # Track cumulative changes
+                self.cumulative_deltas[key] += delta
+
+                # Check for sustained directional bias
+                if len(self.history[key]) >= 10:
+                    recent_deltas = []
+                    for i in range(len(self.history[key]) - 1):
+                        recent_deltas.append(
+                            self.history[key][i + 1][1] - self.history[key][i][1]
+                        )
+                    recent_deltas = recent_deltas[-10:]
+
+                    # If all recent deltas are same direction (all positive or all negative)
+                    if all(d > 0 for d in recent_deltas) or all(d < 0 for d in recent_deltas):
+                        total_drift = sum(abs(d) for d in recent_deltas)
+                        if total_drift > 0.3:  # Significant cumulative drift
+                            return False, f"Gradient poisoning detected: {len(recent_deltas)} consistent updates, total drift={total_drift:.3f}"
+
+            self.history[key].append((now, value))
+            return True, "OK"
+
+    oracle_monitor = OracleGradientMonitor()
+
+    # Simulate slow poisoning attack: 15 updates, each +0.025
+    poisoning_detected = False
+    for i in range(15):
+        value = 0.5 + (i + 1) * 0.025  # Slow drift from 0.5 to 0.875
+        success, msg = oracle_monitor.record_value("oracle_A", "target", value)
+        if not success:
+            poisoning_detected = True
+            break
+
+    if poisoning_detected:
+        defenses["gradient_poisoning_detected"] = True
+        gradient_note = "Gradient poisoning detected after sustained drift"
+    else:
+        gradient_note = f"Poisoning undetected (reached {value:.3f})"
+
+    # ========================================================================
+    # Defense 2: Historical Tampering Prevention
+    # ========================================================================
+    # Oracle attempts to rewrite historical data
+
+    class OracleHistoryCommitment:
+        """Cryptographic commitment to oracle history."""
+
+        def __init__(self):
+            self.commitments: Dict[str, List[str]] = defaultdict(list)
+            self.values: Dict[str, List[Tuple[datetime, float, str]]] = defaultdict(list)
+
+        def commit_value(self, oracle_id: str, value: float) -> str:
+            """Create commitment for oracle value."""
+            import hashlib
+            timestamp = datetime.now(timezone.utc).isoformat()
+            commitment_data = f"{oracle_id}:{value}:{timestamp}"
+            commitment = hashlib.sha256(commitment_data.encode()).hexdigest()[:16]
+
+            self.commitments[oracle_id].append(commitment)
+            self.values[oracle_id].append((datetime.now(timezone.utc), value, commitment))
+            return commitment
+
+        def verify_history(self, oracle_id: str, claimed_values: List[float]) -> Tuple[bool, str]:
+            """Verify claimed history matches commitments."""
+            actual = self.values.get(oracle_id, [])
+            if len(claimed_values) != len(actual):
+                return False, f"History length mismatch: claimed {len(claimed_values)}, actual {len(actual)}"
+
+            for i, (timestamp, value, commitment) in enumerate(actual):
+                if claimed_values[i] != value:
+                    return False, f"Historical tampering at index {i}: claimed {claimed_values[i]}, committed {value}"
+
+            return True, "History verified"
+
+    history_commit = OracleHistoryCommitment()
+
+    # Oracle commits values
+    history_commit.commit_value("oracle_B", 0.5)
+    history_commit.commit_value("oracle_B", 0.55)
+    history_commit.commit_value("oracle_B", 0.6)
+
+    # Attacker tries to claim different history
+    tampered_history = [0.5, 0.7, 0.9]  # Claims higher values
+    valid, msg = history_commit.verify_history("oracle_B", tampered_history)
+
+    if not valid:
+        defenses["historical_tampering_blocked"] = True
+        history_note = f"Tampering blocked: {msg}"
+    else:
+        history_note = "Historical tampering possible"
+
+    # ========================================================================
+    # Defense 3: Oracle Consensus Bypass Prevention
+    # ========================================================================
+    # Attacker controls majority of oracles to determine "truth"
+
+    class ByzantineOracleConsensus:
+        """Byzantine-resistant oracle consensus."""
+
+        def __init__(self, total_oracles: int = 5, min_agreement: float = 0.67):
+            self.total = total_oracles
+            self.min_agreement = min_agreement
+            self.oracle_reputations: Dict[str, float] = {}
+
+        def set_reputation(self, oracle_id: str, reputation: float):
+            self.oracle_reputations[oracle_id] = reputation
+
+        def reach_consensus(self, values: Dict[str, float]) -> Tuple[Optional[float], str]:
+            """Weighted consensus with Byzantine resistance."""
+            if len(values) < 3:
+                return None, "Insufficient oracles (need at least 3)"
+
+            # Weight by reputation
+            weighted_sum = 0.0
+            total_weight = 0.0
+            for oracle_id, value in values.items():
+                weight = self.oracle_reputations.get(oracle_id, 0.5)
+                weighted_sum += value * weight
+                total_weight += weight
+
+            if total_weight == 0:
+                return None, "No reputable oracles"
+
+            weighted_avg = weighted_sum / total_weight
+
+            # Check if there's agreement (values within tolerance)
+            agreeing_weight = 0.0
+            tolerance = 0.1
+            for oracle_id, value in values.items():
+                if abs(value - weighted_avg) < tolerance:
+                    agreeing_weight += self.oracle_reputations.get(oracle_id, 0.5)
+
+            agreement_ratio = agreeing_weight / total_weight
+
+            if agreement_ratio < self.min_agreement:
+                return None, f"Insufficient agreement: {agreement_ratio:.2%} < {self.min_agreement:.2%}"
+
+            return weighted_avg, "Consensus reached"
+
+    consensus = ByzantineOracleConsensus()
+    consensus.set_reputation("honest_1", 0.9)
+    consensus.set_reputation("honest_2", 0.85)
+    consensus.set_reputation("attacker_1", 0.3)  # Low reputation
+    consensus.set_reputation("attacker_2", 0.3)
+    consensus.set_reputation("attacker_3", 0.3)
+
+    # Attacker controls 3 oracles but with low reputation
+    attack_values = {
+        "honest_1": 0.5,
+        "honest_2": 0.52,
+        "attacker_1": 0.95,  # Trying to inflate
+        "attacker_2": 0.94,
+        "attacker_3": 0.93,
+    }
+
+    result, msg = consensus.reach_consensus(attack_values)
+
+    if result is not None and result < 0.7:  # Honest value dominates
+        defenses["consensus_bypass_blocked"] = True
+        consensus_note = f"Consensus bypass blocked: weighted result={result:.3f}"
+    else:
+        consensus_note = f"Consensus attack succeeded: {result}"
+
+    # ========================================================================
+    # Defense 4: Metabolic State Confusion Prevention
+    # ========================================================================
+    # Oracle feeds false state transitions
+
+    class MetabolicStateValidator:
+        """Validates metabolic state transitions from oracles."""
+
+        def __init__(self):
+            self.valid_transitions = {
+                "ACTIVE": {"REST", "DREAMING"},
+                "REST": {"ACTIVE", "SLEEP"},
+                "SLEEP": {"REST", "DREAMING"},
+                "DREAMING": {"ACTIVE", "SLEEP"},
+            }
+            self.current_states: Dict[str, str] = {}
+            self.transition_times: Dict[str, datetime] = {}
+
+        def validate_transition(self, entity: str, claimed_state: str,
+                                oracle_id: str) -> Tuple[bool, str]:
+            """Validate state transition is legal."""
+            if entity not in self.current_states:
+                self.current_states[entity] = "ACTIVE"
+                self.transition_times[entity] = datetime.now(timezone.utc)
+
+            current = self.current_states[entity]
+
+            # Check if transition is valid
+            if claimed_state not in self.valid_transitions.get(current, set()):
+                if claimed_state != current:  # Allow staying in same state
+                    return False, f"Invalid transition: {current} -> {claimed_state}"
+
+            # Check minimum time in state (anti-flapping)
+            last_transition = self.transition_times.get(entity, datetime.now(timezone.utc))
+            elapsed = (datetime.now(timezone.utc) - last_transition).total_seconds()
+            if elapsed < 10 and claimed_state != current:  # Min 10 seconds
+                return False, f"State flapping detected: {elapsed:.1f}s since last transition"
+
+            self.current_states[entity] = claimed_state
+            self.transition_times[entity] = datetime.now(timezone.utc)
+            return True, "Valid transition"
+
+    state_validator = MetabolicStateValidator()
+
+    # Attacker tries to force rapid invalid transitions
+    invalid_blocked = 0
+    # Try ACTIVE -> SLEEP (invalid, must go through REST)
+    valid, msg = state_validator.validate_transition("team_A", "SLEEP", "oracle_A")
+    if not valid:
+        invalid_blocked += 1
+
+    # Try rapid state changes (flapping)
+    state_validator.validate_transition("team_B", "REST", "oracle_A")
+    valid, msg = state_validator.validate_transition("team_B", "ACTIVE", "oracle_A")
+    if not valid and "flapping" in msg:
+        invalid_blocked += 1
+
+    if invalid_blocked >= 1:
+        defenses["state_confusion_blocked"] = True
+        state_note = f"State confusion blocked: {invalid_blocked} invalid transitions rejected"
+    else:
+        state_note = "State confusion possible"
+
+    # ========================================================================
+    # Defense 5: Commitment Enforcement
+    # ========================================================================
+    # Oracle modifies data after system has consumed it
+
+    class OracleCommitmentEnforcement:
+        """Enforce cryptographic commitment before consumption."""
+
+        def __init__(self):
+            self.pending_commitments: Dict[str, str] = {}
+            self.revealed_values: Dict[str, float] = {}
+            self.consumed: set = set()
+
+        def commit(self, oracle_id: str, commitment_hash: str) -> str:
+            """Oracle commits to value."""
+            self.pending_commitments[oracle_id] = commitment_hash
+            return "Commitment recorded"
+
+        def reveal(self, oracle_id: str, value: float, salt: str) -> Tuple[bool, str]:
+            """Oracle reveals committed value."""
+            import hashlib
+            expected_hash = self.pending_commitments.get(oracle_id)
+            if not expected_hash:
+                return False, "No pending commitment"
+
+            actual_hash = hashlib.sha256(f"{value}:{salt}".encode()).hexdigest()[:16]
+            if actual_hash != expected_hash:
+                return False, f"Commitment mismatch: revealed doesn't match committed"
+
+            self.revealed_values[oracle_id] = value
+            return True, "Reveal successful"
+
+        def consume(self, oracle_id: str) -> Tuple[Optional[float], str]:
+            """Consume revealed value (cannot be changed after)."""
+            if oracle_id not in self.revealed_values:
+                return None, "No revealed value"
+
+            if oracle_id in self.consumed:
+                return self.revealed_values[oracle_id], "Already consumed (returning cached)"
+
+            self.consumed.add(oracle_id)
+            return self.revealed_values[oracle_id], "Consumed"
+
+    commitment_sys = OracleCommitmentEnforcement()
+
+    # Oracle commits then tries to reveal different value
+    import hashlib
+    real_value = 0.5
+    salt = "secret123"
+    real_hash = hashlib.sha256(f"{real_value}:{salt}".encode()).hexdigest()[:16]
+
+    commitment_sys.commit("oracle_C", real_hash)
+
+    # Attacker tries to reveal different value
+    fake_value = 0.95
+    success, msg = commitment_sys.reveal("oracle_C", fake_value, salt)
+
+    if not success:
+        defenses["commitment_enforced"] = True
+        commit_note = f"Commitment enforced: {msg}"
+    else:
+        commit_note = "Post-consumption modification possible"
+
+    # ========================================================================
+    # Defense 6: Rate of Change Bounds
+    # ========================================================================
+    # Oracle exceeds rate-of-change limits through incremental updates
+
+    class RateOfChangeMonitor:
+        """Monitor oracle value rate of change."""
+
+        def __init__(self, max_rate_per_hour: float = 0.1):
+            self.max_rate = max_rate_per_hour
+            self.first_values: Dict[str, Tuple[datetime, float]] = {}
+            self.last_values: Dict[str, Tuple[datetime, float]] = {}
+
+        def update(self, oracle_id: str, entity_id: str, value: float) -> Tuple[bool, str]:
+            """Check rate of change bounds."""
+            key = f"{oracle_id}:{entity_id}"
+            now = datetime.now(timezone.utc)
+
+            if key not in self.first_values:
+                self.first_values[key] = (now, value)
+                self.last_values[key] = (now, value)
+                return True, "First value"
+
+            first_time, first_value = self.first_values[key]
+            elapsed_hours = max(0.01, (now - first_time).total_seconds() / 3600)
+            total_change = abs(value - first_value)
+            rate = total_change / elapsed_hours
+
+            if rate > self.max_rate * 2:  # Allow some flexibility
+                return False, f"Rate exceeded: {rate:.3f}/hr > {self.max_rate * 2:.3f}/hr allowed"
+
+            self.last_values[key] = (now, value)
+            return True, f"Rate OK: {rate:.3f}/hr"
+
+    rate_monitor = RateOfChangeMonitor(max_rate_per_hour=0.1)
+
+    # Simulate rapid changes (should be flagged even if each delta is small)
+    rate_exceeded = False
+    for i in range(20):
+        value = 0.5 + i * 0.05  # Total change of 0.95 in "short" time
+        success, msg = rate_monitor.update("oracle_D", "target", value)
+        if not success:
+            rate_exceeded = True
+            break
+
+    if rate_exceeded:
+        defenses["rate_of_change_bounded"] = True
+        rate_note = f"Rate bounds enforced at update {i+1}"
+    else:
+        rate_note = "Rate bounds not enforced"
+
+    # ========================================================================
+    # Defense 7: Fair Oracle Rotation
+    # ========================================================================
+    # Attacker influences which oracle is selected
+
+    class FairOracleSelector:
+        """Fair oracle selection with manipulation resistance."""
+
+        def __init__(self):
+            self.oracles: List[str] = []
+            self.selection_history: List[str] = []
+            self.cooldowns: Dict[str, int] = {}  # Oracle -> selections until eligible
+
+        def register(self, oracle_id: str):
+            self.oracles.append(oracle_id)
+            self.cooldowns[oracle_id] = 0
+
+        def select(self, entropy: str, exclude: set = None) -> Tuple[Optional[str], str]:
+            """Select oracle using verifiable randomness."""
+            exclude = exclude or set()
+            eligible = [o for o in self.oracles
+                       if o not in exclude and self.cooldowns.get(o, 0) == 0]
+
+            if not eligible:
+                return None, "No eligible oracles"
+
+            # Use entropy (e.g., block hash) for verifiable selection
+            import hashlib
+            seed = int(hashlib.sha256(entropy.encode()).hexdigest()[:8], 16)
+            selected = eligible[seed % len(eligible)]
+
+            # Apply cooldown to prevent repeated selection
+            self.cooldowns[selected] = len(self.oracles) // 2  # Cooldown for half of oracle count
+            for o in self.oracles:
+                if self.cooldowns.get(o, 0) > 0:
+                    self.cooldowns[o] -= 1
+
+            self.selection_history.append(selected)
+            return selected, "Selected"
+
+    oracle_selector = FairOracleSelector()
+    for i in range(5):
+        oracle_selector.register(f"oracle_{i}")
+
+    # Check that no oracle dominates
+    selections = []
+    for i in range(20):
+        selected, _ = oracle_selector.select(f"block_hash_{i}")
+        if selected:
+            selections.append(selected)
+
+    from collections import Counter
+    selection_counts = Counter(selections)
+    max_selections = max(selection_counts.values()) if selection_counts else 0
+    min_selections = min(selection_counts.values()) if selection_counts else 0
+
+    if max_selections - min_selections <= 3:  # Fairly even distribution
+        defenses["oracle_rotation_fair"] = True
+        rotation_note = f"Fair rotation: {dict(selection_counts)}"
+    else:
+        rotation_note = f"Unfair rotation: {dict(selection_counts)}"
+
+    # ========================================================================
+    # Defense 8: Stale Data Rejection
+    # ========================================================================
+    # Attacker uses outdated oracle data to their advantage
+
+    class OracleFreshnessValidator:
+        """Validate oracle data freshness."""
+
+        def __init__(self, max_age_seconds: float = 300):  # 5 min default
+            self.max_age = max_age_seconds
+            self.timestamps: Dict[str, datetime] = {}
+
+        def record(self, oracle_id: str, timestamp: datetime):
+            self.timestamps[oracle_id] = timestamp
+
+        def is_fresh(self, oracle_id: str) -> Tuple[bool, str]:
+            """Check if oracle data is fresh enough."""
+            if oracle_id not in self.timestamps:
+                return False, "No timestamp recorded"
+
+            age = (datetime.now(timezone.utc) - self.timestamps[oracle_id]).total_seconds()
+            if age > self.max_age:
+                return False, f"Stale data: {age:.1f}s old > {self.max_age}s max"
+
+            return True, f"Fresh: {age:.1f}s old"
+
+    freshness = OracleFreshnessValidator(max_age_seconds=60)
+
+    # Record oracle data from 2 minutes ago
+    old_time = datetime.now(timezone.utc) - timedelta(seconds=120)
+    freshness.record("oracle_E", old_time)
+
+    is_fresh, msg = freshness.is_fresh("oracle_E")
+
+    if not is_fresh:
+        defenses["stale_data_rejected"] = True
+        stale_note = f"Stale data rejected: {msg}"
+    else:
+        stale_note = "Stale data accepted"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2  # Fewer than 6/8 defenses
+
+    return AttackResult(
+        attack_name="Oracle Dependency Injection (CZ)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=1500.0 if attack_success else -200.0,
+        roi=7.5 if attack_success else -1.0,
+        detection_probability=0.60,
+        time_to_detection_hours=8,
+        blocks_until_detected=40,
+        trust_damage=0.70,
+        description=f"""
+ORACLE DEPENDENCY INJECTION ATTACK (Track CZ):
+- Gradient poisoning detection: {"DEFENDED" if defenses["gradient_poisoning_detected"] else "VULNERABLE"}
+  {gradient_note}
+- Historical tampering blocked: {"DEFENDED" if defenses["historical_tampering_blocked"] else "VULNERABLE"}
+  {history_note}
+- Consensus bypass blocked: {"DEFENDED" if defenses["consensus_bypass_blocked"] else "VULNERABLE"}
+  {consensus_note}
+- State confusion blocked: {"DEFENDED" if defenses["state_confusion_blocked"] else "VULNERABLE"}
+  {state_note}
+- Commitment enforced: {"DEFENDED" if defenses["commitment_enforced"] else "VULNERABLE"}
+  {commit_note}
+- Rate of change bounded: {"DEFENDED" if defenses["rate_of_change_bounded"] else "VULNERABLE"}
+  {rate_note}
+- Oracle rotation fair: {"DEFENDED" if defenses["oracle_rotation_fair"] else "VULNERABLE"}
+  {rotation_note}
+- Stale data rejected: {"DEFENDED" if defenses["stale_data_rejected"] else "VULNERABLE"}
+  {stale_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Oracle dependency attacks poison the external data feeds
+that the trust system relies on. They can:
+- Gradually shift trust scores via slow manipulation
+- Rewrite historical oracle data
+- Control consensus through low-quality oracles
+- Cause state confusion via invalid transitions
+""".strip(),
+        mitigation=f"""
+Track CZ: Oracle Dependency Injection Mitigation:
+1. Detect gradient poisoning via sustained directional drift
+2. Cryptographic commitment to oracle history
+3. Byzantine-resistant weighted consensus
+4. Validate metabolic state transitions
+5. Enforce commit-reveal scheme for oracle values
+6. Monitor and bound rate of change over time
+7. Fair oracle rotation with cooldowns
+8. Reject stale oracle data beyond freshness threshold
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 41: Metabolism Desynchronization (Track DA)
+# ---------------------------------------------------------------------------
+
+def attack_metabolism_desynchronization() -> AttackResult:
+    """
+    ATTACK: Exploit asynchronous metabolic state disagreement.
+
+    Different components may have different views of metabolic state:
+    - Heartbeat engine: ACTIVE
+    - Witness pool selector: SLEEP
+    - Governance engine: REST
+    - Trust decay calculator: HIBERNATION
+
+    Attacks exploit this fragmentation to:
+    1. Get witnessed at low-cost state while providing high-trust credibility
+    2. Perform governance actions at relaxed thresholds
+    3. Freeze trust decay by keeping one component dormant
+    4. Create arbitrage between state-dependent costs
+    """
+
+    defenses = {
+        "global_state_sync": False,
+        "state_proof_required": False,
+        "cross_component_validation": False,
+        "clock_skew_bounded": False,
+        "atomic_transitions": False,
+        "conflict_detection": False,
+        "witness_state_binding": False,
+        "decay_state_coupling": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Global State Synchronization
+    # ========================================================================
+
+    class GlobalStateManager:
+        """Centralized state with global synchronization."""
+
+        def __init__(self):
+            self._lock = __import__('threading').Lock()
+            self.global_state: Dict[str, str] = {}
+            self.state_versions: Dict[str, int] = defaultdict(int)
+            self.component_views: Dict[str, Dict[str, str]] = defaultdict(dict)
+
+        def set_state(self, entity: str, state: str) -> int:
+            """Set global state atomically."""
+            with self._lock:
+                self.global_state[entity] = state
+                self.state_versions[entity] += 1
+                return self.state_versions[entity]
+
+        def get_state(self, entity: str, component: str) -> Tuple[str, int]:
+            """Get state for component - must match global."""
+            with self._lock:
+                state = self.global_state.get(entity, "ACTIVE")
+                version = self.state_versions[entity]
+                self.component_views[component][entity] = state
+                return state, version
+
+        def check_sync(self, entity: str) -> Tuple[bool, str]:
+            """Check if all components have consistent view."""
+            with self._lock:
+                views = [v.get(entity) for v in self.component_views.values()]
+                views = [v for v in views if v is not None]
+                if len(set(views)) <= 1:
+                    return True, "Synchronized"
+                return False, f"Desync detected: {views}"
+
+    state_mgr = GlobalStateManager()
+    state_mgr.set_state("team_A", "ACTIVE")
+
+    # Components get state
+    state_mgr.get_state("team_A", "heartbeat")
+    state_mgr.get_state("team_A", "witness")
+    state_mgr.get_state("team_A", "governance")
+
+    is_synced, msg = state_mgr.check_sync("team_A")
+    if is_synced:
+        defenses["global_state_sync"] = True
+        sync_note = "Global state synchronized"
+    else:
+        sync_note = f"State desync: {msg}"
+
+    # ========================================================================
+    # Defense 2: State Proof Required
+    # ========================================================================
+
+    class StateProofSystem:
+        """Require cryptographic proof of state for operations."""
+
+        def __init__(self):
+            self.state_proofs: Dict[str, str] = {}
+
+        def create_proof(self, entity: str, state: str, timestamp: datetime) -> str:
+            """Create signed state proof."""
+            import hashlib
+            proof = hashlib.sha256(f"{entity}:{state}:{timestamp.isoformat()}".encode()).hexdigest()[:16]
+            self.state_proofs[f"{entity}:{state}"] = proof
+            return proof
+
+        def verify_proof(self, entity: str, claimed_state: str, proof: str,
+                        max_age_seconds: float = 60) -> Tuple[bool, str]:
+            """Verify state proof is valid and fresh."""
+            expected = self.state_proofs.get(f"{entity}:{claimed_state}")
+            if not expected:
+                return False, "No proof exists for claimed state"
+            if proof != expected:
+                return False, "Proof mismatch"
+            return True, "Proof valid"
+
+    proof_sys = StateProofSystem()
+    proof = proof_sys.create_proof("team_B", "ACTIVE", datetime.now(timezone.utc))
+
+    # Try to claim different state with wrong proof
+    valid, msg = proof_sys.verify_proof("team_B", "SLEEP", proof)
+
+    if not valid:
+        defenses["state_proof_required"] = True
+        proof_note = f"State proof enforced: {msg}"
+    else:
+        proof_note = "State proof bypassed"
+
+    # ========================================================================
+    # Defense 3: Cross-Component State Validation
+    # ========================================================================
+
+    class CrossComponentValidator:
+        """Validate state consistency across components."""
+
+        def __init__(self):
+            self.component_states: Dict[str, Dict[str, str]] = defaultdict(dict)
+
+        def report_state(self, component: str, entity: str, state: str):
+            self.component_states[component][entity] = state
+
+        def validate_operation(self, entity: str, operation: str,
+                              expected_state: str) -> Tuple[bool, str]:
+            """Validate all components agree on state."""
+            states = set()
+            for comp, entities in self.component_states.items():
+                if entity in entities:
+                    states.add(entities[entity])
+
+            if len(states) > 1:
+                return False, f"State conflict: {states}"
+
+            if states and expected_state not in states:
+                return False, f"Wrong state: expected {expected_state}, have {states}"
+
+            return True, "Consistent"
+
+    cross_val = CrossComponentValidator()
+    cross_val.report_state("heartbeat", "team_C", "ACTIVE")
+    cross_val.report_state("witness", "team_C", "SLEEP")  # Inconsistent!
+
+    valid, msg = cross_val.validate_operation("team_C", "witness", "ACTIVE")
+
+    if not valid:
+        defenses["cross_component_validation"] = True
+        cross_note = f"Cross-component validation: {msg}"
+    else:
+        cross_note = "No cross-component validation"
+
+    # ========================================================================
+    # Defense 4: Clock Skew Bounds
+    # ========================================================================
+
+    class ClockSkewMonitor:
+        """Monitor and bound clock skew between components."""
+
+        def __init__(self, max_skew_ms: float = 1000):
+            self.max_skew = max_skew_ms
+            self.component_times: Dict[str, datetime] = {}
+
+        def report_time(self, component: str, reported_time: datetime):
+            self.component_times[component] = reported_time
+
+        def check_skew(self) -> Tuple[bool, str]:
+            """Check if component clocks are within bounds."""
+            if len(self.component_times) < 2:
+                return True, "Insufficient data"
+
+            times = list(self.component_times.values())
+            max_diff = max(
+                abs((t1 - t2).total_seconds() * 1000)
+                for t1 in times for t2 in times
+            )
+
+            if max_diff > self.max_skew:
+                return False, f"Clock skew too large: {max_diff:.0f}ms > {self.max_skew}ms"
+
+            return True, f"Skew OK: {max_diff:.0f}ms"
+
+    skew_monitor = ClockSkewMonitor(max_skew_ms=100)
+
+    now = datetime.now(timezone.utc)
+    skew_monitor.report_time("comp_A", now)
+    skew_monitor.report_time("comp_B", now + timedelta(milliseconds=50))
+    skew_monitor.report_time("comp_C", now + timedelta(milliseconds=200))  # Too far
+
+    skew_ok, msg = skew_monitor.check_skew()
+
+    if not skew_ok:
+        defenses["clock_skew_bounded"] = True
+        skew_note = f"Clock skew bounded: {msg}"
+    else:
+        skew_note = "Clock skew unbounded"
+
+    # ========================================================================
+    # Defense 5: Atomic State Transitions
+    # ========================================================================
+
+    class AtomicTransitionManager:
+        """Ensure state transitions are atomic across all components."""
+
+        def __init__(self):
+            self._lock = __import__('threading').Lock()
+            self.pending_transitions: Dict[str, Dict] = {}
+            self.component_acks: Dict[str, set] = defaultdict(set)
+
+        def initiate_transition(self, entity: str, from_state: str, to_state: str) -> str:
+            with self._lock:
+                tx_id = f"tx_{entity}_{datetime.now(timezone.utc).timestamp()}"
+                self.pending_transitions[tx_id] = {
+                    "entity": entity,
+                    "from": from_state,
+                    "to": to_state,
+                    "status": "pending"
+                }
+                return tx_id
+
+        def ack_transition(self, tx_id: str, component: str) -> Tuple[bool, str]:
+            with self._lock:
+                if tx_id not in self.pending_transitions:
+                    return False, "Unknown transaction"
+                self.component_acks[tx_id].add(component)
+                return True, f"Ack from {component}"
+
+        def commit_transition(self, tx_id: str, required_components: set) -> Tuple[bool, str]:
+            with self._lock:
+                if tx_id not in self.pending_transitions:
+                    return False, "Unknown transaction"
+
+                acks = self.component_acks.get(tx_id, set())
+                if not required_components.issubset(acks):
+                    missing = required_components - acks
+                    return False, f"Missing acks from: {missing}"
+
+                self.pending_transitions[tx_id]["status"] = "committed"
+                return True, "Transition committed"
+
+    atomic_mgr = AtomicTransitionManager()
+    tx_id = atomic_mgr.initiate_transition("team_D", "ACTIVE", "REST")
+    atomic_mgr.ack_transition(tx_id, "heartbeat")
+    atomic_mgr.ack_transition(tx_id, "witness")
+    # Missing governance ack
+
+    committed, msg = atomic_mgr.commit_transition(
+        tx_id, {"heartbeat", "witness", "governance"}
+    )
+
+    if not committed:
+        defenses["atomic_transitions"] = True
+        atomic_note = f"Atomic transitions enforced: {msg}"
+    else:
+        atomic_note = "Non-atomic transitions allowed"
+
+    # ========================================================================
+    # Defense 6: Conflict Detection
+    # ========================================================================
+
+    class StateConflictDetector:
+        """Detect conflicting state reports."""
+
+        def __init__(self):
+            self.reports: List[Dict] = []
+            self.conflicts: List[str] = []
+
+        def report(self, entity: str, component: str, state: str, timestamp: datetime):
+            self.reports.append({
+                "entity": entity,
+                "component": component,
+                "state": state,
+                "timestamp": timestamp
+            })
+            self._check_conflicts(entity)
+
+        def _check_conflicts(self, entity: str):
+            entity_reports = [r for r in self.reports if r["entity"] == entity]
+
+            # Group by approximate time (within 1 second)
+            time_groups: Dict[int, List] = defaultdict(list)
+            for r in entity_reports:
+                bucket = int(r["timestamp"].timestamp())
+                time_groups[bucket].append(r)
+
+            for bucket, reports in time_groups.items():
+                states = set(r["state"] for r in reports)
+                if len(states) > 1:
+                    self.conflicts.append(f"{entity} at {bucket}: {states}")
+
+        def has_conflicts(self) -> Tuple[bool, List[str]]:
+            return len(self.conflicts) > 0, self.conflicts
+
+    conflict_detector = StateConflictDetector()
+    now = datetime.now(timezone.utc)
+
+    conflict_detector.report("team_E", "heartbeat", "ACTIVE", now)
+    conflict_detector.report("team_E", "witness", "SLEEP", now)  # Conflict!
+
+    has_conflict, conflicts = conflict_detector.has_conflicts()
+
+    if has_conflict:
+        defenses["conflict_detection"] = True
+        conflict_note = f"Conflict detected: {conflicts[0]}"
+    else:
+        conflict_note = "No conflict detection"
+
+    # ========================================================================
+    # Defense 7: Witness State Binding
+    # ========================================================================
+
+    class WitnessStateBinding:
+        """Bind witness operations to verified state."""
+
+        def __init__(self):
+            self.witness_records: List[Dict] = []
+
+        def witness(self, witness_id: str, target_id: str, target_state: str,
+                   state_proof: str) -> Tuple[bool, str]:
+            """Record witness with state binding."""
+            # Verify state proof exists and matches
+            if not state_proof:
+                return False, "State proof required for witnessing"
+
+            self.witness_records.append({
+                "witness": witness_id,
+                "target": target_id,
+                "state_at_witness": target_state,
+                "proof": state_proof,
+                "timestamp": datetime.now(timezone.utc)
+            })
+            return True, "Witness recorded with state binding"
+
+        def validate_witness(self, target_id: str, claimed_state: str) -> Tuple[bool, str]:
+            """Validate witness was made in consistent state."""
+            records = [r for r in self.witness_records if r["target"] == target_id]
+            if not records:
+                return True, "No witnesses"
+
+            states = set(r["state_at_witness"] for r in records)
+            if len(states) > 1:
+                return False, f"Witnesses made in different states: {states}"
+
+            return True, "Consistent witness states"
+
+    witness_binding = WitnessStateBinding()
+    witness_binding.witness("alice", "team_F", "ACTIVE", "proof_123")
+    witness_binding.witness("bob", "team_F", "SLEEP", "proof_456")  # Different state!
+
+    valid, msg = witness_binding.validate_witness("team_F", "ACTIVE")
+
+    if not valid:
+        defenses["witness_state_binding"] = True
+        witness_note = f"Witness state binding: {msg}"
+    else:
+        witness_note = "No witness state binding"
+
+    # ========================================================================
+    # Defense 8: Decay State Coupling
+    # ========================================================================
+
+    class DecayStateCoupling:
+        """Couple trust decay to verified metabolic state."""
+
+        def __init__(self):
+            self.decay_rates = {
+                "ACTIVE": 0.01,
+                "REST": 0.005,
+                "SLEEP": 0.002,
+                "HIBERNATION": 0.0
+            }
+            self.applied_decays: List[Dict] = []
+
+        def apply_decay(self, entity: str, claimed_state: str,
+                       verified_state: Optional[str] = None) -> Tuple[float, str]:
+            """Apply decay based on verified state, not claimed."""
+            if verified_state and verified_state != claimed_state:
+                # Use verified state, not claimed
+                rate = self.decay_rates.get(verified_state, 0.01)
+                self.applied_decays.append({
+                    "entity": entity,
+                    "claimed": claimed_state,
+                    "verified": verified_state,
+                    "rate": rate,
+                    "corrected": True
+                })
+                return rate, f"Corrected: claimed {claimed_state}, verified {verified_state}"
+
+            rate = self.decay_rates.get(claimed_state, 0.01)
+            self.applied_decays.append({
+                "entity": entity,
+                "claimed": claimed_state,
+                "verified": verified_state,
+                "rate": rate,
+                "corrected": False
+            })
+            return rate, "Applied as claimed"
+
+    decay_coupling = DecayStateCoupling()
+
+    # Attacker claims HIBERNATION but is actually ACTIVE
+    rate, msg = decay_coupling.apply_decay("team_G", "HIBERNATION", verified_state="ACTIVE")
+
+    if "Corrected" in msg:
+        defenses["decay_state_coupling"] = True
+        decay_note = f"Decay state coupled: {msg}"
+    else:
+        decay_note = "Decay state not coupled"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Metabolism Desynchronization (DA)",
+        success=attack_success,
+        setup_cost_atp=180.0,
+        gain_atp=1200.0 if attack_success else -180.0,
+        roi=6.7 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=4,
+        blocks_until_detected=20,
+        trust_damage=0.60,
+        description=f"""
+METABOLISM DESYNCHRONIZATION ATTACK (Track DA):
+- Global state sync: {"DEFENDED" if defenses["global_state_sync"] else "VULNERABLE"}
+  {sync_note}
+- State proof required: {"DEFENDED" if defenses["state_proof_required"] else "VULNERABLE"}
+  {proof_note}
+- Cross-component validation: {"DEFENDED" if defenses["cross_component_validation"] else "VULNERABLE"}
+  {cross_note}
+- Clock skew bounded: {"DEFENDED" if defenses["clock_skew_bounded"] else "VULNERABLE"}
+  {skew_note}
+- Atomic transitions: {"DEFENDED" if defenses["atomic_transitions"] else "VULNERABLE"}
+  {atomic_note}
+- Conflict detection: {"DEFENDED" if defenses["conflict_detection"] else "VULNERABLE"}
+  {conflict_note}
+- Witness state binding: {"DEFENDED" if defenses["witness_state_binding"] else "VULNERABLE"}
+  {witness_note}
+- Decay state coupling: {"DEFENDED" if defenses["decay_state_coupling"] else "VULNERABLE"}
+  {decay_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Desynchronization attacks exploit state disagreement between
+components to get favorable treatment from each independently.
+""".strip(),
+        mitigation=f"""
+Track DA: Metabolism Desynchronization Mitigation:
+1. Global state synchronization across all components
+2. Cryptographic state proofs required for operations
+3. Cross-component state validation before actions
+4. Clock skew monitoring and bounds enforcement
+5. Atomic state transitions with multi-component consensus
+6. Automatic conflict detection on state reports
+7. Witness operations bound to verified state
+8. Trust decay coupled to verified (not claimed) state
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 42: Checkpoint Replay & Recovery Window (Track DB)
+# ---------------------------------------------------------------------------
+
+def attack_checkpoint_replay() -> AttackResult:
+    """
+    ATTACK: Exploit checkpoint/recovery mechanisms.
+
+    Attackers can:
+    1. Create favorable checkpoints during high-trust periods
+    2. Perform risky actions that fail or are detected
+    3. Recover to pre-failure state while keeping gains
+    4. Exploit reduced monitoring during recovery windows
+
+    This creates "safe" attack modes where the downside is limited.
+    """
+
+    defenses = {
+        "selective_rollback_blocked": False,
+        "double_use_prevention": False,
+        "checkpoint_pollution_bounded": False,
+        "recovery_window_monitored": False,
+        "witness_checkpoint_consensus": False,
+        "recovery_requires_approval": False,
+        "state_decay_on_recovery": False,
+        "immutable_recovery_history": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Selective Rollback Prevention
+    # ========================================================================
+
+    class AtomicCheckpointManager:
+        """Manage checkpoints with atomic state."""
+
+        def __init__(self):
+            self.checkpoints: Dict[str, Dict] = {}
+            self.current_state: Dict[str, Dict] = {}
+
+        def create_checkpoint(self, entity: str) -> str:
+            """Create checkpoint of ALL state."""
+            cp_id = f"cp_{entity}_{datetime.now(timezone.utc).timestamp()}"
+            self.checkpoints[cp_id] = {
+                "entity": entity,
+                "trust": self.current_state.get(entity, {}).get("trust", 0.5),
+                "atp": self.current_state.get(entity, {}).get("atp", 100),
+                "reputation": self.current_state.get(entity, {}).get("reputation", 0.5),
+                "timestamp": datetime.now(timezone.utc)
+            }
+            return cp_id
+
+        def modify_state(self, entity: str, trust_delta: float = 0, atp_delta: float = 0):
+            if entity not in self.current_state:
+                self.current_state[entity] = {"trust": 0.5, "atp": 100, "reputation": 0.5}
+            self.current_state[entity]["trust"] += trust_delta
+            self.current_state[entity]["atp"] += atp_delta
+
+        def restore_checkpoint(self, cp_id: str, selective: bool = False,
+                              only_restore: List[str] = None) -> Tuple[bool, str]:
+            """Restore checkpoint - reject selective restoration."""
+            if cp_id not in self.checkpoints:
+                return False, "Checkpoint not found"
+
+            if selective or only_restore:
+                return False, "Selective rollback not allowed - must restore all state"
+
+            cp = self.checkpoints[cp_id]
+            entity = cp["entity"]
+            self.current_state[entity] = {
+                "trust": cp["trust"],
+                "atp": cp["atp"],
+                "reputation": cp["reputation"]
+            }
+            return True, "Full state restored"
+
+    cp_mgr = AtomicCheckpointManager()
+    cp_mgr.modify_state("team_A", trust_delta=0.3, atp_delta=50)  # Gains
+    cp_id = cp_mgr.create_checkpoint("team_A")
+    cp_mgr.modify_state("team_A", trust_delta=-0.5, atp_delta=-100)  # Losses
+
+    # Attacker tries to restore trust but keep ATP gains
+    success, msg = cp_mgr.restore_checkpoint(cp_id, selective=True, only_restore=["trust"])
+
+    if not success:
+        defenses["selective_rollback_blocked"] = True
+        selective_note = f"Selective rollback blocked: {msg}"
+    else:
+        selective_note = "Selective rollback allowed"
+
+    # ========================================================================
+    # Defense 2: Double-Use Prevention
+    # ========================================================================
+
+    class CheckpointUseTracker:
+        """Track and prevent double-use of checkpoints."""
+
+        def __init__(self):
+            self.used_checkpoints: set = set()
+            self.checkpoint_uses: Dict[str, int] = defaultdict(int)
+
+        def use_checkpoint(self, cp_id: str) -> Tuple[bool, str]:
+            """Use checkpoint - prevent multiple uses."""
+            if cp_id in self.used_checkpoints:
+                return False, "Checkpoint already used - cannot restore twice"
+
+            self.used_checkpoints.add(cp_id)
+            self.checkpoint_uses[cp_id] += 1
+            return True, "Checkpoint used"
+
+    use_tracker = CheckpointUseTracker()
+    use_tracker.use_checkpoint("cp_123")
+
+    # Attacker tries to use same checkpoint again
+    success, msg = use_tracker.use_checkpoint("cp_123")
+
+    if not success:
+        defenses["double_use_prevention"] = True
+        double_note = f"Double use prevented: {msg}"
+    else:
+        double_note = "Double use allowed"
+
+    # ========================================================================
+    # Defense 3: Checkpoint Pollution Bounds
+    # ========================================================================
+
+    class CheckpointQuotaManager:
+        """Limit checkpoint creation to prevent pollution."""
+
+        def __init__(self, max_checkpoints: int = 10, max_per_hour: int = 3):
+            self.max_total = max_checkpoints
+            self.max_per_hour = max_per_hour
+            self.checkpoints: Dict[str, List[datetime]] = defaultdict(list)
+
+        def can_create(self, entity: str) -> Tuple[bool, str]:
+            """Check if entity can create another checkpoint."""
+            now = datetime.now(timezone.utc)
+
+            # Check total limit
+            if len(self.checkpoints[entity]) >= self.max_total:
+                return False, f"Max checkpoints ({self.max_total}) reached"
+
+            # Check hourly rate
+            recent = [t for t in self.checkpoints[entity]
+                     if (now - t).total_seconds() < 3600]
+            if len(recent) >= self.max_per_hour:
+                return False, f"Hourly limit ({self.max_per_hour}) reached"
+
+            return True, "Can create"
+
+        def create(self, entity: str):
+            self.checkpoints[entity].append(datetime.now(timezone.utc))
+
+    quota_mgr = CheckpointQuotaManager(max_checkpoints=5, max_per_hour=2)
+
+    # Create checkpoints rapidly
+    pollution_blocked = False
+    for i in range(10):
+        can_create, msg = quota_mgr.can_create("team_B")
+        if not can_create:
+            pollution_blocked = True
+            break
+        quota_mgr.create("team_B")
+
+    if pollution_blocked:
+        defenses["checkpoint_pollution_bounded"] = True
+        pollution_note = f"Pollution bounded at checkpoint {i}: {msg}"
+    else:
+        pollution_note = "Checkpoint pollution unbounded"
+
+    # ========================================================================
+    # Defense 4: Recovery Window Monitoring
+    # ========================================================================
+
+    class RecoveryWindowMonitor:
+        """Enhanced monitoring during recovery windows."""
+
+        def __init__(self):
+            self.in_recovery: Dict[str, datetime] = {}
+            self.recovery_actions: Dict[str, List[Dict]] = defaultdict(list)
+
+        def start_recovery(self, entity: str):
+            self.in_recovery[entity] = datetime.now(timezone.utc)
+
+        def end_recovery(self, entity: str):
+            if entity in self.in_recovery:
+                del self.in_recovery[entity]
+
+        def perform_action(self, entity: str, action: str, actor: str) -> Tuple[bool, str]:
+            """Log and validate actions during recovery."""
+            if entity not in self.in_recovery:
+                return True, "Normal operation"
+
+            self.recovery_actions[entity].append({
+                "action": action,
+                "actor": actor,
+                "timestamp": datetime.now(timezone.utc)
+            })
+
+            # Block sensitive actions during recovery
+            sensitive_actions = {"trust_transfer", "admin_change", "key_rotation", "atp_withdraw"}
+            if action in sensitive_actions:
+                return False, f"Sensitive action '{action}' blocked during recovery"
+
+            # Rate limit actions during recovery
+            recent_actions = [a for a in self.recovery_actions[entity]
+                            if (datetime.now(timezone.utc) - a["timestamp"]).total_seconds() < 60]
+            if len(recent_actions) > 5:
+                return False, "Action rate limit during recovery"
+
+            return True, "Action allowed during recovery (logged)"
+
+    recovery_monitor = RecoveryWindowMonitor()
+    recovery_monitor.start_recovery("team_C")
+
+    # Try sensitive action during recovery
+    success, msg = recovery_monitor.perform_action("team_C", "trust_transfer", "attacker")
+
+    if not success:
+        defenses["recovery_window_monitored"] = True
+        recovery_note = f"Recovery window monitored: {msg}"
+    else:
+        recovery_note = "Recovery window not monitored"
+
+    # ========================================================================
+    # Defense 5: Witness Checkpoint Consensus
+    # ========================================================================
+
+    class WitnessCheckpointConsensus:
+        """Require witness consensus on checkpoint validity."""
+
+        def __init__(self, required_witnesses: int = 2):
+            self.required = required_witnesses
+            self.checkpoint_witnesses: Dict[str, set] = defaultdict(set)
+
+        def witness_checkpoint(self, cp_id: str, witness: str):
+            self.checkpoint_witnesses[cp_id].add(witness)
+
+        def is_valid_checkpoint(self, cp_id: str) -> Tuple[bool, str]:
+            witnesses = self.checkpoint_witnesses.get(cp_id, set())
+            if len(witnesses) < self.required:
+                return False, f"Insufficient witnesses: {len(witnesses)}/{self.required}"
+            return True, f"Checkpoint validated by {len(witnesses)} witnesses"
+
+    witness_cp = WitnessCheckpointConsensus(required_witnesses=2)
+    witness_cp.witness_checkpoint("cp_456", "witness_A")
+    # Missing second witness
+
+    valid, msg = witness_cp.is_valid_checkpoint("cp_456")
+
+    if not valid:
+        defenses["witness_checkpoint_consensus"] = True
+        witness_cp_note = f"Witness consensus required: {msg}"
+    else:
+        witness_cp_note = "No witness consensus required"
+
+    # ========================================================================
+    # Defense 6: Recovery Requires Approval
+    # ========================================================================
+
+    class RecoveryApprovalSystem:
+        """Require explicit approval for recovery."""
+
+        def __init__(self):
+            self.recovery_requests: Dict[str, Dict] = {}
+            self.approvals: Dict[str, set] = defaultdict(set)
+
+        def request_recovery(self, entity: str, cp_id: str, reason: str) -> str:
+            req_id = f"rec_{entity}_{datetime.now(timezone.utc).timestamp()}"
+            self.recovery_requests[req_id] = {
+                "entity": entity,
+                "checkpoint": cp_id,
+                "reason": reason,
+                "status": "pending"
+            }
+            return req_id
+
+        def approve(self, req_id: str, approver: str, is_admin: bool = False):
+            self.approvals[req_id].add(approver)
+
+        def execute_recovery(self, req_id: str, required_approvals: int = 2) -> Tuple[bool, str]:
+            if req_id not in self.recovery_requests:
+                return False, "Request not found"
+
+            approvals = len(self.approvals.get(req_id, set()))
+            if approvals < required_approvals:
+                return False, f"Insufficient approvals: {approvals}/{required_approvals}"
+
+            self.recovery_requests[req_id]["status"] = "executed"
+            return True, "Recovery approved and executed"
+
+    approval_sys = RecoveryApprovalSystem()
+    req_id = approval_sys.request_recovery("team_D", "cp_789", "accidental failure")
+    approval_sys.approve(req_id, "admin_A")
+    # Missing second approval
+
+    success, msg = approval_sys.execute_recovery(req_id)
+
+    if not success:
+        defenses["recovery_requires_approval"] = True
+        approval_note = f"Recovery requires approval: {msg}"
+    else:
+        approval_note = "Recovery without approval possible"
+
+    # ========================================================================
+    # Defense 7: State Decay on Recovery
+    # ========================================================================
+
+    class RecoveryDecaySystem:
+        """Apply automatic decay to recovered state."""
+
+        def __init__(self, decay_factor: float = 0.1):
+            self.decay_factor = decay_factor
+
+        def apply_recovery(self, checkpoint_state: Dict) -> Dict:
+            """Apply decay to recovered state."""
+            recovered = checkpoint_state.copy()
+
+            # Decay trust
+            if "trust" in recovered:
+                recovered["trust"] = max(0.0, recovered["trust"] - self.decay_factor)
+                recovered["trust_decayed"] = True
+
+            # Decay reputation
+            if "reputation" in recovered:
+                recovered["reputation"] = max(0.0, recovered["reputation"] - self.decay_factor * 0.5)
+                recovered["reputation_decayed"] = True
+
+            return recovered
+
+    decay_sys = RecoveryDecaySystem(decay_factor=0.15)
+    original_state = {"trust": 0.9, "atp": 100, "reputation": 0.8}
+    recovered_state = decay_sys.apply_recovery(original_state)
+
+    if recovered_state.get("trust_decayed") and recovered_state["trust"] < original_state["trust"]:
+        defenses["state_decay_on_recovery"] = True
+        decay_note = f"Recovery decay applied: trust {original_state['trust']:.2f} -> {recovered_state['trust']:.2f}"
+    else:
+        decay_note = "No decay on recovery"
+
+    # ========================================================================
+    # Defense 8: Immutable Recovery History
+    # ========================================================================
+
+    class ImmutableRecoveryHistory:
+        """Maintain immutable record of all recoveries."""
+
+        def __init__(self):
+            self.history: List[Dict] = []
+            self.hash_chain: List[str] = ["genesis"]
+
+        def record_recovery(self, entity: str, from_state: Dict, to_state: Dict, reason: str):
+            import hashlib
+            entry = {
+                "entity": entity,
+                "from_state": from_state,
+                "to_state": to_state,
+                "reason": reason,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "prev_hash": self.hash_chain[-1]
+            }
+            entry_hash = hashlib.sha256(str(entry).encode()).hexdigest()[:16]
+            entry["hash"] = entry_hash
+            self.hash_chain.append(entry_hash)
+            self.history.append(entry)
+
+        def get_recovery_count(self, entity: str) -> int:
+            return sum(1 for h in self.history if h["entity"] == entity)
+
+        def verify_chain(self) -> Tuple[bool, str]:
+            for i, entry in enumerate(self.history):
+                if i == 0:
+                    if entry["prev_hash"] != "genesis":
+                        return False, "First entry doesn't link to genesis"
+                else:
+                    if entry["prev_hash"] != self.history[i-1]["hash"]:
+                        return False, f"Chain broken at entry {i}"
+            return True, "Chain valid"
+
+    history_sys = ImmutableRecoveryHistory()
+    history_sys.record_recovery("team_E", {"trust": 0.3}, {"trust": 0.8}, "test recovery")
+    history_sys.record_recovery("team_E", {"trust": 0.5}, {"trust": 0.9}, "second recovery")
+
+    count = history_sys.get_recovery_count("team_E")
+    valid, msg = history_sys.verify_chain()
+
+    if count >= 2 and valid:
+        defenses["immutable_recovery_history"] = True
+        history_note = f"Immutable history: {count} recoveries recorded, chain {msg}"
+    else:
+        history_note = "Recovery history not immutable"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Checkpoint Replay & Recovery (DB)",
+        success=attack_success,
+        setup_cost_atp=250.0,
+        gain_atp=1800.0 if attack_success else -250.0,
+        roi=7.2 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=6,
+        blocks_until_detected=30,
+        trust_damage=0.65,
+        description=f"""
+CHECKPOINT REPLAY & RECOVERY WINDOW ATTACK (Track DB):
+- Selective rollback blocked: {"DEFENDED" if defenses["selective_rollback_blocked"] else "VULNERABLE"}
+  {selective_note}
+- Double use prevention: {"DEFENDED" if defenses["double_use_prevention"] else "VULNERABLE"}
+  {double_note}
+- Checkpoint pollution bounded: {"DEFENDED" if defenses["checkpoint_pollution_bounded"] else "VULNERABLE"}
+  {pollution_note}
+- Recovery window monitored: {"DEFENDED" if defenses["recovery_window_monitored"] else "VULNERABLE"}
+  {recovery_note}
+- Witness checkpoint consensus: {"DEFENDED" if defenses["witness_checkpoint_consensus"] else "VULNERABLE"}
+  {witness_cp_note}
+- Recovery requires approval: {"DEFENDED" if defenses["recovery_requires_approval"] else "VULNERABLE"}
+  {approval_note}
+- State decay on recovery: {"DEFENDED" if defenses["state_decay_on_recovery"] else "VULNERABLE"}
+  {decay_note}
+- Immutable recovery history: {"DEFENDED" if defenses["immutable_recovery_history"] else "VULNERABLE"}
+  {history_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Checkpoint replay attacks create "safe" attack modes where
+failures can be undone while keeping any gains.
+""".strip(),
+        mitigation=f"""
+Track DB: Checkpoint Replay Mitigation:
+1. Block selective state rollback - all or nothing
+2. Prevent double-use of same checkpoint
+3. Limit checkpoint creation rate and total count
+4. Enhanced monitoring during recovery windows
+5. Require witness consensus on checkpoint validity
+6. Multi-party approval for recovery operations
+7. Apply trust/reputation decay on recovery
+8. Maintain immutable hash-chained recovery history
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 43: Semantic Policy Entity Confusion (Track DC)
+# ---------------------------------------------------------------------------
+
+def attack_semantic_policy_confusion() -> AttackResult:
+    """
+    ATTACK: Exploit policy entity semantic boundaries.
+
+    Policy entities and Dictionary entities manage trust across domains.
+    Attacks target:
+    1. Scope creep via MRH (policy visible beyond intended domain)
+    2. Witness cross-contamination (witnesses applied wrong domain)
+    3. Semantic type confusion (policy entity as regular entity)
+    4. Dictionary entity hijacking (compromise meaning keeper)
+    5. Binding chain inversion (lower trust parents higher trust)
+    6. Role scope bleeding (trust from one role used in another)
+    """
+
+    defenses = {
+        "scope_binding_enforced": False,
+        "witness_domain_validation": False,
+        "semantic_type_separation": False,
+        "dictionary_access_control": False,
+        "binding_hierarchy_validation": False,
+        "role_scope_isolation": False,
+        "cross_domain_attestation_blocked": False,
+        "policy_creation_authorized": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Cryptographic Scope Binding
+    # ========================================================================
+
+    class ScopeBoundPolicyEntity:
+        """Policy entity with cryptographic scope binding."""
+
+        def __init__(self, entity_id: str, domain: str, scope: set):
+            import hashlib
+            self.entity_id = entity_id
+            self.domain = domain
+            self.scope = scope
+            # Create scope commitment
+            scope_data = f"{entity_id}:{domain}:{sorted(scope)}"
+            self.scope_commitment = hashlib.sha256(scope_data.encode()).hexdigest()[:16]
+
+        def validate_action(self, action_type: str, target_domain: str) -> Tuple[bool, str]:
+            """Validate action is within policy scope."""
+            if target_domain != self.domain:
+                return False, f"Domain mismatch: {target_domain} != {self.domain}"
+            if action_type not in self.scope:
+                return False, f"Action {action_type} not in scope {self.scope}"
+            return True, "Within scope"
+
+    policy = ScopeBoundPolicyEntity(
+        "policy:data_access",
+        domain="financial",
+        scope={"read_data", "write_data"}
+    )
+
+    # Attacker tries to use policy outside its domain/scope
+    valid, msg = policy.validate_action("modify_governance", "financial")
+
+    if not valid:
+        defenses["scope_binding_enforced"] = True
+        scope_note = f"Scope binding enforced: {msg}"
+    else:
+        scope_note = "Scope binding not enforced"
+
+    # ========================================================================
+    # Defense 2: Witness Domain Validation
+    # ========================================================================
+
+    class WitnessDomainValidator:
+        """Validate witnesses are qualified for the domain."""
+
+        def __init__(self):
+            self.witness_domains: Dict[str, set] = {}
+
+        def register_witness(self, witness_id: str, qualified_domains: set):
+            self.witness_domains[witness_id] = qualified_domains
+
+        def validate_witness(self, witness_id: str, target_domain: str) -> Tuple[bool, str]:
+            """Check witness is qualified for domain."""
+            domains = self.witness_domains.get(witness_id, set())
+            if target_domain not in domains:
+                return False, f"Witness {witness_id} not qualified for {target_domain}"
+            return True, "Witness qualified"
+
+    domain_validator = WitnessDomainValidator()
+    domain_validator.register_witness("alice", {"financial", "audit"})
+    domain_validator.register_witness("bob", {"technical", "security"})
+
+    # Use financial auditor as witness for technical domain
+    valid, msg = domain_validator.validate_witness("alice", "technical")
+
+    if not valid:
+        defenses["witness_domain_validation"] = True
+        witness_domain_note = f"Witness domain validated: {msg}"
+    else:
+        witness_domain_note = "No witness domain validation"
+
+    # ========================================================================
+    # Defense 3: Semantic Type Separation
+    # ========================================================================
+
+    class SemanticTypeRegistry:
+        """Maintain strict separation of entity types."""
+
+        def __init__(self):
+            self.entity_types: Dict[str, str] = {}
+            self.type_operations = {
+                "policy": {"apply_policy", "check_policy"},
+                "dictionary": {"translate", "define"},
+                "agent": {"perform_action", "request"},
+                "team": {"govern", "manage_members"}
+            }
+
+        def register(self, entity_id: str, entity_type: str):
+            self.entity_types[entity_id] = entity_type
+
+        def validate_operation(self, entity_id: str, operation: str) -> Tuple[bool, str]:
+            """Validate entity type can perform operation."""
+            etype = self.entity_types.get(entity_id)
+            if not etype:
+                return False, "Entity not registered"
+
+            allowed = self.type_operations.get(etype, set())
+            if operation not in allowed:
+                # Check if trying to use policy entity as agent
+                if etype == "policy" and operation in self.type_operations.get("agent", set()):
+                    return False, f"Type confusion blocked: policy cannot perform agent operation '{operation}'"
+                return False, f"Operation {operation} not allowed for type {etype}"
+
+            return True, "Operation allowed"
+
+    type_registry = SemanticTypeRegistry()
+    type_registry.register("policy:access_control", "policy")
+
+    # Try to use policy entity as if it were an agent
+    valid, msg = type_registry.validate_operation("policy:access_control", "perform_action")
+
+    if not valid:
+        defenses["semantic_type_separation"] = True
+        type_note = f"Type separation enforced: {msg}"
+    else:
+        type_note = "No type separation"
+
+    # ========================================================================
+    # Defense 4: Dictionary Entity Access Control
+    # ========================================================================
+
+    class DictionaryAccessControl:
+        """Control access to dictionary entity modifications."""
+
+        def __init__(self):
+            self.dictionaries: Dict[str, Dict] = {}
+            self.authorized_modifiers: Dict[str, set] = {}
+
+        def create_dictionary(self, dict_id: str, domain: str, initial_modifiers: set):
+            self.dictionaries[dict_id] = {"domain": domain, "definitions": {}}
+            self.authorized_modifiers[dict_id] = initial_modifiers
+
+        def modify_definition(self, dict_id: str, modifier: str, term: str,
+                            definition: str) -> Tuple[bool, str]:
+            """Modify dictionary definition with access control."""
+            if dict_id not in self.dictionaries:
+                return False, "Dictionary not found"
+
+            authorized = self.authorized_modifiers.get(dict_id, set())
+            if modifier not in authorized:
+                return False, f"Modifier {modifier} not authorized for dictionary {dict_id}"
+
+            self.dictionaries[dict_id]["definitions"][term] = definition
+            return True, "Definition updated"
+
+    dict_control = DictionaryAccessControl()
+    dict_control.create_dictionary("dict:financial", "financial", {"admin_A", "steward_B"})
+
+    # Attacker tries to modify dictionary
+    valid, msg = dict_control.modify_definition("dict:financial", "attacker", "profit", "loss")
+
+    if not valid:
+        defenses["dictionary_access_control"] = True
+        dict_note = f"Dictionary access controlled: {msg}"
+    else:
+        dict_note = "Dictionary access not controlled"
+
+    # ========================================================================
+    # Defense 5: Binding Hierarchy Validation
+    # ========================================================================
+
+    class BindingHierarchyValidator:
+        """Validate trust never flows from lower to higher hierarchy."""
+
+        def __init__(self):
+            self.hierarchy: Dict[str, str] = {}  # child -> parent
+            self.trust_levels: Dict[str, float] = {}
+
+        def set_binding(self, child: str, parent: str, child_trust: float, parent_trust: float):
+            self.hierarchy[child] = parent
+            self.trust_levels[child] = child_trust
+            self.trust_levels[parent] = parent_trust
+
+        def validate_binding(self, child: str, parent: str) -> Tuple[bool, str]:
+            """Validate child trust doesn't exceed parent."""
+            child_trust = self.trust_levels.get(child, 0)
+            parent_trust = self.trust_levels.get(parent, 0)
+
+            if child_trust > parent_trust:
+                return False, f"Trust inversion: child ({child_trust:.2f}) > parent ({parent_trust:.2f})"
+
+            return True, "Hierarchy valid"
+
+    hierarchy_val = BindingHierarchyValidator()
+    hierarchy_val.set_binding("child_entity", "parent_entity",
+                              child_trust=0.9, parent_trust=0.5)  # Invalid!
+
+    valid, msg = hierarchy_val.validate_binding("child_entity", "parent_entity")
+
+    if not valid:
+        defenses["binding_hierarchy_validation"] = True
+        hierarchy_note = f"Hierarchy validated: {msg}"
+    else:
+        hierarchy_note = "No hierarchy validation"
+
+    # ========================================================================
+    # Defense 6: Role Scope Isolation
+    # ========================================================================
+
+    class RoleScopeIsolator:
+        """Isolate trust by role scope."""
+
+        def __init__(self):
+            self.role_trust: Dict[str, Dict[str, float]] = {}  # entity -> role -> trust
+
+        def set_role_trust(self, entity: str, role: str, trust: float):
+            if entity not in self.role_trust:
+                self.role_trust[entity] = {}
+            self.role_trust[entity][role] = trust
+
+        def get_trust_for_context(self, entity: str, role: str, context: str) -> Tuple[float, str]:
+            """Get trust only for matching role-context."""
+            # Define which contexts each role can operate in
+            role_contexts = {
+                "surgeon": {"medical", "health"},
+                "mechanic": {"automotive", "repair"},
+                "admin": {"system", "governance"}
+            }
+
+            entity_roles = self.role_trust.get(entity, {})
+            if role not in entity_roles:
+                return 0.0, f"Entity doesn't have role {role}"
+
+            allowed_contexts = role_contexts.get(role, set())
+            if context not in allowed_contexts:
+                return 0.0, f"Role {role} not valid in context {context}"
+
+            return entity_roles[role], "Trust valid for context"
+
+    role_isolator = RoleScopeIsolator()
+    role_isolator.set_role_trust("alice", "surgeon", 0.95)
+    role_isolator.set_role_trust("alice", "mechanic", 0.2)
+
+    # Try to use surgeon trust in automotive context
+    trust, msg = role_isolator.get_trust_for_context("alice", "surgeon", "automotive")
+
+    if trust == 0.0:
+        defenses["role_scope_isolation"] = True
+        role_note = f"Role scope isolated: {msg}"
+    else:
+        role_note = "Role scope not isolated"
+
+    # ========================================================================
+    # Defense 7: Cross-Domain Attestation Blocking
+    # ========================================================================
+
+    class CrossDomainAttestationFilter:
+        """Block attestations that cross domain boundaries."""
+
+        def __init__(self):
+            self.entity_domains: Dict[str, str] = {}
+
+        def register_entity(self, entity_id: str, domain: str):
+            self.entity_domains[entity_id] = domain
+
+        def validate_attestation(self, attester: str, subject: str,
+                                attestation_domain: str) -> Tuple[bool, str]:
+            """Validate attestation stays within domain."""
+            attester_domain = self.entity_domains.get(attester)
+            subject_domain = self.entity_domains.get(subject)
+
+            if attester_domain != attestation_domain:
+                return False, f"Attester domain mismatch: {attester_domain} != {attestation_domain}"
+
+            if subject_domain and subject_domain != attestation_domain:
+                return False, f"Cross-domain attestation blocked: {attester_domain} -> {subject_domain}"
+
+            return True, "Same-domain attestation"
+
+    cross_domain = CrossDomainAttestationFilter()
+    cross_domain.register_entity("alice", "financial")
+    cross_domain.register_entity("bob", "technical")
+
+    # Financial entity tries to attest technical entity
+    valid, msg = cross_domain.validate_attestation("alice", "bob", "financial")
+
+    if not valid:
+        defenses["cross_domain_attestation_blocked"] = True
+        cross_note = f"Cross-domain blocked: {msg}"
+    else:
+        cross_note = "Cross-domain attestation allowed"
+
+    # ========================================================================
+    # Defense 8: Policy Creation Authorization
+    # ========================================================================
+
+    class PolicyCreationAuthority:
+        """Authorize policy entity creation per domain."""
+
+        def __init__(self):
+            self.domain_authorities: Dict[str, set] = {}
+            self.created_policies: List[Dict] = []
+
+        def set_domain_authority(self, domain: str, authorities: set):
+            self.domain_authorities[domain] = authorities
+
+        def create_policy(self, creator: str, policy_id: str,
+                         domain: str, scope: set) -> Tuple[bool, str]:
+            """Create policy entity with authorization check."""
+            authorities = self.domain_authorities.get(domain, set())
+            if creator not in authorities:
+                return False, f"Creator {creator} not authorized for domain {domain}"
+
+            self.created_policies.append({
+                "policy_id": policy_id,
+                "creator": creator,
+                "domain": domain,
+                "scope": scope,
+                "timestamp": datetime.now(timezone.utc)
+            })
+            return True, "Policy created"
+
+    policy_auth = PolicyCreationAuthority()
+    policy_auth.set_domain_authority("governance", {"council_A", "council_B"})
+
+    # Attacker tries to create governance policy
+    valid, msg = policy_auth.create_policy("attacker", "policy:fake_governance",
+                                           "governance", {"all_access"})
+
+    if not valid:
+        defenses["policy_creation_authorized"] = True
+        auth_note = f"Policy creation authorized: {msg}"
+    else:
+        auth_note = "Policy creation not authorized"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Semantic Policy Entity Confusion (DC)",
+        success=attack_success,
+        setup_cost_atp=220.0,
+        gain_atp=1400.0 if attack_success else -220.0,
+        roi=6.4 if attack_success else -1.0,
+        detection_probability=0.65,
+        time_to_detection_hours=5,
+        blocks_until_detected=25,
+        trust_damage=0.55,
+        description=f"""
+SEMANTIC POLICY ENTITY CONFUSION ATTACK (Track DC):
+- Scope binding enforced: {"DEFENDED" if defenses["scope_binding_enforced"] else "VULNERABLE"}
+  {scope_note}
+- Witness domain validation: {"DEFENDED" if defenses["witness_domain_validation"] else "VULNERABLE"}
+  {witness_domain_note}
+- Semantic type separation: {"DEFENDED" if defenses["semantic_type_separation"] else "VULNERABLE"}
+  {type_note}
+- Dictionary access control: {"DEFENDED" if defenses["dictionary_access_control"] else "VULNERABLE"}
+  {dict_note}
+- Binding hierarchy validation: {"DEFENDED" if defenses["binding_hierarchy_validation"] else "VULNERABLE"}
+  {hierarchy_note}
+- Role scope isolation: {"DEFENDED" if defenses["role_scope_isolation"] else "VULNERABLE"}
+  {role_note}
+- Cross-domain attestation blocked: {"DEFENDED" if defenses["cross_domain_attestation_blocked"] else "VULNERABLE"}
+  {cross_note}
+- Policy creation authorized: {"DEFENDED" if defenses["policy_creation_authorized"] else "VULNERABLE"}
+  {auth_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Semantic confusion attacks exploit blurred boundaries between
+entity types, domains, and scopes to leak trust inappropriately.
+""".strip(),
+        mitigation=f"""
+Track DC: Semantic Policy Entity Confusion Mitigation:
+1. Cryptographic scope binding for policy entities
+2. Validate witness qualification per domain
+3. Strict semantic type separation (policy vs agent vs dictionary)
+4. Access control for dictionary entity modifications
+5. Validate binding hierarchy (children can't exceed parents)
+6. Isolate trust by role scope and context
+7. Block cross-domain attestations
+8. Authorize policy creation per domain authority
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 44: Accumulation Starvation (Track DD)
+# ---------------------------------------------------------------------------
+
+def attack_accumulation_starvation() -> AttackResult:
+    """
+    ATTACK: Starve the reputation/credential accumulation pipeline.
+
+    Beyond ATP, the system needs:
+    - Available witnesses for attestation
+    - Transaction history for V3 calculations
+    - Diverse witness pools
+    - Evidence trails for violations
+
+    Attacks exhaust these resources making legitimate operation impossible.
+    """
+
+    defenses = {
+        "witness_availability_reserve": False,
+        "reputation_rate_limiting": False,
+        "witness_quality_maintenance": False,
+        "attestation_history_commitment": False,
+        "accumulation_pipeline_sla": False,
+        "backpressure_mechanism": False,
+        "newcomer_protection": False,
+        "evidence_retention_guarantee": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Witness Availability Reserve
+    # ========================================================================
+
+    class WitnessAvailabilityPool:
+        """Maintain reserved witness capacity for new entrants."""
+
+        def __init__(self, total_witnesses: int = 100, reserve_percent: float = 0.2):
+            self.total = total_witnesses
+            self.reserve = int(total_witnesses * reserve_percent)
+            self.in_use: set = set()
+            self.reserved_for_new: set = set()
+
+        def request_witness(self, requester: str, is_new_entrant: bool = False) -> Tuple[Optional[str], str]:
+            """Request a witness with reserve protection."""
+            available = set(range(self.total)) - self.in_use
+
+            if is_new_entrant:
+                # New entrants get priority access to reserve
+                if len(available) > 0:
+                    witness = available.pop()
+                    self.in_use.add(witness)
+                    return f"witness_{witness}", "Reserved witness assigned"
+            else:
+                # Regular requests can't use the reserve
+                non_reserve = available - self.reserved_for_new
+                if len(non_reserve) > 0:
+                    witness = non_reserve.pop()
+                    self.in_use.add(witness)
+                    return f"witness_{witness}", "Regular witness assigned"
+                elif len(available) > self.reserve:
+                    # Can dip into reserve only if plenty available
+                    witness = available.pop()
+                    self.in_use.add(witness)
+                    return f"witness_{witness}", "Witness assigned (reserve protected)"
+                else:
+                    return None, f"Witness pool depleted (reserve {self.reserve} protected)"
+
+            return None, "No witnesses available"
+
+        def release_witness(self, witness_id: str):
+            num = int(witness_id.split("_")[1])
+            self.in_use.discard(num)
+
+    witness_pool = WitnessAvailabilityPool(total_witnesses=50, reserve_percent=0.2)
+
+    # Simulate attacker exhausting pool
+    for i in range(45):
+        witness_pool.request_witness(f"attacker_{i}", is_new_entrant=False)
+
+    # New entrant tries to get witness
+    witness, msg = witness_pool.request_witness("newcomer", is_new_entrant=True)
+
+    if witness is not None:
+        defenses["witness_availability_reserve"] = True
+        reserve_note = f"Reserve protected newcomer: {msg}"
+    else:
+        reserve_note = f"Newcomer starved: {msg}"
+
+    # ========================================================================
+    # Defense 2: Reputation Accumulation Rate Limiting
+    # ========================================================================
+
+    class ReputationRateLimiter:
+        """Rate limit reputation accumulation."""
+
+        def __init__(self, max_per_hour: float = 0.1, max_per_day: float = 0.3):
+            self.max_hour = max_per_hour
+            self.max_day = max_per_day
+            self.accumulation_history: Dict[str, List[Tuple[datetime, float]]] = defaultdict(list)
+
+        def accumulate(self, entity: str, amount: float) -> Tuple[bool, float, str]:
+            """Attempt to accumulate reputation with rate limiting."""
+            now = datetime.now(timezone.utc)
+
+            # Check hourly rate
+            hour_ago = now - timedelta(hours=1)
+            recent_hour = sum(amt for t, amt in self.accumulation_history[entity]
+                            if t > hour_ago)
+            if recent_hour + amount > self.max_hour:
+                allowed = max(0, self.max_hour - recent_hour)
+                if allowed > 0:
+                    self.accumulation_history[entity].append((now, allowed))
+                return False, allowed, f"Hourly limit: {recent_hour:.3f}+{amount:.3f}>{self.max_hour}"
+
+            # Check daily rate
+            day_ago = now - timedelta(days=1)
+            recent_day = sum(amt for t, amt in self.accumulation_history[entity]
+                           if t > day_ago)
+            if recent_day + amount > self.max_day:
+                allowed = max(0, self.max_day - recent_day)
+                if allowed > 0:
+                    self.accumulation_history[entity].append((now, allowed))
+                return False, allowed, f"Daily limit: {recent_day:.3f}+{amount:.3f}>{self.max_day}"
+
+            self.accumulation_history[entity].append((now, amount))
+            return True, amount, "Accumulated"
+
+    rate_limiter = ReputationRateLimiter(max_per_hour=0.1, max_per_day=0.3)
+
+    # Attacker tries to rapidly accumulate reputation
+    blocked = False
+    total_accumulated = 0
+    for i in range(20):
+        success, amount, msg = rate_limiter.accumulate("attacker", 0.05)
+        total_accumulated += amount
+        if not success:
+            blocked = True
+            break
+
+    if blocked:
+        defenses["reputation_rate_limiting"] = True
+        rate_note = f"Rate limited at iteration {i+1}: {msg}"
+    else:
+        rate_note = f"No rate limiting (accumulated {total_accumulated:.3f})"
+
+    # ========================================================================
+    # Defense 3: Witness Quality Maintenance
+    # ========================================================================
+
+    class WitnessQualityManager:
+        """Maintain witness quality over time."""
+
+        def __init__(self):
+            self.witness_scores: Dict[str, float] = {}
+            self.penalty_history: Dict[str, List[Tuple[datetime, float]]] = defaultdict(list)
+
+        def set_score(self, witness_id: str, score: float):
+            self.witness_scores[witness_id] = score
+
+        def penalize(self, witness_id: str, amount: float, reason: str):
+            self.witness_scores[witness_id] = max(0, self.witness_scores.get(witness_id, 0.5) - amount)
+            self.penalty_history[witness_id].append((datetime.now(timezone.utc), amount))
+
+        def rehabilitate(self, witness_id: str) -> Tuple[bool, str]:
+            """Allow witness to recover from penalties."""
+            penalties = self.penalty_history.get(witness_id, [])
+            now = datetime.now(timezone.utc)
+
+            # Remove old penalties (older than 24 hours)
+            recent_penalties = [p for p in penalties if (now - p[0]).total_seconds() < 86400]
+
+            if len(recent_penalties) < len(penalties):
+                # Some penalties expired, restore some score
+                recovered = (len(penalties) - len(recent_penalties)) * 0.05
+                self.witness_scores[witness_id] = min(1.0,
+                    self.witness_scores.get(witness_id, 0) + recovered)
+                self.penalty_history[witness_id] = recent_penalties
+                return True, f"Rehabilitated: +{recovered:.2f}"
+
+            return False, "No expired penalties"
+
+        def get_quality_witness_count(self, min_score: float = 0.5) -> int:
+            return sum(1 for s in self.witness_scores.values() if s >= min_score)
+
+    quality_mgr = WitnessQualityManager()
+
+    # Set up witnesses
+    for i in range(10):
+        quality_mgr.set_score(f"witness_{i}", 0.7)
+
+    # Attacker spam causes penalties
+    for i in range(10):
+        quality_mgr.penalize(f"witness_{i}", 0.3, "spam-induced penalty")
+
+    # System tries to rehabilitate
+    rehabilitated = 0
+    for i in range(10):
+        success, msg = quality_mgr.rehabilitate(f"witness_{i}")
+        if success:
+            rehabilitated += 1
+
+    quality_count = quality_mgr.get_quality_witness_count(0.5)
+
+    if quality_count >= 5 or rehabilitated > 0:
+        defenses["witness_quality_maintenance"] = True
+        quality_note = f"Quality maintained: {quality_count} good witnesses"
+    else:
+        quality_note = f"Quality degraded: only {quality_count} good witnesses"
+
+    # ========================================================================
+    # Defense 4: Attestation History Commitment
+    # ========================================================================
+
+    class AttestationHistoryCommitment:
+        """Commit attestation history to prevent loss."""
+
+        def __init__(self):
+            self.attestations: List[Dict] = []
+            self.commitments: List[str] = []
+            self.commitment_interval = 10  # Commit every 10 attestations
+
+        def record_attestation(self, subject: str, witness: str, score: float):
+            import hashlib
+            self.attestations.append({
+                "subject": subject,
+                "witness": witness,
+                "score": score,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+
+            # Periodic commitment
+            if len(self.attestations) % self.commitment_interval == 0:
+                commitment_data = str(self.attestations[-self.commitment_interval:])
+                commitment = hashlib.sha256(commitment_data.encode()).hexdigest()[:16]
+                self.commitments.append(commitment)
+
+        def verify_history_exists(self, min_attestations: int) -> Tuple[bool, str]:
+            """Verify minimum attestation history is committed."""
+            committed_count = len(self.commitments) * self.commitment_interval
+            if committed_count >= min_attestations:
+                return True, f"History committed: {committed_count} attestations in {len(self.commitments)} commitments"
+            return False, f"Insufficient committed history: {committed_count} < {min_attestations}"
+
+    history_commit = AttestationHistoryCommitment()
+
+    # Record attestations
+    for i in range(25):
+        history_commit.record_attestation(f"entity_{i}", f"witness_{i%5}", 0.7)
+
+    valid, msg = history_commit.verify_history_exists(20)
+
+    if valid:
+        defenses["attestation_history_commitment"] = True
+        history_note = f"History committed: {msg}"
+    else:
+        history_note = f"History not committed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Accumulation Pipeline SLA
+    # ========================================================================
+
+    class AccumulationPipelineSLA:
+        """Guarantee processing time for accumulation."""
+
+        def __init__(self, max_latency_ms: float = 1000):
+            self.max_latency = max_latency_ms
+            self.pending_requests: Dict[str, datetime] = {}
+            self.processed: Dict[str, Tuple[datetime, float]] = {}
+            self.sla_violations: List[str] = []
+
+        def submit_request(self, request_id: str):
+            self.pending_requests[request_id] = datetime.now(timezone.utc)
+
+        def complete_request(self, request_id: str):
+            if request_id not in self.pending_requests:
+                return
+
+            submit_time = self.pending_requests.pop(request_id)
+            complete_time = datetime.now(timezone.utc)
+            latency_ms = (complete_time - submit_time).total_seconds() * 1000
+
+            self.processed[request_id] = (complete_time, latency_ms)
+
+            if latency_ms > self.max_latency:
+                self.sla_violations.append(request_id)
+
+        def get_sla_metrics(self) -> Dict:
+            if not self.processed:
+                return {"avg_latency": 0, "violations": 0, "total": 0}
+
+            latencies = [lat for _, lat in self.processed.values()]
+            return {
+                "avg_latency": sum(latencies) / len(latencies),
+                "violations": len(self.sla_violations),
+                "total": len(self.processed),
+                "sla_met_percent": (1 - len(self.sla_violations) / len(self.processed)) * 100
+            }
+
+    sla_tracker = AccumulationPipelineSLA(max_latency_ms=100)
+
+    # Simulate request processing
+    for i in range(20):
+        sla_tracker.submit_request(f"req_{i}")
+        sla_tracker.complete_request(f"req_{i}")  # Immediate completion
+
+    metrics = sla_tracker.get_sla_metrics()
+
+    if metrics["sla_met_percent"] >= 95:
+        defenses["accumulation_pipeline_sla"] = True
+        sla_note = f"SLA met: {metrics['sla_met_percent']:.0f}% within latency bound"
+    else:
+        sla_note = f"SLA violations: {metrics['violations']}/{metrics['total']}"
+
+    # ========================================================================
+    # Defense 6: Backpressure Mechanism
+    # ========================================================================
+
+    class BackpressureController:
+        """Apply backpressure when system is overloaded."""
+
+        def __init__(self, max_pending: int = 100, rate_per_second: float = 10):
+            self.max_pending = max_pending
+            self.max_rate = rate_per_second
+            self.pending_count = 0
+            self.recent_submissions: List[datetime] = []
+            self.rejected_count = 0
+
+        def try_submit(self, entity: str) -> Tuple[bool, str]:
+            """Attempt to submit with backpressure."""
+            now = datetime.now(timezone.utc)
+
+            # Check pending limit
+            if self.pending_count >= self.max_pending:
+                self.rejected_count += 1
+                return False, f"Backpressure: pending limit ({self.max_pending}) reached"
+
+            # Check rate limit
+            recent = [t for t in self.recent_submissions
+                     if (now - t).total_seconds() < 1]
+            if len(recent) >= self.max_rate:
+                self.rejected_count += 1
+                return False, f"Backpressure: rate limit ({self.max_rate}/s) reached"
+
+            self.pending_count += 1
+            self.recent_submissions.append(now)
+            return True, "Submitted"
+
+        def complete(self):
+            self.pending_count = max(0, self.pending_count - 1)
+
+    backpressure = BackpressureController(max_pending=50, rate_per_second=5)
+
+    # Attacker tries to flood system
+    accepted = 0
+    rejected = 0
+    for i in range(100):
+        success, msg = backpressure.try_submit(f"attacker_{i}")
+        if success:
+            accepted += 1
+        else:
+            rejected += 1
+
+    if rejected > 0:
+        defenses["backpressure_mechanism"] = True
+        backpressure_note = f"Backpressure applied: {rejected} rejected, {accepted} accepted"
+    else:
+        backpressure_note = f"No backpressure (all {accepted} accepted)"
+
+    # ========================================================================
+    # Defense 7: Newcomer Protection
+    # ========================================================================
+
+    class NewcomerProtection:
+        """Protect new entrants from established player advantages."""
+
+        def __init__(self, protection_period_hours: float = 24):
+            self.protection_period = timedelta(hours=protection_period_hours)
+            self.registration_times: Dict[str, datetime] = {}
+            self.newcomer_quotas: Dict[str, Dict] = defaultdict(lambda: {
+                "witness_requests": 0,
+                "attestation_requests": 0
+            })
+
+        def register(self, entity: str):
+            self.registration_times[entity] = datetime.now(timezone.utc)
+
+        def is_protected(self, entity: str) -> bool:
+            reg_time = self.registration_times.get(entity)
+            if not reg_time:
+                return False
+            return datetime.now(timezone.utc) - reg_time < self.protection_period
+
+        def request_resource(self, entity: str, resource_type: str) -> Tuple[bool, str]:
+            """Request resource with newcomer priority."""
+            if self.is_protected(entity):
+                self.newcomer_quotas[entity][f"{resource_type}_requests"] += 1
+                return True, f"Newcomer priority: {resource_type} granted"
+
+            # Non-protected entities have lower priority
+            return True, f"Regular: {resource_type} granted"
+
+    newcomer_sys = NewcomerProtection(protection_period_hours=24)
+    newcomer_sys.register("new_team")
+
+    # Check newcomer gets priority
+    success, msg = newcomer_sys.request_resource("new_team", "witness")
+
+    if success and "Newcomer priority" in msg:
+        defenses["newcomer_protection"] = True
+        newcomer_note = f"Newcomer protected: {msg}"
+    else:
+        newcomer_note = "No newcomer protection"
+
+    # ========================================================================
+    # Defense 8: Evidence Retention Guarantee
+    # ========================================================================
+
+    class EvidenceRetentionSystem:
+        """Guarantee evidence retention for accountability."""
+
+        def __init__(self, min_retention_days: int = 30):
+            self.min_retention = timedelta(days=min_retention_days)
+            self.evidence: Dict[str, Dict] = {}
+            self.retention_commitments: Dict[str, datetime] = {}
+
+        def store_evidence(self, evidence_id: str, data: Dict) -> str:
+            """Store evidence with retention guarantee."""
+            now = datetime.now(timezone.utc)
+            self.evidence[evidence_id] = {
+                "data": data,
+                "stored_at": now,
+                "expires_at": now + self.min_retention
+            }
+            self.retention_commitments[evidence_id] = now + self.min_retention
+            return evidence_id
+
+        def retrieve_evidence(self, evidence_id: str) -> Tuple[Optional[Dict], str]:
+            """Retrieve evidence within retention period."""
+            if evidence_id not in self.evidence:
+                return None, "Evidence not found"
+
+            record = self.evidence[evidence_id]
+            if datetime.now(timezone.utc) > record["expires_at"]:
+                return None, "Evidence expired"
+
+            return record["data"], "Evidence retrieved"
+
+        def get_retention_status(self) -> Dict:
+            active = sum(1 for e in self.evidence.values()
+                        if datetime.now(timezone.utc) < e["expires_at"])
+            return {
+                "total_stored": len(self.evidence),
+                "active": active,
+                "min_retention_days": self.min_retention.days
+            }
+
+    evidence_sys = EvidenceRetentionSystem(min_retention_days=30)
+
+    # Store evidence
+    evidence_sys.store_evidence("ev_001", {"violation": "spam", "actor": "attacker"})
+    evidence_sys.store_evidence("ev_002", {"violation": "collusion", "actors": ["a", "b"]})
+
+    # Retrieve evidence
+    data, msg = evidence_sys.retrieve_evidence("ev_001")
+    status = evidence_sys.get_retention_status()
+
+    if data is not None and status["active"] >= 2:
+        defenses["evidence_retention_guarantee"] = True
+        evidence_note = f"Evidence retained: {status['active']} active records"
+    else:
+        evidence_note = f"Evidence not retained: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Accumulation Starvation (DD)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=1600.0 if attack_success else -300.0,
+        roi=5.3 if attack_success else -1.0,
+        detection_probability=0.70,
+        time_to_detection_hours=3,
+        blocks_until_detected=15,
+        trust_damage=0.50,
+        description=f"""
+ACCUMULATION STARVATION ATTACK (Track DD):
+- Witness availability reserve: {"DEFENDED" if defenses["witness_availability_reserve"] else "VULNERABLE"}
+  {reserve_note}
+- Reputation rate limiting: {"DEFENDED" if defenses["reputation_rate_limiting"] else "VULNERABLE"}
+  {rate_note}
+- Witness quality maintenance: {"DEFENDED" if defenses["witness_quality_maintenance"] else "VULNERABLE"}
+  {quality_note}
+- Attestation history commitment: {"DEFENDED" if defenses["attestation_history_commitment"] else "VULNERABLE"}
+  {history_note}
+- Accumulation pipeline SLA: {"DEFENDED" if defenses["accumulation_pipeline_sla"] else "VULNERABLE"}
+  {sla_note}
+- Backpressure mechanism: {"DEFENDED" if defenses["backpressure_mechanism"] else "VULNERABLE"}
+  {backpressure_note}
+- Newcomer protection: {"DEFENDED" if defenses["newcomer_protection"] else "VULNERABLE"}
+  {newcomer_note}
+- Evidence retention guarantee: {"DEFENDED" if defenses["evidence_retention_guarantee"] else "VULNERABLE"}
+  {evidence_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Accumulation starvation attacks exhaust resources needed for
+legitimate reputation building, blocking new entrants and
+making the system unusable for honest participants.
+""".strip(),
+        mitigation=f"""
+Track DD: Accumulation Starvation Mitigation:
+1. Reserve witness capacity for new entrants
+2. Rate limit reputation accumulation to prevent gaming
+3. Maintain witness quality through rehabilitation
+4. Commit attestation history cryptographically
+5. Guarantee processing SLA for accumulation pipeline
+6. Apply backpressure when system is overloaded
+7. Protect newcomers during onboarding period
+8. Guarantee evidence retention for accountability
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -9857,6 +12314,11 @@ def run_all_attacks() -> List[AttackResult]:
         ("V3 Value Tensor Manipulation (CW)", attack_v3_value_tensor_manipulation),
         ("Concurrent Race Conditions (CX)", attack_concurrent_race_conditions),
         ("Attack Chain Combinations (CY)", attack_chain_combinations),
+        ("Oracle Dependency Injection (CZ)", attack_oracle_dependency_injection),
+        ("Metabolism Desynchronization (DA)", attack_metabolism_desynchronization),
+        ("Checkpoint Replay & Recovery (DB)", attack_checkpoint_replay),
+        ("Semantic Policy Entity Confusion (DC)", attack_semantic_policy_confusion),
+        ("Accumulation Starvation (DD)", attack_accumulation_starvation),
     ]
 
     results = []
