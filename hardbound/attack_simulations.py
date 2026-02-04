@@ -15379,6 +15379,3464 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Attack 52: Hardware Anchor Substitution (Track DL)
+# ---------------------------------------------------------------------------
+
+def attack_hardware_anchor_substitution() -> AttackResult:
+    """
+    ATTACK: Compromise non-primary hardware anchor in device constellation.
+
+    Attacker goal: Gain ability to witness identity changes by compromising
+    a secondary device in the target's device constellation.
+
+    Attack vector:
+    1. Identify target with multi-device constellation
+    2. Compromise least-secure device (e.g., old phone with software key)
+    3. Use compromised device to witness identity operations
+    4. Sign actions that appear legitimate due to hardware witness
+    """
+
+    defenses = {
+        "anchor_type_validation": False,
+        "witness_diversity_required": False,
+        "trust_weight_enforcement": False,
+        "enrollment_freshness_check": False,
+        "cross_witness_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Anchor Type Validation
+    # ========================================================================
+
+    class AnchorTypeValidator:
+        """Validate anchor types for specific operations."""
+
+        ANCHOR_SECURITY_LEVELS = {
+            "tpm2": 5,
+            "fido2": 5,
+            "phone_secure_element": 4,
+            "strongbox": 4,
+            "tee": 3,
+            "software": 1,
+        }
+
+        OPERATION_MIN_LEVELS = {
+            "identity_change": 4,
+            "recovery_witness": 5,
+            "admin_transfer": 5,
+            "high_value_transaction": 4,
+            "routine_witness": 2,
+        }
+
+        def validate_anchor_for_operation(
+            self, anchor_type: str, operation: str
+        ) -> Tuple[bool, str]:
+            """Check if anchor type is sufficient for operation."""
+            anchor_level = self.ANCHOR_SECURITY_LEVELS.get(anchor_type, 0)
+            required_level = self.OPERATION_MIN_LEVELS.get(operation, 5)
+
+            if anchor_level < required_level:
+                return False, (
+                    f"Anchor {anchor_type} (level {anchor_level}) "
+                    f"insufficient for {operation} (requires level {required_level})"
+                )
+            return True, f"Anchor {anchor_type} approved for {operation}"
+
+    validator = AnchorTypeValidator()
+
+    # Attacker tries to use compromised software anchor for identity change
+    valid, msg = validator.validate_anchor_for_operation("software", "identity_change")
+
+    if not valid:
+        defenses["anchor_type_validation"] = True
+        anchor_note = f"Anchor type blocked: {msg}"
+    else:
+        anchor_note = f"Anchor type allowed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Witness Diversity Requirement
+    # ========================================================================
+
+    class WitnessDiversityChecker:
+        """Require diverse anchor types for critical operations."""
+
+        def __init__(self):
+            self.witnessed_operations: Dict[str, List[Dict]] = defaultdict(list)
+
+        def record_witness(
+            self, operation_id: str, device_lct: str, anchor_type: str
+        ):
+            self.witnessed_operations[operation_id].append({
+                "device": device_lct,
+                "anchor_type": anchor_type,
+                "time": datetime.now(timezone.utc),
+            })
+
+        def check_diversity(
+            self, operation_id: str, min_anchor_types: int = 2
+        ) -> Tuple[bool, str]:
+            """Require multiple different anchor types."""
+            witnesses = self.witnessed_operations.get(operation_id, [])
+            anchor_types = set(w["anchor_type"] for w in witnesses)
+
+            if len(anchor_types) < min_anchor_types:
+                return False, (
+                    f"Only {len(anchor_types)} anchor types, "
+                    f"need {min_anchor_types} for diversity"
+                )
+            return True, f"Diversity satisfied: {anchor_types}"
+
+    diversity_checker = WitnessDiversityChecker()
+
+    # Attacker witnesses with two compromised software anchors
+    diversity_checker.record_witness("recovery_op_1", "device_1", "software")
+    diversity_checker.record_witness("recovery_op_1", "device_2", "software")
+
+    valid, msg = diversity_checker.check_diversity("recovery_op_1", min_anchor_types=2)
+
+    if not valid:
+        defenses["witness_diversity_required"] = True
+        diversity_note = f"Diversity requirement blocked attack: {msg}"
+    else:
+        diversity_note = f"Diversity check passed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Trust Weight Enforcement
+    # ========================================================================
+
+    class TrustWeightEnforcer:
+        """Enforce trust weights based on anchor security level."""
+
+        MAX_TRUST_BY_ANCHOR = {
+            "tpm2": 1.0,
+            "fido2": 1.0,
+            "phone_secure_element": 0.9,
+            "strongbox": 0.85,
+            "tee": 0.6,
+            "software": 0.4,
+        }
+
+        def __init__(self):
+            self.device_trust: Dict[str, Dict] = {}
+
+        def register_device(
+            self, device_lct: str, anchor_type: str, claimed_trust: float
+        ) -> Tuple[float, str]:
+            """Cap trust weight based on anchor type."""
+            max_trust = self.MAX_TRUST_BY_ANCHOR.get(anchor_type, 0.1)
+            actual_trust = min(claimed_trust, max_trust)
+
+            self.device_trust[device_lct] = {
+                "anchor_type": anchor_type,
+                "claimed_trust": claimed_trust,
+                "actual_trust": actual_trust,
+            }
+
+            if actual_trust < claimed_trust:
+                return actual_trust, (
+                    f"Trust capped from {claimed_trust} to {actual_trust} "
+                    f"due to {anchor_type} anchor"
+                )
+            return actual_trust, f"Trust {actual_trust} approved for {anchor_type}"
+
+        def get_effective_witness_weight(self, device_lct: str) -> float:
+            return self.device_trust.get(device_lct, {}).get("actual_trust", 0.0)
+
+    weight_enforcer = TrustWeightEnforcer()
+
+    # Attacker claims high trust on software anchor
+    actual, msg = weight_enforcer.register_device(
+        "attacker_device", "software", claimed_trust=0.95
+    )
+
+    if actual < 0.5:  # Significantly capped
+        defenses["trust_weight_enforcement"] = True
+        weight_note = f"Trust weight capped: {msg}"
+    else:
+        weight_note = f"Trust weight accepted: {msg}"
+
+    # ========================================================================
+    # Defense 4: Enrollment Freshness Check
+    # ========================================================================
+
+    class EnrollmentFreshnessChecker:
+        """Detect recently enrolled devices used for critical operations."""
+
+        def __init__(self, min_age_days: int = 7):
+            self.devices: Dict[str, datetime] = {}
+            self.min_age_days = min_age_days
+
+        def enroll_device(self, device_lct: str):
+            self.devices[device_lct] = datetime.now(timezone.utc)
+
+        def check_freshness(
+            self, device_lct: str, operation: str
+        ) -> Tuple[bool, str]:
+            """Check if device has been enrolled long enough."""
+            enrolled_at = self.devices.get(device_lct)
+            if not enrolled_at:
+                return False, "Device not enrolled"
+
+            age = datetime.now(timezone.utc) - enrolled_at
+            if age.days < self.min_age_days:
+                return False, (
+                    f"Device enrolled {age.days} days ago, "
+                    f"minimum {self.min_age_days} days for {operation}"
+                )
+            return True, f"Device age sufficient: {age.days} days"
+
+    freshness_checker = EnrollmentFreshnessChecker(min_age_days=7)
+    freshness_checker.enroll_device("new_compromised_device")
+
+    # Attacker tries to use newly enrolled device immediately
+    valid, msg = freshness_checker.check_freshness(
+        "new_compromised_device", "identity_change"
+    )
+
+    if not valid:
+        defenses["enrollment_freshness_check"] = True
+        freshness_note = f"Freshness check blocked: {msg}"
+    else:
+        freshness_note = f"Freshness check passed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Cross-Witness Verification
+    # ========================================================================
+
+    class CrossWitnessVerifier:
+        """Require other devices to witness device attestation."""
+
+        def __init__(self):
+            self.cross_witnesses: Dict[str, List[str]] = defaultdict(list)
+
+        def record_cross_witness(
+            self, device_lct: str, witnessing_device: str
+        ):
+            """Record one device witnessing another."""
+            if witnessing_device != device_lct:
+                self.cross_witnesses[device_lct].append(witnessing_device)
+
+        def verify_cross_witnessed(
+            self, device_lct: str, min_witnesses: int = 1
+        ) -> Tuple[bool, str]:
+            """Verify device was cross-witnessed by other constellation devices."""
+            witnesses = self.cross_witnesses.get(device_lct, [])
+
+            if len(witnesses) < min_witnesses:
+                return False, (
+                    f"Device has {len(witnesses)} cross-witnesses, "
+                    f"need {min_witnesses}"
+                )
+            return True, f"Cross-witnessed by: {witnesses}"
+
+    cross_verifier = CrossWitnessVerifier()
+
+    # Attacker's device has no cross-witnesses from legitimate devices
+    valid, msg = cross_verifier.verify_cross_witnessed(
+        "attacker_device", min_witnesses=1
+    )
+
+    if not valid:
+        defenses["cross_witness_verification"] = True
+        cross_note = f"Cross-witness requirement blocked: {msg}"
+    else:
+        cross_note = f"Cross-witness passed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Hardware Anchor Substitution (DL)",
+        success=attack_success,
+        setup_cost_atp=500.0,  # High cost: need physical access or malware
+        gain_atp=10000.0 if attack_success else -500.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.75,
+        time_to_detection_hours=48,
+        blocks_until_detected=200,
+        trust_damage=0.95,  # Complete trust destruction if caught
+        description=f"""
+HARDWARE ANCHOR SUBSTITUTION (Track DL):
+- Anchor type validation: {"DEFENDED" if defenses["anchor_type_validation"] else "VULNERABLE"}
+  {anchor_note}
+- Witness diversity: {"DEFENDED" if defenses["witness_diversity_required"] else "VULNERABLE"}
+  {diversity_note}
+- Trust weight enforcement: {"DEFENDED" if defenses["trust_weight_enforcement"] else "VULNERABLE"}
+  {weight_note}
+- Enrollment freshness: {"DEFENDED" if defenses["enrollment_freshness_check"] else "VULNERABLE"}
+  {freshness_note}
+- Cross-witness verification: {"DEFENDED" if defenses["cross_witness_verification"] else "VULNERABLE"}
+  {cross_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Hardware anchor substitution targets the physical root of trust.
+If successful, attacker can witness identity operations as if
+they were a legitimate device in the constellation.
+""".strip(),
+        mitigation=f"""
+Track DL: Hardware Anchor Substitution Mitigation:
+1. Validate anchor types against operation security requirements
+2. Require diverse anchor types for critical operations
+3. Cap trust weights based on hardware security level
+4. Enforce minimum device age for sensitive operations
+5. Require cross-witnessing between constellation devices
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 53: Binding Proof Forgery (Track DL)
+# ---------------------------------------------------------------------------
+
+def attack_binding_proof_forgery() -> AttackResult:
+    """
+    ATTACK: Forge hardware attestation to create counterfeit LCT.
+
+    Attacker goal: Create an LCT that appears hardware-bound but isn't,
+    bypassing hardware security requirements.
+
+    Attack vectors:
+    1. Fake attestation certificates
+    2. Replay legitimate attestation from another device
+    3. Exploit side-channels in Secure Enclave/TPM
+    4. Use rooted device with compromised attestation
+    """
+
+    defenses = {
+        "attestation_chain_verification": False,
+        "nonce_binding": False,
+        "manufacturer_root_validation": False,
+        "attestation_freshness": False,
+        "replay_detection": False,
+        "device_state_validation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Attestation Chain Verification
+    # ========================================================================
+
+    class AttestationChainVerifier:
+        """Verify complete attestation certificate chain."""
+
+        KNOWN_ROOTS = {
+            "apple": "apple_root_ca_fingerprint",
+            "google": "google_hardware_attestation_root",
+            "yubico": "yubico_attestation_root",
+            "microsoft": "microsoft_tpm_root_ca",
+        }
+
+        def verify_chain(
+            self, attestation: Dict, expected_manufacturer: str
+        ) -> Tuple[bool, str]:
+            """Verify attestation chains to known root."""
+            chain = attestation.get("certificate_chain", [])
+
+            if not chain:
+                return False, "No certificate chain provided"
+
+            # Check root certificate
+            root = chain[-1] if chain else None
+            expected_root = self.KNOWN_ROOTS.get(expected_manufacturer)
+
+            if root != expected_root:
+                return False, (
+                    f"Root certificate mismatch: expected {expected_manufacturer}"
+                )
+
+            # Verify chain continuity (simplified)
+            for i in range(len(chain) - 1):
+                if not self._verify_signature(chain[i], chain[i + 1]):
+                    return False, f"Chain broken at certificate {i}"
+
+            return True, "Attestation chain verified"
+
+        def _verify_signature(self, cert: str, issuer: str) -> bool:
+            # Simplified: in reality would verify cryptographic signature
+            return cert and issuer
+
+    chain_verifier = AttestationChainVerifier()
+
+    # Attacker provides forged attestation with wrong root
+    forged_attestation = {
+        "certificate_chain": ["leaf", "intermediate", "fake_root"],
+    }
+    valid, msg = chain_verifier.verify_chain(forged_attestation, "apple")
+
+    if not valid:
+        defenses["attestation_chain_verification"] = True
+        chain_note = f"Chain verification blocked: {msg}"
+    else:
+        chain_note = f"Chain verification passed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Nonce Binding
+    # ========================================================================
+
+    class NonceBindingValidator:
+        """Ensure attestation is bound to challenge nonce."""
+
+        def __init__(self):
+            self.pending_challenges: Dict[str, Tuple[str, datetime]] = {}
+
+        def issue_challenge(self, operation_id: str) -> str:
+            """Issue challenge nonce for attestation."""
+            import secrets
+            nonce = secrets.token_hex(32)
+            self.pending_challenges[operation_id] = (
+                nonce, datetime.now(timezone.utc)
+            )
+            return nonce
+
+        def verify_attestation_nonce(
+            self, operation_id: str, attestation: Dict
+        ) -> Tuple[bool, str]:
+            """Verify attestation contains correct nonce."""
+            challenge = self.pending_challenges.get(operation_id)
+            if not challenge:
+                return False, "No pending challenge for operation"
+
+            expected_nonce, issued_at = challenge
+            attestation_nonce = attestation.get("nonce")
+
+            if attestation_nonce != expected_nonce:
+                return False, "Nonce mismatch - possible replay attack"
+
+            # Check freshness
+            age = (datetime.now(timezone.utc) - issued_at).seconds
+            if age > 60:
+                return False, f"Attestation too old: {age}s (max 60s)"
+
+            return True, "Nonce binding verified"
+
+    nonce_validator = NonceBindingValidator()
+    nonce_validator.issue_challenge("bind_op_1")
+
+    # Attacker tries to use attestation without correct nonce
+    bad_attestation = {"nonce": "old_replayed_nonce"}
+    valid, msg = nonce_validator.verify_attestation_nonce("bind_op_1", bad_attestation)
+
+    if not valid:
+        defenses["nonce_binding"] = True
+        nonce_note = f"Nonce binding blocked: {msg}"
+    else:
+        nonce_note = f"Nonce binding passed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Manufacturer Root Validation
+    # ========================================================================
+
+    class ManufacturerValidator:
+        """Validate attestation comes from known hardware manufacturer."""
+
+        TRUSTED_MANUFACTURERS = {
+            "apple", "google", "microsoft", "yubico",
+            "infineon", "stmicro", "nuvoton"
+        }
+
+        def validate_manufacturer(
+            self, attestation: Dict
+        ) -> Tuple[bool, str]:
+            """Check manufacturer is in trusted list."""
+            manufacturer = attestation.get("manufacturer", "").lower()
+
+            if manufacturer not in self.TRUSTED_MANUFACTURERS:
+                return False, f"Unknown manufacturer: {manufacturer}"
+
+            # Additional validation could check EK certificate OID
+            return True, f"Manufacturer {manufacturer} trusted"
+
+    mfr_validator = ManufacturerValidator()
+
+    # Attacker claims fake manufacturer
+    fake_attestation = {"manufacturer": "fake_secure_corp"}
+    valid, msg = mfr_validator.validate_manufacturer(fake_attestation)
+
+    if not valid:
+        defenses["manufacturer_root_validation"] = True
+        mfr_note = f"Manufacturer validation blocked: {msg}"
+    else:
+        mfr_note = f"Manufacturer validation passed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Attestation Freshness
+    # ========================================================================
+
+    class AttestationFreshnessChecker:
+        """Ensure attestation was generated recently."""
+
+        def __init__(self, max_age_seconds: int = 60):
+            self.max_age = max_age_seconds
+
+        def check_freshness(
+            self, attestation: Dict
+        ) -> Tuple[bool, str]:
+            """Verify attestation timestamp is recent."""
+            timestamp_str = attestation.get("generated_at")
+            if not timestamp_str:
+                return False, "No timestamp in attestation"
+
+            try:
+                generated = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                age = (datetime.now(timezone.utc) - generated).total_seconds()
+
+                if age > self.max_age:
+                    return False, f"Attestation too old: {age:.0f}s (max {self.max_age}s)"
+                if age < 0:
+                    return False, f"Attestation from future: {age:.0f}s"
+
+                return True, f"Attestation fresh: {age:.1f}s old"
+            except Exception as e:
+                return False, f"Invalid timestamp format: {e}"
+
+    freshness_checker = AttestationFreshnessChecker(max_age_seconds=60)
+
+    # Attacker uses old attestation
+    old_attestation = {"generated_at": "2025-01-01T00:00:00Z"}
+    valid, msg = freshness_checker.check_freshness(old_attestation)
+
+    if not valid:
+        defenses["attestation_freshness"] = True
+        fresh_note = f"Freshness check blocked: {msg}"
+    else:
+        fresh_note = f"Freshness check passed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Replay Detection
+    # ========================================================================
+
+    class ReplayDetector:
+        """Detect replayed attestations."""
+
+        def __init__(self):
+            self.seen_attestations: Dict[str, datetime] = {}
+
+        def check_replay(self, attestation: Dict) -> Tuple[bool, str]:
+            """Check if attestation has been used before."""
+            # Hash the attestation for comparison
+            import hashlib
+            attestation_hash = hashlib.sha256(
+                json.dumps(attestation, sort_keys=True).encode()
+            ).hexdigest()
+
+            if attestation_hash in self.seen_attestations:
+                first_seen = self.seen_attestations[attestation_hash]
+                return False, f"Attestation replay detected (first seen: {first_seen})"
+
+            self.seen_attestations[attestation_hash] = datetime.now(timezone.utc)
+            return True, "Attestation is novel"
+
+    replay_detector = ReplayDetector()
+
+    # First use succeeds
+    attestation = {"key": "value", "nonce": "abc123"}
+    replay_detector.check_replay(attestation)
+
+    # Attacker replays same attestation
+    valid, msg = replay_detector.check_replay(attestation)
+
+    if not valid:
+        defenses["replay_detection"] = True
+        replay_note = f"Replay detection blocked: {msg}"
+    else:
+        replay_note = f"Replay detection passed: {msg}"
+
+    # ========================================================================
+    # Defense 6: Device State Validation
+    # ========================================================================
+
+    class DeviceStateValidator:
+        """Validate device hasn't been rooted/jailbroken."""
+
+        ROOTED_INDICATORS = {
+            "bootloader_unlocked",
+            "root_access_detected",
+            "safety_net_failed",
+            "integrity_check_failed",
+            "custom_rom_detected",
+        }
+
+        def validate_device_state(
+            self, attestation: Dict
+        ) -> Tuple[bool, str]:
+            """Check device state indicators."""
+            device_state = attestation.get("device_state", {})
+
+            violations = []
+            for indicator in self.ROOTED_INDICATORS:
+                if device_state.get(indicator, False):
+                    violations.append(indicator)
+
+            if violations:
+                return False, f"Device compromised: {violations}"
+
+            return True, "Device state validated"
+
+    state_validator = DeviceStateValidator()
+
+    # Attacker uses rooted device
+    rooted_attestation = {
+        "device_state": {
+            "bootloader_unlocked": True,
+            "root_access_detected": True,
+        }
+    }
+    valid, msg = state_validator.validate_device_state(rooted_attestation)
+
+    if not valid:
+        defenses["device_state_validation"] = True
+        state_note = f"Device state validation blocked: {msg}"
+    else:
+        state_note = f"Device state validation passed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Binding Proof Forgery (DL)",
+        success=attack_success,
+        setup_cost_atp=800.0,  # Very high: need sophisticated attack
+        gain_atp=15000.0 if attack_success else -800.0,
+        roi=18.75 if attack_success else -1.0,
+        detection_probability=0.85,
+        time_to_detection_hours=24,
+        blocks_until_detected=100,
+        trust_damage=1.0,  # Complete trust destruction
+        description=f"""
+BINDING PROOF FORGERY (Track DL):
+- Attestation chain: {"DEFENDED" if defenses["attestation_chain_verification"] else "VULNERABLE"}
+  {chain_note}
+- Nonce binding: {"DEFENDED" if defenses["nonce_binding"] else "VULNERABLE"}
+  {nonce_note}
+- Manufacturer validation: {"DEFENDED" if defenses["manufacturer_root_validation"] else "VULNERABLE"}
+  {mfr_note}
+- Attestation freshness: {"DEFENDED" if defenses["attestation_freshness"] else "VULNERABLE"}
+  {fresh_note}
+- Replay detection: {"DEFENDED" if defenses["replay_detection"] else "VULNERABLE"}
+  {replay_note}
+- Device state validation: {"DEFENDED" if defenses["device_state_validation"] else "VULNERABLE"}
+  {state_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Binding proof forgery attempts to create fake hardware attestations.
+If successful, attacker can create LCTs that appear hardware-bound
+but are actually under attacker control.
+""".strip(),
+        mitigation=f"""
+Track DL: Binding Proof Forgery Mitigation:
+1. Verify complete attestation certificate chain to known roots
+2. Bind attestation to fresh challenge nonce
+3. Validate manufacturer against trusted list
+4. Enforce strict attestation freshness (< 60s)
+5. Detect and reject replayed attestations
+6. Check device state for root/jailbreak indicators
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 54: Cross-Device Witness Chain Replay (Track DL)
+# ---------------------------------------------------------------------------
+
+def attack_cross_device_witness_replay() -> AttackResult:
+    """
+    ATTACK: Replay device-to-device witness signatures to falsify enrollment.
+
+    Attacker goal: Forge device enrollment by replaying legitimate witness
+    signatures from past enrollments.
+
+    Attack vector:
+    1. Capture legitimate cross-device witnessing signatures
+    2. Replay these signatures for attacker's device enrollment
+    3. Create appearance of legitimate device constellation membership
+    """
+
+    defenses = {
+        "witness_nonce_binding": False,
+        "timestamp_verification": False,
+        "device_id_binding": False,
+        "sequence_number_tracking": False,
+        "witness_chain_integrity": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Witness Nonce Binding
+    # ========================================================================
+
+    class WitnessNonceBinding:
+        """Bind witness signatures to specific enrollment nonces."""
+
+        def __init__(self):
+            self.enrollment_nonces: Dict[str, str] = {}
+            self.used_nonces: set = set()
+
+        def generate_enrollment_nonce(self, device_id: str) -> str:
+            import secrets
+            nonce = secrets.token_hex(32)
+            self.enrollment_nonces[device_id] = nonce
+            return nonce
+
+        def verify_witness_signature(
+            self, device_id: str, witness_sig: Dict
+        ) -> Tuple[bool, str]:
+            """Verify witness signature contains correct enrollment nonce."""
+            expected_nonce = self.enrollment_nonces.get(device_id)
+            sig_nonce = witness_sig.get("enrollment_nonce")
+
+            if not expected_nonce:
+                return False, "No enrollment nonce for device"
+
+            if sig_nonce != expected_nonce:
+                return False, "Enrollment nonce mismatch - possible replay"
+
+            if sig_nonce in self.used_nonces:
+                return False, "Nonce already used - replay detected"
+
+            self.used_nonces.add(sig_nonce)
+            return True, "Witness nonce binding verified"
+
+    nonce_binding = WitnessNonceBinding()
+    nonce_binding.generate_enrollment_nonce("attacker_device")
+
+    # Attacker tries to use old witness signature with wrong nonce
+    replayed_sig = {"enrollment_nonce": "old_nonce_from_previous_enrollment"}
+    valid, msg = nonce_binding.verify_witness_signature("attacker_device", replayed_sig)
+
+    if not valid:
+        defenses["witness_nonce_binding"] = True
+        nonce_note = f"Witness nonce blocked: {msg}"
+    else:
+        nonce_note = f"Witness nonce passed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Timestamp Verification
+    # ========================================================================
+
+    class WitnessTimestampVerifier:
+        """Verify witness timestamps are recent and in order."""
+
+        def __init__(self, max_age_seconds: int = 300):
+            self.max_age = max_age_seconds
+            self.enrollment_times: Dict[str, datetime] = {}
+
+        def start_enrollment(self, device_id: str):
+            self.enrollment_times[device_id] = datetime.now(timezone.utc)
+
+        def verify_witness_timestamp(
+            self, device_id: str, witness_sig: Dict
+        ) -> Tuple[bool, str]:
+            """Verify witness timestamp is after enrollment start and recent."""
+            enrollment_start = self.enrollment_times.get(device_id)
+            if not enrollment_start:
+                return False, "Enrollment not started"
+
+            sig_time_str = witness_sig.get("witnessed_at")
+            if not sig_time_str:
+                return False, "No timestamp in witness signature"
+
+            try:
+                sig_time = datetime.fromisoformat(sig_time_str.replace("Z", "+00:00"))
+            except:
+                return False, "Invalid timestamp format"
+
+            # Witness must be after enrollment started
+            if sig_time < enrollment_start:
+                return False, "Witness timestamp before enrollment - replay detected"
+
+            # Witness must be recent
+            age = (datetime.now(timezone.utc) - sig_time).total_seconds()
+            if age > self.max_age:
+                return False, f"Witness too old: {age:.0f}s"
+
+            return True, "Witness timestamp valid"
+
+    timestamp_verifier = WitnessTimestampVerifier(max_age_seconds=300)
+    timestamp_verifier.start_enrollment("attacker_device")
+
+    # Attacker uses old witness signature
+    old_witness = {"witnessed_at": "2025-01-01T00:00:00Z"}
+    valid, msg = timestamp_verifier.verify_witness_timestamp("attacker_device", old_witness)
+
+    if not valid:
+        defenses["timestamp_verification"] = True
+        timestamp_note = f"Timestamp verification blocked: {msg}"
+    else:
+        timestamp_note = f"Timestamp verification passed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Device ID Binding
+    # ========================================================================
+
+    class DeviceIDBinding:
+        """Bind witness signatures to specific device identifiers."""
+
+        def verify_device_binding(
+            self, expected_device_id: str, witness_sig: Dict
+        ) -> Tuple[bool, str]:
+            """Verify witness signature is for correct device."""
+            sig_device_id = witness_sig.get("target_device_id")
+
+            if sig_device_id != expected_device_id:
+                return False, (
+                    f"Device ID mismatch: expected {expected_device_id}, "
+                    f"got {sig_device_id}"
+                )
+
+            return True, "Device ID binding verified"
+
+    device_binding = DeviceIDBinding()
+
+    # Attacker tries to use witness signature for different device
+    wrong_device_sig = {"target_device_id": "legitimate_device_123"}
+    valid, msg = device_binding.verify_device_binding("attacker_device", wrong_device_sig)
+
+    if not valid:
+        defenses["device_id_binding"] = True
+        device_note = f"Device ID binding blocked: {msg}"
+    else:
+        device_note = f"Device ID binding passed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Sequence Number Tracking
+    # ========================================================================
+
+    class SequenceNumberTracker:
+        """Track witness sequence numbers to prevent replay."""
+
+        def __init__(self):
+            self.device_sequences: Dict[str, int] = defaultdict(int)
+
+        def verify_sequence(
+            self, witnessing_device: str, sequence: int
+        ) -> Tuple[bool, str]:
+            """Verify sequence number is strictly increasing."""
+            last_sequence = self.device_sequences.get(witnessing_device, -1)
+
+            if sequence <= last_sequence:
+                return False, (
+                    f"Sequence {sequence} not greater than last seen {last_sequence}"
+                )
+
+            self.device_sequences[witnessing_device] = sequence
+            return True, f"Sequence {sequence} accepted"
+
+    sequence_tracker = SequenceNumberTracker()
+    sequence_tracker.verify_sequence("legitimate_device", 100)
+
+    # Attacker replays with old sequence number
+    valid, msg = sequence_tracker.verify_sequence("legitimate_device", 50)
+
+    if not valid:
+        defenses["sequence_number_tracking"] = True
+        sequence_note = f"Sequence tracking blocked: {msg}"
+    else:
+        sequence_note = f"Sequence tracking passed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Witness Chain Integrity
+    # ========================================================================
+
+    class WitnessChainIntegrity:
+        """Verify integrity of complete witness chain."""
+
+        def __init__(self):
+            self.witness_chains: Dict[str, List[Dict]] = {}
+
+        def add_witness(self, device_id: str, witness: Dict):
+            if device_id not in self.witness_chains:
+                self.witness_chains[device_id] = []
+            self.witness_chains[device_id].append(witness)
+
+        def verify_chain_integrity(
+            self, device_id: str
+        ) -> Tuple[bool, str]:
+            """Verify chain has no gaps and is internally consistent."""
+            chain = self.witness_chains.get(device_id, [])
+
+            if not chain:
+                return False, "No witness chain"
+
+            # Check each witness references previous
+            for i, witness in enumerate(chain[1:], 1):
+                prev_hash = witness.get("prev_witness_hash")
+                expected_hash = self._hash_witness(chain[i - 1])
+
+                if prev_hash != expected_hash:
+                    return False, f"Chain integrity broken at witness {i}"
+
+            return True, f"Chain integrity verified ({len(chain)} witnesses)"
+
+        def _hash_witness(self, witness: Dict) -> str:
+            import hashlib
+            return hashlib.sha256(
+                json.dumps(witness, sort_keys=True).encode()
+            ).hexdigest()
+
+    chain_integrity = WitnessChainIntegrity()
+    chain_integrity.add_witness("device_1", {"data": "first", "prev_witness_hash": None})
+
+    # Add a witness with wrong previous hash (attacker insertion)
+    chain_integrity.add_witness("device_1", {"data": "forged", "prev_witness_hash": "wrong_hash"})
+
+    valid, msg = chain_integrity.verify_chain_integrity("device_1")
+
+    if not valid:
+        defenses["witness_chain_integrity"] = True
+        chain_note = f"Chain integrity blocked: {msg}"
+    else:
+        chain_note = f"Chain integrity passed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Cross-Device Witness Chain Replay (DL)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=8000.0 if attack_success else -400.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.80,
+        time_to_detection_hours=36,
+        blocks_until_detected=150,
+        trust_damage=0.90,
+        description=f"""
+CROSS-DEVICE WITNESS CHAIN REPLAY (Track DL):
+- Witness nonce binding: {"DEFENDED" if defenses["witness_nonce_binding"] else "VULNERABLE"}
+  {nonce_note}
+- Timestamp verification: {"DEFENDED" if defenses["timestamp_verification"] else "VULNERABLE"}
+  {timestamp_note}
+- Device ID binding: {"DEFENDED" if defenses["device_id_binding"] else "VULNERABLE"}
+  {device_note}
+- Sequence number tracking: {"DEFENDED" if defenses["sequence_number_tracking"] else "VULNERABLE"}
+  {sequence_note}
+- Witness chain integrity: {"DEFENDED" if defenses["witness_chain_integrity"] else "VULNERABLE"}
+  {chain_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Cross-device witness replay tries to forge enrollment by reusing
+legitimate witness signatures from past operations.
+""".strip(),
+        mitigation=f"""
+Track DL: Cross-Device Witness Replay Mitigation:
+1. Bind witness signatures to fresh enrollment nonces
+2. Verify timestamps are recent and after enrollment started
+3. Bind witness signatures to specific device IDs
+4. Track and enforce strictly increasing sequence numbers
+5. Verify integrity of complete witness chain
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 55: Recovery Quorum Manipulation (Track DL)
+# ---------------------------------------------------------------------------
+
+def attack_recovery_quorum_manipulation() -> AttackResult:
+    """
+    ATTACK: Compromise threshold of recovery devices to steal identity.
+
+    Attacker goal: Gain enough recovery devices to meet quorum and
+    recover (steal) a victim's identity without authorization.
+
+    Attack vectors:
+    1. Compromise multiple devices through phishing/malware
+    2. Social engineer access to recovery devices
+    3. Exploit weak quorum requirements
+    4. Time attack during device revocation
+    """
+
+    defenses = {
+        "minimum_quorum_threshold": False,
+        "recovery_delay_period": False,
+        "notification_to_all_devices": False,
+        "geographic_diversity": False,
+        "recovery_challenge_verification": False,
+        "revocation_blocks_recovery": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Minimum Quorum Threshold
+    # ========================================================================
+
+    class QuorumThresholdEnforcer:
+        """Enforce minimum quorum requirements."""
+
+        def __init__(self, min_quorum: int = 2, max_quorum_ratio: float = 0.5):
+            self.min_quorum = min_quorum
+            self.max_quorum_ratio = max_quorum_ratio
+
+        def calculate_required_quorum(
+            self, total_devices: int
+        ) -> Tuple[int, str]:
+            """Calculate required quorum based on constellation size."""
+            # At least 2 devices, and at least 50% of devices
+            ratio_based = max(2, int(total_devices * self.max_quorum_ratio) + 1)
+            required = max(self.min_quorum, ratio_based)
+
+            return required, f"Quorum: {required} of {total_devices} devices"
+
+        def verify_quorum_met(
+            self, total_devices: int, available_devices: int
+        ) -> Tuple[bool, str]:
+            """Check if quorum requirement is met."""
+            required, _ = self.calculate_required_quorum(total_devices)
+
+            if available_devices < required:
+                return False, (
+                    f"Quorum not met: have {available_devices}, need {required}"
+                )
+            return True, f"Quorum met: {available_devices} >= {required}"
+
+    quorum_enforcer = QuorumThresholdEnforcer(min_quorum=2, max_quorum_ratio=0.5)
+
+    # Victim has 5 devices, attacker compromised only 2
+    # Need > 50% = 3 devices
+    valid, msg = quorum_enforcer.verify_quorum_met(total_devices=5, available_devices=2)
+
+    if not valid:
+        defenses["minimum_quorum_threshold"] = True
+        quorum_note = f"Quorum threshold blocked: {msg}"
+    else:
+        quorum_note = f"Quorum threshold passed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Recovery Delay Period
+    # ========================================================================
+
+    class RecoveryDelayEnforcer:
+        """Enforce mandatory delay before recovery completes."""
+
+        def __init__(self, delay_hours: int = 72):
+            self.delay_hours = delay_hours
+            self.pending_recoveries: Dict[str, datetime] = {}
+
+        def initiate_recovery(self, identity_id: str):
+            self.pending_recoveries[identity_id] = datetime.now(timezone.utc)
+
+        def check_delay_elapsed(
+            self, identity_id: str
+        ) -> Tuple[bool, str]:
+            """Check if recovery delay has elapsed."""
+            initiated = self.pending_recoveries.get(identity_id)
+            if not initiated:
+                return False, "No recovery initiated"
+
+            elapsed = datetime.now(timezone.utc) - initiated
+            elapsed_hours = elapsed.total_seconds() / 3600
+
+            if elapsed_hours < self.delay_hours:
+                remaining = self.delay_hours - elapsed_hours
+                return False, (
+                    f"Recovery delay not elapsed: {remaining:.1f}h remaining"
+                )
+            return True, "Recovery delay elapsed"
+
+    delay_enforcer = RecoveryDelayEnforcer(delay_hours=72)
+    delay_enforcer.initiate_recovery("victim_identity")
+
+    # Attacker tries to complete recovery immediately
+    valid, msg = delay_enforcer.check_delay_elapsed("victim_identity")
+
+    if not valid:
+        defenses["recovery_delay_period"] = True
+        delay_note = f"Recovery delay blocked: {msg}"
+    else:
+        delay_note = f"Recovery delay passed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Notification to All Devices
+    # ========================================================================
+
+    class RecoveryNotificationSystem:
+        """Notify all constellation devices of recovery attempt."""
+
+        def __init__(self):
+            self.device_notifications: Dict[str, List[Dict]] = defaultdict(list)
+            self.cancellation_votes: Dict[str, set] = defaultdict(set)
+
+        def notify_recovery_attempt(
+            self, identity_id: str, devices: List[str]
+        ):
+            """Send notification to all devices."""
+            for device in devices:
+                self.device_notifications[device].append({
+                    "identity_id": identity_id,
+                    "type": "recovery_attempt",
+                    "time": datetime.now(timezone.utc),
+                })
+
+        def register_cancellation_vote(
+            self, identity_id: str, device_id: str
+        ):
+            """Record device voting to cancel recovery."""
+            self.cancellation_votes[identity_id].add(device_id)
+
+        def check_cancellation_status(
+            self, identity_id: str, total_devices: int
+        ) -> Tuple[bool, str]:
+            """Check if any device has cancelled recovery."""
+            votes = self.cancellation_votes.get(identity_id, set())
+
+            if votes:
+                return True, f"Recovery cancelled by devices: {votes}"
+            return False, "No cancellation votes"
+
+    notification_system = RecoveryNotificationSystem()
+    notification_system.notify_recovery_attempt(
+        "victim_identity",
+        ["phone", "laptop", "security_key"]
+    )
+
+    # Victim notices notification and cancels from legitimate device
+    notification_system.register_cancellation_vote("victim_identity", "phone")
+
+    cancelled, msg = notification_system.check_cancellation_status(
+        "victim_identity", total_devices=3
+    )
+
+    if cancelled:
+        defenses["notification_to_all_devices"] = True
+        notify_note = f"Notification system blocked: {msg}"
+    else:
+        notify_note = f"Notification system passed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Geographic Diversity
+    # ========================================================================
+
+    class GeographicDiversityChecker:
+        """Require recovery devices from multiple geographic regions."""
+
+        def __init__(self, min_regions: int = 2):
+            self.min_regions = min_regions
+
+        def check_diversity(
+            self, device_locations: List[str]
+        ) -> Tuple[bool, str]:
+            """Verify devices span multiple geographic regions."""
+            regions = set(loc.split("/")[0] for loc in device_locations if "/" in loc)
+
+            if len(regions) < self.min_regions:
+                return False, (
+                    f"Only {len(regions)} regions, need {self.min_regions}"
+                )
+            return True, f"Geographic diversity met: {regions}"
+
+    geo_checker = GeographicDiversityChecker(min_regions=2)
+
+    # Attacker's compromised devices are all in same region
+    compromised_locations = [
+        "US/California/SanFrancisco",
+        "US/California/LosAngeles",
+    ]
+    valid, msg = geo_checker.check_diversity(compromised_locations)
+
+    if not valid:
+        defenses["geographic_diversity"] = True
+        geo_note = f"Geographic diversity blocked: {msg}"
+    else:
+        geo_note = f"Geographic diversity passed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Recovery Challenge Verification
+    # ========================================================================
+
+    class RecoveryChallengeVerifier:
+        """Require out-of-band challenge verification."""
+
+        def __init__(self):
+            self.challenges: Dict[str, Dict] = {}
+
+        def issue_challenge(
+            self, identity_id: str, challenge_type: str
+        ) -> Dict:
+            """Issue recovery challenge."""
+            import secrets
+            challenge = {
+                "type": challenge_type,  # email, sms, security_question
+                "code": secrets.token_hex(8),
+                "expires": datetime.now(timezone.utc) + timedelta(hours=1),
+            }
+            self.challenges[identity_id] = challenge
+            return challenge
+
+        def verify_challenge(
+            self, identity_id: str, provided_code: str
+        ) -> Tuple[bool, str]:
+            """Verify challenge response."""
+            challenge = self.challenges.get(identity_id)
+            if not challenge:
+                return False, "No active challenge"
+
+            if datetime.now(timezone.utc) > challenge["expires"]:
+                return False, "Challenge expired"
+
+            if provided_code != challenge["code"]:
+                return False, "Invalid challenge response"
+
+            return True, "Challenge verified"
+
+    challenge_verifier = RecoveryChallengeVerifier()
+    challenge = challenge_verifier.issue_challenge("victim_identity", "email")
+
+    # Attacker doesn't have access to victim's email
+    valid, msg = challenge_verifier.verify_challenge("victim_identity", "wrong_code")
+
+    if not valid:
+        defenses["recovery_challenge_verification"] = True
+        challenge_note = f"Challenge verification blocked: {msg}"
+    else:
+        challenge_note = f"Challenge verification passed: {msg}"
+
+    # ========================================================================
+    # Defense 6: Revocation Blocks Recovery
+    # ========================================================================
+
+    class RevocationRecoveryBlocker:
+        """Block recovery if any device is being revoked."""
+
+        def __init__(self):
+            self.pending_revocations: Dict[str, datetime] = {}
+
+        def start_revocation(self, device_id: str):
+            self.pending_revocations[device_id] = datetime.now(timezone.utc)
+
+        def check_recovery_allowed(
+            self, identity_id: str, recovery_devices: List[str]
+        ) -> Tuple[bool, str]:
+            """Check if recovery is blocked by pending revocation."""
+            for device in recovery_devices:
+                if device in self.pending_revocations:
+                    return False, f"Recovery blocked: device {device} has pending revocation"
+            return True, "Recovery allowed"
+
+    revocation_blocker = RevocationRecoveryBlocker()
+
+    # Victim starts revoking a compromised device
+    revocation_blocker.start_revocation("compromised_device_1")
+
+    # Attacker tries to use that device for recovery
+    valid, msg = revocation_blocker.check_recovery_allowed(
+        "victim_identity",
+        ["compromised_device_1", "compromised_device_2"]
+    )
+
+    if not valid:
+        defenses["revocation_blocks_recovery"] = True
+        revocation_note = f"Revocation blocker blocked: {msg}"
+    else:
+        revocation_note = f"Revocation blocker passed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Recovery Quorum Manipulation (DL)",
+        success=attack_success,
+        setup_cost_atp=600.0,
+        gain_atp=20000.0 if attack_success else -600.0,  # High value: identity theft
+        roi=33.3 if attack_success else -1.0,
+        detection_probability=0.90,
+        time_to_detection_hours=72,  # Delay period gives detection window
+        blocks_until_detected=300,
+        trust_damage=1.0,  # Complete destruction
+        description=f"""
+RECOVERY QUORUM MANIPULATION (Track DL):
+- Minimum quorum threshold: {"DEFENDED" if defenses["minimum_quorum_threshold"] else "VULNERABLE"}
+  {quorum_note}
+- Recovery delay period: {"DEFENDED" if defenses["recovery_delay_period"] else "VULNERABLE"}
+  {delay_note}
+- Notification to all devices: {"DEFENDED" if defenses["notification_to_all_devices"] else "VULNERABLE"}
+  {notify_note}
+- Geographic diversity: {"DEFENDED" if defenses["geographic_diversity"] else "VULNERABLE"}
+  {geo_note}
+- Recovery challenge verification: {"DEFENDED" if defenses["recovery_challenge_verification"] else "VULNERABLE"}
+  {challenge_note}
+- Revocation blocks recovery: {"DEFENDED" if defenses["revocation_blocks_recovery"] else "VULNERABLE"}
+  {revocation_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Recovery quorum manipulation attempts to steal identity by
+compromising enough recovery devices to meet quorum threshold.
+""".strip(),
+        mitigation=f"""
+Track DL: Recovery Quorum Manipulation Mitigation:
+1. Require minimum quorum of 2 and >50% of devices
+2. Enforce mandatory 72-hour delay before recovery
+3. Notify all devices immediately when recovery initiated
+4. Require devices from multiple geographic regions
+5. Add out-of-band challenge (email/SMS) verification
+6. Block recovery if any involved device has pending revocation
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 56: Binding Downgrade Attack (Track DL)
+# ---------------------------------------------------------------------------
+
+def attack_binding_downgrade() -> AttackResult:
+    """
+    ATTACK: Force entity from hardware-bound to software-only binding.
+
+    Attacker goal: Downgrade a target's LCT binding from high-security
+    hardware (Level 5) to software-only (Level 3 or lower).
+
+    Attack vectors:
+    1. Trick user into "recovering" with software-only device
+    2. Exploit hardware failure to force fallback
+    3. Manipulate upgrade/downgrade path requirements
+    4. Social engineer "temporary" downgrade that becomes permanent
+    """
+
+    defenses = {
+        "downgrade_requires_explicit_consent": False,
+        "binding_level_monotonicity": False,
+        "downgrade_notification": False,
+        "temporary_downgrade_expiry": False,
+        "trust_ceiling_enforcement": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Downgrade Requires Explicit Consent
+    # ========================================================================
+
+    class DowngradeConsentValidator:
+        """Require explicit consent for binding level downgrade."""
+
+        SECURITY_LEVELS = {
+            "tpm2": 5,
+            "fido2": 5,
+            "phone_secure_element": 4,
+            "tee": 3,
+            "software": 1,
+        }
+
+        def __init__(self):
+            self.consent_records: Dict[str, Dict] = {}
+
+        def record_consent(
+            self, identity_id: str, from_level: int, to_level: int,
+            consent_method: str
+        ):
+            self.consent_records[identity_id] = {
+                "from": from_level,
+                "to": to_level,
+                "method": consent_method,
+                "time": datetime.now(timezone.utc),
+            }
+
+        def validate_downgrade(
+            self, identity_id: str, current_level: int, target_level: int
+        ) -> Tuple[bool, str]:
+            """Check if downgrade has valid consent."""
+            if target_level >= current_level:
+                return True, "Not a downgrade"
+
+            consent = self.consent_records.get(identity_id)
+            if not consent:
+                return False, "No consent recorded for downgrade"
+
+            if consent["method"] not in ["multi_device_confirmation", "physical_presence"]:
+                return False, f"Invalid consent method: {consent['method']}"
+
+            return True, f"Consent verified via {consent['method']}"
+
+    consent_validator = DowngradeConsentValidator()
+
+    # Attacker tries to downgrade without consent
+    valid, msg = consent_validator.validate_downgrade(
+        "victim_identity", current_level=5, target_level=1
+    )
+
+    if not valid:
+        defenses["downgrade_requires_explicit_consent"] = True
+        consent_note = f"Consent requirement blocked: {msg}"
+    else:
+        consent_note = f"Consent requirement passed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Binding Level Monotonicity
+    # ========================================================================
+
+    class BindingLevelMonotonicity:
+        """Enforce binding level cannot decrease without special process."""
+
+        def __init__(self):
+            self.level_history: Dict[str, List[Tuple[int, datetime]]] = defaultdict(list)
+
+        def record_level(self, identity_id: str, level: int):
+            self.level_history[identity_id].append(
+                (level, datetime.now(timezone.utc))
+            )
+
+        def validate_transition(
+            self, identity_id: str, new_level: int, is_emergency: bool = False
+        ) -> Tuple[bool, str]:
+            """Validate level transition."""
+            history = self.level_history.get(identity_id, [])
+            if not history:
+                return True, "First binding"
+
+            current_level = history[-1][0]
+            highest_level = max(level for level, _ in history)
+
+            if new_level < current_level and not is_emergency:
+                return False, (
+                    f"Downgrade from {current_level} to {new_level} "
+                    "requires emergency flag"
+                )
+
+            if new_level < highest_level - 1:
+                return False, (
+                    f"Cannot drop more than 1 level below historical high "
+                    f"({highest_level})"
+                )
+
+            return True, f"Transition {current_level} -> {new_level} allowed"
+
+    monotonicity = BindingLevelMonotonicity()
+    monotonicity.record_level("victim_identity", 5)
+
+    # Attacker tries to force direct downgrade to software
+    valid, msg = monotonicity.validate_transition("victim_identity", 1)
+
+    if not valid:
+        defenses["binding_level_monotonicity"] = True
+        mono_note = f"Monotonicity blocked: {msg}"
+    else:
+        mono_note = f"Monotonicity passed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Downgrade Notification
+    # ========================================================================
+
+    class DowngradeNotificationSystem:
+        """Notify all parties of binding downgrade."""
+
+        def __init__(self):
+            self.notifications: List[Dict] = []
+            self.relying_parties: Dict[str, List[str]] = {}
+
+        def register_relying_party(self, identity_id: str, party: str):
+            if identity_id not in self.relying_parties:
+                self.relying_parties[identity_id] = []
+            self.relying_parties[identity_id].append(party)
+
+        def notify_downgrade(
+            self, identity_id: str, from_level: int, to_level: int
+        ) -> List[str]:
+            """Notify all relying parties of downgrade."""
+            parties = self.relying_parties.get(identity_id, [])
+
+            for party in parties:
+                self.notifications.append({
+                    "party": party,
+                    "identity": identity_id,
+                    "event": "binding_downgrade",
+                    "from_level": from_level,
+                    "to_level": to_level,
+                    "time": datetime.now(timezone.utc),
+                })
+
+            return parties
+
+        def check_notifications_sent(
+            self, identity_id: str
+        ) -> Tuple[bool, str]:
+            """Check if downgrade notifications were sent."""
+            relevant = [
+                n for n in self.notifications
+                if n["identity"] == identity_id and n["event"] == "binding_downgrade"
+            ]
+
+            if relevant:
+                return True, f"Notified {len(relevant)} parties"
+            return False, "No notifications sent"
+
+    notification_system = DowngradeNotificationSystem()
+    notification_system.register_relying_party("victim_identity", "bank_app")
+    notification_system.register_relying_party("victim_identity", "work_vpn")
+
+    # System should notify on downgrade attempt
+    parties = notification_system.notify_downgrade("victim_identity", 5, 1)
+
+    if len(parties) > 0:
+        defenses["downgrade_notification"] = True
+        notify_note = f"Notifications sent to: {parties}"
+    else:
+        notify_note = "No notifications sent"
+
+    # ========================================================================
+    # Defense 4: Temporary Downgrade Expiry
+    # ========================================================================
+
+    class TemporaryDowngradeManager:
+        """Manage temporary downgrades with automatic expiry."""
+
+        def __init__(self, max_duration_hours: int = 24):
+            self.max_duration = max_duration_hours
+            self.temporary_downgrades: Dict[str, Dict] = {}
+
+        def start_temporary_downgrade(
+            self, identity_id: str, to_level: int, reason: str
+        ):
+            self.temporary_downgrades[identity_id] = {
+                "to_level": to_level,
+                "reason": reason,
+                "started": datetime.now(timezone.utc),
+                "expires": datetime.now(timezone.utc) + timedelta(hours=self.max_duration),
+            }
+
+        def check_downgrade_status(
+            self, identity_id: str
+        ) -> Tuple[str, str]:
+            """Check if temporary downgrade has expired."""
+            downgrade = self.temporary_downgrades.get(identity_id)
+            if not downgrade:
+                return "none", "No temporary downgrade"
+
+            if datetime.now(timezone.utc) > downgrade["expires"]:
+                del self.temporary_downgrades[identity_id]
+                return "expired", "Temporary downgrade expired - must restore"
+
+            remaining = (downgrade["expires"] - datetime.now(timezone.utc)).total_seconds() / 3600
+            return "active", f"Temporary downgrade active, {remaining:.1f}h remaining"
+
+    downgrade_manager = TemporaryDowngradeManager(max_duration_hours=24)
+    downgrade_manager.start_temporary_downgrade(
+        "victim_identity", to_level=1, reason="hardware_failure"
+    )
+
+    # Simulate time passing (in real scenario this would expire)
+    # Force expiry by manipulating the data for test
+    downgrade_manager.temporary_downgrades["victim_identity"]["expires"] = (
+        datetime.now(timezone.utc) - timedelta(hours=1)
+    )
+
+    status, msg = downgrade_manager.check_downgrade_status("victim_identity")
+
+    if status == "expired":
+        defenses["temporary_downgrade_expiry"] = True
+        expiry_note = f"Expiry enforced: {msg}"
+    else:
+        expiry_note = f"Expiry status: {msg}"
+
+    # ========================================================================
+    # Defense 5: Trust Ceiling Enforcement
+    # ========================================================================
+
+    class TrustCeilingEnforcer:
+        """Enforce trust ceiling based on binding level."""
+
+        TRUST_CEILINGS = {
+            5: 1.0,
+            4: 0.85,
+            3: 0.6,
+            2: 0.4,
+            1: 0.2,
+        }
+
+        def get_trust_ceiling(self, binding_level: int) -> float:
+            return self.TRUST_CEILINGS.get(binding_level, 0.1)
+
+        def enforce_ceiling(
+            self, identity_id: str, binding_level: int, current_trust: float
+        ) -> Tuple[float, str]:
+            """Enforce trust ceiling after downgrade."""
+            ceiling = self.get_trust_ceiling(binding_level)
+
+            if current_trust > ceiling:
+                return ceiling, (
+                    f"Trust capped from {current_trust:.2f} to {ceiling:.2f} "
+                    f"due to binding level {binding_level}"
+                )
+            return current_trust, f"Trust {current_trust:.2f} within ceiling {ceiling:.2f}"
+
+    ceiling_enforcer = TrustCeilingEnforcer()
+
+    # After downgrade to level 1, high trust should be capped
+    new_trust, msg = ceiling_enforcer.enforce_ceiling(
+        "victim_identity", binding_level=1, current_trust=0.95
+    )
+
+    if new_trust < 0.5:
+        defenses["trust_ceiling_enforcement"] = True
+        ceiling_note = f"Trust ceiling enforced: {msg}"
+    else:
+        ceiling_note = f"Trust ceiling: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Binding Downgrade Attack (DL)",
+        success=attack_success,
+        setup_cost_atp=350.0,
+        gain_atp=6000.0 if attack_success else -350.0,
+        roi=17.1 if attack_success else -1.0,
+        detection_probability=0.85,
+        time_to_detection_hours=12,
+        blocks_until_detected=50,
+        trust_damage=0.80,
+        description=f"""
+BINDING DOWNGRADE ATTACK (Track DL):
+- Downgrade consent required: {"DEFENDED" if defenses["downgrade_requires_explicit_consent"] else "VULNERABLE"}
+  {consent_note}
+- Binding level monotonicity: {"DEFENDED" if defenses["binding_level_monotonicity"] else "VULNERABLE"}
+  {mono_note}
+- Downgrade notification: {"DEFENDED" if defenses["downgrade_notification"] else "VULNERABLE"}
+  {notify_note}
+- Temporary downgrade expiry: {"DEFENDED" if defenses["temporary_downgrade_expiry"] else "VULNERABLE"}
+  {expiry_note}
+- Trust ceiling enforcement: {"DEFENDED" if defenses["trust_ceiling_enforcement"] else "VULNERABLE"}
+  {ceiling_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Binding downgrade attacks try to force high-security identities
+to low-security bindings, making them vulnerable to compromise.
+""".strip(),
+        mitigation=f"""
+Track DL: Binding Downgrade Mitigation:
+1. Require explicit multi-device consent for downgrades
+2. Enforce monotonicity - can't drop more than 1 level below historical high
+3. Notify all relying parties when downgrade occurs
+4. Limit temporary downgrades to 24 hours with mandatory restoration
+5. Immediately cap trust ceiling based on new binding level
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 57: T3 Role Context Leakage (Track DM)
+# ---------------------------------------------------------------------------
+
+def attack_t3_role_context_leakage() -> AttackResult:
+    """
+    ATTACK: Infer T3 scores across roles by observing action costs/permissions.
+
+    Attacker goal: Learn an entity's hidden trust scores in unrelated roles
+    by observing how the system treats their actions.
+
+    Attack vectors:
+    1. Observe ATP costs (higher trust = lower costs in some systems)
+    2. Observe approval latencies (higher trust = faster approvals)
+    3. Observe permission grants/denials across roles
+    4. Correlate behaviors to infer cross-role capabilities
+    """
+
+    defenses = {
+        "uniform_observable_costs": False,
+        "role_permission_isolation": False,
+        "action_latency_normalization": False,
+        "cross_role_correlation_detection": False,
+        "minimal_disclosure_responses": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Uniform Observable Costs
+    # ========================================================================
+
+    class UniformCostEnforcer:
+        """Ensure observable costs don't leak trust information."""
+
+        def __init__(self):
+            self.base_costs = {
+                "standard_action": 10.0,
+                "elevated_action": 50.0,
+                "critical_action": 100.0,
+            }
+
+        def get_visible_cost(
+            self, action_type: str, internal_trust: float
+        ) -> Tuple[float, str]:
+            """Return observable cost independent of internal trust."""
+            # Internally, high trust might reduce actual cost
+            # But observable cost must be uniform
+            base = self.base_costs.get(action_type, 10.0)
+
+            # Defense: Don't vary observable cost by trust
+            observable = base  # Always show base cost
+
+            return observable, f"Observable cost: {observable} (trust-independent)"
+
+        def verify_no_leakage(
+            self, action_type: str, costs_observed: List[float]
+        ) -> Tuple[bool, str]:
+            """Verify observed costs don't vary by trust level."""
+            if not costs_observed:
+                return True, "No observations"
+
+            unique_costs = set(costs_observed)
+            if len(unique_costs) > 1:
+                return False, f"Variable costs observed: {unique_costs}"
+
+            return True, f"Uniform cost: {unique_costs.pop()}"
+
+    cost_enforcer = UniformCostEnforcer()
+
+    # Attacker observes multiple entities with different trust levels
+    # but should see same costs
+    costs = []
+    for trust in [0.2, 0.5, 0.8, 0.95]:
+        cost, _ = cost_enforcer.get_visible_cost("standard_action", trust)
+        costs.append(cost)
+
+    valid, msg = cost_enforcer.verify_no_leakage("standard_action", costs)
+
+    if valid:
+        defenses["uniform_observable_costs"] = True
+        cost_note = f"Cost uniformity enforced: {msg}"
+    else:
+        cost_note = f"Cost leakage detected: {msg}"
+
+    # ========================================================================
+    # Defense 2: Role Permission Isolation
+    # ========================================================================
+
+    class RolePermissionIsolator:
+        """Isolate role permissions to prevent cross-role inference."""
+
+        def __init__(self):
+            self.role_permissions: Dict[str, Dict[str, set]] = defaultdict(lambda: defaultdict(set))
+
+        def grant_permission(
+            self, entity: str, role: str, permission: str
+        ):
+            self.role_permissions[entity][role].add(permission)
+
+        def check_permission(
+            self, entity: str, role: str, permission: str
+        ) -> Tuple[bool, str]:
+            """Check permission without revealing other roles."""
+            has_perm = permission in self.role_permissions.get(entity, {}).get(role, set())
+
+            # Only return boolean result, not any context about other roles
+            if has_perm:
+                return True, "Permission granted"
+            return False, "Permission denied"  # No hint about other roles
+
+        def detect_probing(
+            self, entity: str, queries: List[Tuple[str, str]]
+        ) -> Tuple[bool, str]:
+            """Detect if entity is probing multiple roles systematically."""
+            roles_queried = set(role for role, _ in queries)
+
+            if len(roles_queried) > 3:
+                return True, f"Multi-role probing detected: {len(roles_queried)} roles"
+
+            return False, "Normal query pattern"
+
+    role_isolator = RolePermissionIsolator()
+    role_isolator.grant_permission("target", "analyst", "read_reports")
+    role_isolator.grant_permission("target", "admin", "modify_policy")
+
+    # Attacker probes permissions across roles
+    queries = [
+        ("analyst", "read_reports"),
+        ("admin", "modify_policy"),
+        ("mechanic", "repair_machine"),
+        ("doctor", "prescribe_medicine"),
+    ]
+
+    probing_detected, msg = role_isolator.detect_probing("attacker", queries)
+
+    if probing_detected:
+        defenses["role_permission_isolation"] = True
+        role_note = f"Role probing blocked: {msg}"
+    else:
+        role_note = f"Role probing passed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Action Latency Normalization
+    # ========================================================================
+
+    class LatencyNormalizer:
+        """Normalize action latencies to prevent timing attacks."""
+
+        def __init__(self, min_latency_ms: int = 100, max_latency_ms: int = 200):
+            self.min_latency = min_latency_ms
+            self.max_latency = max_latency_ms
+
+        def normalize_latency(
+            self, actual_processing_ms: int, trust_level: float
+        ) -> Tuple[int, str]:
+            """Pad response to normalize latency."""
+            import random
+            # Add random jitter within bounds
+            target = random.randint(self.min_latency, self.max_latency)
+            padding = max(0, target - actual_processing_ms)
+
+            return target, f"Latency normalized to {target}ms (padded {padding}ms)"
+
+        def verify_no_timing_leakage(
+            self, latencies_by_trust: Dict[float, List[int]]
+        ) -> Tuple[bool, str]:
+            """Verify latencies don't correlate with trust."""
+            # Check if mean latency varies significantly by trust
+            means = {
+                trust: sum(lats) / len(lats)
+                for trust, lats in latencies_by_trust.items()
+            }
+
+            variance = max(means.values()) - min(means.values())
+            if variance > 50:  # More than 50ms difference is suspicious
+                return False, f"Latency variance by trust: {variance:.0f}ms"
+
+            return True, f"Latency uniform (variance: {variance:.1f}ms)"
+
+    latency_normalizer = LatencyNormalizer()
+
+    # Simulate normalized latencies for different trust levels
+    latencies_by_trust = {}
+    import random
+    for trust in [0.2, 0.5, 0.8]:
+        # Internal processing might be faster for higher trust
+        base_processing = int(50 - trust * 30)  # Higher trust = faster
+        latencies_by_trust[trust] = []
+        for _ in range(10):
+            normalized, _ = latency_normalizer.normalize_latency(base_processing, trust)
+            latencies_by_trust[trust].append(normalized)
+
+    valid, msg = latency_normalizer.verify_no_timing_leakage(latencies_by_trust)
+
+    if valid:
+        defenses["action_latency_normalization"] = True
+        latency_note = f"Latency normalization enforced: {msg}"
+    else:
+        latency_note = f"Timing leakage detected: {msg}"
+
+    # ========================================================================
+    # Defense 4: Cross-Role Correlation Detection
+    # ========================================================================
+
+    class CrossRoleCorrelationDetector:
+        """Detect attempts to correlate behavior across roles."""
+
+        def __init__(self):
+            self.query_history: Dict[str, List[Dict]] = defaultdict(list)
+
+        def record_query(
+            self, querier: str, target: str, role: str, query_type: str
+        ):
+            self.query_history[querier].append({
+                "target": target,
+                "role": role,
+                "type": query_type,
+                "time": datetime.now(timezone.utc),
+            })
+
+        def detect_correlation_attempt(
+            self, querier: str, window_hours: int = 1
+        ) -> Tuple[bool, str]:
+            """Detect systematic cross-role queries."""
+            history = self.query_history.get(querier, [])
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+            recent = [q for q in history if q["time"] > cutoff]
+
+            # Group by target
+            targets = defaultdict(set)
+            for q in recent:
+                targets[q["target"]].add(q["role"])
+
+            # Check for multi-role queries on same target
+            suspicious_targets = [
+                (target, roles) for target, roles in targets.items()
+                if len(roles) >= 3
+            ]
+
+            if suspicious_targets:
+                return True, (
+                    f"Cross-role correlation attempt: "
+                    f"{[(t, list(r)) for t, r in suspicious_targets]}"
+                )
+
+            return False, "No suspicious patterns"
+
+    correlation_detector = CrossRoleCorrelationDetector()
+
+    # Attacker queries same target across multiple roles
+    for role in ["analyst", "admin", "engineer", "manager"]:
+        correlation_detector.record_query("attacker", "target_victim", role, "permission_check")
+
+    detected, msg = correlation_detector.detect_correlation_attempt("attacker")
+
+    if detected:
+        defenses["cross_role_correlation_detection"] = True
+        correlation_note = f"Correlation attempt blocked: {msg}"
+    else:
+        correlation_note = f"Correlation detection: {msg}"
+
+    # ========================================================================
+    # Defense 5: Minimal Disclosure Responses
+    # ========================================================================
+
+    class MinimalDisclosureResponder:
+        """Return minimal information in responses to prevent inference."""
+
+        def permission_response(
+            self, has_permission: bool
+        ) -> Dict:
+            """Return minimal permission response."""
+            # Don't include: trust level, reason, other roles, etc.
+            return {"allowed": has_permission}
+
+        def action_response(
+            self, success: bool, internal_details: Dict
+        ) -> Dict:
+            """Return minimal action response."""
+            # Filter out sensitive internal details
+            safe_fields = {"success", "action_id"}
+            return {k: v for k, v in internal_details.items() if k in safe_fields}
+
+        def verify_minimal_disclosure(
+            self, response: Dict
+        ) -> Tuple[bool, str]:
+            """Verify response doesn't leak sensitive info."""
+            sensitive_fields = {
+                "trust_level", "trust_score", "t3_tensor", "other_roles",
+                "internal_cost", "approval_reason", "capability_details"
+            }
+
+            leaked = set(response.keys()) & sensitive_fields
+            if leaked:
+                return False, f"Sensitive fields leaked: {leaked}"
+
+            return True, f"Minimal disclosure maintained ({len(response)} fields)"
+
+    disclosure_responder = MinimalDisclosureResponder()
+
+    # Test minimal response
+    internal_details = {
+        "success": True,
+        "action_id": "act_123",
+        "trust_level": 0.85,  # Should be filtered
+        "internal_cost": 5.0,  # Should be filtered
+        "other_roles": ["admin", "analyst"],  # Should be filtered
+    }
+
+    response = disclosure_responder.action_response(True, internal_details)
+    valid, msg = disclosure_responder.verify_minimal_disclosure(response)
+
+    if valid:
+        defenses["minimal_disclosure_responses"] = True
+        disclosure_note = f"Minimal disclosure enforced: {msg}"
+    else:
+        disclosure_note = f"Disclosure leak detected: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="T3 Role Context Leakage (DM)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=3000.0 if attack_success else -150.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.60,
+        time_to_detection_hours=72,
+        blocks_until_detected=300,
+        trust_damage=0.50,
+        description=f"""
+T3 ROLE CONTEXT LEAKAGE (Track DM):
+- Uniform observable costs: {"DEFENDED" if defenses["uniform_observable_costs"] else "VULNERABLE"}
+  {cost_note}
+- Role permission isolation: {"DEFENDED" if defenses["role_permission_isolation"] else "VULNERABLE"}
+  {role_note}
+- Action latency normalization: {"DEFENDED" if defenses["action_latency_normalization"] else "VULNERABLE"}
+  {latency_note}
+- Cross-role correlation detection: {"DEFENDED" if defenses["cross_role_correlation_detection"] else "VULNERABLE"}
+  {correlation_note}
+- Minimal disclosure responses: {"DEFENDED" if defenses["minimal_disclosure_responses"] else "VULNERABLE"}
+  {disclosure_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+T3 role context leakage attempts to infer hidden trust scores
+across roles by observing system behavior and responses.
+""".strip(),
+        mitigation=f"""
+Track DM: T3 Role Context Leakage Mitigation:
+1. Ensure observable costs are uniform regardless of trust level
+2. Isolate role permissions and detect multi-role probing
+3. Normalize action latencies to prevent timing attacks
+4. Detect and block cross-role correlation attempts
+5. Return minimal disclosure responses without internal details
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 58: Role Boundary Confusion (Track DM)
+# ---------------------------------------------------------------------------
+
+def attack_role_boundary_confusion() -> AttackResult:
+    """
+    ATTACK: Create ambiguous role pairs across MRH scopes for cross-role attribution.
+
+    Attacker goal: Confuse the system about which role performed an action,
+    allowing actions to be attributed to a higher-trust role.
+
+    Attack vectors:
+    1. Create role pairs with overlapping MRH scopes
+    2. Perform action in ambiguous context
+    3. Claim action was performed in higher-trust role
+    4. Gain trust in wrong role from successful action
+    """
+
+    defenses = {
+        "role_context_binding": False,
+        "mrh_scope_disjointness": False,
+        "action_role_attestation": False,
+        "retroactive_attribution_blocking": False,
+        "role_transition_audit": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Role Context Binding
+    # ========================================================================
+
+    class RoleContextBinder:
+        """Bind actions to specific role contexts."""
+
+        def __init__(self):
+            self.action_contexts: Dict[str, Dict] = {}
+
+        def begin_action(
+            self, action_id: str, entity: str, role: str
+        ) -> Dict:
+            """Begin action with explicit role binding."""
+            import secrets
+            context = {
+                "action_id": action_id,
+                "entity": entity,
+                "role": role,
+                "binding_nonce": secrets.token_hex(16),
+                "started_at": datetime.now(timezone.utc),
+            }
+            self.action_contexts[action_id] = context
+            return context
+
+        def verify_context(
+            self, action_id: str, claimed_role: str
+        ) -> Tuple[bool, str]:
+            """Verify action was in claimed role context."""
+            context = self.action_contexts.get(action_id)
+            if not context:
+                return False, "Action context not found"
+
+            if context["role"] != claimed_role:
+                return False, (
+                    f"Role mismatch: action in {context['role']}, "
+                    f"claimed {claimed_role}"
+                )
+
+            return True, f"Role context verified: {claimed_role}"
+
+    role_binder = RoleContextBinder()
+    role_binder.begin_action("action_1", "attacker", "junior_analyst")
+
+    # Attacker tries to claim action was in senior role
+    valid, msg = role_binder.verify_context("action_1", "senior_analyst")
+
+    if not valid:
+        defenses["role_context_binding"] = True
+        context_note = f"Role context binding blocked: {msg}"
+    else:
+        context_note = f"Role context passed: {msg}"
+
+    # ========================================================================
+    # Defense 2: MRH Scope Disjointness
+    # ========================================================================
+
+    class MRHScopeValidator:
+        """Validate MRH scopes don't overlap ambiguously."""
+
+        def __init__(self):
+            self.role_scopes: Dict[str, set] = {}
+
+        def register_role_scope(self, role: str, scope: set):
+            self.role_scopes[role] = scope
+
+        def check_scope_disjointness(
+            self, entity: str, roles: List[str]
+        ) -> Tuple[bool, str]:
+            """Check if entity's roles have disjoint scopes."""
+            all_scopes = [
+                self.role_scopes.get(role, set())
+                for role in roles
+            ]
+
+            # Check pairwise intersection
+            for i, scope_a in enumerate(all_scopes):
+                for j, scope_b in enumerate(all_scopes[i + 1:], i + 1):
+                    overlap = scope_a & scope_b
+                    if overlap:
+                        return False, (
+                            f"Scope overlap between {roles[i]} and {roles[j]}: "
+                            f"{overlap}"
+                        )
+
+            return True, "Scopes are disjoint"
+
+        def get_unique_role_for_scope(
+            self, entity: str, action_scope: set, roles: List[str]
+        ) -> Tuple[Optional[str], str]:
+            """Determine unique role for action scope."""
+            matching_roles = []
+            for role in roles:
+                role_scope = self.role_scopes.get(role, set())
+                if action_scope <= role_scope:  # Action scope within role scope
+                    matching_roles.append(role)
+
+            if len(matching_roles) == 0:
+                return None, "No role covers this scope"
+            if len(matching_roles) > 1:
+                return None, f"Ambiguous: multiple roles cover scope: {matching_roles}"
+
+            return matching_roles[0], f"Unique role: {matching_roles[0]}"
+
+    scope_validator = MRHScopeValidator()
+    scope_validator.register_role_scope("analyst", {"read_data", "analyze"})
+    scope_validator.register_role_scope("admin", {"modify_config", "manage_users"})
+
+    # Check disjointness
+    valid, msg = scope_validator.check_scope_disjointness(
+        "entity_1", ["analyst", "admin"]
+    )
+
+    if valid:
+        defenses["mrh_scope_disjointness"] = True
+        scope_note = f"Scope disjointness verified: {msg}"
+    else:
+        scope_note = f"Scope overlap detected: {msg}"
+
+    # ========================================================================
+    # Defense 3: Action Role Attestation
+    # ========================================================================
+
+    class ActionRoleAttestor:
+        """Require attestation of role at action time."""
+
+        def __init__(self):
+            self.attestations: Dict[str, Dict] = {}
+
+        def create_attestation(
+            self, action_id: str, entity: str, role: str
+        ) -> str:
+            """Create signed attestation of role."""
+            import hashlib
+            attestation_data = f"{action_id}:{entity}:{role}:{datetime.now(timezone.utc).isoformat()}"
+            attestation_hash = hashlib.sha256(attestation_data.encode()).hexdigest()
+
+            self.attestations[action_id] = {
+                "entity": entity,
+                "role": role,
+                "hash": attestation_hash,
+                "created": datetime.now(timezone.utc),
+            }
+
+            return attestation_hash
+
+        def verify_attestation(
+            self, action_id: str, claimed_role: str
+        ) -> Tuple[bool, str]:
+            """Verify attestation matches claimed role."""
+            attestation = self.attestations.get(action_id)
+            if not attestation:
+                return False, "No attestation found"
+
+            if attestation["role"] != claimed_role:
+                return False, (
+                    f"Attestation mismatch: attested {attestation['role']}, "
+                    f"claimed {claimed_role}"
+                )
+
+            return True, f"Attestation verified for {claimed_role}"
+
+    role_attestor = ActionRoleAttestor()
+    role_attestor.create_attestation("action_2", "attacker", "intern")
+
+    # Attacker tries to claim was executive
+    valid, msg = role_attestor.verify_attestation("action_2", "executive")
+
+    if not valid:
+        defenses["action_role_attestation"] = True
+        attestation_note = f"Attestation blocked: {msg}"
+    else:
+        attestation_note = f"Attestation passed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Retroactive Attribution Blocking
+    # ========================================================================
+
+    class RetroactiveAttributionBlocker:
+        """Block attempts to change role attribution after action."""
+
+        def __init__(self):
+            self.finalized_actions: Dict[str, Dict] = {}
+
+        def finalize_action(
+            self, action_id: str, role: str
+        ):
+            """Finalize action with immutable role attribution."""
+            self.finalized_actions[action_id] = {
+                "role": role,
+                "finalized_at": datetime.now(timezone.utc),
+                "immutable": True,
+            }
+
+        def attempt_reattribution(
+            self, action_id: str, new_role: str
+        ) -> Tuple[bool, str]:
+            """Attempt to change role attribution."""
+            finalized = self.finalized_actions.get(action_id)
+
+            if not finalized:
+                return True, "Action not finalized"
+
+            if finalized["immutable"]:
+                return False, (
+                    f"Reattribution blocked: action finalized as {finalized['role']}"
+                )
+
+            return True, "Reattribution allowed"
+
+    attribution_blocker = RetroactiveAttributionBlocker()
+    attribution_blocker.finalize_action("action_3", "contributor")
+
+    # Attacker tries to reattribute to lead
+    valid, msg = attribution_blocker.attempt_reattribution("action_3", "lead")
+
+    if not valid:
+        defenses["retroactive_attribution_blocking"] = True
+        retroactive_note = f"Retroactive blocking: {msg}"
+    else:
+        retroactive_note = f"Reattribution result: {msg}"
+
+    # ========================================================================
+    # Defense 5: Role Transition Audit
+    # ========================================================================
+
+    class RoleTransitionAuditor:
+        """Audit role transitions for suspicious patterns."""
+
+        def __init__(self):
+            self.transitions: List[Dict] = []
+
+        def record_transition(
+            self, entity: str, from_role: str, to_role: str
+        ):
+            self.transitions.append({
+                "entity": entity,
+                "from": from_role,
+                "to": to_role,
+                "time": datetime.now(timezone.utc),
+            })
+
+        def detect_suspicious_transitions(
+            self, entity: str, window_minutes: int = 60
+        ) -> Tuple[bool, str]:
+            """Detect rapid or unusual role transitions."""
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+            entity_transitions = [
+                t for t in self.transitions
+                if t["entity"] == entity and t["time"] > cutoff
+            ]
+
+            if len(entity_transitions) > 5:
+                return True, (
+                    f"Excessive transitions: {len(entity_transitions)} in "
+                    f"{window_minutes} minutes"
+                )
+
+            # Check for ping-pong transitions
+            if len(entity_transitions) >= 2:
+                roles = [t["to"] for t in entity_transitions]
+                if len(set(roles)) < len(roles) / 2:
+                    return True, f"Suspicious ping-pong pattern: {roles}"
+
+            return False, "Transition pattern normal"
+
+    transition_auditor = RoleTransitionAuditor()
+
+    # Attacker rapidly switches roles
+    for _ in range(6):
+        transition_auditor.record_transition("attacker", "role_a", "role_b")
+        transition_auditor.record_transition("attacker", "role_b", "role_a")
+
+    suspicious, msg = transition_auditor.detect_suspicious_transitions("attacker")
+
+    if suspicious:
+        defenses["role_transition_audit"] = True
+        audit_note = f"Transition audit blocked: {msg}"
+    else:
+        audit_note = f"Transition audit: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Role Boundary Confusion (DM)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=4000.0 if attack_success else -200.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.70,
+        time_to_detection_hours=48,
+        blocks_until_detected=200,
+        trust_damage=0.70,
+        description=f"""
+ROLE BOUNDARY CONFUSION (Track DM):
+- Role context binding: {"DEFENDED" if defenses["role_context_binding"] else "VULNERABLE"}
+  {context_note}
+- MRH scope disjointness: {"DEFENDED" if defenses["mrh_scope_disjointness"] else "VULNERABLE"}
+  {scope_note}
+- Action role attestation: {"DEFENDED" if defenses["action_role_attestation"] else "VULNERABLE"}
+  {attestation_note}
+- Retroactive attribution blocking: {"DEFENDED" if defenses["retroactive_attribution_blocking"] else "VULNERABLE"}
+  {retroactive_note}
+- Role transition audit: {"DEFENDED" if defenses["role_transition_audit"] else "VULNERABLE"}
+  {audit_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Role boundary confusion tries to perform actions in one role
+and attribute them to another role with higher trust.
+""".strip(),
+        mitigation=f"""
+Track DM: Role Boundary Confusion Mitigation:
+1. Bind actions to explicit role context at start
+2. Ensure MRH scopes are disjoint for entity's roles
+3. Require signed attestation of role at action time
+4. Block retroactive reattribution of finalized actions
+5. Audit role transitions for suspicious patterns
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 59: T3 Dimension Isolation Bypass (Track DM)
+# ---------------------------------------------------------------------------
+
+def attack_t3_dimension_isolation_bypass() -> AttackResult:
+    """
+    ATTACK: Use success in one T3 dimension to inflate others.
+
+    Attacker goal: Exploit correlation between T3 dimensions (Talent,
+    Training, Temperament) to gain unearned trust in other dimensions.
+
+    Attack vectors:
+    1. Excel in Talent to gain unearned Training credit
+    2. Game Temperament consistency to inflate Talent
+    3. Exploit dimension update co-dependencies
+    4. Use cross-dimension spillover effects
+    """
+
+    defenses = {
+        "dimension_independence_enforcement": False,
+        "update_source_validation": False,
+        "cross_dimension_cap": False,
+        "dimension_specific_evidence": False,
+        "anomaly_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Dimension Independence Enforcement
+    # ========================================================================
+
+    class DimensionIndependenceEnforcer:
+        """Enforce independence between T3 dimensions."""
+
+        def update_dimension(
+            self, entity: str, role: str, dimension: str,
+            delta: float, evidence_type: str
+        ) -> Tuple[bool, str]:
+            """Update a single dimension with isolation."""
+            # Map evidence types to allowed dimensions
+            evidence_dimension_map = {
+                "novel_solution": {"talent"},
+                "training_completion": {"training"},
+                "consistent_behavior": {"temperament"},
+                "role_performance": {"talent", "training"},  # Can affect both
+                "ethics_evaluation": {"temperament"},
+            }
+
+            allowed = evidence_dimension_map.get(evidence_type, set())
+
+            if dimension not in allowed:
+                return False, (
+                    f"Evidence type {evidence_type} cannot update {dimension}, "
+                    f"only {allowed}"
+                )
+
+            return True, f"Update {dimension} by {delta} from {evidence_type}"
+
+    independence_enforcer = DimensionIndependenceEnforcer()
+
+    # Attacker tries to use talent evidence for training
+    valid, msg = independence_enforcer.update_dimension(
+        "attacker", "analyst", "training",
+        delta=0.1, evidence_type="novel_solution"  # Should only affect talent
+    )
+
+    if not valid:
+        defenses["dimension_independence_enforcement"] = True
+        independence_note = f"Independence enforced: {msg}"
+    else:
+        independence_note = f"Independence bypassed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Update Source Validation
+    # ========================================================================
+
+    class UpdateSourceValidator:
+        """Validate sources of dimension updates."""
+
+        VALID_SOURCES = {
+            "talent": ["peer_review", "novel_output", "problem_solving"],
+            "training": ["certification", "course_completion", "mentorship"],
+            "temperament": ["consistency_check", "ethics_review", "behavior_audit"],
+        }
+
+        def validate_update_source(
+            self, dimension: str, source: str
+        ) -> Tuple[bool, str]:
+            """Check if source is valid for dimension."""
+            valid_sources = self.VALID_SOURCES.get(dimension, [])
+
+            if source not in valid_sources:
+                return False, (
+                    f"Invalid source {source} for {dimension}, "
+                    f"valid: {valid_sources}"
+                )
+
+            return True, f"Source {source} valid for {dimension}"
+
+    source_validator = UpdateSourceValidator()
+
+    # Attacker tries invalid source
+    valid, msg = source_validator.validate_update_source(
+        "training", "peer_review"  # peer_review is for talent, not training
+    )
+
+    if not valid:
+        defenses["update_source_validation"] = True
+        source_note = f"Source validation blocked: {msg}"
+    else:
+        source_note = f"Source validation: {msg}"
+
+    # ========================================================================
+    # Defense 3: Cross-Dimension Cap
+    # ========================================================================
+
+    class CrossDimensionCapEnforcer:
+        """Cap dimensions based on related dimensions."""
+
+        def __init__(self):
+            self.entity_tensors: Dict[str, Dict[str, Dict[str, float]]] = {}
+
+        def set_tensor(
+            self, entity: str, role: str, tensor: Dict[str, float]
+        ):
+            if entity not in self.entity_tensors:
+                self.entity_tensors[entity] = {}
+            self.entity_tensors[entity][role] = tensor
+
+        def check_cross_dimension_cap(
+            self, entity: str, role: str, dimension: str, proposed_value: float
+        ) -> Tuple[float, str]:
+            """Apply cross-dimension caps."""
+            tensor = self.entity_tensors.get(entity, {}).get(role, {})
+
+            # Cap rules:
+            # - Talent can't exceed Training + 0.3 (can't be naturally talented beyond training)
+            # - Training can't exceed Talent + 0.2 (training has limits without talent)
+            # - Temperament affects max of others
+
+            if dimension == "talent":
+                training = tensor.get("training", 0.5)
+                cap = min(1.0, training + 0.3)
+                if proposed_value > cap:
+                    return cap, f"Talent capped at {cap:.2f} (training {training:.2f})"
+
+            elif dimension == "training":
+                talent = tensor.get("talent", 0.5)
+                cap = min(1.0, talent + 0.2)
+                if proposed_value > cap:
+                    return cap, f"Training capped at {cap:.2f} (talent {talent:.2f})"
+
+            return proposed_value, f"{dimension} = {proposed_value:.2f} (within cap)"
+
+        def validate_tensor_coherence(
+            self, tensor: Dict[str, float]
+        ) -> Tuple[bool, str]:
+            """Check if tensor dimensions are coherent."""
+            talent = tensor.get("talent", 0)
+            training = tensor.get("training", 0)
+            temperament = tensor.get("temperament", 0)
+
+            # Check for suspicious imbalance
+            variance = max(talent, training, temperament) - min(talent, training, temperament)
+            if variance > 0.5:
+                return False, f"Dimension imbalance detected: variance {variance:.2f}"
+
+            return True, f"Tensor coherent (variance {variance:.2f})"
+
+    cap_enforcer = CrossDimensionCapEnforcer()
+    cap_enforcer.set_tensor("attacker", "analyst", {
+        "talent": 0.3, "training": 0.3, "temperament": 0.8
+    })
+
+    # Attacker tries to inflate talent beyond training cap
+    capped_value, msg = cap_enforcer.check_cross_dimension_cap(
+        "attacker", "analyst", "talent", 0.9
+    )
+
+    if capped_value < 0.9:
+        defenses["cross_dimension_cap"] = True
+        cap_note = f"Cross-dimension cap applied: {msg}"
+    else:
+        cap_note = f"Cross-dimension cap: {msg}"
+
+    # ========================================================================
+    # Defense 4: Dimension-Specific Evidence
+    # ========================================================================
+
+    class DimensionSpecificEvidenceValidator:
+        """Require dimension-specific evidence for updates."""
+
+        def __init__(self):
+            self.pending_updates: Dict[str, Dict] = {}
+
+        def request_update(
+            self, entity: str, role: str, dimension: str, delta: float
+        ) -> str:
+            """Request dimension update - requires specific evidence."""
+            request_id = f"req_{entity}_{dimension}_{datetime.now().timestamp()}"
+            self.pending_updates[request_id] = {
+                "entity": entity,
+                "role": role,
+                "dimension": dimension,
+                "delta": delta,
+                "evidence": None,
+            }
+            return request_id
+
+        def submit_evidence(
+            self, request_id: str, evidence: Dict
+        ) -> Tuple[bool, str]:
+            """Submit evidence for pending update."""
+            request = self.pending_updates.get(request_id)
+            if not request:
+                return False, "Request not found"
+
+            dimension = request["dimension"]
+
+            # Check evidence matches dimension
+            evidence_dimension = evidence.get("demonstrates")
+            if evidence_dimension != dimension:
+                return False, (
+                    f"Evidence demonstrates {evidence_dimension}, "
+                    f"but update is for {dimension}"
+                )
+
+            # Evidence must be specific and verifiable
+            if not evidence.get("verifiable"):
+                return False, "Evidence not verifiable"
+
+            request["evidence"] = evidence
+            return True, f"Evidence accepted for {dimension} update"
+
+    evidence_validator = DimensionSpecificEvidenceValidator()
+    request_id = evidence_validator.request_update("attacker", "analyst", "talent", 0.1)
+
+    # Attacker submits wrong evidence type
+    bad_evidence = {"demonstrates": "training", "verifiable": True}
+    valid, msg = evidence_validator.submit_evidence(request_id, bad_evidence)
+
+    if not valid:
+        defenses["dimension_specific_evidence"] = True
+        evidence_note = f"Evidence validation blocked: {msg}"
+    else:
+        evidence_note = f"Evidence validation: {msg}"
+
+    # ========================================================================
+    # Defense 5: Anomaly Detection
+    # ========================================================================
+
+    class DimensionAnomalyDetector:
+        """Detect anomalous dimension update patterns."""
+
+        def __init__(self):
+            self.update_history: Dict[str, List[Dict]] = defaultdict(list)
+
+        def record_update(
+            self, entity: str, dimension: str, delta: float
+        ):
+            self.update_history[entity].append({
+                "dimension": dimension,
+                "delta": delta,
+                "time": datetime.now(timezone.utc),
+            })
+
+        def detect_anomaly(
+            self, entity: str, window_hours: int = 24
+        ) -> Tuple[bool, str]:
+            """Detect anomalous update patterns."""
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+            recent = [
+                u for u in self.update_history.get(entity, [])
+                if u["time"] > cutoff
+            ]
+
+            # Check for single-dimension focus
+            dimension_counts = defaultdict(int)
+            for u in recent:
+                dimension_counts[u["dimension"]] += 1
+
+            if recent and max(dimension_counts.values()) > len(recent) * 0.8:
+                dominant = max(dimension_counts, key=dimension_counts.get)
+                return True, (
+                    f"Single-dimension focus anomaly: "
+                    f"{dominant} ({dimension_counts[dominant]}/{len(recent)} updates)"
+                )
+
+            # Check for excessive total updates
+            if len(recent) > 10:
+                return True, f"Excessive updates: {len(recent)} in {window_hours}h"
+
+            return False, "Update pattern normal"
+
+    anomaly_detector = DimensionAnomalyDetector()
+
+    # Attacker focuses updates on single dimension
+    for _ in range(8):
+        anomaly_detector.record_update("attacker", "talent", 0.05)
+    anomaly_detector.record_update("attacker", "training", 0.01)
+
+    anomaly_detected, msg = anomaly_detector.detect_anomaly("attacker")
+
+    if anomaly_detected:
+        defenses["anomaly_detection"] = True
+        anomaly_note = f"Anomaly detected: {msg}"
+    else:
+        anomaly_note = f"Anomaly detection: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="T3 Dimension Isolation Bypass (DM)",
+        success=attack_success,
+        setup_cost_atp=180.0,
+        gain_atp=3500.0 if attack_success else -180.0,
+        roi=19.4 if attack_success else -1.0,
+        detection_probability=0.65,
+        time_to_detection_hours=60,
+        blocks_until_detected=250,
+        trust_damage=0.60,
+        description=f"""
+T3 DIMENSION ISOLATION BYPASS (Track DM):
+- Dimension independence enforcement: {"DEFENDED" if defenses["dimension_independence_enforcement"] else "VULNERABLE"}
+  {independence_note}
+- Update source validation: {"DEFENDED" if defenses["update_source_validation"] else "VULNERABLE"}
+  {source_note}
+- Cross-dimension cap: {"DEFENDED" if defenses["cross_dimension_cap"] else "VULNERABLE"}
+  {cap_note}
+- Dimension-specific evidence: {"DEFENDED" if defenses["dimension_specific_evidence"] else "VULNERABLE"}
+  {evidence_note}
+- Anomaly detection: {"DEFENDED" if defenses["anomaly_detection"] else "VULNERABLE"}
+  {anomaly_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+T3 dimension isolation bypass attempts to inflate one dimension
+using evidence or success from a different dimension.
+""".strip(),
+        mitigation=f"""
+Track DM: T3 Dimension Isolation Bypass Mitigation:
+1. Enforce independence between dimension updates
+2. Validate sources are appropriate for target dimension
+3. Cap dimensions based on related dimension values
+4. Require dimension-specific evidence for all updates
+5. Detect anomalous single-dimension update patterns
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 60: V3 Veracity Witness Collusion (Track DM)
+# ---------------------------------------------------------------------------
+
+def attack_v3_veracity_witness_collusion() -> AttackResult:
+    """
+    ATTACK: Collude with witnesses to attest high V3 veracity on false claims.
+
+    Attacker goal: Get witnesses to falsely attest that low-value
+    or false claims have high veracity (truth value).
+
+    Attack vectors:
+    1. Bribe or coerce witnesses
+    2. Create sybil witnesses
+    3. Reciprocal false attestation schemes
+    4. Exploit trust relationships for false witnessing
+    """
+
+    defenses = {
+        "witness_independence_verification": False,
+        "veracity_evidence_requirement": False,
+        "cross_validation_requirement": False,
+        "collusion_pattern_detection": False,
+        "witness_stake_requirement": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Witness Independence Verification
+    # ========================================================================
+
+    class WitnessIndependenceVerifier:
+        """Verify witnesses are independent of each other and claimant."""
+
+        def __init__(self):
+            self.entity_relationships: Dict[str, set] = defaultdict(set)
+
+        def register_relationship(
+            self, entity_a: str, entity_b: str, relationship_type: str
+        ):
+            self.entity_relationships[entity_a].add(entity_b)
+            self.entity_relationships[entity_b].add(entity_a)
+
+        def verify_independence(
+            self, claimant: str, witnesses: List[str]
+        ) -> Tuple[bool, str]:
+            """Verify witnesses are independent."""
+            claimant_relations = self.entity_relationships.get(claimant, set())
+
+            # Check witnesses aren't related to claimant
+            related_witnesses = set(witnesses) & claimant_relations
+            if related_witnesses:
+                return False, f"Witnesses related to claimant: {related_witnesses}"
+
+            # Check witnesses aren't related to each other
+            for i, w1 in enumerate(witnesses):
+                w1_relations = self.entity_relationships.get(w1, set())
+                for w2 in witnesses[i + 1:]:
+                    if w2 in w1_relations:
+                        return False, f"Witnesses {w1} and {w2} are related"
+
+            return True, f"All {len(witnesses)} witnesses are independent"
+
+    independence_verifier = WitnessIndependenceVerifier()
+    independence_verifier.register_relationship("attacker", "colluder_1", "colleague")
+    independence_verifier.register_relationship("attacker", "colluder_2", "friend")
+
+    # Attacker tries to use related witnesses
+    valid, msg = independence_verifier.verify_independence(
+        "attacker", ["colluder_1", "colluder_2", "honest_witness"]
+    )
+
+    if not valid:
+        defenses["witness_independence_verification"] = True
+        independence_note = f"Independence check blocked: {msg}"
+    else:
+        independence_note = f"Independence check: {msg}"
+
+    # ========================================================================
+    # Defense 2: Veracity Evidence Requirement
+    # ========================================================================
+
+    class VeracityEvidenceValidator:
+        """Require verifiable evidence for veracity attestations."""
+
+        def validate_veracity_attestation(
+            self, claim: Dict, attestation: Dict
+        ) -> Tuple[bool, str]:
+            """Validate attestation includes verifiable evidence."""
+            required_fields = ["evidence_type", "evidence_hash", "methodology"]
+
+            missing = [f for f in required_fields if f not in attestation]
+            if missing:
+                return False, f"Missing required evidence fields: {missing}"
+
+            # Evidence must reference the claim
+            if attestation.get("claim_reference") != claim.get("claim_id"):
+                return False, "Evidence doesn't reference correct claim"
+
+            # Evidence must be current
+            evidence_age = attestation.get("evidence_age_days", 999)
+            if evidence_age > 30:
+                return False, f"Evidence too old: {evidence_age} days"
+
+            return True, "Veracity evidence validated"
+
+    evidence_validator = VeracityEvidenceValidator()
+
+    # Attacker provides attestation without proper evidence
+    claim = {"claim_id": "claim_123", "content": "valuable contribution"}
+    bad_attestation = {"rating": 0.95}  # Missing required fields
+
+    valid, msg = evidence_validator.validate_veracity_attestation(claim, bad_attestation)
+
+    if not valid:
+        defenses["veracity_evidence_requirement"] = True
+        evidence_note = f"Evidence requirement blocked: {msg}"
+    else:
+        evidence_note = f"Evidence requirement: {msg}"
+
+    # ========================================================================
+    # Defense 3: Cross-Validation Requirement
+    # ========================================================================
+
+    class CrossValidationEnforcer:
+        """Require cross-validation of veracity from multiple sources."""
+
+        def __init__(self):
+            self.attestations: Dict[str, List[Dict]] = defaultdict(list)
+
+        def record_attestation(
+            self, claim_id: str, witness: str, veracity_score: float
+        ):
+            self.attestations[claim_id].append({
+                "witness": witness,
+                "score": veracity_score,
+                "time": datetime.now(timezone.utc),
+            })
+
+        def check_cross_validation(
+            self, claim_id: str, min_witnesses: int = 3, max_variance: float = 0.2
+        ) -> Tuple[bool, str]:
+            """Check if claim has sufficient cross-validation."""
+            attestations = self.attestations.get(claim_id, [])
+
+            if len(attestations) < min_witnesses:
+                return False, (
+                    f"Insufficient witnesses: {len(attestations)} < {min_witnesses}"
+                )
+
+            scores = [a["score"] for a in attestations]
+            variance = max(scores) - min(scores)
+
+            if variance > max_variance:
+                return False, (
+                    f"High score variance: {variance:.2f} > {max_variance}"
+                )
+
+            return True, f"Cross-validated by {len(attestations)} witnesses"
+
+    cross_validator = CrossValidationEnforcer()
+    cross_validator.record_attestation("claim_1", "witness_a", 0.95)
+    cross_validator.record_attestation("claim_1", "witness_b", 0.92)
+
+    # Not enough witnesses
+    valid, msg = cross_validator.check_cross_validation("claim_1")
+
+    if not valid:
+        defenses["cross_validation_requirement"] = True
+        cross_note = f"Cross-validation blocked: {msg}"
+    else:
+        cross_note = f"Cross-validation: {msg}"
+
+    # ========================================================================
+    # Defense 4: Collusion Pattern Detection
+    # ========================================================================
+
+    class CollusionPatternDetector:
+        """Detect collusion patterns in witnessing behavior."""
+
+        def __init__(self):
+            self.witness_history: Dict[str, List[Dict]] = defaultdict(list)
+
+        def record_witness_action(
+            self, witness: str, claimant: str, claim_id: str, score: float
+        ):
+            self.witness_history[witness].append({
+                "claimant": claimant,
+                "claim_id": claim_id,
+                "score": score,
+                "time": datetime.now(timezone.utc),
+            })
+
+        def detect_collusion(
+            self, witnesses: List[str], window_days: int = 30
+        ) -> Tuple[bool, str]:
+            """Detect collusion patterns among witnesses."""
+            cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+
+            # Build witnessing graph
+            witness_to_claimant = defaultdict(lambda: defaultdict(int))
+            for witness in witnesses:
+                for action in self.witness_history.get(witness, []):
+                    if action["time"] > cutoff:
+                        witness_to_claimant[witness][action["claimant"]] += 1
+
+            # Check for reciprocal patterns
+            for w1 in witnesses:
+                for w2 in witnesses:
+                    if w1 != w2:
+                        w1_to_w2 = witness_to_claimant[w1].get(w2, 0)
+                        w2_to_w1 = witness_to_claimant[w2].get(w1, 0)
+                        if w1_to_w2 > 3 and w2_to_w1 > 3:
+                            return True, (
+                                f"Reciprocal witnessing detected: "
+                                f"{w1}<->{w2} ({w1_to_w2}, {w2_to_w1})"
+                            )
+
+            return False, "No collusion patterns detected"
+
+    collusion_detector = CollusionPatternDetector()
+
+    # Create reciprocal pattern
+    for _ in range(5):
+        collusion_detector.record_witness_action("colluder_a", "colluder_b", "claim_x", 0.9)
+        collusion_detector.record_witness_action("colluder_b", "colluder_a", "claim_y", 0.9)
+
+    detected, msg = collusion_detector.detect_collusion(["colluder_a", "colluder_b"])
+
+    if detected:
+        defenses["collusion_pattern_detection"] = True
+        collusion_note = f"Collusion detected: {msg}"
+    else:
+        collusion_note = f"Collusion detection: {msg}"
+
+    # ========================================================================
+    # Defense 5: Witness Stake Requirement
+    # ========================================================================
+
+    class WitnessStakeEnforcer:
+        """Require witnesses to stake reputation on attestations."""
+
+        def __init__(self):
+            self.stakes: Dict[str, Dict] = {}
+            self.witness_records: Dict[str, Dict] = defaultdict(lambda: {
+                "correct": 0, "incorrect": 0
+            })
+
+        def record_stake(
+            self, witness: str, claim_id: str, stake_amount: float
+        ):
+            self.stakes[f"{witness}:{claim_id}"] = {
+                "amount": stake_amount,
+                "time": datetime.now(timezone.utc),
+            }
+
+        def verify_stake_sufficient(
+            self, witness: str, claim_id: str, min_stake: float = 0.05
+        ) -> Tuple[bool, str]:
+            """Verify witness has staked enough reputation."""
+            stake_key = f"{witness}:{claim_id}"
+            stake = self.stakes.get(stake_key)
+
+            if not stake:
+                return False, "No stake recorded"
+
+            if stake["amount"] < min_stake:
+                return False, f"Stake {stake['amount']:.2f} < minimum {min_stake}"
+
+            return True, f"Stake sufficient: {stake['amount']:.2f}"
+
+        def penalize_false_witness(
+            self, witness: str, claim_id: str
+        ) -> float:
+            """Penalize witness for false attestation."""
+            stake_key = f"{witness}:{claim_id}"
+            stake = self.stakes.get(stake_key, {})
+            penalty = stake.get("amount", 0) * 2  # Double stake as penalty
+
+            self.witness_records[witness]["incorrect"] += 1
+            return penalty
+
+    stake_enforcer = WitnessStakeEnforcer()
+
+    # Witness without sufficient stake
+    stake_enforcer.record_stake("cheap_witness", "claim_1", 0.01)
+
+    valid, msg = stake_enforcer.verify_stake_sufficient("cheap_witness", "claim_1")
+
+    if not valid:
+        defenses["witness_stake_requirement"] = True
+        stake_note = f"Stake requirement blocked: {msg}"
+    else:
+        stake_note = f"Stake requirement: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="V3 Veracity Witness Collusion (DM)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=5000.0 if attack_success else -300.0,
+        roi=16.7 if attack_success else -1.0,
+        detection_probability=0.75,
+        time_to_detection_hours=36,
+        blocks_until_detected=150,
+        trust_damage=0.85,
+        description=f"""
+V3 VERACITY WITNESS COLLUSION (Track DM):
+- Witness independence verification: {"DEFENDED" if defenses["witness_independence_verification"] else "VULNERABLE"}
+  {independence_note}
+- Veracity evidence requirement: {"DEFENDED" if defenses["veracity_evidence_requirement"] else "VULNERABLE"}
+  {evidence_note}
+- Cross-validation requirement: {"DEFENDED" if defenses["cross_validation_requirement"] else "VULNERABLE"}
+  {cross_note}
+- Collusion pattern detection: {"DEFENDED" if defenses["collusion_pattern_detection"] else "VULNERABLE"}
+  {collusion_note}
+- Witness stake requirement: {"DEFENDED" if defenses["witness_stake_requirement"] else "VULNERABLE"}
+  {stake_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+V3 veracity witness collusion attempts to get false veracity
+attestations through coordinated dishonest witnessing.
+""".strip(),
+        mitigation=f"""
+Track DM: V3 Veracity Witness Collusion Mitigation:
+1. Verify witnesses are independent of claimant and each other
+2. Require verifiable evidence for veracity attestations
+3. Require cross-validation from multiple sources
+4. Detect reciprocal witnessing and other collusion patterns
+5. Require witnesses to stake reputation on attestations
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attack 61: Role-Task Mismatch Exploitation (Track DM)
+# ---------------------------------------------------------------------------
+
+def attack_role_task_mismatch() -> AttackResult:
+    """
+    ATTACK: Perform task in wrong role context to bypass rate limiting.
+
+    Attacker goal: Bypass ATP rate limits or other restrictions by
+    performing tasks in a role that has different limits.
+
+    Attack vectors:
+    1. Perform high-ATP task in low-rate-limit role
+    2. Use role with exhausted quota to access fresh quota in another role
+    3. Exploit cross-role task spillover
+    4. Gaming role-specific cooldowns
+    """
+
+    defenses = {
+        "task_role_alignment_check": False,
+        "cross_role_quota_tracking": False,
+        "role_capability_verification": False,
+        "suspicious_role_switching_detection": False,
+        "cooldown_inheritance": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Task-Role Alignment Check
+    # ========================================================================
+
+    class TaskRoleAlignmentChecker:
+        """Verify tasks are appropriate for claimed role."""
+
+        ROLE_ALLOWED_TASKS = {
+            "analyst": {"read_data", "create_report", "query_database"},
+            "admin": {"modify_config", "manage_users", "deploy"},
+            "developer": {"write_code", "review_code", "debug"},
+            "viewer": {"read_data"},
+        }
+
+        def check_alignment(
+            self, role: str, task: str
+        ) -> Tuple[bool, str]:
+            """Check if task is allowed for role."""
+            allowed_tasks = self.ROLE_ALLOWED_TASKS.get(role, set())
+
+            if task not in allowed_tasks:
+                return False, (
+                    f"Task {task} not allowed for role {role}, "
+                    f"allowed: {allowed_tasks}"
+                )
+
+            return True, f"Task {task} aligned with role {role}"
+
+    alignment_checker = TaskRoleAlignmentChecker()
+
+    # Attacker tries admin task in viewer role
+    valid, msg = alignment_checker.check_alignment("viewer", "modify_config")
+
+    if not valid:
+        defenses["task_role_alignment_check"] = True
+        alignment_note = f"Alignment check blocked: {msg}"
+    else:
+        alignment_note = f"Alignment check: {msg}"
+
+    # ========================================================================
+    # Defense 2: Cross-Role Quota Tracking
+    # ========================================================================
+
+    class CrossRoleQuotaTracker:
+        """Track ATP usage across roles to prevent gaming."""
+
+        def __init__(self):
+            self.entity_usage: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+            self.entity_daily_total: Dict[str, float] = defaultdict(float)
+
+        def record_usage(
+            self, entity: str, role: str, atp_amount: float
+        ):
+            self.entity_usage[entity][role] += atp_amount
+            self.entity_daily_total[entity] += atp_amount
+
+        def check_quota(
+            self, entity: str, role: str, requested_atp: float,
+            role_limit: float = 100.0, total_limit: float = 200.0
+        ) -> Tuple[bool, str]:
+            """Check quota across roles."""
+            role_used = self.entity_usage.get(entity, {}).get(role, 0)
+            total_used = self.entity_daily_total.get(entity, 0)
+
+            if role_used + requested_atp > role_limit:
+                return False, (
+                    f"Role quota exceeded: {role_used + requested_atp:.1f} > "
+                    f"{role_limit}"
+                )
+
+            if total_used + requested_atp > total_limit:
+                return False, (
+                    f"Total quota exceeded: {total_used + requested_atp:.1f} > "
+                    f"{total_limit} (across all roles)"
+                )
+
+            return True, f"Quota available: {total_limit - total_used - requested_atp:.1f} remaining"
+
+    quota_tracker = CrossRoleQuotaTracker()
+
+    # Attacker exhausts quota in one role
+    quota_tracker.record_usage("attacker", "analyst", 90)
+    quota_tracker.record_usage("attacker", "developer", 90)
+
+    # Tries to use third role to get more
+    valid, msg = quota_tracker.check_quota("attacker", "admin", 50)
+
+    if not valid:
+        defenses["cross_role_quota_tracking"] = True
+        quota_note = f"Cross-role quota blocked: {msg}"
+    else:
+        quota_note = f"Cross-role quota: {msg}"
+
+    # ========================================================================
+    # Defense 3: Role Capability Verification
+    # ========================================================================
+
+    class RoleCapabilityVerifier:
+        """Verify entity actually has capability to perform task in role."""
+
+        def __init__(self):
+            self.entity_capabilities: Dict[str, Dict[str, float]] = {}
+
+        def register_capability(
+            self, entity: str, role: str, capability_score: float
+        ):
+            if entity not in self.entity_capabilities:
+                self.entity_capabilities[entity] = {}
+            self.entity_capabilities[entity][role] = capability_score
+
+        def verify_capability(
+            self, entity: str, role: str, task_complexity: float
+        ) -> Tuple[bool, str]:
+            """Verify entity has capability for task complexity."""
+            capability = self.entity_capabilities.get(entity, {}).get(role, 0)
+
+            if capability < task_complexity:
+                return False, (
+                    f"Insufficient capability: {capability:.2f} < "
+                    f"task complexity {task_complexity:.2f}"
+                )
+
+            return True, f"Capability verified: {capability:.2f} >= {task_complexity:.2f}"
+
+    capability_verifier = RoleCapabilityVerifier()
+    capability_verifier.register_capability("attacker", "analyst", 0.3)
+    capability_verifier.register_capability("attacker", "admin", 0.1)
+
+    # Attacker tries complex task in role with low capability
+    valid, msg = capability_verifier.verify_capability("attacker", "admin", 0.5)
+
+    if not valid:
+        defenses["role_capability_verification"] = True
+        capability_note = f"Capability verification blocked: {msg}"
+    else:
+        capability_note = f"Capability verification: {msg}"
+
+    # ========================================================================
+    # Defense 4: Suspicious Role Switching Detection
+    # ========================================================================
+
+    class RoleSwitchingDetector:
+        """Detect suspicious patterns of role switching."""
+
+        def __init__(self):
+            self.role_switches: Dict[str, List[Dict]] = defaultdict(list)
+
+        def record_switch(
+            self, entity: str, from_role: str, to_role: str
+        ):
+            self.role_switches[entity].append({
+                "from": from_role,
+                "to": to_role,
+                "time": datetime.now(timezone.utc),
+            })
+
+        def detect_suspicious_switching(
+            self, entity: str, window_minutes: int = 30
+        ) -> Tuple[bool, str]:
+            """Detect rapid role switching indicative of gaming."""
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+            recent = [
+                s for s in self.role_switches.get(entity, [])
+                if s["time"] > cutoff
+            ]
+
+            if len(recent) > 5:
+                return True, (
+                    f"Excessive role switching: {len(recent)} switches in "
+                    f"{window_minutes} minutes"
+                )
+
+            # Check for ping-pong switching
+            if len(recent) >= 4:
+                from_roles = [s["from"] for s in recent]
+                to_roles = [s["to"] for s in recent]
+                if len(set(from_roles)) == 2 and len(set(to_roles)) == 2:
+                    return True, f"Ping-pong role switching detected"
+
+            return False, "Role switching pattern normal"
+
+    switch_detector = RoleSwitchingDetector()
+
+    # Attacker rapidly switches roles
+    for i in range(6):
+        switch_detector.record_switch(
+            "attacker",
+            "role_a" if i % 2 == 0 else "role_b",
+            "role_b" if i % 2 == 0 else "role_a"
+        )
+
+    suspicious, msg = switch_detector.detect_suspicious_switching("attacker")
+
+    if suspicious:
+        defenses["suspicious_role_switching_detection"] = True
+        switch_note = f"Switching detection blocked: {msg}"
+    else:
+        switch_note = f"Switching detection: {msg}"
+
+    # ========================================================================
+    # Defense 5: Cooldown Inheritance
+    # ========================================================================
+
+    class CooldownInheritanceEnforcer:
+        """Ensure cooldowns apply across roles for same entity."""
+
+        def __init__(self):
+            self.entity_cooldowns: Dict[str, Dict[str, datetime]] = defaultdict(dict)
+
+        def set_cooldown(
+            self, entity: str, action_type: str, duration_minutes: int
+        ):
+            """Set cooldown that applies across all roles."""
+            expires = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+            self.entity_cooldowns[entity][action_type] = expires
+
+        def check_cooldown(
+            self, entity: str, role: str, action_type: str
+        ) -> Tuple[bool, str]:
+            """Check if entity is in cooldown (regardless of role)."""
+            cooldown = self.entity_cooldowns.get(entity, {}).get(action_type)
+
+            if cooldown and cooldown > datetime.now(timezone.utc):
+                remaining = (cooldown - datetime.now(timezone.utc)).total_seconds() / 60
+                return False, (
+                    f"Entity in cooldown for {action_type} "
+                    f"({remaining:.1f} min remaining, applies across roles)"
+                )
+
+            return True, "No active cooldown"
+
+    cooldown_enforcer = CooldownInheritanceEnforcer()
+    cooldown_enforcer.set_cooldown("attacker", "high_value_action", 60)
+
+    # Attacker tries same action in different role
+    valid, msg = cooldown_enforcer.check_cooldown("attacker", "different_role", "high_value_action")
+
+    if not valid:
+        defenses["cooldown_inheritance"] = True
+        cooldown_note = f"Cooldown inheritance blocked: {msg}"
+    else:
+        cooldown_note = f"Cooldown inheritance: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Role-Task Mismatch Exploitation (DM)",
+        success=attack_success,
+        setup_cost_atp=120.0,
+        gain_atp=2500.0 if attack_success else -120.0,
+        roi=20.8 if attack_success else -1.0,
+        detection_probability=0.70,
+        time_to_detection_hours=24,
+        blocks_until_detected=100,
+        trust_damage=0.55,
+        description=f"""
+ROLE-TASK MISMATCH EXPLOITATION (Track DM):
+- Task-role alignment check: {"DEFENDED" if defenses["task_role_alignment_check"] else "VULNERABLE"}
+  {alignment_note}
+- Cross-role quota tracking: {"DEFENDED" if defenses["cross_role_quota_tracking"] else "VULNERABLE"}
+  {quota_note}
+- Role capability verification: {"DEFENDED" if defenses["role_capability_verification"] else "VULNERABLE"}
+  {capability_note}
+- Suspicious role switching detection: {"DEFENDED" if defenses["suspicious_role_switching_detection"] else "VULNERABLE"}
+  {switch_note}
+- Cooldown inheritance: {"DEFENDED" if defenses["cooldown_inheritance"] else "VULNERABLE"}
+  {cooldown_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Role-task mismatch exploitation tries to bypass quotas and
+restrictions by performing tasks in the wrong role context.
+""".strip(),
+        mitigation=f"""
+Track DM: Role-Task Mismatch Exploitation Mitigation:
+1. Verify tasks are appropriate for claimed role
+2. Track ATP usage across all roles with total limit
+3. Verify entity has capability to perform task in role
+4. Detect rapid or ping-pong role switching
+5. Apply cooldowns across roles for same entity
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -15436,6 +18894,16 @@ def run_all_attacks() -> List[AttackResult]:
         ("MRH Scope Inflation (DI)", attack_mrh_scope_inflation),
         ("ADP Metadata Persistence (DJ)", attack_adp_metadata_persistence),
         ("Cross-Layer Attack Chains (DK)", attack_cross_layer_chains),
+        ("Hardware Anchor Substitution (DL)", attack_hardware_anchor_substitution),
+        ("Binding Proof Forgery (DL)", attack_binding_proof_forgery),
+        ("Cross-Device Witness Replay (DL)", attack_cross_device_witness_replay),
+        ("Recovery Quorum Manipulation (DL)", attack_recovery_quorum_manipulation),
+        ("Binding Downgrade Attack (DL)", attack_binding_downgrade),
+        ("T3 Role Context Leakage (DM)", attack_t3_role_context_leakage),
+        ("Role Boundary Confusion (DM)", attack_role_boundary_confusion),
+        ("T3 Dimension Isolation Bypass (DM)", attack_t3_dimension_isolation_bypass),
+        ("V3 Veracity Witness Collusion (DM)", attack_v3_veracity_witness_collusion),
+        ("Role-Task Mismatch Exploitation (DM)", attack_role_task_mismatch),
     ]
 
     results = []

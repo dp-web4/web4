@@ -9956,5 +9956,427 @@ class TestCrossLayerAttackChains:
         assert result.raw_data["defenses"]["frontrun_governance_chain_blocked"]
 
 
+class TestHardwareAnchorSubstitution:
+    """Track DL: Tests for hardware anchor substitution defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Hardware anchor substitution attack can be executed."""
+        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        result = attack_hardware_anchor_substitution()
+        assert result.attack_name == "Hardware Anchor Substitution (DL)"
+        assert not result.success  # All defenses should hold
+
+    def test_anchor_type_validation(self):
+        """Anchor type is validated for operations."""
+        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        result = attack_hardware_anchor_substitution()
+        assert result.raw_data["defenses"]["anchor_type_validation"]
+
+    def test_witness_diversity_required(self):
+        """Witness diversity is required."""
+        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        result = attack_hardware_anchor_substitution()
+        assert result.raw_data["defenses"]["witness_diversity_required"]
+
+    def test_trust_weight_enforcement(self):
+        """Trust weight is enforced based on anchor type."""
+        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        result = attack_hardware_anchor_substitution()
+        assert result.raw_data["defenses"]["trust_weight_enforcement"]
+
+    def test_enrollment_freshness_check(self):
+        """Enrollment freshness is checked."""
+        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        result = attack_hardware_anchor_substitution()
+        assert result.raw_data["defenses"]["enrollment_freshness_check"]
+
+    def test_cross_witness_verification(self):
+        """Cross-witness verification is required."""
+        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        result = attack_hardware_anchor_substitution()
+        assert result.raw_data["defenses"]["cross_witness_verification"]
+
+
+class TestBindingProofForgery:
+    """Track DL: Tests for binding proof forgery defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Binding proof forgery attack can be executed."""
+        from hardbound.attack_simulations import attack_binding_proof_forgery
+        result = attack_binding_proof_forgery()
+        assert result.attack_name == "Binding Proof Forgery (DL)"
+        assert not result.success  # All defenses should hold
+
+    def test_attestation_chain_verification(self):
+        """Attestation chain is verified."""
+        from hardbound.attack_simulations import attack_binding_proof_forgery
+        result = attack_binding_proof_forgery()
+        assert result.raw_data["defenses"]["attestation_chain_verification"]
+
+    def test_nonce_binding(self):
+        """Nonce binding is enforced."""
+        from hardbound.attack_simulations import attack_binding_proof_forgery
+        result = attack_binding_proof_forgery()
+        assert result.raw_data["defenses"]["nonce_binding"]
+
+    def test_manufacturer_root_validation(self):
+        """Manufacturer root is validated."""
+        from hardbound.attack_simulations import attack_binding_proof_forgery
+        result = attack_binding_proof_forgery()
+        assert result.raw_data["defenses"]["manufacturer_root_validation"]
+
+    def test_attestation_freshness(self):
+        """Attestation freshness is checked."""
+        from hardbound.attack_simulations import attack_binding_proof_forgery
+        result = attack_binding_proof_forgery()
+        assert result.raw_data["defenses"]["attestation_freshness"]
+
+    def test_replay_detection(self):
+        """Replay attacks are detected."""
+        from hardbound.attack_simulations import attack_binding_proof_forgery
+        result = attack_binding_proof_forgery()
+        assert result.raw_data["defenses"]["replay_detection"]
+
+    def test_device_state_validation(self):
+        """Device state is validated."""
+        from hardbound.attack_simulations import attack_binding_proof_forgery
+        result = attack_binding_proof_forgery()
+        assert result.raw_data["defenses"]["device_state_validation"]
+
+
+class TestCrossDeviceWitnessReplay:
+    """Track DL: Tests for cross-device witness replay defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Cross-device witness replay attack can be executed."""
+        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        result = attack_cross_device_witness_replay()
+        assert result.attack_name == "Cross-Device Witness Chain Replay (DL)"
+        assert not result.success  # All defenses should hold
+
+    def test_witness_nonce_binding(self):
+        """Witness nonce binding is enforced."""
+        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        result = attack_cross_device_witness_replay()
+        assert result.raw_data["defenses"]["witness_nonce_binding"]
+
+    def test_timestamp_verification(self):
+        """Timestamp verification is enforced."""
+        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        result = attack_cross_device_witness_replay()
+        assert result.raw_data["defenses"]["timestamp_verification"]
+
+    def test_device_id_binding(self):
+        """Device ID binding is enforced."""
+        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        result = attack_cross_device_witness_replay()
+        assert result.raw_data["defenses"]["device_id_binding"]
+
+    def test_sequence_number_tracking(self):
+        """Sequence numbers are tracked."""
+        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        result = attack_cross_device_witness_replay()
+        assert result.raw_data["defenses"]["sequence_number_tracking"]
+
+    def test_witness_chain_integrity(self):
+        """Witness chain integrity is verified."""
+        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        result = attack_cross_device_witness_replay()
+        assert result.raw_data["defenses"]["witness_chain_integrity"]
+
+
+class TestRecoveryQuorumManipulation:
+    """Track DL: Tests for recovery quorum manipulation defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Recovery quorum manipulation attack can be executed."""
+        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        result = attack_recovery_quorum_manipulation()
+        assert result.attack_name == "Recovery Quorum Manipulation (DL)"
+        assert not result.success  # All defenses should hold
+
+    def test_minimum_quorum_threshold(self):
+        """Minimum quorum threshold is enforced."""
+        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        result = attack_recovery_quorum_manipulation()
+        assert result.raw_data["defenses"]["minimum_quorum_threshold"]
+
+    def test_recovery_delay_period(self):
+        """Recovery delay period is enforced."""
+        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        result = attack_recovery_quorum_manipulation()
+        assert result.raw_data["defenses"]["recovery_delay_period"]
+
+    def test_notification_to_all_devices(self):
+        """Notification to all devices is sent."""
+        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        result = attack_recovery_quorum_manipulation()
+        assert result.raw_data["defenses"]["notification_to_all_devices"]
+
+    def test_geographic_diversity(self):
+        """Geographic diversity is required."""
+        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        result = attack_recovery_quorum_manipulation()
+        assert result.raw_data["defenses"]["geographic_diversity"]
+
+    def test_recovery_challenge_verification(self):
+        """Recovery challenge verification is required."""
+        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        result = attack_recovery_quorum_manipulation()
+        assert result.raw_data["defenses"]["recovery_challenge_verification"]
+
+    def test_revocation_blocks_recovery(self):
+        """Revocation blocks recovery."""
+        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        result = attack_recovery_quorum_manipulation()
+        assert result.raw_data["defenses"]["revocation_blocks_recovery"]
+
+
+class TestBindingDowngradeAttack:
+    """Track DL: Tests for binding downgrade attack defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Binding downgrade attack can be executed."""
+        from hardbound.attack_simulations import attack_binding_downgrade
+        result = attack_binding_downgrade()
+        assert result.attack_name == "Binding Downgrade Attack (DL)"
+        assert not result.success  # All defenses should hold
+
+    def test_downgrade_requires_explicit_consent(self):
+        """Downgrade requires explicit consent."""
+        from hardbound.attack_simulations import attack_binding_downgrade
+        result = attack_binding_downgrade()
+        assert result.raw_data["defenses"]["downgrade_requires_explicit_consent"]
+
+    def test_binding_level_monotonicity(self):
+        """Binding level monotonicity is enforced."""
+        from hardbound.attack_simulations import attack_binding_downgrade
+        result = attack_binding_downgrade()
+        assert result.raw_data["defenses"]["binding_level_monotonicity"]
+
+    def test_downgrade_notification(self):
+        """Downgrade notification is sent."""
+        from hardbound.attack_simulations import attack_binding_downgrade
+        result = attack_binding_downgrade()
+        assert result.raw_data["defenses"]["downgrade_notification"]
+
+    def test_temporary_downgrade_expiry(self):
+        """Temporary downgrade expiry is enforced."""
+        from hardbound.attack_simulations import attack_binding_downgrade
+        result = attack_binding_downgrade()
+        assert result.raw_data["defenses"]["temporary_downgrade_expiry"]
+
+    def test_trust_ceiling_enforcement(self):
+        """Trust ceiling is enforced after downgrade."""
+        from hardbound.attack_simulations import attack_binding_downgrade
+        result = attack_binding_downgrade()
+        assert result.raw_data["defenses"]["trust_ceiling_enforcement"]
+
+
+class TestT3RoleContextLeakage:
+    """Track DM: Tests for T3 role context leakage defenses."""
+
+    def test_attack_simulation_runs(self):
+        """T3 role context leakage attack can be executed."""
+        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        result = attack_t3_role_context_leakage()
+        assert result.attack_name == "T3 Role Context Leakage (DM)"
+        assert not result.success
+
+    def test_uniform_observable_costs(self):
+        """Observable costs are uniform."""
+        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        result = attack_t3_role_context_leakage()
+        assert result.raw_data["defenses"]["uniform_observable_costs"]
+
+    def test_role_permission_isolation(self):
+        """Role permissions are isolated."""
+        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        result = attack_t3_role_context_leakage()
+        assert result.raw_data["defenses"]["role_permission_isolation"]
+
+    def test_action_latency_normalization(self):
+        """Action latencies are normalized."""
+        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        result = attack_t3_role_context_leakage()
+        assert result.raw_data["defenses"]["action_latency_normalization"]
+
+    def test_cross_role_correlation_detection(self):
+        """Cross-role correlation is detected."""
+        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        result = attack_t3_role_context_leakage()
+        assert result.raw_data["defenses"]["cross_role_correlation_detection"]
+
+    def test_minimal_disclosure_responses(self):
+        """Minimal disclosure responses are enforced."""
+        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        result = attack_t3_role_context_leakage()
+        assert result.raw_data["defenses"]["minimal_disclosure_responses"]
+
+
+class TestRoleBoundaryConfusion:
+    """Track DM: Tests for role boundary confusion defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Role boundary confusion attack can be executed."""
+        from hardbound.attack_simulations import attack_role_boundary_confusion
+        result = attack_role_boundary_confusion()
+        assert result.attack_name == "Role Boundary Confusion (DM)"
+        assert not result.success
+
+    def test_role_context_binding(self):
+        """Role context binding is enforced."""
+        from hardbound.attack_simulations import attack_role_boundary_confusion
+        result = attack_role_boundary_confusion()
+        assert result.raw_data["defenses"]["role_context_binding"]
+
+    def test_mrh_scope_disjointness(self):
+        """MRH scope disjointness is verified."""
+        from hardbound.attack_simulations import attack_role_boundary_confusion
+        result = attack_role_boundary_confusion()
+        assert result.raw_data["defenses"]["mrh_scope_disjointness"]
+
+    def test_action_role_attestation(self):
+        """Action role attestation is required."""
+        from hardbound.attack_simulations import attack_role_boundary_confusion
+        result = attack_role_boundary_confusion()
+        assert result.raw_data["defenses"]["action_role_attestation"]
+
+    def test_retroactive_attribution_blocking(self):
+        """Retroactive attribution is blocked."""
+        from hardbound.attack_simulations import attack_role_boundary_confusion
+        result = attack_role_boundary_confusion()
+        assert result.raw_data["defenses"]["retroactive_attribution_blocking"]
+
+    def test_role_transition_audit(self):
+        """Role transition is audited."""
+        from hardbound.attack_simulations import attack_role_boundary_confusion
+        result = attack_role_boundary_confusion()
+        assert result.raw_data["defenses"]["role_transition_audit"]
+
+
+class TestT3DimensionIsolationBypass:
+    """Track DM: Tests for T3 dimension isolation bypass defenses."""
+
+    def test_attack_simulation_runs(self):
+        """T3 dimension isolation bypass attack can be executed."""
+        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        result = attack_t3_dimension_isolation_bypass()
+        assert result.attack_name == "T3 Dimension Isolation Bypass (DM)"
+        assert not result.success
+
+    def test_dimension_independence_enforcement(self):
+        """Dimension independence is enforced."""
+        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        result = attack_t3_dimension_isolation_bypass()
+        assert result.raw_data["defenses"]["dimension_independence_enforcement"]
+
+    def test_update_source_validation(self):
+        """Update source is validated."""
+        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        result = attack_t3_dimension_isolation_bypass()
+        assert result.raw_data["defenses"]["update_source_validation"]
+
+    def test_cross_dimension_cap(self):
+        """Cross-dimension cap is applied."""
+        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        result = attack_t3_dimension_isolation_bypass()
+        assert result.raw_data["defenses"]["cross_dimension_cap"]
+
+    def test_dimension_specific_evidence(self):
+        """Dimension-specific evidence is required."""
+        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        result = attack_t3_dimension_isolation_bypass()
+        assert result.raw_data["defenses"]["dimension_specific_evidence"]
+
+    def test_anomaly_detection(self):
+        """Anomaly detection is active."""
+        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        result = attack_t3_dimension_isolation_bypass()
+        assert result.raw_data["defenses"]["anomaly_detection"]
+
+
+class TestV3VeracityWitnessCollusion:
+    """Track DM: Tests for V3 veracity witness collusion defenses."""
+
+    def test_attack_simulation_runs(self):
+        """V3 veracity witness collusion attack can be executed."""
+        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        result = attack_v3_veracity_witness_collusion()
+        assert result.attack_name == "V3 Veracity Witness Collusion (DM)"
+        assert not result.success
+
+    def test_witness_independence_verification(self):
+        """Witness independence is verified."""
+        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        result = attack_v3_veracity_witness_collusion()
+        assert result.raw_data["defenses"]["witness_independence_verification"]
+
+    def test_veracity_evidence_requirement(self):
+        """Veracity evidence is required."""
+        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        result = attack_v3_veracity_witness_collusion()
+        assert result.raw_data["defenses"]["veracity_evidence_requirement"]
+
+    def test_cross_validation_requirement(self):
+        """Cross-validation is required."""
+        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        result = attack_v3_veracity_witness_collusion()
+        assert result.raw_data["defenses"]["cross_validation_requirement"]
+
+    def test_collusion_pattern_detection(self):
+        """Collusion patterns are detected."""
+        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        result = attack_v3_veracity_witness_collusion()
+        assert result.raw_data["defenses"]["collusion_pattern_detection"]
+
+    def test_witness_stake_requirement(self):
+        """Witness stake is required."""
+        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        result = attack_v3_veracity_witness_collusion()
+        assert result.raw_data["defenses"]["witness_stake_requirement"]
+
+
+class TestRoleTaskMismatch:
+    """Track DM: Tests for role-task mismatch exploitation defenses."""
+
+    def test_attack_simulation_runs(self):
+        """Role-task mismatch attack can be executed."""
+        from hardbound.attack_simulations import attack_role_task_mismatch
+        result = attack_role_task_mismatch()
+        assert result.attack_name == "Role-Task Mismatch Exploitation (DM)"
+        assert not result.success
+
+    def test_task_role_alignment_check(self):
+        """Task-role alignment is checked."""
+        from hardbound.attack_simulations import attack_role_task_mismatch
+        result = attack_role_task_mismatch()
+        assert result.raw_data["defenses"]["task_role_alignment_check"]
+
+    def test_cross_role_quota_tracking(self):
+        """Cross-role quota is tracked."""
+        from hardbound.attack_simulations import attack_role_task_mismatch
+        result = attack_role_task_mismatch()
+        assert result.raw_data["defenses"]["cross_role_quota_tracking"]
+
+    def test_role_capability_verification(self):
+        """Role capability is verified."""
+        from hardbound.attack_simulations import attack_role_task_mismatch
+        result = attack_role_task_mismatch()
+        assert result.raw_data["defenses"]["role_capability_verification"]
+
+    def test_suspicious_role_switching_detection(self):
+        """Suspicious role switching is detected."""
+        from hardbound.attack_simulations import attack_role_task_mismatch
+        result = attack_role_task_mismatch()
+        assert result.raw_data["defenses"]["suspicious_role_switching_detection"]
+
+    def test_cooldown_inheritance(self):
+        """Cooldown inheritance is enforced."""
+        from hardbound.attack_simulations import attack_role_task_mismatch
+        result = attack_role_task_mismatch()
+        assert result.raw_data["defenses"]["cooldown_inheritance"]
+
+
 # Import sqlite3 at module level for tests that need it
 import sqlite3
