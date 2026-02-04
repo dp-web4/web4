@@ -34,8 +34,8 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        # 72 attacks: original 35 + tracks CV-DD (9) + tracks DE-DK (7) + tracks DL-DM (10)
-        #           + tracks DN (3) + tracks DO (2) + tracks DP (2) + tracks DQ (4) = 72 total
+        # 84 attacks: original 35 + tracks CV-DD (9) + tracks DE-DK (7) + tracks DL-DM (10)
+        #           + tracks DN (3) + tracks DO (2) + tracks DP (2) + tracks DQ (4) + tracks DR (6) + tracks DS (6) = 84 total
         # CV: MRH Exploitation, CW: V3 Manipulation, CX: Race Conditions, CY: Attack Chains
         # CZ: Oracle Injection, DA: Metabolism Desync, DB: Checkpoint Replay
         # DC: Semantic Policy Confusion, DD: Accumulation Starvation
@@ -50,7 +50,11 @@ class TestAttackSimulations:
         # DO: Timing Side-Channel, Error Side-Channel
         # DP: Dependency Confusion, Build Pipeline Compromise
         # DQ: Prompt Injection, Model Output Manipulation, Agent Impersonation, Training Data Poisoning
-        assert len(results) == 72
+        # DR: Bot Farm Coordination, Human-AI Hybrid Coordination, Emergent Adversarial Behavior,
+        #     Collective Action Gaming, Network Effect Manipulation, Information Asymmetry Exploitation
+        # DS: Patient Trust Building, Reputation Laundering, Sleeper Cell Activation,
+        #     Trust Inheritance Exploitation, Long-Con Betrayal, Pump-and-Dump Trust
+        assert len(results) == 84
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:

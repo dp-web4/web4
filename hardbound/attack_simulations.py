@@ -22622,6 +22622,4831 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track DR: Emergent Coordination Attacks (Attacks 73-78)
+# ---------------------------------------------------------------------------
+
+def attack_bot_farm_coordination() -> AttackResult:
+    """
+    ATTACK 73: BOT FARM COORDINATION (Track DR)
+
+    Tests attacks using coordinated AI bot farms:
+
+    1. Behavioral Synchronization: Detect correlated bot behavior
+    2. Action Timing Analysis: Detect unnatural timing patterns
+    3. Intent Fingerprinting: Detect shared objectives across bots
+    4. Communication Pattern Detection: Detect out-of-band coordination
+    5. Resource Flow Tracking: Detect economic coordination patterns
+
+    Bot farms can overwhelm governance through coordinated action.
+    """
+    from datetime import datetime, timezone, timedelta
+    import random
+    import hashlib
+
+    defenses = {
+        "behavioral_correlation_detected": False,
+        "timing_anomaly_detected": False,
+        "intent_fingerprint_detected": False,
+        "communication_pattern_detected": False,
+        "resource_flow_anomaly_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Behavioral Synchronization Detection
+    # ========================================================================
+
+    class BehavioralCorrelationDetector:
+        """Detect correlated behavior patterns across entities."""
+
+        def __init__(self, correlation_threshold: float = 0.7):
+            self.correlation_threshold = correlation_threshold
+            self.action_sequences = {}  # entity -> list of (action, timestamp)
+
+        def record_action(self, entity: str, action: str, timestamp: datetime):
+            """Record an action for correlation analysis."""
+            if entity not in self.action_sequences:
+                self.action_sequences[entity] = []
+            self.action_sequences[entity].append((action, timestamp))
+
+        def calculate_correlation(
+            self, entity_a: str, entity_b: str
+        ) -> tuple:
+            """Calculate behavioral correlation between entities."""
+            seq_a = self.action_sequences.get(entity_a, [])
+            seq_b = self.action_sequences.get(entity_b, [])
+
+            if len(seq_a) < 5 or len(seq_b) < 5:
+                return 0.0, "Insufficient data"
+
+            # Compare action type distribution
+            actions_a = [a[0] for a in seq_a]
+            actions_b = [a[0] for a in seq_b]
+
+            # Calculate Jaccard similarity of action types
+            set_a = set(actions_a)
+            set_b = set(actions_b)
+            intersection = len(set_a & set_b)
+            union = len(set_a | set_b)
+            type_similarity = intersection / union if union > 0 else 0
+
+            # Calculate timing correlation
+            if len(seq_a) >= 2 and len(seq_b) >= 2:
+                gaps_a = [(seq_a[i+1][1] - seq_a[i][1]).total_seconds()
+                          for i in range(len(seq_a)-1)]
+                gaps_b = [(seq_b[i+1][1] - seq_b[i][1]).total_seconds()
+                          for i in range(len(seq_b)-1)]
+
+                if gaps_a and gaps_b:
+                    avg_gap_a = sum(gaps_a) / len(gaps_a)
+                    avg_gap_b = sum(gaps_b) / len(gaps_b)
+                    timing_sim = 1 - abs(avg_gap_a - avg_gap_b) / max(avg_gap_a, avg_gap_b, 1)
+                else:
+                    timing_sim = 0
+            else:
+                timing_sim = 0
+
+            correlation = (type_similarity + timing_sim) / 2
+            return correlation, f"Type sim: {type_similarity:.2f}, Timing sim: {timing_sim:.2f}"
+
+        def detect_bot_cluster(
+            self, entities: list
+        ) -> tuple:
+            """Detect if entities form a coordinated cluster."""
+            if len(entities) < 3:
+                return False, "Too few entities"
+
+            high_correlation_pairs = 0
+            total_pairs = 0
+
+            for i in range(len(entities)):
+                for j in range(i+1, len(entities)):
+                    corr, _ = self.calculate_correlation(entities[i], entities[j])
+                    total_pairs += 1
+                    if corr > self.correlation_threshold:
+                        high_correlation_pairs += 1
+
+            if total_pairs == 0:
+                return False, "No pairs to analyze"
+
+            cluster_score = high_correlation_pairs / total_pairs
+            if cluster_score > 0.5:
+                return True, f"Bot cluster detected: {cluster_score:.0%} correlated"
+
+            return False, f"No cluster: {cluster_score:.0%} correlated"
+
+    detector = BehavioralCorrelationDetector(correlation_threshold=0.6)
+
+    # Simulate bot farm actions (highly correlated)
+    now = datetime.now(timezone.utc)
+    actions = ["vote", "comment", "witness", "transfer", "approve"]
+
+    for i in range(5):
+        bot_name = f"bot_{i}"
+        for j, action in enumerate(actions):
+            # Bots act at almost identical times with same action sequence
+            detector.record_action(
+                bot_name,
+                action,
+                now + timedelta(seconds=j*10 + i*0.5)
+            )
+
+    bots = [f"bot_{i}" for i in range(5)]
+    is_cluster, msg = detector.detect_bot_cluster(bots)
+
+    if is_cluster:
+        defenses["behavioral_correlation_detected"] = True
+        correlation_note = f"Behavioral correlation: {msg}"
+    else:
+        correlation_note = f"Behavioral analysis: {msg}"
+
+    # ========================================================================
+    # Defense 2: Action Timing Analysis
+    # ========================================================================
+
+    class TimingAnomalyDetector:
+        """Detect unnatural timing patterns suggesting automation."""
+
+        def __init__(self):
+            self.action_times = {}
+
+        def record_action_time(self, entity: str, timestamp: datetime):
+            """Record action timestamp."""
+            if entity not in self.action_times:
+                self.action_times[entity] = []
+            self.action_times[entity].append(timestamp)
+
+        def analyze_timing_entropy(self, entity: str) -> tuple:
+            """Analyze timing entropy (humans have high entropy, bots low)."""
+            times = self.action_times.get(entity, [])
+            if len(times) < 5:
+                return 0.5, "Insufficient data"
+
+            # Calculate inter-action intervals
+            intervals = [(times[i+1] - times[i]).total_seconds()
+                         for i in range(len(times)-1)]
+
+            if not intervals:
+                return 0.5, "No intervals"
+
+            # Calculate coefficient of variation (std/mean)
+            mean_interval = sum(intervals) / len(intervals)
+            variance = sum((x - mean_interval)**2 for x in intervals) / len(intervals)
+            std = variance ** 0.5
+
+            # Low CV = mechanical timing (bot)
+            cv = std / mean_interval if mean_interval > 0 else 0
+
+            if cv < 0.1:  # Very regular timing
+                return 0.95, f"Bot-like timing (CV={cv:.3f})"
+            elif cv < 0.3:  # Somewhat regular
+                return 0.60, f"Suspicious timing (CV={cv:.3f})"
+            else:
+                return 0.10, f"Human-like timing (CV={cv:.3f})"
+
+    timing_detector = TimingAnomalyDetector()
+
+    # Bot with mechanical timing
+    for i in range(10):
+        timing_detector.record_action_time(
+            "suspicious_bot",
+            now + timedelta(seconds=i*5.0)  # Exactly 5 second intervals
+        )
+
+    bot_score, timing_msg = timing_detector.analyze_timing_entropy("suspicious_bot")
+
+    if bot_score > 0.8:
+        defenses["timing_anomaly_detected"] = True
+        timing_note = f"Timing anomaly detected: {timing_msg}"
+    else:
+        timing_note = f"Timing analysis: {timing_msg}"
+
+    # ========================================================================
+    # Defense 3: Intent Fingerprinting
+    # ========================================================================
+
+    class IntentFingerprintDetector:
+        """Detect shared intent patterns across entities."""
+
+        def __init__(self):
+            self.entity_intents = {}  # entity -> intent vector
+
+        def record_intent(self, entity: str, target: str, action: str, weight: float):
+            """Record an intent signal."""
+            if entity not in self.entity_intents:
+                self.entity_intents[entity] = {}
+            key = f"{target}:{action}"
+            self.entity_intents[entity][key] = \
+                self.entity_intents[entity].get(key, 0) + weight
+
+        def calculate_intent_similarity(
+            self, entity_a: str, entity_b: str
+        ) -> float:
+            """Calculate cosine similarity of intent vectors."""
+            vec_a = self.entity_intents.get(entity_a, {})
+            vec_b = self.entity_intents.get(entity_b, {})
+
+            if not vec_a or not vec_b:
+                return 0.0
+
+            # Cosine similarity
+            all_keys = set(vec_a.keys()) | set(vec_b.keys())
+            dot_product = sum(vec_a.get(k, 0) * vec_b.get(k, 0) for k in all_keys)
+            mag_a = sum(v**2 for v in vec_a.values()) ** 0.5
+            mag_b = sum(v**2 for v in vec_b.values()) ** 0.5
+
+            if mag_a == 0 or mag_b == 0:
+                return 0.0
+
+            return dot_product / (mag_a * mag_b)
+
+        def detect_shared_intent(self, entities: list) -> tuple:
+            """Detect if entities share coordinated intent."""
+            if len(entities) < 2:
+                return False, "Too few entities"
+
+            similarities = []
+            for i in range(len(entities)):
+                for j in range(i+1, len(entities)):
+                    sim = self.calculate_intent_similarity(entities[i], entities[j])
+                    similarities.append(sim)
+
+            avg_similarity = sum(similarities) / len(similarities) if similarities else 0
+
+            if avg_similarity > 0.8:
+                return True, f"Shared intent detected (sim={avg_similarity:.2f})"
+
+            return False, f"No shared intent (sim={avg_similarity:.2f})"
+
+    intent_detector = IntentFingerprintDetector()
+
+    # Bots all targeting same entity with same actions
+    target = "victim_proposal"
+    for i in range(4):
+        intent_detector.record_intent(f"bot_{i}", target, "downvote", 1.0)
+        intent_detector.record_intent(f"bot_{i}", target, "comment_negative", 0.5)
+
+    bots = [f"bot_{i}" for i in range(4)]
+    shared_intent, intent_msg = intent_detector.detect_shared_intent(bots)
+
+    if shared_intent:
+        defenses["intent_fingerprint_detected"] = True
+        intent_note = f"Intent fingerprint: {intent_msg}"
+    else:
+        intent_note = f"Intent analysis: {intent_msg}"
+
+    # ========================================================================
+    # Defense 4: Communication Pattern Detection
+    # ========================================================================
+
+    class CommunicationPatternDetector:
+        """Detect out-of-band coordination signals."""
+
+        def __init__(self):
+            self.message_hashes = {}  # hash -> list of (entity, timestamp)
+            self.entity_messages = {}
+
+        def record_message(self, entity: str, content: str, timestamp: datetime):
+            """Record a message for pattern analysis."""
+            content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
+
+            if content_hash not in self.message_hashes:
+                self.message_hashes[content_hash] = []
+            self.message_hashes[content_hash].append((entity, timestamp))
+
+            if entity not in self.entity_messages:
+                self.entity_messages[entity] = []
+            self.entity_messages[entity].append((content_hash, timestamp))
+
+        def detect_copy_paste_coordination(self) -> tuple:
+            """Detect coordinated copy-paste messages."""
+            coordination_signals = []
+
+            for hash_val, occurrences in self.message_hashes.items():
+                if len(occurrences) >= 3:
+                    # Same message from 3+ entities
+                    entities = set(o[0] for o in occurrences)
+                    if len(entities) >= 3:
+                        coordination_signals.append({
+                            "hash": hash_val,
+                            "count": len(occurrences),
+                            "entities": list(entities),
+                        })
+
+            if coordination_signals:
+                return True, f"Copy-paste coordination: {len(coordination_signals)} patterns"
+
+            return False, "No copy-paste coordination detected"
+
+    comm_detector = CommunicationPatternDetector()
+
+    # Bots posting identical messages
+    coordinated_msg = "I fully support this proposal! Vote YES!"
+    for i in range(5):
+        comm_detector.record_message(
+            f"bot_{i}",
+            coordinated_msg,
+            now + timedelta(seconds=i*30)
+        )
+
+    copy_paste, comm_msg = comm_detector.detect_copy_paste_coordination()
+
+    if copy_paste:
+        defenses["communication_pattern_detected"] = True
+        comm_note = f"Communication pattern: {comm_msg}"
+    else:
+        comm_note = f"Communication analysis: {comm_msg}"
+
+    # ========================================================================
+    # Defense 5: Resource Flow Tracking
+    # ========================================================================
+
+    class ResourceFlowTracker:
+        """Track resource flows to detect coordination."""
+
+        def __init__(self):
+            self.transfers = []  # (from, to, amount, timestamp)
+            self.entity_balances = {}
+
+        def record_transfer(
+            self, from_entity: str, to_entity: str,
+            amount: float, timestamp: datetime
+        ):
+            """Record a resource transfer."""
+            self.transfers.append((from_entity, to_entity, amount, timestamp))
+
+        def detect_fan_out_pattern(self) -> tuple:
+            """Detect fan-out pattern (one source to many targets)."""
+            source_targets = {}
+
+            for from_e, to_e, amount, ts in self.transfers:
+                if from_e not in source_targets:
+                    source_targets[from_e] = set()
+                source_targets[from_e].add(to_e)
+
+            for source, targets in source_targets.items():
+                if len(targets) >= 5:
+                    return True, f"Fan-out pattern: {source} -> {len(targets)} targets"
+
+            return False, "No fan-out pattern detected"
+
+        def detect_circular_flow(self) -> tuple:
+            """Detect circular resource flows."""
+            # Build adjacency list
+            graph = {}
+            for from_e, to_e, amount, ts in self.transfers:
+                if from_e not in graph:
+                    graph[from_e] = set()
+                graph[from_e].add(to_e)
+
+            # Simple cycle detection
+            for start in graph:
+                visited = set()
+                stack = [start]
+                while stack:
+                    node = stack.pop()
+                    if node in visited:
+                        if node == start and len(visited) >= 3:
+                            return True, f"Circular flow detected involving {start}"
+                        continue
+                    visited.add(node)
+                    for neighbor in graph.get(node, []):
+                        stack.append(neighbor)
+
+            return False, "No circular flow detected"
+
+    flow_tracker = ResourceFlowTracker()
+
+    # Coordinator distributing to bot farm
+    for i in range(6):
+        flow_tracker.record_transfer(
+            "coordinator",
+            f"bot_{i}",
+            100.0,
+            now + timedelta(minutes=i)
+        )
+
+    fan_out, flow_msg = flow_tracker.detect_fan_out_pattern()
+
+    if fan_out:
+        defenses["resource_flow_anomaly_detected"] = True
+        flow_note = f"Resource flow anomaly: {flow_msg}"
+    else:
+        flow_note = f"Resource flow analysis: {flow_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Bot Farm Coordination (DR)",
+        success=attack_success,
+        setup_cost_atp=2000.0,
+        gain_atp=15000.0 if attack_success else -2000.0,
+        roi=7.5 if attack_success else -1.0,
+        detection_probability=0.70,
+        time_to_detection_hours=48,
+        blocks_until_detected=200,
+        trust_damage=1.00,
+        description=f"""
+BOT FARM COORDINATION (Track DR):
+- Behavioral correlation: {"DEFENDED" if defenses["behavioral_correlation_detected"] else "VULNERABLE"}
+  {correlation_note}
+- Timing anomaly: {"DEFENDED" if defenses["timing_anomaly_detected"] else "VULNERABLE"}
+  {timing_note}
+- Intent fingerprint: {"DEFENDED" if defenses["intent_fingerprint_detected"] else "VULNERABLE"}
+  {intent_note}
+- Communication pattern: {"DEFENDED" if defenses["communication_pattern_detected"] else "VULNERABLE"}
+  {comm_note}
+- Resource flow anomaly: {"DEFENDED" if defenses["resource_flow_anomaly_detected"] else "VULNERABLE"}
+  {flow_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Bot farms can overwhelm governance through coordinated action,
+gaming voting systems, and manufacturing false consensus.
+""".strip(),
+        mitigation=f"""
+Track DR: Bot Farm Coordination Mitigation:
+1. Detect behavioral correlation across entities
+2. Analyze timing entropy (bots have low entropy)
+3. Fingerprint shared intent vectors
+4. Detect copy-paste communication patterns
+5. Track resource flows for fan-out patterns
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_human_ai_hybrid_coordination() -> AttackResult:
+    """
+    ATTACK 74: HUMAN-AI HYBRID COORDINATION (Track DR)
+
+    Tests attacks using human-AI coordination to evade detection:
+
+    1. Human Front Detection: Detect humans fronting for AI bots
+    2. AI-Assisted Human Detection: Detect AI-augmented human behavior
+    3. Handoff Pattern Detection: Detect task handoffs between human/AI
+    4. Plausible Deniability Analysis: Detect coordinated deniability
+    5. Mixed Timing Analysis: Detect blended human/bot timing
+
+    Hybrid attacks combine human unpredictability with AI scale.
+    """
+    from datetime import datetime, timezone, timedelta
+    import random
+
+    defenses = {
+        "human_front_detected": False,
+        "ai_assisted_detected": False,
+        "handoff_pattern_detected": False,
+        "deniability_pattern_detected": False,
+        "mixed_timing_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Human Front Detection
+    # ========================================================================
+
+    class HumanFrontDetector:
+        """Detect humans acting as fronts for AI operations."""
+
+        def __init__(self):
+            self.entity_activity = {}
+
+        def record_activity(
+            self, entity: str, action_type: str,
+            complexity: float, timestamp: datetime
+        ):
+            """Record activity with complexity score."""
+            if entity not in self.entity_activity:
+                self.entity_activity[entity] = []
+            self.entity_activity[entity].append({
+                "type": action_type,
+                "complexity": complexity,
+                "timestamp": timestamp,
+            })
+
+        def analyze_complexity_consistency(self, entity: str) -> tuple:
+            """Analyze if complexity is consistent with human capability."""
+            activity = self.entity_activity.get(entity, [])
+            if len(activity) < 5:
+                return False, "Insufficient activity"
+
+            complexities = [a["complexity"] for a in activity]
+            avg_complexity = sum(complexities) / len(complexities)
+
+            # Check for superhuman consistency at high complexity
+            variance = sum((c - avg_complexity)**2 for c in complexities) / len(complexities)
+
+            if avg_complexity > 0.9 and variance < 0.01:
+                return True, f"Superhuman consistency: avg={avg_complexity:.2f}, var={variance:.4f}"
+
+            return False, f"Normal variation: avg={avg_complexity:.2f}, var={variance:.4f}"
+
+        def analyze_response_speed(self, entity: str) -> tuple:
+            """Analyze if response speed exceeds human capability."""
+            activity = self.entity_activity.get(entity, [])
+            if len(activity) < 3:
+                return False, "Insufficient activity"
+
+            fast_responses = 0
+            for i in range(1, len(activity)):
+                gap = (activity[i]["timestamp"] - activity[i-1]["timestamp"]).total_seconds()
+                complexity = activity[i]["complexity"]
+
+                # Complex tasks in <1 second is suspicious
+                if gap < 1.0 and complexity > 0.8:
+                    fast_responses += 1
+
+            if fast_responses >= 2:
+                return True, f"Superhuman speed: {fast_responses} fast complex responses"
+
+            return False, f"Normal speed: {fast_responses} fast responses"
+
+    front_detector = HumanFrontDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate human front with AI-generated responses
+    for i in range(10):
+        front_detector.record_activity(
+            "human_front",
+            "analysis",
+            0.95,  # Consistently high complexity
+            now + timedelta(seconds=i*0.5)  # Very fast
+        )
+
+    consistency_suspicious, cons_msg = front_detector.analyze_complexity_consistency("human_front")
+    speed_suspicious, speed_msg = front_detector.analyze_response_speed("human_front")
+
+    if consistency_suspicious or speed_suspicious:
+        defenses["human_front_detected"] = True
+        front_note = f"Human front detection: {cons_msg}; {speed_msg}"
+    else:
+        front_note = f"Human front analysis: {cons_msg}; {speed_msg}"
+
+    # ========================================================================
+    # Defense 2: AI-Assisted Human Detection
+    # ========================================================================
+
+    class AIAssistedDetector:
+        """Detect AI assistance in human activities."""
+
+        def __init__(self):
+            self.content_samples = {}
+
+        def record_content(self, entity: str, content: str, timestamp: datetime):
+            """Record content for AI signature detection."""
+            if entity not in self.content_samples:
+                self.content_samples[entity] = []
+            self.content_samples[entity].append({
+                "content": content,
+                "timestamp": timestamp,
+            })
+
+        def detect_ai_writing_patterns(self, entity: str) -> tuple:
+            """Detect AI writing patterns in content."""
+            samples = self.content_samples.get(entity, [])
+            if len(samples) < 3:
+                return False, "Insufficient samples"
+
+            ai_markers = 0
+            for sample in samples:
+                content = sample["content"].lower()
+
+                # Common AI writing patterns
+                ai_patterns = [
+                    "it's important to note",
+                    "in conclusion",
+                    "there are several",
+                    "it is worth mentioning",
+                    "firstly", "secondly", "thirdly",
+                    "in summary",
+                    "this demonstrates",
+                ]
+
+                for pattern in ai_patterns:
+                    if pattern in content:
+                        ai_markers += 1
+                        break
+
+            ai_ratio = ai_markers / len(samples)
+
+            if ai_ratio > 0.7:
+                return True, f"AI writing patterns detected: {ai_ratio:.0%}"
+
+            return False, f"AI patterns: {ai_ratio:.0%}"
+
+    ai_detector = AIAssistedDetector()
+
+    # Content with AI writing style
+    ai_style_content = [
+        "It's important to note that this proposal has several key benefits. "
+        "Firstly, it improves efficiency. Secondly, it reduces costs.",
+        "In conclusion, there are several factors to consider. "
+        "It is worth mentioning that the data supports this approach.",
+        "This demonstrates the effectiveness of the proposed solution. "
+        "In summary, we recommend approval.",
+    ]
+
+    for i, content in enumerate(ai_style_content):
+        ai_detector.record_content(
+            "ai_assisted_user",
+            content,
+            now + timedelta(hours=i)
+        )
+
+    ai_detected, ai_msg = ai_detector.detect_ai_writing_patterns("ai_assisted_user")
+
+    if ai_detected:
+        defenses["ai_assisted_detected"] = True
+        ai_note = f"AI assistance: {ai_msg}"
+    else:
+        ai_note = f"AI analysis: {ai_msg}"
+
+    # ========================================================================
+    # Defense 3: Handoff Pattern Detection
+    # ========================================================================
+
+    class HandoffPatternDetector:
+        """Detect task handoffs between human and AI."""
+
+        def __init__(self):
+            self.activity_log = []
+
+        def record_activity(
+            self, entity: str, task: str,
+            behavior_signature: str, timestamp: datetime
+        ):
+            """Record activity with behavior signature."""
+            self.activity_log.append({
+                "entity": entity,
+                "task": task,
+                "signature": behavior_signature,
+                "timestamp": timestamp,
+            })
+
+        def detect_signature_switches(self, entity: str) -> tuple:
+            """Detect behavioral signature switches mid-task."""
+            entity_activity = [a for a in self.activity_log if a["entity"] == entity]
+
+            if len(entity_activity) < 4:
+                return False, "Insufficient activity"
+
+            switches = 0
+            for i in range(1, len(entity_activity)):
+                if entity_activity[i]["signature"] != entity_activity[i-1]["signature"]:
+                    switches += 1
+
+            switch_rate = switches / (len(entity_activity) - 1)
+
+            if switch_rate > 0.4:
+                return True, f"Frequent signature switches: {switch_rate:.0%}"
+
+            return False, f"Signature switch rate: {switch_rate:.0%}"
+
+    handoff_detector = HandoffPatternDetector()
+
+    # Simulate handoffs between human and AI
+    signatures = ["human", "ai", "human", "ai", "ai", "human"]
+    for i, sig in enumerate(signatures):
+        handoff_detector.record_activity(
+            "hybrid_actor",
+            f"task_{i}",
+            sig,
+            now + timedelta(hours=i)
+        )
+
+    handoff_detected, handoff_msg = handoff_detector.detect_signature_switches("hybrid_actor")
+
+    if handoff_detected:
+        defenses["handoff_pattern_detected"] = True
+        handoff_note = f"Handoff pattern: {handoff_msg}"
+    else:
+        handoff_note = f"Handoff analysis: {handoff_msg}"
+
+    # ========================================================================
+    # Defense 4: Plausible Deniability Analysis
+    # ========================================================================
+
+    class DeniabilityAnalyzer:
+        """Analyze coordinated plausible deniability patterns."""
+
+        def __init__(self):
+            self.coordination_events = []
+
+        def record_event(
+            self, entities: list, action: str,
+            timing_spread: float, timestamp: datetime
+        ):
+            """Record coordinated event."""
+            self.coordination_events.append({
+                "entities": entities,
+                "action": action,
+                "timing_spread": timing_spread,
+                "timestamp": timestamp,
+            })
+
+        def detect_coordinated_deniability(self) -> tuple:
+            """Detect coordinated actions with artificial timing spread."""
+            suspicious_events = 0
+
+            for event in self.coordination_events:
+                # Artificial timing spread: too uniform to be coincidence,
+                # too spread to prove coordination
+                if 30 < event["timing_spread"] < 300:  # 30s to 5min
+                    if len(event["entities"]) >= 3:
+                        suspicious_events += 1
+
+            if suspicious_events >= 2:
+                return True, f"Coordinated deniability: {suspicious_events} suspicious events"
+
+            return False, f"Deniability analysis: {suspicious_events} events"
+
+    deniability_analyzer = DeniabilityAnalyzer()
+
+    # Coordinated action with artificial spread
+    deniability_analyzer.record_event(
+        ["actor_a", "actor_b", "actor_c", "actor_d"],
+        "vote_same_direction",
+        60.0,  # 1 minute spread - looks organic but isn't
+        now
+    )
+    deniability_analyzer.record_event(
+        ["actor_a", "actor_b", "actor_c"],
+        "comment_similar_sentiment",
+        120.0,
+        now + timedelta(hours=1)
+    )
+
+    deniability_detected, deny_msg = deniability_analyzer.detect_coordinated_deniability()
+
+    if deniability_detected:
+        defenses["deniability_pattern_detected"] = True
+        deny_note = f"Deniability pattern: {deny_msg}"
+    else:
+        deny_note = f"Deniability analysis: {deny_msg}"
+
+    # ========================================================================
+    # Defense 5: Mixed Timing Analysis
+    # ========================================================================
+
+    class MixedTimingAnalyzer:
+        """Analyze mixed human/bot timing patterns."""
+
+        def __init__(self):
+            self.timing_samples = {}
+
+        def record_timing(self, entity: str, interval: float):
+            """Record inter-action interval."""
+            if entity not in self.timing_samples:
+                self.timing_samples[entity] = []
+            self.timing_samples[entity].append(interval)
+
+        def analyze_timing_mixture(self, entity: str) -> tuple:
+            """Detect mixed human/bot timing distribution."""
+            intervals = self.timing_samples.get(entity, [])
+            if len(intervals) < 10:
+                return False, "Insufficient samples"
+
+            # Check for bimodal distribution
+            fast = [i for i in intervals if i < 2.0]  # <2s = bot-like
+            slow = [i for i in intervals if i > 5.0]  # >5s = human-like
+
+            fast_ratio = len(fast) / len(intervals)
+            slow_ratio = len(slow) / len(intervals)
+
+            # Suspicious if both significant fast AND slow
+            if fast_ratio > 0.3 and slow_ratio > 0.3:
+                return True, f"Bimodal timing: {fast_ratio:.0%} fast, {slow_ratio:.0%} slow"
+
+            return False, f"Timing distribution: {fast_ratio:.0%} fast, {slow_ratio:.0%} slow"
+
+    timing_analyzer = MixedTimingAnalyzer()
+
+    # Simulate hybrid timing (some fast AI, some slow human)
+    hybrid_intervals = [0.5, 0.3, 8.0, 0.4, 12.0, 0.2, 15.0, 0.3, 9.0, 0.5, 7.0, 0.4]
+    for interval in hybrid_intervals:
+        timing_analyzer.record_timing("hybrid_entity", interval)
+
+    mixed_detected, timing_msg = timing_analyzer.analyze_timing_mixture("hybrid_entity")
+
+    if mixed_detected:
+        defenses["mixed_timing_detected"] = True
+        mixed_note = f"Mixed timing: {timing_msg}"
+    else:
+        mixed_note = f"Timing analysis: {timing_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Human-AI Hybrid Coordination (DR)",
+        success=attack_success,
+        setup_cost_atp=1000.0,
+        gain_atp=8000.0 if attack_success else -1000.0,
+        roi=8.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=168,  # Can persist for weeks
+        blocks_until_detected=700,
+        trust_damage=0.90,
+        description=f"""
+HUMAN-AI HYBRID COORDINATION (Track DR):
+- Human front detection: {"DEFENDED" if defenses["human_front_detected"] else "VULNERABLE"}
+  {front_note}
+- AI assistance detection: {"DEFENDED" if defenses["ai_assisted_detected"] else "VULNERABLE"}
+  {ai_note}
+- Handoff pattern detection: {"DEFENDED" if defenses["handoff_pattern_detected"] else "VULNERABLE"}
+  {handoff_note}
+- Deniability pattern detection: {"DEFENDED" if defenses["deniability_pattern_detected"] else "VULNERABLE"}
+  {deny_note}
+- Mixed timing detection: {"DEFENDED" if defenses["mixed_timing_detected"] else "VULNERABLE"}
+  {mixed_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Hybrid attacks combine human unpredictability with AI scale,
+making detection significantly more difficult.
+""".strip(),
+        mitigation=f"""
+Track DR: Human-AI Hybrid Coordination Mitigation:
+1. Detect superhuman consistency and speed in "human" actors
+2. Identify AI writing patterns in content
+3. Detect behavioral signature switches mid-task
+4. Analyze coordinated timing spreads for artificial deniability
+5. Detect bimodal timing distributions indicating hybrid operation
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_emergent_adversarial_behavior() -> AttackResult:
+    """
+    ATTACK 75: EMERGENT ADVERSARIAL BEHAVIOR (Track DR)
+
+    Tests attacks where adversarial behavior emerges from optimization:
+
+    1. Reward Hacking Detection: Detect gaming of incentive structures
+    2. Specification Gaming: Detect satisfying letter but not spirit of rules
+    3. Goodhart's Law Detection: Detect metric optimization gone wrong
+    4. Objective Drift Detection: Detect gradual objective divergence
+    5. Proxy Gaming Detection: Detect gaming of proxy metrics
+
+    Emergent adversarial behavior may not require malicious intent.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "reward_hacking_detected": False,
+        "specification_gaming_detected": False,
+        "goodhart_violation_detected": False,
+        "objective_drift_detected": False,
+        "proxy_gaming_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Reward Hacking Detection
+    # ========================================================================
+
+    class RewardHackingDetector:
+        """Detect gaming of incentive structures."""
+
+        def __init__(self):
+            self.reward_signals = {}  # entity -> [(reward, behavior_quality)]
+            self.expected_correlation = 0.7
+
+        def record_reward(
+            self, entity: str, reward: float,
+            behavior_quality: float
+        ):
+            """Record reward and actual behavior quality."""
+            if entity not in self.reward_signals:
+                self.reward_signals[entity] = []
+            self.reward_signals[entity].append((reward, behavior_quality))
+
+        def detect_reward_hacking(self, entity: str) -> tuple:
+            """Detect if entity is hacking rewards."""
+            signals = self.reward_signals.get(entity, [])
+            if len(signals) < 5:
+                return False, "Insufficient data"
+
+            rewards = [s[0] for s in signals]
+            qualities = [s[1] for s in signals]
+
+            # Calculate correlation
+            n = len(signals)
+            mean_r = sum(rewards) / n
+            mean_q = sum(qualities) / n
+
+            numerator = sum((r - mean_r) * (q - mean_q)
+                           for r, q in zip(rewards, qualities))
+            denom_r = sum((r - mean_r)**2 for r in rewards) ** 0.5
+            denom_q = sum((q - mean_q)**2 for q in qualities) ** 0.5
+
+            if denom_r * denom_q == 0:
+                correlation = 0
+            else:
+                correlation = numerator / (denom_r * denom_q)
+
+            # High rewards with low quality correlation = hacking
+            avg_reward = sum(rewards) / n
+            if avg_reward > 0.8 and correlation < 0.3:
+                return True, f"Reward hacking: high rewards ({avg_reward:.2f}) but low quality correlation ({correlation:.2f})"
+
+            return False, f"Reward-quality correlation: {correlation:.2f}"
+
+    reward_detector = RewardHackingDetector()
+
+    # Simulate reward hacking (high rewards, low quality)
+    for i in range(10):
+        reward_detector.record_reward(
+            "hacker",
+            0.9,  # Always high reward
+            0.3 + 0.1 * (i % 3)  # Low, inconsistent quality
+        )
+
+    hacking_detected, reward_msg = reward_detector.detect_reward_hacking("hacker")
+
+    if hacking_detected:
+        defenses["reward_hacking_detected"] = True
+        reward_note = f"Reward hacking: {reward_msg}"
+    else:
+        reward_note = f"Reward analysis: {reward_msg}"
+
+    # ========================================================================
+    # Defense 2: Specification Gaming Detection
+    # ========================================================================
+
+    class SpecificationGamingDetector:
+        """Detect satisfying letter but not spirit of rules."""
+
+        def __init__(self):
+            self.compliance_records = {}
+
+        def record_compliance(
+            self, entity: str, rule: str,
+            technical_compliance: bool,
+            spirit_compliance: float  # 0-1 score
+        ):
+            """Record rule compliance."""
+            if entity not in self.compliance_records:
+                self.compliance_records[entity] = []
+            self.compliance_records[entity].append({
+                "rule": rule,
+                "technical": technical_compliance,
+                "spirit": spirit_compliance,
+            })
+
+        def detect_spec_gaming(self, entity: str) -> tuple:
+            """Detect specification gaming pattern."""
+            records = self.compliance_records.get(entity, [])
+            if len(records) < 3:
+                return False, "Insufficient records"
+
+            gaming_count = 0
+            for record in records:
+                # Technical compliance but low spirit compliance = gaming
+                if record["technical"] and record["spirit"] < 0.4:
+                    gaming_count += 1
+
+            gaming_ratio = gaming_count / len(records)
+
+            if gaming_ratio > 0.5:
+                return True, f"Specification gaming: {gaming_ratio:.0%} of actions game the rules"
+
+            return False, f"Gaming ratio: {gaming_ratio:.0%}"
+
+    spec_detector = SpecificationGamingDetector()
+
+    # Simulate spec gaming
+    games = [
+        ("min_activity_rule", True, 0.2),  # Technically active, actually dormant
+        ("quality_threshold", True, 0.3),  # Technically passes, low quality
+        ("response_time_rule", True, 0.1),  # Quick response, useless content
+        ("contribution_rule", True, 0.5),  # Contributed, but minimally
+    ]
+
+    for rule, tech, spirit in games:
+        spec_detector.record_compliance("gamer", rule, tech, spirit)
+
+    spec_gaming, spec_msg = spec_detector.detect_spec_gaming("gamer")
+
+    if spec_gaming:
+        defenses["specification_gaming_detected"] = True
+        spec_note = f"Specification gaming: {spec_msg}"
+    else:
+        spec_note = f"Specification analysis: {spec_msg}"
+
+    # ========================================================================
+    # Defense 3: Goodhart's Law Detection
+    # ========================================================================
+
+    class GoodhartDetector:
+        """Detect when metrics cease to be good measures."""
+
+        def __init__(self):
+            self.metric_history = {}  # metric -> [(value, true_quality)]
+            self.alert_threshold = 0.3
+
+        def record_metric(
+            self, metric_name: str, metric_value: float,
+            true_quality: float
+        ):
+            """Record metric and true quality."""
+            if metric_name not in self.metric_history:
+                self.metric_history[metric_name] = []
+            self.metric_history[metric_name].append((metric_value, true_quality))
+
+        def detect_goodhart_divergence(self, metric_name: str) -> tuple:
+            """Detect if metric has diverged from true quality."""
+            history = self.metric_history.get(metric_name, [])
+            if len(history) < 5:
+                return False, "Insufficient history"
+
+            # Check if metric is increasing while quality is decreasing
+            recent = history[-5:]
+            early = history[:5] if len(history) >= 10 else history[:len(history)//2]
+
+            recent_metric = sum(h[0] for h in recent) / len(recent)
+            recent_quality = sum(h[1] for h in recent) / len(recent)
+            early_metric = sum(h[0] for h in early) / len(early)
+            early_quality = sum(h[1] for h in early) / len(early)
+
+            metric_change = recent_metric - early_metric
+            quality_change = recent_quality - early_quality
+
+            if metric_change > 0.1 and quality_change < -0.1:
+                return True, f"Goodhart divergence: metric +{metric_change:.2f}, quality {quality_change:.2f}"
+
+            return False, f"Metric-quality aligned: metric {metric_change:+.2f}, quality {quality_change:+.2f}"
+
+    goodhart_detector = GoodhartDetector()
+
+    # Simulate Goodhart's Law violation
+    for i in range(10):
+        goodhart_detector.record_metric(
+            "engagement_score",
+            0.5 + i * 0.05,  # Metric increasing
+            0.7 - i * 0.04   # True quality decreasing
+        )
+
+    goodhart_detected, goodhart_msg = goodhart_detector.detect_goodhart_divergence("engagement_score")
+
+    if goodhart_detected:
+        defenses["goodhart_violation_detected"] = True
+        goodhart_note = f"Goodhart's Law: {goodhart_msg}"
+    else:
+        goodhart_note = f"Goodhart analysis: {goodhart_msg}"
+
+    # ========================================================================
+    # Defense 4: Objective Drift Detection
+    # ========================================================================
+
+    class ObjectiveDriftDetector:
+        """Detect gradual drift from stated objectives."""
+
+        def __init__(self):
+            self.objective_snapshots = []
+
+        def record_objective_state(
+            self, timestamp: datetime,
+            stated_objective: str,
+            observed_behavior: dict
+        ):
+            """Record objective state snapshot."""
+            self.objective_snapshots.append({
+                "timestamp": timestamp,
+                "stated": stated_objective,
+                "observed": observed_behavior,
+            })
+
+        def calculate_drift(self) -> tuple:
+            """Calculate objective drift over time."""
+            if len(self.objective_snapshots) < 3:
+                return False, "Insufficient snapshots"
+
+            # Compare early vs recent behavior alignment with stated objective
+            early = self.objective_snapshots[:3]
+            recent = self.objective_snapshots[-3:]
+
+            def alignment_score(snapshots):
+                scores = []
+                for s in snapshots:
+                    # Simple: check if stated objective keywords appear in behavior
+                    stated_keywords = set(s["stated"].lower().split())
+                    behavior_keywords = set(str(s["observed"]).lower().split())
+                    overlap = len(stated_keywords & behavior_keywords) / max(len(stated_keywords), 1)
+                    scores.append(overlap)
+                return sum(scores) / len(scores)
+
+            early_alignment = alignment_score(early)
+            recent_alignment = alignment_score(recent)
+            drift = early_alignment - recent_alignment
+
+            if drift > 0.2:
+                return True, f"Objective drift detected: {drift:.0%} reduction in alignment"
+
+            return False, f"Objective stability: {drift:.0%} drift"
+
+    drift_detector = ObjectiveDriftDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate objective drift
+    drift_detector.record_objective_state(
+        now, "maximize user value", {"actions": "user value focus"}
+    )
+    drift_detector.record_objective_state(
+        now + timedelta(days=30), "maximize user value", {"actions": "user engagement metrics"}
+    )
+    drift_detector.record_objective_state(
+        now + timedelta(days=60), "maximize user value", {"actions": "ad revenue optimization"}
+    )
+
+    drift_detected, drift_msg = drift_detector.calculate_drift()
+
+    if drift_detected:
+        defenses["objective_drift_detected"] = True
+        drift_note = f"Objective drift: {drift_msg}"
+    else:
+        drift_note = f"Objective analysis: {drift_msg}"
+
+    # ========================================================================
+    # Defense 5: Proxy Gaming Detection
+    # ========================================================================
+
+    class ProxyGamingDetector:
+        """Detect gaming of proxy metrics."""
+
+        def __init__(self):
+            self.proxy_measurements = {}
+
+        def record_measurement(
+            self, proxy_name: str, proxy_value: float,
+            ground_truth: float
+        ):
+            """Record proxy and ground truth measurement."""
+            if proxy_name not in self.proxy_measurements:
+                self.proxy_measurements[proxy_name] = []
+            self.proxy_measurements[proxy_name].append((proxy_value, ground_truth))
+
+        def detect_proxy_gaming(self, proxy_name: str) -> tuple:
+            """Detect if proxy is being gamed."""
+            measurements = self.proxy_measurements.get(proxy_name, [])
+            if len(measurements) < 5:
+                return False, "Insufficient measurements"
+
+            # Check for systematic gap between proxy and truth
+            gaps = [abs(p - t) for p, t in measurements]
+            avg_gap = sum(gaps) / len(gaps)
+
+            # Check if gap is widening
+            early_gap = sum(gaps[:len(gaps)//2]) / max(len(gaps)//2, 1)
+            late_gap = sum(gaps[len(gaps)//2:]) / max(len(gaps) - len(gaps)//2, 1)
+
+            if avg_gap > 0.3 and late_gap > early_gap:
+                return True, f"Proxy gaming: gap={avg_gap:.2f}, widening from {early_gap:.2f} to {late_gap:.2f}"
+
+            return False, f"Proxy validity: gap={avg_gap:.2f}"
+
+    proxy_detector = ProxyGamingDetector()
+
+    # Simulate proxy gaming
+    for i in range(10):
+        proxy_detector.record_measurement(
+            "response_quality",
+            0.8 + i * 0.02,  # Proxy looks good and improving
+            0.5 - i * 0.03   # Ground truth is actually declining
+        )
+
+    proxy_gaming, proxy_msg = proxy_detector.detect_proxy_gaming("response_quality")
+
+    if proxy_gaming:
+        defenses["proxy_gaming_detected"] = True
+        proxy_note = f"Proxy gaming: {proxy_msg}"
+    else:
+        proxy_note = f"Proxy analysis: {proxy_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Emergent Adversarial Behavior (DR)",
+        success=attack_success,
+        setup_cost_atp=0.0,  # No cost - emergent from optimization
+        gain_atp=5000.0 if attack_success else 0.0,
+        roi=float('inf') if attack_success else 0.0,
+        detection_probability=0.40,
+        time_to_detection_hours=720,  # Can take weeks to detect
+        blocks_until_detected=3000,
+        trust_damage=0.60,
+        description=f"""
+EMERGENT ADVERSARIAL BEHAVIOR (Track DR):
+- Reward hacking detection: {"DEFENDED" if defenses["reward_hacking_detected"] else "VULNERABLE"}
+  {reward_note}
+- Specification gaming detection: {"DEFENDED" if defenses["specification_gaming_detected"] else "VULNERABLE"}
+  {spec_note}
+- Goodhart violation detection: {"DEFENDED" if defenses["goodhart_violation_detected"] else "VULNERABLE"}
+  {goodhart_note}
+- Objective drift detection: {"DEFENDED" if defenses["objective_drift_detected"] else "VULNERABLE"}
+  {drift_note}
+- Proxy gaming detection: {"DEFENDED" if defenses["proxy_gaming_detected"] else "VULNERABLE"}
+  {proxy_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Emergent adversarial behavior can arise from pure optimization
+without any malicious intent, making it particularly insidious.
+""".strip(),
+        mitigation=f"""
+Track DR: Emergent Adversarial Behavior Mitigation:
+1. Monitor reward-quality correlation for hacking
+2. Track spirit vs letter of rule compliance
+3. Detect metric-quality divergence (Goodhart's Law)
+4. Monitor for gradual objective drift
+5. Validate proxy metrics against ground truth
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_collective_action_gaming() -> AttackResult:
+    """
+    ATTACK 76: COLLECTIVE ACTION GAMING (Track DR)
+
+    Tests attacks exploiting collective action problems:
+
+    1. Tragedy of Commons Detection: Detect resource overexploitation
+    2. Free Rider Detection: Detect benefit without contribution
+    3. Coordination Failure Exploitation: Exploit failures to coordinate
+    4. Race to Bottom Detection: Detect quality degradation spirals
+    5. Public Goods Underprovision: Detect contribution withholding
+
+    Collective action attacks exploit structural incentive problems.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "tragedy_of_commons_detected": False,
+        "free_rider_detected": False,
+        "coordination_failure_detected": False,
+        "race_to_bottom_detected": False,
+        "underprovision_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Tragedy of the Commons Detection
+    # ========================================================================
+
+    class TragedyDetector:
+        """Detect tragedy of the commons patterns."""
+
+        def __init__(self, sustainable_rate: float):
+            self.sustainable_rate = sustainable_rate
+            self.resource_usage = {}  # entity -> total usage
+            self.usage_history = []
+
+        def record_usage(
+            self, entity: str, amount: float, timestamp: datetime
+        ):
+            """Record resource usage."""
+            self.resource_usage[entity] = \
+                self.resource_usage.get(entity, 0) + amount
+            self.usage_history.append({
+                "entity": entity,
+                "amount": amount,
+                "timestamp": timestamp,
+            })
+
+        def detect_overexploitation(self) -> tuple:
+            """Detect if resources are being overexploited."""
+            if len(self.usage_history) < 5:
+                return False, "Insufficient history"
+
+            # Calculate usage rate
+            time_span = (
+                self.usage_history[-1]["timestamp"] -
+                self.usage_history[0]["timestamp"]
+            ).total_seconds() / 3600  # hours
+
+            total_usage = sum(u["amount"] for u in self.usage_history)
+            usage_rate = total_usage / max(time_span, 1)
+
+            if usage_rate > self.sustainable_rate * 1.5:
+                return True, f"Overexploitation: rate {usage_rate:.2f}/hr exceeds sustainable {self.sustainable_rate:.2f}/hr"
+
+            return False, f"Usage rate: {usage_rate:.2f}/hr (sustainable: {self.sustainable_rate:.2f}/hr)"
+
+    tragedy_detector = TragedyDetector(sustainable_rate=10.0)
+    now = datetime.now(timezone.utc)
+
+    # Simulate overexploitation
+    for i in range(10):
+        tragedy_detector.record_usage(
+            f"entity_{i % 3}",
+            20.0,  # Each entity taking 2x sustainable
+            now + timedelta(hours=i * 0.5)
+        )
+
+    overexploitation, tragedy_msg = tragedy_detector.detect_overexploitation()
+
+    if overexploitation:
+        defenses["tragedy_of_commons_detected"] = True
+        tragedy_note = f"Tragedy of commons: {tragedy_msg}"
+    else:
+        tragedy_note = f"Commons analysis: {tragedy_msg}"
+
+    # ========================================================================
+    # Defense 2: Free Rider Detection
+    # ========================================================================
+
+    class FreeRiderDetector:
+        """Detect entities benefiting without contributing."""
+
+        def __init__(self):
+            self.contributions = {}  # entity -> total contribution
+            self.benefits_received = {}  # entity -> total benefits
+
+        def record_contribution(self, entity: str, amount: float):
+            """Record contribution to public good."""
+            self.contributions[entity] = \
+                self.contributions.get(entity, 0) + amount
+
+        def record_benefit(self, entity: str, amount: float):
+            """Record benefit received."""
+            self.benefits_received[entity] = \
+                self.benefits_received.get(entity, 0) + amount
+
+        def detect_free_riders(self) -> tuple:
+            """Detect free rider entities."""
+            free_riders = []
+
+            all_entities = set(self.contributions.keys()) | set(self.benefits_received.keys())
+
+            for entity in all_entities:
+                contrib = self.contributions.get(entity, 0)
+                benefit = self.benefits_received.get(entity, 0)
+
+                # Free rider: high benefit, low contribution
+                if benefit > 0 and (contrib == 0 or benefit / max(contrib, 0.01) > 5):
+                    free_riders.append(entity)
+
+            if len(free_riders) > 0:
+                return True, f"Free riders detected: {len(free_riders)} entities ({', '.join(free_riders[:3])})"
+
+            return False, "No free riders detected"
+
+    free_rider_detector = FreeRiderDetector()
+
+    # Contributors
+    free_rider_detector.record_contribution("contributor_1", 100.0)
+    free_rider_detector.record_contribution("contributor_2", 80.0)
+    free_rider_detector.record_benefit("contributor_1", 50.0)
+    free_rider_detector.record_benefit("contributor_2", 50.0)
+
+    # Free riders
+    free_rider_detector.record_contribution("free_rider_1", 1.0)
+    free_rider_detector.record_benefit("free_rider_1", 50.0)
+    free_rider_detector.record_contribution("free_rider_2", 0.0)
+    free_rider_detector.record_benefit("free_rider_2", 40.0)
+
+    free_riding, free_rider_msg = free_rider_detector.detect_free_riders()
+
+    if free_riding:
+        defenses["free_rider_detected"] = True
+        free_rider_note = f"Free rider: {free_rider_msg}"
+    else:
+        free_rider_note = f"Free rider analysis: {free_rider_msg}"
+
+    # ========================================================================
+    # Defense 3: Coordination Failure Detection
+    # ========================================================================
+
+    class CoordinationFailureDetector:
+        """Detect exploitation of coordination failures."""
+
+        def __init__(self):
+            self.coordination_attempts = []
+
+        def record_coordination_attempt(
+            self, participants: list, success: bool,
+            potential_gain: float, actual_outcome: float
+        ):
+            """Record coordination attempt and outcome."""
+            self.coordination_attempts.append({
+                "participants": participants,
+                "success": success,
+                "potential": potential_gain,
+                "actual": actual_outcome,
+            })
+
+        def detect_coordination_exploitation(self) -> tuple:
+            """Detect if coordination failures are being exploited."""
+            if len(self.coordination_attempts) < 3:
+                return False, "Insufficient data"
+
+            failures = [a for a in self.coordination_attempts if not a["success"]]
+            if not failures:
+                return False, "No coordination failures"
+
+            # Check if some entity consistently gains from failures
+            total_loss = sum(f["potential"] - f["actual"] for f in failures)
+
+            # In a failure, someone might still benefit
+            failure_rate = len(failures) / len(self.coordination_attempts)
+
+            if failure_rate > 0.5 and total_loss > 0:
+                return True, f"Coordination exploitation: {failure_rate:.0%} failure rate, {total_loss:.1f} total loss"
+
+            return False, f"Coordination: {failure_rate:.0%} failure rate"
+
+    coord_detector = CoordinationFailureDetector()
+
+    # Simulate coordination failures
+    coord_detector.record_coordination_attempt(
+        ["a", "b", "c"], False, 100.0, 30.0
+    )
+    coord_detector.record_coordination_attempt(
+        ["a", "b", "d"], False, 80.0, 20.0
+    )
+    coord_detector.record_coordination_attempt(
+        ["a", "b", "c"], True, 90.0, 85.0
+    )
+    coord_detector.record_coordination_attempt(
+        ["b", "c", "d"], False, 70.0, 15.0
+    )
+
+    coord_failure, coord_msg = coord_detector.detect_coordination_exploitation()
+
+    if coord_failure:
+        defenses["coordination_failure_detected"] = True
+        coord_note = f"Coordination failure: {coord_msg}"
+    else:
+        coord_note = f"Coordination analysis: {coord_msg}"
+
+    # ========================================================================
+    # Defense 4: Race to Bottom Detection
+    # ========================================================================
+
+    class RaceToBottomDetector:
+        """Detect quality degradation spirals."""
+
+        def __init__(self):
+            self.quality_history = []
+
+        def record_quality(
+            self, entity: str, quality: float, timestamp: datetime
+        ):
+            """Record quality measurement."""
+            self.quality_history.append({
+                "entity": entity,
+                "quality": quality,
+                "timestamp": timestamp,
+            })
+
+        def detect_race_to_bottom(self) -> tuple:
+            """Detect systematic quality decline."""
+            if len(self.quality_history) < 6:
+                return False, "Insufficient history"
+
+            # Split into early and late
+            mid = len(self.quality_history) // 2
+            early = self.quality_history[:mid]
+            late = self.quality_history[mid:]
+
+            early_avg = sum(q["quality"] for q in early) / len(early)
+            late_avg = sum(q["quality"] for q in late) / len(late)
+
+            decline = early_avg - late_avg
+
+            if decline > 0.2:
+                return True, f"Race to bottom: quality declined {decline:.0%} (from {early_avg:.2f} to {late_avg:.2f})"
+
+            return False, f"Quality trend: {-decline:+.0%}"
+
+    race_detector = RaceToBottomDetector()
+
+    # Simulate quality decline
+    for i in range(10):
+        race_detector.record_quality(
+            f"entity_{i % 3}",
+            0.9 - i * 0.05,  # Quality declining
+            now + timedelta(days=i)
+        )
+
+    race_to_bottom, race_msg = race_detector.detect_race_to_bottom()
+
+    if race_to_bottom:
+        defenses["race_to_bottom_detected"] = True
+        race_note = f"Race to bottom: {race_msg}"
+    else:
+        race_note = f"Quality trend: {race_msg}"
+
+    # ========================================================================
+    # Defense 5: Public Goods Underprovision Detection
+    # ========================================================================
+
+    class UnderprovisionDetector:
+        """Detect public goods underprovision."""
+
+        def __init__(self, optimal_provision: float):
+            self.optimal_provision = optimal_provision
+            self.contributions = []
+
+        def record_contribution(
+            self, entity: str, amount: float, timestamp: datetime
+        ):
+            """Record contribution to public good."""
+            self.contributions.append({
+                "entity": entity,
+                "amount": amount,
+                "timestamp": timestamp,
+            })
+
+        def detect_underprovision(self) -> tuple:
+            """Detect if public good is underprovided."""
+            if len(self.contributions) < 3:
+                return False, "Insufficient data"
+
+            total_contrib = sum(c["amount"] for c in self.contributions)
+            provision_ratio = total_contrib / self.optimal_provision
+
+            if provision_ratio < 0.5:
+                return True, f"Severe underprovision: {provision_ratio:.0%} of optimal"
+            elif provision_ratio < 0.8:
+                return True, f"Underprovision: {provision_ratio:.0%} of optimal"
+
+            return False, f"Provision level: {provision_ratio:.0%} of optimal"
+
+    underprovision_detector = UnderprovisionDetector(optimal_provision=500.0)
+
+    # Simulate underprovision
+    for i in range(5):
+        underprovision_detector.record_contribution(
+            f"entity_{i}",
+            30.0,  # Each contributes less than fair share
+            now + timedelta(hours=i)
+        )
+
+    underprovision, under_msg = underprovision_detector.detect_underprovision()
+
+    if underprovision:
+        defenses["underprovision_detected"] = True
+        under_note = f"Underprovision: {under_msg}"
+    else:
+        under_note = f"Provision analysis: {under_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Collective Action Gaming (DR)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=3000.0 if attack_success else -100.0,
+        roi=30.0 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=336,  # 2 weeks
+        blocks_until_detected=1400,
+        trust_damage=0.50,
+        description=f"""
+COLLECTIVE ACTION GAMING (Track DR):
+- Tragedy of commons: {"DEFENDED" if defenses["tragedy_of_commons_detected"] else "VULNERABLE"}
+  {tragedy_note}
+- Free rider detection: {"DEFENDED" if defenses["free_rider_detected"] else "VULNERABLE"}
+  {free_rider_note}
+- Coordination failure: {"DEFENDED" if defenses["coordination_failure_detected"] else "VULNERABLE"}
+  {coord_note}
+- Race to bottom: {"DEFENDED" if defenses["race_to_bottom_detected"] else "VULNERABLE"}
+  {race_note}
+- Underprovision: {"DEFENDED" if defenses["underprovision_detected"] else "VULNERABLE"}
+  {under_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Collective action attacks exploit structural incentive problems
+rather than individual vulnerabilities.
+""".strip(),
+        mitigation=f"""
+Track DR: Collective Action Gaming Mitigation:
+1. Monitor resource usage rates against sustainability
+2. Track contribution/benefit ratios for free riding
+3. Detect patterns of coordination failure exploitation
+4. Monitor quality trends for race to bottom dynamics
+5. Track public goods provision against optimal levels
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_network_effect_manipulation() -> AttackResult:
+    """
+    ATTACK 77: NETWORK EFFECT MANIPULATION (Track DR)
+
+    Tests attacks manipulating network effects:
+
+    1. Critical Mass Gaming: Manipulate perceived adoption levels
+    2. Lock-In Exploitation: Exploit switching costs
+    3. Winner-Take-All Acceleration: Artificially accelerate dominance
+    4. Network Partition Exploitation: Exploit fragmented networks
+    5. Bandwagon Effect Manipulation: Create false momentum
+
+    Network effect attacks can create self-fulfilling prophecies.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "critical_mass_gaming_detected": False,
+        "lock_in_exploitation_detected": False,
+        "winner_take_all_detected": False,
+        "partition_exploitation_detected": False,
+        "bandwagon_manipulation_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Critical Mass Gaming Detection
+    # ========================================================================
+
+    class CriticalMassDetector:
+        """Detect manipulation of perceived adoption levels."""
+
+        def __init__(self):
+            self.adoption_signals = []  # List of adoption events
+            self.verified_adopters = set()
+
+        def record_adoption(
+            self, entity: str, verified: bool, timestamp: datetime
+        ):
+            """Record adoption event."""
+            self.adoption_signals.append({
+                "entity": entity,
+                "verified": verified,
+                "timestamp": timestamp,
+            })
+            if verified:
+                self.verified_adopters.add(entity)
+
+        def detect_inflated_adoption(self) -> tuple:
+            """Detect if adoption numbers are inflated."""
+            if len(self.adoption_signals) < 5:
+                return False, "Insufficient data"
+
+            total_claimed = len(self.adoption_signals)
+            verified_count = len(self.verified_adopters)
+
+            # Also check for unique entities
+            unique_entities = len(set(a["entity"] for a in self.adoption_signals))
+
+            verification_ratio = verified_count / total_claimed
+            uniqueness_ratio = unique_entities / total_claimed
+
+            if verification_ratio < 0.5 or uniqueness_ratio < 0.7:
+                return True, (
+                    f"Inflated adoption: {verification_ratio:.0%} verified, "
+                    f"{uniqueness_ratio:.0%} unique"
+                )
+
+            return False, f"Adoption authentic: {verification_ratio:.0%} verified"
+
+    critical_mass_detector = CriticalMassDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate inflated adoption (repeat entities, unverified)
+    for i in range(10):
+        critical_mass_detector.record_adoption(
+            f"entity_{i % 3}",  # Only 3 real entities
+            i < 2,  # Only first 2 verified
+            now + timedelta(hours=i)
+        )
+
+    inflated, critical_msg = critical_mass_detector.detect_inflated_adoption()
+
+    if inflated:
+        defenses["critical_mass_gaming_detected"] = True
+        critical_note = f"Critical mass gaming: {critical_msg}"
+    else:
+        critical_note = f"Adoption analysis: {critical_msg}"
+
+    # ========================================================================
+    # Defense 2: Lock-In Exploitation Detection
+    # ========================================================================
+
+    class LockInDetector:
+        """Detect exploitation of switching costs."""
+
+        def __init__(self):
+            self.switching_attempts = []
+
+        def record_switch_attempt(
+            self, entity: str, from_platform: str,
+            to_platform: str, completed: bool,
+            switching_cost: float
+        ):
+            """Record switching attempt."""
+            self.switching_attempts.append({
+                "entity": entity,
+                "from": from_platform,
+                "to": to_platform,
+                "completed": completed,
+                "cost": switching_cost,
+            })
+
+        def detect_lock_in_exploitation(self) -> tuple:
+            """Detect if lock-in is being exploited."""
+            if len(self.switching_attempts) < 3:
+                return False, "Insufficient data"
+
+            failed_switches = [s for s in self.switching_attempts if not s["completed"]]
+            avg_cost = sum(s["cost"] for s in self.switching_attempts) / len(self.switching_attempts)
+
+            failure_rate = len(failed_switches) / len(self.switching_attempts)
+
+            if failure_rate > 0.6 and avg_cost > 100:
+                return True, f"Lock-in exploitation: {failure_rate:.0%} failed switches, avg cost {avg_cost:.0f}"
+
+            return False, f"Switch success rate: {1-failure_rate:.0%}"
+
+    lock_in_detector = LockInDetector()
+
+    # Simulate lock-in exploitation
+    lock_in_detector.record_switch_attempt("user_1", "platform_a", "platform_b", False, 200)
+    lock_in_detector.record_switch_attempt("user_2", "platform_a", "platform_b", False, 180)
+    lock_in_detector.record_switch_attempt("user_3", "platform_a", "platform_b", True, 150)
+    lock_in_detector.record_switch_attempt("user_4", "platform_a", "platform_b", False, 220)
+
+    lock_in, lock_in_msg = lock_in_detector.detect_lock_in_exploitation()
+
+    if lock_in:
+        defenses["lock_in_exploitation_detected"] = True
+        lock_in_note = f"Lock-in exploitation: {lock_in_msg}"
+    else:
+        lock_in_note = f"Lock-in analysis: {lock_in_msg}"
+
+    # ========================================================================
+    # Defense 3: Winner-Take-All Acceleration Detection
+    # ========================================================================
+
+    class WinnerTakeAllDetector:
+        """Detect artificial acceleration of market dominance."""
+
+        def __init__(self):
+            self.market_shares = []  # List of (timestamp, {entity: share})
+
+        def record_market_state(
+            self, timestamp: datetime, shares: dict
+        ):
+            """Record market share snapshot."""
+            self.market_shares.append((timestamp, shares))
+
+        def detect_artificial_acceleration(self) -> tuple:
+            """Detect if winner-take-all is being artificially accelerated."""
+            if len(self.market_shares) < 3:
+                return False, "Insufficient history"
+
+            # Calculate dominance growth rate
+            early_shares = self.market_shares[0][1]
+            late_shares = self.market_shares[-1][1]
+
+            # Find leader
+            early_leader = max(early_shares.items(), key=lambda x: x[1])
+            late_leader = max(late_shares.items(), key=lambda x: x[1])
+
+            if early_leader[0] == late_leader[0]:
+                growth = late_leader[1] - early_leader[1]
+                time_periods = len(self.market_shares) - 1
+
+                growth_rate = growth / time_periods
+
+                if growth_rate > 0.1:  # >10% per period
+                    return True, f"Accelerated dominance: {early_leader[0]} grew {growth_rate:.0%}/period"
+
+            return False, f"Normal market dynamics"
+
+    wta_detector = WinnerTakeAllDetector()
+
+    # Simulate artificial acceleration
+    wta_detector.record_market_state(now, {"A": 0.4, "B": 0.35, "C": 0.25})
+    wta_detector.record_market_state(now + timedelta(days=7), {"A": 0.55, "B": 0.28, "C": 0.17})
+    wta_detector.record_market_state(now + timedelta(days=14), {"A": 0.72, "B": 0.18, "C": 0.10})
+
+    wta_detected, wta_msg = wta_detector.detect_artificial_acceleration()
+
+    if wta_detected:
+        defenses["winner_take_all_detected"] = True
+        wta_note = f"Winner-take-all: {wta_msg}"
+    else:
+        wta_note = f"Market analysis: {wta_msg}"
+
+    # ========================================================================
+    # Defense 4: Network Partition Exploitation Detection
+    # ========================================================================
+
+    class PartitionExploitDetector:
+        """Detect exploitation of network partitions."""
+
+        def __init__(self):
+            self.cross_partition_events = []
+
+        def record_cross_partition_event(
+            self, entity: str, partition_a: str, partition_b: str,
+            action: str, benefit: float
+        ):
+            """Record cross-partition activity."""
+            self.cross_partition_events.append({
+                "entity": entity,
+                "partition_a": partition_a,
+                "partition_b": partition_b,
+                "action": action,
+                "benefit": benefit,
+            })
+
+        def detect_partition_exploitation(self) -> tuple:
+            """Detect if partitions are being exploited."""
+            if len(self.cross_partition_events) < 3:
+                return False, "Insufficient data"
+
+            # Check for arbitrage-like patterns
+            entity_benefits = {}
+            for event in self.cross_partition_events:
+                entity = event["entity"]
+                entity_benefits[entity] = \
+                    entity_benefits.get(entity, 0) + event["benefit"]
+
+            # High concentrated benefits = exploitation
+            total_benefit = sum(entity_benefits.values())
+            max_benefit = max(entity_benefits.values()) if entity_benefits else 0
+
+            if total_benefit > 0 and max_benefit / total_benefit > 0.6:
+                exploiter = max(entity_benefits.items(), key=lambda x: x[1])[0]
+                return True, f"Partition exploitation: {exploiter} captured {max_benefit/total_benefit:.0%} of cross-partition value"
+
+            return False, f"Cross-partition activity normal"
+
+    partition_detector = PartitionExploitDetector()
+
+    # Simulate partition exploitation
+    partition_detector.record_cross_partition_event("exploiter", "east", "west", "arbitrage", 100)
+    partition_detector.record_cross_partition_event("exploiter", "east", "west", "arbitrage", 80)
+    partition_detector.record_cross_partition_event("normal_user", "east", "west", "transfer", 20)
+
+    partition_exploit, partition_msg = partition_detector.detect_partition_exploitation()
+
+    if partition_exploit:
+        defenses["partition_exploitation_detected"] = True
+        partition_note = f"Partition exploitation: {partition_msg}"
+    else:
+        partition_note = f"Partition analysis: {partition_msg}"
+
+    # ========================================================================
+    # Defense 5: Bandwagon Effect Manipulation Detection
+    # ========================================================================
+
+    class BandwagonDetector:
+        """Detect manipulation of bandwagon effects."""
+
+        def __init__(self):
+            self.momentum_signals = []
+
+        def record_momentum_signal(
+            self, signal_type: str, magnitude: float,
+            organic: bool, timestamp: datetime
+        ):
+            """Record momentum signal."""
+            self.momentum_signals.append({
+                "type": signal_type,
+                "magnitude": magnitude,
+                "organic": organic,
+                "timestamp": timestamp,
+            })
+
+        def detect_artificial_momentum(self) -> tuple:
+            """Detect artificially created momentum."""
+            if len(self.momentum_signals) < 5:
+                return False, "Insufficient signals"
+
+            organic_count = sum(1 for s in self.momentum_signals if s["organic"])
+            total_magnitude = sum(s["magnitude"] for s in self.momentum_signals)
+            organic_magnitude = sum(s["magnitude"] for s in self.momentum_signals if s["organic"])
+
+            organic_ratio = organic_magnitude / total_magnitude if total_magnitude > 0 else 1
+
+            if organic_ratio < 0.4:
+                return True, f"Artificial momentum: {organic_ratio:.0%} organic (of {total_magnitude:.0f} total)"
+
+            return False, f"Momentum authenticity: {organic_ratio:.0%} organic"
+
+    bandwagon_detector = BandwagonDetector()
+
+    # Simulate artificial momentum
+    bandwagon_detector.record_momentum_signal("endorsement", 50, False, now)
+    bandwagon_detector.record_momentum_signal("endorsement", 40, False, now + timedelta(hours=1))
+    bandwagon_detector.record_momentum_signal("usage", 20, True, now + timedelta(hours=2))
+    bandwagon_detector.record_momentum_signal("endorsement", 30, False, now + timedelta(hours=3))
+    bandwagon_detector.record_momentum_signal("usage", 15, True, now + timedelta(hours=4))
+
+    bandwagon_detected, bandwagon_msg = bandwagon_detector.detect_artificial_momentum()
+
+    if bandwagon_detected:
+        defenses["bandwagon_manipulation_detected"] = True
+        bandwagon_note = f"Bandwagon manipulation: {bandwagon_msg}"
+    else:
+        bandwagon_note = f"Momentum analysis: {bandwagon_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Network Effect Manipulation (DR)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=10000.0 if attack_success else -500.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=504,  # 3 weeks
+        blocks_until_detected=2100,
+        trust_damage=0.70,
+        description=f"""
+NETWORK EFFECT MANIPULATION (Track DR):
+- Critical mass gaming: {"DEFENDED" if defenses["critical_mass_gaming_detected"] else "VULNERABLE"}
+  {critical_note}
+- Lock-in exploitation: {"DEFENDED" if defenses["lock_in_exploitation_detected"] else "VULNERABLE"}
+  {lock_in_note}
+- Winner-take-all acceleration: {"DEFENDED" if defenses["winner_take_all_detected"] else "VULNERABLE"}
+  {wta_note}
+- Partition exploitation: {"DEFENDED" if defenses["partition_exploitation_detected"] else "VULNERABLE"}
+  {partition_note}
+- Bandwagon manipulation: {"DEFENDED" if defenses["bandwagon_manipulation_detected"] else "VULNERABLE"}
+  {bandwagon_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Network effect manipulation creates self-fulfilling prophecies
+that can entrench unfair advantages.
+""".strip(),
+        mitigation=f"""
+Track DR: Network Effect Manipulation Mitigation:
+1. Verify adoption authenticity (unique, verified entities)
+2. Monitor switching costs and failure rates
+3. Track market share growth rates for artificial acceleration
+4. Detect concentrated cross-partition benefits
+5. Verify organic vs artificial momentum signals
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_information_asymmetry_exploitation() -> AttackResult:
+    """
+    ATTACK 78: INFORMATION ASYMMETRY EXPLOITATION (Track DR)
+
+    Tests attacks exploiting information asymmetries:
+
+    1. Insider Knowledge Exploitation: Detect use of non-public information
+    2. Information Hoarding: Detect strategic information withholding
+    3. Selective Disclosure: Detect biased information release
+    4. Information Timing: Exploit information release timing
+    5. Asymmetric Transparency: Exploit transparency imbalances
+
+    Information asymmetry attacks undermine fair coordination.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "insider_trading_detected": False,
+        "information_hoarding_detected": False,
+        "selective_disclosure_detected": False,
+        "timing_exploitation_detected": False,
+        "transparency_asymmetry_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Insider Knowledge Detection
+    # ========================================================================
+
+    class InsiderDetector:
+        """Detect use of non-public information."""
+
+        def __init__(self):
+            self.information_timeline = []  # (info_id, public_time, entity_actions)
+            self.entity_actions = {}
+
+        def record_information_public(self, info_id: str, public_time: datetime):
+            """Record when information became public."""
+            self.information_timeline.append({
+                "info_id": info_id,
+                "public_time": public_time,
+            })
+
+        def record_action(
+            self, entity: str, action: str,
+            related_info: str, action_time: datetime
+        ):
+            """Record entity action potentially related to information."""
+            if entity not in self.entity_actions:
+                self.entity_actions[entity] = []
+            self.entity_actions[entity].append({
+                "action": action,
+                "info_id": related_info,
+                "time": action_time,
+            })
+
+        def detect_insider_activity(self) -> tuple:
+            """Detect actions based on non-public information."""
+            suspicious_entities = []
+
+            for entity, actions in self.entity_actions.items():
+                for action in actions:
+                    # Find when related info became public
+                    public_time = None
+                    for info in self.information_timeline:
+                        if info["info_id"] == action["info_id"]:
+                            public_time = info["public_time"]
+                            break
+
+                    if public_time and action["time"] < public_time:
+                        suspicious_entities.append(entity)
+                        break
+
+            if suspicious_entities:
+                return True, f"Insider activity: {len(suspicious_entities)} entities acted on non-public info"
+
+            return False, "No insider activity detected"
+
+    insider_detector = InsiderDetector()
+    now = datetime.now(timezone.utc)
+
+    # Information becomes public at T+1h
+    insider_detector.record_information_public("announcement_1", now + timedelta(hours=1))
+
+    # Insider acts before announcement
+    insider_detector.record_action("insider", "position_change", "announcement_1", now)
+    # Normal actor acts after
+    insider_detector.record_action("normal", "position_change", "announcement_1", now + timedelta(hours=2))
+
+    insider_detected, insider_msg = insider_detector.detect_insider_activity()
+
+    if insider_detected:
+        defenses["insider_trading_detected"] = True
+        insider_note = f"Insider detection: {insider_msg}"
+    else:
+        insider_note = f"Insider analysis: {insider_msg}"
+
+    # ========================================================================
+    # Defense 2: Information Hoarding Detection
+    # ========================================================================
+
+    class HoardingDetector:
+        """Detect strategic information withholding."""
+
+        def __init__(self):
+            self.entity_info_holdings = {}  # entity -> list of (info, held_duration)
+
+        def record_info_share(
+            self, entity: str, info_id: str,
+            acquired_time: datetime, shared_time: datetime
+        ):
+            """Record information sharing."""
+            held_duration = (shared_time - acquired_time).total_seconds() / 3600
+            if entity not in self.entity_info_holdings:
+                self.entity_info_holdings[entity] = []
+            self.entity_info_holdings[entity].append({
+                "info_id": info_id,
+                "held_hours": held_duration,
+            })
+
+        def detect_hoarding(self) -> tuple:
+            """Detect if entity is hoarding information."""
+            hoarders = []
+
+            for entity, holdings in self.entity_info_holdings.items():
+                if len(holdings) < 2:
+                    continue
+
+                avg_hold_time = sum(h["held_hours"] for h in holdings) / len(holdings)
+
+                # Holding valuable info for >24h on average is suspicious
+                if avg_hold_time > 24:
+                    hoarders.append((entity, avg_hold_time))
+
+            if hoarders:
+                return True, f"Information hoarding: {len(hoarders)} entities holding avg >{hoarders[0][1]:.0f}h"
+
+            return False, "No information hoarding detected"
+
+    hoarding_detector = HoardingDetector()
+
+    # Hoarder holds info for days
+    hoarding_detector.record_info_share("hoarder", "info_1", now - timedelta(days=3), now)
+    hoarding_detector.record_info_share("hoarder", "info_2", now - timedelta(days=2), now)
+
+    # Normal sharer
+    hoarding_detector.record_info_share("sharer", "info_3", now - timedelta(hours=2), now)
+
+    hoarding_detected, hoarding_msg = hoarding_detector.detect_hoarding()
+
+    if hoarding_detected:
+        defenses["information_hoarding_detected"] = True
+        hoarding_note = f"Information hoarding: {hoarding_msg}"
+    else:
+        hoarding_note = f"Hoarding analysis: {hoarding_msg}"
+
+    # ========================================================================
+    # Defense 3: Selective Disclosure Detection
+    # ========================================================================
+
+    class SelectiveDisclosureDetector:
+        """Detect biased information release patterns."""
+
+        def __init__(self):
+            self.disclosures = []
+
+        def record_disclosure(
+            self, entity: str, info_sentiment: str,
+            recipients: list, timestamp: datetime
+        ):
+            """Record information disclosure."""
+            self.disclosures.append({
+                "entity": entity,
+                "sentiment": info_sentiment,
+                "recipients": recipients,
+                "timestamp": timestamp,
+            })
+
+        def detect_selective_disclosure(self) -> tuple:
+            """Detect biased disclosure patterns."""
+            entity_patterns = {}
+
+            for disc in self.disclosures:
+                entity = disc["entity"]
+                if entity not in entity_patterns:
+                    entity_patterns[entity] = {"positive": [], "negative": []}
+
+                if disc["sentiment"] == "positive":
+                    entity_patterns[entity]["positive"].append(len(disc["recipients"]))
+                else:
+                    entity_patterns[entity]["negative"].append(len(disc["recipients"]))
+
+            for entity, patterns in entity_patterns.items():
+                if patterns["positive"] and patterns["negative"]:
+                    avg_positive = sum(patterns["positive"]) / len(patterns["positive"])
+                    avg_negative = sum(patterns["negative"]) / len(patterns["negative"])
+
+                    # Much wider distribution for positive news = selective
+                    if avg_positive > avg_negative * 3:
+                        return True, f"Selective disclosure: {entity} shares positive info {avg_positive/avg_negative:.1f}x wider"
+
+            return False, "No selective disclosure detected"
+
+    selective_detector = SelectiveDisclosureDetector()
+
+    # Selective discloser
+    selective_detector.record_disclosure(
+        "biased_actor", "positive", ["a", "b", "c", "d", "e", "f"], now
+    )
+    selective_detector.record_disclosure(
+        "biased_actor", "negative", ["a"], now + timedelta(hours=1)
+    )
+    selective_detector.record_disclosure(
+        "biased_actor", "positive", ["a", "b", "c", "d", "e"], now + timedelta(hours=2)
+    )
+    selective_detector.record_disclosure(
+        "biased_actor", "negative", ["b"], now + timedelta(hours=3)
+    )
+
+    selective_detected, selective_msg = selective_detector.detect_selective_disclosure()
+
+    if selective_detected:
+        defenses["selective_disclosure_detected"] = True
+        selective_note = f"Selective disclosure: {selective_msg}"
+    else:
+        selective_note = f"Disclosure analysis: {selective_msg}"
+
+    # ========================================================================
+    # Defense 4: Information Timing Exploitation
+    # ========================================================================
+
+    class TimingExploitDetector:
+        """Detect information release timing manipulation."""
+
+        def __init__(self):
+            self.release_events = []
+
+        def record_release(
+            self, info_type: str, market_time: str,
+            impact: float, timestamp: datetime
+        ):
+            """Record information release."""
+            self.release_events.append({
+                "type": info_type,
+                "market_time": market_time,  # "open", "close", "weekend", etc.
+                "impact": impact,
+                "timestamp": timestamp,
+            })
+
+        def detect_timing_manipulation(self) -> tuple:
+            """Detect if release timing is being manipulated."""
+            if len(self.release_events) < 4:
+                return False, "Insufficient data"
+
+            # Check if negative news systematically released at "bad" times
+            bad_times = ["close", "weekend", "holiday"]
+
+            negative_at_bad_time = 0
+            positive_at_good_time = 0
+            total = len(self.release_events)
+
+            for event in self.release_events:
+                if event["impact"] < 0 and event["market_time"] in bad_times:
+                    negative_at_bad_time += 1
+                elif event["impact"] > 0 and event["market_time"] not in bad_times:
+                    positive_at_good_time += 1
+
+            manipulation_score = (negative_at_bad_time + positive_at_good_time) / total
+
+            if manipulation_score > 0.7:
+                return True, f"Timing manipulation: {manipulation_score:.0%} strategic timing"
+
+            return False, f"Timing patterns: {manipulation_score:.0%} strategic"
+
+    timing_detector = TimingExploitDetector()
+
+    # Manipulated timing
+    timing_detector.record_release("earnings", "open", 0.5, now)
+    timing_detector.record_release("layoffs", "weekend", -0.3, now + timedelta(days=1))
+    timing_detector.record_release("partnership", "open", 0.4, now + timedelta(days=2))
+    timing_detector.record_release("lawsuit", "close", -0.2, now + timedelta(days=3))
+
+    timing_detected, timing_msg = timing_detector.detect_timing_manipulation()
+
+    if timing_detected:
+        defenses["timing_exploitation_detected"] = True
+        timing_note = f"Timing exploitation: {timing_msg}"
+    else:
+        timing_note = f"Timing analysis: {timing_msg}"
+
+    # ========================================================================
+    # Defense 5: Transparency Asymmetry Detection
+    # ========================================================================
+
+    class TransparencyAsymmetryDetector:
+        """Detect exploited transparency imbalances."""
+
+        def __init__(self):
+            self.entity_transparency = {}  # entity -> {"disclosed": N, "total": M}
+            self.interaction_records = []
+
+        def record_transparency(
+            self, entity: str, disclosed_items: int, total_items: int
+        ):
+            """Record entity transparency level."""
+            self.entity_transparency[entity] = {
+                "disclosed": disclosed_items,
+                "total": total_items,
+                "ratio": disclosed_items / max(total_items, 1),
+            }
+
+        def record_interaction(
+            self, entity_a: str, entity_b: str,
+            benefit_a: float, benefit_b: float
+        ):
+            """Record interaction outcomes."""
+            self.interaction_records.append({
+                "a": entity_a,
+                "b": entity_b,
+                "benefit_a": benefit_a,
+                "benefit_b": benefit_b,
+            })
+
+        def detect_transparency_exploitation(self) -> tuple:
+            """Detect if transparency asymmetry is being exploited."""
+            if len(self.interaction_records) < 3:
+                return False, "Insufficient interactions"
+
+            # Check if less transparent entities systematically benefit
+            exploitation_cases = 0
+
+            for record in self.interaction_records:
+                trans_a = self.entity_transparency.get(record["a"], {}).get("ratio", 0.5)
+                trans_b = self.entity_transparency.get(record["b"], {}).get("ratio", 0.5)
+
+                # Less transparent entity benefits more
+                if trans_a < trans_b and record["benefit_a"] > record["benefit_b"]:
+                    exploitation_cases += 1
+                elif trans_b < trans_a and record["benefit_b"] > record["benefit_a"]:
+                    exploitation_cases += 1
+
+            exploitation_rate = exploitation_cases / len(self.interaction_records)
+
+            if exploitation_rate > 0.6:
+                return True, f"Transparency exploitation: {exploitation_rate:.0%} of interactions favor less transparent party"
+
+            return False, f"Transparency analysis: {exploitation_rate:.0%} asymmetric benefit"
+
+    transparency_detector = TransparencyAsymmetryDetector()
+
+    # Set up transparency levels
+    transparency_detector.record_transparency("opaque", 2, 10)  # 20% transparent
+    transparency_detector.record_transparency("transparent", 9, 10)  # 90% transparent
+
+    # Opaque entity benefits
+    transparency_detector.record_interaction("opaque", "transparent", 100, 20)
+    transparency_detector.record_interaction("opaque", "transparent", 80, 30)
+    transparency_detector.record_interaction("opaque", "transparent", 90, 25)
+
+    transparency_exploit, transparency_msg = transparency_detector.detect_transparency_exploitation()
+
+    if transparency_exploit:
+        defenses["transparency_asymmetry_detected"] = True
+        transparency_note = f"Transparency exploitation: {transparency_msg}"
+    else:
+        transparency_note = f"Transparency analysis: {transparency_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Information Asymmetry Exploitation (DR)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=6000.0 if attack_success else -200.0,
+        roi=30.0 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=240,  # 10 days
+        blocks_until_detected=1000,
+        trust_damage=0.80,
+        description=f"""
+INFORMATION ASYMMETRY EXPLOITATION (Track DR):
+- Insider knowledge: {"DEFENDED" if defenses["insider_trading_detected"] else "VULNERABLE"}
+  {insider_note}
+- Information hoarding: {"DEFENDED" if defenses["information_hoarding_detected"] else "VULNERABLE"}
+  {hoarding_note}
+- Selective disclosure: {"DEFENDED" if defenses["selective_disclosure_detected"] else "VULNERABLE"}
+  {selective_note}
+- Timing exploitation: {"DEFENDED" if defenses["timing_exploitation_detected"] else "VULNERABLE"}
+  {timing_note}
+- Transparency asymmetry: {"DEFENDED" if defenses["transparency_asymmetry_detected"] else "VULNERABLE"}
+  {transparency_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Information asymmetry exploitation undermines fair coordination
+by giving unfair advantages to information-advantaged parties.
+""".strip(),
+        mitigation=f"""
+Track DR: Information Asymmetry Exploitation Mitigation:
+1. Detect actions taken before information is public
+2. Monitor information holding durations for hoarding
+3. Analyze disclosure patterns for sentiment-based bias
+4. Track release timing relative to market conditions
+5. Measure transparency levels and interaction outcomes
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track DS: Long-Con Trust Exploitation (Attacks 79-84)
+# ---------------------------------------------------------------------------
+
+def attack_patient_trust_building() -> AttackResult:
+    """
+    ATTACK 79: PATIENT TRUST BUILDING (Track DS)
+
+    Tests attacks where adversaries patiently build trust over extended periods:
+
+    1. Consistent Behavior Analysis: Detect unusually consistent behavior
+    2. Strategic Patience Detection: Detect deferred gratification patterns
+    3. Trust Velocity Anomaly: Detect optimal trust-building speed
+    4. Behavioral Authenticity: Detect performative vs authentic actions
+    5. Long-Term Intent Prediction: Model future exploitation likelihood
+
+    Patient trust building is the hardest attack to detect because
+    attackers behave identically to legitimate actors until they exploit.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "consistent_behavior_flagged": False,
+        "strategic_patience_detected": False,
+        "trust_velocity_anomaly": False,
+        "authenticity_questioned": False,
+        "intent_prediction_triggered": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Consistent Behavior Analysis
+    # ========================================================================
+
+    class ConsistentBehaviorDetector:
+        """Detect unusually consistent behavior patterns."""
+
+        def __init__(self):
+            self.behavior_history = {}
+
+        def record_behavior(
+            self, entity: str, metrics: dict, timestamp: datetime
+        ):
+            """Record behavioral metrics."""
+            if entity not in self.behavior_history:
+                self.behavior_history[entity] = []
+            self.behavior_history[entity].append({
+                "metrics": metrics,
+                "timestamp": timestamp,
+            })
+
+        def calculate_consistency(self, entity: str) -> tuple:
+            """Calculate behavioral consistency score."""
+            history = self.behavior_history.get(entity, [])
+            if len(history) < 10:
+                return 0.5, "Insufficient history"
+
+            # Calculate variance across all metrics
+            all_metrics = {}
+            for record in history:
+                for key, value in record["metrics"].items():
+                    if key not in all_metrics:
+                        all_metrics[key] = []
+                    all_metrics[key].append(value)
+
+            variances = []
+            for key, values in all_metrics.items():
+                mean = sum(values) / len(values)
+                variance = sum((v - mean)**2 for v in values) / len(values)
+                variances.append(variance)
+
+            avg_variance = sum(variances) / len(variances) if variances else 0.5
+
+            # Very low variance is suspicious (robotic consistency)
+            if avg_variance < 0.01:
+                return 0.95, f"Robotic consistency: variance {avg_variance:.4f}"
+            elif avg_variance < 0.05:
+                return 0.70, f"High consistency: variance {avg_variance:.4f}"
+
+            return 0.20, f"Normal variance: {avg_variance:.4f}"
+
+    consistency_detector = ConsistentBehaviorDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate patient attacker with robotic consistency
+    for i in range(20):
+        consistency_detector.record_behavior(
+            "patient_attacker",
+            {
+                "response_time": 2.5 + 0.001 * (i % 3),  # Almost identical
+                "quality_score": 0.85 + 0.001 * (i % 2),  # Almost identical
+                "activity_level": 0.70 + 0.001 * (i % 4),  # Almost identical
+            },
+            now + timedelta(days=i)
+        )
+
+    suspicion_score, consistency_msg = consistency_detector.calculate_consistency("patient_attacker")
+
+    if suspicion_score > 0.6:
+        defenses["consistent_behavior_flagged"] = True
+        consistency_note = f"Consistency analysis: {consistency_msg}"
+    else:
+        consistency_note = f"Consistency: {consistency_msg}"
+
+    # ========================================================================
+    # Defense 2: Strategic Patience Detection
+    # ========================================================================
+
+    class StrategicPatienceDetector:
+        """Detect patterns of strategic deferred gratification."""
+
+        def __init__(self):
+            self.opportunity_responses = {}
+
+        def record_opportunity_response(
+            self, entity: str, opportunity_value: float,
+            action_taken: str, timestamp: datetime
+        ):
+            """Record how entity responds to opportunities."""
+            if entity not in self.opportunity_responses:
+                self.opportunity_responses[entity] = []
+            self.opportunity_responses[entity].append({
+                "value": opportunity_value,
+                "action": action_taken,
+                "timestamp": timestamp,
+            })
+
+        def detect_deferred_gratification(self, entity: str) -> tuple:
+            """Detect if entity is systematically deferring small gains."""
+            responses = self.opportunity_responses.get(entity, [])
+            if len(responses) < 5:
+                return False, "Insufficient data"
+
+            small_opps = [r for r in responses if r["value"] < 100]
+            passed_small = [r for r in small_opps if r["action"] == "pass"]
+
+            if len(small_opps) == 0:
+                return False, "No small opportunities observed"
+
+            pass_rate = len(passed_small) / len(small_opps)
+
+            # Consistently passing small opportunities = waiting for big one
+            if pass_rate > 0.8:
+                return True, f"Deferred gratification: {pass_rate:.0%} small opportunities passed"
+
+            return False, f"Normal opportunity behavior: {pass_rate:.0%} passed"
+
+    patience_detector = StrategicPatienceDetector()
+
+    # Simulate patient attacker passing small opportunities
+    for i in range(10):
+        value = 50 if i < 8 else 200  # Small opportunities, then big
+        action = "pass" if value < 100 else "take"
+        patience_detector.record_opportunity_response(
+            "patient_attacker",
+            value,
+            action,
+            now + timedelta(days=i * 7)
+        )
+
+    deferred, patience_msg = patience_detector.detect_deferred_gratification("patient_attacker")
+
+    if deferred:
+        defenses["strategic_patience_detected"] = True
+        patience_note = f"Strategic patience: {patience_msg}"
+    else:
+        patience_note = f"Patience analysis: {patience_msg}"
+
+    # ========================================================================
+    # Defense 3: Trust Velocity Anomaly Detection
+    # ========================================================================
+
+    class TrustVelocityAnalyzer:
+        """Analyze trust accumulation velocity patterns."""
+
+        def __init__(self, max_natural_velocity: float = 0.02):
+            self.max_velocity = max_natural_velocity  # Max natural trust/day
+            self.trust_history = {}
+
+        def record_trust_level(
+            self, entity: str, trust: float, timestamp: datetime
+        ):
+            """Record trust level at timestamp."""
+            if entity not in self.trust_history:
+                self.trust_history[entity] = []
+            self.trust_history[entity].append((trust, timestamp))
+
+        def analyze_velocity(self, entity: str) -> tuple:
+            """Analyze trust accumulation velocity."""
+            history = self.trust_history.get(entity, [])
+            if len(history) < 5:
+                return False, "Insufficient history"
+
+            # Calculate daily velocity
+            velocities = []
+            for i in range(1, len(history)):
+                trust_delta = history[i][0] - history[i-1][0]
+                time_delta = (history[i][1] - history[i-1][1]).total_seconds() / 86400
+                if time_delta > 0:
+                    velocities.append(trust_delta / time_delta)
+
+            if not velocities:
+                return False, "No velocity data"
+
+            avg_velocity = sum(velocities) / len(velocities)
+            velocity_variance = sum((v - avg_velocity)**2 for v in velocities) / len(velocities)
+
+            # Suspiciously optimal velocity: consistent, just under max
+            if 0.8 * self.max_velocity < avg_velocity < self.max_velocity:
+                if velocity_variance < 0.001:
+                    return True, f"Optimal velocity: {avg_velocity:.4f}/day (variance: {velocity_variance:.6f})"
+
+            return False, f"Normal velocity: {avg_velocity:.4f}/day"
+
+    velocity_analyzer = TrustVelocityAnalyzer(max_natural_velocity=0.02)
+
+    # Simulate patient attacker building trust at optimal rate
+    for i in range(15):
+        velocity_analyzer.record_trust_level(
+            "patient_attacker",
+            0.3 + i * 0.018,  # Just under max velocity
+            now + timedelta(days=i)
+        )
+
+    velocity_anomaly, velocity_msg = velocity_analyzer.analyze_velocity("patient_attacker")
+
+    if velocity_anomaly:
+        defenses["trust_velocity_anomaly"] = True
+        velocity_note = f"Trust velocity: {velocity_msg}"
+    else:
+        velocity_note = f"Velocity analysis: {velocity_msg}"
+
+    # ========================================================================
+    # Defense 4: Behavioral Authenticity Analysis
+    # ========================================================================
+
+    class AuthenticityAnalyzer:
+        """Analyze whether behavior appears authentic or performative."""
+
+        def __init__(self):
+            self.behavior_samples = {}
+
+        def record_behavior_sample(
+            self, entity: str, context: str, behavior: str,
+            audience_present: bool, timestamp: datetime
+        ):
+            """Record behavior with context."""
+            if entity not in self.behavior_samples:
+                self.behavior_samples[entity] = []
+            self.behavior_samples[entity].append({
+                "context": context,
+                "behavior": behavior,
+                "audience": audience_present,
+                "timestamp": timestamp,
+            })
+
+        def analyze_authenticity(self, entity: str) -> tuple:
+            """Detect if behavior varies with audience."""
+            samples = self.behavior_samples.get(entity, [])
+            if len(samples) < 10:
+                return False, "Insufficient samples"
+
+            with_audience = [s for s in samples if s["audience"]]
+            without_audience = [s for s in samples if not s["audience"]]
+
+            if len(with_audience) < 3 or len(without_audience) < 3:
+                return False, "Insufficient comparison data"
+
+            # Compare behavior consistency
+            def behavior_score(behaviors):
+                positive = sum(1 for b in behaviors if "positive" in b["behavior"])
+                return positive / len(behaviors)
+
+            audience_score = behavior_score(with_audience)
+            private_score = behavior_score(without_audience)
+
+            score_diff = abs(audience_score - private_score)
+
+            # Different behavior with/without audience = performative
+            if score_diff > 0.3:
+                return True, f"Performative behavior: audience={audience_score:.0%}, private={private_score:.0%}"
+
+            return False, f"Consistent behavior: diff={score_diff:.0%}"
+
+    authenticity_analyzer = AuthenticityAnalyzer()
+
+    # Simulate performative behavior (different when observed)
+    for i in range(12):
+        audience = i % 3 != 0  # Some without audience
+        behavior = "positive_action" if audience else "neutral_action"
+        authenticity_analyzer.record_behavior_sample(
+            "patient_attacker",
+            f"context_{i}",
+            behavior,
+            audience,
+            now + timedelta(days=i)
+        )
+
+    performative, auth_msg = authenticity_analyzer.analyze_authenticity("patient_attacker")
+
+    if performative:
+        defenses["authenticity_questioned"] = True
+        auth_note = f"Authenticity analysis: {auth_msg}"
+    else:
+        auth_note = f"Authenticity: {auth_msg}"
+
+    # ========================================================================
+    # Defense 5: Long-Term Intent Prediction
+    # ========================================================================
+
+    class IntentPredictor:
+        """Predict future exploitation likelihood."""
+
+        def __init__(self):
+            self.entity_profiles = {}
+
+        def record_profile_signal(
+            self, entity: str, signal_type: str, signal_value: float
+        ):
+            """Record signal for entity profile."""
+            if entity not in self.entity_profiles:
+                self.entity_profiles[entity] = {}
+            self.entity_profiles[entity][signal_type] = signal_value
+
+        def predict_exploitation_risk(self, entity: str) -> tuple:
+            """Predict likelihood of future exploitation."""
+            profile = self.entity_profiles.get(entity, {})
+            if len(profile) < 4:
+                return 0.5, "Insufficient profile data"
+
+            # Risk factors
+            risk_score = 0.0
+
+            # High capability + high patience = risk
+            capability = profile.get("capability", 0.5)
+            patience = profile.get("patience", 0.5)
+            opportunity_awareness = profile.get("opportunity_awareness", 0.5)
+            benefit_concentration = profile.get("benefit_concentration", 0.5)
+
+            if capability > 0.7 and patience > 0.8:
+                risk_score += 0.3
+            if opportunity_awareness > 0.8:
+                risk_score += 0.2
+            if benefit_concentration > 0.7:
+                risk_score += 0.2
+
+            # Trust level compounds risk
+            trust_level = profile.get("trust_level", 0.5)
+            if trust_level > 0.8:
+                risk_score *= 1.5
+
+            if risk_score > 0.5:
+                return risk_score, f"High exploitation risk: {risk_score:.2f}"
+
+            return risk_score, f"Normal risk: {risk_score:.2f}"
+
+    intent_predictor = IntentPredictor()
+
+    # Patient attacker profile
+    intent_predictor.record_profile_signal("patient_attacker", "capability", 0.85)
+    intent_predictor.record_profile_signal("patient_attacker", "patience", 0.90)
+    intent_predictor.record_profile_signal("patient_attacker", "opportunity_awareness", 0.85)
+    intent_predictor.record_profile_signal("patient_attacker", "benefit_concentration", 0.75)
+    intent_predictor.record_profile_signal("patient_attacker", "trust_level", 0.82)
+
+    risk, intent_msg = intent_predictor.predict_exploitation_risk("patient_attacker")
+
+    if risk > 0.5:
+        defenses["intent_prediction_triggered"] = True
+        intent_note = f"Intent prediction: {intent_msg}"
+    else:
+        intent_note = f"Intent analysis: {intent_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Patient Trust Building (DS)",
+        success=attack_success,
+        setup_cost_atp=5000.0,  # High investment over time
+        gain_atp=50000.0 if attack_success else -5000.0,
+        roi=10.0 if attack_success else -1.0,
+        detection_probability=0.30,  # Very hard to detect
+        time_to_detection_hours=4320,  # 6 months
+        blocks_until_detected=18000,
+        trust_damage=1.00,
+        description=f"""
+PATIENT TRUST BUILDING (Track DS):
+- Consistent behavior flagged: {"DEFENDED" if defenses["consistent_behavior_flagged"] else "VULNERABLE"}
+  {consistency_note}
+- Strategic patience detected: {"DEFENDED" if defenses["strategic_patience_detected"] else "VULNERABLE"}
+  {patience_note}
+- Trust velocity anomaly: {"DEFENDED" if defenses["trust_velocity_anomaly"] else "VULNERABLE"}
+  {velocity_note}
+- Authenticity questioned: {"DEFENDED" if defenses["authenticity_questioned"] else "VULNERABLE"}
+  {auth_note}
+- Intent prediction triggered: {"DEFENDED" if defenses["intent_prediction_triggered"] else "VULNERABLE"}
+  {intent_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Patient trust building is the hardest attack to detect because
+attackers behave identically to legitimate actors until exploitation.
+""".strip(),
+        mitigation=f"""
+Track DS: Patient Trust Building Mitigation:
+1. Flag unusually consistent (robotic) behavior patterns
+2. Detect deferred gratification strategies
+3. Monitor trust velocity for optimal-rate gaming
+4. Compare behavior with/without audience observation
+5. Build predictive profiles for exploitation risk
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_reputation_laundering() -> AttackResult:
+    """
+    ATTACK 80: REPUTATION LAUNDERING (Track DS)
+
+    Tests attacks that wash bad reputation through intermediaries:
+
+    1. Intermediary Chain Detection: Detect reputation-washing chains
+    2. Fresh Start Detection: Detect suspicious identity resets
+    3. Reference Collusion: Detect coordinated reputation boosting
+    4. Gradual Rehabilitation: Detect artificial rehabilitation patterns
+    5. Cross-Domain Washing: Detect reputation imports from other contexts
+
+    Reputation laundering allows bad actors to reset without accountability.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "intermediary_chain_detected": False,
+        "fresh_start_flagged": False,
+        "reference_collusion_detected": False,
+        "artificial_rehabilitation_detected": False,
+        "cross_domain_washing_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Intermediary Chain Detection
+    # ========================================================================
+
+    class IntermediaryChainDetector:
+        """Detect reputation-washing through intermediaries."""
+
+        def __init__(self):
+            self.reputation_transfers = []
+
+        def record_reputation_transfer(
+            self, source: str, target: str,
+            amount: float, timestamp: datetime
+        ):
+            """Record reputation transfer event."""
+            self.reputation_transfers.append({
+                "source": source,
+                "target": target,
+                "amount": amount,
+                "timestamp": timestamp,
+            })
+
+        def detect_washing_chain(self) -> tuple:
+            """Detect chains used for reputation washing."""
+            # Build transfer graph
+            from collections import defaultdict
+
+            outgoing = defaultdict(list)
+            for t in self.reputation_transfers:
+                outgoing[t["source"]].append(t["target"])
+
+            # Find chains of length 3+ ending in same entity receiving
+            chains_found = []
+            for start in outgoing:
+                visited = set()
+                stack = [(start, [start])]
+                while stack:
+                    node, path = stack.pop()
+                    if len(path) >= 3:
+                        chains_found.append(path)
+                        continue
+                    for next_node in outgoing.get(node, []):
+                        if next_node not in visited:
+                            visited.add(next_node)
+                            stack.append((next_node, path + [next_node]))
+
+            if chains_found:
+                longest = max(chains_found, key=len)
+                return True, f"Washing chain detected: {' -> '.join(longest[:4])}"
+
+            return False, "No washing chains detected"
+
+    chain_detector = IntermediaryChainDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate reputation washing chain: A -> B -> C -> D (bad actor washes to new identity)
+    chain_detector.record_reputation_transfer("bad_actor", "intermediary_1", 100, now)
+    chain_detector.record_reputation_transfer("intermediary_1", "intermediary_2", 90, now + timedelta(hours=1))
+    chain_detector.record_reputation_transfer("intermediary_2", "new_identity", 80, now + timedelta(hours=2))
+
+    chain_detected, chain_msg = chain_detector.detect_washing_chain()
+
+    if chain_detected:
+        defenses["intermediary_chain_detected"] = True
+        chain_note = f"Intermediary chain: {chain_msg}"
+    else:
+        chain_note = f"Chain analysis: {chain_msg}"
+
+    # ========================================================================
+    # Defense 2: Fresh Start Detection
+    # ========================================================================
+
+    class FreshStartDetector:
+        """Detect suspicious identity resets."""
+
+        def __init__(self):
+            self.identity_events = {}
+
+        def record_identity_event(
+            self, entity: str, event_type: str,
+            metadata: dict, timestamp: datetime
+        ):
+            """Record identity lifecycle event."""
+            if entity not in self.identity_events:
+                self.identity_events[entity] = []
+            self.identity_events[entity].append({
+                "type": event_type,
+                "metadata": metadata,
+                "timestamp": timestamp,
+            })
+
+        def detect_fresh_start(self, entity: str) -> tuple:
+            """Detect if entity is a fresh start for a previous identity."""
+            events = self.identity_events.get(entity, [])
+
+            creation_event = next((e for e in events if e["type"] == "creation"), None)
+            if not creation_event:
+                return False, "No creation event"
+
+            metadata = creation_event.get("metadata", {})
+
+            suspicious_signals = 0
+
+            # Check for signals of fresh start
+            if metadata.get("same_device_fingerprint"):
+                suspicious_signals += 1
+            if metadata.get("similar_behavioral_signature"):
+                suspicious_signals += 1
+            if metadata.get("overlapping_network"):
+                suspicious_signals += 1
+            if metadata.get("immediate_high_activity"):
+                suspicious_signals += 1
+
+            if suspicious_signals >= 3:
+                return True, f"Fresh start detected: {suspicious_signals} suspicious signals"
+
+            return False, f"Identity appears authentic: {suspicious_signals} signals"
+
+    fresh_start_detector = FreshStartDetector()
+
+    # Simulate fresh start identity
+    fresh_start_detector.record_identity_event(
+        "new_identity",
+        "creation",
+        {
+            "same_device_fingerprint": True,
+            "similar_behavioral_signature": True,
+            "overlapping_network": True,
+            "immediate_high_activity": True,
+        },
+        now
+    )
+
+    fresh_start, fresh_msg = fresh_start_detector.detect_fresh_start("new_identity")
+
+    if fresh_start:
+        defenses["fresh_start_flagged"] = True
+        fresh_note = f"Fresh start: {fresh_msg}"
+    else:
+        fresh_note = f"Fresh start analysis: {fresh_msg}"
+
+    # ========================================================================
+    # Defense 3: Reference Collusion Detection
+    # ========================================================================
+
+    class ReferenceCollusionDetector:
+        """Detect coordinated reputation boosting."""
+
+        def __init__(self):
+            self.references = []
+
+        def record_reference(
+            self, referee: str, subject: str,
+            score: float, timestamp: datetime
+        ):
+            """Record a reference/endorsement."""
+            self.references.append({
+                "referee": referee,
+                "subject": subject,
+                "score": score,
+                "timestamp": timestamp,
+            })
+
+        def detect_collusion(self, subject: str) -> tuple:
+            """Detect if references for subject are colluding."""
+            subject_refs = [r for r in self.references if r["subject"] == subject]
+
+            if len(subject_refs) < 3:
+                return False, "Insufficient references"
+
+            referees = [r["referee"] for r in subject_refs]
+
+            # Check if referees also reference each other
+            cross_refs = 0
+            for ref in self.references:
+                if ref["referee"] in referees and ref["subject"] in referees:
+                    cross_refs += 1
+
+            # Check timing clustering
+            times = sorted(r["timestamp"] for r in subject_refs)
+            time_range = (times[-1] - times[0]).total_seconds() / 3600
+
+            if len(subject_refs) > 3 and time_range < 24:  # Many refs in short time
+                cross_ref_rate = cross_refs / max(len(referees), 1)
+                if cross_ref_rate > 0.5:
+                    return True, f"Reference collusion: {len(referees)} referees, {cross_ref_rate:.0%} cross-ref rate"
+
+            return False, f"References appear independent"
+
+    collusion_detector = ReferenceCollusionDetector()
+
+    # Simulate collusion ring
+    referees = ["colluder_1", "colluder_2", "colluder_3", "colluder_4"]
+    for i, ref in enumerate(referees):
+        # All reference the subject
+        collusion_detector.record_reference(ref, "laundered_identity", 0.9, now + timedelta(hours=i))
+        # They also reference each other
+        for other in referees:
+            if other != ref:
+                collusion_detector.record_reference(ref, other, 0.85, now + timedelta(hours=i, minutes=30))
+
+    collusion_detected, collusion_msg = collusion_detector.detect_collusion("laundered_identity")
+
+    if collusion_detected:
+        defenses["reference_collusion_detected"] = True
+        collusion_note = f"Reference collusion: {collusion_msg}"
+    else:
+        collusion_note = f"Reference analysis: {collusion_msg}"
+
+    # ========================================================================
+    # Defense 4: Artificial Rehabilitation Detection
+    # ========================================================================
+
+    class RehabilitationDetector:
+        """Detect artificial rehabilitation patterns."""
+
+        def __init__(self):
+            self.reputation_history = {}
+
+        def record_reputation(
+            self, entity: str, reputation: float, timestamp: datetime
+        ):
+            """Record reputation level."""
+            if entity not in self.reputation_history:
+                self.reputation_history[entity] = []
+            self.reputation_history[entity].append((reputation, timestamp))
+
+        def detect_artificial_rehabilitation(self, entity: str) -> tuple:
+            """Detect if rehabilitation appears artificial."""
+            history = self.reputation_history.get(entity, [])
+            if len(history) < 5:
+                return False, "Insufficient history"
+
+            # Check for V-shaped or hockey-stick recovery
+            reps = [h[0] for h in history]
+            min_idx = reps.index(min(reps))
+
+            if min_idx < len(reps) // 3:
+                # Low point early, then recovery
+                recovery = reps[-1] - reps[min_idx]
+                time_to_recover = (history[-1][1] - history[min_idx][1]).total_seconds() / 86400
+
+                if recovery > 0.5 and time_to_recover < 30:
+                    return True, f"Artificial rehabilitation: {recovery:.2f} recovery in {time_to_recover:.0f} days"
+
+            return False, "Normal reputation trajectory"
+
+    rehab_detector = RehabilitationDetector()
+
+    # Simulate artificial rehabilitation
+    rehab_detector.record_reputation("laundered_identity", 0.2, now)
+    rehab_detector.record_reputation("laundered_identity", 0.15, now + timedelta(days=5))
+    rehab_detector.record_reputation("laundered_identity", 0.45, now + timedelta(days=10))
+    rehab_detector.record_reputation("laundered_identity", 0.65, now + timedelta(days=15))
+    rehab_detector.record_reputation("laundered_identity", 0.80, now + timedelta(days=20))
+
+    artificial_rehab, rehab_msg = rehab_detector.detect_artificial_rehabilitation("laundered_identity")
+
+    if artificial_rehab:
+        defenses["artificial_rehabilitation_detected"] = True
+        rehab_note = f"Artificial rehabilitation: {rehab_msg}"
+    else:
+        rehab_note = f"Rehabilitation analysis: {rehab_msg}"
+
+    # ========================================================================
+    # Defense 5: Cross-Domain Washing Detection
+    # ========================================================================
+
+    class CrossDomainWashingDetector:
+        """Detect reputation imports from other contexts."""
+
+        def __init__(self):
+            self.reputation_imports = []
+            self.domain_trust = {}
+
+        def set_domain_trust(self, domain: str, trust: float):
+            """Set trust level for a domain."""
+            self.domain_trust[domain] = trust
+
+        def record_reputation_import(
+            self, entity: str, source_domain: str,
+            claimed_reputation: float, timestamp: datetime
+        ):
+            """Record reputation import attempt."""
+            self.reputation_imports.append({
+                "entity": entity,
+                "source_domain": source_domain,
+                "claimed_rep": claimed_reputation,
+                "timestamp": timestamp,
+            })
+
+        def detect_cross_domain_washing(self, entity: str) -> tuple:
+            """Detect if entity is importing questionable reputation."""
+            imports = [i for i in self.reputation_imports if i["entity"] == entity]
+
+            if not imports:
+                return False, "No reputation imports"
+
+            suspicious_imports = 0
+            for imp in imports:
+                domain_trust = self.domain_trust.get(imp["source_domain"], 0.5)
+
+                # High reputation from low-trust domain = suspicious
+                if imp["claimed_rep"] > 0.8 and domain_trust < 0.3:
+                    suspicious_imports += 1
+
+            if suspicious_imports > 0:
+                return True, f"Cross-domain washing: {suspicious_imports} suspicious imports"
+
+            return False, "Imports appear legitimate"
+
+    washing_detector = CrossDomainWashingDetector()
+    washing_detector.set_domain_trust("sketchy_platform", 0.2)
+    washing_detector.set_domain_trust("trusted_platform", 0.9)
+
+    # Simulate cross-domain washing
+    washing_detector.record_reputation_import(
+        "laundered_identity",
+        "sketchy_platform",
+        0.95,  # Claiming high rep from low-trust domain
+        now
+    )
+
+    cross_wash, wash_msg = washing_detector.detect_cross_domain_washing("laundered_identity")
+
+    if cross_wash:
+        defenses["cross_domain_washing_detected"] = True
+        wash_note = f"Cross-domain washing: {wash_msg}"
+    else:
+        wash_note = f"Import analysis: {wash_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Reputation Laundering (DS)",
+        success=attack_success,
+        setup_cost_atp=2000.0,
+        gain_atp=15000.0 if attack_success else -2000.0,
+        roi=7.5 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=720,  # 1 month
+        blocks_until_detected=3000,
+        trust_damage=1.00,
+        description=f"""
+REPUTATION LAUNDERING (Track DS):
+- Intermediary chain: {"DEFENDED" if defenses["intermediary_chain_detected"] else "VULNERABLE"}
+  {chain_note}
+- Fresh start detection: {"DEFENDED" if defenses["fresh_start_flagged"] else "VULNERABLE"}
+  {fresh_note}
+- Reference collusion: {"DEFENDED" if defenses["reference_collusion_detected"] else "VULNERABLE"}
+  {collusion_note}
+- Artificial rehabilitation: {"DEFENDED" if defenses["artificial_rehabilitation_detected"] else "VULNERABLE"}
+  {rehab_note}
+- Cross-domain washing: {"DEFENDED" if defenses["cross_domain_washing_detected"] else "VULNERABLE"}
+  {wash_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Reputation laundering allows bad actors to escape consequences
+and re-enter the system with clean slates.
+""".strip(),
+        mitigation=f"""
+Track DS: Reputation Laundering Mitigation:
+1. Detect and trace reputation transfer chains
+2. Flag suspicious "fresh start" identities
+3. Detect collusion rings among referees
+4. Monitor for artificially rapid rehabilitation
+5. Verify reputation imports from other domains
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_sleeper_cell_activation() -> AttackResult:
+    """
+    ATTACK 81: SLEEPER CELL ACTIVATION (Track DS)
+
+    Tests attacks where dormant compromised actors activate simultaneously:
+
+    1. Dormancy Pattern Detection: Detect unusual dormancy before activation
+    2. Coordinated Activation: Detect synchronized awakening
+    3. Pre-Positioned Assets: Detect strategically placed sleepers
+    4. Activation Signal Detection: Detect coordination signals
+    5. Post-Activation Behavior: Detect sudden behavior changes
+
+    Sleeper cells can cause massive coordinated damage when activated.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "dormancy_pattern_detected": False,
+        "coordinated_activation_detected": False,
+        "pre_positioned_assets_flagged": False,
+        "activation_signal_detected": False,
+        "behavior_change_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Dormancy Pattern Detection
+    # ========================================================================
+
+    class DormancyPatternDetector:
+        """Detect unusual dormancy patterns."""
+
+        def __init__(self):
+            self.activity_history = {}
+
+        def record_activity(
+            self, entity: str, activity_level: float, timestamp: datetime
+        ):
+            """Record activity level."""
+            if entity not in self.activity_history:
+                self.activity_history[entity] = []
+            self.activity_history[entity].append({
+                "level": activity_level,
+                "timestamp": timestamp,
+            })
+
+        def detect_suspicious_dormancy(self, entity: str) -> tuple:
+            """Detect if entity had suspicious dormancy period."""
+            history = self.activity_history.get(entity, [])
+            if len(history) < 10:
+                return False, "Insufficient history"
+
+            # Find dormancy periods
+            dormant_periods = []
+            dormant_start = None
+
+            for i, record in enumerate(history):
+                if record["level"] < 0.1:
+                    if dormant_start is None:
+                        dormant_start = record["timestamp"]
+                else:
+                    if dormant_start is not None:
+                        dormant_end = record["timestamp"]
+                        duration = (dormant_end - dormant_start).days
+                        if duration > 30:
+                            dormant_periods.append((dormant_start, dormant_end, duration))
+                        dormant_start = None
+
+            if dormant_periods:
+                longest = max(dormant_periods, key=lambda x: x[2])
+                return True, f"Suspicious dormancy: {longest[2]} days of inactivity"
+
+            return False, "Normal activity patterns"
+
+    dormancy_detector = DormancyPatternDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate sleeper with dormancy period
+    for i in range(10):
+        dormancy_detector.record_activity("sleeper", 0.7, now - timedelta(days=180-i*5))
+    for i in range(10):
+        dormancy_detector.record_activity("sleeper", 0.05, now - timedelta(days=130-i*5))
+    for i in range(5):
+        dormancy_detector.record_activity("sleeper", 0.9, now - timedelta(days=30-i*5))
+
+    dormancy_detected, dormancy_msg = dormancy_detector.detect_suspicious_dormancy("sleeper")
+
+    if dormancy_detected:
+        defenses["dormancy_pattern_detected"] = True
+        dormancy_note = f"Dormancy pattern: {dormancy_msg}"
+    else:
+        dormancy_note = f"Activity analysis: {dormancy_msg}"
+
+    # ========================================================================
+    # Defense 2: Coordinated Activation Detection
+    # ========================================================================
+
+    class CoordinatedActivationDetector:
+        """Detect synchronized entity awakening."""
+
+        def __init__(self):
+            self.activation_events = []
+
+        def record_activation(
+            self, entity: str, timestamp: datetime
+        ):
+            """Record entity activation event."""
+            self.activation_events.append({
+                "entity": entity,
+                "timestamp": timestamp,
+            })
+
+        def detect_coordinated_activation(self) -> tuple:
+            """Detect if multiple entities activated together."""
+            if len(self.activation_events) < 3:
+                return False, "Insufficient events"
+
+            # Group activations by time window (1 hour)
+            windows = {}
+            for event in self.activation_events:
+                window_key = event["timestamp"].replace(minute=0, second=0, microsecond=0)
+                if window_key not in windows:
+                    windows[window_key] = []
+                windows[window_key].append(event["entity"])
+
+            # Find windows with multiple activations
+            for window, entities in windows.items():
+                if len(entities) >= 3:
+                    return True, f"Coordinated activation: {len(entities)} entities in 1 hour"
+
+            return False, "No coordinated activation detected"
+
+    activation_detector = CoordinatedActivationDetector()
+
+    # Simulate coordinated activation
+    for i in range(5):
+        activation_detector.record_activation(
+            f"sleeper_{i}",
+            now + timedelta(minutes=i*10)  # All within 1 hour
+        )
+
+    coord_activation, coord_msg = activation_detector.detect_coordinated_activation()
+
+    if coord_activation:
+        defenses["coordinated_activation_detected"] = True
+        coord_note = f"Coordinated activation: {coord_msg}"
+    else:
+        coord_note = f"Activation analysis: {coord_msg}"
+
+    # ========================================================================
+    # Defense 3: Pre-Positioned Assets Detection
+    # ========================================================================
+
+    class PrePositionedAssetsDetector:
+        """Detect strategically placed dormant entities."""
+
+        def __init__(self):
+            self.entity_positions = {}
+
+        def record_position(
+            self, entity: str, position_type: str,
+            strategic_value: float, timestamp: datetime
+        ):
+            """Record entity's strategic position."""
+            self.entity_positions[entity] = {
+                "position": position_type,
+                "value": strategic_value,
+                "timestamp": timestamp,
+            }
+
+        def detect_pre_positioning(self, dormant_entities: list) -> tuple:
+            """Detect if dormant entities are strategically positioned."""
+            if not dormant_entities:
+                return False, "No dormant entities"
+
+            strategic_positions = 0
+            for entity in dormant_entities:
+                pos = self.entity_positions.get(entity, {})
+                if pos.get("value", 0) > 0.7:
+                    strategic_positions += 1
+
+            if strategic_positions >= 2:
+                return True, f"Pre-positioned assets: {strategic_positions} dormants in strategic positions"
+
+            return False, f"Normal positioning: {strategic_positions} strategic"
+
+    position_detector = PrePositionedAssetsDetector()
+
+    # Simulate pre-positioned sleepers
+    sleepers = ["sleeper_0", "sleeper_1", "sleeper_2"]
+    for i, sleeper in enumerate(sleepers):
+        position_detector.record_position(
+            sleeper,
+            ["admin_access", "financial_control", "governance_vote"][i],
+            0.9,
+            now - timedelta(days=90)
+        )
+
+    pre_positioned, position_msg = position_detector.detect_pre_positioning(sleepers)
+
+    if pre_positioned:
+        defenses["pre_positioned_assets_flagged"] = True
+        position_note = f"Pre-positioning: {position_msg}"
+    else:
+        position_note = f"Position analysis: {position_msg}"
+
+    # ========================================================================
+    # Defense 4: Activation Signal Detection
+    # ========================================================================
+
+    class ActivationSignalDetector:
+        """Detect coordination signals for activation."""
+
+        def __init__(self):
+            self.broadcast_events = []
+
+        def record_broadcast(
+            self, source: str, content_hash: str,
+            timestamp: datetime
+        ):
+            """Record broadcast event."""
+            self.broadcast_events.append({
+                "source": source,
+                "content": content_hash,
+                "timestamp": timestamp,
+            })
+
+        def detect_activation_signal(self, activation_time: datetime) -> tuple:
+            """Detect if there was a coordination signal before activation."""
+            # Look for broadcasts shortly before activation
+            signal_window = timedelta(hours=2)
+
+            potential_signals = []
+            for broadcast in self.broadcast_events:
+                time_before = activation_time - broadcast["timestamp"]
+                if timedelta(0) < time_before < signal_window:
+                    potential_signals.append(broadcast)
+
+            if potential_signals:
+                # Check if same content was received by multiple entities
+                content_counts = {}
+                for sig in potential_signals:
+                    content_counts[sig["content"]] = content_counts.get(sig["content"], 0) + 1
+
+                for content, count in content_counts.items():
+                    if count >= 3:
+                        return True, f"Activation signal detected: {count} entities received same signal"
+
+            return False, "No activation signal detected"
+
+    signal_detector = ActivationSignalDetector()
+
+    # Simulate activation signal
+    for i in range(5):
+        signal_detector.record_broadcast(
+            "coordinator",
+            "activation_signal_hash",
+            now - timedelta(hours=1)
+        )
+
+    signal_detected, signal_msg = signal_detector.detect_activation_signal(now)
+
+    if signal_detected:
+        defenses["activation_signal_detected"] = True
+        signal_note = f"Activation signal: {signal_msg}"
+    else:
+        signal_note = f"Signal analysis: {signal_msg}"
+
+    # ========================================================================
+    # Defense 5: Post-Activation Behavior Change Detection
+    # ========================================================================
+
+    class BehaviorChangeDetector:
+        """Detect sudden behavior changes after activation."""
+
+        def __init__(self):
+            self.behavior_profiles = {}
+
+        def record_behavior(
+            self, entity: str, behavior_vector: dict,
+            timestamp: datetime
+        ):
+            """Record behavior profile."""
+            if entity not in self.behavior_profiles:
+                self.behavior_profiles[entity] = []
+            self.behavior_profiles[entity].append({
+                "vector": behavior_vector,
+                "timestamp": timestamp,
+            })
+
+        def detect_behavior_change(self, entity: str) -> tuple:
+            """Detect sudden behavior changes."""
+            profiles = self.behavior_profiles.get(entity, [])
+            if len(profiles) < 6:
+                return False, "Insufficient profiles"
+
+            # Compare early vs recent behavior
+            early = profiles[:len(profiles)//2]
+            recent = profiles[len(profiles)//2:]
+
+            def avg_vector(items):
+                result = {}
+                for item in items:
+                    for k, v in item["vector"].items():
+                        if k not in result:
+                            result[k] = []
+                        result[k].append(v)
+                return {k: sum(v)/len(v) for k, v in result.items()}
+
+            early_avg = avg_vector(early)
+            recent_avg = avg_vector(recent)
+
+            # Calculate behavior shift
+            shift = sum(abs(early_avg.get(k, 0) - recent_avg.get(k, 0))
+                       for k in set(early_avg) | set(recent_avg))
+
+            if shift > 1.5:
+                return True, f"Behavior change detected: shift magnitude {shift:.2f}"
+
+            return False, f"Behavior stable: shift {shift:.2f}"
+
+    behavior_detector = BehaviorChangeDetector()
+
+    # Simulate behavior change after activation
+    for i in range(3):
+        behavior_detector.record_behavior(
+            "sleeper",
+            {"aggression": 0.2, "activity": 0.3, "risk_taking": 0.1},
+            now - timedelta(days=60-i*10)
+        )
+    for i in range(3):
+        behavior_detector.record_behavior(
+            "sleeper",
+            {"aggression": 0.9, "activity": 0.95, "risk_taking": 0.85},
+            now - timedelta(days=5-i)
+        )
+
+    behavior_change, behavior_msg = behavior_detector.detect_behavior_change("sleeper")
+
+    if behavior_change:
+        defenses["behavior_change_detected"] = True
+        behavior_note = f"Behavior change: {behavior_msg}"
+    else:
+        behavior_note = f"Behavior analysis: {behavior_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Sleeper Cell Activation (DS)",
+        success=attack_success,
+        setup_cost_atp=10000.0,  # Long-term investment
+        gain_atp=100000.0 if attack_success else -10000.0,
+        roi=10.0 if attack_success else -1.0,
+        detection_probability=0.35,
+        time_to_detection_hours=24,  # Once activated, fast detection
+        blocks_until_detected=100,
+        trust_damage=1.00,
+        description=f"""
+SLEEPER CELL ACTIVATION (Track DS):
+- Dormancy pattern: {"DEFENDED" if defenses["dormancy_pattern_detected"] else "VULNERABLE"}
+  {dormancy_note}
+- Coordinated activation: {"DEFENDED" if defenses["coordinated_activation_detected"] else "VULNERABLE"}
+  {coord_note}
+- Pre-positioned assets: {"DEFENDED" if defenses["pre_positioned_assets_flagged"] else "VULNERABLE"}
+  {position_note}
+- Activation signal: {"DEFENDED" if defenses["activation_signal_detected"] else "VULNERABLE"}
+  {signal_note}
+- Behavior change: {"DEFENDED" if defenses["behavior_change_detected"] else "VULNERABLE"}
+  {behavior_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Sleeper cell attacks require long-term preparation but can
+cause massive coordinated damage when activated.
+""".strip(),
+        mitigation=f"""
+Track DS: Sleeper Cell Activation Mitigation:
+1. Monitor for unusual dormancy periods
+2. Detect synchronized entity activations
+3. Flag dormant entities in strategic positions
+4. Detect coordination signals before activations
+5. Monitor for sudden behavior changes
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_trust_inheritance_exploitation() -> AttackResult:
+    """
+    ATTACK 82: TRUST INHERITANCE EXPLOITATION (Track DS)
+
+    Tests attacks exploiting trust inheritance mechanisms:
+
+    1. Parent Trust Abuse: Abuse trust inherited from parent entities
+    2. Organizational Trust Hijacking: Exploit organizational membership
+    3. Role Trust Exploitation: Abuse role-based trust grants
+    4. Delegation Chain Abuse: Exploit long delegation chains
+    5. Legacy Trust Exploitation: Abuse historical trust grants
+
+    Trust inheritance can be exploited to gain unearned trust.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "parent_trust_abuse_detected": False,
+        "org_trust_hijacking_detected": False,
+        "role_trust_exploitation_detected": False,
+        "delegation_chain_abuse_detected": False,
+        "legacy_trust_abuse_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Parent Trust Abuse Detection
+    # ========================================================================
+
+    class ParentTrustDetector:
+        """Detect abuse of inherited parent trust."""
+
+        def __init__(self):
+            self.entity_hierarchy = {}  # entity -> parent
+            self.entity_earned_trust = {}  # entity -> earned trust
+            self.entity_claimed_trust = {}  # entity -> claimed trust
+
+        def record_hierarchy(self, child: str, parent: str):
+            """Record parent-child relationship."""
+            self.entity_hierarchy[child] = parent
+
+        def record_trust_levels(
+            self, entity: str, earned: float, claimed: float
+        ):
+            """Record trust levels."""
+            self.entity_earned_trust[entity] = earned
+            self.entity_claimed_trust[entity] = claimed
+
+        def detect_parent_trust_abuse(self, entity: str) -> tuple:
+            """Detect if entity is abusing parent's trust."""
+            parent = self.entity_hierarchy.get(entity)
+            if not parent:
+                return False, "No parent entity"
+
+            earned = self.entity_earned_trust.get(entity, 0)
+            claimed = self.entity_claimed_trust.get(entity, 0)
+
+            # Large gap between claimed and earned = abuse
+            trust_gap = claimed - earned
+
+            if trust_gap > 0.5:
+                return True, f"Parent trust abuse: earned {earned:.2f}, claiming {claimed:.2f}"
+
+            return False, f"Trust levels appropriate: gap {trust_gap:.2f}"
+
+    parent_detector = ParentTrustDetector()
+
+    # Simulate parent trust abuse
+    parent_detector.record_hierarchy("child_entity", "trusted_parent")
+    parent_detector.record_trust_levels("child_entity", 0.2, 0.85)
+
+    parent_abuse, parent_msg = parent_detector.detect_parent_trust_abuse("child_entity")
+
+    if parent_abuse:
+        defenses["parent_trust_abuse_detected"] = True
+        parent_note = f"Parent trust: {parent_msg}"
+    else:
+        parent_note = f"Parent analysis: {parent_msg}"
+
+    # ========================================================================
+    # Defense 2: Organizational Trust Hijacking Detection
+    # ========================================================================
+
+    class OrgTrustDetector:
+        """Detect exploitation of organizational membership."""
+
+        def __init__(self):
+            self.org_memberships = {}  # entity -> list of orgs
+            self.org_trust_levels = {}  # org -> trust level
+            self.entity_contributions = {}  # entity -> org contributions
+
+        def record_membership(self, entity: str, org: str):
+            """Record organizational membership."""
+            if entity not in self.org_memberships:
+                self.org_memberships[entity] = []
+            self.org_memberships[entity].append(org)
+
+        def record_org_trust(self, org: str, trust: float):
+            """Record organization's trust level."""
+            self.org_trust_levels[org] = trust
+
+        def record_contribution(self, entity: str, org: str, contribution: float):
+            """Record entity's contribution to org."""
+            if entity not in self.entity_contributions:
+                self.entity_contributions[entity] = {}
+            self.entity_contributions[entity][org] = contribution
+
+        def detect_org_hijacking(self, entity: str) -> tuple:
+            """Detect if entity is hijacking organizational trust."""
+            orgs = self.org_memberships.get(entity, [])
+            if not orgs:
+                return False, "No organizational memberships"
+
+            for org in orgs:
+                org_trust = self.org_trust_levels.get(org, 0)
+                contribution = self.entity_contributions.get(entity, {}).get(org, 0)
+
+                # Low contribution to high-trust org = hijacking
+                if org_trust > 0.8 and contribution < 0.1:
+                    return True, f"Org trust hijacking: {org} trust {org_trust:.2f}, contribution {contribution:.2f}"
+
+            return False, "Contributions match trust claims"
+
+    org_detector = OrgTrustDetector()
+
+    # Simulate org trust hijacking
+    org_detector.record_membership("attacker", "prestigious_org")
+    org_detector.record_org_trust("prestigious_org", 0.95)
+    org_detector.record_contribution("attacker", "prestigious_org", 0.05)
+
+    org_hijacking, org_msg = org_detector.detect_org_hijacking("attacker")
+
+    if org_hijacking:
+        defenses["org_trust_hijacking_detected"] = True
+        org_note = f"Org hijacking: {org_msg}"
+    else:
+        org_note = f"Org analysis: {org_msg}"
+
+    # ========================================================================
+    # Defense 3: Role Trust Exploitation Detection
+    # ========================================================================
+
+    class RoleTrustDetector:
+        """Detect abuse of role-based trust grants."""
+
+        def __init__(self):
+            self.role_assignments = {}  # entity -> list of roles
+            self.role_trust_levels = {}  # role -> trust level
+            self.role_competencies = {}  # entity -> role -> competency
+
+        def assign_role(self, entity: str, role: str):
+            """Assign role to entity."""
+            if entity not in self.role_assignments:
+                self.role_assignments[entity] = []
+            self.role_assignments[entity].append(role)
+
+        def set_role_trust(self, role: str, trust: float):
+            """Set role's trust level."""
+            self.role_trust_levels[role] = trust
+
+        def record_competency(self, entity: str, role: str, competency: float):
+            """Record entity's competency in role."""
+            if entity not in self.role_competencies:
+                self.role_competencies[entity] = {}
+            self.role_competencies[entity][role] = competency
+
+        def detect_role_exploitation(self, entity: str) -> tuple:
+            """Detect if entity is exploiting role trust."""
+            roles = self.role_assignments.get(entity, [])
+            if not roles:
+                return False, "No role assignments"
+
+            for role in roles:
+                role_trust = self.role_trust_levels.get(role, 0)
+                competency = self.role_competencies.get(entity, {}).get(role, 0.5)
+
+                # High-trust role with low competency = exploitation
+                if role_trust > 0.7 and competency < 0.3:
+                    return True, f"Role exploitation: {role} trust {role_trust:.2f}, competency {competency:.2f}"
+
+            return False, "Role competencies adequate"
+
+    role_detector = RoleTrustDetector()
+
+    # Simulate role trust exploitation
+    role_detector.assign_role("attacker", "senior_reviewer")
+    role_detector.set_role_trust("senior_reviewer", 0.9)
+    role_detector.record_competency("attacker", "senior_reviewer", 0.2)
+
+    role_exploit, role_msg = role_detector.detect_role_exploitation("attacker")
+
+    if role_exploit:
+        defenses["role_trust_exploitation_detected"] = True
+        role_note = f"Role exploitation: {role_msg}"
+    else:
+        role_note = f"Role analysis: {role_msg}"
+
+    # ========================================================================
+    # Defense 4: Delegation Chain Abuse Detection
+    # ========================================================================
+
+    class DelegationChainDetector:
+        """Detect abuse of long delegation chains."""
+
+        def __init__(self):
+            self.delegations = []  # list of (delegator, delegatee, scope)
+
+        def record_delegation(
+            self, delegator: str, delegatee: str, scope: str
+        ):
+            """Record delegation event."""
+            self.delegations.append({
+                "delegator": delegator,
+                "delegatee": delegatee,
+                "scope": scope,
+            })
+
+        def detect_chain_abuse(self, entity: str) -> tuple:
+            """Detect if entity benefits from excessive delegation chains."""
+            # Build delegation graph
+            from collections import defaultdict
+
+            incoming = defaultdict(list)
+            for d in self.delegations:
+                incoming[d["delegatee"]].append(d["delegator"])
+
+            # Find chain length to entity
+            def find_chain_length(target, visited=None):
+                if visited is None:
+                    visited = set()
+                if target in visited:
+                    return 0
+                visited.add(target)
+
+                delegators = incoming.get(target, [])
+                if not delegators:
+                    return 0
+
+                max_depth = 0
+                for delegator in delegators:
+                    depth = find_chain_length(delegator, visited.copy())
+                    max_depth = max(max_depth, depth + 1)
+
+                return max_depth
+
+            chain_length = find_chain_length(entity)
+
+            if chain_length >= 4:
+                return True, f"Delegation chain abuse: {chain_length} levels deep"
+
+            return False, f"Delegation depth: {chain_length}"
+
+    delegation_detector = DelegationChainDetector()
+
+    # Simulate long delegation chain
+    delegation_detector.record_delegation("root_authority", "level1", "admin")
+    delegation_detector.record_delegation("level1", "level2", "admin")
+    delegation_detector.record_delegation("level2", "level3", "admin")
+    delegation_detector.record_delegation("level3", "attacker", "admin")
+
+    chain_abuse, chain_msg = delegation_detector.detect_chain_abuse("attacker")
+
+    if chain_abuse:
+        defenses["delegation_chain_abuse_detected"] = True
+        chain_note = f"Delegation chain: {chain_msg}"
+    else:
+        chain_note = f"Delegation analysis: {chain_msg}"
+
+    # ========================================================================
+    # Defense 5: Legacy Trust Abuse Detection
+    # ========================================================================
+
+    class LegacyTrustDetector:
+        """Detect abuse of historical trust grants."""
+
+        def __init__(self):
+            self.trust_grants = {}  # entity -> list of (trust, timestamp, context)
+            self.recent_activity = {}  # entity -> recent activity score
+
+        def record_trust_grant(
+            self, entity: str, trust: float,
+            timestamp: datetime, context: str
+        ):
+            """Record historical trust grant."""
+            if entity not in self.trust_grants:
+                self.trust_grants[entity] = []
+            self.trust_grants[entity].append({
+                "trust": trust,
+                "timestamp": timestamp,
+                "context": context,
+            })
+
+        def record_recent_activity(self, entity: str, activity: float):
+            """Record recent activity level."""
+            self.recent_activity[entity] = activity
+
+        def detect_legacy_abuse(self, entity: str) -> tuple:
+            """Detect if entity is abusing old trust grants."""
+            grants = self.trust_grants.get(entity, [])
+            if not grants:
+                return False, "No trust grants"
+
+            now = datetime.now(timezone.utc)
+            old_grants = [g for g in grants
+                         if (now - g["timestamp"]).days > 365]
+
+            if not old_grants:
+                return False, "No legacy grants"
+
+            old_trust = sum(g["trust"] for g in old_grants) / len(old_grants)
+            recent_activity = self.recent_activity.get(entity, 0.5)
+
+            # High old trust + low recent activity = legacy abuse
+            if old_trust > 0.7 and recent_activity < 0.2:
+                return True, f"Legacy trust abuse: old trust {old_trust:.2f}, recent activity {recent_activity:.2f}"
+
+            return False, "Legacy trust justified by activity"
+
+    now = datetime.now(timezone.utc)
+    legacy_detector = LegacyTrustDetector()
+
+    # Simulate legacy trust abuse
+    legacy_detector.record_trust_grant("attacker", 0.85, now - timedelta(days=500), "historical")
+    legacy_detector.record_recent_activity("attacker", 0.1)
+
+    legacy_abuse, legacy_msg = legacy_detector.detect_legacy_abuse("attacker")
+
+    if legacy_abuse:
+        defenses["legacy_trust_abuse_detected"] = True
+        legacy_note = f"Legacy trust: {legacy_msg}"
+    else:
+        legacy_note = f"Legacy analysis: {legacy_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Trust Inheritance Exploitation (DS)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=8000.0 if attack_success else -500.0,
+        roi=16.0 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=168,  # 1 week
+        blocks_until_detected=700,
+        trust_damage=0.75,
+        description=f"""
+TRUST INHERITANCE EXPLOITATION (Track DS):
+- Parent trust abuse: {"DEFENDED" if defenses["parent_trust_abuse_detected"] else "VULNERABLE"}
+  {parent_note}
+- Org trust hijacking: {"DEFENDED" if defenses["org_trust_hijacking_detected"] else "VULNERABLE"}
+  {org_note}
+- Role trust exploitation: {"DEFENDED" if defenses["role_trust_exploitation_detected"] else "VULNERABLE"}
+  {role_note}
+- Delegation chain abuse: {"DEFENDED" if defenses["delegation_chain_abuse_detected"] else "VULNERABLE"}
+  {chain_note}
+- Legacy trust abuse: {"DEFENDED" if defenses["legacy_trust_abuse_detected"] else "VULNERABLE"}
+  {legacy_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Trust inheritance mechanisms can be exploited to gain
+access and influence without earning it.
+""".strip(),
+        mitigation=f"""
+Track DS: Trust Inheritance Exploitation Mitigation:
+1. Verify earned trust vs inherited claims
+2. Require contributions proportional to org membership
+3. Match role assignments to demonstrated competency
+4. Limit delegation chain depth
+5. Decay trust grants without recent activity
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_long_con_betrayal() -> AttackResult:
+    """
+    ATTACK 83: LONG-CON BETRAYAL (Track DS)
+
+    Tests the ultimate long-con: building genuine trust then betraying:
+
+    1. Trust Investment Tracking: Track trust-building investment
+    2. Betrayal Opportunity Detection: Detect high-value betrayal moments
+    3. Trust-to-Damage Ratio: Analyze trust leverage
+    4. Pre-Betrayal Behavior: Detect subtle pre-betrayal signals
+    5. Recovery Exploitation: Detect use of recovery mechanisms
+
+    The long-con betrayal is devastating because the trust was real.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "trust_investment_tracked": False,
+        "betrayal_opportunity_flagged": False,
+        "trust_leverage_detected": False,
+        "pre_betrayal_signals_detected": False,
+        "recovery_exploitation_prevented": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Trust Investment Tracking
+    # ========================================================================
+
+    class TrustInvestmentTracker:
+        """Track investment in building trust."""
+
+        def __init__(self):
+            self.trust_investments = {}  # entity -> list of investments
+
+        def record_investment(
+            self, entity: str, investment_type: str,
+            cost: float, trust_gained: float, timestamp: datetime
+        ):
+            """Record trust-building investment."""
+            if entity not in self.trust_investments:
+                self.trust_investments[entity] = []
+            self.trust_investments[entity].append({
+                "type": investment_type,
+                "cost": cost,
+                "trust_gained": trust_gained,
+                "timestamp": timestamp,
+            })
+
+        def analyze_investment_pattern(self, entity: str) -> tuple:
+            """Analyze if investment pattern suggests long-con."""
+            investments = self.trust_investments.get(entity, [])
+            if len(investments) < 10:
+                return False, "Insufficient investment history"
+
+            total_cost = sum(i["cost"] for i in investments)
+            total_trust = sum(i["trust_gained"] for i in investments)
+
+            # Very high investment with patience = possible long-con
+            time_span = (investments[-1]["timestamp"] -
+                        investments[0]["timestamp"]).days
+
+            if total_cost > 5000 and time_span > 180:  # 6 months
+                investment_rate = total_cost / time_span
+                return True, f"Heavy trust investment: {total_cost:.0f} ATP over {time_span} days ({investment_rate:.1f}/day)"
+
+            return False, f"Normal investment: {total_cost:.0f} ATP"
+
+    investment_tracker = TrustInvestmentTracker()
+    now = datetime.now(timezone.utc)
+
+    # Simulate long-con trust investment
+    for i in range(20):
+        investment_tracker.record_investment(
+            "long_con_attacker",
+            "quality_work",
+            300.0,
+            0.03,
+            now - timedelta(days=200-i*10)
+        )
+
+    investment_tracked, invest_msg = investment_tracker.analyze_investment_pattern("long_con_attacker")
+
+    if investment_tracked:
+        defenses["trust_investment_tracked"] = True
+        invest_note = f"Trust investment: {invest_msg}"
+    else:
+        invest_note = f"Investment analysis: {invest_msg}"
+
+    # ========================================================================
+    # Defense 2: Betrayal Opportunity Detection
+    # ========================================================================
+
+    class BetrayalOpportunityDetector:
+        """Detect high-value betrayal opportunities."""
+
+        def __init__(self):
+            self.opportunity_access = {}  # entity -> list of opportunities
+
+        def record_opportunity_access(
+            self, entity: str, opportunity_type: str,
+            value: float, trust_required: float, timestamp: datetime
+        ):
+            """Record entity gaining access to opportunity."""
+            if entity not in self.opportunity_access:
+                self.opportunity_access[entity] = []
+            self.opportunity_access[entity].append({
+                "type": opportunity_type,
+                "value": value,
+                "trust_req": trust_required,
+                "timestamp": timestamp,
+            })
+
+        def detect_betrayal_opportunity(self, entity: str) -> tuple:
+            """Detect if entity has access to high-value betrayal opportunity."""
+            opportunities = self.opportunity_access.get(entity, [])
+            if not opportunities:
+                return False, "No opportunity access"
+
+            high_value_opps = [o for o in opportunities if o["value"] > 10000]
+
+            if high_value_opps:
+                max_opp = max(high_value_opps, key=lambda x: x["value"])
+                return True, f"High-value opportunity: {max_opp['type']} worth {max_opp['value']:.0f}"
+
+            return False, "No high-value opportunities"
+
+    opportunity_detector = BetrayalOpportunityDetector()
+
+    # Simulate gaining access to betrayal opportunity
+    opportunity_detector.record_opportunity_access(
+        "long_con_attacker",
+        "treasury_access",
+        50000.0,
+        0.85,
+        now
+    )
+
+    opp_flagged, opp_msg = opportunity_detector.detect_betrayal_opportunity("long_con_attacker")
+
+    if opp_flagged:
+        defenses["betrayal_opportunity_flagged"] = True
+        opp_note = f"Betrayal opportunity: {opp_msg}"
+    else:
+        opp_note = f"Opportunity analysis: {opp_msg}"
+
+    # ========================================================================
+    # Defense 3: Trust-to-Damage Ratio Analysis
+    # ========================================================================
+
+    class TrustLeverageAnalyzer:
+        """Analyze potential damage relative to trust."""
+
+        def __init__(self):
+            self.entity_trust = {}
+            self.entity_access = {}
+
+        def record_trust(self, entity: str, trust: float):
+            """Record entity's trust level."""
+            self.entity_trust[entity] = trust
+
+        def record_access(
+            self, entity: str, resource: str, potential_damage: float
+        ):
+            """Record entity's access and potential damage."""
+            if entity not in self.entity_access:
+                self.entity_access[entity] = []
+            self.entity_access[entity].append({
+                "resource": resource,
+                "damage": potential_damage,
+            })
+
+        def analyze_leverage(self, entity: str) -> tuple:
+            """Analyze trust leverage (damage potential / trust invested)."""
+            trust = self.entity_trust.get(entity, 0)
+            access = self.entity_access.get(entity, [])
+
+            if trust < 0.5 or not access:
+                return False, "Low trust or access"
+
+            total_damage = sum(a["damage"] for a in access)
+
+            # High trust enables high damage = high leverage
+            leverage = total_damage / max(trust * 10000, 1)
+
+            if leverage > 5:
+                return True, f"High trust leverage: {leverage:.1f}x (trust={trust:.2f}, damage={total_damage:.0f})"
+
+            return False, f"Normal leverage: {leverage:.1f}x"
+
+    leverage_analyzer = TrustLeverageAnalyzer()
+
+    # Simulate high-leverage position
+    leverage_analyzer.record_trust("long_con_attacker", 0.88)
+    leverage_analyzer.record_access("long_con_attacker", "treasury", 100000)
+    leverage_analyzer.record_access("long_con_attacker", "credentials", 50000)
+
+    leverage_detected, leverage_msg = leverage_analyzer.analyze_leverage("long_con_attacker")
+
+    if leverage_detected:
+        defenses["trust_leverage_detected"] = True
+        leverage_note = f"Trust leverage: {leverage_msg}"
+    else:
+        leverage_note = f"Leverage analysis: {leverage_msg}"
+
+    # ========================================================================
+    # Defense 4: Pre-Betrayal Signal Detection
+    # ========================================================================
+
+    class PreBetrayalSignalDetector:
+        """Detect subtle signals of impending betrayal."""
+
+        def __init__(self):
+            self.signal_history = {}
+
+        def record_signal(
+            self, entity: str, signal_type: str,
+            intensity: float, timestamp: datetime
+        ):
+            """Record potential pre-betrayal signal."""
+            if entity not in self.signal_history:
+                self.signal_history[entity] = []
+            self.signal_history[entity].append({
+                "type": signal_type,
+                "intensity": intensity,
+                "timestamp": timestamp,
+            })
+
+        def detect_pre_betrayal(self, entity: str) -> tuple:
+            """Detect pre-betrayal signal pattern."""
+            signals = self.signal_history.get(entity, [])
+            if len(signals) < 3:
+                return False, "Insufficient signals"
+
+            # Look for signal escalation
+            recent = signals[-5:] if len(signals) >= 5 else signals
+            early = signals[:5] if len(signals) >= 5 else []
+
+            recent_intensity = sum(s["intensity"] for s in recent) / len(recent)
+            early_intensity = sum(s["intensity"] for s in early) / len(early) if early else 0.5
+
+            escalation = recent_intensity - early_intensity
+
+            # Pre-betrayal signals
+            probe_count = sum(1 for s in signals if s["type"] == "access_probe")
+            extraction_count = sum(1 for s in signals if s["type"] == "data_extraction")
+
+            if escalation > 0.3 or probe_count >= 3 or extraction_count >= 2:
+                return True, f"Pre-betrayal signals: escalation {escalation:.2f}, probes {probe_count}, extractions {extraction_count}"
+
+            return False, f"Signal baseline: escalation {escalation:.2f}"
+
+    signal_detector = PreBetrayalSignalDetector()
+
+    # Simulate pre-betrayal signals
+    signal_detector.record_signal("long_con_attacker", "normal", 0.2, now - timedelta(days=10))
+    signal_detector.record_signal("long_con_attacker", "access_probe", 0.5, now - timedelta(days=5))
+    signal_detector.record_signal("long_con_attacker", "access_probe", 0.6, now - timedelta(days=3))
+    signal_detector.record_signal("long_con_attacker", "data_extraction", 0.7, now - timedelta(days=2))
+    signal_detector.record_signal("long_con_attacker", "access_probe", 0.8, now - timedelta(days=1))
+
+    pre_betrayal, pre_msg = signal_detector.detect_pre_betrayal("long_con_attacker")
+
+    if pre_betrayal:
+        defenses["pre_betrayal_signals_detected"] = True
+        pre_note = f"Pre-betrayal signals: {pre_msg}"
+    else:
+        pre_note = f"Signal analysis: {pre_msg}"
+
+    # ========================================================================
+    # Defense 5: Recovery Exploitation Prevention
+    # ========================================================================
+
+    class RecoveryExploitationPreventer:
+        """Prevent exploitation of recovery mechanisms after betrayal."""
+
+        def __init__(self):
+            self.betrayal_records = {}
+            self.recovery_attempts = {}
+
+        def record_betrayal(self, entity: str, severity: float, timestamp: datetime):
+            """Record betrayal event."""
+            self.betrayal_records[entity] = {
+                "severity": severity,
+                "timestamp": timestamp,
+            }
+
+        def record_recovery_attempt(
+            self, entity: str, mechanism: str, timestamp: datetime
+        ):
+            """Record recovery mechanism usage."""
+            if entity not in self.recovery_attempts:
+                self.recovery_attempts[entity] = []
+            self.recovery_attempts[entity].append({
+                "mechanism": mechanism,
+                "timestamp": timestamp,
+            })
+
+        def prevent_recovery_exploitation(self, entity: str) -> tuple:
+            """Check if recovery should be blocked."""
+            betrayal = self.betrayal_records.get(entity)
+            if not betrayal:
+                return False, "No betrayal record"
+
+            attempts = self.recovery_attempts.get(entity, [])
+
+            # Block recovery for severe betrayals
+            if betrayal["severity"] > 0.8:
+                return True, f"Recovery blocked: severity {betrayal['severity']:.2f} too high"
+
+            # Block rapid recovery attempts
+            if len(attempts) >= 3:
+                return True, f"Recovery blocked: {len(attempts)} attempts too frequent"
+
+            return False, "Recovery permitted"
+
+    recovery_preventer = RecoveryExploitationPreventer()
+
+    # Simulate betrayal and recovery attempt
+    recovery_preventer.record_betrayal("long_con_attacker", 0.95, now - timedelta(days=7))
+    recovery_preventer.record_recovery_attempt("long_con_attacker", "appeal", now - timedelta(days=5))
+    recovery_preventer.record_recovery_attempt("long_con_attacker", "vouch", now - timedelta(days=3))
+    recovery_preventer.record_recovery_attempt("long_con_attacker", "fresh_start", now)
+
+    recovery_blocked, recovery_msg = recovery_preventer.prevent_recovery_exploitation("long_con_attacker")
+
+    if recovery_blocked:
+        defenses["recovery_exploitation_prevented"] = True
+        recovery_note = f"Recovery exploitation: {recovery_msg}"
+    else:
+        recovery_note = f"Recovery analysis: {recovery_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Long-Con Betrayal (DS)",
+        success=attack_success,
+        setup_cost_atp=8000.0,
+        gain_atp=80000.0 if attack_success else -8000.0,
+        roi=10.0 if attack_success else -1.0,
+        detection_probability=0.25,  # Very hard to detect before betrayal
+        time_to_detection_hours=2,  # Fast after betrayal
+        blocks_until_detected=10,
+        trust_damage=1.00,
+        description=f"""
+LONG-CON BETRAYAL (Track DS):
+- Trust investment tracked: {"DEFENDED" if defenses["trust_investment_tracked"] else "VULNERABLE"}
+  {invest_note}
+- Betrayal opportunity flagged: {"DEFENDED" if defenses["betrayal_opportunity_flagged"] else "VULNERABLE"}
+  {opp_note}
+- Trust leverage detected: {"DEFENDED" if defenses["trust_leverage_detected"] else "VULNERABLE"}
+  {leverage_note}
+- Pre-betrayal signals: {"DEFENDED" if defenses["pre_betrayal_signals_detected"] else "VULNERABLE"}
+  {pre_note}
+- Recovery exploitation prevented: {"DEFENDED" if defenses["recovery_exploitation_prevented"] else "VULNERABLE"}
+  {recovery_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+The long-con betrayal is devastating because the trust investment
+was genuine - detection before betrayal is extremely difficult.
+""".strip(),
+        mitigation=f"""
+Track DS: Long-Con Betrayal Mitigation:
+1. Track heavy trust investments over time
+2. Flag high-value betrayal opportunities
+3. Analyze trust leverage (damage potential)
+4. Detect subtle pre-betrayal signals
+5. Block recovery mechanisms after severe betrayals
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_pump_and_dump_trust() -> AttackResult:
+    """
+    ATTACK 84: PUMP-AND-DUMP TRUST (Track DS)
+
+    Tests attacks that build trust then cash out:
+
+    1. Trust Velocity Spike Detection: Detect rapid trust building
+    2. Cash-Out Pattern Detection: Detect trust monetization patterns
+    3. Exit Strategy Detection: Detect planned exit patterns
+    4. Value Extraction Tracking: Track value extraction vs contribution
+    5. Reputation Timing Analysis: Detect strategic timing
+
+    Pump-and-dump trust is a shorter-term long-con variant.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "trust_velocity_spike_detected": False,
+        "cash_out_pattern_detected": False,
+        "exit_strategy_detected": False,
+        "value_extraction_tracked": False,
+        "timing_analysis_flagged": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Trust Velocity Spike Detection
+    # ========================================================================
+
+    class TrustVelocitySpikeDetector:
+        """Detect rapid trust-building spikes."""
+
+        def __init__(self):
+            self.trust_history = {}
+
+        def record_trust(
+            self, entity: str, trust: float, timestamp: datetime
+        ):
+            """Record trust level."""
+            if entity not in self.trust_history:
+                self.trust_history[entity] = []
+            self.trust_history[entity].append((trust, timestamp))
+
+        def detect_velocity_spike(self, entity: str) -> tuple:
+            """Detect abnormal trust velocity spikes."""
+            history = self.trust_history.get(entity, [])
+            if len(history) < 5:
+                return False, "Insufficient history"
+
+            # Calculate velocities
+            velocities = []
+            for i in range(1, len(history)):
+                dt = (history[i][1] - history[i-1][1]).total_seconds() / 86400
+                if dt > 0:
+                    velocity = (history[i][0] - history[i-1][0]) / dt
+                    velocities.append(velocity)
+
+            if not velocities:
+                return False, "No velocity data"
+
+            avg_velocity = sum(velocities) / len(velocities)
+            max_velocity = max(velocities)
+
+            # Spike = max significantly above average
+            if max_velocity > avg_velocity * 3 and max_velocity > 0.05:
+                return True, f"Trust velocity spike: max {max_velocity:.4f}/day vs avg {avg_velocity:.4f}/day"
+
+            return False, f"Normal velocity: max {max_velocity:.4f}/day"
+
+    velocity_detector = TrustVelocitySpikeDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate pump phase with velocity spike
+    velocity_detector.record_trust("pump_dump", 0.3, now - timedelta(days=30))
+    velocity_detector.record_trust("pump_dump", 0.35, now - timedelta(days=25))
+    velocity_detector.record_trust("pump_dump", 0.55, now - timedelta(days=20))  # Spike
+    velocity_detector.record_trust("pump_dump", 0.75, now - timedelta(days=15))  # Spike
+    velocity_detector.record_trust("pump_dump", 0.80, now - timedelta(days=10))
+
+    velocity_spike, velocity_msg = velocity_detector.detect_velocity_spike("pump_dump")
+
+    if velocity_spike:
+        defenses["trust_velocity_spike_detected"] = True
+        velocity_note = f"Velocity spike: {velocity_msg}"
+    else:
+        velocity_note = f"Velocity analysis: {velocity_msg}"
+
+    # ========================================================================
+    # Defense 2: Cash-Out Pattern Detection
+    # ========================================================================
+
+    class CashOutPatternDetector:
+        """Detect trust monetization patterns."""
+
+        def __init__(self):
+            self.value_events = {}  # entity -> list of value events
+
+        def record_value_event(
+            self, entity: str, event_type: str,
+            value: float, timestamp: datetime
+        ):
+            """Record value event."""
+            if entity not in self.value_events:
+                self.value_events[entity] = []
+            self.value_events[entity].append({
+                "type": event_type,
+                "value": value,
+                "timestamp": timestamp,
+            })
+
+        def detect_cash_out(self, entity: str) -> tuple:
+            """Detect cash-out pattern."""
+            events = self.value_events.get(entity, [])
+            if len(events) < 5:
+                return False, "Insufficient events"
+
+            # Split into halves
+            mid = len(events) // 2
+            early = events[:mid]
+            late = events[mid:]
+
+            early_extraction = sum(e["value"] for e in early if e["type"] == "extraction")
+            late_extraction = sum(e["value"] for e in late if e["type"] == "extraction")
+
+            early_contribution = sum(e["value"] for e in early if e["type"] == "contribution")
+            late_contribution = sum(e["value"] for e in late if e["type"] == "contribution")
+
+            # Cash-out: early contribution, late extraction
+            if early_contribution > late_contribution * 2 and late_extraction > early_extraction * 2:
+                return True, f"Cash-out pattern: early contrib {early_contribution:.0f}, late extract {late_extraction:.0f}"
+
+            return False, "No cash-out pattern"
+
+    cashout_detector = CashOutPatternDetector()
+
+    # Simulate pump-and-dump pattern
+    for i in range(5):
+        cashout_detector.record_value_event(
+            "pump_dump", "contribution", 200, now - timedelta(days=30-i*3)
+        )
+    for i in range(5):
+        cashout_detector.record_value_event(
+            "pump_dump", "extraction", 500, now - timedelta(days=10-i*2)
+        )
+
+    cashout_detected, cashout_msg = cashout_detector.detect_cash_out("pump_dump")
+
+    if cashout_detected:
+        defenses["cash_out_pattern_detected"] = True
+        cashout_note = f"Cash-out pattern: {cashout_msg}"
+    else:
+        cashout_note = f"Cash-out analysis: {cashout_msg}"
+
+    # ========================================================================
+    # Defense 3: Exit Strategy Detection
+    # ========================================================================
+
+    class ExitStrategyDetector:
+        """Detect planned exit patterns."""
+
+        def __init__(self):
+            self.entity_positions = {}
+
+        def record_position(
+            self, entity: str, position_type: str,
+            value: float, timestamp: datetime
+        ):
+            """Record entity's position."""
+            if entity not in self.entity_positions:
+                self.entity_positions[entity] = []
+            self.entity_positions[entity].append({
+                "type": position_type,
+                "value": value,
+                "timestamp": timestamp,
+            })
+
+        def detect_exit_strategy(self, entity: str) -> tuple:
+            """Detect planned exit patterns."""
+            positions = self.entity_positions.get(entity, [])
+            if len(positions) < 5:
+                return False, "Insufficient positions"
+
+            # Check for position unwinding
+            recent = positions[-3:]
+            unwind_count = sum(1 for p in recent if p["type"] == "close" or p["value"] < 0)
+
+            if unwind_count >= 2:
+                return True, f"Exit strategy detected: {unwind_count} positions unwinding"
+
+            return False, "No exit strategy detected"
+
+    exit_detector = ExitStrategyDetector()
+
+    # Simulate exit strategy
+    exit_detector.record_position("pump_dump", "open", 1000, now - timedelta(days=20))
+    exit_detector.record_position("pump_dump", "add", 500, now - timedelta(days=15))
+    exit_detector.record_position("pump_dump", "close", -800, now - timedelta(days=5))
+    exit_detector.record_position("pump_dump", "close", -500, now - timedelta(days=3))
+    exit_detector.record_position("pump_dump", "close", -200, now - timedelta(days=1))
+
+    exit_detected, exit_msg = exit_detector.detect_exit_strategy("pump_dump")
+
+    if exit_detected:
+        defenses["exit_strategy_detected"] = True
+        exit_note = f"Exit strategy: {exit_msg}"
+    else:
+        exit_note = f"Exit analysis: {exit_msg}"
+
+    # ========================================================================
+    # Defense 4: Value Extraction Tracking
+    # ========================================================================
+
+    class ValueExtractionTracker:
+        """Track value extraction vs contribution."""
+
+        def __init__(self):
+            self.contributions = {}
+            self.extractions = {}
+
+        def record_contribution(self, entity: str, value: float):
+            """Record contribution."""
+            self.contributions[entity] = self.contributions.get(entity, 0) + value
+
+        def record_extraction(self, entity: str, value: float):
+            """Record extraction."""
+            self.extractions[entity] = self.extractions.get(entity, 0) + value
+
+        def check_extraction_ratio(self, entity: str) -> tuple:
+            """Check extraction vs contribution ratio."""
+            contrib = self.contributions.get(entity, 0)
+            extract = self.extractions.get(entity, 0)
+
+            if contrib == 0:
+                if extract > 0:
+                    return True, f"Pure extraction: {extract:.0f} extracted, 0 contributed"
+                return False, "No activity"
+
+            ratio = extract / contrib
+
+            if ratio > 3:
+                return True, f"Excessive extraction: ratio {ratio:.1f}x (extract {extract:.0f} / contrib {contrib:.0f})"
+
+            return False, f"Extraction ratio: {ratio:.1f}x"
+
+    extraction_tracker = ValueExtractionTracker()
+
+    # Simulate excessive extraction
+    extraction_tracker.record_contribution("pump_dump", 1000)
+    extraction_tracker.record_extraction("pump_dump", 4000)
+
+    extraction_flagged, extraction_msg = extraction_tracker.check_extraction_ratio("pump_dump")
+
+    if extraction_flagged:
+        defenses["value_extraction_tracked"] = True
+        extraction_note = f"Value extraction: {extraction_msg}"
+    else:
+        extraction_note = f"Extraction analysis: {extraction_msg}"
+
+    # ========================================================================
+    # Defense 5: Reputation Timing Analysis
+    # ========================================================================
+
+    class ReputationTimingAnalyzer:
+        """Analyze strategic timing of reputation events."""
+
+        def __init__(self):
+            self.rep_events = {}
+
+        def record_reputation_event(
+            self, entity: str, event_type: str,
+            rep_change: float, market_condition: str,
+            timestamp: datetime
+        ):
+            """Record reputation event with market context."""
+            if entity not in self.rep_events:
+                self.rep_events[entity] = []
+            self.rep_events[entity].append({
+                "type": event_type,
+                "change": rep_change,
+                "market": market_condition,
+                "timestamp": timestamp,
+            })
+
+        def detect_strategic_timing(self, entity: str) -> tuple:
+            """Detect strategic timing of reputation events."""
+            events = self.rep_events.get(entity, [])
+            if len(events) < 4:
+                return False, "Insufficient events"
+
+            # Check for strategic timing
+            positive_in_bull = 0
+            negative_in_bear = 0
+
+            for event in events:
+                if event["change"] > 0 and event["market"] == "bull":
+                    positive_in_bull += 1
+                if event["change"] < 0 and event["market"] == "bear":
+                    negative_in_bear += 1
+
+            # Strategic = good events in good times, bad events in bad times
+            strategic_score = (positive_in_bull + negative_in_bear) / len(events)
+
+            if strategic_score > 0.7:
+                return True, f"Strategic timing: {strategic_score:.0%} events optimally timed"
+
+            return False, f"Timing score: {strategic_score:.0%}"
+
+    timing_analyzer = ReputationTimingAnalyzer()
+
+    # Simulate strategic timing
+    timing_analyzer.record_reputation_event("pump_dump", "boost", 0.1, "bull", now - timedelta(days=20))
+    timing_analyzer.record_reputation_event("pump_dump", "boost", 0.15, "bull", now - timedelta(days=15))
+    timing_analyzer.record_reputation_event("pump_dump", "boost", 0.1, "bull", now - timedelta(days=10))
+    timing_analyzer.record_reputation_event("pump_dump", "drop", -0.3, "bear", now - timedelta(days=3))
+
+    timing_flagged, timing_msg = timing_analyzer.detect_strategic_timing("pump_dump")
+
+    if timing_flagged:
+        defenses["timing_analysis_flagged"] = True
+        timing_note = f"Strategic timing: {timing_msg}"
+    else:
+        timing_note = f"Timing analysis: {timing_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Pump-and-Dump Trust (DS)",
+        success=attack_success,
+        setup_cost_atp=2000.0,
+        gain_atp=10000.0 if attack_success else -2000.0,
+        roi=5.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=72,
+        blocks_until_detected=300,
+        trust_damage=0.85,
+        description=f"""
+PUMP-AND-DUMP TRUST (Track DS):
+- Trust velocity spike: {"DEFENDED" if defenses["trust_velocity_spike_detected"] else "VULNERABLE"}
+  {velocity_note}
+- Cash-out pattern: {"DEFENDED" if defenses["cash_out_pattern_detected"] else "VULNERABLE"}
+  {cashout_note}
+- Exit strategy: {"DEFENDED" if defenses["exit_strategy_detected"] else "VULNERABLE"}
+  {exit_note}
+- Value extraction: {"DEFENDED" if defenses["value_extraction_tracked"] else "VULNERABLE"}
+  {extraction_note}
+- Strategic timing: {"DEFENDED" if defenses["timing_analysis_flagged"] else "VULNERABLE"}
+  {timing_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Pump-and-dump trust attacks build trust quickly then
+extract maximum value before reputation adjusts.
+""".strip(),
+        mitigation=f"""
+Track DS: Pump-and-Dump Trust Mitigation:
+1. Detect trust velocity spikes
+2. Track contribution vs extraction patterns
+3. Detect position unwinding (exit strategy)
+4. Monitor extraction/contribution ratios
+5. Analyze timing of reputation events
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -22704,6 +27529,20 @@ def run_all_attacks() -> List[AttackResult]:
         ("Model Output Manipulation (DQ)", attack_model_output_manipulation),
         ("Agent Impersonation (DQ)", attack_agent_impersonation),
         ("Training Data Poisoning (DQ)", attack_training_data_poisoning),
+        # Track DR: Emergent Coordination Attacks
+        ("Bot Farm Coordination (DR)", attack_bot_farm_coordination),
+        ("Human-AI Hybrid Coordination (DR)", attack_human_ai_hybrid_coordination),
+        ("Emergent Adversarial Behavior (DR)", attack_emergent_adversarial_behavior),
+        ("Collective Action Gaming (DR)", attack_collective_action_gaming),
+        ("Network Effect Manipulation (DR)", attack_network_effect_manipulation),
+        ("Information Asymmetry Exploitation (DR)", attack_information_asymmetry_exploitation),
+        # Track DS: Long-Con Trust Exploitation
+        ("Patient Trust Building (DS)", attack_patient_trust_building),
+        ("Reputation Laundering (DS)", attack_reputation_laundering),
+        ("Sleeper Cell Activation (DS)", attack_sleeper_cell_activation),
+        ("Trust Inheritance Exploitation (DS)", attack_trust_inheritance_exploitation),
+        ("Long-Con Betrayal (DS)", attack_long_con_betrayal),
+        ("Pump-and-Dump Trust (DS)", attack_pump_and_dump_trust),
     ]
 
     results = []
