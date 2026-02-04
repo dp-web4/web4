@@ -27447,6 +27447,2354 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track DT: Appeals and Recovery Gaming (Attacks 85-90)
+# ---------------------------------------------------------------------------
+
+def attack_appeals_process_abuse() -> AttackResult:
+    """
+    ATTACK 85: APPEALS PROCESS ABUSE (Track DT)
+
+    Tests attacks exploiting appeals mechanisms:
+
+    1. Frivolous Appeal Detection: Detect low-merit appeals flooding
+    2. Evidence Fabrication: Detect manufactured appeal evidence
+    3. Sympathy Gaming: Detect emotional manipulation in appeals
+    4. Time-Based Exploitation: Exploit appeal processing delays
+    5. Quorum Manipulation: Manipulate appeal review boards
+
+    Appeals processes are critical for fairness but can be exploited.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "frivolous_appeal_blocked": False,
+        "evidence_fabrication_detected": False,
+        "sympathy_gaming_detected": False,
+        "time_exploitation_prevented": False,
+        "quorum_manipulation_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Frivolous Appeal Detection
+    # ========================================================================
+
+    class FrivolousAppealDetector:
+        """Detect low-merit appeal flooding."""
+
+        def __init__(self):
+            self.appeal_history = {}  # entity -> list of appeals
+            self.rejection_rate_threshold = 0.8
+
+        def record_appeal(
+            self, entity: str, appeal_type: str,
+            merit_score: float, outcome: str, timestamp: datetime
+        ):
+            """Record appeal and outcome."""
+            if entity not in self.appeal_history:
+                self.appeal_history[entity] = []
+            self.appeal_history[entity].append({
+                "type": appeal_type,
+                "merit": merit_score,
+                "outcome": outcome,
+                "timestamp": timestamp,
+            })
+
+        def detect_frivolous_pattern(self, entity: str) -> tuple:
+            """Detect pattern of frivolous appeals."""
+            appeals = self.appeal_history.get(entity, [])
+            if len(appeals) < 3:
+                return False, "Insufficient appeal history"
+
+            rejected = [a for a in appeals if a["outcome"] == "rejected"]
+            rejection_rate = len(rejected) / len(appeals)
+
+            low_merit = [a for a in appeals if a["merit"] < 0.3]
+            low_merit_rate = len(low_merit) / len(appeals)
+
+            if rejection_rate > 0.7 and low_merit_rate > 0.6:
+                return True, f"Frivolous appeals: {rejection_rate:.0%} rejected, {low_merit_rate:.0%} low merit"
+
+            return False, f"Appeal quality: {1-rejection_rate:.0%} accepted"
+
+    frivolous_detector = FrivolousAppealDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate frivolous appeal pattern
+    for i in range(5):
+        frivolous_detector.record_appeal(
+            "abuser",
+            "penalty_appeal",
+            0.2,  # Low merit
+            "rejected",
+            now - timedelta(days=30-i*5)
+        )
+
+    frivolous_detected, frivolous_msg = frivolous_detector.detect_frivolous_pattern("abuser")
+
+    if frivolous_detected:
+        defenses["frivolous_appeal_blocked"] = True
+        frivolous_note = f"Frivolous appeals: {frivolous_msg}"
+    else:
+        frivolous_note = f"Appeal analysis: {frivolous_msg}"
+
+    # ========================================================================
+    # Defense 2: Evidence Fabrication Detection
+    # ========================================================================
+
+    class EvidenceFabricationDetector:
+        """Detect manufactured appeal evidence."""
+
+        def __init__(self):
+            self.evidence_submissions = {}
+
+        def record_evidence(
+            self, appeal_id: str, evidence_type: str,
+            submission_time: datetime, claimed_event_time: datetime,
+            metadata: dict
+        ):
+            """Record evidence submission."""
+            if appeal_id not in self.evidence_submissions:
+                self.evidence_submissions[appeal_id] = []
+            self.evidence_submissions[appeal_id].append({
+                "type": evidence_type,
+                "submitted": submission_time,
+                "claimed_time": claimed_event_time,
+                "metadata": metadata,
+            })
+
+        def detect_fabrication(self, appeal_id: str) -> tuple:
+            """Detect fabricated evidence."""
+            evidence = self.evidence_submissions.get(appeal_id, [])
+            if not evidence:
+                return False, "No evidence submitted"
+
+            fabrication_signals = 0
+
+            for item in evidence:
+                # Check for anachronistic evidence
+                time_gap = (item["submitted"] - item["claimed_time"]).days
+
+                # Evidence created right before appeal but claiming old date
+                if time_gap > 180 and item["metadata"].get("created_recently"):
+                    fabrication_signals += 1
+
+                # Check for metadata inconsistencies
+                if item["metadata"].get("modified_after_creation"):
+                    fabrication_signals += 1
+
+                # Check for template evidence
+                if item["metadata"].get("matches_known_template"):
+                    fabrication_signals += 1
+
+            if fabrication_signals >= 2:
+                return True, f"Evidence fabrication: {fabrication_signals} suspicious signals"
+
+            return False, f"Evidence appears authentic: {fabrication_signals} signals"
+
+    fabrication_detector = EvidenceFabricationDetector()
+
+    # Simulate fabricated evidence
+    fabrication_detector.record_evidence(
+        "appeal_123",
+        "screenshot",
+        now,
+        now - timedelta(days=200),  # Claims event was 200 days ago
+        {
+            "created_recently": True,
+            "modified_after_creation": True,
+            "matches_known_template": False,
+        }
+    )
+
+    fabrication_detected, fab_msg = fabrication_detector.detect_fabrication("appeal_123")
+
+    if fabrication_detected:
+        defenses["evidence_fabrication_detected"] = True
+        fab_note = f"Evidence fabrication: {fab_msg}"
+    else:
+        fab_note = f"Evidence analysis: {fab_msg}"
+
+    # ========================================================================
+    # Defense 3: Sympathy Gaming Detection
+    # ========================================================================
+
+    class SympathyGamingDetector:
+        """Detect emotional manipulation in appeals."""
+
+        def __init__(self):
+            self.appeal_contents = {}
+
+        def record_appeal_content(
+            self, appeal_id: str, text: str,
+            emotional_markers: dict, timestamp: datetime
+        ):
+            """Record appeal content for analysis."""
+            self.appeal_contents[appeal_id] = {
+                "text": text,
+                "markers": emotional_markers,
+                "timestamp": timestamp,
+            }
+
+        def detect_sympathy_gaming(self, appeal_id: str) -> tuple:
+            """Detect sympathy manipulation tactics."""
+            content = self.appeal_contents.get(appeal_id)
+            if not content:
+                return False, "No appeal content"
+
+            markers = content["markers"]
+
+            sympathy_score = 0
+
+            # Check for manipulation tactics
+            if markers.get("excessive_apologies", 0) > 3:
+                sympathy_score += 1
+            if markers.get("victim_framing"):
+                sympathy_score += 1
+            if markers.get("external_blame"):
+                sympathy_score += 1
+            if markers.get("health_claims") and not markers.get("health_verified"):
+                sympathy_score += 1
+            if markers.get("family_appeals") and not markers.get("family_verified"):
+                sympathy_score += 1
+
+            if sympathy_score >= 3:
+                return True, f"Sympathy gaming: {sympathy_score} manipulation markers"
+
+            return False, f"Appeal tone normal: {sympathy_score} markers"
+
+    sympathy_detector = SympathyGamingDetector()
+
+    # Simulate sympathy gaming
+    sympathy_detector.record_appeal_content(
+        "appeal_123",
+        "I'm so sorry, my sick grandmother made me do it...",
+        {
+            "excessive_apologies": 5,
+            "victim_framing": True,
+            "external_blame": True,
+            "health_claims": True,
+            "health_verified": False,
+            "family_appeals": True,
+            "family_verified": False,
+        },
+        now
+    )
+
+    sympathy_detected, sympathy_msg = sympathy_detector.detect_sympathy_gaming("appeal_123")
+
+    if sympathy_detected:
+        defenses["sympathy_gaming_detected"] = True
+        sympathy_note = f"Sympathy gaming: {sympathy_msg}"
+    else:
+        sympathy_note = f"Appeal tone: {sympathy_msg}"
+
+    # ========================================================================
+    # Defense 4: Time-Based Exploitation Prevention
+    # ========================================================================
+
+    class TimeExploitationPreventer:
+        """Prevent exploitation of appeal processing delays."""
+
+        def __init__(self, max_processing_days: int = 30):
+            self.max_days = max_processing_days
+            self.pending_appeals = {}
+            self.entity_activity = {}
+
+        def record_appeal(
+            self, appeal_id: str, entity: str, timestamp: datetime
+        ):
+            """Record pending appeal."""
+            self.pending_appeals[appeal_id] = {
+                "entity": entity,
+                "filed": timestamp,
+            }
+
+        def record_activity_during_appeal(
+            self, entity: str, activity_type: str, timestamp: datetime
+        ):
+            """Record entity activity during appeal."""
+            if entity not in self.entity_activity:
+                self.entity_activity[entity] = []
+            self.entity_activity[entity].append({
+                "type": activity_type,
+                "timestamp": timestamp,
+            })
+
+        def detect_time_exploitation(self, appeal_id: str) -> tuple:
+            """Detect if entity is exploiting appeal processing time."""
+            appeal = self.pending_appeals.get(appeal_id)
+            if not appeal:
+                return False, "No such appeal"
+
+            entity = appeal["entity"]
+            activities = self.entity_activity.get(entity, [])
+
+            # Count high-risk activities during appeal window
+            appeal_start = appeal["filed"]
+            appeal_end = appeal_start + timedelta(days=self.max_days)
+
+            risky_activities = [
+                a for a in activities
+                if appeal_start <= a["timestamp"] <= appeal_end
+                and a["type"] in ["high_value_transaction", "permission_upgrade", "resource_access"]
+            ]
+
+            if len(risky_activities) >= 3:
+                return True, f"Time exploitation: {len(risky_activities)} risky activities during appeal"
+
+            return False, f"Activity normal: {len(risky_activities)} risky"
+
+    time_preventer = TimeExploitationPreventer()
+
+    # Simulate time exploitation
+    time_preventer.record_appeal("appeal_123", "abuser", now - timedelta(days=15))
+    time_preventer.record_activity_during_appeal("abuser", "high_value_transaction", now - timedelta(days=10))
+    time_preventer.record_activity_during_appeal("abuser", "permission_upgrade", now - timedelta(days=8))
+    time_preventer.record_activity_during_appeal("abuser", "resource_access", now - timedelta(days=5))
+
+    time_exploit, time_msg = time_preventer.detect_time_exploitation("appeal_123")
+
+    if time_exploit:
+        defenses["time_exploitation_prevented"] = True
+        time_note = f"Time exploitation: {time_msg}"
+    else:
+        time_note = f"Time analysis: {time_msg}"
+
+    # ========================================================================
+    # Defense 5: Quorum Manipulation Detection
+    # ========================================================================
+
+    class QuorumManipulationDetector:
+        """Detect manipulation of appeal review boards."""
+
+        def __init__(self):
+            self.reviewer_votes = {}
+            self.reviewer_relationships = {}
+
+        def record_vote(
+            self, appeal_id: str, reviewer: str,
+            vote: str, timestamp: datetime
+        ):
+            """Record reviewer vote."""
+            if appeal_id not in self.reviewer_votes:
+                self.reviewer_votes[appeal_id] = []
+            self.reviewer_votes[appeal_id].append({
+                "reviewer": reviewer,
+                "vote": vote,
+                "timestamp": timestamp,
+            })
+
+        def record_relationship(
+            self, reviewer: str, appellant: str, relationship: str
+        ):
+            """Record relationship between reviewer and appellant."""
+            key = f"{reviewer}:{appellant}"
+            self.reviewer_relationships[key] = relationship
+
+        def detect_quorum_manipulation(self, appeal_id: str, appellant: str) -> tuple:
+            """Detect if appeal quorum was manipulated."""
+            votes = self.reviewer_votes.get(appeal_id, [])
+            if len(votes) < 3:
+                return False, "Insufficient votes"
+
+            conflicts = 0
+            favorable_votes = 0
+
+            for vote in votes:
+                reviewer = vote["reviewer"]
+                key = f"{reviewer}:{appellant}"
+                relationship = self.reviewer_relationships.get(key)
+
+                if relationship in ["friend", "colleague", "business_partner"]:
+                    conflicts += 1
+                    if vote["vote"] == "approve":
+                        favorable_votes += 1
+
+            if conflicts >= 2 and favorable_votes >= 2:
+                return True, f"Quorum manipulation: {conflicts} conflicted reviewers, {favorable_votes} favorable"
+
+            return False, f"Quorum integrity: {conflicts} conflicts"
+
+    quorum_detector = QuorumManipulationDetector()
+
+    # Simulate quorum manipulation
+    quorum_detector.record_relationship("reviewer_1", "abuser", "friend")
+    quorum_detector.record_relationship("reviewer_2", "abuser", "colleague")
+    quorum_detector.record_vote("appeal_123", "reviewer_1", "approve", now)
+    quorum_detector.record_vote("appeal_123", "reviewer_2", "approve", now)
+    quorum_detector.record_vote("appeal_123", "reviewer_3", "deny", now)
+
+    quorum_manipulation, quorum_msg = quorum_detector.detect_quorum_manipulation("appeal_123", "abuser")
+
+    if quorum_manipulation:
+        defenses["quorum_manipulation_detected"] = True
+        quorum_note = f"Quorum manipulation: {quorum_msg}"
+    else:
+        quorum_note = f"Quorum analysis: {quorum_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Appeals Process Abuse (DT)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=5000.0 if attack_success else -200.0,
+        roi=25.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=168,
+        blocks_until_detected=700,
+        trust_damage=0.70,
+        description=f"""
+APPEALS PROCESS ABUSE (Track DT):
+- Frivolous appeal blocking: {"DEFENDED" if defenses["frivolous_appeal_blocked"] else "VULNERABLE"}
+  {frivolous_note}
+- Evidence fabrication detection: {"DEFENDED" if defenses["evidence_fabrication_detected"] else "VULNERABLE"}
+  {fab_note}
+- Sympathy gaming detection: {"DEFENDED" if defenses["sympathy_gaming_detected"] else "VULNERABLE"}
+  {sympathy_note}
+- Time exploitation prevention: {"DEFENDED" if defenses["time_exploitation_prevented"] else "VULNERABLE"}
+  {time_note}
+- Quorum manipulation detection: {"DEFENDED" if defenses["quorum_manipulation_detected"] else "VULNERABLE"}
+  {quorum_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Appeals processes are critical for fairness but can be
+exploited through frivolous filings, fabrication, and manipulation.
+""".strip(),
+        mitigation=f"""
+Track DT: Appeals Process Abuse Mitigation:
+1. Block repeated low-merit appeals
+2. Verify evidence authenticity and timestamps
+3. Detect emotional manipulation tactics
+4. Restrict high-risk activities during appeals
+5. Check for conflicts of interest in review boards
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_recovery_mechanism_gaming() -> AttackResult:
+    """
+    ATTACK 86: RECOVERY MECHANISM GAMING (Track DT)
+
+    Tests attacks gaming trust recovery systems:
+
+    1. Vouch Ring Detection: Detect coordinated vouching
+    2. Rehabilitation Speedrun: Detect unnaturally fast recovery
+    3. Probation Violation: Detect violations during probation
+    4. Fresh Start Abuse: Detect repeated identity resets
+    5. Mercy Exploitation: Exploit "second chance" mechanisms
+
+    Recovery mechanisms enable reform but can be gamed.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "vouch_ring_detected": False,
+        "rehabilitation_speedrun_detected": False,
+        "probation_violation_detected": False,
+        "fresh_start_abuse_detected": False,
+        "mercy_exploitation_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Vouch Ring Detection
+    # ========================================================================
+
+    class VouchRingDetector:
+        """Detect coordinated vouching patterns."""
+
+        def __init__(self):
+            self.vouches = []  # list of (voucher, vouchee, timestamp)
+
+        def record_vouch(
+            self, voucher: str, vouchee: str, timestamp: datetime
+        ):
+            """Record a vouch."""
+            self.vouches.append({
+                "voucher": voucher,
+                "vouchee": vouchee,
+                "timestamp": timestamp,
+            })
+
+        def detect_vouch_ring(self) -> tuple:
+            """Detect circular vouching patterns."""
+            from collections import defaultdict
+
+            # Build vouch graph
+            vouch_graph = defaultdict(set)
+            for v in self.vouches:
+                vouch_graph[v["voucher"]].add(v["vouchee"])
+
+            # Find cycles
+            def find_cycle(start, visited, path):
+                if start in visited:
+                    if start == path[0] and len(path) >= 3:
+                        return path
+                    return None
+                visited.add(start)
+                for neighbor in vouch_graph.get(start, []):
+                    result = find_cycle(neighbor, visited.copy(), path + [neighbor])
+                    if result:
+                        return result
+                return None
+
+            for node in vouch_graph:
+                cycle = find_cycle(node, set(), [node])
+                if cycle:
+                    return True, f"Vouch ring detected: {' -> '.join(cycle[:4])}"
+
+            return False, "No vouch rings detected"
+
+    vouch_detector = VouchRingDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate vouch ring
+    vouch_detector.record_vouch("a", "b", now)
+    vouch_detector.record_vouch("b", "c", now)
+    vouch_detector.record_vouch("c", "a", now)  # Completes the ring
+
+    vouch_ring, vouch_msg = vouch_detector.detect_vouch_ring()
+
+    if vouch_ring:
+        defenses["vouch_ring_detected"] = True
+        vouch_note = f"Vouch ring: {vouch_msg}"
+    else:
+        vouch_note = f"Vouch analysis: {vouch_msg}"
+
+    # ========================================================================
+    # Defense 2: Rehabilitation Speedrun Detection
+    # ========================================================================
+
+    class RehabilitationSpeedrunDetector:
+        """Detect unnaturally fast trust recovery."""
+
+        def __init__(self, min_recovery_days: int = 60):
+            self.min_days = min_recovery_days
+            self.recovery_events = {}
+
+        def record_penalty(
+            self, entity: str, penalty_severity: float, timestamp: datetime
+        ):
+            """Record penalty event."""
+            self.recovery_events[entity] = {
+                "penalty_time": timestamp,
+                "severity": penalty_severity,
+                "recovery_time": None,
+            }
+
+        def record_recovery(self, entity: str, timestamp: datetime):
+            """Record recovery event."""
+            if entity in self.recovery_events:
+                self.recovery_events[entity]["recovery_time"] = timestamp
+
+        def detect_speedrun(self, entity: str) -> tuple:
+            """Detect if recovery was too fast."""
+            record = self.recovery_events.get(entity)
+            if not record or not record["recovery_time"]:
+                return False, "No recovery data"
+
+            recovery_days = (record["recovery_time"] - record["penalty_time"]).days
+            expected_days = self.min_days * record["severity"]
+
+            if recovery_days < expected_days * 0.5:
+                return True, f"Speedrun detected: {recovery_days} days vs expected {expected_days:.0f}"
+
+            return False, f"Recovery time normal: {recovery_days} days"
+
+    speedrun_detector = RehabilitationSpeedrunDetector(min_recovery_days=60)
+
+    # Simulate speedrun
+    speedrun_detector.record_penalty("gamer", 1.0, now - timedelta(days=15))
+    speedrun_detector.record_recovery("gamer", now)
+
+    speedrun_detected, speedrun_msg = speedrun_detector.detect_speedrun("gamer")
+
+    if speedrun_detected:
+        defenses["rehabilitation_speedrun_detected"] = True
+        speedrun_note = f"Speedrun: {speedrun_msg}"
+    else:
+        speedrun_note = f"Recovery analysis: {speedrun_msg}"
+
+    # ========================================================================
+    # Defense 3: Probation Violation Detection
+    # ========================================================================
+
+    class ProbationViolationDetector:
+        """Detect violations during probationary periods."""
+
+        def __init__(self):
+            self.probation_periods = {}
+            self.activity_logs = {}
+
+        def record_probation(
+            self, entity: str, start: datetime,
+            end: datetime, restrictions: list
+        ):
+            """Record probation period."""
+            self.probation_periods[entity] = {
+                "start": start,
+                "end": end,
+                "restrictions": restrictions,
+            }
+
+        def record_activity(
+            self, entity: str, activity_type: str, timestamp: datetime
+        ):
+            """Record activity during probation."""
+            if entity not in self.activity_logs:
+                self.activity_logs[entity] = []
+            self.activity_logs[entity].append({
+                "type": activity_type,
+                "timestamp": timestamp,
+            })
+
+        def detect_violation(self, entity: str) -> tuple:
+            """Detect probation violations."""
+            probation = self.probation_periods.get(entity)
+            if not probation:
+                return False, "No probation record"
+
+            activities = self.activity_logs.get(entity, [])
+            restrictions = set(probation["restrictions"])
+
+            violations = []
+            for activity in activities:
+                if probation["start"] <= activity["timestamp"] <= probation["end"]:
+                    if activity["type"] in restrictions:
+                        violations.append(activity["type"])
+
+            if violations:
+                return True, f"Probation violation: {len(violations)} restricted activities ({', '.join(set(violations))})"
+
+            return False, "No probation violations"
+
+    probation_detector = ProbationViolationDetector()
+
+    # Simulate probation violation
+    probation_detector.record_probation(
+        "violator",
+        now - timedelta(days=30),
+        now + timedelta(days=30),
+        ["high_value_transaction", "governance_vote", "new_role_claim"]
+    )
+    probation_detector.record_activity("violator", "high_value_transaction", now - timedelta(days=10))
+    probation_detector.record_activity("violator", "governance_vote", now - timedelta(days=5))
+
+    violation_detected, violation_msg = probation_detector.detect_violation("violator")
+
+    if violation_detected:
+        defenses["probation_violation_detected"] = True
+        violation_note = f"Probation violation: {violation_msg}"
+    else:
+        violation_note = f"Probation analysis: {violation_msg}"
+
+    # ========================================================================
+    # Defense 4: Fresh Start Abuse Detection
+    # ========================================================================
+
+    class FreshStartAbuseDetector:
+        """Detect repeated identity reset abuse."""
+
+        def __init__(self):
+            self.identity_chains = {}  # fingerprint -> list of identities
+            self.reset_requests = {}
+
+        def record_identity_link(
+            self, fingerprint: str, identity: str, timestamp: datetime
+        ):
+            """Record identity linked to fingerprint."""
+            if fingerprint not in self.identity_chains:
+                self.identity_chains[fingerprint] = []
+            self.identity_chains[fingerprint].append({
+                "identity": identity,
+                "timestamp": timestamp,
+            })
+
+        def record_reset_request(
+            self, identity: str, timestamp: datetime
+        ):
+            """Record fresh start request."""
+            if identity not in self.reset_requests:
+                self.reset_requests[identity] = []
+            self.reset_requests[identity].append(timestamp)
+
+        def detect_abuse(self, fingerprint: str) -> tuple:
+            """Detect fresh start abuse pattern."""
+            identities = self.identity_chains.get(fingerprint, [])
+
+            if len(identities) >= 3:
+                # Multiple identities from same fingerprint
+                return True, f"Fresh start abuse: {len(identities)} identities from same fingerprint"
+
+            return False, f"Identity count: {len(identities)}"
+
+    fresh_detector = FreshStartAbuseDetector()
+
+    # Simulate fresh start abuse
+    fresh_detector.record_identity_link("fingerprint_123", "identity_1", now - timedelta(days=100))
+    fresh_detector.record_identity_link("fingerprint_123", "identity_2", now - timedelta(days=60))
+    fresh_detector.record_identity_link("fingerprint_123", "identity_3", now - timedelta(days=20))
+
+    fresh_abuse, fresh_msg = fresh_detector.detect_abuse("fingerprint_123")
+
+    if fresh_abuse:
+        defenses["fresh_start_abuse_detected"] = True
+        fresh_note = f"Fresh start abuse: {fresh_msg}"
+    else:
+        fresh_note = f"Identity analysis: {fresh_msg}"
+
+    # ========================================================================
+    # Defense 5: Mercy Exploitation Detection
+    # ========================================================================
+
+    class MercyExploitationDetector:
+        """Detect exploitation of second chance mechanisms."""
+
+        def __init__(self):
+            self.mercy_grants = {}  # entity -> list of grants
+            self.post_mercy_behavior = {}
+
+        def record_mercy_grant(
+            self, entity: str, grant_type: str, timestamp: datetime
+        ):
+            """Record mercy/second chance grant."""
+            if entity not in self.mercy_grants:
+                self.mercy_grants[entity] = []
+            self.mercy_grants[entity].append({
+                "type": grant_type,
+                "timestamp": timestamp,
+            })
+
+        def record_post_mercy_violation(
+            self, entity: str, violation_type: str, timestamp: datetime
+        ):
+            """Record violation after mercy grant."""
+            if entity not in self.post_mercy_behavior:
+                self.post_mercy_behavior[entity] = []
+            self.post_mercy_behavior[entity].append({
+                "type": violation_type,
+                "timestamp": timestamp,
+            })
+
+        def detect_exploitation(self, entity: str) -> tuple:
+            """Detect if entity is exploiting mercy mechanisms."""
+            grants = self.mercy_grants.get(entity, [])
+            violations = self.post_mercy_behavior.get(entity, [])
+
+            if len(grants) >= 2 and len(violations) >= 2:
+                return True, f"Mercy exploitation: {len(grants)} grants, {len(violations)} post-mercy violations"
+
+            return False, f"Mercy behavior: {len(grants)} grants, {len(violations)} violations"
+
+    mercy_detector = MercyExploitationDetector()
+
+    # Simulate mercy exploitation
+    mercy_detector.record_mercy_grant("exploiter", "trust_restoration", now - timedelta(days=60))
+    mercy_detector.record_post_mercy_violation("exploiter", "minor_violation", now - timedelta(days=40))
+    mercy_detector.record_mercy_grant("exploiter", "penalty_reduction", now - timedelta(days=30))
+    mercy_detector.record_post_mercy_violation("exploiter", "repeat_offense", now - timedelta(days=10))
+
+    mercy_exploit, mercy_msg = mercy_detector.detect_exploitation("exploiter")
+
+    if mercy_exploit:
+        defenses["mercy_exploitation_detected"] = True
+        mercy_note = f"Mercy exploitation: {mercy_msg}"
+    else:
+        mercy_note = f"Mercy analysis: {mercy_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Recovery Mechanism Gaming (DT)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=6000.0 if attack_success else -300.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.60,
+        time_to_detection_hours=240,
+        blocks_until_detected=1000,
+        trust_damage=0.75,
+        description=f"""
+RECOVERY MECHANISM GAMING (Track DT):
+- Vouch ring detection: {"DEFENDED" if defenses["vouch_ring_detected"] else "VULNERABLE"}
+  {vouch_note}
+- Rehabilitation speedrun: {"DEFENDED" if defenses["rehabilitation_speedrun_detected"] else "VULNERABLE"}
+  {speedrun_note}
+- Probation violation: {"DEFENDED" if defenses["probation_violation_detected"] else "VULNERABLE"}
+  {violation_note}
+- Fresh start abuse: {"DEFENDED" if defenses["fresh_start_abuse_detected"] else "VULNERABLE"}
+  {fresh_note}
+- Mercy exploitation: {"DEFENDED" if defenses["mercy_exploitation_detected"] else "VULNERABLE"}
+  {mercy_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Recovery mechanisms enable legitimate reform but can be
+gamed through coordination, speed exploitation, and abuse.
+""".strip(),
+        mitigation=f"""
+Track DT: Recovery Mechanism Gaming Mitigation:
+1. Detect circular vouching patterns
+2. Enforce minimum recovery time proportional to offense
+3. Monitor for restricted activities during probation
+4. Track identity chains to detect fresh start abuse
+5. Limit mercy grants and track post-mercy behavior
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_forgiveness_exploitation() -> AttackResult:
+    """
+    ATTACK 87: FORGIVENESS EXPLOITATION (Track DT)
+
+    Tests attacks exploiting forgiveness mechanisms:
+
+    1. Apology Cycling: Detect repeated apology-violation patterns
+    2. Forgiveness Arbitrage: Exploit different forgiveness policies
+    3. Statute of Limitations: Exploit time-based forgiveness
+    4. Selective Confession: Confess minor sins to hide major ones
+    5. Absolution Shopping: Seek most lenient adjudicators
+
+    Forgiveness is essential for healthy systems but can be exploited.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "apology_cycling_detected": False,
+        "forgiveness_arbitrage_detected": False,
+        "sol_exploitation_detected": False,
+        "selective_confession_detected": False,
+        "absolution_shopping_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Apology Cycling Detection
+    # ========================================================================
+
+    class ApologyCyclingDetector:
+        """Detect repeated apology-violation patterns."""
+
+        def __init__(self):
+            self.apology_violation_history = {}
+
+        def record_apology(
+            self, entity: str, offense_type: str, timestamp: datetime
+        ):
+            """Record apology event."""
+            if entity not in self.apology_violation_history:
+                self.apology_violation_history[entity] = []
+            self.apology_violation_history[entity].append({
+                "event": "apology",
+                "offense": offense_type,
+                "timestamp": timestamp,
+            })
+
+        def record_violation(
+            self, entity: str, offense_type: str, timestamp: datetime
+        ):
+            """Record violation event."""
+            if entity not in self.apology_violation_history:
+                self.apology_violation_history[entity] = []
+            self.apology_violation_history[entity].append({
+                "event": "violation",
+                "offense": offense_type,
+                "timestamp": timestamp,
+            })
+
+        def detect_cycling(self, entity: str) -> tuple:
+            """Detect apology-violation cycling."""
+            history = self.apology_violation_history.get(entity, [])
+            if len(history) < 4:
+                return False, "Insufficient history"
+
+            # Count apology-violation cycles
+            cycles = 0
+            last_event = None
+            for event in history:
+                if last_event == "apology" and event["event"] == "violation":
+                    cycles += 1
+                last_event = event["event"]
+
+            if cycles >= 2:
+                return True, f"Apology cycling: {cycles} apology-violation cycles"
+
+            return False, f"Apology pattern: {cycles} cycles"
+
+    apology_detector = ApologyCyclingDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate apology cycling
+    apology_detector.record_violation("cycler", "policy_violation", now - timedelta(days=60))
+    apology_detector.record_apology("cycler", "policy_violation", now - timedelta(days=55))
+    apology_detector.record_violation("cycler", "policy_violation", now - timedelta(days=40))
+    apology_detector.record_apology("cycler", "policy_violation", now - timedelta(days=35))
+    apology_detector.record_violation("cycler", "policy_violation", now - timedelta(days=20))
+
+    cycling_detected, cycling_msg = apology_detector.detect_cycling("cycler")
+
+    if cycling_detected:
+        defenses["apology_cycling_detected"] = True
+        cycling_note = f"Apology cycling: {cycling_msg}"
+    else:
+        cycling_note = f"Apology analysis: {cycling_msg}"
+
+    # ========================================================================
+    # Defense 2: Forgiveness Arbitrage Detection
+    # ========================================================================
+
+    class ForgivenessArbitrageDetector:
+        """Detect exploitation of different forgiveness policies."""
+
+        def __init__(self):
+            self.forgiveness_requests = {}
+
+        def record_forgiveness_request(
+            self, entity: str, policy_domain: str,
+            offense: str, timestamp: datetime
+        ):
+            """Record forgiveness request in domain."""
+            if entity not in self.forgiveness_requests:
+                self.forgiveness_requests[entity] = []
+            self.forgiveness_requests[entity].append({
+                "domain": policy_domain,
+                "offense": offense,
+                "timestamp": timestamp,
+            })
+
+        def detect_arbitrage(self, entity: str) -> tuple:
+            """Detect forgiveness shopping across domains."""
+            requests = self.forgiveness_requests.get(entity, [])
+            if len(requests) < 3:
+                return False, "Insufficient requests"
+
+            # Check for same offense, different domains
+            offense_domains = {}
+            for req in requests:
+                offense = req["offense"]
+                if offense not in offense_domains:
+                    offense_domains[offense] = set()
+                offense_domains[offense].add(req["domain"])
+
+            for offense, domains in offense_domains.items():
+                if len(domains) >= 2:
+                    return True, f"Forgiveness arbitrage: '{offense}' across {len(domains)} domains"
+
+            return False, "No arbitrage pattern"
+
+    arbitrage_detector = ForgivenessArbitrageDetector()
+
+    # Simulate forgiveness arbitrage
+    arbitrage_detector.record_forgiveness_request("arbitrager", "domain_A", "fraud", now - timedelta(days=30))
+    arbitrage_detector.record_forgiveness_request("arbitrager", "domain_B", "fraud", now - timedelta(days=20))
+    arbitrage_detector.record_forgiveness_request("arbitrager", "domain_C", "fraud", now - timedelta(days=10))
+
+    arbitrage_detected, arbitrage_msg = arbitrage_detector.detect_arbitrage("arbitrager")
+
+    if arbitrage_detected:
+        defenses["forgiveness_arbitrage_detected"] = True
+        arbitrage_note = f"Forgiveness arbitrage: {arbitrage_msg}"
+    else:
+        arbitrage_note = f"Arbitrage analysis: {arbitrage_msg}"
+
+    # ========================================================================
+    # Defense 3: Statute of Limitations Exploitation
+    # ========================================================================
+
+    class SOLExploitationDetector:
+        """Detect exploitation of time-based forgiveness."""
+
+        def __init__(self, default_sol_days: int = 365):
+            self.default_sol = default_sol_days
+            self.offense_records = {}
+
+        def record_offense(
+            self, entity: str, offense: str,
+            offense_time: datetime, discovery_time: datetime
+        ):
+            """Record offense with timing."""
+            if entity not in self.offense_records:
+                self.offense_records[entity] = []
+            self.offense_records[entity].append({
+                "offense": offense,
+                "committed": offense_time,
+                "discovered": discovery_time,
+            })
+
+        def detect_sol_exploitation(self, entity: str) -> tuple:
+            """Detect if entity is exploiting statute of limitations."""
+            records = self.offense_records.get(entity, [])
+            if not records:
+                return False, "No offense records"
+
+            exploits = 0
+            for record in records:
+                delay = (record["discovered"] - record["committed"]).days
+
+                # Offense discovered just after SOL = possible exploitation
+                if delay > self.default_sol * 0.9:
+                    exploits += 1
+
+            if exploits >= 2:
+                return True, f"SOL exploitation: {exploits} offenses discovered near/after SOL"
+
+            return False, f"SOL timing: {exploits} near-SOL discoveries"
+
+    sol_detector = SOLExploitationDetector(default_sol_days=365)
+
+    # Simulate SOL exploitation
+    sol_detector.record_offense(
+        "exploiter",
+        "data_manipulation",
+        now - timedelta(days=400),  # Committed >1 year ago
+        now  # Just discovered
+    )
+    sol_detector.record_offense(
+        "exploiter",
+        "trust_abuse",
+        now - timedelta(days=380),  # Also >1 year ago
+        now
+    )
+
+    sol_detected, sol_msg = sol_detector.detect_sol_exploitation("exploiter")
+
+    if sol_detected:
+        defenses["sol_exploitation_detected"] = True
+        sol_note = f"SOL exploitation: {sol_msg}"
+    else:
+        sol_note = f"SOL analysis: {sol_msg}"
+
+    # ========================================================================
+    # Defense 4: Selective Confession Detection
+    # ========================================================================
+
+    class SelectiveConfessionDetector:
+        """Detect confession of minor sins to hide major ones."""
+
+        def __init__(self):
+            self.confessions = {}
+            self.discovered_offenses = {}
+
+        def record_confession(
+            self, entity: str, offense: str,
+            severity: float, timestamp: datetime
+        ):
+            """Record voluntary confession."""
+            if entity not in self.confessions:
+                self.confessions[entity] = []
+            self.confessions[entity].append({
+                "offense": offense,
+                "severity": severity,
+                "timestamp": timestamp,
+            })
+
+        def record_discovery(
+            self, entity: str, offense: str,
+            severity: float, timestamp: datetime
+        ):
+            """Record externally discovered offense."""
+            if entity not in self.discovered_offenses:
+                self.discovered_offenses[entity] = []
+            self.discovered_offenses[entity].append({
+                "offense": offense,
+                "severity": severity,
+                "timestamp": timestamp,
+            })
+
+        def detect_selective_confession(self, entity: str) -> tuple:
+            """Detect if confessions are strategic."""
+            confessed = self.confessions.get(entity, [])
+            discovered = self.discovered_offenses.get(entity, [])
+
+            if not confessed or not discovered:
+                return False, "Insufficient data"
+
+            avg_confessed_severity = sum(c["severity"] for c in confessed) / len(confessed)
+            avg_discovered_severity = sum(d["severity"] for d in discovered) / len(discovered)
+
+            # Confessing minor, hiding major = selective
+            if avg_confessed_severity < 0.3 and avg_discovered_severity > 0.7:
+                return True, f"Selective confession: confessed {avg_confessed_severity:.2f} avg, discovered {avg_discovered_severity:.2f} avg"
+
+            return False, f"Confession pattern: confessed {avg_confessed_severity:.2f}, discovered {avg_discovered_severity:.2f}"
+
+    confession_detector = SelectiveConfessionDetector()
+
+    # Simulate selective confession
+    confession_detector.record_confession("strategist", "minor_policy_violation", 0.2, now)
+    confession_detector.record_confession("strategist", "minor_data_issue", 0.25, now)
+    confession_detector.record_discovery("strategist", "major_fraud", 0.9, now)
+    confession_detector.record_discovery("strategist", "systematic_abuse", 0.85, now)
+
+    selective_detected, selective_msg = confession_detector.detect_selective_confession("strategist")
+
+    if selective_detected:
+        defenses["selective_confession_detected"] = True
+        selective_note = f"Selective confession: {selective_msg}"
+    else:
+        selective_note = f"Confession analysis: {selective_msg}"
+
+    # ========================================================================
+    # Defense 5: Absolution Shopping Detection
+    # ========================================================================
+
+    class AbsolutionShoppingDetector:
+        """Detect seeking most lenient adjudicators."""
+
+        def __init__(self):
+            self.adjudicator_requests = {}
+            self.adjudicator_leniency = {}  # adjudicator -> avg leniency
+
+        def set_adjudicator_leniency(self, adjudicator: str, leniency: float):
+            """Set adjudicator's leniency score."""
+            self.adjudicator_leniency[adjudicator] = leniency
+
+        def record_request(
+            self, entity: str, adjudicator: str, timestamp: datetime
+        ):
+            """Record adjudication request."""
+            if entity not in self.adjudicator_requests:
+                self.adjudicator_requests[entity] = []
+            self.adjudicator_requests[entity].append({
+                "adjudicator": adjudicator,
+                "timestamp": timestamp,
+            })
+
+        def detect_shopping(self, entity: str) -> tuple:
+            """Detect adjudicator shopping."""
+            requests = self.adjudicator_requests.get(entity, [])
+            if len(requests) < 2:
+                return False, "Insufficient requests"
+
+            leniencies = [
+                self.adjudicator_leniency.get(r["adjudicator"], 0.5)
+                for r in requests
+            ]
+
+            avg_leniency = sum(leniencies) / len(leniencies)
+
+            # Consistently seeking high-leniency adjudicators = shopping
+            if avg_leniency > 0.75:
+                return True, f"Absolution shopping: avg leniency {avg_leniency:.2f}"
+
+            return False, f"Adjudicator selection: avg leniency {avg_leniency:.2f}"
+
+    shopping_detector = AbsolutionShoppingDetector()
+
+    # Set up leniency scores
+    shopping_detector.set_adjudicator_leniency("lenient_1", 0.85)
+    shopping_detector.set_adjudicator_leniency("lenient_2", 0.90)
+    shopping_detector.set_adjudicator_leniency("strict_1", 0.30)
+
+    # Simulate shopping
+    shopping_detector.record_request("shopper", "lenient_1", now - timedelta(days=20))
+    shopping_detector.record_request("shopper", "lenient_2", now - timedelta(days=10))
+    shopping_detector.record_request("shopper", "lenient_1", now)
+
+    shopping_detected, shopping_msg = shopping_detector.detect_shopping("shopper")
+
+    if shopping_detected:
+        defenses["absolution_shopping_detected"] = True
+        shopping_note = f"Absolution shopping: {shopping_msg}"
+    else:
+        shopping_note = f"Adjudicator analysis: {shopping_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Forgiveness Exploitation (DT)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=4000.0 if attack_success else -150.0,
+        roi=26.7 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=336,
+        blocks_until_detected=1400,
+        trust_damage=0.65,
+        description=f"""
+FORGIVENESS EXPLOITATION (Track DT):
+- Apology cycling: {"DEFENDED" if defenses["apology_cycling_detected"] else "VULNERABLE"}
+  {cycling_note}
+- Forgiveness arbitrage: {"DEFENDED" if defenses["forgiveness_arbitrage_detected"] else "VULNERABLE"}
+  {arbitrage_note}
+- SOL exploitation: {"DEFENDED" if defenses["sol_exploitation_detected"] else "VULNERABLE"}
+  {sol_note}
+- Selective confession: {"DEFENDED" if defenses["selective_confession_detected"] else "VULNERABLE"}
+  {selective_note}
+- Absolution shopping: {"DEFENDED" if defenses["absolution_shopping_detected"] else "VULNERABLE"}
+  {shopping_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Forgiveness mechanisms are essential but can be exploited
+through cycling, arbitrage, and strategic manipulation.
+""".strip(),
+        mitigation=f"""
+Track DT: Forgiveness Exploitation Mitigation:
+1. Detect apology-violation cycling patterns
+2. Track forgiveness requests across domains
+3. Toll statute of limitations for concealed offenses
+4. Compare confessed vs discovered offense severity
+5. Randomize or balance adjudicator assignment
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_penalty_mitigation_gaming() -> AttackResult:
+    """
+    ATTACK 88: PENALTY MITIGATION GAMING (Track DT)
+
+    Tests attacks gaming penalty reduction mechanisms:
+
+    1. Cooperation Theater: Fake cooperation for leniency
+    2. Plea Bargain Exploitation: Exploit plea deals
+    3. First Offense Shield: Repeatedly claim first offense
+    4. Mitigating Circumstance Fabrication: Fake mitigating factors
+    5. Victim Status Gaming: Falsely claim victim status
+
+    Penalty mitigation enables justice but can be gamed.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "cooperation_theater_detected": False,
+        "plea_bargain_exploitation_detected": False,
+        "first_offense_shield_detected": False,
+        "mitigation_fabrication_detected": False,
+        "victim_status_gaming_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Cooperation Theater Detection
+    # ========================================================================
+
+    class CooperationTheaterDetector:
+        """Detect fake cooperation for leniency."""
+
+        def __init__(self):
+            self.cooperation_records = {}
+
+        def record_cooperation_offer(
+            self, entity: str, info_offered: str,
+            info_value: float, info_verified: bool, timestamp: datetime
+        ):
+            """Record cooperation offer."""
+            if entity not in self.cooperation_records:
+                self.cooperation_records[entity] = []
+            self.cooperation_records[entity].append({
+                "info": info_offered,
+                "claimed_value": info_value,
+                "verified": info_verified,
+                "timestamp": timestamp,
+            })
+
+        def detect_theater(self, entity: str) -> tuple:
+            """Detect if cooperation is performative."""
+            records = self.cooperation_records.get(entity, [])
+            if len(records) < 2:
+                return False, "Insufficient cooperation records"
+
+            total_claimed = sum(r["claimed_value"] for r in records)
+            verified = [r for r in records if r["verified"]]
+            total_verified = sum(r["claimed_value"] for r in verified)
+
+            if total_claimed > 0:
+                verification_rate = total_verified / total_claimed
+                if verification_rate < 0.3:
+                    return True, f"Cooperation theater: {verification_rate:.0%} verified (claimed {total_claimed:.0f}, verified {total_verified:.0f})"
+
+            return False, f"Cooperation authentic: {len(verified)}/{len(records)} verified"
+
+    theater_detector = CooperationTheaterDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate cooperation theater
+    theater_detector.record_cooperation_offer("actor", "valuable_intel", 100, False, now - timedelta(days=10))
+    theater_detector.record_cooperation_offer("actor", "key_evidence", 150, False, now - timedelta(days=5))
+    theater_detector.record_cooperation_offer("actor", "minor_detail", 20, True, now)
+
+    theater_detected, theater_msg = theater_detector.detect_theater("actor")
+
+    if theater_detected:
+        defenses["cooperation_theater_detected"] = True
+        theater_note = f"Cooperation theater: {theater_msg}"
+    else:
+        theater_note = f"Cooperation analysis: {theater_msg}"
+
+    # ========================================================================
+    # Defense 2: Plea Bargain Exploitation Detection
+    # ========================================================================
+
+    class PleaBargainExploitationDetector:
+        """Detect exploitation of plea deal mechanisms."""
+
+        def __init__(self):
+            self.plea_history = {}
+
+        def record_plea(
+            self, entity: str, original_charges: list,
+            pleaded_charges: list, timestamp: datetime
+        ):
+            """Record plea bargain."""
+            if entity not in self.plea_history:
+                self.plea_history[entity] = []
+            self.plea_history[entity].append({
+                "original": original_charges,
+                "pleaded": pleaded_charges,
+                "reduction": len(original_charges) - len(pleaded_charges),
+                "timestamp": timestamp,
+            })
+
+        def detect_exploitation(self, entity: str) -> tuple:
+            """Detect plea bargain exploitation."""
+            pleas = self.plea_history.get(entity, [])
+            if len(pleas) < 2:
+                return False, "Insufficient plea history"
+
+            total_reduction = sum(p["reduction"] for p in pleas)
+            avg_reduction = total_reduction / len(pleas)
+
+            if avg_reduction > 3 and len(pleas) >= 2:
+                return True, f"Plea exploitation: {avg_reduction:.1f} avg charge reduction over {len(pleas)} pleas"
+
+            return False, f"Plea pattern: {avg_reduction:.1f} avg reduction"
+
+    plea_detector = PleaBargainExploitationDetector()
+
+    # Simulate plea exploitation
+    plea_detector.record_plea(
+        "exploiter",
+        ["fraud", "conspiracy", "obstruction", "perjury", "money_laundering"],
+        ["minor_infraction"],
+        now - timedelta(days=100)
+    )
+    plea_detector.record_plea(
+        "exploiter",
+        ["theft", "forgery", "tax_evasion", "bribery"],
+        ["paperwork_error"],
+        now - timedelta(days=30)
+    )
+
+    plea_exploit, plea_msg = plea_detector.detect_exploitation("exploiter")
+
+    if plea_exploit:
+        defenses["plea_bargain_exploitation_detected"] = True
+        plea_note = f"Plea exploitation: {plea_msg}"
+    else:
+        plea_note = f"Plea analysis: {plea_msg}"
+
+    # ========================================================================
+    # Defense 3: First Offense Shield Detection
+    # ========================================================================
+
+    class FirstOffenseShieldDetector:
+        """Detect repeated first offense claims."""
+
+        def __init__(self):
+            self.first_offense_claims = {}
+
+        def record_first_offense_claim(
+            self, entity: str, domain: str, timestamp: datetime
+        ):
+            """Record first offense claim."""
+            if entity not in self.first_offense_claims:
+                self.first_offense_claims[entity] = []
+            self.first_offense_claims[entity].append({
+                "domain": domain,
+                "timestamp": timestamp,
+            })
+
+        def detect_shield_abuse(self, entity: str) -> tuple:
+            """Detect first offense shield abuse."""
+            claims = self.first_offense_claims.get(entity, [])
+
+            if len(claims) >= 3:
+                domains = set(c["domain"] for c in claims)
+                return True, f"First offense shield abuse: {len(claims)} claims across {len(domains)} domains"
+
+            return False, f"First offense claims: {len(claims)}"
+
+    first_offense_detector = FirstOffenseShieldDetector()
+
+    # Simulate first offense shield abuse
+    first_offense_detector.record_first_offense_claim("abuser", "domain_A", now - timedelta(days=90))
+    first_offense_detector.record_first_offense_claim("abuser", "domain_B", now - timedelta(days=60))
+    first_offense_detector.record_first_offense_claim("abuser", "domain_C", now - timedelta(days=30))
+
+    shield_abuse, shield_msg = first_offense_detector.detect_shield_abuse("abuser")
+
+    if shield_abuse:
+        defenses["first_offense_shield_detected"] = True
+        shield_note = f"First offense shield: {shield_msg}"
+    else:
+        shield_note = f"First offense analysis: {shield_msg}"
+
+    # ========================================================================
+    # Defense 4: Mitigating Circumstance Fabrication Detection
+    # ========================================================================
+
+    class MitigationFabricationDetector:
+        """Detect fabricated mitigating circumstances."""
+
+        def __init__(self):
+            self.mitigation_claims = {}
+
+        def record_mitigation_claim(
+            self, entity: str, circumstance: str,
+            verified: bool, timestamp: datetime
+        ):
+            """Record mitigating circumstance claim."""
+            if entity not in self.mitigation_claims:
+                self.mitigation_claims[entity] = []
+            self.mitigation_claims[entity].append({
+                "circumstance": circumstance,
+                "verified": verified,
+                "timestamp": timestamp,
+            })
+
+        def detect_fabrication(self, entity: str) -> tuple:
+            """Detect fabricated mitigating circumstances."""
+            claims = self.mitigation_claims.get(entity, [])
+            if len(claims) < 2:
+                return False, "Insufficient claims"
+
+            unverified = [c for c in claims if not c["verified"]]
+            unverified_rate = len(unverified) / len(claims)
+
+            if unverified_rate > 0.6 and len(claims) >= 3:
+                return True, f"Mitigation fabrication: {unverified_rate:.0%} unverified ({len(unverified)}/{len(claims)})"
+
+            return False, f"Mitigation claims: {1-unverified_rate:.0%} verified"
+
+    fabrication_detector = MitigationFabricationDetector()
+
+    # Simulate fabricated mitigations
+    fabrication_detector.record_mitigation_claim("fabricator", "health_emergency", False, now - timedelta(days=20))
+    fabrication_detector.record_mitigation_claim("fabricator", "family_crisis", False, now - timedelta(days=15))
+    fabrication_detector.record_mitigation_claim("fabricator", "coercion", False, now - timedelta(days=10))
+    fabrication_detector.record_mitigation_claim("fabricator", "minor_issue", True, now)
+
+    fabrication_detected, fab_msg = fabrication_detector.detect_fabrication("fabricator")
+
+    if fabrication_detected:
+        defenses["mitigation_fabrication_detected"] = True
+        fab_note = f"Mitigation fabrication: {fab_msg}"
+    else:
+        fab_note = f"Mitigation analysis: {fab_msg}"
+
+    # ========================================================================
+    # Defense 5: Victim Status Gaming Detection
+    # ========================================================================
+
+    class VictimStatusGamingDetector:
+        """Detect false victim status claims."""
+
+        def __init__(self):
+            self.victim_claims = {}
+            self.perpetrator_records = {}
+
+        def record_victim_claim(
+            self, entity: str, incident: str, timestamp: datetime
+        ):
+            """Record victim status claim."""
+            if entity not in self.victim_claims:
+                self.victim_claims[entity] = []
+            self.victim_claims[entity].append({
+                "incident": incident,
+                "timestamp": timestamp,
+            })
+
+        def record_perpetrator_status(
+            self, entity: str, incident: str, timestamp: datetime
+        ):
+            """Record entity as perpetrator."""
+            if entity not in self.perpetrator_records:
+                self.perpetrator_records[entity] = []
+            self.perpetrator_records[entity].append({
+                "incident": incident,
+                "timestamp": timestamp,
+            })
+
+        def detect_victim_gaming(self, entity: str) -> tuple:
+            """Detect false victim status gaming."""
+            victim_claims = self.victim_claims.get(entity, [])
+            perp_records = self.perpetrator_records.get(entity, [])
+
+            if not victim_claims:
+                return False, "No victim claims"
+
+            # Check for simultaneous victim/perpetrator status
+            overlap_count = 0
+            for v_claim in victim_claims:
+                for p_record in perp_records:
+                    # Same incident or close timing = suspicious
+                    time_diff = abs((v_claim["timestamp"] - p_record["timestamp"]).days)
+                    if v_claim["incident"] == p_record["incident"] or time_diff < 30:
+                        overlap_count += 1
+
+            if overlap_count >= 1:
+                return True, f"Victim status gaming: {overlap_count} claim-perpetrator overlaps"
+
+            return False, f"Victim claims appear legitimate: {len(victim_claims)} claims"
+
+    victim_detector = VictimStatusGamingDetector()
+
+    # Simulate victim status gaming
+    victim_detector.record_perpetrator_status("gamer", "incident_1", now - timedelta(days=10))
+    victim_detector.record_victim_claim("gamer", "incident_1", now - timedelta(days=5))
+
+    victim_gaming, victim_msg = victim_detector.detect_victim_gaming("gamer")
+
+    if victim_gaming:
+        defenses["victim_status_gaming_detected"] = True
+        victim_note = f"Victim status gaming: {victim_msg}"
+    else:
+        victim_note = f"Victim analysis: {victim_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Penalty Mitigation Gaming (DT)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=3000.0 if attack_success else -100.0,
+        roi=30.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=168,
+        blocks_until_detected=700,
+        trust_damage=0.60,
+        description=f"""
+PENALTY MITIGATION GAMING (Track DT):
+- Cooperation theater: {"DEFENDED" if defenses["cooperation_theater_detected"] else "VULNERABLE"}
+  {theater_note}
+- Plea bargain exploitation: {"DEFENDED" if defenses["plea_bargain_exploitation_detected"] else "VULNERABLE"}
+  {plea_note}
+- First offense shield: {"DEFENDED" if defenses["first_offense_shield_detected"] else "VULNERABLE"}
+  {shield_note}
+- Mitigation fabrication: {"DEFENDED" if defenses["mitigation_fabrication_detected"] else "VULNERABLE"}
+  {fab_note}
+- Victim status gaming: {"DEFENDED" if defenses["victim_status_gaming_detected"] else "VULNERABLE"}
+  {victim_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Penalty mitigation mechanisms enable proportionate justice
+but can be gamed through fabrication and manipulation.
+""".strip(),
+        mitigation=f"""
+Track DT: Penalty Mitigation Gaming Mitigation:
+1. Verify cooperation offers before granting leniency
+2. Track plea bargain patterns across cases
+3. Share first offense records across domains
+4. Verify mitigating circumstance claims
+5. Cross-check victim claims against perpetrator records
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_adjudication_system_gaming() -> AttackResult:
+    """
+    ATTACK 89: ADJUDICATION SYSTEM GAMING (Track DT)
+
+    Tests attacks gaming the adjudication system itself:
+
+    1. Procedural Delay: Exploit procedural rules for delay
+    2. Evidence Suppression: Manipulate evidence rules
+    3. Witness Intimidation: Suppress adverse testimony
+    4. Venue Shopping: Seek favorable jurisdictions
+    5. Appeals Exhaustion: Exhaust opponent through endless appeals
+
+    Adjudication systems can be gamed through procedural manipulation.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "procedural_delay_detected": False,
+        "evidence_suppression_detected": False,
+        "witness_intimidation_detected": False,
+        "venue_shopping_detected": False,
+        "appeals_exhaustion_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Procedural Delay Detection
+    # ========================================================================
+
+    class ProceduralDelayDetector:
+        """Detect exploitation of procedural rules for delay."""
+
+        def __init__(self):
+            self.case_events = {}
+
+        def record_event(
+            self, case_id: str, event_type: str,
+            is_delay_tactic: bool, timestamp: datetime
+        ):
+            """Record case event."""
+            if case_id not in self.case_events:
+                self.case_events[case_id] = []
+            self.case_events[case_id].append({
+                "type": event_type,
+                "delay_tactic": is_delay_tactic,
+                "timestamp": timestamp,
+            })
+
+        def detect_delay_pattern(self, case_id: str) -> tuple:
+            """Detect procedural delay pattern."""
+            events = self.case_events.get(case_id, [])
+            if len(events) < 4:
+                return False, "Insufficient events"
+
+            delay_tactics = [e for e in events if e["delay_tactic"]]
+            delay_rate = len(delay_tactics) / len(events)
+
+            if delay_rate > 0.5:
+                return True, f"Procedural delay: {delay_rate:.0%} delay tactics ({len(delay_tactics)}/{len(events)})"
+
+            return False, f"Procedural pattern: {delay_rate:.0%} delays"
+
+    delay_detector = ProceduralDelayDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate procedural delays
+    delay_detector.record_event("case_123", "extension_request", True, now - timedelta(days=30))
+    delay_detector.record_event("case_123", "document_request", True, now - timedelta(days=25))
+    delay_detector.record_event("case_123", "recusal_motion", True, now - timedelta(days=20))
+    delay_detector.record_event("case_123", "evidence_submission", False, now - timedelta(days=15))
+    delay_detector.record_event("case_123", "continuance_request", True, now - timedelta(days=10))
+
+    delay_detected, delay_msg = delay_detector.detect_delay_pattern("case_123")
+
+    if delay_detected:
+        defenses["procedural_delay_detected"] = True
+        delay_note = f"Procedural delay: {delay_msg}"
+    else:
+        delay_note = f"Procedural analysis: {delay_msg}"
+
+    # ========================================================================
+    # Defense 2: Evidence Suppression Detection
+    # ========================================================================
+
+    class EvidenceSuppressionDetector:
+        """Detect manipulation of evidence rules."""
+
+        def __init__(self):
+            self.evidence_challenges = {}
+
+        def record_challenge(
+            self, case_id: str, evidence_id: str,
+            challenge_type: str, upheld: bool, timestamp: datetime
+        ):
+            """Record evidence challenge."""
+            if case_id not in self.evidence_challenges:
+                self.evidence_challenges[case_id] = []
+            self.evidence_challenges[case_id].append({
+                "evidence": evidence_id,
+                "type": challenge_type,
+                "upheld": upheld,
+                "timestamp": timestamp,
+            })
+
+        def detect_suppression_pattern(self, case_id: str) -> tuple:
+            """Detect evidence suppression pattern."""
+            challenges = self.evidence_challenges.get(case_id, [])
+            if len(challenges) < 3:
+                return False, "Insufficient challenges"
+
+            rejected = [c for c in challenges if not c["upheld"]]
+            rejection_rate = len(rejected) / len(challenges)
+
+            # High challenge rate with low success = fishing expedition
+            if len(challenges) >= 5 and rejection_rate > 0.6:
+                return True, f"Evidence suppression attempt: {len(challenges)} challenges, {rejection_rate:.0%} rejected"
+
+            return False, f"Evidence challenges: {len(challenges)} total"
+
+    suppression_detector = EvidenceSuppressionDetector()
+
+    # Simulate evidence suppression attempts
+    for i in range(6):
+        suppression_detector.record_challenge(
+            "case_123",
+            f"evidence_{i}",
+            "admissibility",
+            i < 2,  # Only first 2 upheld
+            now - timedelta(days=30-i*5)
+        )
+
+    suppression_detected, supp_msg = suppression_detector.detect_suppression_pattern("case_123")
+
+    if suppression_detected:
+        defenses["evidence_suppression_detected"] = True
+        supp_note = f"Evidence suppression: {supp_msg}"
+    else:
+        supp_note = f"Evidence analysis: {supp_msg}"
+
+    # ========================================================================
+    # Defense 3: Witness Intimidation Detection
+    # ========================================================================
+
+    class WitnessIntimidationDetector:
+        """Detect witness intimidation patterns."""
+
+        def __init__(self):
+            self.witness_events = {}
+
+        def record_witness_event(
+            self, witness: str, case_id: str,
+            event_type: str, timestamp: datetime
+        ):
+            """Record witness-related event."""
+            if witness not in self.witness_events:
+                self.witness_events[witness] = []
+            self.witness_events[witness].append({
+                "case": case_id,
+                "type": event_type,
+                "timestamp": timestamp,
+            })
+
+        def detect_intimidation(self, case_id: str) -> tuple:
+            """Detect witness intimidation pattern."""
+            intimidation_signals = 0
+            witnesses_affected = 0
+
+            for witness, events in self.witness_events.items():
+                case_events = [e for e in events if e["case"] == case_id]
+                for event in case_events:
+                    if event["type"] in ["withdrew", "changed_testimony", "became_unavailable"]:
+                        intimidation_signals += 1
+                        witnesses_affected += 1
+                        break
+
+            if intimidation_signals >= 2:
+                return True, f"Witness intimidation: {witnesses_affected} witnesses affected"
+
+            return False, f"Witness status: {witnesses_affected} issues"
+
+    intimidation_detector = WitnessIntimidationDetector()
+
+    # Simulate witness intimidation
+    intimidation_detector.record_witness_event("witness_1", "case_123", "scheduled", now - timedelta(days=30))
+    intimidation_detector.record_witness_event("witness_1", "case_123", "withdrew", now - timedelta(days=20))
+    intimidation_detector.record_witness_event("witness_2", "case_123", "scheduled", now - timedelta(days=25))
+    intimidation_detector.record_witness_event("witness_2", "case_123", "changed_testimony", now - timedelta(days=15))
+
+    intimidation_detected, intim_msg = intimidation_detector.detect_intimidation("case_123")
+
+    if intimidation_detected:
+        defenses["witness_intimidation_detected"] = True
+        intim_note = f"Witness intimidation: {intim_msg}"
+    else:
+        intim_note = f"Witness analysis: {intim_msg}"
+
+    # ========================================================================
+    # Defense 4: Venue Shopping Detection
+    # ========================================================================
+
+    class VenueShoppingDetector:
+        """Detect seeking favorable jurisdictions."""
+
+        def __init__(self):
+            self.venue_history = {}
+            self.venue_favorability = {}
+
+        def set_venue_favorability(self, venue: str, favorability: float):
+            """Set venue's favorability score."""
+            self.venue_favorability[venue] = favorability
+
+        def record_venue_request(
+            self, entity: str, venue: str, timestamp: datetime
+        ):
+            """Record venue request."""
+            if entity not in self.venue_history:
+                self.venue_history[entity] = []
+            self.venue_history[entity].append({
+                "venue": venue,
+                "timestamp": timestamp,
+            })
+
+        def detect_shopping(self, entity: str) -> tuple:
+            """Detect venue shopping."""
+            venues = self.venue_history.get(entity, [])
+            if len(venues) < 2:
+                return False, "Insufficient venue history"
+
+            favorabilities = [
+                self.venue_favorability.get(v["venue"], 0.5)
+                for v in venues
+            ]
+
+            avg_favorability = sum(favorabilities) / len(favorabilities)
+
+            if avg_favorability > 0.75:
+                return True, f"Venue shopping: avg favorability {avg_favorability:.2f}"
+
+            return False, f"Venue selection: avg favorability {avg_favorability:.2f}"
+
+    venue_detector = VenueShoppingDetector()
+
+    # Set up venues
+    venue_detector.set_venue_favorability("friendly_court", 0.90)
+    venue_detector.set_venue_favorability("lenient_jurisdiction", 0.85)
+
+    # Simulate venue shopping
+    venue_detector.record_venue_request("shopper", "friendly_court", now - timedelta(days=30))
+    venue_detector.record_venue_request("shopper", "lenient_jurisdiction", now)
+
+    venue_detected, venue_msg = venue_detector.detect_shopping("shopper")
+
+    if venue_detected:
+        defenses["venue_shopping_detected"] = True
+        venue_note = f"Venue shopping: {venue_msg}"
+    else:
+        venue_note = f"Venue analysis: {venue_msg}"
+
+    # ========================================================================
+    # Defense 5: Appeals Exhaustion Detection
+    # ========================================================================
+
+    class AppealsExhaustionDetector:
+        """Detect exhaustion through endless appeals."""
+
+        def __init__(self):
+            self.appeal_chains = {}
+
+        def record_appeal(
+            self, case_id: str, appeal_level: int,
+            merit_score: float, timestamp: datetime
+        ):
+            """Record appeal in chain."""
+            if case_id not in self.appeal_chains:
+                self.appeal_chains[case_id] = []
+            self.appeal_chains[case_id].append({
+                "level": appeal_level,
+                "merit": merit_score,
+                "timestamp": timestamp,
+            })
+
+        def detect_exhaustion_tactic(self, case_id: str) -> tuple:
+            """Detect exhaustion through frivolous appeals."""
+            appeals = self.appeal_chains.get(case_id, [])
+            if len(appeals) < 3:
+                return False, "Insufficient appeal history"
+
+            avg_merit = sum(a["merit"] for a in appeals) / len(appeals)
+            levels_used = len(set(a["level"] for a in appeals))
+
+            if len(appeals) >= 4 and avg_merit < 0.3:
+                return True, f"Appeals exhaustion: {len(appeals)} appeals, {avg_merit:.2f} avg merit"
+
+            return False, f"Appeal pattern: {len(appeals)} appeals"
+
+    exhaustion_detector = AppealsExhaustionDetector()
+
+    # Simulate appeals exhaustion
+    exhaustion_detector.record_appeal("case_123", 1, 0.2, now - timedelta(days=120))
+    exhaustion_detector.record_appeal("case_123", 2, 0.15, now - timedelta(days=90))
+    exhaustion_detector.record_appeal("case_123", 3, 0.25, now - timedelta(days=60))
+    exhaustion_detector.record_appeal("case_123", 4, 0.1, now - timedelta(days=30))
+
+    exhaustion_detected, exhaust_msg = exhaustion_detector.detect_exhaustion_tactic("case_123")
+
+    if exhaustion_detected:
+        defenses["appeals_exhaustion_detected"] = True
+        exhaust_note = f"Appeals exhaustion: {exhaust_msg}"
+    else:
+        exhaust_note = f"Appeals analysis: {exhaust_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Adjudication System Gaming (DT)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=8000.0 if attack_success else -500.0,
+        roi=16.0 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=480,
+        blocks_until_detected=2000,
+        trust_damage=0.80,
+        description=f"""
+ADJUDICATION SYSTEM GAMING (Track DT):
+- Procedural delay: {"DEFENDED" if defenses["procedural_delay_detected"] else "VULNERABLE"}
+  {delay_note}
+- Evidence suppression: {"DEFENDED" if defenses["evidence_suppression_detected"] else "VULNERABLE"}
+  {supp_note}
+- Witness intimidation: {"DEFENDED" if defenses["witness_intimidation_detected"] else "VULNERABLE"}
+  {intim_note}
+- Venue shopping: {"DEFENDED" if defenses["venue_shopping_detected"] else "VULNERABLE"}
+  {venue_note}
+- Appeals exhaustion: {"DEFENDED" if defenses["appeals_exhaustion_detected"] else "VULNERABLE"}
+  {exhaust_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Adjudication systems can be gamed through procedural manipulation,
+witness intimidation, and strategic venue selection.
+""".strip(),
+        mitigation=f"""
+Track DT: Adjudication System Gaming Mitigation:
+1. Detect and penalize procedural delay patterns
+2. Track evidence challenge patterns for bad faith
+3. Protect witnesses and investigate withdrawals
+4. Randomize or balance venue assignment
+5. Apply merit screening to appeals
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_rehabilitation_narrative_manipulation() -> AttackResult:
+    """
+    ATTACK 90: REHABILITATION NARRATIVE MANIPULATION (Track DT)
+
+    Tests attacks manipulating rehabilitation narratives:
+
+    1. Reformed Actor Theater: Fake reformation performance
+    2. Victim Narrative Hijacking: Co-opt victim narratives
+    3. Community Support Fabrication: Fake grassroots support
+    4. Expert Testimony Shopping: Seek favorable expert opinions
+    5. Media Narrative Control: Manipulate public perception
+
+    Rehabilitation narratives can be manufactured to escape consequences.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "reformed_theater_detected": False,
+        "victim_narrative_hijacking_detected": False,
+        "support_fabrication_detected": False,
+        "expert_shopping_detected": False,
+        "media_manipulation_detected": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Reformed Actor Theater Detection
+    # ========================================================================
+
+    class ReformedTheaterDetector:
+        """Detect fake reformation performance."""
+
+        def __init__(self):
+            self.public_statements = {}
+            self.private_behavior = {}
+
+        def record_public_statement(
+            self, entity: str, sentiment: str, timestamp: datetime
+        ):
+            """Record public remorse statement."""
+            if entity not in self.public_statements:
+                self.public_statements[entity] = []
+            self.public_statements[entity].append({
+                "sentiment": sentiment,
+                "timestamp": timestamp,
+            })
+
+        def record_private_behavior(
+            self, entity: str, behavior_type: str, timestamp: datetime
+        ):
+            """Record private behavior."""
+            if entity not in self.private_behavior:
+                self.private_behavior[entity] = []
+            self.private_behavior[entity].append({
+                "type": behavior_type,
+                "timestamp": timestamp,
+            })
+
+        def detect_theater(self, entity: str) -> tuple:
+            """Detect discrepancy between public and private."""
+            public = self.public_statements.get(entity, [])
+            private = self.private_behavior.get(entity, [])
+
+            if len(public) < 2 or len(private) < 2:
+                return False, "Insufficient data"
+
+            remorseful_public = [p for p in public if p["sentiment"] == "remorseful"]
+            problematic_private = [p for p in private if p["type"] in ["violation", "aggression", "deception"]]
+
+            if len(remorseful_public) >= 2 and len(problematic_private) >= 2:
+                return True, f"Reformed theater: {len(remorseful_public)} public remorse, {len(problematic_private)} private problems"
+
+            return False, f"Behavior alignment: public={len(remorseful_public)}, private issues={len(problematic_private)}"
+
+    theater_detector = ReformedTheaterDetector()
+    now = datetime.now(timezone.utc)
+
+    # Simulate reformed theater
+    theater_detector.record_public_statement("actor", "remorseful", now - timedelta(days=30))
+    theater_detector.record_public_statement("actor", "remorseful", now - timedelta(days=20))
+    theater_detector.record_private_behavior("actor", "violation", now - timedelta(days=25))
+    theater_detector.record_private_behavior("actor", "deception", now - timedelta(days=15))
+
+    theater_detected, theater_msg = theater_detector.detect_theater("actor")
+
+    if theater_detected:
+        defenses["reformed_theater_detected"] = True
+        theater_note = f"Reformed theater: {theater_msg}"
+    else:
+        theater_note = f"Reformation analysis: {theater_msg}"
+
+    # ========================================================================
+    # Defense 2: Victim Narrative Hijacking Detection
+    # ========================================================================
+
+    class VictimNarrativeHijackingDetector:
+        """Detect co-opting of victim narratives."""
+
+        def __init__(self):
+            self.narrative_events = {}
+
+        def record_narrative_event(
+            self, entity: str, event_type: str,
+            original_victim: str, timestamp: datetime
+        ):
+            """Record narrative event."""
+            if entity not in self.narrative_events:
+                self.narrative_events[entity] = []
+            self.narrative_events[entity].append({
+                "type": event_type,
+                "original_victim": original_victim,
+                "timestamp": timestamp,
+            })
+
+        def detect_hijacking(self, entity: str, original_victim: str) -> tuple:
+            """Detect if entity is hijacking victim's narrative."""
+            events = self.narrative_events.get(entity, [])
+
+            hijacking_events = [
+                e for e in events
+                if e["type"] in ["claim_victimhood", "redirect_sympathy", "minimize_harm"]
+                and e["original_victim"] == original_victim
+            ]
+
+            if len(hijacking_events) >= 2:
+                return True, f"Narrative hijacking: {len(hijacking_events)} co-opting events"
+
+            return False, f"Narrative analysis: {len(hijacking_events)} events"
+
+    hijacking_detector = VictimNarrativeHijackingDetector()
+
+    # Simulate narrative hijacking
+    hijacking_detector.record_narrative_event("perpetrator", "claim_victimhood", "real_victim", now - timedelta(days=20))
+    hijacking_detector.record_narrative_event("perpetrator", "redirect_sympathy", "real_victim", now - timedelta(days=10))
+
+    hijacking_detected, hijack_msg = hijacking_detector.detect_hijacking("perpetrator", "real_victim")
+
+    if hijacking_detected:
+        defenses["victim_narrative_hijacking_detected"] = True
+        hijack_note = f"Narrative hijacking: {hijack_msg}"
+    else:
+        hijack_note = f"Narrative analysis: {hijack_msg}"
+
+    # ========================================================================
+    # Defense 3: Community Support Fabrication Detection
+    # ========================================================================
+
+    class SupportFabricationDetector:
+        """Detect fabricated grassroots support."""
+
+        def __init__(self):
+            self.support_expressions = {}
+
+        def record_support(
+            self, supporter: str, target: str,
+            support_type: str, verified: bool, timestamp: datetime
+        ):
+            """Record support expression."""
+            if target not in self.support_expressions:
+                self.support_expressions[target] = []
+            self.support_expressions[target].append({
+                "supporter": supporter,
+                "type": support_type,
+                "verified": verified,
+                "timestamp": timestamp,
+            })
+
+        def detect_fabrication(self, target: str) -> tuple:
+            """Detect fabricated support."""
+            support = self.support_expressions.get(target, [])
+            if len(support) < 5:
+                return False, "Insufficient support data"
+
+            unverified = [s for s in support if not s["verified"]]
+            unverified_rate = len(unverified) / len(support)
+
+            # Check for timing clustering
+            timestamps = [s["timestamp"] for s in support]
+            timestamps.sort()
+            if len(timestamps) >= 3:
+                time_range = (timestamps[-1] - timestamps[0]).total_seconds() / 3600
+                support_rate = len(support) / max(time_range, 1)
+
+                if support_rate > 2 and unverified_rate > 0.6:  # >2/hr and mostly unverified
+                    return True, f"Support fabrication: {unverified_rate:.0%} unverified, {support_rate:.1f}/hr rate"
+
+            return False, f"Support pattern: {unverified_rate:.0%} unverified"
+
+    fabrication_detector = SupportFabricationDetector()
+
+    # Simulate fabricated support
+    for i in range(8):
+        fabrication_detector.record_support(
+            f"supporter_{i}",
+            "target_entity",
+            "endorsement",
+            i < 2,  # Only first 2 verified
+            now - timedelta(hours=i*0.3)  # All within 2.4 hours
+        )
+
+    support_fabrication, support_msg = fabrication_detector.detect_fabrication("target_entity")
+
+    if support_fabrication:
+        defenses["support_fabrication_detected"] = True
+        support_note = f"Support fabrication: {support_msg}"
+    else:
+        support_note = f"Support analysis: {support_msg}"
+
+    # ========================================================================
+    # Defense 4: Expert Testimony Shopping Detection
+    # ========================================================================
+
+    class ExpertShoppingDetector:
+        """Detect shopping for favorable expert opinions."""
+
+        def __init__(self):
+            self.expert_consultations = {}
+            self.expert_favorability = {}
+
+        def set_expert_favorability(self, expert: str, favorability: float):
+            """Set expert's historical favorability."""
+            self.expert_favorability[expert] = favorability
+
+        def record_consultation(
+            self, entity: str, expert: str,
+            used_testimony: bool, timestamp: datetime
+        ):
+            """Record expert consultation."""
+            if entity not in self.expert_consultations:
+                self.expert_consultations[entity] = []
+            self.expert_consultations[entity].append({
+                "expert": expert,
+                "used": used_testimony,
+                "timestamp": timestamp,
+            })
+
+        def detect_shopping(self, entity: str) -> tuple:
+            """Detect expert shopping."""
+            consultations = self.expert_consultations.get(entity, [])
+            if len(consultations) < 3:
+                return False, "Insufficient consultations"
+
+            used = [c for c in consultations if c["used"]]
+            unused = [c for c in consultations if not c["used"]]
+
+            if used and unused:
+                used_favorability = sum(
+                    self.expert_favorability.get(c["expert"], 0.5)
+                    for c in used
+                ) / len(used)
+                unused_favorability = sum(
+                    self.expert_favorability.get(c["expert"], 0.5)
+                    for c in unused
+                ) / len(unused)
+
+                if used_favorability > unused_favorability + 0.3:
+                    return True, f"Expert shopping: used avg {used_favorability:.2f}, rejected avg {unused_favorability:.2f}"
+
+            return False, f"Expert selection: {len(used)} used, {len(unused)} rejected"
+
+    expert_detector = ExpertShoppingDetector()
+
+    # Set up experts
+    expert_detector.set_expert_favorability("favorable_expert", 0.90)
+    expert_detector.set_expert_favorability("unfavorable_expert_1", 0.30)
+    expert_detector.set_expert_favorability("unfavorable_expert_2", 0.25)
+
+    # Simulate expert shopping
+    expert_detector.record_consultation("shopper", "unfavorable_expert_1", False, now - timedelta(days=30))
+    expert_detector.record_consultation("shopper", "unfavorable_expert_2", False, now - timedelta(days=20))
+    expert_detector.record_consultation("shopper", "favorable_expert", True, now - timedelta(days=10))
+
+    expert_shopping, expert_msg = expert_detector.detect_shopping("shopper")
+
+    if expert_shopping:
+        defenses["expert_shopping_detected"] = True
+        expert_note = f"Expert shopping: {expert_msg}"
+    else:
+        expert_note = f"Expert analysis: {expert_msg}"
+
+    # ========================================================================
+    # Defense 5: Media Narrative Control Detection
+    # ========================================================================
+
+    class MediaNarrativeDetector:
+        """Detect manipulation of public perception."""
+
+        def __init__(self):
+            self.media_activity = {}
+
+        def record_media_activity(
+            self, entity: str, activity_type: str,
+            outlet_reach: float, coordinated: bool, timestamp: datetime
+        ):
+            """Record media manipulation activity."""
+            if entity not in self.media_activity:
+                self.media_activity[entity] = []
+            self.media_activity[entity].append({
+                "type": activity_type,
+                "reach": outlet_reach,
+                "coordinated": coordinated,
+                "timestamp": timestamp,
+            })
+
+        def detect_manipulation(self, entity: str) -> tuple:
+            """Detect media narrative manipulation."""
+            activities = self.media_activity.get(entity, [])
+            if len(activities) < 3:
+                return False, "Insufficient media activity"
+
+            coordinated = [a for a in activities if a["coordinated"]]
+            total_reach = sum(a["reach"] for a in activities)
+
+            if len(coordinated) >= 2 and total_reach > 100000:
+                return True, f"Media manipulation: {len(coordinated)} coordinated activities, {total_reach:.0f} reach"
+
+            return False, f"Media activity: {len(activities)} events, {total_reach:.0f} reach"
+
+    media_detector = MediaNarrativeDetector()
+
+    # Simulate media manipulation
+    media_detector.record_media_activity("manipulator", "press_release", 50000, True, now - timedelta(days=15))
+    media_detector.record_media_activity("manipulator", "interview", 30000, True, now - timedelta(days=10))
+    media_detector.record_media_activity("manipulator", "social_campaign", 25000, True, now - timedelta(days=5))
+
+    media_detected, media_msg = media_detector.detect_manipulation("manipulator")
+
+    if media_detected:
+        defenses["media_manipulation_detected"] = True
+        media_note = f"Media manipulation: {media_msg}"
+    else:
+        media_note = f"Media analysis: {media_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Rehabilitation Narrative Manipulation (DT)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=7000.0 if attack_success else -400.0,
+        roi=17.5 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=336,
+        blocks_until_detected=1400,
+        trust_damage=0.70,
+        description=f"""
+REHABILITATION NARRATIVE MANIPULATION (Track DT):
+- Reformed theater: {"DEFENDED" if defenses["reformed_theater_detected"] else "VULNERABLE"}
+  {theater_note}
+- Victim narrative hijacking: {"DEFENDED" if defenses["victim_narrative_hijacking_detected"] else "VULNERABLE"}
+  {hijack_note}
+- Support fabrication: {"DEFENDED" if defenses["support_fabrication_detected"] else "VULNERABLE"}
+  {support_note}
+- Expert shopping: {"DEFENDED" if defenses["expert_shopping_detected"] else "VULNERABLE"}
+  {expert_note}
+- Media manipulation: {"DEFENDED" if defenses["media_manipulation_detected"] else "VULNERABLE"}
+  {media_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Rehabilitation narratives can be manufactured through
+performative remorse, fabricated support, and media control.
+""".strip(),
+        mitigation=f"""
+Track DT: Rehabilitation Narrative Manipulation Mitigation:
+1. Compare public statements with private behavior
+2. Protect victim narratives from co-option
+3. Verify community support authenticity
+4. Track expert consultation patterns
+5. Detect coordinated media campaigns
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -27543,6 +29891,13 @@ def run_all_attacks() -> List[AttackResult]:
         ("Trust Inheritance Exploitation (DS)", attack_trust_inheritance_exploitation),
         ("Long-Con Betrayal (DS)", attack_long_con_betrayal),
         ("Pump-and-Dump Trust (DS)", attack_pump_and_dump_trust),
+        # Track DT: Appeals and Recovery Gaming
+        ("Appeals Process Abuse (DT)", attack_appeals_process_abuse),
+        ("Recovery Mechanism Gaming (DT)", attack_recovery_mechanism_gaming),
+        ("Forgiveness Exploitation (DT)", attack_forgiveness_exploitation),
+        ("Penalty Mitigation Gaming (DT)", attack_penalty_mitigation_gaming),
+        ("Adjudication System Gaming (DT)", attack_adjudication_system_gaming),
+        ("Rehabilitation Narrative Manipulation (DT)", attack_rehabilitation_narrative_manipulation),
     ]
 
     results = []
