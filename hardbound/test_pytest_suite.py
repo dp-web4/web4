@@ -34,14 +34,18 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        # 51 attacks: original 35 + tracks CV-DD (9) + tracks DE-DK (7) = 51 total
+        # 61 attacks: original 35 + tracks CV-DD (9) + tracks DE-DK (7) + tracks DL-DM (10) = 61 total
         # CV: MRH Exploitation, CW: V3 Manipulation, CX: Race Conditions, CY: Attack Chains
         # CZ: Oracle Injection, DA: Metabolism Desync, DB: Checkpoint Replay
         # DC: Semantic Policy Confusion, DD: Accumulation Starvation
         # DE: Dictionary Entity Poisoning, DF: MCP Relay Injection, DG: ATP Recharge Frontrunning
         # DH: Cross-Model Dictionary Drift, DI: MRH Scope Inflation, DJ: ADP Metadata Persistence
         # DK: Cross-Layer Attack Chains
-        assert len(results) == 51
+        # DL: Hardware Anchor Substitution, Binding Proof Forgery, Cross-Device Witness Replay,
+        #     Recovery Quorum Manipulation, Binding Downgrade Attack
+        # DM: T3 Role Context Leakage, Role Boundary Confusion, T3 Dimension Isolation Bypass,
+        #     V3 Veracity Witness Collusion, Role-Task Mismatch Exploitation
+        assert len(results) == 61
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
