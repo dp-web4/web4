@@ -36736,6 +36736,1257 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track EB: Behavioral Economics Attacks (Attacks 111-114)
+# Based on Game Theory Open Questions: "Behavioral Economics"
+# Exploiting cognitive biases that affect strategy choice
+# ---------------------------------------------------------------------------
+
+def attack_anchoring_bias_exploitation() -> AttackResult:
+    """
+    ATTACK 111: ANCHORING BIAS EXPLOITATION (Track EB)
+
+    Exploits anchoring bias in trust/value assessments:
+    1. First mover anchoring (set initial price/trust as reference)
+    2. Arbitrary anchor injection (irrelevant numbers affecting judgment)
+    3. Anchor adjustment manipulation (insufficient adjustment from anchor)
+    4. Social proof anchoring (herd behavior from visible choices)
+    5. Expert opinion anchoring (authority bias in trust decisions)
+
+    Behavioral economics insight: Initial information disproportionately
+    affects subsequent judgments, even when logically irrelevant.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "anchor_detection": False,
+        "multi_source_valuation": False,
+        "historical_baseline_comparison": False,
+        "social_proof_diversity": False,
+        "expert_opinion_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Anchor Detection
+    # ========================================================================
+
+    class AnchorDetector:
+        """Detect potential anchoring manipulation."""
+
+        def __init__(self, deviation_threshold: float = 0.3):
+            self.threshold = deviation_threshold
+            self.first_values: dict = {}
+            self.subsequent_values: dict = defaultdict(list)
+            self.alerts: list = []
+
+        def record_value(self, context: str, value: float, is_first: bool):
+            """Record a value in context."""
+            if is_first:
+                self.first_values[context] = value
+            else:
+                self.subsequent_values[context].append(value)
+
+        def detect_anchoring(self, context: str) -> tuple:
+            """Detect if subsequent values cluster near anchor."""
+            anchor = self.first_values.get(context)
+            subsequent = self.subsequent_values.get(context, [])
+
+            if not anchor or len(subsequent) < 3:
+                return False, "Insufficient data"
+
+            # Check if values cluster near anchor
+            avg_deviation = sum(abs(v - anchor) / anchor for v in subsequent) / len(subsequent)
+
+            if avg_deviation < self.threshold:
+                self.alerts.append({
+                    "context": context,
+                    "anchor": anchor,
+                    "avg_deviation": avg_deviation,
+                })
+                return True, f"Anchoring detected: values cluster within {avg_deviation:.0%} of anchor {anchor}"
+
+            return False, f"No anchoring: {avg_deviation:.0%} deviation"
+
+    from collections import defaultdict
+    anchor_detector = AnchorDetector(deviation_threshold=0.3)
+
+    # Attacker sets anchor, others follow
+    anchor_detector.record_value("widget_price", 100.0, is_first=True)
+    for price in [95, 102, 98, 105, 97]:  # All near anchor
+        anchor_detector.record_value("widget_price", price, is_first=False)
+
+    detected, msg = anchor_detector.detect_anchoring("widget_price")
+
+    if detected:
+        defenses["anchor_detection"] = True
+        anchor_note = f"Anchoring detected: {msg}"
+    else:
+        anchor_note = f"Anchoring missed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Multi-Source Valuation
+    # ========================================================================
+
+    class MultiSourceValuator:
+        """Require multiple independent sources for valuation."""
+
+        def __init__(self, min_sources: int = 3, max_spread: float = 0.5):
+            self.min_sources = min_sources
+            self.max_spread = max_spread
+
+        def validate_valuation(self, valuations: list) -> tuple:
+            """Validate valuation has sufficient independent sources."""
+            if len(valuations) < self.min_sources:
+                return False, f"Insufficient sources: {len(valuations)} < {self.min_sources}"
+
+            if not valuations:
+                return False, "No valuations"
+
+            spread = (max(valuations) - min(valuations)) / (sum(valuations) / len(valuations))
+
+            # Too narrow spread = potential collusion
+            if spread < 0.1 and len(set(valuations)) < 3:
+                return False, f"Suspicious uniformity: spread={spread:.2%}, unique={len(set(valuations))}"
+
+            return True, f"Valid valuation: {len(valuations)} sources, {spread:.0%} spread"
+
+    multi_source = MultiSourceValuator(min_sources=3)
+
+    # Anchored valuations (all similar)
+    valuations = [100, 101, 99, 100]  # Suspiciously uniform
+
+    valid, msg = multi_source.validate_valuation(valuations)
+
+    if not valid:
+        defenses["multi_source_valuation"] = True
+        multi_note = f"Multi-source check failed: {msg}"
+    else:
+        multi_note = f"Multi-source check passed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Historical Baseline Comparison
+    # ========================================================================
+
+    class HistoricalBaselineChecker:
+        """Compare values against historical baselines."""
+
+        def __init__(self, deviation_alert: float = 0.5):
+            self.alert_threshold = deviation_alert
+            self.baselines: dict = {}
+
+        def set_baseline(self, context: str, historical: list):
+            """Set historical baseline for context."""
+            if historical:
+                self.baselines[context] = {
+                    "avg": sum(historical) / len(historical),
+                    "min": min(historical),
+                    "max": max(historical),
+                }
+
+        def check_value(self, context: str, value: float) -> tuple:
+            """Check if value deviates significantly from baseline."""
+            baseline = self.baselines.get(context)
+            if not baseline:
+                return True, "No baseline available"
+
+            deviation = abs(value - baseline["avg"]) / baseline["avg"]
+
+            if deviation > self.alert_threshold:
+                return False, f"Deviation from baseline: {value} vs avg {baseline['avg']:.1f} ({deviation:.0%})"
+
+            return True, f"Within baseline: {deviation:.0%} deviation"
+
+    baseline = HistoricalBaselineChecker(deviation_alert=0.5)
+    baseline.set_baseline("trust_score", [0.5, 0.55, 0.48, 0.52, 0.6])
+
+    # Attacker anchors at inflated value
+    valid, msg = baseline.check_value("trust_score", 0.95)  # Way above historical
+
+    if not valid:
+        defenses["historical_baseline_comparison"] = True
+        baseline_note = f"Baseline check triggered: {msg}"
+    else:
+        baseline_note = f"Baseline check passed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Social Proof Diversity Requirement
+    # ========================================================================
+
+    class SocialProofDiversityChecker:
+        """Ensure social proof comes from diverse sources."""
+
+        def __init__(self, min_clusters: int = 2):
+            self.min_clusters = min_clusters
+
+        def check_diversity(self, endorsers: list, endorser_clusters: dict) -> tuple:
+            """Check if endorsers come from diverse clusters."""
+            clusters = set()
+            for e in endorsers:
+                cluster = endorser_clusters.get(e, "unknown")
+                clusters.add(cluster)
+
+            if len(clusters) < self.min_clusters:
+                return False, f"Insufficient diversity: {len(clusters)} clusters < {self.min_clusters}"
+
+            return True, f"Diverse endorsement: {len(clusters)} clusters"
+
+    diversity = SocialProofDiversityChecker(min_clusters=2)
+
+    # All endorsers from same cluster (coordinated)
+    endorser_clusters = {
+        "endorser_1": "coalition_a",
+        "endorser_2": "coalition_a",
+        "endorser_3": "coalition_a",
+    }
+
+    valid, msg = diversity.check_diversity(["endorser_1", "endorser_2", "endorser_3"], endorser_clusters)
+
+    if not valid:
+        defenses["social_proof_diversity"] = True
+        diversity_note = f"Diversity check failed: {msg}"
+    else:
+        diversity_note = f"Diversity check passed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Expert Opinion Verification
+    # ========================================================================
+
+    class ExpertOpinionVerifier:
+        """Verify expert opinions for potential bias."""
+
+        def __init__(self):
+            self.expert_track_records: dict = {}
+            self.conflict_of_interest: dict = {}
+
+        def register_expert(self, expert_id: str, track_record: float, conflicts: list):
+            """Register an expert's track record and conflicts."""
+            self.expert_track_records[expert_id] = track_record
+            self.conflict_of_interest[expert_id] = set(conflicts)
+
+        def verify_opinion(self, expert_id: str, subject: str) -> tuple:
+            """Verify expert opinion for conflicts."""
+            track_record = self.expert_track_records.get(expert_id, 0)
+            conflicts = self.conflict_of_interest.get(expert_id, set())
+
+            issues = []
+
+            if track_record < 0.5:
+                issues.append(f"Low track record: {track_record:.0%}")
+
+            if subject in conflicts:
+                issues.append(f"Conflict of interest with {subject}")
+
+            if issues:
+                return False, f"Expert opinion suspect: {'; '.join(issues)}"
+
+            return True, "Expert opinion valid"
+
+    expert_verifier = ExpertOpinionVerifier()
+    expert_verifier.register_expert("expert_x", track_record=0.9, conflicts=["company_y"])
+
+    # Expert gives opinion on company they have conflict with
+    valid, msg = expert_verifier.verify_opinion("expert_x", "company_y")
+
+    if not valid:
+        defenses["expert_opinion_verification"] = True
+        expert_note = f"Expert opinion rejected: {msg}"
+    else:
+        expert_note = f"Expert opinion accepted: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Anchoring Bias Exploitation (EB)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=15000.0 if attack_success else -100.0,
+        roi=150.0 if attack_success else -1.0,
+        detection_probability=0.50,  # Behavioral attacks are subtle
+        time_to_detection_hours=168,
+        blocks_until_detected=400,
+        trust_damage=0.40,
+        description=f"""
+ANCHORING BIAS EXPLOITATION (Track EB - Attack 111):
+- Anchor detection: {"DEFENDED" if defenses["anchor_detection"] else "VULNERABLE"}
+  {anchor_note}
+- Multi-source valuation: {"DEFENDED" if defenses["multi_source_valuation"] else "VULNERABLE"}
+  {multi_note}
+- Historical baseline comparison: {"DEFENDED" if defenses["historical_baseline_comparison"] else "VULNERABLE"}
+  {baseline_note}
+- Social proof diversity: {"DEFENDED" if defenses["social_proof_diversity"] else "VULNERABLE"}
+  {diversity_note}
+- Expert opinion verification: {"DEFENDED" if defenses["expert_opinion_verification"] else "VULNERABLE"}
+  {expert_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Anchoring bias: First information disproportionately affects judgment.
+Kahneman & Tversky (1974): "Judgment under Uncertainty: Heuristics and Biases"
+""".strip(),
+        mitigation=f"""
+Track EB: Anchoring Bias Mitigation:
+1. Detect when values cluster near initial anchor
+2. Require multiple independent sources for valuation
+3. Compare against historical baselines
+4. Ensure social proof comes from diverse clusters
+5. Verify expert opinions for conflicts of interest
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_loss_aversion_exploitation() -> AttackResult:
+    """
+    ATTACK 112: LOSS AVERSION EXPLOITATION (Track EB)
+
+    Exploits loss aversion in decision making:
+    1. Frame as loss to amplify fear (avoid losing trust)
+    2. Sunk cost manipulation (keep investing in bad decisions)
+    3. Endowment effect exploitation (overvalue what you have)
+    4. Status quo bias exploitation (inertia in governance)
+    5. Risk aversion in gains, risk seeking in losses
+
+    Behavioral economics insight: Losses are felt ~2x more strongly than
+    equivalent gains (Kahneman & Tversky, 1979).
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "framing_neutralization": False,
+        "sunk_cost_detection": False,
+        "objective_valuation": False,
+        "status_quo_challenge": False,
+        "risk_calibration": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Framing Neutralization
+    # ========================================================================
+
+    class FramingNeutralizer:
+        """Detect and neutralize manipulative framing."""
+
+        def __init__(self):
+            self.loss_keywords = {"lose", "cost", "risk", "danger", "threat", "penalty"}
+            self.gain_keywords = {"gain", "benefit", "opportunity", "reward", "advantage"}
+
+        def analyze_framing(self, message: str) -> tuple:
+            """Analyze message framing."""
+            lower = message.lower()
+            loss_count = sum(1 for kw in self.loss_keywords if kw in lower)
+            gain_count = sum(1 for kw in self.gain_keywords if kw in lower)
+
+            total = loss_count + gain_count
+            if total == 0:
+                return True, "Neutral framing"
+
+            loss_ratio = loss_count / total
+
+            if loss_ratio > 0.7:
+                return False, f"Heavy loss framing detected: {loss_count} loss terms vs {gain_count} gain terms"
+
+            return True, f"Balanced framing: {loss_ratio:.0%} loss focus"
+
+    framing = FramingNeutralizer()
+
+    # Attacker uses fear framing
+    message = "You will LOSE your trust score and face PENALTY costs if you don't act NOW. The RISK of DANGER is HIGH."
+
+    valid, msg = framing.analyze_framing(message)
+
+    if not valid:
+        defenses["framing_neutralization"] = True
+        framing_note = f"Manipulative framing detected: {msg}"
+    else:
+        framing_note = f"Framing check passed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Sunk Cost Detection
+    # ========================================================================
+
+    class SunkCostDetector:
+        """Detect sunk cost fallacy in decision justifications."""
+
+        def __init__(self):
+            self.investment_history: dict = {}
+
+        def record_investment(self, project_id: str, amount: float, timestamp: datetime):
+            """Record an investment."""
+            if project_id not in self.investment_history:
+                self.investment_history[project_id] = []
+            self.investment_history[project_id].append({
+                "amount": amount,
+                "time": timestamp,
+            })
+
+        def check_for_sunk_cost_reasoning(self, project_id: str, justification: str) -> tuple:
+            """Check if decision references sunk costs inappropriately."""
+            history = self.investment_history.get(project_id, [])
+            total_invested = sum(i["amount"] for i in history)
+
+            sunk_cost_phrases = [
+                "already invested", "too much to stop", "can't waste",
+                "come this far", "so much already", "too late to quit"
+            ]
+
+            lower_just = justification.lower()
+            matches = [p for p in sunk_cost_phrases if p in lower_just]
+
+            if matches and total_invested > 0:
+                return False, f"Sunk cost reasoning detected: {matches}, total invested: {total_invested}"
+
+            return True, "No sunk cost reasoning detected"
+
+    sunk_cost = SunkCostDetector()
+
+    now = datetime.now(timezone.utc)
+    # Record investments in failing project
+    for i in range(5):
+        sunk_cost.record_investment("project_x", 1000, now - timedelta(days=30*i))
+
+    # Attacker argues to continue based on sunk costs
+    justification = "We've already invested 5000 ATP. We can't waste what we've come this far with. It's too late to quit."
+
+    valid, msg = sunk_cost.check_for_sunk_cost_reasoning("project_x", justification)
+
+    if not valid:
+        defenses["sunk_cost_detection"] = True
+        sunk_note = f"Sunk cost fallacy detected: {msg}"
+    else:
+        sunk_note = f"No sunk cost fallacy: {msg}"
+
+    # ========================================================================
+    # Defense 3: Objective Valuation (Counter Endowment Effect)
+    # ========================================================================
+
+    class ObjectiveValuator:
+        """Counter endowment effect with objective valuation."""
+
+        def __init__(self, max_premium: float = 0.2):
+            self.max_premium = max_premium
+            self.market_values: dict = {}
+
+        def set_market_value(self, asset_id: str, value: float):
+            """Set market value for an asset."""
+            self.market_values[asset_id] = value
+
+        def check_valuation(self, asset_id: str, owner_valuation: float) -> tuple:
+            """Check if owner's valuation is inflated (endowment effect)."""
+            market = self.market_values.get(asset_id)
+            if not market:
+                return True, "No market value available"
+
+            premium = (owner_valuation - market) / market
+
+            if premium > self.max_premium:
+                return False, f"Endowment effect: owner values at {premium:.0%} premium over market {market}"
+
+            return True, f"Fair valuation: {premium:.0%} premium"
+
+    valuation = ObjectiveValuator(max_premium=0.2)
+    valuation.set_market_value("trust_position", 100.0)
+
+    # Owner overvalues their position (endowment effect)
+    valid, msg = valuation.check_valuation("trust_position", 180.0)  # 80% premium
+
+    if not valid:
+        defenses["objective_valuation"] = True
+        endowment_note = f"Endowment effect detected: {msg}"
+    else:
+        endowment_note = f"Valuation accepted: {msg}"
+
+    # ========================================================================
+    # Defense 4: Status Quo Challenge
+    # ========================================================================
+
+    class StatusQuoChallenger:
+        """Challenge status quo bias in governance."""
+
+        def __init__(self, max_unchanged_cycles: int = 5):
+            self.max_unchanged = max_unchanged_cycles
+            self.policy_history: dict = {}
+
+        def record_policy_review(self, policy_id: str, changed: bool, timestamp: datetime):
+            """Record a policy review."""
+            if policy_id not in self.policy_history:
+                self.policy_history[policy_id] = []
+            self.policy_history[policy_id].append({
+                "changed": changed,
+                "time": timestamp,
+            })
+
+        def check_status_quo_bias(self, policy_id: str) -> tuple:
+            """Check for status quo bias."""
+            history = self.policy_history.get(policy_id, [])
+
+            if len(history) < self.max_unchanged:
+                return True, "Insufficient history"
+
+            # Check last N reviews
+            recent = history[-self.max_unchanged:]
+            unchanged_count = sum(1 for r in recent if not r["changed"])
+
+            if unchanged_count == self.max_unchanged:
+                return False, f"Status quo bias: {self.max_unchanged} consecutive unchanged reviews"
+
+            return True, f"Active governance: {unchanged_count}/{self.max_unchanged} unchanged"
+
+    status_quo = StatusQuoChallenger(max_unchanged_cycles=5)
+
+    now = datetime.now(timezone.utc)
+    # Policy never changed despite reviews
+    for i in range(6):
+        status_quo.record_policy_review("policy_x", changed=False, timestamp=now - timedelta(days=30*i))
+
+    valid, msg = status_quo.check_status_quo_bias("policy_x")
+
+    if not valid:
+        defenses["status_quo_challenge"] = True
+        status_quo_note = f"Status quo bias detected: {msg}"
+    else:
+        status_quo_note = f"Active governance confirmed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Risk Calibration
+    # ========================================================================
+
+    class RiskCalibrator:
+        """Calibrate risk attitudes to prevent exploitation."""
+
+        def __init__(self):
+            self.decision_log: list = []
+
+        def log_decision(self, context: str, frame: str, choice: str, expected_value: float):
+            """Log a decision for risk calibration."""
+            self.decision_log.append({
+                "context": context,
+                "frame": frame,  # "gain" or "loss"
+                "choice": choice,  # "risky" or "safe"
+                "ev": expected_value,
+            })
+
+        def detect_prospect_theory_exploitation(self) -> tuple:
+            """Detect if decisions follow exploitable prospect theory patterns."""
+            gain_decisions = [d for d in self.decision_log if d["frame"] == "gain"]
+            loss_decisions = [d for d in self.decision_log if d["frame"] == "loss"]
+
+            gain_risky = sum(1 for d in gain_decisions if d["choice"] == "risky")
+            loss_risky = sum(1 for d in loss_decisions if d["choice"] == "risky")
+
+            # Prospect theory: risk-averse in gains, risk-seeking in losses
+            if len(gain_decisions) >= 3 and len(loss_decisions) >= 3:
+                gain_risk_ratio = gain_risky / len(gain_decisions)
+                loss_risk_ratio = loss_risky / len(loss_decisions)
+
+                if gain_risk_ratio < 0.3 and loss_risk_ratio > 0.7:
+                    return False, f"Prospect theory pattern: {gain_risk_ratio:.0%} risk in gains, {loss_risk_ratio:.0%} risk in losses"
+
+            return True, "No exploitable pattern"
+
+    calibrator = RiskCalibrator()
+
+    # Attacker frames choices to exploit prospect theory
+    for i in range(4):
+        calibrator.log_decision(f"gain_{i}", "gain", "safe", 100)  # Risk-averse in gains
+        calibrator.log_decision(f"loss_{i}", "loss", "risky", -100)  # Risk-seeking in losses
+
+    valid, msg = calibrator.detect_prospect_theory_exploitation()
+
+    if not valid:
+        defenses["risk_calibration"] = True
+        risk_note = f"Prospect theory exploitation detected: {msg}"
+    else:
+        risk_note = f"Risk attitudes balanced: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Loss Aversion Exploitation (EB)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=20000.0 if attack_success else -150.0,
+        roi=133.0 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=336,  # 2 weeks
+        blocks_until_detected=800,
+        trust_damage=0.35,
+        description=f"""
+LOSS AVERSION EXPLOITATION (Track EB - Attack 112):
+- Framing neutralization: {"DEFENDED" if defenses["framing_neutralization"] else "VULNERABLE"}
+  {framing_note}
+- Sunk cost detection: {"DEFENDED" if defenses["sunk_cost_detection"] else "VULNERABLE"}
+  {sunk_note}
+- Objective valuation: {"DEFENDED" if defenses["objective_valuation"] else "VULNERABLE"}
+  {endowment_note}
+- Status quo challenge: {"DEFENDED" if defenses["status_quo_challenge"] else "VULNERABLE"}
+  {status_quo_note}
+- Risk calibration: {"DEFENDED" if defenses["risk_calibration"] else "VULNERABLE"}
+  {risk_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Loss aversion: Losses feel ~2x stronger than equivalent gains.
+Kahneman & Tversky (1979): "Prospect Theory: An Analysis of Decision under Risk"
+""".strip(),
+        mitigation=f"""
+Track EB: Loss Aversion Exploitation Mitigation:
+1. Detect and neutralize manipulative framing
+2. Identify sunk cost fallacy in justifications
+3. Counter endowment effect with objective valuation
+4. Challenge status quo bias in governance
+5. Calibrate risk attitudes across gain/loss frames
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_hyperbolic_discounting_exploitation() -> AttackResult:
+    """
+    ATTACK 113: HYPERBOLIC DISCOUNTING EXPLOITATION (Track EB)
+
+    Exploits time inconsistent preferences:
+    1. Immediate reward bias (prefer small now over large later)
+    2. Procrastination exploitation (delay costs, accelerate benefits)
+    3. Present bias manipulation (frame distant costs as negligible)
+    4. Commitment device bypass (escape future commitments)
+    5. Time preference arbitrage (trade on others' impatience)
+
+    Behavioral economics insight: People disproportionately prefer
+    immediate rewards over future rewards (Laibson, 1997).
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "temporal_consistency_check": False,
+        "commitment_enforcement": False,
+        "future_cost_salience": False,
+        "discount_rate_caps": False,
+        "long_term_incentive_alignment": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Temporal Consistency Check
+    # ========================================================================
+
+    class TemporalConsistencyChecker:
+        """Check for inconsistent time preferences."""
+
+        def __init__(self, inconsistency_threshold: float = 0.3):
+            self.threshold = inconsistency_threshold
+            self.preference_log: list = []
+
+        def log_preference(self, agent_id: str, choice: dict, timestamp: datetime):
+            """Log a time preference choice."""
+            self.preference_log.append({
+                "agent": agent_id,
+                "choice": choice,
+                "time": timestamp,
+            })
+
+        def check_consistency(self, agent_id: str) -> tuple:
+            """Check if agent's time preferences are consistent."""
+            agent_prefs = [p for p in self.preference_log if p["agent"] == agent_id]
+
+            if len(agent_prefs) < 3:
+                return True, "Insufficient data"
+
+            # Check for preference reversals
+            reversals = 0
+            for i in range(1, len(agent_prefs)):
+                prev = agent_prefs[i-1]["choice"]
+                curr = agent_prefs[i]["choice"]
+
+                # Detect reversal: previously chose future, now chose immediate
+                if prev.get("chose_future") and not curr.get("chose_future"):
+                    reversals += 1
+
+            reversal_rate = reversals / len(agent_prefs)
+
+            if reversal_rate > self.threshold:
+                return False, f"Temporal inconsistency: {reversals} reversals ({reversal_rate:.0%})"
+
+            return True, f"Consistent preferences: {reversal_rate:.0%} reversals"
+
+    consistency = TemporalConsistencyChecker(inconsistency_threshold=0.3)
+
+    now = datetime.now(timezone.utc)
+    # Agent shows hyperbolic discounting pattern
+    consistency.log_preference("agent_x", {"chose_future": True, "delay": 30}, now - timedelta(days=30))
+    consistency.log_preference("agent_x", {"chose_future": False, "delay": 1}, now - timedelta(days=20))
+    consistency.log_preference("agent_x", {"chose_future": True, "delay": 30}, now - timedelta(days=10))
+    consistency.log_preference("agent_x", {"chose_future": False, "delay": 1}, now)
+
+    valid, msg = consistency.check_consistency("agent_x")
+
+    if not valid:
+        defenses["temporal_consistency_check"] = True
+        consistency_note = f"Temporal inconsistency detected: {msg}"
+    else:
+        consistency_note = f"Consistent: {msg}"
+
+    # ========================================================================
+    # Defense 2: Commitment Enforcement
+    # ========================================================================
+
+    class CommitmentEnforcer:
+        """Enforce commitments against hyperbolic discounting."""
+
+        def __init__(self):
+            self.commitments: dict = {}
+            self.bypass_attempts: list = []
+
+        def create_commitment(self, agent_id: str, commitment_id: str, terms: dict, timestamp: datetime):
+            """Create a binding commitment."""
+            self.commitments[commitment_id] = {
+                "agent": agent_id,
+                "terms": terms,
+                "created": timestamp,
+                "binding_until": terms.get("binding_until"),
+            }
+
+        def attempt_bypass(self, commitment_id: str, reason: str, timestamp: datetime) -> tuple:
+            """Attempt to bypass a commitment."""
+            commitment = self.commitments.get(commitment_id)
+            if not commitment:
+                return True, "No commitment found"
+
+            binding_until = commitment.get("binding_until")
+            if binding_until and timestamp < datetime.fromisoformat(binding_until):
+                self.bypass_attempts.append({
+                    "commitment": commitment_id,
+                    "reason": reason,
+                    "time": timestamp,
+                })
+                return False, f"Commitment binding until {binding_until}, bypass rejected"
+
+            return True, "Commitment expired"
+
+    commitment = CommitmentEnforcer()
+
+    now = datetime.now(timezone.utc)
+    commitment.create_commitment(
+        "agent_x", "stake_lock_001",
+        {"action": "stake_atp", "amount": 1000, "binding_until": (now + timedelta(days=30)).isoformat()},
+        now
+    )
+
+    # Agent tries to break commitment early
+    valid, msg = commitment.attempt_bypass("stake_lock_001", "need funds now", now + timedelta(days=5))
+
+    if not valid:
+        defenses["commitment_enforcement"] = True
+        commit_note = f"Commitment enforced: {msg}"
+    else:
+        commit_note = f"Commitment bypassed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Future Cost Salience
+    # ========================================================================
+
+    class FutureCostSalienceEnhancer:
+        """Make future costs more salient to counter present bias."""
+
+        def __init__(self):
+            self.cost_projections: dict = {}
+
+        def calculate_future_cost(self, decision: dict, time_horizon_days: int) -> dict:
+            """Calculate and project future costs."""
+            immediate_benefit = decision.get("immediate_benefit", 0)
+            daily_cost = decision.get("daily_cost", 0)
+
+            total_future_cost = daily_cost * time_horizon_days
+            net_value = immediate_benefit - total_future_cost
+
+            return {
+                "immediate_benefit": immediate_benefit,
+                "total_future_cost": total_future_cost,
+                "net_value": net_value,
+                "break_even_days": immediate_benefit / daily_cost if daily_cost > 0 else float('inf'),
+            }
+
+        def check_decision(self, decision: dict, time_horizon_days: int = 365) -> tuple:
+            """Check if decision accounts for future costs."""
+            projection = self.calculate_future_cost(decision, time_horizon_days)
+
+            if projection["net_value"] < 0:
+                return False, f"Negative net value: {projection['net_value']:.0f} over {time_horizon_days} days (break even at day {projection['break_even_days']:.0f})"
+
+            return True, f"Positive net value: {projection['net_value']:.0f}"
+
+    salience = FutureCostSalienceEnhancer()
+
+    # Decision with hidden future costs
+    decision = {
+        "immediate_benefit": 100,
+        "daily_cost": 1,  # Seems small but adds up
+    }
+
+    valid, msg = salience.check_decision(decision, time_horizon_days=365)
+
+    if not valid:
+        defenses["future_cost_salience"] = True
+        salience_note = f"Future costs highlighted: {msg}"
+    else:
+        salience_note = f"Future costs acceptable: {msg}"
+
+    # ========================================================================
+    # Defense 4: Discount Rate Caps
+    # ========================================================================
+
+    class DiscountRateCapper:
+        """Cap discount rates to prevent exploitation."""
+
+        def __init__(self, max_annual_rate: float = 0.2):
+            self.max_rate = max_annual_rate
+
+        def validate_discount(self, offered_rate: float, time_period_days: int) -> tuple:
+            """Validate that discount rate is not exploitative."""
+            # Convert to annual rate
+            annual_rate = offered_rate * (365 / time_period_days) if time_period_days > 0 else 0
+
+            if annual_rate > self.max_rate:
+                return False, f"Excessive discount: {annual_rate:.0%} annual vs {self.max_rate:.0%} cap"
+
+            return True, f"Fair discount: {annual_rate:.0%} annual"
+
+    discount_cap = DiscountRateCapper(max_annual_rate=0.2)
+
+    # Attacker offers exploitative discount (50% for 30 days = 600%+ annual)
+    valid, msg = discount_cap.validate_discount(0.5, 30)
+
+    if not valid:
+        defenses["discount_rate_caps"] = True
+        discount_note = f"Exploitative discount blocked: {msg}"
+    else:
+        discount_note = f"Discount accepted: {msg}"
+
+    # ========================================================================
+    # Defense 5: Long-Term Incentive Alignment
+    # ========================================================================
+
+    class LongTermIncentiveAligner:
+        """Align incentives for long-term thinking."""
+
+        def __init__(self, min_vesting_days: int = 90):
+            self.min_vesting = min_vesting_days
+
+        def validate_reward_structure(self, reward: dict) -> tuple:
+            """Validate that reward structure encourages long-term thinking."""
+            immediate_pct = reward.get("immediate_pct", 100)
+            vesting_days = reward.get("vesting_days", 0)
+
+            issues = []
+
+            if immediate_pct > 30:
+                issues.append(f"Too much immediate ({immediate_pct}% > 30%)")
+
+            if vesting_days < self.min_vesting:
+                issues.append(f"Vesting too short ({vesting_days} < {self.min_vesting} days)")
+
+            if issues:
+                return False, f"Poor long-term alignment: {'; '.join(issues)}"
+
+            return True, "Good long-term alignment"
+
+    incentive = LongTermIncentiveAligner(min_vesting_days=90)
+
+    # Attacker offers immediate-heavy reward
+    reward = {
+        "immediate_pct": 80,  # 80% immediate
+        "vesting_days": 7,  # Only 1 week vesting
+    }
+
+    valid, msg = incentive.validate_reward_structure(reward)
+
+    if not valid:
+        defenses["long_term_incentive_alignment"] = True
+        incentive_note = f"Short-term structure rejected: {msg}"
+    else:
+        incentive_note = f"Structure accepted: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Hyperbolic Discounting Exploitation (EB)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=25000.0 if attack_success else -200.0,
+        roi=125.0 if attack_success else -1.0,
+        detection_probability=0.40,
+        time_to_detection_hours=504,  # 3 weeks
+        blocks_until_detected=1000,
+        trust_damage=0.30,
+        description=f"""
+HYPERBOLIC DISCOUNTING EXPLOITATION (Track EB - Attack 113):
+- Temporal consistency check: {"DEFENDED" if defenses["temporal_consistency_check"] else "VULNERABLE"}
+  {consistency_note}
+- Commitment enforcement: {"DEFENDED" if defenses["commitment_enforcement"] else "VULNERABLE"}
+  {commit_note}
+- Future cost salience: {"DEFENDED" if defenses["future_cost_salience"] else "VULNERABLE"}
+  {salience_note}
+- Discount rate caps: {"DEFENDED" if defenses["discount_rate_caps"] else "VULNERABLE"}
+  {discount_note}
+- Long-term incentive alignment: {"DEFENDED" if defenses["long_term_incentive_alignment"] else "VULNERABLE"}
+  {incentive_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Hyperbolic discounting: People prefer $100 today over $110 tomorrow,
+but $110 in 31 days over $100 in 30 days. Time inconsistency.
+Laibson (1997): "Golden Eggs and Hyperbolic Discounting"
+""".strip(),
+        mitigation=f"""
+Track EB: Hyperbolic Discounting Mitigation:
+1. Detect temporal inconsistency in preferences
+2. Enforce commitments against future self-defeat
+3. Make future costs salient in decision display
+4. Cap discount rates to prevent exploitation
+5. Structure incentives for long-term alignment
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_overconfidence_exploitation() -> AttackResult:
+    """
+    ATTACK 114: OVERCONFIDENCE EXPLOITATION (Track EB)
+
+    Exploits overconfidence bias:
+    1. Planning fallacy (underestimate time/cost)
+    2. Illusion of control (believe they can control outcomes)
+    3. Above-average effect (everyone thinks they're above average)
+    4. Confirmation bias (seek confirming evidence)
+    5. Hindsight bias (knew it all along)
+
+    Behavioral economics insight: People systematically overestimate
+    their knowledge, control, and abilities.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "planning_buffer_requirement": False,
+        "outcome_attribution_tracking": False,
+        "comparative_calibration": False,
+        "disconfirming_evidence_requirement": False,
+        "prediction_tracking": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Planning Buffer Requirement
+    # ========================================================================
+
+    class PlanningBufferEnforcer:
+        """Enforce realistic buffers in planning."""
+
+        def __init__(self, min_buffer_pct: float = 0.3):
+            self.min_buffer = min_buffer_pct
+            self.historical_overruns: dict = {}
+
+        def record_project(self, project_id: str, estimated: float, actual: float):
+            """Record project estimate vs actual."""
+            self.historical_overruns[project_id] = actual / estimated if estimated > 0 else 1.0
+
+        def validate_estimate(self, project_type: str, estimate: float, buffer: float) -> tuple:
+            """Validate that estimate includes adequate buffer."""
+            buffer_pct = buffer / estimate if estimate > 0 else 0
+
+            if buffer_pct < self.min_buffer:
+                return False, f"Insufficient buffer: {buffer_pct:.0%} < {self.min_buffer:.0%} required"
+
+            return True, f"Adequate buffer: {buffer_pct:.0%}"
+
+    planning = PlanningBufferEnforcer(min_buffer_pct=0.3)
+
+    # Overconfident estimate with no buffer
+    valid, msg = planning.validate_estimate("software_project", estimate=1000, buffer=50)
+
+    if not valid:
+        defenses["planning_buffer_requirement"] = True
+        planning_note = f"Planning fallacy prevented: {msg}"
+    else:
+        planning_note = f"Planning accepted: {msg}"
+
+    # ========================================================================
+    # Defense 2: Outcome Attribution Tracking
+    # ========================================================================
+
+    class OutcomeAttributionTracker:
+        """Track outcome attributions to detect illusion of control."""
+
+        def __init__(self):
+            self.attributions: list = []
+
+        def log_attribution(self, agent_id: str, outcome: str, attribution: str, was_success: bool):
+            """Log how agent attributes outcomes."""
+            self.attributions.append({
+                "agent": agent_id,
+                "outcome": outcome,
+                "attribution": attribution,  # "skill", "luck", "external"
+                "success": was_success,
+            })
+
+        def detect_attribution_bias(self, agent_id: str) -> tuple:
+            """Detect self-serving attribution bias."""
+            agent_attr = [a for a in self.attributions if a["agent"] == agent_id]
+
+            if len(agent_attr) < 6:
+                return True, "Insufficient data"
+
+            successes = [a for a in agent_attr if a["success"]]
+            failures = [a for a in agent_attr if not a["success"]]
+
+            skill_on_success = sum(1 for a in successes if a["attribution"] == "skill") / len(successes) if successes else 0
+            luck_on_failure = sum(1 for a in failures if a["attribution"] in ["luck", "external"]) / len(failures) if failures else 0
+
+            if skill_on_success > 0.7 and luck_on_failure > 0.7:
+                return False, f"Attribution bias: {skill_on_success:.0%} skill on wins, {luck_on_failure:.0%} luck on losses"
+
+            return True, "Balanced attribution"
+
+    attribution = OutcomeAttributionTracker()
+
+    # Agent attributes wins to skill, losses to luck
+    for i in range(4):
+        attribution.log_attribution("agent_x", f"project_{i}", "skill", was_success=True)
+    for i in range(4, 8):
+        attribution.log_attribution("agent_x", f"project_{i}", "luck", was_success=False)
+
+    valid, msg = attribution.detect_attribution_bias("agent_x")
+
+    if not valid:
+        defenses["outcome_attribution_tracking"] = True
+        attribution_note = f"Attribution bias detected: {msg}"
+    else:
+        attribution_note = f"Attribution balanced: {msg}"
+
+    # ========================================================================
+    # Defense 3: Comparative Calibration
+    # ========================================================================
+
+    class ComparativeCalibrator:
+        """Calibrate self-assessments against group baseline."""
+
+        def __init__(self, max_above_average_claim: float = 0.7):
+            self.max_claim = max_above_average_claim
+            self.self_assessments: dict = {}
+
+        def record_assessment(self, agent_id: str, skill: str, percentile: float):
+            """Record an agent's self-assessment."""
+            if agent_id not in self.self_assessments:
+                self.self_assessments[agent_id] = {}
+            self.self_assessments[agent_id][skill] = percentile
+
+        def detect_above_average_effect(self, agent_id: str) -> tuple:
+            """Detect if agent claims above-average across too many skills."""
+            assessments = self.self_assessments.get(agent_id, {})
+
+            if len(assessments) < 3:
+                return True, "Insufficient data"
+
+            above_avg = sum(1 for v in assessments.values() if v > 0.5)
+            ratio = above_avg / len(assessments)
+
+            if ratio > self.max_claim:
+                return False, f"Above-average effect: {ratio:.0%} skills claimed above median"
+
+            return True, f"Realistic self-assessment: {ratio:.0%} above median"
+
+    calibrator = ComparativeCalibrator(max_above_average_claim=0.7)
+
+    # Agent claims above average in everything
+    for skill in ["coding", "communication", "leadership", "analysis", "creativity"]:
+        calibrator.record_assessment("agent_x", skill, 0.8)  # 80th percentile in all
+
+    valid, msg = calibrator.detect_above_average_effect("agent_x")
+
+    if not valid:
+        defenses["comparative_calibration"] = True
+        calibration_note = f"Above-average effect detected: {msg}"
+    else:
+        calibration_note = f"Calibration accepted: {msg}"
+
+    # ========================================================================
+    # Defense 4: Disconfirming Evidence Requirement
+    # ========================================================================
+
+    class DisconfirmingEvidenceEnforcer:
+        """Require consideration of disconfirming evidence."""
+
+        def __init__(self, min_disconfirming: int = 2):
+            self.min_required = min_disconfirming
+
+        def validate_analysis(self, analysis: dict) -> tuple:
+            """Validate that analysis includes disconfirming evidence."""
+            confirming = analysis.get("confirming_evidence", [])
+            disconfirming = analysis.get("disconfirming_evidence", [])
+
+            if len(disconfirming) < self.min_required:
+                return False, f"Insufficient disconfirming evidence: {len(disconfirming)} < {self.min_required}"
+
+            ratio = len(confirming) / (len(disconfirming) + 0.01)
+            if ratio > 5:
+                return False, f"Evidence imbalance: {len(confirming)} confirming vs {len(disconfirming)} disconfirming"
+
+            return True, f"Balanced evidence: {len(confirming)} confirming, {len(disconfirming)} disconfirming"
+
+    disconfirm = DisconfirmingEvidenceEnforcer(min_disconfirming=2)
+
+    # Confirmation bias: only confirming evidence
+    analysis = {
+        "confirming_evidence": ["A supports", "B supports", "C supports", "D supports"],
+        "disconfirming_evidence": [],  # No disconfirming!
+    }
+
+    valid, msg = disconfirm.validate_analysis(analysis)
+
+    if not valid:
+        defenses["disconfirming_evidence_requirement"] = True
+        disconfirm_note = f"Confirmation bias prevented: {msg}"
+    else:
+        disconfirm_note = f"Analysis accepted: {msg}"
+
+    # ========================================================================
+    # Defense 5: Prediction Tracking
+    # ========================================================================
+
+    class PredictionTracker:
+        """Track predictions to calibrate confidence."""
+
+        def __init__(self):
+            self.predictions: list = []
+
+        def record_prediction(self, agent_id: str, prediction: str, confidence: float, outcome: bool):
+            """Record a prediction and its outcome."""
+            self.predictions.append({
+                "agent": agent_id,
+                "prediction": prediction,
+                "confidence": confidence,
+                "correct": outcome,
+            })
+
+        def check_calibration(self, agent_id: str) -> tuple:
+            """Check if agent's confidence is well-calibrated."""
+            agent_preds = [p for p in self.predictions if p["agent"] == agent_id]
+
+            if len(agent_preds) < 10:
+                return True, "Insufficient predictions"
+
+            # Group by confidence level
+            high_conf = [p for p in agent_preds if p["confidence"] >= 0.8]
+            med_conf = [p for p in agent_preds if 0.5 <= p["confidence"] < 0.8]
+
+            high_accuracy = sum(1 for p in high_conf if p["correct"]) / len(high_conf) if high_conf else 0
+
+            # If high confidence but low accuracy = overconfidence
+            if len(high_conf) >= 5 and high_accuracy < 0.6:
+                return False, f"Overconfidence: {high_accuracy:.0%} accuracy on {len(high_conf)} high-confidence predictions"
+
+            return True, f"Well-calibrated: {high_accuracy:.0%} accuracy on high-confidence predictions"
+
+    prediction = PredictionTracker()
+
+    # Agent makes overconfident predictions that turn out wrong
+    for i in range(10):
+        prediction.record_prediction("agent_x", f"pred_{i}", confidence=0.9, outcome=(i < 4))  # Only 40% correct
+
+    valid, msg = prediction.check_calibration("agent_x")
+
+    if not valid:
+        defenses["prediction_tracking"] = True
+        prediction_note = f"Overconfidence detected: {msg}"
+    else:
+        prediction_note = f"Confidence calibrated: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Overconfidence Exploitation (EB)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=18000.0 if attack_success else -100.0,
+        roi=180.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=240,
+        blocks_until_detected=600,
+        trust_damage=0.35,
+        description=f"""
+OVERCONFIDENCE EXPLOITATION (Track EB - Attack 114):
+- Planning buffer requirement: {"DEFENDED" if defenses["planning_buffer_requirement"] else "VULNERABLE"}
+  {planning_note}
+- Outcome attribution tracking: {"DEFENDED" if defenses["outcome_attribution_tracking"] else "VULNERABLE"}
+  {attribution_note}
+- Comparative calibration: {"DEFENDED" if defenses["comparative_calibration"] else "VULNERABLE"}
+  {calibration_note}
+- Disconfirming evidence requirement: {"DEFENDED" if defenses["disconfirming_evidence_requirement"] else "VULNERABLE"}
+  {disconfirm_note}
+- Prediction tracking: {"DEFENDED" if defenses["prediction_tracking"] else "VULNERABLE"}
+  {prediction_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Overconfidence: People systematically overestimate knowledge and control.
+Fischhoff et al. (1977): "Knowing with Certainty: The Appropriateness of Extreme Confidence"
+""".strip(),
+        mitigation=f"""
+Track EB: Overconfidence Exploitation Mitigation:
+1. Require planning buffers for estimates
+2. Track outcome attributions for self-serving bias
+3. Compare self-assessments to group baseline
+4. Require disconfirming evidence in analysis
+5. Track prediction accuracy to calibrate confidence
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -36865,6 +38116,11 @@ def run_all_attacks() -> List[AttackResult]:
         ("Coalition Defection Punishment (EA)", attack_coalition_defection_punishment),
         ("Coalition Entry Barriers (EA)", attack_coalition_entry_barriers),
         ("Coalition Market Manipulation (EA)", attack_coalition_market_manipulation),
+        # Track EB: Behavioral Economics Attacks
+        ("Anchoring Bias Exploitation (EB)", attack_anchoring_bias_exploitation),
+        ("Loss Aversion Exploitation (EB)", attack_loss_aversion_exploitation),
+        ("Hyperbolic Discounting Exploitation (EB)", attack_hyperbolic_discounting_exploitation),
+        ("Overconfidence Exploitation (EB)", attack_overconfidence_exploitation),
     ]
 
     results = []
