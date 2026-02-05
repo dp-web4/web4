@@ -29795,6 +29795,1891 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track DU: Governance Interface Attacks
+# ---------------------------------------------------------------------------
+# These attacks target the interface between human governance (Standing Credentials,
+# bioregional authority) and computational trust (T3/ET/ATP). They exploit process
+# rather than protocol - "legitimate actor" attacks that don't violate any single
+# rule but erode governance through cumulative burden.
+#
+# Source: CN/RST Docking Spec v0.1.1 Appendix A
+# ---------------------------------------------------------------------------
+
+
+def attack_unbundling_cap_evasion() -> AttackResult:
+    """
+    ATTACK DU-1: Unbundling (Execution Controls Cap Evasion)
+
+    Stay under each individual cap while exceeding aggregate burden.
+
+    Strategy:
+    - Stay under holdback cap (20%)
+    - Stay under audit frequency cap
+    - Stay under reporting cap
+    - Add "documentation prerequisites", "pre-approval gates", "special compliance review"
+    - Each requirement "reasonable" individually, cumulative effect is veto
+
+    Detection tell: Many small requirements, project effectively frozen but "no cap violated"
+    """
+    now = datetime.now(timezone.utc)
+
+    defenses = {
+        "tcb_metering": False,
+        "aggregate_burden_tracking": False,
+        "time_to_completion_monitoring": False,
+        "requirement_pattern_detection": False,
+        "default_state_enforcement": False,
+    }
+
+    # ========================================================================
+    # Transaction Cost Budget (TCB) Implementation
+    # ========================================================================
+
+    @dataclass
+    class TransactionCostBudget:
+        """Track cumulative governance burden on an entity."""
+        max_hours_per_month: float = 6.0
+        max_artifact_count_per_month: int = 4
+        max_meetings_per_month: int = 2
+        prohibited_requirements: list = field(default_factory=list)
+
+        # Tracking
+        hours_consumed: float = 0.0
+        artifacts_requested: int = 0
+        meetings_required: int = 0
+        requirements_imposed: list = field(default_factory=list)
+
+        def add_requirement(
+            self, req_type: str, hours: float, artifacts: int = 0,
+            meetings: int = 0, timestamp: datetime = None
+        ) -> tuple:
+            """Add requirement and check TCB compliance."""
+            self.hours_consumed += hours
+            self.artifacts_requested += artifacts
+            self.meetings_required += meetings
+            self.requirements_imposed.append({
+                "type": req_type,
+                "hours": hours,
+                "artifacts": artifacts,
+                "meetings": meetings,
+                "timestamp": timestamp or datetime.now(timezone.utc),
+            })
+
+            # Check if any individual cap is exceeded
+            hours_exceeded = self.hours_consumed > self.max_hours_per_month
+            artifacts_exceeded = self.artifacts_requested > self.max_artifact_count_per_month
+            meetings_exceeded = self.meetings_required > self.max_meetings_per_month
+
+            return (
+                hours_exceeded or artifacts_exceeded or meetings_exceeded,
+                {
+                    "hours": (self.hours_consumed, self.max_hours_per_month, hours_exceeded),
+                    "artifacts": (self.artifacts_requested, self.max_artifact_count_per_month, artifacts_exceeded),
+                    "meetings": (self.meetings_required, self.max_meetings_per_month, meetings_exceeded),
+                }
+            )
+
+        def get_burden_ratio(self) -> float:
+            """Calculate aggregate burden as ratio of cap utilization."""
+            hour_ratio = self.hours_consumed / self.max_hours_per_month
+            artifact_ratio = self.artifacts_requested / self.max_artifact_count_per_month
+            meeting_ratio = self.meetings_required / self.max_meetings_per_month
+            return (hour_ratio + artifact_ratio + meeting_ratio) / 3
+
+    # DEFENSE 1: TCB Metering
+    tcb = TransactionCostBudget()
+
+    # Attacker imposes multiple small requirements
+    requirements = [
+        ("weekly_status_report", 0.5, 1, 0),  # 30 min report, 1 artifact
+        ("photo_documentation", 0.25, 1, 0),  # 15 min, 1 artifact
+        ("pre_approval_form", 0.5, 1, 0),  # 30 min form
+        ("compliance_checklist", 0.3, 1, 0),  # 18 min checklist
+        ("progress_meeting", 1.0, 0, 1),  # 1 hour meeting
+        ("risk_assessment", 0.75, 1, 0),  # 45 min, 1 artifact
+        ("stakeholder_briefing", 0.5, 0, 1),  # 30 min meeting
+        ("documentation_review", 0.4, 0, 0),  # 24 min review
+        ("mid_point_audit", 1.5, 2, 1),  # 90 min, 2 artifacts, 1 meeting
+        ("final_approval_gate", 0.3, 0, 0),  # 18 min gate
+    ]
+
+    any_cap_violated = False
+    for req_type, hours, artifacts, meetings in requirements:
+        violated, details = tcb.add_requirement(
+            req_type, hours, artifacts, meetings,
+            timestamp=now - timedelta(days=len(requirements) - requirements.index((req_type, hours, artifacts, meetings)))
+        )
+        if violated:
+            any_cap_violated = True
+
+    # TCB detects cumulative overload even if individual caps not exceeded
+    burden_ratio = tcb.get_burden_ratio()
+    tcb_alert = burden_ratio > 0.8 or len(tcb.requirements_imposed) > 5
+
+    if tcb_alert:
+        defenses["tcb_metering"] = True
+        tcb_note = f"TCB alert: {burden_ratio:.1%} burden ratio, {len(tcb.requirements_imposed)} requirements"
+    else:
+        tcb_note = f"TCB normal: {burden_ratio:.1%} burden"
+
+    # ========================================================================
+    # DEFENSE 2: Aggregate Burden Tracking
+    # ========================================================================
+
+    class AggregateBurdenTracker:
+        """Track cumulative burden across requirement types."""
+
+        def __init__(self):
+            self.entity_burdens = defaultdict(list)
+
+        def record_burden(
+            self, target: str, imposer: str, burden_type: str,
+            hours: float, timestamp: datetime
+        ):
+            """Record burden imposed on target by imposer."""
+            self.entity_burdens[target].append({
+                "imposer": imposer,
+                "type": burden_type,
+                "hours": hours,
+                "timestamp": timestamp,
+            })
+
+        def detect_cumulative_attack(
+            self, target: str, window_days: int = 30
+        ) -> tuple:
+            """Detect when cumulative burden indicates attack pattern."""
+            burdens = self.entity_burdens.get(target, [])
+            cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+            recent = [b for b in burdens if b["timestamp"] > cutoff]
+
+            if len(recent) < 3:
+                return False, "Insufficient burden history"
+
+            # Multiple imposers? More suspicious
+            unique_imposers = len(set(b["imposer"] for b in recent))
+            total_hours = sum(b["hours"] for b in recent)
+
+            # Attack indicators
+            single_imposer_high_burden = unique_imposers == 1 and total_hours > 10
+            many_small_requirements = len(recent) > 8 and total_hours > 5
+
+            if single_imposer_high_burden or many_small_requirements:
+                return True, f"Cumulative attack: {len(recent)} requirements, {total_hours:.1f}h, {unique_imposers} imposer(s)"
+
+            return False, f"Normal burden: {len(recent)} requirements, {total_hours:.1f}h"
+
+    burden_tracker = AggregateBurdenTracker()
+    target_entity = "steward_001"
+    attacker_entity = "counterparty_a"
+
+    for req_type, hours, _, _ in requirements:
+        burden_tracker.record_burden(
+            target_entity, attacker_entity, req_type, hours,
+            timestamp=now - timedelta(days=15)
+        )
+
+    cumulative_detected, burden_msg = burden_tracker.detect_cumulative_attack(target_entity)
+
+    if cumulative_detected:
+        defenses["aggregate_burden_tracking"] = True
+        burden_note = f"Aggregate: {burden_msg}"
+    else:
+        burden_note = f"Aggregate: {burden_msg}"
+
+    # ========================================================================
+    # DEFENSE 3: Time-to-Completion Monitoring
+    # ========================================================================
+
+    class CompletionMonitor:
+        """Track project progress vs expected completion."""
+
+        def __init__(self):
+            self.projects = {}
+
+        def register_project(
+            self, project_id: str, expected_duration_days: int,
+            start_date: datetime
+        ):
+            """Register a project with expected timeline."""
+            self.projects[project_id] = {
+                "expected_days": expected_duration_days,
+                "start": start_date,
+                "milestones": [],
+                "delays": [],
+            }
+
+        def record_delay(
+            self, project_id: str, delay_reason: str, delay_days: int,
+            imposed_by: str, timestamp: datetime
+        ):
+            """Record a delay in project progress."""
+            if project_id in self.projects:
+                self.projects[project_id]["delays"].append({
+                    "reason": delay_reason,
+                    "days": delay_days,
+                    "imposed_by": imposed_by,
+                    "timestamp": timestamp,
+                })
+
+        def detect_slowdown_attack(self, project_id: str) -> tuple:
+            """Detect when delays indicate deliberate slowdown."""
+            if project_id not in self.projects:
+                return False, "Project not found"
+
+            project = self.projects[project_id]
+            total_delay = sum(d["days"] for d in project["delays"])
+            expected = project["expected_days"]
+
+            # Delay ratio
+            delay_ratio = total_delay / expected if expected > 0 else 0
+
+            # Many small delays from same imposer?
+            if project["delays"]:
+                imposer_counts = defaultdict(int)
+                for d in project["delays"]:
+                    imposer_counts[d["imposed_by"]] += 1
+                max_from_single = max(imposer_counts.values())
+
+                if delay_ratio > 0.5 and max_from_single >= 3:
+                    return True, f"Slowdown attack: {total_delay}d delay ({delay_ratio:.0%}), {max_from_single} delays from single party"
+
+            return False, f"Project delay: {total_delay}d ({delay_ratio:.0%} of expected)"
+
+    completion_monitor = CompletionMonitor()
+    project_id = "habitat_restoration_001"
+    completion_monitor.register_project(project_id, 90, now - timedelta(days=45))
+
+    # Attacker imposes delays through "reasonable" requirements
+    delay_reasons = [
+        ("additional_documentation", 5),
+        ("compliance_review", 7),
+        ("stakeholder_consultation", 4),
+        ("risk_reassessment", 6),
+        ("budget_verification", 3),
+    ]
+
+    for reason, days in delay_reasons:
+        completion_monitor.record_delay(
+            project_id, reason, days, attacker_entity,
+            timestamp=now - timedelta(days=30)
+        )
+
+    slowdown_detected, completion_msg = completion_monitor.detect_slowdown_attack(project_id)
+
+    if slowdown_detected:
+        defenses["time_to_completion_monitoring"] = True
+        completion_note = f"Completion: {completion_msg}"
+    else:
+        completion_note = f"Completion: {completion_msg}"
+
+    # ========================================================================
+    # DEFENSE 4: Requirement Pattern Detection
+    # ========================================================================
+
+    class RequirementPatternDetector:
+        """Detect patterns of requirements that indicate attack."""
+
+        ATTACK_PATTERNS = {
+            "documentation_proliferation": ["report", "document", "form", "checklist", "artifact"],
+            "meeting_proliferation": ["meeting", "briefing", "review", "consultation"],
+            "approval_gates": ["approval", "gate", "sign-off", "authorization"],
+            "audit_overload": ["audit", "compliance", "verification", "assessment"],
+        }
+
+        def __init__(self):
+            self.requirements = []
+
+        def add_requirement(self, req_type: str, timestamp: datetime):
+            """Add a requirement to the analysis."""
+            self.requirements.append({"type": req_type, "timestamp": timestamp})
+
+        def detect_pattern(self) -> tuple:
+            """Detect if requirements match attack patterns."""
+            pattern_matches = defaultdict(int)
+
+            for req in self.requirements:
+                req_lower = req["type"].lower()
+                for pattern_name, keywords in self.ATTACK_PATTERNS.items():
+                    if any(kw in req_lower for kw in keywords):
+                        pattern_matches[pattern_name] += 1
+
+            # Multiple pattern types with high counts = attack
+            high_patterns = [p for p, c in pattern_matches.items() if c >= 2]
+
+            if len(high_patterns) >= 2:
+                return True, f"Pattern attack: {', '.join(high_patterns)} ({dict(pattern_matches)})"
+
+            return False, f"Pattern analysis: {dict(pattern_matches)}"
+
+    pattern_detector = RequirementPatternDetector()
+    for req_type, _, _, _ in requirements:
+        pattern_detector.add_requirement(req_type, now - timedelta(days=10))
+
+    pattern_detected, pattern_msg = pattern_detector.detect_pattern()
+
+    if pattern_detected:
+        defenses["requirement_pattern_detection"] = True
+        pattern_note = f"Pattern: {pattern_msg}"
+    else:
+        pattern_note = f"Pattern: {pattern_msg}"
+
+    # ========================================================================
+    # DEFENSE 5: Default State Enforcement
+    # ========================================================================
+
+    class DefaultStateEnforcer:
+        """Enforce default-favorable state during disputes."""
+
+        def __init__(self):
+            self.disputes = {}
+
+        def register_dispute(
+            self, dispute_id: str, plaintiff: str, defendant: str,
+            default_state: str, timestamp: datetime
+        ):
+            """Register dispute with default state."""
+            self.disputes[dispute_id] = {
+                "plaintiff": plaintiff,
+                "defendant": defendant,
+                "default_state": default_state,
+                "start": timestamp,
+                "resolved": False,
+                "resolution": None,
+            }
+
+        def check_default_enforcement(
+            self, dispute_id: str, max_days: int = 30
+        ) -> tuple:
+            """Check if default state should be enforced."""
+            if dispute_id not in self.disputes:
+                return False, "Dispute not found"
+
+            dispute = self.disputes[dispute_id]
+            elapsed = (datetime.now(timezone.utc) - dispute["start"]).days
+
+            if elapsed > max_days and not dispute["resolved"]:
+                return True, f"Default enforcement: {dispute['default_state']} after {elapsed}d"
+
+            return False, f"Dispute pending: {elapsed}d elapsed"
+
+    default_enforcer = DefaultStateEnforcer()
+    dispute_id = "unbundling_dispute_001"
+    default_enforcer.register_dispute(
+        dispute_id,
+        plaintiff=target_entity,
+        defendant=attacker_entity,
+        default_state="project_proceeds_without_additional_requirements",
+        timestamp=now - timedelta(days=35)
+    )
+
+    default_triggered, default_msg = default_enforcer.check_default_enforcement(dispute_id)
+
+    if default_triggered:
+        defenses["default_state_enforcement"] = True
+        default_note = f"Default: {default_msg}"
+    else:
+        default_note = f"Default: {default_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Unbundling Cap Evasion (DU)",
+        success=attack_success,
+        setup_cost_atp=50.0,  # Low cost - just administrative burden
+        gain_atp=5000.0 if attack_success else -50.0,  # Project blocked = high value
+        roi=100.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=720,  # 30 days to recognize pattern
+        blocks_until_detected=3000,
+        trust_damage=0.25,  # Low damage - appears legitimate
+        description=f"""
+UNBUNDLING CAP EVASION (Track DU - A1):
+- TCB metering: {"DEFENDED" if defenses["tcb_metering"] else "VULNERABLE"}
+  {tcb_note}
+- Aggregate burden: {"DEFENDED" if defenses["aggregate_burden_tracking"] else "VULNERABLE"}
+  {burden_note}
+- Completion monitoring: {"DEFENDED" if defenses["time_to_completion_monitoring"] else "VULNERABLE"}
+  {completion_note}
+- Pattern detection: {"DEFENDED" if defenses["requirement_pattern_detection"] else "VULNERABLE"}
+  {pattern_note}
+- Default enforcement: {"DEFENDED" if defenses["default_state_enforcement"] else "VULNERABLE"}
+  {default_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Stay under each individual cap while exceeding aggregate burden.
+"Death by a thousand cuts" - each requirement reasonable, total is veto.
+""".strip(),
+        mitigation=f"""
+Track DU-A1: Unbundling Cap Evasion Mitigation:
+1. Implement Transaction Cost Budget (TCB) metering
+2. Track aggregate burden across requirement types
+3. Monitor time-to-completion vs imposed delays
+4. Detect requirement patterns (documentation, meetings, approvals)
+5. Enforce default state during disputes (project proceeds)
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "tcb_burden_ratio": burden_ratio,
+            "total_requirements": len(requirements),
+            "any_cap_violated": any_cap_violated,
+        }
+    )
+
+
+def attack_sep_defanging_via_delay() -> AttackResult:
+    """
+    ATTACK DU-2: SEP Defanging via Delay
+
+    Stall adjudication with evidence requests, jurisdiction claims, committee reshuffles.
+
+    Strategy:
+    - Accept bioregional authority nominally: "we'll respect your ruling... eventually"
+    - Endless evidence requests
+    - Jurisdiction challenges
+    - Internal committee cycles
+    - Harm occurs before adjudication completes
+
+    Detection tell: SEP becomes paperwork treadmill, no ruling in reasonable time
+    """
+    now = datetime.now(timezone.utc)
+
+    defenses = {
+        "hard_deadline_enforcement": False,
+        "evidence_request_limiting": False,
+        "jurisdiction_challenge_throttling": False,
+        "committee_cycle_detection": False,
+        "interim_harm_prevention": False,
+    }
+
+    # ========================================================================
+    # SEP Timer System
+    # ========================================================================
+
+    @dataclass
+    class SEPCase:
+        """Sanction Enforcement Process case."""
+        case_id: str
+        complainant: str
+        respondent: str
+        harm_type: str
+        filed_date: datetime
+        deadline_days: int
+        status: str = "open"
+        evidence_requests: list = field(default_factory=list)
+        jurisdiction_challenges: list = field(default_factory=list)
+        committee_changes: int = 0
+        interim_measures: list = field(default_factory=list)
+
+        def days_elapsed(self) -> int:
+            return (datetime.now(timezone.utc) - self.filed_date).days
+
+        def is_overdue(self) -> bool:
+            return self.days_elapsed() > self.deadline_days
+
+    # DEFENSE 1: Hard Deadline Enforcement
+    class DeadlineEnforcer:
+        """Enforce SEP deadlines with consequences."""
+
+        def __init__(self):
+            self.cases = {}
+
+        def register_case(self, case: SEPCase):
+            self.cases[case.case_id] = case
+
+        def check_deadline(self, case_id: str) -> tuple:
+            """Check if case deadline triggers enforcement."""
+            if case_id not in self.cases:
+                return False, "Case not found"
+
+            case = self.cases[case_id]
+            elapsed = case.days_elapsed()
+
+            if elapsed > case.deadline_days:
+                # Deadline passed - default ruling applies
+                return True, f"Deadline enforcement: {elapsed}d > {case.deadline_days}d, default ruling for complainant"
+
+            return False, f"Within deadline: {elapsed}d / {case.deadline_days}d"
+
+    deadline_enforcer = DeadlineEnforcer()
+    sep_case = SEPCase(
+        case_id="sep_2026_001",
+        complainant="steward_001",
+        respondent="counterparty_corp",
+        harm_type="boundary_violation",
+        filed_date=now - timedelta(days=45),
+        deadline_days=30
+    )
+    deadline_enforcer.register_case(sep_case)
+
+    deadline_triggered, deadline_msg = deadline_enforcer.check_deadline(sep_case.case_id)
+
+    if deadline_triggered:
+        defenses["hard_deadline_enforcement"] = True
+        deadline_note = f"Deadline: {deadline_msg}"
+    else:
+        deadline_note = f"Deadline: {deadline_msg}"
+
+    # ========================================================================
+    # DEFENSE 2: Evidence Request Limiting
+    # ========================================================================
+
+    class EvidenceRequestLimiter:
+        """Limit evidence requests to prevent delay tactics."""
+
+        MAX_REQUESTS = 3
+        MIN_INTERVAL_DAYS = 5
+
+        def __init__(self):
+            self.requests = defaultdict(list)
+
+        def submit_request(self, case_id: str, request_type: str, timestamp: datetime) -> tuple:
+            """Submit evidence request with rate limiting."""
+            requests = self.requests[case_id]
+
+            # Check count limit
+            if len(requests) >= self.MAX_REQUESTS:
+                return False, f"Request denied: max {self.MAX_REQUESTS} requests exceeded"
+
+            # Check interval limit
+            if requests:
+                last_request = max(r["timestamp"] for r in requests)
+                days_since = (timestamp - last_request).days
+                if days_since < self.MIN_INTERVAL_DAYS:
+                    return False, f"Request denied: {days_since}d < {self.MIN_INTERVAL_DAYS}d minimum interval"
+
+            requests.append({"type": request_type, "timestamp": timestamp})
+            return True, f"Request accepted: {len(requests)}/{self.MAX_REQUESTS}"
+
+        def detect_abuse(self, case_id: str) -> tuple:
+            """Detect if evidence requests are being abused."""
+            requests = self.requests[case_id]
+            if len(requests) >= self.MAX_REQUESTS:
+                return True, f"Evidence request abuse: {len(requests)} requests (max {self.MAX_REQUESTS})"
+            return False, f"Evidence requests: {len(requests)}/{self.MAX_REQUESTS}"
+
+    evidence_limiter = EvidenceRequestLimiter()
+
+    # Attacker submits many evidence requests
+    request_dates = [
+        now - timedelta(days=40),
+        now - timedelta(days=35),
+        now - timedelta(days=30),
+        now - timedelta(days=25),  # Should be denied
+        now - timedelta(days=20),  # Should be denied
+    ]
+
+    for req_date in request_dates:
+        evidence_limiter.submit_request(sep_case.case_id, "additional_documents", req_date)
+
+    evidence_abuse, evidence_msg = evidence_limiter.detect_abuse(sep_case.case_id)
+
+    if evidence_abuse:
+        defenses["evidence_request_limiting"] = True
+        evidence_note = f"Evidence: {evidence_msg}"
+    else:
+        evidence_note = f"Evidence: {evidence_msg}"
+
+    # ========================================================================
+    # DEFENSE 3: Jurisdiction Challenge Throttling
+    # ========================================================================
+
+    class JurisdictionThrottler:
+        """Throttle jurisdiction challenges to prevent forum shopping delays."""
+
+        MAX_CHALLENGES = 2
+        ESCALATION_PENALTY_ATP = 1000
+
+        def __init__(self):
+            self.challenges = defaultdict(list)
+
+        def submit_challenge(
+            self, case_id: str, challenge_type: str,
+            claimed_jurisdiction: str, timestamp: datetime
+        ) -> tuple:
+            """Submit jurisdiction challenge with throttling."""
+            challenges = self.challenges[case_id]
+
+            if len(challenges) >= self.MAX_CHALLENGES:
+                return False, f"Challenge denied: max {self.MAX_CHALLENGES} challenges exceeded, ATP penalty: {self.ESCALATION_PENALTY_ATP}"
+
+            challenges.append({
+                "type": challenge_type,
+                "claimed_jurisdiction": claimed_jurisdiction,
+                "timestamp": timestamp,
+            })
+            return True, f"Challenge filed: {len(challenges)}/{self.MAX_CHALLENGES}"
+
+        def detect_abuse(self, case_id: str) -> tuple:
+            """Detect jurisdiction challenge abuse."""
+            challenges = self.challenges[case_id]
+            if len(challenges) >= self.MAX_CHALLENGES:
+                return True, f"Jurisdiction abuse: {len(challenges)} challenges (max {self.MAX_CHALLENGES})"
+            return False, f"Jurisdiction challenges: {len(challenges)}/{self.MAX_CHALLENGES}"
+
+    jurisdiction_throttler = JurisdictionThrottler()
+
+    # Attacker files multiple jurisdiction challenges
+    challenges = [
+        ("wrong_bioregion", "bioregion_b"),
+        ("subject_matter", "federal_jurisdiction"),
+        ("procedural_defect", "state_court"),  # Should be denied
+    ]
+
+    for ctype, jurisdiction in challenges:
+        jurisdiction_throttler.submit_challenge(
+            sep_case.case_id, ctype, jurisdiction,
+            timestamp=now - timedelta(days=30)
+        )
+
+    jurisdiction_abuse, jurisdiction_msg = jurisdiction_throttler.detect_abuse(sep_case.case_id)
+
+    if jurisdiction_abuse:
+        defenses["jurisdiction_challenge_throttling"] = True
+        jurisdiction_note = f"Jurisdiction: {jurisdiction_msg}"
+    else:
+        jurisdiction_note = f"Jurisdiction: {jurisdiction_msg}"
+
+    # ========================================================================
+    # DEFENSE 4: Committee Cycle Detection
+    # ========================================================================
+
+    class CommitteeCycleDetector:
+        """Detect when committee changes are being used to delay."""
+
+        MAX_CHANGES = 2
+        SUSPICION_THRESHOLD = 3
+
+        def __init__(self):
+            self.case_committees = defaultdict(list)
+
+        def record_change(
+            self, case_id: str, old_committee: str, new_committee: str,
+            reason: str, timestamp: datetime
+        ):
+            """Record committee change."""
+            self.case_committees[case_id].append({
+                "old": old_committee,
+                "new": new_committee,
+                "reason": reason,
+                "timestamp": timestamp,
+            })
+
+        def detect_cycling(self, case_id: str) -> tuple:
+            """Detect if committee changes indicate delay tactic."""
+            changes = self.case_committees[case_id]
+
+            if len(changes) >= self.SUSPICION_THRESHOLD:
+                # Check for cycling back to previous committees
+                committees_seen = [c["new"] for c in changes]
+                if len(committees_seen) != len(set(committees_seen)):
+                    return True, f"Committee cycling: {len(changes)} changes with repetition"
+
+            if len(changes) > self.MAX_CHANGES:
+                return True, f"Excessive committee changes: {len(changes)} > {self.MAX_CHANGES}"
+
+            return False, f"Committee changes: {len(changes)}"
+
+    committee_detector = CommitteeCycleDetector()
+
+    # Attacker causes committee reshuffles
+    committee_changes = [
+        ("committee_a", "committee_b", "conflict_of_interest"),
+        ("committee_b", "committee_c", "expertise_mismatch"),
+        ("committee_c", "committee_a", "scheduling_conflict"),  # Cycles back!
+    ]
+
+    for old, new, reason in committee_changes:
+        committee_detector.record_change(
+            sep_case.case_id, old, new, reason,
+            timestamp=now - timedelta(days=20)
+        )
+
+    cycling_detected, cycling_msg = committee_detector.detect_cycling(sep_case.case_id)
+
+    if cycling_detected:
+        defenses["committee_cycle_detection"] = True
+        cycling_note = f"Committee: {cycling_msg}"
+    else:
+        cycling_note = f"Committee: {cycling_msg}"
+
+    # ========================================================================
+    # DEFENSE 5: Interim Harm Prevention
+    # ========================================================================
+
+    class InterimHarmPrevention:
+        """Implement interim measures to prevent harm during adjudication."""
+
+        def __init__(self):
+            self.case_measures = {}
+
+        def assess_interim_need(
+            self, case_id: str, harm_type: str, harm_ongoing: bool,
+            irreversible: bool
+        ) -> tuple:
+            """Assess need for interim measures."""
+            if harm_ongoing and irreversible:
+                self.case_measures[case_id] = {
+                    "measure": "immediate_cessation_order",
+                    "reason": "Ongoing irreversible harm",
+                    "enforced": True,
+                }
+                return True, "Interim measure: immediate cessation of harmful activity"
+
+            if harm_ongoing:
+                self.case_measures[case_id] = {
+                    "measure": "status_quo_preservation",
+                    "reason": "Ongoing harm",
+                    "enforced": True,
+                }
+                return True, "Interim measure: preserve status quo"
+
+            return False, "No interim measures required"
+
+    interim_preventer = InterimHarmPrevention()
+
+    # Case involves ongoing boundary violation
+    interim_triggered, interim_msg = interim_preventer.assess_interim_need(
+        sep_case.case_id,
+        harm_type="boundary_violation",
+        harm_ongoing=True,
+        irreversible=False
+    )
+
+    if interim_triggered:
+        defenses["interim_harm_prevention"] = True
+        interim_note = f"Interim: {interim_msg}"
+    else:
+        interim_note = f"Interim: {interim_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="SEP Defanging via Delay (DU)",
+        success=attack_success,
+        setup_cost_atp=200.0,  # Legal/administrative costs
+        gain_atp=8000.0 if attack_success else -200.0,  # Harm proceeds during delay
+        roi=40.0 if attack_success else -1.0,
+        detection_probability=0.60,
+        time_to_detection_hours=480,  # 20 days
+        blocks_until_detected=2000,
+        trust_damage=0.30,
+        description=f"""
+SEP DEFANGING VIA DELAY (Track DU - A2):
+- Hard deadline: {"DEFENDED" if defenses["hard_deadline_enforcement"] else "VULNERABLE"}
+  {deadline_note}
+- Evidence limiting: {"DEFENDED" if defenses["evidence_request_limiting"] else "VULNERABLE"}
+  {evidence_note}
+- Jurisdiction throttling: {"DEFENDED" if defenses["jurisdiction_challenge_throttling"] else "VULNERABLE"}
+  {jurisdiction_note}
+- Committee cycling: {"DEFENDED" if defenses["committee_cycle_detection"] else "VULNERABLE"}
+  {cycling_note}
+- Interim harm: {"DEFENDED" if defenses["interim_harm_prevention"] else "VULNERABLE"}
+  {interim_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Accept authority nominally while using process to prevent ruling.
+Harm occurs before adjudication completes.
+""".strip(),
+        mitigation=f"""
+Track DU-A2: SEP Defanging via Delay Mitigation:
+1. Hard deadlines with default ruling for complainant
+2. Limit evidence requests (max 3, min 5-day intervals)
+3. Throttle jurisdiction challenges with ATP penalty
+4. Detect committee cycling patterns
+5. Implement interim measures for ongoing harm
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "case_elapsed_days": sep_case.days_elapsed(),
+            "deadline_days": sep_case.deadline_days,
+            "overdue": sep_case.is_overdue(),
+        }
+    )
+
+
+def attack_soft_veto_via_reasonable_requests() -> AttackResult:
+    """
+    ATTACK DU-3: Soft Veto via Reasonable Requests
+
+    Impose weekly reporting, required platforms, photo proof, mandatory trainings.
+    Never exceed any single cap. Cumulative effect shifts >50% time to compliance.
+
+    Strategy:
+    - Each request individually reasonable
+    - Never violate explicit caps
+    - High-SC actors spend >50% time on counterparty requirements
+    - Effective veto without formal rejection
+
+    Detection tell: High-SC actors spending >50% time on compliance theater
+    """
+    now = datetime.now(timezone.utc)
+
+    defenses = {
+        "time_allocation_monitoring": False,
+        "compliance_burden_ratio": False,
+        "platform_lockin_blocking": False,
+        "requirement_reasonableness_check": False,
+        "counterparty_burden_balancing": False,
+    }
+
+    # ========================================================================
+    # Time Allocation Monitoring
+    # ========================================================================
+
+    @dataclass
+    class EntityTimeAllocation:
+        """Track how entity allocates their time."""
+        entity_id: str
+        total_hours_per_month: float = 160.0  # Full time
+
+        # Time buckets
+        field_coordination: float = 0.0
+        compliance_activities: float = 0.0
+        counterparty_requirements: float = 0.0
+        administration: float = 0.0
+        actual_work: float = 0.0
+
+        def add_activity(self, activity_type: str, hours: float):
+            """Add activity to appropriate bucket."""
+            if activity_type in ["reporting", "documentation", "meetings", "training"]:
+                self.compliance_activities += hours
+            elif activity_type in ["counterparty_request", "audit_response"]:
+                self.counterparty_requirements += hours
+            elif activity_type in ["admin", "email"]:
+                self.administration += hours
+            elif activity_type in ["field_work", "coordination", "planning"]:
+                self.field_coordination += hours
+            else:
+                self.actual_work += hours
+
+        def get_compliance_ratio(self) -> float:
+            """Calculate compliance activity ratio."""
+            total = (
+                self.field_coordination +
+                self.compliance_activities +
+                self.counterparty_requirements +
+                self.administration +
+                self.actual_work
+            )
+            if total == 0:
+                return 0.0
+            return (self.compliance_activities + self.counterparty_requirements) / total
+
+        def detect_compliance_overload(self) -> tuple:
+            """Detect if compliance burden is excessive."""
+            ratio = self.get_compliance_ratio()
+            if ratio > 0.5:
+                return True, f"Compliance overload: {ratio:.0%} of time on compliance/counterparty"
+            return False, f"Compliance ratio: {ratio:.0%}"
+
+    time_tracker = EntityTimeAllocation(entity_id="steward_001")
+
+    # Normal work
+    time_tracker.add_activity("field_work", 40.0)
+    time_tracker.add_activity("coordination", 20.0)
+    time_tracker.add_activity("planning", 10.0)
+
+    # Attacker imposes "reasonable" requirements
+    counterparty_requirements = [
+        ("reporting", 8.0),  # Weekly status reports
+        ("documentation", 12.0),  # Photo documentation
+        ("meetings", 10.0),  # Required briefings
+        ("training", 6.0),  # Mandatory trainings
+        ("counterparty_request", 15.0),  # Audit responses
+        ("counterparty_request", 10.0),  # Data requests
+    ]
+
+    for activity, hours in counterparty_requirements:
+        time_tracker.add_activity(activity, hours)
+
+    compliance_overload, time_msg = time_tracker.detect_compliance_overload()
+
+    if compliance_overload:
+        defenses["time_allocation_monitoring"] = True
+        time_note = f"Time allocation: {time_msg}"
+    else:
+        time_note = f"Time allocation: {time_msg}"
+
+    # ========================================================================
+    # DEFENSE 2: Compliance Burden Ratio Enforcement
+    # ========================================================================
+
+    class ComplianceBurdenEnforcer:
+        """Enforce limits on compliance burden ratio."""
+
+        MAX_COMPLIANCE_RATIO = 0.30  # No more than 30% on compliance
+
+        def __init__(self):
+            self.entity_ratios = {}
+
+        def record_ratio(self, entity_id: str, ratio: float):
+            self.entity_ratios[entity_id] = ratio
+
+        def check_enforcement(self, entity_id: str) -> tuple:
+            """Check if enforcement action needed."""
+            ratio = self.entity_ratios.get(entity_id, 0.0)
+            if ratio > self.MAX_COMPLIANCE_RATIO:
+                return True, f"Burden enforcement: {ratio:.0%} > {self.MAX_COMPLIANCE_RATIO:.0%} max"
+            return False, f"Burden within limits: {ratio:.0%}"
+
+    burden_enforcer = ComplianceBurdenEnforcer()
+    burden_enforcer.record_ratio("steward_001", time_tracker.get_compliance_ratio())
+
+    burden_enforced, burden_msg = burden_enforcer.check_enforcement("steward_001")
+
+    if burden_enforced:
+        defenses["compliance_burden_ratio"] = True
+        burden_note = f"Burden: {burden_msg}"
+    else:
+        burden_note = f"Burden: {burden_msg}"
+
+    # ========================================================================
+    # DEFENSE 3: Platform Lock-in Blocking
+    # ========================================================================
+
+    class PlatformLockinBlocker:
+        """Block requirements that mandate specific platforms."""
+
+        PROHIBITED_REQUIREMENTS = [
+            "mandatory_platform",
+            "proprietary_tool",
+            "exclusive_vendor",
+            "specific_software",
+        ]
+
+        def __init__(self):
+            self.requirements = []
+            self.blocked = []
+
+        def submit_requirement(self, req_type: str, details: str) -> tuple:
+            """Submit requirement with lock-in check."""
+            req_lower = details.lower()
+
+            for prohibited in self.PROHIBITED_REQUIREMENTS:
+                if prohibited.replace("_", " ") in req_lower or prohibited in req_lower:
+                    self.blocked.append({"type": req_type, "details": details})
+                    return False, f"Requirement blocked: {prohibited} detected"
+
+            self.requirements.append({"type": req_type, "details": details})
+            return True, "Requirement accepted"
+
+        def detect_lockin_attempts(self) -> tuple:
+            """Detect platform lock-in attempts."""
+            if self.blocked:
+                return True, f"Lock-in blocked: {len(self.blocked)} attempts"
+            return False, "No lock-in attempts detected"
+
+    lockin_blocker = PlatformLockinBlocker()
+
+    # Attacker tries to mandate platforms
+    platform_requirements = [
+        ("reporting", "Must use SAP for all reporting"),
+        ("documentation", "Photo documentation via proprietary tool FieldView"),
+        ("communication", "Mandatory platform Salesforce for all coordination"),
+        ("training", "Required training on vendor-specific compliance suite"),
+    ]
+
+    for req_type, details in platform_requirements:
+        lockin_blocker.submit_requirement(req_type, details)
+
+    lockin_detected, lockin_msg = lockin_blocker.detect_lockin_attempts()
+
+    if lockin_detected:
+        defenses["platform_lockin_blocking"] = True
+        lockin_note = f"Lock-in: {lockin_msg}"
+    else:
+        lockin_note = f"Lock-in: {lockin_msg}"
+
+    # ========================================================================
+    # DEFENSE 4: Requirement Reasonableness Check
+    # ========================================================================
+
+    class ReasonablenessChecker:
+        """Check if individual requirements are reasonable given context."""
+
+        def __init__(self):
+            self.requirements = []
+
+        def check_requirement(
+            self, req_type: str, hours_required: float,
+            project_value: float, entity_capacity: float
+        ) -> tuple:
+            """Check if requirement is reasonable."""
+            # Proportionality check
+            if hours_required > 0.1 * entity_capacity:
+                return False, f"Disproportionate: {hours_required}h > 10% of {entity_capacity}h capacity"
+
+            # Value ratio check
+            hour_cost = 50.0  # Assumed hourly rate
+            requirement_cost = hours_required * hour_cost
+            if requirement_cost > 0.05 * project_value:
+                return False, f"Excessive cost: ${requirement_cost:.0f} > 5% of ${project_value:.0f} project"
+
+            self.requirements.append({
+                "type": req_type,
+                "hours": hours_required,
+                "reasonable": True,
+            })
+            return True, "Requirement reasonable"
+
+        def get_unreasonable_count(self) -> int:
+            return len([r for r in self.requirements if not r.get("reasonable", True)])
+
+    reasonableness_checker = ReasonablenessChecker()
+
+    # Check each counterparty requirement
+    project_value = 100000.0
+    entity_capacity = 160.0  # Monthly hours
+
+    unreasonable_count = 0
+    for activity, hours in counterparty_requirements:
+        reasonable, msg = reasonableness_checker.check_requirement(
+            activity, hours, project_value, entity_capacity
+        )
+        if not reasonable:
+            unreasonable_count += 1
+
+    if unreasonable_count >= 2:
+        defenses["requirement_reasonableness_check"] = True
+        reasonable_note = f"Reasonableness: {unreasonable_count} unreasonable requirements"
+    else:
+        reasonable_note = f"Reasonableness: {unreasonable_count} unreasonable"
+
+    # ========================================================================
+    # DEFENSE 5: Counterparty Burden Balancing
+    # ========================================================================
+
+    class BurdenBalancer:
+        """Ensure counterparty requirements are balanced (reciprocity)."""
+
+        def __init__(self):
+            self.imposed_on = defaultdict(float)  # Hours imposed by counterparty
+            self.imposed_by = defaultdict(float)  # Hours imposed on counterparty
+
+        def record_requirement(
+            self, from_entity: str, to_entity: str, hours: float
+        ):
+            """Record requirement imposition."""
+            self.imposed_on[to_entity] += hours
+            self.imposed_by[from_entity] += hours
+
+        def check_balance(self, entity_a: str, entity_b: str) -> tuple:
+            """Check if burden is balanced between parties."""
+            a_burden = self.imposed_on.get(entity_a, 0.0)
+            b_burden = self.imposed_on.get(entity_b, 0.0)
+
+            if b_burden == 0 and a_burden > 10:
+                return False, f"Unbalanced: {entity_a} has {a_burden:.0f}h, {entity_b} has {b_burden:.0f}h"
+
+            ratio = a_burden / max(b_burden, 1.0)
+            if ratio > 5.0:
+                return False, f"Unbalanced: {ratio:.1f}x burden ratio ({entity_a}: {a_burden:.0f}h, {entity_b}: {b_burden:.0f}h)"
+
+            return True, f"Balanced: {ratio:.1f}x ratio"
+
+    burden_balancer = BurdenBalancer()
+
+    # Record requirements
+    for activity, hours in counterparty_requirements:
+        burden_balancer.record_requirement("counterparty_corp", "steward_001", hours)
+
+    # Counterparty has no requirements on them
+    balanced, balance_msg = burden_balancer.check_balance("steward_001", "counterparty_corp")
+
+    if not balanced:
+        defenses["counterparty_burden_balancing"] = True
+        balance_note = f"Balance: {balance_msg}"
+    else:
+        balance_note = f"Balance: {balance_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Soft Veto via Reasonable Requests (DU)",
+        success=attack_success,
+        setup_cost_atp=30.0,  # Minimal cost - just administrative
+        gain_atp=6000.0 if attack_success else -30.0,  # Effective project blocking
+        roi=200.0 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=960,  # 40 days
+        blocks_until_detected=4000,
+        trust_damage=0.20,  # Low - appears legitimate
+        description=f"""
+SOFT VETO VIA REASONABLE REQUESTS (Track DU - A3):
+- Time allocation: {"DEFENDED" if defenses["time_allocation_monitoring"] else "VULNERABLE"}
+  {time_note}
+- Burden ratio: {"DEFENDED" if defenses["compliance_burden_ratio"] else "VULNERABLE"}
+  {burden_note}
+- Lock-in blocking: {"DEFENDED" if defenses["platform_lockin_blocking"] else "VULNERABLE"}
+  {lockin_note}
+- Reasonableness: {"DEFENDED" if defenses["requirement_reasonableness_check"] else "VULNERABLE"}
+  {reasonable_note}
+- Burden balance: {"DEFENDED" if defenses["counterparty_burden_balancing"] else "VULNERABLE"}
+  {balance_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Each request individually reasonable. Total effect is veto.
+Compliance ratio: {time_tracker.get_compliance_ratio():.0%} (>50% indicates attack).
+""".strip(),
+        mitigation=f"""
+Track DU-A3: Soft Veto via Reasonable Requests Mitigation:
+1. Monitor time allocation (flag >50% on compliance)
+2. Enforce max 30% compliance burden ratio
+3. Block platform lock-in requirements
+4. Check individual requirement reasonableness
+5. Require balanced counterparty obligations
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "compliance_ratio": time_tracker.get_compliance_ratio(),
+            "total_counterparty_hours": sum(h for _, h in counterparty_requirements),
+        }
+    )
+
+
+def attack_pay_to_violate() -> AttackResult:
+    """
+    ATTACK DU-4: Pay-to-Violate (Mode B Boundary Arbitrage)
+
+    Leak boundary-protected content when penalty < extractive value.
+
+    Strategy:
+    - Leak CPB (confidential protected boundary) knowing penalty
+    - Calculate: extractive_value > penalty → profitable violation
+    - Use shell recipients outside enforcement reach
+    - Forward to parties who don't recognize bioregional authority
+
+    Detection tell: Boundary violations become profitable business model
+    """
+    now = datetime.now(timezone.utc)
+
+    defenses = {
+        "penalty_scaling": False,
+        "value_extraction_tracking": False,
+        "shell_recipient_detection": False,
+        "cross_jurisdiction_enforcement": False,
+        "contagion_to_sponsor": False,
+    }
+
+    # ========================================================================
+    # Penalty Scaling System
+    # ========================================================================
+
+    @dataclass
+    class BoundaryViolation:
+        """A boundary violation event."""
+        violation_id: str
+        violator: str
+        content_type: str
+        harm_class: str
+        extractive_value: float
+        recipients: list
+        timestamp: datetime
+
+    @dataclass
+    class PenaltySchedule:
+        """Penalty calculation for boundary violations."""
+        base_penalty_atp: float = 10000.0
+        harm_class_multipliers: dict = field(default_factory=lambda: {
+            "traditional_knowledge": 10.0,
+            "sensitive_negotiations": 5.0,
+            "personal_information": 3.0,
+            "business_confidential": 2.0,
+            "general_cpb": 1.0,
+        })
+        recidivism_multiplier: float = 2.0
+        contagion_ratio: float = 0.3  # 30% of penalty to sponsor
+
+        def calculate_penalty(
+            self, harm_class: str, extractive_value: float,
+            prior_violations: int
+        ) -> float:
+            """Calculate penalty for violation."""
+            multiplier = self.harm_class_multipliers.get(harm_class, 1.0)
+            base = self.base_penalty_atp * multiplier
+
+            # Recidivism
+            if prior_violations > 0:
+                base *= (self.recidivism_multiplier ** prior_violations)
+
+            # Ensure penalty exceeds extractive value
+            if base < extractive_value * 1.5:
+                base = extractive_value * 1.5
+
+            return base
+
+    penalty_schedule = PenaltySchedule()
+
+    # Violation attempt
+    violation = BoundaryViolation(
+        violation_id="bv_001",
+        violator="counterparty_corp",
+        content_type="traditional_knowledge",
+        harm_class="traditional_knowledge",
+        extractive_value=50000.0,  # High value leak
+        recipients=["shell_company_a", "foreign_entity_b"],
+        timestamp=now - timedelta(days=5)
+    )
+
+    # Calculate penalty
+    penalty = penalty_schedule.calculate_penalty(
+        violation.harm_class,
+        violation.extractive_value,
+        prior_violations=0
+    )
+
+    # DEFENSE 1: Penalty Scaling
+    if penalty >= violation.extractive_value * 1.5:
+        defenses["penalty_scaling"] = True
+        penalty_note = f"Penalty scaling: {penalty:.0f} ATP > 1.5x {violation.extractive_value:.0f} value"
+    else:
+        penalty_note = f"Penalty insufficient: {penalty:.0f} ATP < 1.5x {violation.extractive_value:.0f}"
+
+    # ========================================================================
+    # DEFENSE 2: Value Extraction Tracking
+    # ========================================================================
+
+    class ValueExtractionTracker:
+        """Track value extraction from boundary violations."""
+
+        def __init__(self):
+            self.extractions = defaultdict(list)
+
+        def record_extraction(
+            self, violator: str, content_type: str, value: float,
+            method: str, timestamp: datetime
+        ):
+            """Record value extraction event."""
+            self.extractions[violator].append({
+                "content_type": content_type,
+                "value": value,
+                "method": method,
+                "timestamp": timestamp,
+            })
+
+        def detect_pattern(self, violator: str) -> tuple:
+            """Detect systematic extraction pattern."""
+            extractions = self.extractions.get(violator, [])
+            if not extractions:
+                return False, "No extraction history"
+
+            total_value = sum(e["value"] for e in extractions)
+            extraction_count = len(extractions)
+
+            if extraction_count >= 2 or total_value > 100000:
+                return True, f"Extraction pattern: {extraction_count} events, ${total_value:.0f} total"
+
+            return False, f"Extraction: {extraction_count} events, ${total_value:.0f}"
+
+    extraction_tracker = ValueExtractionTracker()
+    extraction_tracker.record_extraction(
+        violation.violator, violation.content_type, violation.extractive_value,
+        "direct_leak", violation.timestamp
+    )
+    extraction_tracker.record_extraction(
+        violation.violator, "business_confidential", 30000.0,
+        "indirect_disclosure", now - timedelta(days=30)
+    )
+
+    extraction_detected, extraction_msg = extraction_tracker.detect_pattern(violation.violator)
+
+    if extraction_detected:
+        defenses["value_extraction_tracking"] = True
+        extraction_note = f"Extraction: {extraction_msg}"
+    else:
+        extraction_note = f"Extraction: {extraction_msg}"
+
+    # ========================================================================
+    # DEFENSE 3: Shell Recipient Detection
+    # ========================================================================
+
+    class ShellRecipientDetector:
+        """Detect shell companies/entities used to receive leaked content."""
+
+        SHELL_INDICATORS = [
+            "shell_company",
+            "offshore",
+            "foreign_entity",
+            "anonymous",
+            "nominee",
+        ]
+
+        def __init__(self):
+            self.known_shells = set()
+
+        def analyze_recipient(self, recipient: str) -> tuple:
+            """Analyze if recipient is a shell entity."""
+            recipient_lower = recipient.lower()
+
+            for indicator in self.SHELL_INDICATORS:
+                if indicator in recipient_lower:
+                    self.known_shells.add(recipient)
+                    return True, f"Shell detected: {indicator} indicator"
+
+            return False, "No shell indicators"
+
+        def detect_shell_network(self, recipients: list) -> tuple:
+            """Detect shell network in recipients."""
+            shells_found = []
+            for r in recipients:
+                is_shell, msg = self.analyze_recipient(r)
+                if is_shell:
+                    shells_found.append(r)
+
+            if shells_found:
+                return True, f"Shell network: {len(shells_found)} entities ({', '.join(shells_found)})"
+            return False, "No shell entities detected"
+
+    shell_detector = ShellRecipientDetector()
+    shell_detected, shell_msg = shell_detector.detect_shell_network(violation.recipients)
+
+    if shell_detected:
+        defenses["shell_recipient_detection"] = True
+        shell_note = f"Shell: {shell_msg}"
+    else:
+        shell_note = f"Shell: {shell_msg}"
+
+    # ========================================================================
+    # DEFENSE 4: Cross-Jurisdiction Enforcement
+    # ========================================================================
+
+    class CrossJurisdictionEnforcer:
+        """Enforce penalties across jurisdictions via mutual recognition."""
+
+        def __init__(self):
+            self.recognized_jurisdictions = {
+                "bioregion_a", "bioregion_b", "bioregion_c",
+                "web4_federation_1", "web4_federation_2",
+            }
+            self.enforcement_treaties = {
+                ("bioregion_a", "bioregion_b"),
+                ("bioregion_a", "web4_federation_1"),
+                ("bioregion_b", "web4_federation_2"),
+            }
+
+        def can_enforce(
+            self, origin_jurisdiction: str, target_jurisdiction: str
+        ) -> tuple:
+            """Check if penalty can be enforced across jurisdictions."""
+            if target_jurisdiction in self.recognized_jurisdictions:
+                return True, f"Direct enforcement: {target_jurisdiction} recognized"
+
+            # Check treaties
+            for treaty in self.enforcement_treaties:
+                if origin_jurisdiction in treaty and target_jurisdiction in treaty:
+                    return True, f"Treaty enforcement: {treaty}"
+
+            return False, f"No enforcement path to {target_jurisdiction}"
+
+        def get_enforcement_coverage(self, recipients: list) -> tuple:
+            """Calculate enforcement coverage for recipients."""
+            enforceable = 0
+            for r in recipients:
+                # Assume recipient jurisdiction from naming
+                if "foreign" in r.lower():
+                    jurisdiction = "unrecognized_foreign"
+                else:
+                    jurisdiction = "bioregion_a"
+
+                can, msg = self.can_enforce("bioregion_a", jurisdiction)
+                if can:
+                    enforceable += 1
+
+            coverage = enforceable / len(recipients) if recipients else 0
+            return coverage >= 0.5, f"Enforcement coverage: {coverage:.0%} ({enforceable}/{len(recipients)})"
+
+    jurisdiction_enforcer = CrossJurisdictionEnforcer()
+    enforcement_detected, enforcement_msg = jurisdiction_enforcer.get_enforcement_coverage(
+        violation.recipients
+    )
+
+    if enforcement_detected:
+        defenses["cross_jurisdiction_enforcement"] = True
+        enforcement_note = f"Jurisdiction: {enforcement_msg}"
+    else:
+        enforcement_note = f"Jurisdiction: {enforcement_msg}"
+
+    # ========================================================================
+    # DEFENSE 5: Contagion to Sponsor
+    # ========================================================================
+
+    class ContagionEnforcer:
+        """Propagate penalties to sponsoring organizations."""
+
+        def __init__(self, contagion_ratio: float = 0.3):
+            self.contagion_ratio = contagion_ratio
+            self.sponsorship_graph = {}
+
+        def register_sponsorship(self, entity: str, sponsor: str):
+            """Register sponsorship relationship."""
+            self.sponsorship_graph[entity] = sponsor
+
+        def calculate_contagion(self, violator: str, penalty: float) -> tuple:
+            """Calculate contagion penalty to sponsor."""
+            sponsor = self.sponsorship_graph.get(violator)
+            if not sponsor:
+                return False, "No sponsor identified"
+
+            contagion_penalty = penalty * self.contagion_ratio
+            return True, f"Contagion to {sponsor}: {contagion_penalty:.0f} ATP ({self.contagion_ratio:.0%} of {penalty:.0f})"
+
+    contagion_enforcer = ContagionEnforcer()
+    contagion_enforcer.register_sponsorship("counterparty_corp", "parent_holding_corp")
+
+    contagion_detected, contagion_msg = contagion_enforcer.calculate_contagion(
+        violation.violator, penalty
+    )
+
+    if contagion_detected:
+        defenses["contagion_to_sponsor"] = True
+        contagion_note = f"Contagion: {contagion_msg}"
+    else:
+        contagion_note = f"Contagion: {contagion_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+
+    # Attack succeeds if penalty < extractive value and enforcement gaps exist
+    profitable = penalty < violation.extractive_value
+    attack_success = defenses_held < total_defenses - 2 and profitable
+
+    return AttackResult(
+        attack_name="Pay-to-Violate Boundary Arbitrage (DU)",
+        success=attack_success,
+        setup_cost_atp=penalty if not attack_success else penalty * 0.5,  # Partial penalty
+        gain_atp=violation.extractive_value if attack_success else -penalty,
+        roi=(violation.extractive_value - penalty) / penalty if penalty > 0 else 0.0,
+        detection_probability=0.65,
+        time_to_detection_hours=168,  # 7 days (forensic watermarking)
+        blocks_until_detected=700,
+        trust_damage=0.60,
+        description=f"""
+PAY-TO-VIOLATE BOUNDARY ARBITRAGE (Track DU - A4):
+- Penalty scaling: {"DEFENDED" if defenses["penalty_scaling"] else "VULNERABLE"}
+  {penalty_note}
+- Extraction tracking: {"DEFENDED" if defenses["value_extraction_tracking"] else "VULNERABLE"}
+  {extraction_note}
+- Shell detection: {"DEFENDED" if defenses["shell_recipient_detection"] else "VULNERABLE"}
+  {shell_note}
+- Cross-jurisdiction: {"DEFENDED" if defenses["cross_jurisdiction_enforcement"] else "VULNERABLE"}
+  {enforcement_note}
+- Sponsor contagion: {"DEFENDED" if defenses["contagion_to_sponsor"] else "VULNERABLE"}
+  {contagion_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Violation economics: extractive_value={violation.extractive_value:.0f}, penalty={penalty:.0f}
+Profitable violation: {profitable}
+""".strip(),
+        mitigation=f"""
+Track DU-A4: Pay-to-Violate Boundary Arbitrage Mitigation:
+1. Scale penalties > 1.5x extractive value
+2. Track value extraction patterns
+3. Detect shell recipient networks
+4. Establish cross-jurisdiction enforcement treaties
+5. Propagate penalties to sponsoring organizations
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "extractive_value": violation.extractive_value,
+            "penalty": penalty,
+            "profitable": profitable,
+        }
+    )
+
+
+def attack_forum_shopping() -> AttackResult:
+    """
+    ATTACK DU-5: Forum Shopping (ATP Arbitrage)
+
+    Operate in Bioregion A, register through Bioregion B with cheaper ATP.
+
+    Strategy:
+    - Physical/operational footprint in strict Bioregion A
+    - Register/route through lenient Bioregion B
+    - Claim Bioregion B standing for Bioregion A operations
+    - Regulatory arbitrage for cheaper compliance
+
+    Detection tell: Operational footprint doesn't match registration footprint
+    """
+    now = datetime.now(timezone.utc)
+
+    defenses = {
+        "boi_footprint_matching": False,
+        "operational_activity_tracking": False,
+        "registration_verification": False,
+        "atp_rate_harmonization": False,
+        "mutual_recognition_enforcement": False,
+    }
+
+    # ========================================================================
+    # Bioregion-of-Impact (BOI) Tracking
+    # ========================================================================
+
+    @dataclass
+    class EntityFootprint:
+        """Track entity's operational vs registration footprint."""
+        entity_id: str
+        registration_bioregion: str
+        operational_bioregions: dict = field(default_factory=dict)  # bioregion -> activity_percentage
+        atp_rate_differential: float = 0.0  # savings from arbitrage
+
+        def add_operational_activity(self, bioregion: str, percentage: float):
+            """Add operational activity in a bioregion."""
+            self.operational_bioregions[bioregion] = (
+                self.operational_bioregions.get(bioregion, 0.0) + percentage
+            )
+
+        def get_primary_operational_bioregion(self) -> str:
+            """Get bioregion with most operational activity."""
+            if not self.operational_bioregions:
+                return self.registration_bioregion
+            return max(self.operational_bioregions.items(), key=lambda x: x[1])[0]
+
+        def detect_mismatch(self) -> tuple:
+            """Detect registration vs operational mismatch."""
+            primary_op = self.get_primary_operational_bioregion()
+            if primary_op != self.registration_bioregion:
+                op_percentage = self.operational_bioregions.get(primary_op, 0.0)
+                return True, f"Footprint mismatch: registered={self.registration_bioregion}, operates={primary_op} ({op_percentage:.0f}%)"
+            return False, f"Footprint aligned: {self.registration_bioregion}"
+
+    footprint = EntityFootprint(
+        entity_id="counterparty_corp",
+        registration_bioregion="bioregion_b",  # Lenient
+    )
+
+    # Actual operations mostly in strict bioregion
+    footprint.add_operational_activity("bioregion_a", 70.0)  # Primary operations
+    footprint.add_operational_activity("bioregion_b", 20.0)
+    footprint.add_operational_activity("bioregion_c", 10.0)
+
+    mismatch_detected, footprint_msg = footprint.detect_mismatch()
+
+    if mismatch_detected:
+        defenses["boi_footprint_matching"] = True
+        footprint_note = f"Footprint: {footprint_msg}"
+    else:
+        footprint_note = f"Footprint: {footprint_msg}"
+
+    # ========================================================================
+    # DEFENSE 2: Operational Activity Tracking
+    # ========================================================================
+
+    class OperationalActivityTracker:
+        """Track where entities actually perform work."""
+
+        def __init__(self):
+            self.activities = defaultdict(list)
+
+        def record_activity(
+            self, entity_id: str, bioregion: str, activity_type: str,
+            impact_score: float, timestamp: datetime
+        ):
+            """Record operational activity."""
+            self.activities[entity_id].append({
+                "bioregion": bioregion,
+                "type": activity_type,
+                "impact": impact_score,
+                "timestamp": timestamp,
+            })
+
+        def analyze_footprint(self, entity_id: str) -> dict:
+            """Analyze operational footprint by bioregion."""
+            activities = self.activities.get(entity_id, [])
+            bioregion_impacts = defaultdict(float)
+
+            for a in activities:
+                bioregion_impacts[a["bioregion"]] += a["impact"]
+
+            total = sum(bioregion_impacts.values())
+            if total == 0:
+                return {}
+
+            return {br: imp / total * 100 for br, imp in bioregion_impacts.items()}
+
+        def detect_forum_shopping(
+            self, entity_id: str, registered_bioregion: str
+        ) -> tuple:
+            """Detect forum shopping based on activity mismatch."""
+            footprint = self.analyze_footprint(entity_id)
+            if not footprint:
+                return False, "No activity data"
+
+            registered_percentage = footprint.get(registered_bioregion, 0.0)
+            if registered_percentage < 30.0:
+                max_bioregion = max(footprint.items(), key=lambda x: x[1])
+                return True, f"Forum shopping: only {registered_percentage:.0f}% in registered region, {max_bioregion[1]:.0f}% in {max_bioregion[0]}"
+
+            return False, f"Activity aligned: {registered_percentage:.0f}% in registered region"
+
+    activity_tracker = OperationalActivityTracker()
+
+    # Record operational activities
+    activities = [
+        ("bioregion_a", "habitat_restoration", 50.0),
+        ("bioregion_a", "monitoring", 30.0),
+        ("bioregion_a", "coordination", 20.0),
+        ("bioregion_b", "administration", 15.0),
+        ("bioregion_b", "reporting", 10.0),
+    ]
+
+    for bioregion, activity_type, impact in activities:
+        activity_tracker.record_activity(
+            "counterparty_corp", bioregion, activity_type, impact,
+            timestamp=now - timedelta(days=30)
+        )
+
+    shopping_detected, activity_msg = activity_tracker.detect_forum_shopping(
+        "counterparty_corp", "bioregion_b"
+    )
+
+    if shopping_detected:
+        defenses["operational_activity_tracking"] = True
+        activity_note = f"Activity: {activity_msg}"
+    else:
+        activity_note = f"Activity: {activity_msg}"
+
+    # ========================================================================
+    # DEFENSE 3: Registration Verification
+    # ========================================================================
+
+    class RegistrationVerifier:
+        """Verify registration claims against operational reality."""
+
+        def __init__(self):
+            self.registrations = {}
+
+        def register_entity(
+            self, entity_id: str, bioregion: str,
+            claimed_primary_operations: str, timestamp: datetime
+        ):
+            """Register entity with claimed operations."""
+            self.registrations[entity_id] = {
+                "bioregion": bioregion,
+                "claimed_operations": claimed_primary_operations,
+                "timestamp": timestamp,
+                "verified": False,
+            }
+
+        def verify_registration(
+            self, entity_id: str, actual_operations: dict
+        ) -> tuple:
+            """Verify registration against actual operations."""
+            if entity_id not in self.registrations:
+                return False, "Entity not registered"
+
+            reg = self.registrations[entity_id]
+            claimed_bioregion = reg["bioregion"]
+
+            # Check if claimed bioregion matches dominant operations
+            if actual_operations:
+                dominant = max(actual_operations.items(), key=lambda x: x[1])
+                if dominant[0] != claimed_bioregion and dominant[1] > 50:
+                    return False, f"Registration fraud: claimed {claimed_bioregion}, dominant operations in {dominant[0]} ({dominant[1]:.0f}%)"
+
+            reg["verified"] = True
+            return True, f"Registration verified: {claimed_bioregion}"
+
+    registration_verifier = RegistrationVerifier()
+    registration_verifier.register_entity(
+        "counterparty_corp", "bioregion_b", "administration",
+        timestamp=now - timedelta(days=365)
+    )
+
+    actual_ops = activity_tracker.analyze_footprint("counterparty_corp")
+    verified, verification_msg = registration_verifier.verify_registration(
+        "counterparty_corp", actual_ops
+    )
+
+    if not verified:
+        defenses["registration_verification"] = True
+        verification_note = f"Verification: {verification_msg}"
+    else:
+        verification_note = f"Verification: {verification_msg}"
+
+    # ========================================================================
+    # DEFENSE 4: ATP Rate Harmonization
+    # ========================================================================
+
+    class ATPRateHarmonizer:
+        """Harmonize ATP rates to reduce arbitrage incentive."""
+
+        def __init__(self):
+            self.bioregion_rates = {
+                "bioregion_a": 100.0,  # Strict: high ATP rate
+                "bioregion_b": 50.0,   # Lenient: low ATP rate
+                "bioregion_c": 75.0,
+            }
+            self.harmonization_threshold = 0.3  # Max 30% differential
+
+        def calculate_arbitrage_value(
+            self, registered_bioregion: str, operational_bioregion: str,
+            operations_volume: float
+        ) -> float:
+            """Calculate value of ATP arbitrage."""
+            reg_rate = self.bioregion_rates.get(registered_bioregion, 75.0)
+            op_rate = self.bioregion_rates.get(operational_bioregion, 75.0)
+            return (op_rate - reg_rate) * operations_volume
+
+        def should_harmonize(
+            self, registered_bioregion: str, operational_bioregion: str
+        ) -> tuple:
+            """Determine if rate harmonization should apply."""
+            reg_rate = self.bioregion_rates.get(registered_bioregion, 75.0)
+            op_rate = self.bioregion_rates.get(operational_bioregion, 75.0)
+
+            differential = abs(op_rate - reg_rate) / max(op_rate, reg_rate)
+            if differential > self.harmonization_threshold:
+                return True, f"Harmonization triggered: {differential:.0%} differential (>{self.harmonization_threshold:.0%})"
+            return False, f"No harmonization: {differential:.0%} differential"
+
+    rate_harmonizer = ATPRateHarmonizer()
+    harmonize_triggered, harmonize_msg = rate_harmonizer.should_harmonize(
+        "bioregion_b", "bioregion_a"
+    )
+
+    if harmonize_triggered:
+        defenses["atp_rate_harmonization"] = True
+        harmonize_note = f"Harmonization: {harmonize_msg}"
+    else:
+        harmonize_note = f"Harmonization: {harmonize_msg}"
+
+    # ========================================================================
+    # DEFENSE 5: Mutual Recognition Enforcement
+    # ========================================================================
+
+    class MutualRecognitionEnforcer:
+        """Enforce mutual recognition agreements between bioregions."""
+
+        def __init__(self):
+            self.recognition_pairs = {
+                ("bioregion_a", "bioregion_b"),
+                ("bioregion_a", "bioregion_c"),
+                ("bioregion_b", "bioregion_c"),
+            }
+            self.enforcement_rules = {
+                "BOI_applies": True,  # Bioregion-of-Impact rules
+                "rate_of_impact_applies": True,  # Use rate of impact bioregion
+            }
+
+        def enforce_mutual_recognition(
+            self, registered_bioregion: str, impact_bioregion: str
+        ) -> tuple:
+            """Enforce mutual recognition for cross-bioregion operations."""
+            pair = tuple(sorted([registered_bioregion, impact_bioregion]))
+
+            if pair in self.recognition_pairs:
+                if self.enforcement_rules["BOI_applies"]:
+                    return True, f"BOI enforcement: operations in {impact_bioregion} subject to {impact_bioregion} rules"
+            return False, f"No mutual recognition: {registered_bioregion} → {impact_bioregion}"
+
+    mutual_enforcer = MutualRecognitionEnforcer()
+    mutual_enforced, mutual_msg = mutual_enforcer.enforce_mutual_recognition(
+        "bioregion_b", "bioregion_a"
+    )
+
+    if mutual_enforced:
+        defenses["mutual_recognition_enforcement"] = True
+        mutual_note = f"Mutual recognition: {mutual_msg}"
+    else:
+        mutual_note = f"Mutual recognition: {mutual_msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+
+    # Calculate arbitrage value
+    arbitrage_value = rate_harmonizer.calculate_arbitrage_value(
+        "bioregion_b", "bioregion_a", 1000.0  # Assume 1000 units of operation
+    )
+
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Forum Shopping ATP Arbitrage (DU)",
+        success=attack_success,
+        setup_cost_atp=100.0,  # Registration in lenient jurisdiction
+        gain_atp=arbitrage_value if attack_success else -100.0,
+        roi=(arbitrage_value - 100) / 100 if arbitrage_value > 0 else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=720,  # 30 days
+        blocks_until_detected=3000,
+        trust_damage=0.35,
+        description=f"""
+FORUM SHOPPING ATP ARBITRAGE (Track DU - A5):
+- BOI matching: {"DEFENDED" if defenses["boi_footprint_matching"] else "VULNERABLE"}
+  {footprint_note}
+- Activity tracking: {"DEFENDED" if defenses["operational_activity_tracking"] else "VULNERABLE"}
+  {activity_note}
+- Registration verification: {"DEFENDED" if defenses["registration_verification"] else "VULNERABLE"}
+  {verification_note}
+- Rate harmonization: {"DEFENDED" if defenses["atp_rate_harmonization"] else "VULNERABLE"}
+  {harmonize_note}
+- Mutual recognition: {"DEFENDED" if defenses["mutual_recognition_enforcement"] else "VULNERABLE"}
+  {mutual_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Arbitrage value: {arbitrage_value:.0f} ATP (from rate differential)
+Operational footprint: {footprint.operational_bioregions}
+""".strip(),
+        mitigation=f"""
+Track DU-A5: Forum Shopping ATP Arbitrage Mitigation:
+1. Match Bioregion-of-Impact (BOI) to operational footprint
+2. Track operational activity by bioregion
+3. Verify registration claims against actual operations
+4. Harmonize ATP rates to reduce arbitrage incentive (<30% differential)
+5. Enforce mutual recognition agreements
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "arbitrage_value": arbitrage_value,
+            "operational_footprint": footprint.operational_bioregions,
+            "registered_bioregion": footprint.registration_bioregion,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -29898,6 +31783,12 @@ def run_all_attacks() -> List[AttackResult]:
         ("Penalty Mitigation Gaming (DT)", attack_penalty_mitigation_gaming),
         ("Adjudication System Gaming (DT)", attack_adjudication_system_gaming),
         ("Rehabilitation Narrative Manipulation (DT)", attack_rehabilitation_narrative_manipulation),
+        # Track DU: Governance Interface Attacks
+        ("Unbundling Cap Evasion (DU)", attack_unbundling_cap_evasion),
+        ("SEP Defanging via Delay (DU)", attack_sep_defanging_via_delay),
+        ("Soft Veto via Reasonable Requests (DU)", attack_soft_veto_via_reasonable_requests),
+        ("Pay-to-Violate Boundary Arbitrage (DU)", attack_pay_to_violate),
+        ("Forum Shopping ATP Arbitrage (DU)", attack_forum_shopping),
     ]
 
     results = []

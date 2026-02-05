@@ -347,6 +347,70 @@ class RateLimiter:
         """Add or update a rate limit rule."""
         self.rules[rule.name] = rule
 
+    def check_adhoc(
+        self,
+        key: str,
+        max_count: int,
+        window_ms: int,
+        consume: bool = True
+    ) -> RateLimitResult:
+        """
+        Check an ad-hoc rate limit (not from predefined rules).
+
+        SECURITY FIX (CQ-5): This method allows PolicyEntity to enforce
+        rate limits defined in policy rules rather than only using
+        predefined RateLimitRule objects.
+
+        Args:
+            key: Unique key for this rate limit
+            max_count: Maximum requests in window
+            window_ms: Window size in milliseconds
+            consume: If True, consume a token on success
+
+        Returns:
+            RateLimitResult with allowed status
+        """
+        # Create a temporary rule for this ad-hoc limit
+        window_seconds = max(1, window_ms // 1000)
+        temp_rule = RateLimitRule(
+            name=key,
+            scope=RateLimitScope.GLOBAL,
+            max_requests=max_count,
+            window_seconds=window_seconds,
+            burst_allowance=0,
+            cooldown_seconds=0
+        )
+
+        # Get or create bucket for this key
+        bucket = self._get_bucket(key, temp_rule)
+
+        if consume:
+            if bucket.consume(1):
+                return RateLimitResult(
+                    allowed=True,
+                    remaining=bucket.available,
+                    reset_seconds=int(window_seconds * (1 - bucket.tokens / bucket.max_tokens)) if bucket.max_tokens > 0 else 0,
+                    rule_name=key,
+                    reason="OK"
+                )
+            else:
+                return RateLimitResult(
+                    allowed=False,
+                    remaining=0,
+                    reset_seconds=int(1 / bucket.refill_rate) if bucket.refill_rate > 0 else window_seconds,
+                    retry_after=int(1 / bucket.refill_rate) if bucket.refill_rate > 0 else window_seconds,
+                    rule_name=key,
+                    reason="Rate limit exceeded"
+                )
+        else:
+            return RateLimitResult(
+                allowed=bucket.available > 0,
+                remaining=bucket.available,
+                reset_seconds=int(window_seconds * (1 - bucket.tokens / bucket.max_tokens)) if bucket.max_tokens > 0 else 0,
+                rule_name=key,
+                reason="OK" if bucket.available > 0 else "Would exceed limit"
+            )
+
     def reset(self, rule_name: str, lct_id: Optional[str] = None,
               action: Optional[str] = None):
         """Reset rate limit for a specific key (admin action)."""

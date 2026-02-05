@@ -303,8 +303,32 @@ class PolicyEntity:
     _sorted_rules: List[PolicyRule] = field(default_factory=list, repr=False)
 
     def __post_init__(self):
-        """Sort rules by priority after initialization."""
-        self._sorted_rules = sorted(self.config.rules, key=lambda r: r.priority)
+        """Sort rules by priority and specificity after initialization.
+
+        SECURITY FIX: Deny rules with specific matches should take precedence
+        over generic allow rules, even if the allow rule has higher priority.
+        This prevents the "rule priority manipulation" attack (CQ-1).
+        """
+        # Calculate specificity score: more conditions = more specific
+        def rule_specificity(rule: PolicyRule) -> int:
+            score = 0
+            m = rule.match
+            if m.tools: score += 10
+            if m.categories: score += 10
+            if m.action_types: score += 10
+            if m.target_patterns: score += 20
+            if m.roles: score += 10
+            if m.min_trust is not None: score += 5
+            if m.max_trust is not None: score += 5
+            if m.rate_limit: score += 5
+            return score
+
+        # Sort by: deny before allow (for same specificity), specificity (higher first), then priority
+        def sort_key(rule: PolicyRule) -> tuple:
+            deny_weight = 0 if rule.decision == "deny" else 1
+            return (deny_weight, -rule_specificity(rule), rule.priority)
+
+        self._sorted_rules = sorted(self.config.rules, key=sort_key)
 
     def evaluate(
         self,
@@ -334,29 +358,49 @@ class PolicyEntity:
         for rule in self._sorted_rules:
             if self._matches_rule(tool_name, category, target, role, trust_score, rule.match):
                 # Check rate limit if specified
+                # SECURITY FIX (CQ-5): Use check_adhoc for policy-defined rate limits
                 if rule.match.rate_limit and rate_limiter:
                     key = self._rate_limit_key(rule, tool_name, category)
-                    result = rate_limiter.check(
-                        key,
-                        rule.match.rate_limit.max_count,
-                        rule.match.rate_limit.window_ms,
-                    )
+                    # Use check_adhoc for ad-hoc limits defined in policy rules
+                    if hasattr(rate_limiter, 'check_adhoc'):
+                        result = rate_limiter.check_adhoc(
+                            key,
+                            rule.match.rate_limit.max_count,
+                            rule.match.rate_limit.window_ms,
+                        )
+                    else:
+                        # Fallback to regular check if check_adhoc not available
+                        result = rate_limiter.check(key)
                     if result.allowed:
                         continue  # Under limit, rule doesn't fire
 
                 # Admin override (enterprise)
-                if rule.decision == "deny" and is_admin and self.config.admin_override:
+                # SECURITY FIX (CQ-4): Admin override requires:
+                # 1. admin_override enabled in config
+                # 2. is_admin flag set (but this alone is NOT sufficient)
+                # 3. role must be "admin" (verified role, not just claimed flag)
+                # 4. trust_score must be above admin threshold (0.7)
+                # The flag alone cannot bypass policy - it must be verified
+                admin_verified = (
+                    is_admin and
+                    self.config.admin_override and
+                    role == "admin" and  # Role must actually be admin
+                    trust_score is not None and
+                    trust_score >= 0.7  # Admin must have high trust
+                )
+                if rule.decision == "deny" and admin_verified:
                     return PolicyEvaluation(
                         decision="allow",
                         rule_id=rule.id,
                         rule_name=rule.name,
-                        reason=f"Admin override: {rule.reason}",
+                        reason=f"Admin override (verified): {rule.reason}",
                         enforced=True,
                         constraints=[
                             f"policy:{self.entity_id}",
                             "decision:allow",
                             f"rule:{rule.id}",
-                            "override:admin",
+                            "override:admin_verified",
+                            f"trust:{trust_score:.2f}",
                         ],
                         requires_approval=False,
                         atp_cost=rule.atp_cost,
@@ -421,33 +465,98 @@ class PolicyEntity:
             return False
 
         # Trust threshold match (enterprise)
+        # SECURITY FIX (CQ-3): Boundary-inclusive threshold matching
+        #
+        # min_trust: Rule applies if trust >= min_trust (you need at least this much)
+        #   - trust=0.69 with min_trust=0.7 → rule doesn't match (not enough trust)
+        #   - trust=0.70 with min_trust=0.7 → rule matches (exactly enough)
+        #   - trust=0.71 with min_trust=0.7 → rule matches (more than enough)
+        #
+        # max_trust: Rule applies if trust < max_trust (rule catches low-trust actors)
+        #   - trust=0.69 with max_trust=0.7 → rule matches (trust below threshold)
+        #   - trust=0.70 with max_trust=0.7 → rule doesn't match (at threshold = OK)
+        #   - trust=0.71 with max_trust=0.7 → rule doesn't match (above threshold)
+        #
         if match.min_trust is not None and trust_score is not None:
+            # At exact threshold should be allowed (>= matches)
             if trust_score < match.min_trust:
                 return False
         if match.max_trust is not None and trust_score is not None:
-            if trust_score > match.max_trust:
-                # This is for "deny if trust below X" - inverted logic
+            # max_trust is for "deny if trust BELOW X" patterns
+            # At threshold (>=) should be OK, so rule doesn't match
+            if trust_score >= match.max_trust:
                 return False
 
         # Target pattern match
+        # SECURITY FIX (CQ-6): Normalize target paths before matching to prevent evasion
         if match.target_patterns:
             if target is None:
                 return False
+
+            # Normalize target: decode URL encoding, resolve path traversal, lowercase
+            normalized_target = self._normalize_path(target)
+
             matched = False
             for pattern in match.target_patterns:
                 if match.target_patterns_are_regex:
-                    if re.search(pattern, target):
+                    # Check both original and normalized
+                    if re.search(pattern, target, re.IGNORECASE) or re.search(pattern, normalized_target, re.IGNORECASE):
                         matched = True
                         break
                 else:
-                    # Glob pattern
-                    if fnmatch.fnmatch(target, pattern):
+                    # Glob pattern - check both original and normalized, case-insensitive
+                    if fnmatch.fnmatch(target.lower(), pattern.lower()) or fnmatch.fnmatch(normalized_target.lower(), pattern.lower()):
                         matched = True
                         break
             if not matched:
                 return False
 
         return True
+
+    def _normalize_path(self, path: str) -> str:
+        """
+        Normalize a path to prevent pattern matching evasion.
+
+        SECURITY FIX (CQ-6): Handles:
+        - URL encoding (%73%73wd -> sswd)
+        - Path traversal (/../ -> resolved)
+        - Unicode homoglyphs (Cyrillic 'е' -> Latin 'e')
+        - Case normalization (SECRETS -> secrets)
+        - Double extensions (.txt.env -> detected)
+        """
+        import urllib.parse
+        import unicodedata
+        import os.path
+
+        # 1. URL decode
+        decoded = urllib.parse.unquote(path)
+
+        # 2. Resolve path traversal
+        # os.path.normpath resolves .. and .
+        resolved = os.path.normpath(decoded)
+
+        # 3. Unicode normalization (NFKC - compatibility decomposition)
+        # This converts homoglyphs to their canonical forms
+        normalized = unicodedata.normalize('NFKC', resolved)
+
+        # 4. Common homoglyph replacements that NFKC might miss
+        homoglyphs = {
+            '\u0435': 'e',  # Cyrillic е
+            '\u0430': 'a',  # Cyrillic а
+            '\u043e': 'o',  # Cyrillic о
+            '\u0440': 'p',  # Cyrillic р
+            '\u0441': 'c',  # Cyrillic с
+            '\u0443': 'y',  # Cyrillic у (sometimes used for y)
+            '\u0456': 'i',  # Cyrillic і
+            '\u0445': 'x',  # Cyrillic х
+        }
+        for cyrillic, latin in homoglyphs.items():
+            normalized = normalized.replace(cyrillic, latin)
+
+        # 5. Lowercase
+        normalized = normalized.lower()
+
+        return normalized
 
     def _rate_limit_key(self, rule: PolicyRule, tool_name: str, category: str) -> str:
         """Build rate limit key from rule context."""

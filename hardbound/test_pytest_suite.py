@@ -34,8 +34,8 @@ class TestAttackSimulations:
         """Execute all attack simulations."""
         from hardbound.attack_simulations import run_all_attacks
         results = run_all_attacks()
-        # 90 attacks: original 35 + tracks CV-DD (9) + tracks DE-DK (7) + tracks DL-DM (10)
-        #           + tracks DN (3) + tracks DO (2) + tracks DP (2) + tracks DQ (4) + tracks DR (6) + tracks DS (6) + tracks DT (6) = 90 total
+        # 95 attacks: original 35 + tracks CV-DD (9) + tracks DE-DK (7) + tracks DL-DM (10)
+        #           + tracks DN (3) + tracks DO (2) + tracks DP (2) + tracks DQ (4) + tracks DR (6) + tracks DS (6) + tracks DT (6) + tracks DU (5) = 95 total
         # CV: MRH Exploitation, CW: V3 Manipulation, CX: Race Conditions, CY: Attack Chains
         # CZ: Oracle Injection, DA: Metabolism Desync, DB: Checkpoint Replay
         # DC: Semantic Policy Confusion, DD: Accumulation Starvation
@@ -56,7 +56,10 @@ class TestAttackSimulations:
         #     Trust Inheritance Exploitation, Long-Con Betrayal, Pump-and-Dump Trust
         # DT: Appeals Process Abuse, Recovery Mechanism Gaming, Forgiveness Exploitation,
         #     Penalty Mitigation Gaming, Adjudication System Gaming, Rehabilitation Narrative Manipulation
-        assert len(results) == 90
+        # DU: Governance Interface Attacks (A1-A5 from CN/RST Docking Spec)
+        #     Unbundling Cap Evasion, SEP Defanging via Delay, Soft Veto via Reasonable Requests,
+        #     Pay-to-Violate Boundary Arbitrage, Forum Shopping ATP Arbitrage
+        assert len(results) == 95
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
