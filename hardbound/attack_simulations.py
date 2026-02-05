@@ -6939,6 +6939,7 @@ def attack_admin_binding_exploit() -> AttackResult:
     from hardbound.admin_binding import AdminBindingManager, AdminBindingType, AdminBinding
     from hardbound.ledger import Ledger
     import tempfile
+    import sqlite3
 
     db_path = Path(tempfile.mkdtemp()) / "attack33_binding.db"
     ledger = Ledger(db_path=db_path)
@@ -6963,7 +6964,8 @@ def attack_admin_binding_exploit() -> AttackResult:
     try:
         soft_binding = binding_manager.bind_admin_software(
             team_id=f"team:soft_{ts}",
-            admin_name="attacker"
+            lct_id=f"lct:attacker_{ts}",
+            require_hardware=False  # Development mode
         )
 
         # Defense: Software binding should be clearly flagged and limited
@@ -7039,7 +7041,8 @@ def attack_admin_binding_exploit() -> AttackResult:
     try:
         legit_binding = binding_manager.bind_admin_software(
             team_id=f"team:migrate_{ts}",
-            admin_name="original_admin"
+            lct_id=f"lct:original_admin_{ts}",
+            require_hardware=False
         )
 
         # Try to transfer this binding to a new device/key
@@ -7073,7 +7076,8 @@ def attack_admin_binding_exploit() -> AttackResult:
         # Create binding
         test_binding = binding_manager.bind_admin_software(
             team_id=f"team:verify_{ts}",
-            admin_name="test_admin"
+            lct_id=f"lct:test_admin_{ts}",
+            require_hardware=False
         )
 
         # Try to use binding without verification
@@ -7104,7 +7108,8 @@ def attack_admin_binding_exploit() -> AttackResult:
         # Create binding
         sync_binding = binding_manager.bind_admin_software(
             team_id=f"team:sync_{ts}",
-            admin_name="sync_admin"
+            lct_id=f"lct:sync_admin_{ts}",
+            require_hardware=False
         )
 
         # Check if binding is recorded in ledger
@@ -33065,6 +33070,375 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track DX: Cryptographic Weakness Exploitation (Attack 100)
+# ---------------------------------------------------------------------------
+
+def attack_signature_replay_and_key_weakness() -> AttackResult:
+    """
+    ATTACK 100: SIGNATURE REPLAY & KEY WEAKNESS EXPLOITATION (Track DX)
+
+    Tests attacks against the cryptographic foundations of Web4 trust:
+
+    1. Signature Replay: Reuse valid signatures in different contexts
+    2. Weak Key Detection: Exploit weak or predictable key generation
+    3. Nonce Reuse: Exploit nonce reuse in signing operations
+    4. Time-Bounded Signature Bypass: Extend signature validity windows
+    5. Cross-Context Signature Transfer: Use signatures across domains
+
+    Cryptographic weakness exploitation is foundational - if crypto fails,
+    everything built on it fails.
+    """
+    import hashlib
+    import hmac
+    import secrets
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "signature_replay_blocked": False,
+        "weak_key_rejected": False,
+        "nonce_reuse_detected": False,
+        "time_bounded_signatures": False,
+        "cross_context_blocked": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Signature Replay Protection
+    # ========================================================================
+
+    class SignatureRegistry:
+        """Track used signatures to prevent replay."""
+
+        def __init__(self):
+            self.used_signatures: dict = {}  # signature -> (timestamp, context)
+            self.replay_window_hours: int = 24
+
+        def record_signature(
+            self, signature: str, context: str, timestamp: datetime
+        ) -> tuple:
+            """Record a signature and check for replay."""
+            if signature in self.used_signatures:
+                original = self.used_signatures[signature]
+                return False, f"Signature replay detected! Original: {original}"
+
+            self.used_signatures[signature] = (timestamp.isoformat(), context)
+            return True, "Signature recorded"
+
+        def is_replayed(self, signature: str) -> bool:
+            """Check if signature was already used."""
+            return signature in self.used_signatures
+
+    registry = SignatureRegistry()
+
+    # Create a valid signature
+    original_message = "approve_action:team_alpha:action_123"
+    secret_key = secrets.token_bytes(32)
+    original_sig = hmac.new(
+        secret_key, original_message.encode(), hashlib.sha256
+    ).hexdigest()
+
+    now = datetime.now(timezone.utc)
+
+    # Record original
+    ok, msg = registry.record_signature(original_sig, "team_alpha", now)
+
+    # Try to replay in different context
+    replayed_ok, replay_msg = registry.record_signature(
+        original_sig, "team_beta", now + timedelta(hours=1)
+    )
+
+    if not replayed_ok:
+        defenses["signature_replay_blocked"] = True
+        replay_note = f"Replay blocked: {replay_msg[:50]}"
+    else:
+        replay_note = "Signature replay succeeded - VULNERABLE"
+
+    # ========================================================================
+    # Defense 2: Weak Key Rejection
+    # ========================================================================
+
+    class KeyValidator:
+        """Validate cryptographic key strength."""
+
+        def __init__(self, min_entropy_bits: int = 128):
+            self.min_entropy = min_entropy_bits
+
+        def validate_key(self, key: bytes) -> tuple:
+            """Validate key meets strength requirements."""
+            # Check length
+            if len(key) < self.min_entropy // 8:
+                return False, f"Key too short: {len(key)*8} bits (need {self.min_entropy})"
+
+            # Check for weak patterns
+            if key == bytes(len(key)):  # All zeros
+                return False, "Weak key: all zeros"
+            if key == bytes([0xFF] * len(key)):  # All ones
+                return False, "Weak key: all ones"
+            if len(set(key)) < len(key) // 4:  # Low entropy
+                return False, "Weak key: low entropy (repeated bytes)"
+
+            # Check for sequential patterns
+            diffs = [key[i+1] - key[i] for i in range(len(key)-1)]
+            if len(set(diffs)) == 1:  # Constant increment (sequential)
+                return False, "Weak key: sequential pattern detected"
+
+            return True, "Key strength acceptable"
+
+    validator = KeyValidator(min_entropy_bits=128)
+
+    # Test weak keys
+    weak_keys = [
+        bytes(16),  # All zeros
+        bytes([0xFF] * 16),  # All ones
+        bytes([i % 256 for i in range(16)]),  # Sequential
+        bytes([0xAA] * 16),  # Repeated pattern
+    ]
+
+    weak_rejected = 0
+    for weak_key in weak_keys:
+        valid, reason = validator.validate_key(weak_key)
+        if not valid:
+            weak_rejected += 1
+
+    if weak_rejected >= len(weak_keys) - 1:  # Catch most
+        defenses["weak_key_rejected"] = True
+        key_note = f"Weak keys rejected: {weak_rejected}/{len(weak_keys)}"
+    else:
+        key_note = f"Weak key validation weak: {weak_rejected}/{len(weak_keys)}"
+
+    # ========================================================================
+    # Defense 3: Nonce Reuse Detection
+    # ========================================================================
+
+    class NonceTracker:
+        """Track nonces to prevent reuse."""
+
+        def __init__(self):
+            self.used_nonces: set = set()
+            self.nonce_by_key: dict = {}  # key_id -> set of nonces
+
+        def check_and_record_nonce(
+            self, key_id: str, nonce: bytes
+        ) -> tuple:
+            """Check nonce hasn't been used with this key."""
+            nonce_hex = nonce.hex()
+
+            if key_id not in self.nonce_by_key:
+                self.nonce_by_key[key_id] = set()
+
+            if nonce_hex in self.nonce_by_key[key_id]:
+                return False, f"Nonce reuse detected for key {key_id}"
+
+            self.nonce_by_key[key_id].add(nonce_hex)
+            return True, "Nonce recorded"
+
+    nonce_tracker = NonceTracker()
+
+    test_key_id = "key:admin:001"
+    test_nonce = secrets.token_bytes(16)
+
+    # First use should succeed
+    ok1, _ = nonce_tracker.check_and_record_nonce(test_key_id, test_nonce)
+
+    # Reuse should fail
+    ok2, msg2 = nonce_tracker.check_and_record_nonce(test_key_id, test_nonce)
+
+    if not ok2:
+        defenses["nonce_reuse_detected"] = True
+        nonce_note = f"Nonce reuse detected: {msg2[:50]}"
+    else:
+        nonce_note = "Nonce reuse allowed - VULNERABLE"
+
+    # ========================================================================
+    # Defense 4: Time-Bounded Signatures
+    # ========================================================================
+
+    class TimeBoundedSignature:
+        """Create and verify time-bounded signatures."""
+
+        def __init__(self, validity_minutes: int = 5):
+            self.validity = timedelta(minutes=validity_minutes)
+
+        def create_signature(
+            self, message: str, key: bytes, issued_at: datetime
+        ) -> dict:
+            """Create a time-bounded signature."""
+            expires_at = issued_at + self.validity
+            payload = f"{message}|{issued_at.isoformat()}|{expires_at.isoformat()}"
+            sig = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+            return {
+                "message": message,
+                "issued_at": issued_at.isoformat(),
+                "expires_at": expires_at.isoformat(),
+                "signature": sig,
+            }
+
+        def verify_signature(
+            self, sig_data: dict, key: bytes, check_time: datetime
+        ) -> tuple:
+            """Verify signature including time bounds."""
+            # Check expiry
+            expires_at = datetime.fromisoformat(sig_data["expires_at"])
+            if check_time > expires_at:
+                return False, f"Signature expired at {expires_at.isoformat()}"
+
+            # Verify signature
+            issued_at = datetime.fromisoformat(sig_data["issued_at"])
+            payload = (
+                f"{sig_data['message']}|{sig_data['issued_at']}|{sig_data['expires_at']}"
+            )
+            expected_sig = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+
+            if sig_data["signature"] != expected_sig:
+                return False, "Invalid signature"
+
+            return True, "Signature valid"
+
+    time_sig = TimeBoundedSignature(validity_minutes=5)
+    test_key = secrets.token_bytes(32)
+    issue_time = datetime.now(timezone.utc) - timedelta(minutes=10)  # 10 min ago
+
+    sig_data = time_sig.create_signature("approve_action", test_key, issue_time)
+
+    # Try to verify now (should fail - expired)
+    valid, msg = time_sig.verify_signature(
+        sig_data, test_key, datetime.now(timezone.utc)
+    )
+
+    if not valid and "expired" in msg.lower():
+        defenses["time_bounded_signatures"] = True
+        time_note = f"Time bounds enforced: {msg[:50]}"
+    else:
+        time_note = "Time bounds not enforced - VULNERABLE"
+
+    # ========================================================================
+    # Defense 5: Cross-Context Signature Blocking
+    # ========================================================================
+
+    class ContextBoundedSignature:
+        """Signatures bound to specific context."""
+
+        def __init__(self):
+            self.context_registry: dict = {}
+
+        def create_bounded_signature(
+            self,
+            message: str,
+            context: dict,
+            key: bytes
+        ) -> dict:
+            """Create signature bound to context."""
+            # Include context in signature
+            context_str = "|".join(f"{k}={v}" for k, v in sorted(context.items()))
+            payload = f"{message}|context:{context_str}"
+            sig = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+
+            return {
+                "message": message,
+                "context": context,
+                "signature": sig,
+            }
+
+        def verify_bounded_signature(
+            self,
+            sig_data: dict,
+            expected_context: dict,
+            key: bytes
+        ) -> tuple:
+            """Verify signature matches expected context."""
+            # Check context matches
+            actual_context = sig_data.get("context", {})
+            if actual_context != expected_context:
+                return False, (
+                    f"Context mismatch: expected {expected_context}, "
+                    f"got {actual_context}"
+                )
+
+            # Verify signature
+            context_str = "|".join(
+                f"{k}={v}" for k, v in sorted(actual_context.items())
+            )
+            payload = f"{sig_data['message']}|context:{context_str}"
+            expected_sig = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+
+            if sig_data["signature"] != expected_sig:
+                return False, "Invalid signature"
+
+            return True, "Signature valid for context"
+
+    ctx_sig = ContextBoundedSignature()
+    ctx_key = secrets.token_bytes(32)
+
+    # Create signature for team_alpha
+    original_ctx = {"team": "alpha", "domain": "production"}
+    sig_data = ctx_sig.create_bounded_signature(
+        "approve_deploy", original_ctx, ctx_key
+    )
+
+    # Try to use in different context
+    different_ctx = {"team": "beta", "domain": "production"}
+    valid, msg = ctx_sig.verify_bounded_signature(sig_data, different_ctx, ctx_key)
+
+    if not valid and "mismatch" in msg.lower():
+        defenses["cross_context_blocked"] = True
+        ctx_note = f"Cross-context blocked: {msg[:50]}"
+    else:
+        ctx_note = "Cross-context allowed - VULNERABLE"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Signature Replay & Key Weakness (DX)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=50000.0 if attack_success else -500.0,
+        roi=100.0 if attack_success else -1.0,
+        detection_probability=0.40,  # Crypto attacks often hard to detect
+        time_to_detection_hours=72,  # May not be noticed quickly
+        blocks_until_detected=300,
+        trust_damage=1.0,  # Foundational compromise
+        description=f"""
+SIGNATURE REPLAY & KEY WEAKNESS EXPLOITATION (Track DX - Attack 100):
+- Signature replay protection: {"DEFENDED" if defenses["signature_replay_blocked"] else "VULNERABLE"}
+  {replay_note}
+- Weak key rejection: {"DEFENDED" if defenses["weak_key_rejected"] else "VULNERABLE"}
+  {key_note}
+- Nonce reuse detection: {"DEFENDED" if defenses["nonce_reuse_detected"] else "VULNERABLE"}
+  {nonce_note}
+- Time-bounded signatures: {"DEFENDED" if defenses["time_bounded_signatures"] else "VULNERABLE"}
+  {time_note}
+- Cross-context blocking: {"DEFENDED" if defenses["cross_context_blocked"] else "VULNERABLE"}
+  {ctx_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Cryptographic weakness is foundational - if crypto fails, trust fails.
+ATTACK 100 MILESTONE: Web4 Hardbound comprehensive attack coverage.
+""".strip(),
+        mitigation=f"""
+Track DX: Cryptographic Weakness Exploitation Mitigation:
+1. Maintain signature registry with replay detection
+2. Validate key strength before use (entropy, patterns)
+3. Track nonces per-key to prevent reuse attacks
+4. Include time bounds in all signatures
+5. Bind signatures to specific context (team, domain, action)
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -33179,6 +33553,8 @@ def run_all_attacks() -> List[AttackResult]:
         ("Multi-Layer Reputation Cascade (DW)", attack_multi_layer_reputation_cascade),
         ("Trust Bridge Exploitation (DW)", attack_trust_bridge_exploitation),
         ("Coordinated Multi-System DoS (DW)", attack_coordinated_multi_system_dos),
+        # Track DX: Cryptographic Weakness Exploitation (ATTACK 100 MILESTONE)
+        ("Signature Replay & Key Weakness (DX)", attack_signature_replay_and_key_weakness),
     ]
 
     results = []

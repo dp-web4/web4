@@ -38,23 +38,44 @@ class IdentityViolationType(Enum):
 
 # Origin confabulation markers (claiming wrong creator/origin)
 ORIGIN_CONFABULATION_MARKERS = [
-    # Wrong AI company claims
+    # Wrong AI company claims - various verbs
     "created by google",
     "made by openai",
     "developed by anthropic",  # If agent isn't Claude
     "built by meta",
     "from deepmind",
+    "built by openai",
+    "built by google",
+    "trained by openai",
+    "trained by google",
+    "designed by openai",
+    "designed by google",
 
-    # Wrong model claims
+    # Company reference patterns
+    "developers at google",
+    "developers at openai",
+    "team at anthropic",
+    "team at google",
+    "team at openai",
+    "engineers at google",
+    "engineers at openai",
+
+    # Wrong model claims - exact and spaced
     "i am gpt",
     "i am chatgpt",
     "i am bard",
     "i am gemini",
     "i am claude",  # If agent isn't Claude
+    "i am g p t",  # Spaced evasion
+    "i am g.p.t",  # Dotted evasion
 
     # Wrong human creator claims (when not applicable)
     "my creator is",
     "i was made by [person_name]",
+
+    # Origin tracing patterns
+    "origins trace to",
+    "my origins",
 ]
 
 # Experience confabulation markers (false memories)
@@ -301,6 +322,85 @@ class IdentityIntegrityChecker:
             recommendation=recommendation
         )
 
+    def _is_in_quotes_or_hypothetical(self, content: str, idx: int) -> bool:
+        """Check if position is within quotes or hypothetical context."""
+        # Check for surrounding quotes (meta-discussion)
+        before = content[:idx]
+        after = content[idx:]
+
+        # Count quotes before the position
+        single_quotes = before.count("'")
+        double_quotes = before.count('"')
+
+        # If odd number of quotes, we're inside a quote
+        if single_quotes % 2 == 1 or double_quotes % 2 == 1:
+            return True
+
+        # Check for hypothetical markers in nearby context
+        context_start = max(0, idx - 100)
+        nearby = content[context_start:idx].lower()
+        hypothetical_markers = [
+            "if i were", "imagine if", "suppose that", "as if",
+            "some ai models claim", "a common confabulation",
+            "the user said", "in the documentation",
+            "it states that", "example:", "for instance"
+        ]
+        for marker in hypothetical_markers:
+            if marker in nearby:
+                return True
+
+        return False
+
+    def _is_legitimate_technical_context(self, content: str, idx: int, marker: str) -> bool:
+        """Check if marker appears in legitimate technical/collaborative context."""
+        # Get extended context
+        context_start = max(0, idx - 100)
+        context_end = min(len(content), idx + len(marker) + 100)
+        context = content[context_start:context_end].lower()
+
+        # Technical/legitimate contexts for "I have seen"
+        if "i have seen" in marker.lower():
+            legitimate_patterns = [
+                "in the codebase", "in the code", "in the repo",
+                "in this file", "in the documentation", "in the logs",
+                "in the output", "in the error", "in the test"
+            ]
+            for pattern in legitimate_patterns:
+                if pattern in context:
+                    return True
+
+        # Legitimate collaborative references
+        if "as you know" in marker.lower():
+            legitimate_patterns = [
+                "from the documentation", "from our discussion",
+                "from the meeting", "from the spec", "from the design"
+            ]
+            for pattern in legitimate_patterns:
+                if pattern in context:
+                    return True
+
+        # Code review / collaborative context
+        if "my colleague" in marker.lower():
+            legitimate_patterns = [
+                "wrote this", "wrote the", "implemented", "fixed",
+                "reviewed", "suggested", "code review"
+            ]
+            for pattern in legitimate_patterns:
+                if pattern in context:
+                    return True
+
+        # Reference to earlier conversation
+        if "remember when we" in marker.lower():
+            legitimate_patterns = [
+                "discussed", "talked about", "agreed", "decided",
+                "the api", "the design", "the implementation"
+            ]
+            for pattern in legitimate_patterns:
+                if pattern in context:
+                    return True
+
+        return False
+
     def _detect_violations(
         self,
         content_lower: str,
@@ -317,6 +417,16 @@ class IdentityIntegrityChecker:
                 idx = content_lower.find(marker_lower, pos)
                 if idx == -1:
                     break
+
+                # Skip if in quotes or hypothetical context (meta-discussion)
+                if self._is_in_quotes_or_hypothetical(content_original, idx):
+                    pos = idx + 1
+                    continue
+
+                # Skip if legitimate technical/collaborative context
+                if self._is_legitimate_technical_context(content_original, idx, marker):
+                    pos = idx + 1
+                    continue
 
                 # Extract context (50 chars before and after)
                 start = max(0, idx - 50)
