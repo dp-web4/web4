@@ -4,12 +4,13 @@
 
 metadata:
   project: web4
-  last_updated: "2026-01-21T12:00:00Z"
-  archivist_version: "1.0"
-  total_sessions: 76
+  last_updated: "2026-02-05T04:30:00Z"
+  archivist_version: "1.2"
+  total_sessions: 210
   focus: "Distributed Trust Infrastructure"
-  date_range: "2025-08 to 2026-01"
+  date_range: "2025-08 to 2026-02"
   existing_manifest: "ARCHIVE_MANIFEST.md"
+  milestone: "GAME_THEORETIC_EQUILIBRIUM_ANALYSIS.md added - Nash equilibrium proof! 99 attack vectors (Tracks DU, DW added). Honest behavior = dominant strategy (π_H=8800 vs π_M=-42500 ATP/month)."
 
 # =============================================================================
 # RESEARCH ARCS
@@ -204,13 +205,33 @@ archive_integration:
       description: "Synchronism-related work"
 
 # =============================================================================
+# GAME THEORY RESEARCH (NEW - 2026-02-05)
+# =============================================================================
+game_theory:
+  name: "Game-Theoretic Equilibrium Analysis"
+  status: "complete"
+  date: "2026-02-05"
+  key_file: "game/GAME_THEORETIC_EQUILIBRIUM_ANALYSIS.md"
+  key_findings:
+    - "Honest behavior IS Nash equilibrium under current parameters"
+    - "π_H = 8,800 ATP/month (honest) vs π_M = -42,500 ATP/month (malicious expected)"
+    - "Detection threshold: honesty dominant as long as detection >29% (currently 70%)"
+    - "Stake 75,000 ATP provides 3.5× safety margin"
+    - "Long-con NPV-negative (-32,500 ATP) vs honest (+176,000 ATP/12mo)"
+  attack_vectors_total: 99
+  recent_tracks:
+    - {id: "DU", name: "Governance Interface", attacks: 5, date: "2026-02-05"}
+    - {id: "DW", name: "Cross-System Attack Chains", attacks: 4, date: "2026-02-05"}
+
+# =============================================================================
 # STATISTICS
 # =============================================================================
 statistics:
-  total_sessions: 76
-  arcs: 5
+  total_sessions: 210
+  arcs: 6
   test_sessions: 17
   implementation_files: 50
-  latest_session_date: "2026-01-13"
+  attack_vectors: 99
+  latest_session_date: "2026-02-05"
   quality_rating: "EXCELLENT"
   deployment_status: "Legion validated, Thor ready, Sprout pending"
