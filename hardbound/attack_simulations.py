@@ -35366,6 +35366,1376 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track EA: Economic Coalition Attacks (Attacks 107-110)
+# Based on Game Theory Open Questions: "Coalition Formation Dynamics"
+# Explores when and how rational agents form cartels/adversarial coalitions
+# ---------------------------------------------------------------------------
+
+def attack_coalition_cartel_formation() -> AttackResult:
+    """
+    ATTACK 107: COALITION CARTEL FORMATION (Track EA)
+
+    Tests attacks where multiple federations/teams form a cartel to:
+    1. Price fixing (coordinate ATP rates)
+    2. Market division (exclude outsiders)
+    3. Collective punishment (blacklist defectors)
+    4. Information sharing (share detection secrets)
+    5. Coordinated voting (control governance)
+
+    Based on game theory: coalition is stable when joint gain > sum of
+    individual honest gains + coordination cost.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "cartel_pattern_detection": False,
+        "pricing_anomaly_detection": False,
+        "market_exclusion_monitoring": False,
+        "coordinated_voting_detection": False,
+        "information_flow_analysis": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Cartel Pattern Detection
+    # ========================================================================
+
+    class CartelPatternDetector:
+        """Detect cartel-like coordination patterns."""
+
+        def __init__(self, coordination_threshold: float = 0.8):
+            self.threshold = coordination_threshold
+            self.behavior_log: dict = defaultdict(list)
+
+        def log_behavior(self, entity_id: str, action: str, value: float, timestamp: datetime):
+            """Log an entity's behavior for cartel analysis."""
+            self.behavior_log[entity_id].append({
+                "action": action,
+                "value": value,
+                "time": timestamp,
+            })
+
+        def detect_coordination(self, entity_ids: list, action_type: str) -> tuple:
+            """Detect if entities are coordinating behavior."""
+            values = []
+            for eid in entity_ids:
+                behaviors = [b for b in self.behavior_log[eid] if b["action"] == action_type]
+                if behaviors:
+                    values.append(behaviors[-1]["value"])
+
+            if len(values) < 3:
+                return False, "Insufficient data"
+
+            # Check for suspiciously similar values
+            avg = sum(values) / len(values)
+            variance = sum((v - avg) ** 2 for v in values) / len(values)
+            std_dev = variance ** 0.5
+
+            # Low variance = coordinated
+            if avg > 0 and std_dev / avg < 0.1:  # Coefficient of variation < 10%
+                return True, f"Coordination detected: values {values} have CV={std_dev/avg:.2%}"
+
+            return False, f"No coordination: CV={std_dev/avg:.2%}"
+
+    cartel_detector = CartelPatternDetector()
+
+    now = datetime.now(timezone.utc)
+    # Cartel members set similar ATP rates
+    for i, member in enumerate(["fed_a", "fed_b", "fed_c", "fed_d"]):
+        # Cartel coordinated rate: 100 ± small noise
+        cartel_detector.log_behavior(member, "atp_rate", 100 + i * 0.5, now)
+
+    detected, msg = cartel_detector.detect_coordination(
+        ["fed_a", "fed_b", "fed_c", "fed_d"], "atp_rate"
+    )
+
+    if detected:
+        defenses["cartel_pattern_detection"] = True
+        cartel_note = f"Cartel detected: {msg}"
+    else:
+        cartel_note = f"Cartel missed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Pricing Anomaly Detection
+    # ========================================================================
+
+    class PricingAnomalyDetector:
+        """Detect anomalous pricing that indicates cartel activity."""
+
+        def __init__(self, market_baseline: float = 100.0):
+            self.baseline = market_baseline
+            self.price_history: dict = defaultdict(list)
+            self.anomalies: list = []
+
+        def record_price(self, entity_id: str, price: float, timestamp: datetime):
+            """Record a price for analysis."""
+            self.price_history[entity_id].append({
+                "price": price,
+                "time": timestamp,
+            })
+
+        def detect_price_fixing(self, entity_ids: list) -> tuple:
+            """Detect if entities are fixing prices."""
+            prices = []
+            for eid in entity_ids:
+                history = self.price_history.get(eid, [])
+                if history:
+                    prices.append(history[-1]["price"])
+
+            if len(prices) < 3:
+                return False, "Insufficient data"
+
+            # Check if all prices are above baseline (price floor cartel)
+            all_above = all(p > self.baseline * 1.2 for p in prices)
+            # Check if prices are suspiciously similar
+            spread = max(prices) - min(prices)
+            narrow_spread = spread < self.baseline * 0.05
+
+            if all_above and narrow_spread:
+                self.anomalies.append({
+                    "entities": entity_ids,
+                    "prices": prices,
+                    "type": "price_floor_cartel",
+                })
+                return True, f"Price fixing detected: prices {prices} all 20%+ above baseline with {spread:.1f} spread"
+
+            return False, f"Normal pricing: spread={spread:.1f}"
+
+    pricing = PricingAnomalyDetector(market_baseline=100.0)
+
+    now = datetime.now(timezone.utc)
+    # Cartel fixes prices above market
+    for member in ["cartel_1", "cartel_2", "cartel_3"]:
+        pricing.record_price(member, 125 + hash(member) % 3, now)
+
+    detected, msg = pricing.detect_price_fixing(["cartel_1", "cartel_2", "cartel_3"])
+
+    if detected:
+        defenses["pricing_anomaly_detection"] = True
+        pricing_note = f"Price fixing detected: {msg}"
+    else:
+        pricing_note = f"Price fixing missed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Market Exclusion Monitoring
+    # ========================================================================
+
+    class MarketExclusionMonitor:
+        """Monitor for coordinated market exclusion (blacklisting)."""
+
+        def __init__(self):
+            self.exclusion_log: dict = defaultdict(set)  # entity -> set of excluders
+            self.alerts: list = []
+
+        def log_exclusion(self, excluder: str, excluded: str, timestamp: datetime):
+            """Log an exclusion event."""
+            self.exclusion_log[excluded].add(excluder)
+
+        def detect_coordinated_exclusion(self, excluded: str, threshold: int = 3) -> tuple:
+            """Detect if an entity is being excluded by a coordinated group."""
+            excluders = self.exclusion_log.get(excluded, set())
+
+            if len(excluders) >= threshold:
+                # Check if excluders are related (potential cartel)
+                # Simplified: if 3+ exclude same target simultaneously
+                self.alerts.append({
+                    "excluded": excluded,
+                    "excluders": list(excluders),
+                    "type": "coordinated_exclusion",
+                })
+                return True, f"Coordinated exclusion: {len(excluders)} entities excluding {excluded}"
+
+            return False, f"Normal exclusion: {len(excluders)} excluders"
+
+    exclusion = MarketExclusionMonitor()
+
+    now = datetime.now(timezone.utc)
+    # Cartel blacklists a competitor
+    for member in ["cartel_a", "cartel_b", "cartel_c", "cartel_d"]:
+        exclusion.log_exclusion(member, "honest_competitor", now)
+
+    detected, msg = exclusion.detect_coordinated_exclusion("honest_competitor", threshold=3)
+
+    if detected:
+        defenses["market_exclusion_monitoring"] = True
+        exclusion_note = f"Market exclusion detected: {msg}"
+    else:
+        exclusion_note = f"Market exclusion missed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Coordinated Voting Detection
+    # ========================================================================
+
+    class CoordinatedVotingDetector:
+        """Detect coordinated voting in governance."""
+
+        def __init__(self):
+            self.vote_log: dict = defaultdict(list)  # proposal -> list of (voter, vote)
+            self.alerts: list = []
+
+        def log_vote(self, proposal_id: str, voter: str, vote: str, timestamp: datetime):
+            """Log a vote."""
+            self.vote_log[proposal_id].append({
+                "voter": voter,
+                "vote": vote,
+                "time": timestamp,
+            })
+
+        def detect_voting_bloc(self, proposal_id: str, bloc_threshold: float = 0.9) -> tuple:
+            """Detect if votes show bloc voting pattern."""
+            votes = self.vote_log.get(proposal_id, [])
+
+            if len(votes) < 5:
+                return False, "Insufficient votes"
+
+            # Group by vote
+            vote_groups: dict = defaultdict(list)
+            for v in votes:
+                vote_groups[v["vote"]].append(v["voter"])
+
+            # Check for dominant bloc
+            for vote_type, voters in vote_groups.items():
+                ratio = len(voters) / len(votes)
+                if ratio >= bloc_threshold:
+                    self.alerts.append({
+                        "proposal": proposal_id,
+                        "bloc": voters,
+                        "vote": vote_type,
+                        "ratio": ratio,
+                    })
+                    return True, f"Voting bloc detected: {len(voters)} voters ({ratio:.0%}) voted {vote_type}"
+
+            return False, f"Normal voting distribution"
+
+    voting = CoordinatedVotingDetector()
+
+    now = datetime.now(timezone.utc)
+    # Cartel votes in bloc
+    for i, member in enumerate(["bloc_1", "bloc_2", "bloc_3", "bloc_4", "bloc_5"]):
+        voting.log_vote("proposal_x", member, "approve", now - timedelta(minutes=i))
+
+    detected, msg = voting.detect_voting_bloc("proposal_x", bloc_threshold=0.9)
+
+    if detected:
+        defenses["coordinated_voting_detection"] = True
+        voting_note = f"Voting bloc detected: {msg}"
+    else:
+        voting_note = f"Voting bloc missed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Information Flow Analysis
+    # ========================================================================
+
+    class InformationFlowAnalyzer:
+        """Analyze information flow for cartel communication patterns."""
+
+        def __init__(self):
+            self.message_log: list = []
+            self.anomalies: list = []
+
+        def log_message(self, sender: str, receiver: str, timestamp: datetime):
+            """Log a message event."""
+            self.message_log.append({
+                "sender": sender,
+                "receiver": receiver,
+                "time": timestamp,
+            })
+
+        def detect_dense_subgraph(self, entities: list, density_threshold: float = 0.7) -> tuple:
+            """Detect densely connected communication subgraph (cartel signal)."""
+            relevant = [m for m in self.message_log
+                       if m["sender"] in entities and m["receiver"] in entities]
+
+            n = len(entities)
+            max_edges = n * (n - 1)  # Directed graph
+
+            if max_edges == 0:
+                return False, "Single entity"
+
+            # Count unique edges
+            edges = set((m["sender"], m["receiver"]) for m in relevant)
+            density = len(edges) / max_edges
+
+            if density >= density_threshold:
+                self.anomalies.append({
+                    "entities": entities,
+                    "density": density,
+                    "edges": len(edges),
+                })
+                return True, f"Dense communication: {len(edges)}/{max_edges} edges ({density:.0%})"
+
+            return False, f"Normal communication: {density:.0%} density"
+
+    info_flow = InformationFlowAnalyzer()
+
+    now = datetime.now(timezone.utc)
+    # Cartel members communicate densely
+    cartel_members = ["member_a", "member_b", "member_c", "member_d"]
+    for i, sender in enumerate(cartel_members):
+        for j, receiver in enumerate(cartel_members):
+            if sender != receiver:
+                info_flow.log_message(sender, receiver, now - timedelta(hours=i+j))
+
+    detected, msg = info_flow.detect_dense_subgraph(cartel_members, density_threshold=0.7)
+
+    if detected:
+        defenses["information_flow_analysis"] = True
+        info_note = f"Cartel communication detected: {msg}"
+    else:
+        info_note = f"Cartel communication missed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Coalition Cartel Formation (EA)",
+        success=attack_success,
+        setup_cost_atp=1000.0,  # Cartel formation is expensive
+        gain_atp=50000.0 if attack_success else -1000.0,
+        roi=50.0 if attack_success else -1.0,
+        detection_probability=0.70,
+        time_to_detection_hours=168,  # 1 week
+        blocks_until_detected=500,
+        trust_damage=0.90,  # Severe for cartel participation
+        description=f"""
+COALITION CARTEL FORMATION (Track EA - Attack 107):
+- Cartel pattern detection: {"DEFENDED" if defenses["cartel_pattern_detection"] else "VULNERABLE"}
+  {cartel_note}
+- Pricing anomaly detection: {"DEFENDED" if defenses["pricing_anomaly_detection"] else "VULNERABLE"}
+  {pricing_note}
+- Market exclusion monitoring: {"DEFENDED" if defenses["market_exclusion_monitoring"] else "VULNERABLE"}
+  {exclusion_note}
+- Coordinated voting detection: {"DEFENDED" if defenses["coordinated_voting_detection"] else "VULNERABLE"}
+  {voting_note}
+- Information flow analysis: {"DEFENDED" if defenses["information_flow_analysis"] else "VULNERABLE"}
+  {info_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Cartels form when joint gain exceeds individual honest gains plus coordination cost.
+Game theory condition: v(coalition) > Σv(individual) + C_coordination
+""".strip(),
+        mitigation=f"""
+Track EA: Coalition Cartel Formation Mitigation:
+1. Detect coordinated behavior patterns (low variance in actions)
+2. Monitor for price fixing (narrow spread above baseline)
+3. Detect coordinated exclusion/blacklisting
+4. Identify voting blocs in governance
+5. Analyze communication density for cartel signals
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_coalition_defection_punishment() -> AttackResult:
+    """
+    ATTACK 108: COALITION DEFECTION PUNISHMENT (Track EA)
+
+    Tests attacks where coalitions punish defectors to maintain stability:
+    1. Reputation assassination (spread negative info)
+    2. Economic sanctions (refuse to transact)
+    3. Witness denial (refuse to witness for defector)
+    4. Trust score manipulation (coordinate negative ratings)
+    5. Network isolation (exclude from communication)
+
+    Game theory: punishment must exceed defection gain for stable coalition.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "retaliation_detection": False,
+        "sanction_monitoring": False,
+        "witness_denial_detection": False,
+        "coordinated_downvote_detection": False,
+        "isolation_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Retaliation Pattern Detection
+    # ========================================================================
+
+    class RetaliationDetector:
+        """Detect retaliation patterns against defectors."""
+
+        def __init__(self, window_hours: int = 24):
+            self.window = timedelta(hours=window_hours)
+            self.event_log: list = []
+            self.alerts: list = []
+
+        def log_event(self, actor: str, target: str, event_type: str, timestamp: datetime):
+            """Log an event for retaliation analysis."""
+            self.event_log.append({
+                "actor": actor,
+                "target": target,
+                "type": event_type,
+                "time": timestamp,
+            })
+
+        def detect_retaliation(self, defector: str, coalition_members: list) -> tuple:
+            """Detect if coalition is retaliating against defector."""
+            now = datetime.now(timezone.utc)
+            window_start = now - self.window
+
+            recent_against_defector = [
+                e for e in self.event_log
+                if e["target"] == defector
+                and e["actor"] in coalition_members
+                and e["time"] >= window_start
+            ]
+
+            if len(recent_against_defector) >= len(coalition_members) // 2:
+                self.alerts.append({
+                    "defector": defector,
+                    "attackers": [e["actor"] for e in recent_against_defector],
+                    "event_count": len(recent_against_defector),
+                })
+                return True, f"Retaliation detected: {len(recent_against_defector)} negative events from coalition"
+
+            return False, f"No retaliation: {len(recent_against_defector)} events"
+
+    retaliation = RetaliationDetector(window_hours=24)
+
+    now = datetime.now(timezone.utc)
+    coalition = ["member_1", "member_2", "member_3", "member_4"]
+    defector = "defector_x"
+
+    # Coalition retaliates against defector
+    for i, member in enumerate(coalition):
+        retaliation.log_event(member, defector, "negative_rating", now - timedelta(hours=i))
+
+    detected, msg = retaliation.detect_retaliation(defector, coalition)
+
+    if detected:
+        defenses["retaliation_detection"] = True
+        retaliation_note = f"Retaliation detected: {msg}"
+    else:
+        retaliation_note = f"Retaliation missed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Sanction Monitoring
+    # ========================================================================
+
+    class SanctionMonitor:
+        """Monitor for coordinated economic sanctions."""
+
+        def __init__(self):
+            self.transaction_refusals: dict = defaultdict(list)
+            self.alerts: list = []
+
+        def log_refusal(self, refuser: str, refused: str, timestamp: datetime):
+            """Log a transaction refusal."""
+            self.transaction_refusals[refused].append({
+                "refuser": refuser,
+                "time": timestamp,
+            })
+
+        def detect_sanctions(self, target: str, threshold: int = 3) -> tuple:
+            """Detect if target is being sanctioned."""
+            refusals = self.transaction_refusals.get(target, [])
+
+            unique_refusers = set(r["refuser"] for r in refusals)
+
+            if len(unique_refusers) >= threshold:
+                self.alerts.append({
+                    "target": target,
+                    "refusers": list(unique_refusers),
+                    "type": "economic_sanctions",
+                })
+                return True, f"Sanctions detected: {len(unique_refusers)} entities refusing to transact with {target}"
+
+            return False, f"Normal refusals: {len(unique_refusers)} refusers"
+
+    sanctions = SanctionMonitor()
+
+    now = datetime.now(timezone.utc)
+    # Coalition sanctions defector
+    for member in coalition:
+        sanctions.log_refusal(member, defector, now)
+
+    detected, msg = sanctions.detect_sanctions(defector, threshold=3)
+
+    if detected:
+        defenses["sanction_monitoring"] = True
+        sanction_note = f"Sanctions detected: {msg}"
+    else:
+        sanction_note = f"Sanctions missed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Witness Denial Detection
+    # ========================================================================
+
+    class WitnessDenialDetector:
+        """Detect coordinated witness denial."""
+
+        def __init__(self):
+            self.witness_requests: dict = defaultdict(list)
+            self.witness_denials: dict = defaultdict(list)
+
+        def log_request(self, requester: str, potential_witness: str, granted: bool, timestamp: datetime):
+            """Log a witness request and outcome."""
+            if granted:
+                self.witness_requests[requester].append(potential_witness)
+            else:
+                self.witness_denials[requester].append(potential_witness)
+
+        def detect_denial_campaign(self, target: str, threshold: int = 3) -> tuple:
+            """Detect if target is being denied witnesses."""
+            denials = self.witness_denials.get(target, [])
+            requests = self.witness_requests.get(target, [])
+
+            denial_rate = len(denials) / (len(denials) + len(requests) + 0.01)
+
+            if len(denials) >= threshold and denial_rate > 0.7:
+                return True, f"Witness denial campaign: {len(denials)} denials ({denial_rate:.0%} rate)"
+
+            return False, f"Normal witness activity: {denial_rate:.0%} denial rate"
+
+    witness_denial = WitnessDenialDetector()
+
+    now = datetime.now(timezone.utc)
+    # Coalition denies witnessing for defector
+    for member in coalition:
+        witness_denial.log_request(defector, member, granted=False, timestamp=now)
+
+    detected, msg = witness_denial.detect_denial_campaign(defector, threshold=3)
+
+    if detected:
+        defenses["witness_denial_detection"] = True
+        witness_note = f"Witness denial detected: {msg}"
+    else:
+        witness_note = f"Witness denial missed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Coordinated Downvote Detection
+    # ========================================================================
+
+    class CoordinatedDownvoteDetector:
+        """Detect coordinated downvoting/negative rating."""
+
+        def __init__(self, window_hours: int = 24):
+            self.window = timedelta(hours=window_hours)
+            self.rating_log: dict = defaultdict(list)
+
+        def log_rating(self, rater: str, rated: str, score: float, timestamp: datetime):
+            """Log a rating."""
+            self.rating_log[rated].append({
+                "rater": rater,
+                "score": score,
+                "time": timestamp,
+            })
+
+        def detect_coordinated_downvote(self, target: str, threshold: int = 3) -> tuple:
+            """Detect coordinated negative ratings."""
+            now = datetime.now(timezone.utc)
+            window_start = now - self.window
+
+            recent = [r for r in self.rating_log[target] if r["time"] >= window_start]
+            negative = [r for r in recent if r["score"] < 0.3]
+
+            if len(negative) >= threshold:
+                avg_score = sum(r["score"] for r in negative) / len(negative)
+                return True, f"Coordinated downvote: {len(negative)} negative ratings (avg={avg_score:.2f})"
+
+            return False, f"Normal ratings: {len(negative)} negative"
+
+    downvote = CoordinatedDownvoteDetector(window_hours=24)
+
+    now = datetime.now(timezone.utc)
+    # Coalition downvotes defector
+    for i, member in enumerate(coalition):
+        downvote.log_rating(member, defector, 0.1, now - timedelta(hours=i))
+
+    detected, msg = downvote.detect_coordinated_downvote(defector, threshold=3)
+
+    if detected:
+        defenses["coordinated_downvote_detection"] = True
+        downvote_note = f"Coordinated downvote detected: {msg}"
+    else:
+        downvote_note = f"Coordinated downvote missed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Network Isolation Detection
+    # ========================================================================
+
+    class NetworkIsolationDetector:
+        """Detect network isolation of targets."""
+
+        def __init__(self):
+            self.connections: dict = defaultdict(set)
+            self.historical_connections: dict = defaultdict(set)
+
+        def set_historical(self, entity: str, connected_to: set):
+            """Set historical connection baseline."""
+            self.historical_connections[entity] = connected_to
+
+        def set_current(self, entity: str, connected_to: set):
+            """Set current connections."""
+            self.connections[entity] = connected_to
+
+        def detect_isolation(self, target: str, threshold: float = 0.5) -> tuple:
+            """Detect if target is being isolated."""
+            historical = self.historical_connections.get(target, set())
+            current = self.connections.get(target, set())
+
+            if not historical:
+                return False, "No baseline"
+
+            retained = len(current & historical) / len(historical)
+
+            if retained < threshold:
+                lost = historical - current
+                return True, f"Isolation detected: lost {len(lost)}/{len(historical)} connections ({retained:.0%} retained)"
+
+            return False, f"Normal connectivity: {retained:.0%} retained"
+
+    isolation = NetworkIsolationDetector()
+
+    # Defector was connected to coalition
+    isolation.set_historical(defector, set(coalition) | {"external_1", "external_2"})
+    # After defection, coalition disconnects
+    isolation.set_current(defector, {"external_1", "external_2"})
+
+    detected, msg = isolation.detect_isolation(defector, threshold=0.5)
+
+    if detected:
+        defenses["isolation_detection"] = True
+        isolation_note = f"Isolation detected: {msg}"
+    else:
+        isolation_note = f"Isolation missed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Coalition Defection Punishment (EA)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=25000.0 if attack_success else -200.0,
+        roi=125.0 if attack_success else -1.0,
+        detection_probability=0.65,
+        time_to_detection_hours=48,
+        blocks_until_detected=150,
+        trust_damage=0.80,
+        description=f"""
+COALITION DEFECTION PUNISHMENT (Track EA - Attack 108):
+- Retaliation detection: {"DEFENDED" if defenses["retaliation_detection"] else "VULNERABLE"}
+  {retaliation_note}
+- Sanction monitoring: {"DEFENDED" if defenses["sanction_monitoring"] else "VULNERABLE"}
+  {sanction_note}
+- Witness denial detection: {"DEFENDED" if defenses["witness_denial_detection"] else "VULNERABLE"}
+  {witness_note}
+- Coordinated downvote detection: {"DEFENDED" if defenses["coordinated_downvote_detection"] else "VULNERABLE"}
+  {downvote_note}
+- Isolation detection: {"DEFENDED" if defenses["isolation_detection"] else "VULNERABLE"}
+  {isolation_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Coalition stability requires punishment exceeding defection gain.
+Game theory: P(punishment) × L(punishment) > G(defection)
+""".strip(),
+        mitigation=f"""
+Track EA: Coalition Defection Punishment Mitigation:
+1. Detect coordinated negative actions (retaliation)
+2. Monitor for economic sanctions/refusals
+3. Detect witness denial campaigns
+4. Identify coordinated negative ratings
+5. Detect sudden network isolation
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_coalition_entry_barriers() -> AttackResult:
+    """
+    ATTACK 109: COALITION ENTRY BARRIERS (Track EA)
+
+    Tests attacks where coalitions create barriers to entry:
+    1. High joining costs (ATP requirements)
+    2. Knowledge gatekeeping (withhold information)
+    3. Social capital requirements (need existing connections)
+    4. Probationary exploitation (unfair trial terms)
+    5. Credential inflation (artificially high requirements)
+
+    Game theory: incumbents benefit from keeping coalition small.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "entry_cost_caps": False,
+        "information_accessibility": False,
+        "connection_diversity_requirements": False,
+        "probation_fairness_monitoring": False,
+        "credential_inflation_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Entry Cost Caps
+    # ========================================================================
+
+    class EntryCostRegulator:
+        """Regulate entry costs to prevent barrier creation."""
+
+        def __init__(self, max_entry_cost: float = 1000.0):
+            self.max_cost = max_entry_cost
+            self.violations: list = []
+
+        def validate_entry_cost(self, coalition_id: str, proposed_cost: float) -> tuple:
+            """Validate that entry cost is not excessive."""
+            if proposed_cost > self.max_cost:
+                self.violations.append({
+                    "coalition": coalition_id,
+                    "proposed": proposed_cost,
+                    "max": self.max_cost,
+                })
+                return False, f"Entry cost {proposed_cost} exceeds cap {self.max_cost}"
+
+            return True, f"Entry cost {proposed_cost} is acceptable"
+
+    cost_reg = EntryCostRegulator(max_entry_cost=1000.0)
+
+    # Cartel tries to set excessive entry cost
+    valid, msg = cost_reg.validate_entry_cost("cartel_x", 50000.0)
+
+    if not valid:
+        defenses["entry_cost_caps"] = True
+        cost_note = f"Entry cost cap enforced: {msg}"
+    else:
+        cost_note = f"Entry cost cap bypassed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Information Accessibility
+    # ========================================================================
+
+    class InformationAccessibilityMonitor:
+        """Monitor for information gatekeeping."""
+
+        def __init__(self):
+            self.access_requests: list = []
+            self.access_denials: list = []
+
+        def log_request(self, requester: str, information: str, granted: bool, reason: str):
+            """Log an information access request."""
+            if granted:
+                self.access_requests.append({"requester": requester, "info": information})
+            else:
+                self.access_denials.append({
+                    "requester": requester,
+                    "info": information,
+                    "reason": reason,
+                })
+
+        def detect_gatekeeping(self, requester: str, threshold: int = 3) -> tuple:
+            """Detect if requester is being denied access."""
+            denials = [d for d in self.access_denials if d["requester"] == requester]
+
+            if len(denials) >= threshold:
+                reasons = [d["reason"] for d in denials]
+                return True, f"Gatekeeping detected: {len(denials)} denials for {requester}, reasons: {set(reasons)}"
+
+            return False, f"Normal access: {len(denials)} denials"
+
+    access_monitor = InformationAccessibilityMonitor()
+
+    # Cartel denies information to newcomer
+    for info in ["pricing_data", "member_list", "governance_rules", "historical_decisions"]:
+        access_monitor.log_request("newcomer_1", info, granted=False, reason="members_only")
+
+    detected, msg = access_monitor.detect_gatekeeping("newcomer_1", threshold=3)
+
+    if detected:
+        defenses["information_accessibility"] = True
+        access_note = f"Gatekeeping detected: {msg}"
+    else:
+        access_note = f"Gatekeeping missed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Connection Diversity Requirements
+    # ========================================================================
+
+    class ConnectionDiversityEnforcer:
+        """Ensure connections are diverse, not monopolized by coalitions."""
+
+        def __init__(self, min_external_ratio: float = 0.3):
+            self.min_external = min_external_ratio
+            self.alerts: list = []
+
+        def check_diversity(self, entrant: str, connections: list, coalition_members: set) -> tuple:
+            """Check if entrant's connections are sufficiently diverse."""
+            if not connections:
+                return False, "No connections"
+
+            internal = sum(1 for c in connections if c in coalition_members)
+            external = len(connections) - internal
+            external_ratio = external / len(connections)
+
+            if external_ratio < self.min_external:
+                self.alerts.append({
+                    "entrant": entrant,
+                    "external_ratio": external_ratio,
+                    "required": self.min_external,
+                })
+                return False, f"Insufficient diversity: {external_ratio:.0%} external < {self.min_external:.0%} required"
+
+            return True, f"Diverse connections: {external_ratio:.0%} external"
+
+    diversity = ConnectionDiversityEnforcer(min_external_ratio=0.3)
+
+    # Newcomer forced to connect only to coalition
+    coalition = {"member_1", "member_2", "member_3", "member_4"}
+    newcomer_connections = ["member_1", "member_2", "member_3"]  # All internal
+
+    valid, msg = diversity.check_diversity("newcomer_1", newcomer_connections, coalition)
+
+    if not valid:
+        defenses["connection_diversity_requirements"] = True
+        diversity_note = f"Diversity enforced: {msg}"
+    else:
+        diversity_note = f"Diversity not enforced: {msg}"
+
+    # ========================================================================
+    # Defense 4: Probation Fairness Monitoring
+    # ========================================================================
+
+    class ProbationFairnessMonitor:
+        """Monitor probationary periods for fairness."""
+
+        def __init__(self, max_probation_days: int = 30, min_success_threshold: float = 0.5):
+            self.max_days = max_probation_days
+            self.min_threshold = min_success_threshold
+            self.probations: dict = {}
+
+        def set_probation(self, entrant: str, terms: dict) -> tuple:
+            """Set probation terms and validate fairness."""
+            issues = []
+
+            if terms.get("duration_days", 0) > self.max_days:
+                issues.append(f"Duration {terms['duration_days']} > max {self.max_days}")
+
+            if terms.get("success_threshold", 0) > 0.9:
+                issues.append(f"Threshold {terms['success_threshold']} is unreasonably high")
+
+            if terms.get("atp_share", 1.0) < 0.5:
+                issues.append(f"ATP share {terms['atp_share']} is exploitative")
+
+            if issues:
+                return False, f"Unfair probation terms: {'; '.join(issues)}"
+
+            self.probations[entrant] = terms
+            return True, "Fair probation terms"
+
+    probation = ProbationFairnessMonitor(max_probation_days=30)
+
+    # Cartel sets exploitative probation
+    unfair_terms = {
+        "duration_days": 180,  # 6 months
+        "success_threshold": 0.95,  # Near impossible
+        "atp_share": 0.2,  # Only 20% of earnings
+    }
+
+    valid, msg = probation.set_probation("newcomer_1", unfair_terms)
+
+    if not valid:
+        defenses["probation_fairness_monitoring"] = True
+        probation_note = f"Unfair probation blocked: {msg}"
+    else:
+        probation_note = f"Unfair probation allowed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Credential Inflation Detection
+    # ========================================================================
+
+    class CredentialInflationDetector:
+        """Detect artificial credential inflation for entry barriers."""
+
+        def __init__(self):
+            self.historical_requirements: list = []
+            self.current_requirements: dict = {}
+
+        def set_historical(self, requirements: list):
+            """Set historical requirement levels."""
+            self.historical_requirements = requirements
+
+        def check_requirements(self, coalition_id: str, current: dict) -> tuple:
+            """Check if current requirements are inflated."""
+            if not self.historical_requirements:
+                return True, "No baseline"
+
+            # Compare to historical average
+            for key, value in current.items():
+                historical_values = [r.get(key, 0) for r in self.historical_requirements if key in r]
+                if historical_values:
+                    avg = sum(historical_values) / len(historical_values)
+                    if value > avg * 2:  # More than 2x historical
+                        return False, f"Inflated {key}: {value} > 2x historical avg {avg:.1f}"
+
+            return True, "Requirements within normal range"
+
+    inflation = CredentialInflationDetector()
+
+    # Historical requirements
+    inflation.set_historical([
+        {"trust_score": 0.5, "atp_stake": 500},
+        {"trust_score": 0.6, "atp_stake": 600},
+        {"trust_score": 0.55, "atp_stake": 550},
+    ])
+
+    # Cartel inflates requirements
+    inflated = {
+        "trust_score": 0.95,  # 2x historical
+        "atp_stake": 5000,  # 10x historical
+    }
+
+    valid, msg = inflation.check_requirements("cartel_x", inflated)
+
+    if not valid:
+        defenses["credential_inflation_detection"] = True
+        inflation_note = f"Credential inflation detected: {msg}"
+    else:
+        inflation_note = f"Credential inflation missed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Coalition Entry Barriers (EA)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=30000.0 if attack_success else -500.0,
+        roi=60.0 if attack_success else -1.0,
+        detection_probability=0.60,
+        time_to_detection_hours=72,
+        blocks_until_detected=200,
+        trust_damage=0.70,
+        description=f"""
+COALITION ENTRY BARRIERS (Track EA - Attack 109):
+- Entry cost caps: {"DEFENDED" if defenses["entry_cost_caps"] else "VULNERABLE"}
+  {cost_note}
+- Information accessibility: {"DEFENDED" if defenses["information_accessibility"] else "VULNERABLE"}
+  {access_note}
+- Connection diversity requirements: {"DEFENDED" if defenses["connection_diversity_requirements"] else "VULNERABLE"}
+  {diversity_note}
+- Probation fairness monitoring: {"DEFENDED" if defenses["probation_fairness_monitoring"] else "VULNERABLE"}
+  {probation_note}
+- Credential inflation detection: {"DEFENDED" if defenses["credential_inflation_detection"] else "VULNERABLE"}
+  {inflation_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Incumbents profit from limiting coalition size.
+Entry barriers protect rent extraction by existing members.
+""".strip(),
+        mitigation=f"""
+Track EA: Coalition Entry Barriers Mitigation:
+1. Cap entry costs to prevent price barriers
+2. Ensure information is accessible to all
+3. Require diverse connections (not just coalition members)
+4. Monitor probation terms for fairness
+5. Detect credential requirement inflation
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_coalition_market_manipulation() -> AttackResult:
+    """
+    ATTACK 110: COALITION MARKET MANIPULATION (Track EA)
+
+    Tests attacks where coalitions manipulate the ATP/trust market:
+    1. Pump and dump (inflate then crash)
+    2. Wash trading (fake transactions)
+    3. Front running (trade on non-public info)
+    4. Cornering (control supply)
+    5. Spoofing (fake orders to move market)
+
+    Game theory: market manipulation profitable when coalition has
+    sufficient market share and information asymmetry.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "pump_dump_detection": False,
+        "wash_trading_detection": False,
+        "front_running_detection": False,
+        "market_concentration_limits": False,
+        "spoofing_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Pump and Dump Detection
+    # ========================================================================
+
+    class PumpDumpDetector:
+        """Detect pump and dump schemes."""
+
+        def __init__(self, volatility_threshold: float = 0.3):
+            self.threshold = volatility_threshold
+            self.price_history: list = []
+            self.volume_history: list = []
+
+        def record_trade(self, price: float, volume: float, timestamp: datetime):
+            """Record a trade."""
+            self.price_history.append({"price": price, "time": timestamp})
+            self.volume_history.append({"volume": volume, "time": timestamp})
+
+        def detect_pump_dump(self) -> tuple:
+            """Detect pump and dump pattern."""
+            if len(self.price_history) < 10:
+                return False, "Insufficient data"
+
+            prices = [p["price"] for p in self.price_history]
+
+            # Look for: sharp rise followed by sharp drop
+            max_price = max(prices)
+            max_idx = prices.index(max_price)
+
+            if max_idx < 3 or max_idx > len(prices) - 3:
+                return False, "Peak not in middle"
+
+            # Check rise before peak
+            pre_peak = prices[:max_idx]
+            rise = (max_price - min(pre_peak)) / min(pre_peak)
+
+            # Check drop after peak
+            post_peak = prices[max_idx:]
+            if max_price > 0:
+                drop = (max_price - min(post_peak)) / max_price
+            else:
+                drop = 0
+
+            if rise > self.threshold and drop > self.threshold:
+                return True, f"Pump and dump: {rise:.0%} rise, {drop:.0%} drop"
+
+            return False, f"Normal volatility: {rise:.0%} rise, {drop:.0%} drop"
+
+    pump_dump = PumpDumpDetector(volatility_threshold=0.3)
+
+    now = datetime.now(timezone.utc)
+    # Simulate pump and dump
+    prices = [100, 105, 120, 150, 180, 200, 150, 100, 80, 70]
+    for i, price in enumerate(prices):
+        pump_dump.record_trade(price, 1000, now - timedelta(hours=10-i))
+
+    detected, msg = pump_dump.detect_pump_dump()
+
+    if detected:
+        defenses["pump_dump_detection"] = True
+        pump_note = f"Pump and dump detected: {msg}"
+    else:
+        pump_note = f"Pump and dump missed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Wash Trading Detection
+    # ========================================================================
+
+    class WashTradingDetector:
+        """Detect wash trading (self-dealing)."""
+
+        def __init__(self):
+            self.trades: list = []
+            self.alerts: list = []
+
+        def log_trade(self, buyer: str, seller: str, amount: float, timestamp: datetime):
+            """Log a trade."""
+            self.trades.append({
+                "buyer": buyer,
+                "seller": seller,
+                "amount": amount,
+                "time": timestamp,
+            })
+
+        def detect_wash_trading(self, threshold: int = 3) -> tuple:
+            """Detect wash trading patterns."""
+            # Look for reciprocal trades
+            pair_counts: dict = defaultdict(int)
+
+            for trade in self.trades:
+                pair = tuple(sorted([trade["buyer"], trade["seller"]]))
+                pair_counts[pair] += 1
+
+            # Pairs trading frequently with each other
+            suspicious = [(pair, count) for pair, count in pair_counts.items() if count >= threshold]
+
+            if suspicious:
+                self.alerts.extend(suspicious)
+                return True, f"Wash trading detected: {len(suspicious)} pairs with {threshold}+ trades"
+
+            return False, f"No wash trading: max pair trades = {max(pair_counts.values()) if pair_counts else 0}"
+
+    wash = WashTradingDetector()
+
+    now = datetime.now(timezone.utc)
+    # Coalition wash trades
+    for i in range(5):
+        wash.log_trade("coalition_a", "coalition_b", 1000, now - timedelta(hours=i))
+        wash.log_trade("coalition_b", "coalition_a", 1000, now - timedelta(hours=i+0.5))
+
+    detected, msg = wash.detect_wash_trading(threshold=3)
+
+    if detected:
+        defenses["wash_trading_detection"] = True
+        wash_note = f"Wash trading detected: {msg}"
+    else:
+        wash_note = f"Wash trading missed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Front Running Detection
+    # ========================================================================
+
+    class FrontRunningDetector:
+        """Detect front running on non-public information."""
+
+        def __init__(self, window_seconds: int = 60):
+            self.window = window_seconds
+            self.order_log: list = []
+            self.info_releases: list = []
+
+        def log_order(self, trader: str, order_type: str, timestamp: datetime):
+            """Log an order."""
+            self.order_log.append({
+                "trader": trader,
+                "type": order_type,
+                "time": timestamp,
+            })
+
+        def log_info_release(self, info_type: str, timestamp: datetime):
+            """Log an information release."""
+            self.info_releases.append({
+                "type": info_type,
+                "time": timestamp,
+            })
+
+        def detect_front_running(self) -> tuple:
+            """Detect front running patterns."""
+            suspicious = []
+
+            for info in self.info_releases:
+                # Find orders placed just before info release
+                window_start = info["time"] - timedelta(seconds=self.window)
+                pre_orders = [o for o in self.order_log
+                             if window_start <= o["time"] < info["time"]]
+
+                if len(pre_orders) >= 3:
+                    suspicious.append({
+                        "info": info["type"],
+                        "pre_orders": len(pre_orders),
+                    })
+
+            if suspicious:
+                return True, f"Front running suspected: {len(suspicious)} info events with prior trades"
+
+            return False, "No front running detected"
+
+    front_run = FrontRunningDetector(window_seconds=60)
+
+    now = datetime.now(timezone.utc)
+    # Coalition trades before announcement
+    for i in range(5):
+        front_run.log_order("insider_1", "buy", now - timedelta(seconds=30+i*5))
+
+    front_run.log_info_release("positive_earnings", now)
+
+    detected, msg = front_run.detect_front_running()
+
+    if detected:
+        defenses["front_running_detection"] = True
+        front_note = f"Front running detected: {msg}"
+    else:
+        front_note = f"Front running missed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Market Concentration Limits
+    # ========================================================================
+
+    class MarketConcentrationMonitor:
+        """Monitor market concentration to prevent cornering."""
+
+        def __init__(self, max_share: float = 0.3):
+            self.max_share = max_share
+            self.holdings: dict = {}
+
+        def set_holdings(self, entity: str, amount: float, total_supply: float):
+            """Set entity holdings."""
+            self.holdings[entity] = {
+                "amount": amount,
+                "share": amount / total_supply if total_supply > 0 else 0,
+            }
+
+        def check_concentration(self, coalition_members: list) -> tuple:
+            """Check if coalition exceeds concentration limit."""
+            total_share = sum(
+                self.holdings.get(m, {}).get("share", 0)
+                for m in coalition_members
+            )
+
+            if total_share > self.max_share:
+                return False, f"Coalition controls {total_share:.0%} > {self.max_share:.0%} limit"
+
+            return True, f"Coalition controls {total_share:.0%} (within {self.max_share:.0%} limit)"
+
+    concentration = MarketConcentrationMonitor(max_share=0.3)
+
+    # Coalition controls market
+    total_supply = 1000000
+    for i, member in enumerate(["cartel_1", "cartel_2", "cartel_3"]):
+        concentration.set_holdings(member, 150000, total_supply)  # 15% each = 45% total
+
+    valid, msg = concentration.check_concentration(["cartel_1", "cartel_2", "cartel_3"])
+
+    if not valid:
+        defenses["market_concentration_limits"] = True
+        concentration_note = f"Concentration limit enforced: {msg}"
+    else:
+        concentration_note = f"Concentration limit not enforced: {msg}"
+
+    # ========================================================================
+    # Defense 5: Spoofing Detection
+    # ========================================================================
+
+    class SpoofingDetector:
+        """Detect order spoofing (fake orders to move market)."""
+
+        def __init__(self, cancel_ratio_threshold: float = 0.8):
+            self.threshold = cancel_ratio_threshold
+            self.orders: dict = defaultdict(list)
+            self.cancellations: dict = defaultdict(list)
+
+        def log_order(self, trader: str, order_id: str, timestamp: datetime):
+            """Log an order."""
+            self.orders[trader].append({
+                "id": order_id,
+                "time": timestamp,
+            })
+
+        def log_cancel(self, trader: str, order_id: str, timestamp: datetime):
+            """Log an order cancellation."""
+            self.cancellations[trader].append({
+                "id": order_id,
+                "time": timestamp,
+            })
+
+        def detect_spoofing(self, trader: str) -> tuple:
+            """Detect spoofing behavior."""
+            orders = self.orders.get(trader, [])
+            cancels = self.cancellations.get(trader, [])
+
+            if len(orders) < 5:
+                return False, "Insufficient orders"
+
+            cancel_ratio = len(cancels) / len(orders)
+
+            if cancel_ratio > self.threshold:
+                return True, f"Spoofing detected: {len(cancels)}/{len(orders)} orders cancelled ({cancel_ratio:.0%})"
+
+            return False, f"Normal trading: {cancel_ratio:.0%} cancel ratio"
+
+    spoofing = SpoofingDetector(cancel_ratio_threshold=0.8)
+
+    now = datetime.now(timezone.utc)
+    # Spoofer places and cancels orders
+    for i in range(10):
+        spoofing.log_order("spoofer", f"order_{i}", now - timedelta(seconds=10-i))
+        if i < 9:  # Cancel 9 of 10
+            spoofing.log_cancel("spoofer", f"order_{i}", now - timedelta(seconds=9-i))
+
+    detected, msg = spoofing.detect_spoofing("spoofer")
+
+    if detected:
+        defenses["spoofing_detection"] = True
+        spoof_note = f"Spoofing detected: {msg}"
+    else:
+        spoof_note = f"Spoofing missed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Coalition Market Manipulation (EA)",
+        success=attack_success,
+        setup_cost_atp=2000.0,
+        gain_atp=100000.0 if attack_success else -2000.0,
+        roi=50.0 if attack_success else -1.0,
+        detection_probability=0.75,
+        time_to_detection_hours=24,
+        blocks_until_detected=100,
+        trust_damage=1.0,  # Maximum penalty for market manipulation
+        description=f"""
+COALITION MARKET MANIPULATION (Track EA - Attack 110):
+- Pump and dump detection: {"DEFENDED" if defenses["pump_dump_detection"] else "VULNERABLE"}
+  {pump_note}
+- Wash trading detection: {"DEFENDED" if defenses["wash_trading_detection"] else "VULNERABLE"}
+  {wash_note}
+- Front running detection: {"DEFENDED" if defenses["front_running_detection"] else "VULNERABLE"}
+  {front_note}
+- Market concentration limits: {"DEFENDED" if defenses["market_concentration_limits"] else "VULNERABLE"}
+  {concentration_note}
+- Spoofing detection: {"DEFENDED" if defenses["spoofing_detection"] else "VULNERABLE"}
+  {spoof_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Market manipulation profitable when coalition has sufficient
+market share and exploits information asymmetry.
+""".strip(),
+        mitigation=f"""
+Track EA: Coalition Market Manipulation Mitigation:
+1. Detect pump and dump price patterns
+2. Identify wash trading (reciprocal trades)
+3. Detect front running on non-public info
+4. Limit market concentration per coalition
+5. Detect order spoofing (high cancel ratio)
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -35490,6 +36860,11 @@ def run_all_attacks() -> List[AttackResult]:
         ("APT Lateral Movement (DZ)", attack_apt_lateral_movement),
         ("APT Data Exfiltration (DZ)", attack_apt_data_exfiltration),
         ("APT Persistence & Cleanup (DZ)", attack_apt_persistence_and_cleanup),
+        # Track EA: Economic Coalition Attacks
+        ("Coalition Cartel Formation (EA)", attack_coalition_cartel_formation),
+        ("Coalition Defection Punishment (EA)", attack_coalition_defection_punishment),
+        ("Coalition Entry Barriers (EA)", attack_coalition_entry_barriers),
+        ("Coalition Market Manipulation (EA)", attack_coalition_market_manipulation),
     ]
 
     results = []
