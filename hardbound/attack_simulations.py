@@ -33777,6 +33777,1595 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track DZ: Advanced Persistent Threat (APT) Patterns (Attacks 102-106)
+# Based on Game Theory Open Questions: "Coalition Formation Dynamics"
+# and real-world APT techniques adapted to Web4 context
+# ---------------------------------------------------------------------------
+
+def attack_apt_reconnaissance_mapping() -> AttackResult:
+    """
+    ATTACK 102: APT RECONNAISSANCE & TRUST GRAPH MAPPING (Track DZ)
+
+    Advanced Persistent Threat Phase 1: Reconnaissance.
+
+    Tests attacks that methodically map the trust graph to identify:
+    1. High-value targets (admins, key members)
+    2. Weak links (low-trust members with high-access)
+    3. Trust bottlenecks (single points of failure)
+    4. Cross-team relationships (lateral movement opportunities)
+    5. Temporal patterns (when defenses are weakest)
+
+    APT attackers invest significant time in reconnaissance before
+    any malicious action.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "query_rate_limiting": False,
+        "reconnaissance_detection": False,
+        "graph_obfuscation": False,
+        "access_pattern_monitoring": False,
+        "honeypot_nodes": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Query Rate Limiting on Trust Queries
+    # ========================================================================
+
+    class TrustQueryLimiter:
+        """Limit trust graph queries to prevent reconnaissance."""
+
+        def __init__(self, max_queries_per_hour: int = 100):
+            self.max_queries = max_queries_per_hour
+            self.query_log: dict = defaultdict(list)
+
+        def check_query(self, requester_id: str, query_type: str, timestamp: datetime) -> tuple:
+            """Check if query should be allowed."""
+            hour_ago = timestamp - timedelta(hours=1)
+            recent = [t for t in self.query_log[requester_id] if t > hour_ago]
+            self.query_log[requester_id] = recent
+
+            if len(recent) >= self.max_queries:
+                return False, f"Rate limited: {len(recent)}/{self.max_queries} queries in last hour"
+
+            self.query_log[requester_id].append(timestamp)
+            return True, f"Query allowed: {len(recent)+1}/{self.max_queries}"
+
+    limiter = TrustQueryLimiter(max_queries_per_hour=100)
+
+    now = datetime.now(timezone.utc)
+    # Simulate reconnaissance queries
+    blocked_count = 0
+    for i in range(150):
+        allowed, msg = limiter.check_query("attacker_001", "trust_score", now - timedelta(minutes=i%60))
+        if not allowed:
+            blocked_count += 1
+
+    if blocked_count > 30:
+        defenses["query_rate_limiting"] = True
+        rate_note = f"Rate limiting active: {blocked_count} queries blocked"
+    else:
+        rate_note = f"Rate limiting insufficient: only {blocked_count} blocked"
+
+    # ========================================================================
+    # Defense 2: Reconnaissance Pattern Detection
+    # ========================================================================
+
+    class ReconnaissanceDetector:
+        """Detect systematic graph exploration patterns."""
+
+        def __init__(self, breadth_threshold: int = 20, depth_threshold: int = 5):
+            self.breadth_threshold = breadth_threshold
+            self.depth_threshold = depth_threshold
+            self.queries_by_requester: dict = defaultdict(list)
+
+        def analyze_pattern(self, requester_id: str, target_ids: list) -> tuple:
+            """Analyze query pattern for reconnaissance signatures."""
+            self.queries_by_requester[requester_id].extend(target_ids)
+
+            # Check breadth (many different targets)
+            unique_targets = len(set(self.queries_by_requester[requester_id]))
+
+            # Check if targets are connected (graph traversal pattern)
+            # Simplified: detect systematic enumeration
+            if unique_targets > self.breadth_threshold:
+                return True, f"Reconnaissance detected: {unique_targets} unique targets queried"
+
+            return False, f"No pattern detected: {unique_targets} targets"
+
+    recon_detector = ReconnaissanceDetector(breadth_threshold=20)
+
+    # Simulate systematic graph exploration
+    targets = [f"member_{i:03d}" for i in range(50)]
+    detected, msg = recon_detector.analyze_pattern("attacker_001", targets)
+
+    if detected:
+        defenses["reconnaissance_detection"] = True
+        recon_note = f"Pattern detected: {msg}"
+    else:
+        recon_note = f"Pattern missed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Trust Graph Obfuscation
+    # ========================================================================
+
+    class TrustGraphObfuscator:
+        """Add noise to trust graph queries to prevent exact mapping."""
+
+        def __init__(self, noise_level: float = 0.05):
+            self.noise_level = noise_level
+            import random
+            self.rng = random.Random(42)
+
+        def obfuscate_score(self, true_score: float) -> tuple:
+            """Add noise to trust score."""
+            noise = self.rng.gauss(0, self.noise_level)
+            obfuscated = max(0.0, min(1.0, true_score + noise))
+            return obfuscated, f"Score obfuscated: {true_score:.3f} -> {obfuscated:.3f}"
+
+        def omit_low_trust_links(self, links: list, threshold: float = 0.3) -> tuple:
+            """Omit low-trust links from graph queries."""
+            visible = [l for l in links if l.get("trust", 0) >= threshold]
+            hidden = len(links) - len(visible)
+            return visible, f"Hidden {hidden}/{len(links)} low-trust links"
+
+    obfuscator = TrustGraphObfuscator(noise_level=0.05)
+
+    # Test obfuscation
+    import random
+    rng = random.Random(42)
+    scores = [0.1, 0.5, 0.9]
+    obfuscation_working = False
+    for s in scores:
+        obf, _ = obfuscator.obfuscate_score(s)
+        if abs(obf - s) > 0.01:
+            obfuscation_working = True
+            break
+
+    if obfuscation_working:
+        defenses["graph_obfuscation"] = True
+        obf_note = "Graph obfuscation active"
+    else:
+        obf_note = "Graph obfuscation too weak"
+
+    # ========================================================================
+    # Defense 4: Access Pattern Monitoring
+    # ========================================================================
+
+    class AccessPatternMonitor:
+        """Monitor for suspicious access patterns."""
+
+        def __init__(self):
+            self.access_log: list = []
+
+        def log_access(self, requester: str, target: str, access_type: str, timestamp: datetime):
+            """Log an access event."""
+            self.access_log.append({
+                "requester": requester,
+                "target": target,
+                "type": access_type,
+                "time": timestamp,
+            })
+
+        def detect_anomaly(self, requester: str) -> tuple:
+            """Detect anomalous access patterns."""
+            requester_accesses = [a for a in self.access_log if a["requester"] == requester]
+
+            if len(requester_accesses) < 10:
+                return False, "Insufficient data"
+
+            # Check for systematic patterns
+            targets = [a["target"] for a in requester_accesses]
+            unique = len(set(targets))
+            ratio = unique / len(targets)
+
+            # High ratio = hitting many different targets = suspicious
+            if ratio > 0.8 and len(targets) > 20:
+                return True, f"Anomalous pattern: {ratio:.0%} unique targets over {len(targets)} accesses"
+
+            return False, f"Normal pattern: {ratio:.0%} unique"
+
+    monitor = AccessPatternMonitor()
+
+    now = datetime.now(timezone.utc)
+    # Simulate APT reconnaissance pattern
+    for i in range(30):
+        monitor.log_access("attacker", f"target_{i}", "query", now - timedelta(hours=i))
+
+    anomaly, msg = monitor.detect_anomaly("attacker")
+
+    if anomaly:
+        defenses["access_pattern_monitoring"] = True
+        pattern_note = f"Access monitoring active: {msg}"
+    else:
+        pattern_note = f"Access monitoring missed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Honeypot Nodes
+    # ========================================================================
+
+    class HoneypotManager:
+        """Manage honeypot nodes to detect reconnaissance."""
+
+        def __init__(self, honeypot_ids: list):
+            self.honeypots = set(honeypot_ids)
+            self.triggers: list = []
+
+        def check_access(self, target_id: str, requester_id: str, timestamp: datetime) -> tuple:
+            """Check if access hits a honeypot."""
+            if target_id in self.honeypots:
+                self.triggers.append({
+                    "honeypot": target_id,
+                    "requester": requester_id,
+                    "time": timestamp,
+                })
+                return True, f"Honeypot triggered: {target_id} accessed by {requester_id}"
+            return False, "Not a honeypot"
+
+        def get_suspects(self) -> list:
+            """Get list of suspected reconnaissance actors."""
+            return list(set(t["requester"] for t in self.triggers))
+
+    honeypots = HoneypotManager(["fake_admin_001", "temp_account_002", "orphan_lct_003"])
+
+    now = datetime.now(timezone.utc)
+    # Attacker queries include honeypot
+    triggered = False
+    for target in ["member_001", "member_002", "fake_admin_001", "member_003"]:
+        hit, msg = honeypots.check_access(target, "attacker", now)
+        if hit:
+            triggered = True
+
+    if triggered:
+        defenses["honeypot_nodes"] = True
+        honeypot_note = f"Honeypot triggered, suspects: {honeypots.get_suspects()}"
+    else:
+        honeypot_note = "Honeypots not hit"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="APT Reconnaissance & Mapping (DZ)",
+        success=attack_success,
+        setup_cost_atp=50.0,  # Low cost - just queries
+        gain_atp=10000.0 if attack_success else -50.0,  # Value of intel
+        roi=200.0 if attack_success else -1.0,
+        detection_probability=0.55,  # APT recon is stealthy
+        time_to_detection_hours=168,  # May take a week to detect
+        blocks_until_detected=500,
+        trust_damage=0.30,  # Reconnaissance alone is not severely punished
+        description=f"""
+APT RECONNAISSANCE & TRUST GRAPH MAPPING (Track DZ - Attack 102):
+- Query rate limiting: {"DEFENDED" if defenses["query_rate_limiting"] else "VULNERABLE"}
+  {rate_note}
+- Reconnaissance detection: {"DEFENDED" if defenses["reconnaissance_detection"] else "VULNERABLE"}
+  {recon_note}
+- Graph obfuscation: {"DEFENDED" if defenses["graph_obfuscation"] else "VULNERABLE"}
+  {obf_note}
+- Access pattern monitoring: {"DEFENDED" if defenses["access_pattern_monitoring"] else "VULNERABLE"}
+  {pattern_note}
+- Honeypot nodes: {"DEFENDED" if defenses["honeypot_nodes"] else "VULNERABLE"}
+  {honeypot_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+APT Phase 1: Reconnaissance is about patient information gathering
+before any malicious action is taken.
+""".strip(),
+        mitigation=f"""
+Track DZ: APT Reconnaissance Mitigation:
+1. Rate limit trust graph queries per LCT
+2. Detect systematic graph exploration patterns
+3. Add noise to trust scores to prevent exact mapping
+4. Monitor for anomalous access patterns
+5. Deploy honeypot nodes to detect probing
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_apt_initial_compromise() -> AttackResult:
+    """
+    ATTACK 103: APT INITIAL COMPROMISE (Track DZ)
+
+    Advanced Persistent Threat Phase 2: Initial Access.
+
+    Tests attacks that establish initial foothold:
+    1. Credential theft via social engineering
+    2. Supply chain compromise of trusted tools
+    3. Watering hole attacks on trusted resources
+    4. Insider recruitment / coercion
+    5. Zero-day exploitation of Web4 protocol
+
+    The goal is to gain legitimate access without triggering detection.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "mfa_requirement": False,
+        "supply_chain_verification": False,
+        "resource_integrity_monitoring": False,
+        "insider_threat_detection": False,
+        "protocol_anomaly_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Multi-Factor Authentication Requirement
+    # ========================================================================
+
+    class MFAEnforcer:
+        """Enforce MFA for high-privilege actions."""
+
+        def __init__(self, high_privilege_actions: set):
+            self.protected_actions = high_privilege_actions
+            self.mfa_verified: dict = {}  # LCT -> timestamp
+
+        def require_mfa(self, lct_id: str, action: str, mfa_token: str = None) -> tuple:
+            """Check MFA requirement for action."""
+            if action not in self.protected_actions:
+                return True, "Action not protected"
+
+            if mfa_token and self._verify_token(mfa_token):
+                self.mfa_verified[lct_id] = datetime.now(timezone.utc)
+                return True, "MFA verified"
+
+            # Check recent MFA
+            last_mfa = self.mfa_verified.get(lct_id)
+            if last_mfa and (datetime.now(timezone.utc) - last_mfa).seconds < 3600:
+                return True, "Recent MFA valid"
+
+            return False, "MFA required for protected action"
+
+        def _verify_token(self, token: str) -> bool:
+            """Verify MFA token."""
+            return token and len(token) == 6 and token.isdigit()
+
+    mfa = MFAEnforcer({"admin_action", "key_rotation", "member_remove", "policy_change"})
+
+    # Attacker tries to use stolen credentials
+    allowed, msg = mfa.require_mfa("stolen_lct", "admin_action", None)
+
+    if not allowed:
+        defenses["mfa_requirement"] = True
+        mfa_note = f"MFA blocked stolen credential: {msg}"
+    else:
+        mfa_note = f"MFA bypass: {msg}"
+
+    # ========================================================================
+    # Defense 2: Supply Chain Verification
+    # ========================================================================
+
+    class SupplyChainVerifier:
+        """Verify integrity of dependencies and tools."""
+
+        def __init__(self):
+            self.verified_hashes: dict = {}
+            self.violation_log: list = []
+
+        def register_verified(self, artifact_id: str, expected_hash: str):
+            """Register a verified artifact hash."""
+            self.verified_hashes[artifact_id] = expected_hash
+
+        def verify_artifact(self, artifact_id: str, actual_hash: str) -> tuple:
+            """Verify an artifact hasn't been tampered with."""
+            expected = self.verified_hashes.get(artifact_id)
+            if not expected:
+                return False, "Unknown artifact - not in verified list"
+
+            if actual_hash != expected:
+                self.violation_log.append({
+                    "artifact": artifact_id,
+                    "expected": expected,
+                    "actual": actual_hash,
+                    "time": datetime.now(timezone.utc),
+                })
+                return False, f"Hash mismatch: expected {expected[:16]}, got {actual_hash[:16]}"
+
+            return True, "Artifact verified"
+
+    verifier = SupplyChainVerifier()
+    verifier.register_verified("web4-core-1.0.0", "abc123def456")
+    verifier.register_verified("trust-engine-2.0.0", "789xyz123abc")
+
+    # Attacker tries to inject compromised dependency
+    valid, msg = verifier.verify_artifact("web4-core-1.0.0", "COMPROMISED_HASH")
+
+    if not valid:
+        defenses["supply_chain_verification"] = True
+        supply_note = f"Supply chain attack blocked: {msg}"
+    else:
+        supply_note = f"Supply chain attack succeeded: {msg}"
+
+    # ========================================================================
+    # Defense 3: Resource Integrity Monitoring
+    # ========================================================================
+
+    class ResourceIntegrityMonitor:
+        """Monitor shared resources for tampering."""
+
+        def __init__(self):
+            self.baselines: dict = {}
+            self.alerts: list = []
+
+        def set_baseline(self, resource_id: str, content_hash: str):
+            """Set baseline for a resource."""
+            self.baselines[resource_id] = content_hash
+
+        def check_integrity(self, resource_id: str, current_hash: str) -> tuple:
+            """Check if resource has been tampered with."""
+            baseline = self.baselines.get(resource_id)
+            if not baseline:
+                return True, "No baseline (new resource)"
+
+            if current_hash != baseline:
+                self.alerts.append({
+                    "resource": resource_id,
+                    "baseline": baseline,
+                    "current": current_hash,
+                    "time": datetime.now(timezone.utc),
+                })
+                return False, f"Integrity violation: {resource_id} modified"
+
+            return True, "Integrity verified"
+
+    integrity = ResourceIntegrityMonitor()
+    integrity.set_baseline("shared/policy.json", "policy_hash_123")
+    integrity.set_baseline("shared/trust_config.yaml", "trust_hash_456")
+
+    # Attacker modifies shared resource (watering hole)
+    valid, msg = integrity.check_integrity("shared/policy.json", "MALICIOUS_POLICY_HASH")
+
+    if not valid:
+        defenses["resource_integrity_monitoring"] = True
+        integrity_note = f"Watering hole blocked: {msg}"
+    else:
+        integrity_note = f"Watering hole succeeded: {msg}"
+
+    # ========================================================================
+    # Defense 4: Insider Threat Detection
+    # ========================================================================
+
+    class InsiderThreatDetector:
+        """Detect potential insider threat indicators."""
+
+        def __init__(self):
+            self.behavior_baselines: dict = {}
+            self.anomalies: list = []
+
+        def update_baseline(self, lct_id: str, behavior_vector: dict):
+            """Update behavioral baseline for an LCT."""
+            if lct_id not in self.behavior_baselines:
+                self.behavior_baselines[lct_id] = []
+            self.behavior_baselines[lct_id].append(behavior_vector)
+            # Keep last 100 samples
+            self.behavior_baselines[lct_id] = self.behavior_baselines[lct_id][-100:]
+
+        def detect_anomaly(self, lct_id: str, current_behavior: dict) -> tuple:
+            """Detect behavioral anomaly indicating potential insider threat."""
+            baseline = self.behavior_baselines.get(lct_id, [])
+            if len(baseline) < 10:
+                return False, "Insufficient baseline"
+
+            # Check for significant deviation
+            avg_actions = sum(b.get("action_count", 0) for b in baseline) / len(baseline)
+            current_actions = current_behavior.get("action_count", 0)
+
+            if current_actions > avg_actions * 3:
+                self.anomalies.append({
+                    "lct": lct_id,
+                    "avg_actions": avg_actions,
+                    "current_actions": current_actions,
+                    "time": datetime.now(timezone.utc),
+                })
+                return True, f"Activity spike: {current_actions} vs avg {avg_actions:.1f}"
+
+            # Check for unusual timing
+            usual_hour = sum(b.get("hour", 12) for b in baseline) / len(baseline)
+            current_hour = current_behavior.get("hour", 12)
+            if abs(current_hour - usual_hour) > 8:
+                return True, f"Unusual timing: hour {current_hour} vs usual {usual_hour:.1f}"
+
+            return False, "Behavior within baseline"
+
+    insider_detector = InsiderThreatDetector()
+
+    # Build baseline for legitimate member
+    for i in range(20):
+        insider_detector.update_baseline("member_001", {"action_count": 10, "hour": 14})
+
+    # Insider suddenly starts exfiltrating data
+    anomaly, msg = insider_detector.detect_anomaly("member_001", {"action_count": 100, "hour": 3})
+
+    if anomaly:
+        defenses["insider_threat_detection"] = True
+        insider_note = f"Insider threat detected: {msg}"
+    else:
+        insider_note = f"Insider threat missed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Protocol Anomaly Detection
+    # ========================================================================
+
+    class ProtocolAnomalyDetector:
+        """Detect anomalies in Web4 protocol usage."""
+
+        def __init__(self):
+            self.valid_sequences: set = {
+                ("auth", "query", "action"),
+                ("auth", "action"),
+                ("query", "query"),
+            }
+            self.anomalies: list = []
+
+        def check_sequence(self, lct_id: str, sequence: tuple) -> tuple:
+            """Check if protocol sequence is valid."""
+            if sequence in self.valid_sequences:
+                return True, "Valid sequence"
+
+            # Check for suspicious patterns
+            if sequence[0] != "auth":
+                self.anomalies.append({
+                    "lct": lct_id,
+                    "sequence": sequence,
+                    "reason": "Missing auth",
+                })
+                return False, "Protocol violation: action without auth"
+
+            if len(set(sequence)) == 1 and len(sequence) > 5:
+                return False, "Protocol violation: repeated same action"
+
+            return True, "Sequence allowed"
+
+    protocol = ProtocolAnomalyDetector()
+
+    # Attacker tries to exploit protocol (action without auth)
+    valid, msg = protocol.check_sequence("attacker", ("action", "action", "query"))
+
+    if not valid:
+        defenses["protocol_anomaly_detection"] = True
+        protocol_note = f"Protocol anomaly blocked: {msg}"
+    else:
+        protocol_note = f"Protocol anomaly missed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="APT Initial Compromise (DZ)",
+        success=attack_success,
+        setup_cost_atp=500.0,  # Significant investment
+        gain_atp=50000.0 if attack_success else -500.0,  # Foothold is valuable
+        roi=100.0 if attack_success else -1.0,
+        detection_probability=0.50,  # APT initial access is stealthy
+        time_to_detection_hours=336,  # May take 2 weeks
+        blocks_until_detected=1000,
+        trust_damage=0.80,  # Severe if caught
+        description=f"""
+APT INITIAL COMPROMISE (Track DZ - Attack 103):
+- MFA requirement: {"DEFENDED" if defenses["mfa_requirement"] else "VULNERABLE"}
+  {mfa_note}
+- Supply chain verification: {"DEFENDED" if defenses["supply_chain_verification"] else "VULNERABLE"}
+  {supply_note}
+- Resource integrity monitoring: {"DEFENDED" if defenses["resource_integrity_monitoring"] else "VULNERABLE"}
+  {integrity_note}
+- Insider threat detection: {"DEFENDED" if defenses["insider_threat_detection"] else "VULNERABLE"}
+  {insider_note}
+- Protocol anomaly detection: {"DEFENDED" if defenses["protocol_anomaly_detection"] else "VULNERABLE"}
+  {protocol_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+APT Phase 2: Initial Compromise establishes foothold without triggering
+detection. The attacker aims for legitimate-looking access.
+""".strip(),
+        mitigation=f"""
+Track DZ: APT Initial Compromise Mitigation:
+1. Require MFA for all high-privilege actions
+2. Verify supply chain integrity with hash checks
+3. Monitor shared resources for tampering
+4. Detect behavioral anomalies indicating insider threat
+5. Detect protocol-level anomalies in Web4 usage
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_apt_lateral_movement() -> AttackResult:
+    """
+    ATTACK 104: APT LATERAL MOVEMENT (Track DZ)
+
+    Advanced Persistent Threat Phase 3: Lateral Movement.
+
+    Tests attacks that expand access from initial foothold:
+    1. Trust graph traversal (moving to connected nodes)
+    2. Role escalation (gaining higher privileges)
+    3. Cross-team pivot (moving between teams)
+    4. Credential harvesting (collecting more access)
+    5. Shadow admin creation (hidden backdoor)
+
+    The goal is to expand access while maintaining stealth.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "lateral_movement_detection": False,
+        "privilege_escalation_monitoring": False,
+        "cross_team_controls": False,
+        "credential_access_logging": False,
+        "shadow_admin_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Lateral Movement Detection
+    # ========================================================================
+
+    class LateralMovementDetector:
+        """Detect lateral movement patterns in trust graph."""
+
+        def __init__(self, hop_threshold: int = 3):
+            self.hop_threshold = hop_threshold
+            self.movement_log: dict = {}  # LCT -> list of accessed nodes
+
+        def log_access(self, source_lct: str, target_lct: str, timestamp: datetime):
+            """Log access from one LCT to another."""
+            if source_lct not in self.movement_log:
+                self.movement_log[source_lct] = []
+            self.movement_log[source_lct].append({
+                "target": target_lct,
+                "time": timestamp,
+            })
+
+        def detect_lateral_movement(self, lct_id: str) -> tuple:
+            """Detect if an LCT is performing lateral movement."""
+            movements = self.movement_log.get(lct_id, [])
+
+            if len(movements) < self.hop_threshold:
+                return False, f"Only {len(movements)} hops observed"
+
+            # Check if movements form a chain (graph traversal pattern)
+            targets = [m["target"] for m in movements]
+            unique = len(set(targets))
+
+            if unique >= self.hop_threshold and len(movements) >= self.hop_threshold:
+                return True, f"Lateral movement detected: {unique} unique nodes accessed"
+
+            return False, f"Movement pattern not suspicious: {unique} unique targets"
+
+    lateral = LateralMovementDetector(hop_threshold=3)
+
+    now = datetime.now(timezone.utc)
+    # APT moves through trust graph
+    for i, target in enumerate(["node_a", "node_b", "node_c", "node_d", "node_e"]):
+        lateral.log_access("attacker", target, now - timedelta(hours=i))
+
+    detected, msg = lateral.detect_lateral_movement("attacker")
+
+    if detected:
+        defenses["lateral_movement_detection"] = True
+        lateral_note = f"Lateral movement detected: {msg}"
+    else:
+        lateral_note = f"Lateral movement missed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Privilege Escalation Monitoring
+    # ========================================================================
+
+    class PrivilegeEscalationMonitor:
+        """Monitor for privilege escalation attempts."""
+
+        def __init__(self):
+            self.role_history: dict = {}  # LCT -> list of roles
+            self.alerts: list = []
+
+        def log_role_change(self, lct_id: str, old_role: str, new_role: str, timestamp: datetime):
+            """Log a role change."""
+            if lct_id not in self.role_history:
+                self.role_history[lct_id] = []
+            self.role_history[lct_id].append({
+                "from": old_role,
+                "to": new_role,
+                "time": timestamp,
+            })
+
+        def check_escalation(self, lct_id: str) -> tuple:
+            """Check for suspicious privilege escalation."""
+            history = self.role_history.get(lct_id, [])
+
+            if not history:
+                return False, "No role history"
+
+            # Define privilege levels
+            levels = {"guest": 0, "member": 1, "reviewer": 2, "approver": 3, "admin": 4}
+
+            # Check for rapid escalation
+            for i, change in enumerate(history):
+                if i == 0:
+                    continue
+                prev = history[i-1]
+                old_level = levels.get(change["from"], 0)
+                new_level = levels.get(change["to"], 0)
+
+                if new_level - old_level > 1:
+                    self.alerts.append({
+                        "lct": lct_id,
+                        "escalation": f"{change['from']} -> {change['to']}",
+                        "time": change["time"],
+                    })
+                    return True, f"Rapid escalation: {change['from']} -> {change['to']}"
+
+            return False, "Normal role progression"
+
+    escalation = PrivilegeEscalationMonitor()
+
+    now = datetime.now(timezone.utc)
+    # APT escalates privileges quickly
+    escalation.log_role_change("attacker", "guest", "member", now - timedelta(hours=2))
+    escalation.log_role_change("attacker", "member", "admin", now - timedelta(hours=1))  # Suspicious jump
+
+    detected, msg = escalation.check_escalation("attacker")
+
+    if detected:
+        defenses["privilege_escalation_monitoring"] = True
+        priv_note = f"Privilege escalation detected: {msg}"
+    else:
+        priv_note = f"Privilege escalation missed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Cross-Team Access Controls
+    # ========================================================================
+
+    class CrossTeamAccessControl:
+        """Control access across team boundaries."""
+
+        def __init__(self):
+            self.team_memberships: dict = {}  # LCT -> set of teams
+            self.cross_team_requests: list = []
+
+        def set_membership(self, lct_id: str, teams: set):
+            """Set team memberships for an LCT."""
+            self.team_memberships[lct_id] = teams
+
+        def check_cross_team(self, lct_id: str, target_team: str) -> tuple:
+            """Check if cross-team access is allowed."""
+            memberships = self.team_memberships.get(lct_id, set())
+
+            if target_team in memberships:
+                return True, "Member of target team"
+
+            self.cross_team_requests.append({
+                "lct": lct_id,
+                "target": target_team,
+                "memberships": memberships,
+                "time": datetime.now(timezone.utc),
+            })
+
+            return False, f"Cross-team access blocked: not member of {target_team}"
+
+    cross_team = CrossTeamAccessControl()
+    cross_team.set_membership("attacker", {"team_alpha"})
+
+    # APT tries to access another team
+    allowed, msg = cross_team.check_cross_team("attacker", "team_beta")
+
+    if not allowed:
+        defenses["cross_team_controls"] = True
+        cross_note = f"Cross-team access blocked: {msg}"
+    else:
+        cross_note = f"Cross-team access allowed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Credential Access Logging
+    # ========================================================================
+
+    class CredentialAccessLogger:
+        """Log and monitor access to credentials/secrets."""
+
+        def __init__(self):
+            self.access_log: list = []
+            self.thresholds = {"normal": 5, "suspicious": 10}
+
+        def log_credential_access(self, lct_id: str, credential_type: str, timestamp: datetime):
+            """Log credential access."""
+            self.access_log.append({
+                "lct": lct_id,
+                "type": credential_type,
+                "time": timestamp,
+            })
+
+        def detect_credential_harvesting(self, lct_id: str, window_hours: int = 24) -> tuple:
+            """Detect credential harvesting behavior."""
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+            recent = [a for a in self.access_log if a["lct"] == lct_id and a["time"] > cutoff]
+
+            if len(recent) >= self.thresholds["suspicious"]:
+                return True, f"Credential harvesting: {len(recent)} accesses in {window_hours}h"
+
+            return False, f"Normal credential access: {len(recent)} in {window_hours}h"
+
+    cred_logger = CredentialAccessLogger()
+
+    now = datetime.now(timezone.utc)
+    # APT harvests credentials
+    for i in range(15):
+        cred_logger.log_credential_access("attacker", f"secret_{i}", now - timedelta(hours=i//2))
+
+    detected, msg = cred_logger.detect_credential_harvesting("attacker", window_hours=24)
+
+    if detected:
+        defenses["credential_access_logging"] = True
+        cred_note = f"Credential harvesting detected: {msg}"
+    else:
+        cred_note = f"Credential harvesting missed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Shadow Admin Detection
+    # ========================================================================
+
+    class ShadowAdminDetector:
+        """Detect hidden/shadow admin accounts."""
+
+        def __init__(self):
+            self.known_admins: set = set()
+            self.admin_actions: list = []
+
+        def register_admin(self, lct_id: str):
+            """Register a known legitimate admin."""
+            self.known_admins.add(lct_id)
+
+        def log_admin_action(self, lct_id: str, action: str, timestamp: datetime):
+            """Log an admin-level action."""
+            self.admin_actions.append({
+                "lct": lct_id,
+                "action": action,
+                "time": timestamp,
+            })
+
+        def detect_shadow_admin(self) -> tuple:
+            """Detect accounts performing admin actions without being registered."""
+            acting_admins = set(a["lct"] for a in self.admin_actions)
+            shadows = acting_admins - self.known_admins
+
+            if shadows:
+                return True, f"Shadow admins detected: {shadows}"
+
+            return False, "No shadow admins"
+
+    shadow = ShadowAdminDetector()
+    shadow.register_admin("legitimate_admin_001")
+
+    now = datetime.now(timezone.utc)
+    # APT creates shadow admin and uses it
+    shadow.log_admin_action("legitimate_admin_001", "policy_change", now - timedelta(hours=2))
+    shadow.log_admin_action("shadow_admin_666", "member_add", now - timedelta(hours=1))
+
+    detected, msg = shadow.detect_shadow_admin()
+
+    if detected:
+        defenses["shadow_admin_detection"] = True
+        shadow_note = f"Shadow admin detected: {msg}"
+    else:
+        shadow_note = f"Shadow admin missed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="APT Lateral Movement (DZ)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=30000.0 if attack_success else -200.0,
+        roi=150.0 if attack_success else -1.0,
+        detection_probability=0.60,
+        time_to_detection_hours=240,  # 10 days
+        blocks_until_detected=700,
+        trust_damage=0.70,
+        description=f"""
+APT LATERAL MOVEMENT (Track DZ - Attack 104):
+- Lateral movement detection: {"DEFENDED" if defenses["lateral_movement_detection"] else "VULNERABLE"}
+  {lateral_note}
+- Privilege escalation monitoring: {"DEFENDED" if defenses["privilege_escalation_monitoring"] else "VULNERABLE"}
+  {priv_note}
+- Cross-team access controls: {"DEFENDED" if defenses["cross_team_controls"] else "VULNERABLE"}
+  {cross_note}
+- Credential access logging: {"DEFENDED" if defenses["credential_access_logging"] else "VULNERABLE"}
+  {cred_note}
+- Shadow admin detection: {"DEFENDED" if defenses["shadow_admin_detection"] else "VULNERABLE"}
+  {shadow_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+APT Phase 3: Lateral Movement expands access from initial foothold
+while maintaining stealth.
+""".strip(),
+        mitigation=f"""
+Track DZ: APT Lateral Movement Mitigation:
+1. Detect graph traversal patterns indicating lateral movement
+2. Monitor for rapid privilege escalation
+3. Enforce strict cross-team access controls
+4. Log and alert on credential access patterns
+5. Detect shadow/hidden admin accounts
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_apt_data_exfiltration() -> AttackResult:
+    """
+    ATTACK 105: APT DATA EXFILTRATION (Track DZ)
+
+    Advanced Persistent Threat Phase 4: Data Exfiltration.
+
+    Tests attacks that extract valuable data:
+    1. Slow data leak (below detection thresholds)
+    2. Covert channel communication
+    3. Steganographic data hiding
+    4. Legitimate channel abuse
+    5. Timing-based exfiltration
+
+    The goal is to extract maximum value while avoiding detection.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    defenses = {
+        "data_loss_prevention": False,
+        "covert_channel_detection": False,
+        "outbound_traffic_analysis": False,
+        "data_classification_enforcement": False,
+        "behavioral_baseline_monitoring": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Data Loss Prevention
+    # ========================================================================
+
+    class DataLossPreventor:
+        """Prevent unauthorized data exfiltration."""
+
+        def __init__(self, threshold_bytes: int = 1000000):  # 1MB
+            self.threshold = threshold_bytes
+            self.transfer_log: dict = {}  # LCT -> total bytes transferred
+
+        def log_transfer(self, lct_id: str, bytes_transferred: int, destination: str) -> tuple:
+            """Log a data transfer and check against threshold."""
+            if lct_id not in self.transfer_log:
+                self.transfer_log[lct_id] = 0
+
+            self.transfer_log[lct_id] += bytes_transferred
+
+            if self.transfer_log[lct_id] > self.threshold:
+                return False, f"Transfer blocked: {self.transfer_log[lct_id]} bytes exceeds {self.threshold}"
+
+            return True, f"Transfer allowed: {self.transfer_log[lct_id]}/{self.threshold} bytes used"
+
+    dlp = DataLossPreventor(threshold_bytes=1000000)
+
+    # APT exfiltrates data over time
+    allowed = True
+    for i in range(20):
+        result, msg = dlp.log_transfer("attacker", 100000, "external_server")
+        if not result:
+            allowed = False
+            break
+
+    if not allowed:
+        defenses["data_loss_prevention"] = True
+        dlp_note = f"Data exfiltration blocked: {msg}"
+    else:
+        dlp_note = f"Data exfiltration allowed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Covert Channel Detection
+    # ========================================================================
+
+    class CovertChannelDetector:
+        """Detect covert communication channels."""
+
+        def __init__(self):
+            self.timing_log: list = []
+            self.entropy_threshold = 0.95
+
+        def analyze_timing(self, events: list) -> tuple:
+            """Analyze timing patterns for covert channel indicators."""
+            if len(events) < 10:
+                return False, "Insufficient events"
+
+            # Check for suspiciously regular timing (encoded data)
+            intervals = []
+            for i in range(1, len(events)):
+                delta = (events[i] - events[i-1]).total_seconds()
+                intervals.append(delta)
+
+            if not intervals:
+                return False, "No intervals"
+
+            # Check for binary-like patterns
+            unique_intervals = len(set(round(i, 1) for i in intervals))
+            ratio = unique_intervals / len(intervals)
+
+            if ratio < 0.1:  # Very few unique values = suspicious
+                return True, f"Covert channel suspected: only {unique_intervals} unique intervals"
+
+            return False, f"Normal timing pattern: {unique_intervals} unique intervals"
+
+    covert = CovertChannelDetector()
+
+    now = datetime.now(timezone.utc)
+    # APT uses timing-based covert channel (binary encoding: 1s = 1, 2s = 0)
+    events = []
+    for i, bit in enumerate("10110100"):
+        delay = 1.0 if bit == "1" else 2.0
+        events.append(now + timedelta(seconds=i * 3 + delay))
+
+    detected, msg = covert.analyze_timing(events)
+
+    if detected:
+        defenses["covert_channel_detection"] = True
+        covert_note = f"Covert channel detected: {msg}"
+    else:
+        covert_note = f"Covert channel missed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Outbound Traffic Analysis
+    # ========================================================================
+
+    class OutboundTrafficAnalyzer:
+        """Analyze outbound traffic for exfiltration patterns."""
+
+        def __init__(self):
+            self.baselines: dict = {}  # destination -> avg bytes
+            self.anomalies: list = []
+
+        def set_baseline(self, destination: str, avg_bytes: int):
+            """Set baseline for a destination."""
+            self.baselines[destination] = avg_bytes
+
+        def analyze_transfer(self, destination: str, bytes_transferred: int) -> tuple:
+            """Analyze transfer against baseline."""
+            baseline = self.baselines.get(destination, 0)
+
+            if baseline == 0 and bytes_transferred > 0:
+                self.anomalies.append({
+                    "destination": destination,
+                    "bytes": bytes_transferred,
+                    "reason": "Unknown destination",
+                })
+                return False, f"Unknown destination: {destination}"
+
+            if bytes_transferred > baseline * 3:
+                self.anomalies.append({
+                    "destination": destination,
+                    "bytes": bytes_transferred,
+                    "baseline": baseline,
+                    "reason": "3x baseline exceeded",
+                })
+                return False, f"Transfer anomaly: {bytes_transferred} >> {baseline} baseline"
+
+            return True, f"Normal transfer: {bytes_transferred} within 3x of {baseline}"
+
+    traffic = OutboundTrafficAnalyzer()
+    traffic.set_baseline("api.internal.com", 10000)
+    traffic.set_baseline("cdn.trusted.com", 50000)
+
+    # APT tries to exfiltrate to unknown destination
+    allowed, msg = traffic.analyze_transfer("attacker-c2.evil.com", 500000)
+
+    if not allowed:
+        defenses["outbound_traffic_analysis"] = True
+        traffic_note = f"Suspicious traffic blocked: {msg}"
+    else:
+        traffic_note = f"Suspicious traffic allowed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Data Classification Enforcement
+    # ========================================================================
+
+    class DataClassificationEnforcer:
+        """Enforce data classification policies."""
+
+        def __init__(self):
+            self.classifications: dict = {}  # data_id -> classification
+            self.policies: dict = {
+                "public": {"external": True, "internal": True},
+                "internal": {"external": False, "internal": True},
+                "confidential": {"external": False, "internal": False},
+                "secret": {"external": False, "internal": False},
+            }
+
+        def classify(self, data_id: str, classification: str):
+            """Classify data."""
+            self.classifications[data_id] = classification
+
+        def check_transfer(self, data_id: str, destination_type: str) -> tuple:
+            """Check if transfer is allowed by classification."""
+            classification = self.classifications.get(data_id, "internal")
+            policy = self.policies.get(classification, {})
+
+            allowed = policy.get(destination_type, False)
+            if not allowed:
+                return False, f"Transfer blocked: {classification} data cannot go to {destination_type}"
+
+            return True, f"Transfer allowed: {classification} data to {destination_type}"
+
+    classifier = DataClassificationEnforcer()
+    classifier.classify("trust_scores.db", "confidential")
+    classifier.classify("public_keys.json", "public")
+
+    # APT tries to exfiltrate confidential data
+    allowed, msg = classifier.check_transfer("trust_scores.db", "external")
+
+    if not allowed:
+        defenses["data_classification_enforcement"] = True
+        class_note = f"Classification enforced: {msg}"
+    else:
+        class_note = f"Classification bypass: {msg}"
+
+    # ========================================================================
+    # Defense 5: Behavioral Baseline Monitoring
+    # ========================================================================
+
+    class BehavioralBaselineMonitor:
+        """Monitor behavior against established baselines."""
+
+        def __init__(self):
+            self.baselines: dict = {}
+
+        def set_baseline(self, lct_id: str, metrics: dict):
+            """Set behavioral baseline for an LCT."""
+            self.baselines[lct_id] = metrics
+
+        def check_deviation(self, lct_id: str, current: dict) -> tuple:
+            """Check for significant deviation from baseline."""
+            baseline = self.baselines.get(lct_id)
+            if not baseline:
+                return False, "No baseline established"
+
+            deviations = []
+            for key, base_value in baseline.items():
+                curr_value = current.get(key, 0)
+                if base_value > 0:
+                    ratio = curr_value / base_value
+                    if ratio > 5 or ratio < 0.2:
+                        deviations.append(f"{key}: {curr_value}/{base_value} = {ratio:.1f}x")
+
+            if deviations:
+                return True, f"Behavioral deviation: {', '.join(deviations)}"
+
+            return False, "Behavior within baseline"
+
+    behavior = BehavioralBaselineMonitor()
+    behavior.set_baseline("attacker", {
+        "queries_per_hour": 10,
+        "data_transferred_mb": 0.5,
+        "unique_targets": 3,
+    })
+
+    # APT dramatically increases activity for exfiltration
+    detected, msg = behavior.check_deviation("attacker", {
+        "queries_per_hour": 100,
+        "data_transferred_mb": 50,
+        "unique_targets": 30,
+    })
+
+    if detected:
+        defenses["behavioral_baseline_monitoring"] = True
+        behavior_note = f"Behavioral anomaly detected: {msg}"
+    else:
+        behavior_note = f"Behavioral anomaly missed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="APT Data Exfiltration (DZ)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=100000.0 if attack_success else -100.0,  # High value if successful
+        roi=1000.0 if attack_success else -1.0,
+        detection_probability=0.65,
+        time_to_detection_hours=168,  # 1 week
+        blocks_until_detected=500,
+        trust_damage=1.0,  # Maximum damage
+        description=f"""
+APT DATA EXFILTRATION (Track DZ - Attack 105):
+- Data loss prevention: {"DEFENDED" if defenses["data_loss_prevention"] else "VULNERABLE"}
+  {dlp_note}
+- Covert channel detection: {"DEFENDED" if defenses["covert_channel_detection"] else "VULNERABLE"}
+  {covert_note}
+- Outbound traffic analysis: {"DEFENDED" if defenses["outbound_traffic_analysis"] else "VULNERABLE"}
+  {traffic_note}
+- Data classification enforcement: {"DEFENDED" if defenses["data_classification_enforcement"] else "VULNERABLE"}
+  {class_note}
+- Behavioral baseline monitoring: {"DEFENDED" if defenses["behavioral_baseline_monitoring"] else "VULNERABLE"}
+  {behavior_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+APT Phase 4: Data Exfiltration extracts maximum value while
+avoiding detection through slow leaks and covert channels.
+""".strip(),
+        mitigation=f"""
+Track DZ: APT Data Exfiltration Mitigation:
+1. Enforce data transfer limits per LCT
+2. Detect covert channels via timing analysis
+3. Analyze outbound traffic against baselines
+4. Enforce data classification policies
+5. Monitor behavioral deviation from baseline
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_apt_persistence_and_cleanup() -> AttackResult:
+    """
+    ATTACK 106: APT PERSISTENCE & CLEANUP (Track DZ)
+
+    Advanced Persistent Threat Phase 5: Persistence & Anti-Forensics.
+
+    Tests attacks that maintain access and cover tracks:
+    1. Persistent backdoor installation
+    2. Log manipulation/deletion
+    3. Timestamp falsification
+    4. Evidence destruction
+    5. False flag operations
+
+    The goal is to maintain long-term access while preventing
+    forensic investigation.
+    """
+    from datetime import datetime, timezone, timedelta
+    import hashlib
+
+    defenses = {
+        "backdoor_detection": False,
+        "log_integrity_protection": False,
+        "timestamp_verification": False,
+        "evidence_preservation": False,
+        "attribution_resistance": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Backdoor Detection
+    # ========================================================================
+
+    class BackdoorDetector:
+        """Detect persistent backdoor mechanisms."""
+
+        def __init__(self):
+            self.known_authorized: set = set()
+            self.persistent_access: list = []
+
+        def register_authorized(self, mechanism: str):
+            """Register an authorized persistent access mechanism."""
+            self.known_authorized.add(mechanism)
+
+        def check_mechanism(self, mechanism: str, source: str) -> tuple:
+            """Check if a persistent mechanism is authorized."""
+            if mechanism in self.known_authorized:
+                return True, "Authorized mechanism"
+
+            self.persistent_access.append({
+                "mechanism": mechanism,
+                "source": source,
+                "time": datetime.now(timezone.utc),
+            })
+
+            return False, f"Unauthorized persistence: {mechanism} from {source}"
+
+        def detect_backdoors(self) -> list:
+            """Get list of detected backdoors."""
+            return self.persistent_access
+
+    backdoor = BackdoorDetector()
+    backdoor.register_authorized("ssh_key_admin_001")
+    backdoor.register_authorized("service_account_backup")
+
+    # APT installs backdoor
+    authorized, msg = backdoor.check_mechanism("hidden_cron_job_666", "attacker")
+
+    if not authorized:
+        defenses["backdoor_detection"] = True
+        backdoor_note = f"Backdoor detected: {msg}"
+    else:
+        backdoor_note = f"Backdoor missed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Log Integrity Protection
+    # ========================================================================
+
+    class LogIntegrityProtector:
+        """Protect log integrity with hash chains."""
+
+        def __init__(self):
+            self.log_entries: list = []
+            self.hash_chain: list = []
+
+        def append_log(self, entry: dict) -> str:
+            """Append log entry with hash chain protection."""
+            prev_hash = self.hash_chain[-1] if self.hash_chain else "GENESIS"
+            entry_hash = hashlib.sha256(
+                f"{prev_hash}:{entry}".encode()
+            ).hexdigest()[:16]
+
+            self.log_entries.append(entry)
+            self.hash_chain.append(entry_hash)
+            return entry_hash
+
+        def verify_chain(self) -> tuple:
+            """Verify log chain integrity."""
+            for i, entry in enumerate(self.log_entries):
+                prev_hash = self.hash_chain[i-1] if i > 0 else "GENESIS"
+                expected = hashlib.sha256(
+                    f"{prev_hash}:{entry}".encode()
+                ).hexdigest()[:16]
+
+                if expected != self.hash_chain[i]:
+                    return False, f"Integrity violation at entry {i}"
+
+            return True, f"All {len(self.log_entries)} entries verified"
+
+        def simulate_tampering(self, index: int, new_entry: dict):
+            """Simulate log tampering."""
+            if index < len(self.log_entries):
+                self.log_entries[index] = new_entry
+
+    log_protector = LogIntegrityProtector()
+
+    # Normal logging
+    for i in range(5):
+        log_protector.append_log({"event": f"action_{i}", "time": str(datetime.now(timezone.utc))})
+
+    # APT tampers with logs
+    log_protector.simulate_tampering(2, {"event": "DELETED_BY_ATTACKER"})
+
+    valid, msg = log_protector.verify_chain()
+
+    if not valid:
+        defenses["log_integrity_protection"] = True
+        log_note = f"Log tampering detected: {msg}"
+    else:
+        log_note = f"Log tampering missed: {msg}"
+
+    # ========================================================================
+    # Defense 3: Timestamp Verification
+    # ========================================================================
+
+    class TimestampVerifier:
+        """Verify timestamp authenticity."""
+
+        def __init__(self):
+            self.trusted_sources: set = {"ntp.pool.org", "time.google.com"}
+            self.timestamp_log: list = []
+
+        def verify_timestamp(self, claimed_time: datetime, source: str) -> tuple:
+            """Verify a timestamp is authentic."""
+            now = datetime.now(timezone.utc)
+
+            # Check for future timestamps
+            if claimed_time > now + timedelta(minutes=5):
+                return False, f"Future timestamp: {claimed_time} > {now}"
+
+            # Check for suspiciously old timestamps with recent actions
+            if (now - claimed_time).days > 30:
+                return False, f"Suspiciously old timestamp: {claimed_time}"
+
+            # Check source
+            if source not in self.trusted_sources:
+                return False, f"Untrusted time source: {source}"
+
+            return True, "Timestamp verified"
+
+    timestamp = TimestampVerifier()
+
+    # APT falsifies timestamp to backdate actions
+    valid, msg = timestamp.verify_timestamp(
+        datetime.now(timezone.utc) - timedelta(days=90),  # 90 days ago
+        "attacker_clock"
+    )
+
+    if not valid:
+        defenses["timestamp_verification"] = True
+        ts_note = f"Timestamp falsification detected: {msg}"
+    else:
+        ts_note = f"Timestamp falsification missed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Evidence Preservation
+    # ========================================================================
+
+    class EvidencePreserver:
+        """Preserve evidence for forensic analysis."""
+
+        def __init__(self):
+            self.preserved: dict = {}
+            self.deletion_attempts: list = []
+
+        def preserve(self, evidence_id: str, data: dict, hash_val: str):
+            """Preserve evidence with integrity hash."""
+            self.preserved[evidence_id] = {
+                "data": data,
+                "hash": hash_val,
+                "preserved_at": datetime.now(timezone.utc),
+            }
+
+        def attempt_delete(self, evidence_id: str, requester: str) -> tuple:
+            """Attempt to delete evidence (should be blocked)."""
+            if evidence_id in self.preserved:
+                self.deletion_attempts.append({
+                    "evidence": evidence_id,
+                    "requester": requester,
+                    "time": datetime.now(timezone.utc),
+                })
+                return False, f"Evidence deletion blocked: {evidence_id} is preserved"
+
+            return True, "Evidence not found"
+
+        def get_deletion_attempts(self) -> list:
+            """Get list of deletion attempts."""
+            return self.deletion_attempts
+
+    preserver = EvidencePreserver()
+
+    # Preserve evidence of APT activity
+    preserver.preserve("incident_001", {"attacker": "apt_group", "actions": ["recon", "exfil"]}, "abc123")
+
+    # APT tries to delete evidence
+    allowed, msg = preserver.attempt_delete("incident_001", "attacker")
+
+    if not allowed:
+        defenses["evidence_preservation"] = True
+        evidence_note = f"Evidence preserved: {msg}"
+    else:
+        evidence_note = f"Evidence destruction allowed: {msg}"
+
+    # ========================================================================
+    # Defense 5: Attribution Resistance (False Flag Detection)
+    # ========================================================================
+
+    class AttributionAnalyzer:
+        """Analyze attack patterns to resist false flag operations."""
+
+        def __init__(self):
+            self.known_ttp: dict = {
+                "apt_alpha": {"tools": ["backdoor_a", "exfil_a"], "timing": "business_hours"},
+                "apt_beta": {"tools": ["backdoor_b", "exfil_b"], "timing": "night"},
+            }
+
+        def analyze_attribution(self, observed_ttp: dict) -> tuple:
+            """Analyze TTP for attribution consistency."""
+            matches = []
+            inconsistencies = []
+
+            for group, ttp in self.known_ttp.items():
+                tool_match = any(t in ttp["tools"] for t in observed_ttp.get("tools", []))
+                timing_match = ttp["timing"] == observed_ttp.get("timing", "unknown")
+
+                if tool_match and not timing_match:
+                    inconsistencies.append(f"{group}: tool match but timing mismatch")
+                elif tool_match and timing_match:
+                    matches.append(group)
+
+            if inconsistencies:
+                return True, f"Possible false flag: {inconsistencies}"
+
+            if matches:
+                return True, f"Attribution: {matches}"
+
+            return False, "Unknown threat actor"
+
+    attribution = AttributionAnalyzer()
+
+    # APT uses tools from one group but timing from another (false flag)
+    detected, msg = attribution.analyze_attribution({
+        "tools": ["backdoor_a"],  # APT Alpha tools
+        "timing": "night",  # But APT Beta timing
+    })
+
+    if detected and "false flag" in msg.lower():
+        defenses["attribution_resistance"] = True
+        attr_note = f"False flag detected: {msg}"
+    else:
+        attr_note = f"Attribution analysis: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="APT Persistence & Cleanup (DZ)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=75000.0 if attack_success else -150.0,
+        roi=500.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=720,  # 30 days
+        blocks_until_detected=2000,
+        trust_damage=1.0,
+        description=f"""
+APT PERSISTENCE & CLEANUP (Track DZ - Attack 106):
+- Backdoor detection: {"DEFENDED" if defenses["backdoor_detection"] else "VULNERABLE"}
+  {backdoor_note}
+- Log integrity protection: {"DEFENDED" if defenses["log_integrity_protection"] else "VULNERABLE"}
+  {log_note}
+- Timestamp verification: {"DEFENDED" if defenses["timestamp_verification"] else "VULNERABLE"}
+  {ts_note}
+- Evidence preservation: {"DEFENDED" if defenses["evidence_preservation"] else "VULNERABLE"}
+  {evidence_note}
+- Attribution resistance: {"DEFENDED" if defenses["attribution_resistance"] else "VULNERABLE"}
+  {attr_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+APT Phase 5: Persistence & Cleanup maintains long-term access while
+preventing forensic investigation through anti-forensics techniques.
+""".strip(),
+        mitigation=f"""
+Track DZ: APT Persistence & Cleanup Mitigation:
+1. Detect unauthorized persistent access mechanisms
+2. Protect log integrity with hash chains
+3. Verify timestamp authenticity from trusted sources
+4. Preserve evidence with deletion protection
+5. Detect false flag operations via TTP analysis
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -33895,6 +35484,12 @@ def run_all_attacks() -> List[AttackResult]:
         ("Signature Replay & Key Weakness (DX)", attack_signature_replay_and_key_weakness),
         # Track DY: Social/Information Cascade Attacks
         ("Information Cascade Propagation (DY)", attack_information_cascade_propagation),
+        # Track DZ: Advanced Persistent Threat (APT) Patterns
+        ("APT Reconnaissance & Mapping (DZ)", attack_apt_reconnaissance_mapping),
+        ("APT Initial Compromise (DZ)", attack_apt_initial_compromise),
+        ("APT Lateral Movement (DZ)", attack_apt_lateral_movement),
+        ("APT Data Exfiltration (DZ)", attack_apt_data_exfiltration),
+        ("APT Persistence & Cleanup (DZ)", attack_apt_persistence_and_cleanup),
     ]
 
     results = []
