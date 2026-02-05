@@ -33439,6 +33439,344 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track DY: Social/Information Cascade Attacks (Attacks 101-105)
+# Based on Game Theory Open Questions: "Information Cascade Effects"
+# ---------------------------------------------------------------------------
+
+def attack_information_cascade_propagation() -> AttackResult:
+    """
+    ATTACK 101: INFORMATION CASCADE PROPAGATION (Track DY)
+
+    Tests attacks that exploit information cascade dynamics:
+
+    1. False Negative Cascade: Exploit initial successful attack to trigger belief shift
+    2. Reputation Shock Amplification: Amplify single reputation event
+    3. Bayesian Belief Manipulation: Manipulate priors through strategic disclosure
+    4. Herding Induction: Trigger herd behavior in trust decisions
+    5. Cascade Interruption: Prevent recovery from information cascade
+
+    Information cascades can destabilize equilibrium by changing agent beliefs
+    about detection effectiveness.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "cascade_detection": False,
+        "reputation_shock_damping": False,
+        "belief_update_bounded": False,
+        "herding_prevention": False,
+        "cascade_circuit_breaker": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Cascade Detection
+    # ========================================================================
+
+    class CascadeDetector:
+        """Detect information cascade formation."""
+
+        def __init__(self, window_hours: int = 24, cascade_threshold: int = 5):
+            self.window = timedelta(hours=window_hours)
+            self.threshold = cascade_threshold
+            self.events: list = []
+
+        def record_event(
+            self, event_type: str, timestamp: datetime, magnitude: float
+        ):
+            """Record a reputation/trust event."""
+            self.events.append({
+                "type": event_type,
+                "time": timestamp,
+                "magnitude": magnitude,
+            })
+
+        def detect_cascade(self, current_time: datetime) -> tuple:
+            """Detect if cascade is forming."""
+            window_start = current_time - self.window
+            recent = [e for e in self.events if e["time"] >= window_start]
+
+            if len(recent) < self.threshold:
+                return False, "Insufficient events for cascade"
+
+            # Check for correlated direction
+            directions = [1 if e["magnitude"] > 0 else -1 for e in recent]
+            avg_direction = sum(directions) / len(directions)
+
+            if abs(avg_direction) > 0.8:  # 80%+ same direction
+                return True, f"Cascade detected: {len(recent)} events, direction={avg_direction:.2f}"
+
+            return False, "Events not cascading"
+
+    detector = CascadeDetector(window_hours=24, cascade_threshold=5)
+
+    now = datetime.now(timezone.utc)
+    # Simulate cascade-forming events
+    for i in range(6):
+        detector.record_event(
+            "reputation_drop",
+            now - timedelta(hours=20-i*3),
+            -0.1  # All negative
+        )
+
+    cascading, msg = detector.detect_cascade(now)
+
+    if cascading:
+        defenses["cascade_detection"] = True
+        cascade_note = f"Cascade detected: {msg}"
+    else:
+        cascade_note = f"Cascade not detected: {msg}"
+
+    # ========================================================================
+    # Defense 2: Reputation Shock Damping
+    # ========================================================================
+
+    class ReputationShockDamper:
+        """Dampen large reputation changes to prevent cascade trigger."""
+
+        def __init__(self, max_single_change: float = 0.15):
+            self.max_change = max_single_change
+            self.damping_factor = 0.5
+
+        def apply_change(self, current: float, requested_delta: float) -> tuple:
+            """Apply damped reputation change."""
+            if abs(requested_delta) <= self.max_change:
+                return current + requested_delta, "Change applied directly"
+
+            # Dampen large changes
+            damped = requested_delta * self.damping_factor
+            if abs(damped) > self.max_change:
+                damped = self.max_change * (1 if requested_delta > 0 else -1)
+
+            return current + damped, f"Change damped: {requested_delta:.2f} -> {damped:.2f}"
+
+    damper = ReputationShockDamper(max_single_change=0.15)
+
+    # Test shock event
+    current_rep = 0.8
+    shock_delta = -0.5  # Large negative shock
+
+    new_rep, msg = damper.apply_change(current_rep, shock_delta)
+
+    if abs(new_rep - current_rep) < abs(shock_delta):
+        defenses["reputation_shock_damping"] = True
+        shock_note = f"Shock damped: {msg}"
+    else:
+        shock_note = f"Shock applied fully: {msg}"
+
+    # ========================================================================
+    # Defense 3: Belief Update Bounding
+    # ========================================================================
+
+    class BayesianBeliefTracker:
+        """Track belief updates with bounds."""
+
+        def __init__(self, min_belief: float = 0.1, max_belief: float = 0.95):
+            self.min_belief = min_belief
+            self.max_belief = max_belief
+            self.beliefs: dict = {}
+
+        def update_belief(
+            self, agent_id: str, evidence: float, prior: float = 0.5
+        ) -> tuple:
+            """Update belief with bounding."""
+            # Simple Bayesian update
+            likelihood_ratio = evidence / (1 - evidence) if evidence < 1 else 100
+
+            if agent_id not in self.beliefs:
+                self.beliefs[agent_id] = prior
+
+            current = self.beliefs[agent_id]
+            posterior_odds = (current / (1 - current)) * likelihood_ratio
+            posterior = posterior_odds / (1 + posterior_odds)
+
+            # Apply bounds
+            bounded = max(self.min_belief, min(self.max_belief, posterior))
+            self.beliefs[agent_id] = bounded
+
+            if bounded != posterior:
+                return bounded, f"Belief bounded: {posterior:.3f} -> {bounded:.3f}"
+            return bounded, f"Belief updated: {bounded:.3f}"
+
+    tracker = BayesianBeliefTracker(min_belief=0.1, max_belief=0.95)
+
+    # Extreme evidence that would normally push to 0 or 1
+    belief, msg = tracker.update_belief("agent_1", evidence=0.99)
+
+    if belief < 0.99:
+        defenses["belief_update_bounded"] = True
+        belief_note = f"Belief bounded: {msg}"
+    else:
+        belief_note = f"Belief unbounded: {msg}"
+
+    # ========================================================================
+    # Defense 4: Herding Prevention
+    # ========================================================================
+
+    class HerdingDetector:
+        """Detect and prevent herding behavior."""
+
+        def __init__(self, similarity_threshold: float = 0.9):
+            self.threshold = similarity_threshold
+            self.decisions: list = []
+
+        def record_decision(self, agent_id: str, decision: str, rationale: str):
+            """Record a decision for herding analysis."""
+            self.decisions.append({
+                "agent": agent_id,
+                "decision": decision,
+                "rationale": rationale,
+            })
+
+        def check_herding(self) -> tuple:
+            """Check if herding is occurring."""
+            if len(self.decisions) < 5:
+                return False, "Insufficient decisions"
+
+            recent = self.decisions[-10:]
+            decisions = [d["decision"] for d in recent]
+            most_common = max(set(decisions), key=decisions.count)
+            conformity = decisions.count(most_common) / len(decisions)
+
+            if conformity > self.threshold:
+                return True, f"Herding detected: {conformity:.0%} conformity"
+            return False, f"No herding: {conformity:.0%} conformity"
+
+        def suggest_independent_review(self, current_decision: str) -> tuple:
+            """Suggest independent review if herding risk high."""
+            herding, _ = self.check_herding()
+            if herding:
+                return True, "Independent review recommended due to herding risk"
+            return False, "No review needed"
+
+    herding_detector = HerdingDetector(similarity_threshold=0.9)
+
+    # Simulate conforming decisions
+    for i in range(8):
+        herding_detector.record_decision(f"agent_{i}", "approve", "looks good")
+
+    herding, msg = herding_detector.check_herding()
+    needs_review, review_msg = herding_detector.suggest_independent_review("approve")
+
+    if herding and needs_review:
+        defenses["herding_prevention"] = True
+        herding_note = f"Herding prevented: {msg}, {review_msg}"
+    else:
+        herding_note = f"Herding check: {msg}"
+
+    # ========================================================================
+    # Defense 5: Cascade Circuit Breaker
+    # ========================================================================
+
+    class CascadeCircuitBreaker:
+        """Circuit breaker for cascade events."""
+
+        def __init__(
+            self,
+            trigger_threshold: int = 10,
+            cooldown_minutes: int = 60
+        ):
+            self.threshold = trigger_threshold
+            self.cooldown = timedelta(minutes=cooldown_minutes)
+            self.events_in_window: list = []
+            self.tripped_at: datetime = None
+
+        def record_event(self, timestamp: datetime):
+            """Record a cascade event."""
+            self.events_in_window.append(timestamp)
+            # Keep only last hour
+            cutoff = timestamp - timedelta(hours=1)
+            self.events_in_window = [e for e in self.events_in_window if e > cutoff]
+
+        def check_and_trip(self, current_time: datetime) -> tuple:
+            """Check if circuit breaker should trip."""
+            if len(self.events_in_window) >= self.threshold:
+                self.tripped_at = current_time
+                return True, f"Circuit breaker TRIPPED: {len(self.events_in_window)} events"
+
+            if self.tripped_at:
+                if current_time - self.tripped_at < self.cooldown:
+                    return True, f"Circuit breaker COOLING DOWN until {self.tripped_at + self.cooldown}"
+
+            return False, f"Circuit breaker OK: {len(self.events_in_window)} events"
+
+        def allow_action(self, action_type: str) -> tuple:
+            """Check if action is allowed during circuit breaker."""
+            if self.tripped_at:
+                return False, "Action blocked: circuit breaker active"
+            return True, "Action allowed"
+
+    breaker = CascadeCircuitBreaker(trigger_threshold=10, cooldown_minutes=60)
+
+    now = datetime.now(timezone.utc)
+    # Simulate rapid events
+    for i in range(12):
+        breaker.record_event(now - timedelta(minutes=50-i*4))
+
+    tripped, msg = breaker.check_and_trip(now)
+    allowed, allow_msg = breaker.allow_action("reputation_update")
+
+    if tripped and not allowed:
+        defenses["cascade_circuit_breaker"] = True
+        breaker_note = f"Circuit breaker active: {msg}, {allow_msg}"
+    else:
+        breaker_note = f"Circuit breaker: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Information Cascade Propagation (DY)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=20000.0 if attack_success else -200.0,
+        roi=100.0 if attack_success else -1.0,
+        detection_probability=0.45,  # Cascade attacks can be subtle
+        time_to_detection_hours=48,
+        blocks_until_detected=200,
+        trust_damage=0.60,
+        description=f"""
+INFORMATION CASCADE PROPAGATION (Track DY - Attack 101):
+- Cascade detection: {"DEFENDED" if defenses["cascade_detection"] else "VULNERABLE"}
+  {cascade_note}
+- Reputation shock damping: {"DEFENDED" if defenses["reputation_shock_damping"] else "VULNERABLE"}
+  {shock_note}
+- Belief update bounding: {"DEFENDED" if defenses["belief_update_bounded"] else "VULNERABLE"}
+  {belief_note}
+- Herding prevention: {"DEFENDED" if defenses["herding_prevention"] else "VULNERABLE"}
+  {herding_note}
+- Cascade circuit breaker: {"DEFENDED" if defenses["cascade_circuit_breaker"] else "VULNERABLE"}
+  {breaker_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Information cascades can destabilize Nash equilibrium by changing beliefs
+about detection effectiveness.
+""".strip(),
+        mitigation=f"""
+Track DY: Information Cascade Mitigation:
+1. Detect cascade formation via correlated reputation events
+2. Dampen large reputation shocks to prevent cascade triggers
+3. Bound belief updates to prevent extreme shifts
+4. Detect herding behavior and require independent review
+5. Circuit breaker halts actions during active cascades
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -33555,6 +33893,8 @@ def run_all_attacks() -> List[AttackResult]:
         ("Coordinated Multi-System DoS (DW)", attack_coordinated_multi_system_dos),
         # Track DX: Cryptographic Weakness Exploitation (ATTACK 100 MILESTONE)
         ("Signature Replay & Key Weakness (DX)", attack_signature_replay_and_key_weakness),
+        # Track DY: Social/Information Cascade Attacks
+        ("Information Cascade Propagation (DY)", attack_information_cascade_propagation),
     ]
 
     results = []

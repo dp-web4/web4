@@ -64,7 +64,9 @@ class TestAttackSimulations:
         #     Trust Bridge Exploitation, Coordinated Multi-System DoS
         # DX: Cryptographic Weakness Exploitation (1 attack) - ATTACK 100 MILESTONE
         #     Signature Replay & Key Weakness
-        assert len(results) == 100
+        # DY: Social/Information Cascade Attacks (1 attack)
+        #     Information Cascade Propagation
+        assert len(results) == 101
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
