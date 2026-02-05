@@ -59,15 +59,18 @@ class TestAttackSimulations:
         # DU: Governance Interface Attacks (A1-A5 from CN/RST Docking Spec)
         #     Unbundling Cap Evasion, SEP Defanging via Delay, Soft Veto via Reasonable Requests,
         #     Pay-to-Violate Boundary Arbitrage, Forum Shopping ATP Arbitrage
-        assert len(results) == 95
+        # DW: Cross-System Attack Chains (4 attacks)
+        #     Cross-Federation Identity Pivot, Multi-Layer Reputation Cascade,
+        #     Trust Bridge Exploitation, Coordinated Multi-System DoS
+        assert len(results) == 99
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
-        # - Policy Bypass (CQ): Policy system needs hardening
+        # CQ (Policy Bypass): FIXED in 2026-02-05 session
         # - Admin Binding Exploit (CS): Binding verification needs improvement
         # - Identity Confabulation (CU): Detection system needs semantic analysis
         known_vulnerabilities = {
-            "Policy Bypass (CQ)",
+            # "Policy Bypass (CQ)",  # FIXED in 2026-02-05 session
             "Admin Binding Exploit (CS)",
             "Identity Confabulation (CU)",
         }
