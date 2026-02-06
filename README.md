@@ -79,17 +79,27 @@ Neither addresses the core question: **How do I know this agent will behave appr
 
 ---
 
-## 📚 Start Here (Learning Path)
+## 📚 Quick Navigation
+
+| You Are... | Your Goal | Start Here |
+|------------|-----------|------------|
+| **New to Web4** | Understand the vision | [docs/START_HERE.md](docs/START_HERE.md) |
+| **Developer** | Implement Web4 | [docs/how/README.md](docs/how/README.md) |
+| **Researcher** | Study the concepts | [STATUS.md](STATUS.md) → [whitepaper/](whitepaper/) |
+| **AI Agent** | Integrate | [docs/how/AGENT_INTEGRATION.md](docs/how/AGENT_INTEGRATION.md) |
+| **Contributor** | Help the project | [CONTRIBUTING.md](CONTRIBUTING.md) |
+
+### Learning Path
 
 | Step | Document | What You'll Learn |
 |------|----------|-------------------|
 | 1 | **[STATUS.md](STATUS.md)** | Honest assessment: what exists, what works, what's missing |
-| 2 | **[docs/GLOSSARY.md](docs/GLOSSARY.md)** | Quick reference for all Web4 terminology |
+| 2 | **[docs/reference/GLOSSARY.md](docs/reference/GLOSSARY.md)** | Quick reference for all Web4 terminology |
 | 3 | **[whitepaper/](whitepaper/)** | Conceptual foundation: LCTs, trust tensors, MRH, R6 framework |
-| 4 | **[game/README.md](game/README.md)** | Interactive simulation of Web4 societies |
+| 4 | **[docs/how/README.md](docs/how/README.md)** | Implementation guides |
 | 5 | **[SECURITY.md](SECURITY.md)** | Security research status and known gaps |
-| 6 | **[THREAT_MODEL.md](docs/security/THREAT_MODEL.md)** | What we're defending against |
-| 7 | **[docs/LCT_DOCUMENTATION_INDEX.md](docs/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
+| 6 | **[docs/reference/security/THREAT_MODEL.md](docs/reference/security/THREAT_MODEL.md)** | What we're defending against |
+| 7 | **[docs/reference/LCT_DOCUMENTATION_INDEX.md](docs/reference/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
 
 ---
 
