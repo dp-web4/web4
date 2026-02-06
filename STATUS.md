@@ -1,6 +1,6 @@
 # Web4 Implementation Status
 
-**Last Updated**: February 5, 2026
+**Last Updated**: February 6, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
 **Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration
 
@@ -411,12 +411,16 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
 6. ✅ 76% prediction validation (13 of 17 confirmed)
 7. ✅ Update README with Track 4 coordination framework
 
-### Immediate (Dec 2025 - Jan 2026)
+### Immediate (Dec 2025 - Feb 2026)
 
 8. 🔄 Implement LCT parsing libraries in Go (ACT) and TypeScript
+   - **TypeScript Status**: WASM bindings exist in `web4-trust-core/pkg/`
+   - Exposes T3Tensor, V3Tensor, EntityTrust, WasmTrustStore
+   - Basic entity ID parsing (`type:name`) implemented
+   - **Gap**: Full LCT URL parsing (`lct://{component}:{instance}:{role}@{network}`)
 9. 🔄 Calibrate satisfaction threshold for combined filtering
 10. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-11. 🔄 Promote `/game/` to top-level design doc
+11. ✅ Promote `/game/` renamed to `/simulations/` (Feb 2026)
 12. 🔄 Write formal threat model
 
 ### Near-Term (Q1 2026)
@@ -518,7 +522,7 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 ---
 
-**Last Updated**: February 5, 2026
+**Last Updated**: February 6, 2026
 **Next Review**: March 2026 (after ACT integration + threat model)
 **Status**: Research prototype - substantial progress, integration ongoing
 
