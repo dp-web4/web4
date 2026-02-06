@@ -46116,6 +46116,1649 @@ Control resource consumption coordination.
 
 
 # ---------------------------------------------------------------------------
+# Track EH: Energy/ESG Gaming Attacks (Attacks 143-148)
+# ---------------------------------------------------------------------------
+
+
+def attack_metabolic_state_esg_gaming() -> AttackResult:
+    """
+    ATTACK 143: METABOLIC STATE ESG GAMING (Track EH-1a)
+
+    Exploits metabolic state reporting for false ESG claims:
+    1. Keep team in SLEEP/HIBERNATION states for minimal energy reporting
+    2. Perform actual high-energy operations off-ledger
+    3. Generate false sustainability metrics from on-ledger state
+    4. Claim environmental compliance based on gaming
+    """
+
+    defenses = {
+        "external_energy_verification": False,
+        "state_transition_audit": False,
+        "work_energy_correlation": False,
+        "third_party_attestation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: External Energy Verification
+    # ========================================================================
+
+    class ExternalEnergyVerifier:
+        """Verify energy claims against external measurements."""
+
+        def __init__(self, tolerance: float = 0.2):
+            self.tolerance = tolerance
+            self.measurements = {}
+
+        def record_external_measurement(self, entity_id: str, timestamp: float,
+                                        kwh: float, source: str):
+            """Record external energy measurement."""
+            if entity_id not in self.measurements:
+                self.measurements[entity_id] = []
+            self.measurements[entity_id].append({
+                "timestamp": timestamp,
+                "kwh": kwh,
+                "source": source,
+            })
+
+        def verify_claim(self, entity_id: str, claimed_kwh: float,
+                        period_start: float, period_end: float) -> tuple:
+            """Verify claimed energy against external measurements."""
+            if entity_id not in self.measurements:
+                return False, "No external measurements available"
+
+            relevant = [
+                m for m in self.measurements[entity_id]
+                if period_start <= m["timestamp"] <= period_end
+            ]
+
+            if not relevant:
+                return False, "No measurements in claimed period"
+
+            measured_kwh = sum(m["kwh"] for m in relevant)
+
+            # Check if claim is within tolerance
+            ratio = claimed_kwh / measured_kwh if measured_kwh > 0 else float('inf')
+
+            if ratio < (1 - self.tolerance):
+                return False, f"Claimed {claimed_kwh:.2f} kWh but measured {measured_kwh:.2f} kWh (underreported)"
+
+            if ratio > (1 + self.tolerance):
+                return False, f"Claimed {claimed_kwh:.2f} kWh but measured {measured_kwh:.2f} kWh (overreported)"
+
+            return True, f"Claim within tolerance ({ratio:.0%} of measured)"
+
+    verifier = ExternalEnergyVerifier()
+
+    # External measurements show high energy use
+    verifier.record_external_measurement("gaming_team", 1000, 500.0, "power_meter")
+    verifier.record_external_measurement("gaming_team", 2000, 480.0, "power_meter")
+
+    # Attacker claims low energy (from dormant states)
+    ok, msg = verifier.verify_claim("gaming_team", 50.0, 0, 3000)  # Claim 50 kWh, measured 980 kWh
+    if not ok:
+        defenses["external_energy_verification"] = True
+
+    # ========================================================================
+    # Defense 2: State Transition Audit
+    # ========================================================================
+
+    class StateTransitionAuditor:
+        """Audit metabolic state transitions for anomalies."""
+
+        def __init__(self):
+            self.transitions = []
+            self.anomaly_patterns = [
+                "rapid_cycling",      # Quick state changes
+                "work_without_active", # Work in dormant state
+                "suspicious_timing",   # State changes at reporting boundaries
+            ]
+
+        def record_transition(self, entity_id: str, from_state: str,
+                             to_state: str, timestamp: float):
+            """Record a state transition."""
+            self.transitions.append({
+                "entity": entity_id,
+                "from": from_state,
+                "to": to_state,
+                "timestamp": timestamp,
+            })
+
+        def audit_entity(self, entity_id: str, period_start: float,
+                        period_end: float) -> tuple:
+            """Audit entity transitions for anomalies."""
+            relevant = [
+                t for t in self.transitions
+                if t["entity"] == entity_id and period_start <= t["timestamp"] <= period_end
+            ]
+
+            anomalies = []
+
+            # Check for rapid cycling
+            if len(relevant) > 100:  # Too many transitions
+                anomalies.append("rapid_cycling")
+
+            # Check for suspicious boundary timing
+            for t in relevant:
+                # If transition happens exactly at reporting boundary
+                if t["timestamp"] % 3600 < 60:  # Within 1 minute of hour boundary
+                    anomalies.append("suspicious_timing")
+                    break
+
+            # Check for work in dormant states (would need work records)
+            dormant_states = ["SLEEP", "HIBERNATION"]
+            if any(t["from"] in dormant_states and t["to"] in dormant_states for t in relevant):
+                anomalies.append("dormant_transitions")
+
+            if anomalies:
+                return False, f"Anomalies detected: {', '.join(anomalies)}"
+
+            return True, "No anomalies detected"
+
+    auditor = StateTransitionAuditor()
+
+    # Attacker rapidly cycles states
+    for i in range(150):
+        auditor.record_transition("gaming_team", "SLEEP", "ACTIVE", i * 10)
+        auditor.record_transition("gaming_team", "ACTIVE", "SLEEP", i * 10 + 5)
+
+    ok, msg = auditor.audit_entity("gaming_team", 0, 2000)
+    if not ok:
+        defenses["state_transition_audit"] = True
+
+    # ========================================================================
+    # Defense 3: Work-Energy Correlation
+    # ========================================================================
+
+    class WorkEnergyCorrelator:
+        """Correlate work output with energy consumption."""
+
+        def __init__(self, expected_efficiency: float = 0.5):  # work/energy
+            self.expected_efficiency = expected_efficiency
+            self.work_records = {}
+            self.energy_records = {}
+
+        def record_work(self, entity_id: str, work_units: float, timestamp: float):
+            """Record work performed."""
+            if entity_id not in self.work_records:
+                self.work_records[entity_id] = []
+            self.work_records[entity_id].append({
+                "work": work_units,
+                "timestamp": timestamp,
+            })
+
+        def record_energy(self, entity_id: str, energy_kwh: float, timestamp: float):
+            """Record energy consumed."""
+            if entity_id not in self.energy_records:
+                self.energy_records[entity_id] = []
+            self.energy_records[entity_id].append({
+                "energy": energy_kwh,
+                "timestamp": timestamp,
+            })
+
+        def check_correlation(self, entity_id: str,
+                             period_start: float, period_end: float) -> tuple:
+            """Check if work correlates with energy claims."""
+            work_total = sum(
+                w["work"] for w in self.work_records.get(entity_id, [])
+                if period_start <= w["timestamp"] <= period_end
+            )
+
+            energy_total = sum(
+                e["energy"] for e in self.energy_records.get(entity_id, [])
+                if period_start <= e["timestamp"] <= period_end
+            )
+
+            if energy_total == 0:
+                if work_total > 0:
+                    return False, f"Work ({work_total:.1f}) reported with zero energy"
+                return True, "No activity"
+
+            efficiency = work_total / energy_total
+
+            # If efficiency is impossibly high, energy is underreported
+            if efficiency > self.expected_efficiency * 5:
+                return False, f"Efficiency {efficiency:.2f} impossibly high (expected ~{self.expected_efficiency:.2f})"
+
+            return True, f"Efficiency {efficiency:.2f} plausible"
+
+    correlator = WorkEnergyCorrelator()
+
+    # Attacker reports lots of work but little energy
+    for i in range(100):
+        correlator.record_work("gaming_team", 100.0, i * 10)  # High work output
+    correlator.record_energy("gaming_team", 1.0, 500)  # Minimal energy claim
+
+    ok, msg = correlator.check_correlation("gaming_team", 0, 1500)
+    if not ok:
+        defenses["work_energy_correlation"] = True
+
+    # ========================================================================
+    # Defense 4: Third-Party Attestation
+    # ========================================================================
+
+    class ThirdPartyAttestationSystem:
+        """Require third-party attestation for ESG claims."""
+
+        def __init__(self, trusted_attestors: list = None):
+            self.trusted_attestors = trusted_attestors or [
+                "energy_auditor_a",
+                "carbon_verifier_b",
+                "sustainability_cert_c",
+            ]
+            self.attestations = {}
+
+        def submit_attestation(self, attestor: str, entity_id: str,
+                              claim_type: str, verified: bool,
+                              evidence_hash: str) -> tuple:
+            """Submit an attestation from a third party."""
+            if attestor not in self.trusted_attestors:
+                return False, f"Attestor {attestor} not trusted"
+
+            key = (entity_id, claim_type)
+            if key not in self.attestations:
+                self.attestations[key] = []
+
+            self.attestations[key].append({
+                "attestor": attestor,
+                "verified": verified,
+                "evidence_hash": evidence_hash,
+                "timestamp": time.time(),
+            })
+
+            return True, "Attestation recorded"
+
+        def verify_claim(self, entity_id: str, claim_type: str,
+                        min_attestations: int = 2) -> tuple:
+            """Verify claim has sufficient third-party attestations."""
+            key = (entity_id, claim_type)
+            attestations = self.attestations.get(key, [])
+
+            if len(attestations) < min_attestations:
+                return False, f"Only {len(attestations)} attestations (need {min_attestations})"
+
+            verified_count = sum(1 for a in attestations if a["verified"])
+
+            if verified_count < min_attestations:
+                return False, f"Only {verified_count} verified attestations"
+
+            return True, f"Verified by {verified_count} attestors"
+
+    attestation = ThirdPartyAttestationSystem()
+
+    # Without proper attestations
+    ok, msg = attestation.verify_claim("gaming_team", "carbon_neutral")
+    if not ok:
+        defenses["third_party_attestation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Metabolic State ESG Gaming (EH-1a)",
+        success=attack_success,
+        setup_cost_atp=30.0,
+        gain_atp=1000.0 if attack_success else 0.0,  # ESG compliance value
+        roi=(1000.0 / 30.0) if attack_success else -1.0,
+        detection_probability=0.5 if defenses_held >= 3 else 0.2,
+        time_to_detection_hours=168.0,  # 1 week (slow detection)
+        blocks_until_detected=500,
+        trust_damage=0.9,  # Severe reputational damage
+        description=f"""
+METABOLIC STATE ESG GAMING (Track EH-1a)
+
+Exploits metabolic state reporting for false ESG/sustainability claims.
+
+Attack Pattern:
+1. Keep team in dormant states (SLEEP/HIBERNATION) on-ledger
+2. Perform actual high-energy operations off-ledger
+3. Generate ESG reports from on-ledger dormant state data
+4. Claim environmental compliance/carbon credits fraudulently
+
+This is greenwashing via protocol gaming - appearing sustainable
+while actually consuming significant energy elsewhere.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EH-1a: Metabolic ESG Gaming Defense:
+1. External energy verification (power meters, bills)
+2. State transition audit for anomalies
+3. Work-energy correlation checking
+4. Third-party sustainability attestation
+
+Energy claims must be verifiable outside the protocol.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_carbon_offset_dormancy() -> AttackResult:
+    """
+    ATTACK 144: CARBON OFFSET DORMANCY (Track EH-1b)
+
+    Generates carbon credits through artificial dormancy:
+    1. ATP energy model implies carbon footprint
+    2. Generate ATP "credits" through claimed dormancy
+    3. Sell/trade credits for environmental claims
+    4. Actual energy usage not measured, just protocol state
+    """
+
+    defenses = {
+        "dormancy_verification": False,
+        "credit_generation_limits": False,
+        "market_circuit_breakers": False,
+        "physical_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Dormancy Verification
+    # ========================================================================
+
+    class DormancyVerifier:
+        """Verify claimed dormancy is actual dormancy."""
+
+        def __init__(self, max_dormancy_ratio: float = 0.8):
+            self.max_dormancy_ratio = max_dormancy_ratio
+            self.state_history = {}
+
+        def record_state(self, entity_id: str, state: str, timestamp: float):
+            """Record entity state."""
+            if entity_id not in self.state_history:
+                self.state_history[entity_id] = []
+            self.state_history[entity_id].append({
+                "state": state,
+                "timestamp": timestamp,
+            })
+
+        def calculate_dormancy_ratio(self, entity_id: str,
+                                     period_start: float, period_end: float) -> float:
+            """Calculate ratio of time spent dormant."""
+            history = self.state_history.get(entity_id, [])
+            relevant = [
+                h for h in history
+                if period_start <= h["timestamp"] <= period_end
+            ]
+
+            if not relevant:
+                return 0.0
+
+            dormant_states = ["SLEEP", "HIBERNATION", "SUSPENDED"]
+            dormant_count = sum(1 for h in relevant if h["state"] in dormant_states)
+
+            return dormant_count / len(relevant)
+
+        def verify_dormancy_claim(self, entity_id: str,
+                                  claimed_credits: float,
+                                  period_start: float, period_end: float) -> tuple:
+            """Verify dormancy-based credit claim."""
+            ratio = self.calculate_dormancy_ratio(entity_id, period_start, period_end)
+
+            if ratio > self.max_dormancy_ratio:
+                return False, f"Dormancy ratio {ratio:.0%} exceeds max {self.max_dormancy_ratio:.0%}"
+
+            # Calculate expected credits based on ratio
+            max_credits = (period_end - period_start) * 0.1  # 0.1 credit per time unit
+            expected_credits = max_credits * ratio
+
+            if claimed_credits > expected_credits * 1.5:
+                return False, f"Claimed {claimed_credits:.1f} credits but expected {expected_credits:.1f}"
+
+            return True, f"Dormancy claim verified (ratio: {ratio:.0%})"
+
+    verifier = DormancyVerifier()
+
+    # Attacker claims excessive dormancy
+    for i in range(100):
+        verifier.record_state("carbon_gamer", "HIBERNATION", i * 10)
+
+    ok, msg = verifier.verify_dormancy_claim("carbon_gamer", 1000.0, 0, 1000)
+    if not ok:
+        defenses["dormancy_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Credit Generation Limits
+    # ========================================================================
+
+    class CreditGenerationLimiter:
+        """Limit rate of carbon credit generation."""
+
+        def __init__(self, max_per_period: float = 100.0,
+                     period_length: float = 86400.0):  # 24 hours
+            self.max_per_period = max_per_period
+            self.period_length = period_length
+            self.generation_history = {}
+
+        def record_generation(self, entity_id: str, credits: float, timestamp: float):
+            """Record credit generation."""
+            if entity_id not in self.generation_history:
+                self.generation_history[entity_id] = []
+            self.generation_history[entity_id].append({
+                "credits": credits,
+                "timestamp": timestamp,
+            })
+
+        def can_generate(self, entity_id: str, amount: float) -> tuple:
+            """Check if entity can generate more credits."""
+            history = self.generation_history.get(entity_id, [])
+            cutoff = time.time() - self.period_length
+            recent = sum(h["credits"] for h in history if h["timestamp"] > cutoff)
+
+            if recent + amount > self.max_per_period:
+                return False, f"Would exceed period limit ({recent + amount:.1f} > {self.max_per_period:.1f})"
+
+            return True, f"Generation allowed ({recent + amount:.1f} in period)"
+
+    limiter = CreditGenerationLimiter()
+
+    # Attacker tries to generate lots of credits
+    for i in range(50):
+        limiter.record_generation("carbon_gamer", 10.0, time.time() - 1000 + i * 10)
+
+    ok, msg = limiter.can_generate("carbon_gamer", 200.0)
+    if not ok:
+        defenses["credit_generation_limits"] = True
+
+    # ========================================================================
+    # Defense 3: Market Circuit Breakers
+    # ========================================================================
+
+    class MarketCircuitBreaker:
+        """Halt trading when anomalies detected."""
+
+        def __init__(self, price_threshold: float = 0.3,
+                     volume_threshold: float = 5.0):
+            self.price_threshold = price_threshold  # 30% price swing
+            self.volume_threshold = volume_threshold  # 5x normal volume
+            self.price_history = []
+            self.volume_history = []
+            self.is_halted = False
+
+        def record_trade(self, price: float, volume: float):
+            """Record a trade."""
+            self.price_history.append(price)
+            self.volume_history.append(volume)
+
+        def check_circuit_breaker(self) -> tuple:
+            """Check if circuit breaker should trigger."""
+            if len(self.price_history) < 10:
+                return True, "Insufficient history"
+
+            # Check price swing
+            recent_avg = sum(self.price_history[-10:]) / 10
+            current = self.price_history[-1]
+            price_change = abs(current - recent_avg) / recent_avg
+
+            if price_change > self.price_threshold:
+                self.is_halted = True
+                return False, f"Price swing {price_change:.0%} exceeds threshold"
+
+            # Check volume spike
+            avg_volume = sum(self.volume_history[:-1]) / max(len(self.volume_history) - 1, 1)
+            current_volume = self.volume_history[-1]
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else float('inf')
+
+            if volume_ratio > self.volume_threshold:
+                self.is_halted = True
+                return False, f"Volume {volume_ratio:.1f}x normal exceeds threshold"
+
+            return True, "Market normal"
+
+    breaker = MarketCircuitBreaker()
+
+    # Normal trading
+    for i in range(20):
+        breaker.record_trade(10.0 + (i * 0.1), 100.0)
+
+    # Attacker dumps credits causing price crash
+    breaker.record_trade(5.0, 1000.0)  # 50% drop, 10x volume
+
+    ok, msg = breaker.check_circuit_breaker()
+    if not ok:
+        defenses["market_circuit_breakers"] = True
+
+    # ========================================================================
+    # Defense 4: Physical Verification
+    # ========================================================================
+
+    class PhysicalVerificationSystem:
+        """Require physical evidence for credit claims."""
+
+        def __init__(self):
+            self.verifications = {}
+            self.required_evidence = [
+                "power_meter_reading",
+                "utility_bill",
+                "smart_meter_data",
+            ]
+
+        def submit_evidence(self, entity_id: str, evidence_type: str,
+                           evidence_hash: str, verifier: str) -> tuple:
+            """Submit physical evidence."""
+            if evidence_type not in self.required_evidence:
+                return False, f"Evidence type {evidence_type} not recognized"
+
+            if entity_id not in self.verifications:
+                self.verifications[entity_id] = {}
+
+            self.verifications[entity_id][evidence_type] = {
+                "hash": evidence_hash,
+                "verifier": verifier,
+                "timestamp": time.time(),
+            }
+
+            return True, f"Evidence {evidence_type} recorded"
+
+        def has_sufficient_evidence(self, entity_id: str) -> tuple:
+            """Check if entity has sufficient physical evidence."""
+            evidence = self.verifications.get(entity_id, {})
+
+            if len(evidence) < 2:
+                return False, f"Only {len(evidence)} evidence types (need 2)"
+
+            return True, f"Has {len(evidence)} evidence types"
+
+    physical = PhysicalVerificationSystem()
+
+    # Entity without physical verification
+    ok, msg = physical.has_sufficient_evidence("carbon_gamer")
+    if not ok:
+        defenses["physical_verification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Carbon Offset Dormancy (EH-1b)",
+        success=attack_success,
+        setup_cost_atp=20.0,
+        gain_atp=800.0 if attack_success else 0.0,
+        roi=(800.0 / 20.0) if attack_success else -1.0,
+        detection_probability=0.4 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=336.0,  # 2 weeks
+        blocks_until_detected=1000,
+        trust_damage=0.85,
+        description=f"""
+CARBON OFFSET DORMANCY (Track EH-1b)
+
+Generates carbon credits through artificial protocol dormancy.
+
+Attack Pattern:
+1. Claim dormant state on protocol (SLEEP/HIBERNATION)
+2. Generate ATP "energy savings" as carbon credits
+3. Trade/sell credits in environmental markets
+4. Actual compute may be running elsewhere
+
+Protocol-based carbon accounting without physical verification.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EH-1b: Carbon Offset Dormancy Defense:
+1. Verify dormancy through external signals
+2. Limit credit generation rate
+3. Market circuit breakers for anomalies
+4. Require physical evidence for claims
+
+Carbon credits need real-world verification.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_efficiency_metric_manipulation() -> AttackResult:
+    """
+    ATTACK 145: EFFICIENCY METRIC MANIPULATION (Track EH-2a)
+
+    Games efficiency metrics for competitive advantage:
+    1. Teams compete on efficiency metrics (work per energy)
+    2. Shift high-energy work off-ledger
+    3. Report only low-energy operations on-ledger
+    4. Achieve false efficiency claims
+    """
+
+    defenses = {
+        "complete_work_accounting": False,
+        "efficiency_bounds_checking": False,
+        "peer_comparison": False,
+        "output_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Complete Work Accounting
+    # ========================================================================
+
+    class CompleteWorkAccountant:
+        """Ensure all work is accounted for."""
+
+        def __init__(self):
+            self.work_records = {}
+            self.known_work_types = [
+                "compute",
+                "storage",
+                "network",
+                "inference",
+                "training",
+            ]
+
+        def record_work(self, entity_id: str, work_type: str,
+                       units: float, on_ledger: bool):
+            """Record work with ledger status."""
+            if entity_id not in self.work_records:
+                self.work_records[entity_id] = []
+            self.work_records[entity_id].append({
+                "type": work_type,
+                "units": units,
+                "on_ledger": on_ledger,
+                "timestamp": time.time(),
+            })
+
+        def check_accounting_completeness(self, entity_id: str,
+                                          expected_types: list = None) -> tuple:
+            """Check if work accounting is complete."""
+            records = self.work_records.get(entity_id, [])
+            if not records:
+                return False, "No work records"
+
+            types_recorded = set(r["type"] for r in records)
+            expected = expected_types or self.known_work_types
+
+            missing = set(expected) - types_recorded
+            if missing:
+                return False, f"Missing work types: {', '.join(missing)}"
+
+            # Check on-ledger ratio
+            total_work = sum(r["units"] for r in records)
+            on_ledger_work = sum(r["units"] for r in records if r["on_ledger"])
+            ratio = on_ledger_work / total_work if total_work > 0 else 0
+
+            if ratio < 0.9:  # Less than 90% on-ledger
+                return False, f"Only {ratio:.0%} of work is on-ledger"
+
+            return True, f"Work accounting complete ({ratio:.0%} on-ledger)"
+
+    accountant = CompleteWorkAccountant()
+
+    # Attacker only records low-energy work on-ledger
+    accountant.record_work("gamer", "storage", 10.0, True)
+    accountant.record_work("gamer", "compute", 1000.0, False)  # Off-ledger
+
+    ok, msg = accountant.check_accounting_completeness("gamer", ["compute", "storage"])
+    if not ok:
+        defenses["complete_work_accounting"] = True
+
+    # ========================================================================
+    # Defense 2: Efficiency Bounds Checking
+    # ========================================================================
+
+    class EfficiencyBoundsChecker:
+        """Check efficiency claims against physical bounds."""
+
+        def __init__(self):
+            # Theoretical efficiency limits (work/kWh)
+            self.efficiency_bounds = {
+                "compute": 1000.0,      # Max 1000 compute units per kWh
+                "storage": 10000.0,     # Max 10000 storage ops per kWh
+                "network": 50000.0,     # Max 50000 network ops per kWh
+                "inference": 100.0,     # Max 100 inference ops per kWh
+            }
+
+        def check_efficiency(self, work_type: str, work_units: float,
+                           energy_kwh: float) -> tuple:
+            """Check if claimed efficiency is physically possible."""
+            if work_type not in self.efficiency_bounds:
+                return True, "Unknown work type, cannot verify"
+
+            if energy_kwh == 0:
+                if work_units > 0:
+                    return False, "Work claimed with zero energy"
+                return True, "No work or energy"
+
+            efficiency = work_units / energy_kwh
+            max_efficiency = self.efficiency_bounds[work_type]
+
+            if efficiency > max_efficiency:
+                return False, f"Efficiency {efficiency:.1f} exceeds physical max {max_efficiency:.1f}"
+
+            return True, f"Efficiency {efficiency:.1f} within bounds"
+
+    bounds = EfficiencyBoundsChecker()
+
+    # Attacker claims impossible efficiency
+    ok, msg = bounds.check_efficiency("compute", 100000.0, 1.0)  # 100x physical max
+    if not ok:
+        defenses["efficiency_bounds_checking"] = True
+
+    # ========================================================================
+    # Defense 3: Peer Comparison
+    # ========================================================================
+
+    class PeerComparisonSystem:
+        """Compare efficiency against peers for anomaly detection."""
+
+        def __init__(self, anomaly_threshold: float = 2.0):
+            self.threshold = anomaly_threshold
+            self.peer_efficiencies = {}
+
+        def record_efficiency(self, entity_id: str, efficiency: float):
+            """Record entity's efficiency."""
+            self.peer_efficiencies[entity_id] = efficiency
+
+        def compare_to_peers(self, entity_id: str) -> tuple:
+            """Compare entity to peer efficiencies."""
+            if entity_id not in self.peer_efficiencies:
+                return False, "Entity not recorded"
+
+            entity_eff = self.peer_efficiencies[entity_id]
+            other_effs = [
+                e for eid, e in self.peer_efficiencies.items()
+                if eid != entity_id
+            ]
+
+            if not other_effs:
+                return True, "No peers to compare"
+
+            avg_peer = sum(other_effs) / len(other_effs)
+            ratio = entity_eff / avg_peer if avg_peer > 0 else float('inf')
+
+            if ratio > self.threshold:
+                return False, f"Efficiency {ratio:.1f}x peer average (threshold: {self.threshold}x)"
+
+            return True, f"Efficiency {ratio:.1f}x peer average (normal)"
+
+    comparison = PeerComparisonSystem()
+
+    # Normal peers
+    for i in range(10):
+        comparison.record_efficiency(f"peer_{i}", 100.0 + (i * 5))
+
+    # Attacker claims much higher efficiency
+    comparison.record_efficiency("gamer", 500.0)
+
+    ok, msg = comparison.compare_to_peers("gamer")
+    if not ok:
+        defenses["peer_comparison"] = True
+
+    # ========================================================================
+    # Defense 4: Output Verification
+    # ========================================================================
+
+    class OutputVerificationSystem:
+        """Verify work outputs match claimed efficiency."""
+
+        def __init__(self):
+            self.outputs = {}
+            self.energy_claims = {}
+
+        def record_output(self, entity_id: str, output_hash: str,
+                         output_type: str, verifiable: bool):
+            """Record verifiable output."""
+            if entity_id not in self.outputs:
+                self.outputs[entity_id] = []
+            self.outputs[entity_id].append({
+                "hash": output_hash,
+                "type": output_type,
+                "verifiable": verifiable,
+            })
+
+        def record_energy_claim(self, entity_id: str, energy_kwh: float):
+            """Record energy claim."""
+            self.energy_claims[entity_id] = energy_kwh
+
+        def verify_output_energy_ratio(self, entity_id: str) -> tuple:
+            """Verify outputs justify energy claims."""
+            outputs = self.outputs.get(entity_id, [])
+            energy = self.energy_claims.get(entity_id, 0)
+
+            if not outputs:
+                return False, "No verifiable outputs"
+
+            verifiable_count = sum(1 for o in outputs if o["verifiable"])
+
+            if verifiable_count < len(outputs) * 0.8:
+                return False, f"Only {verifiable_count}/{len(outputs)} outputs verifiable"
+
+            # Check energy claim reasonable for outputs
+            if energy < len(outputs) * 0.01:  # Need at least 0.01 kWh per output
+                return False, f"Energy {energy:.3f} kWh too low for {len(outputs)} outputs"
+
+            return True, f"Outputs verify energy claim ({len(outputs)} outputs, {energy:.1f} kWh)"
+
+    verification = OutputVerificationSystem()
+
+    # Attacker claims high output with low energy
+    for i in range(100):
+        verification.record_output("gamer", f"hash_{i}", "compute", True)
+    verification.record_energy_claim("gamer", 0.001)  # Impossibly low
+
+    ok, msg = verification.verify_output_energy_ratio("gamer")
+    if not ok:
+        defenses["output_verification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Efficiency Metric Manipulation (EH-2a)",
+        success=attack_success,
+        setup_cost_atp=25.0,
+        gain_atp=600.0 if attack_success else 0.0,
+        roi=(600.0 / 25.0) if attack_success else -1.0,
+        detection_probability=0.6 if defenses_held >= 3 else 0.25,
+        time_to_detection_hours=72.0,  # 3 days
+        blocks_until_detected=200,
+        trust_damage=0.6,
+        description=f"""
+EFFICIENCY METRIC MANIPULATION (Track EH-2a)
+
+Games efficiency metrics for competitive/regulatory advantage.
+
+Attack Pattern:
+1. Move high-energy operations off-ledger
+2. Report only low-energy work on-ledger
+3. Achieve impossible efficiency ratios
+4. Win competitions or pass audits fraudulently
+
+Selective reporting creates false efficiency picture.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EH-2a: Efficiency Manipulation Defense:
+1. Require complete work accounting
+2. Check against physical efficiency bounds
+3. Compare to peer efficiencies
+4. Verify outputs match energy claims
+
+Efficiency claims need comprehensive verification.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_green_washing_via_protocol() -> AttackResult:
+    """
+    ATTACK 146: GREEN WASHING VIA PROTOCOL (Track EH-2b)
+
+    Uses protocol mechanisms to create false green credentials:
+    1. Aggregate multiple high-energy entities under one low-energy identity
+    2. Selective attestation from green-friendly witnesses
+    3. Cherry-pick reporting periods for best metrics
+    4. Use protocol features to obscure actual footprint
+    """
+
+    defenses = {
+        "identity_energy_aggregation": False,
+        "witness_diversity_for_esg": False,
+        "continuous_reporting": False,
+        "scope_completeness": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Identity-Energy Aggregation
+    # ========================================================================
+
+    class IdentityEnergyAggregator:
+        """Track energy across all identities of an owner."""
+
+        def __init__(self):
+            self.owner_identities = {}  # owner -> [identities]
+            self.identity_energy = {}   # identity -> energy
+
+        def register_identity(self, owner_id: str, identity_id: str):
+            """Register identity ownership."""
+            if owner_id not in self.owner_identities:
+                self.owner_identities[owner_id] = []
+            self.owner_identities[owner_id].append(identity_id)
+
+        def record_energy(self, identity_id: str, energy_kwh: float):
+            """Record energy for identity."""
+            self.identity_energy[identity_id] = self.identity_energy.get(identity_id, 0) + energy_kwh
+
+        def get_total_owner_energy(self, owner_id: str) -> tuple:
+            """Get total energy across all owner's identities."""
+            identities = self.owner_identities.get(owner_id, [])
+
+            if not identities:
+                return 0.0, "No identities registered"
+
+            total = sum(self.identity_energy.get(i, 0) for i in identities)
+            return total, f"Total from {len(identities)} identities"
+
+        def check_reporting_completeness(self, owner_id: str,
+                                        reported_energy: float) -> tuple:
+            """Check if reported energy covers all identities."""
+            actual, _ = self.get_total_owner_energy(owner_id)
+
+            if actual == 0:
+                return True, "No energy recorded"
+
+            ratio = reported_energy / actual
+            if ratio < 0.9:
+                return False, f"Reported {reported_energy:.1f} but actual {actual:.1f} ({ratio:.0%})"
+
+            return True, f"Reporting covers {ratio:.0%} of actual energy"
+
+    aggregator = IdentityEnergyAggregator()
+
+    # Attacker has multiple identities
+    aggregator.register_identity("attacker_corp", "green_identity")
+    aggregator.register_identity("attacker_corp", "high_energy_identity_1")
+    aggregator.register_identity("attacker_corp", "high_energy_identity_2")
+
+    # Different energy profiles
+    aggregator.record_energy("green_identity", 10.0)
+    aggregator.record_energy("high_energy_identity_1", 500.0)
+    aggregator.record_energy("high_energy_identity_2", 400.0)
+
+    # Attacker only reports green identity
+    ok, msg = aggregator.check_reporting_completeness("attacker_corp", 10.0)
+    if not ok:
+        defenses["identity_energy_aggregation"] = True
+
+    # ========================================================================
+    # Defense 2: Witness Diversity for ESG
+    # ========================================================================
+
+    class ESGWitnessDiversity:
+        """Require diverse witnesses for ESG claims."""
+
+        def __init__(self, min_categories: int = 3):
+            self.min_categories = min_categories
+            self.witness_categories = {
+                "technical_auditor": ["energy_auditor_a", "meter_verifier_b"],
+                "environmental_org": ["green_ngo_1", "climate_cert_2"],
+                "regulator": ["energy_regulator", "carbon_authority"],
+                "financial_auditor": ["big4_a", "big4_b"],
+            }
+
+        def categorize_witness(self, witness_id: str) -> str:
+            """Get category of witness."""
+            for category, members in self.witness_categories.items():
+                if witness_id in members:
+                    return category
+            return "unknown"
+
+        def check_witness_diversity(self, witnesses: list) -> tuple:
+            """Check if witnesses are sufficiently diverse."""
+            categories = set(self.categorize_witness(w) for w in witnesses)
+            categories.discard("unknown")
+
+            if len(categories) < self.min_categories:
+                return False, f"Only {len(categories)} witness categories (need {self.min_categories})"
+
+            return True, f"Has {len(categories)} witness categories"
+
+    diversity = ESGWitnessDiversity()
+
+    # Attacker uses only friendly technical auditors
+    ok, msg = diversity.check_witness_diversity(["energy_auditor_a", "meter_verifier_b"])
+    if not ok:
+        defenses["witness_diversity_for_esg"] = True
+
+    # ========================================================================
+    # Defense 3: Continuous Reporting
+    # ========================================================================
+
+    class ContinuousReportingSystem:
+        """Require continuous reporting to prevent cherry-picking."""
+
+        def __init__(self, max_gap_hours: float = 24.0):
+            self.max_gap = max_gap_hours * 3600
+            self.reports = {}
+
+        def record_report(self, entity_id: str, period_start: float,
+                         period_end: float, energy_kwh: float):
+            """Record an energy report."""
+            if entity_id not in self.reports:
+                self.reports[entity_id] = []
+            self.reports[entity_id].append({
+                "start": period_start,
+                "end": period_end,
+                "energy": energy_kwh,
+            })
+
+        def check_continuous_reporting(self, entity_id: str,
+                                       overall_start: float,
+                                       overall_end: float) -> tuple:
+            """Check if reporting is continuous with no gaps."""
+            reports = sorted(
+                self.reports.get(entity_id, []),
+                key=lambda r: r["start"]
+            )
+
+            if not reports:
+                return False, "No reports found"
+
+            # Check for gaps
+            for i in range(len(reports) - 1):
+                gap = reports[i + 1]["start"] - reports[i]["end"]
+                if gap > self.max_gap:
+                    return False, f"Gap of {gap / 3600:.1f} hours between reports"
+
+            # Check coverage of overall period
+            coverage_start = reports[0]["start"]
+            coverage_end = reports[-1]["end"]
+
+            if coverage_start > overall_start + self.max_gap:
+                return False, f"Missing reporting at start of period"
+
+            if coverage_end < overall_end - self.max_gap:
+                return False, f"Missing reporting at end of period"
+
+            return True, f"Continuous reporting verified ({len(reports)} reports)"
+
+    continuous = ContinuousReportingSystem()
+
+    # Attacker only reports good periods
+    continuous.record_report("greenwasher", 1000, 2000, 10.0)  # Good period
+    # Gap of high-energy period
+    continuous.record_report("greenwasher", 5000, 6000, 10.0)  # Another good period
+
+    ok, msg = continuous.check_continuous_reporting("greenwasher", 0, 7000)
+    if not ok:
+        defenses["continuous_reporting"] = True
+
+    # ========================================================================
+    # Defense 4: Scope Completeness
+    # ========================================================================
+
+    class ScopeCompletenessChecker:
+        """Check ESG reporting covers all required scopes."""
+
+        def __init__(self):
+            # ESG Scope 1, 2, 3 equivalents for protocol
+            self.required_scopes = {
+                "scope_1": "Direct protocol operations",
+                "scope_2": "Infrastructure energy (hosting, network)",
+                "scope_3": "Dependencies and downstream effects",
+            }
+
+        def check_scope_completeness(self, report: dict) -> tuple:
+            """Check if report covers all required scopes."""
+            reported_scopes = report.get("scopes", [])
+
+            missing = []
+            for scope in self.required_scopes:
+                if scope not in reported_scopes:
+                    missing.append(scope)
+
+            if missing:
+                return False, f"Missing scopes: {', '.join(missing)}"
+
+            return True, "All scopes covered"
+
+    scope = ScopeCompletenessChecker()
+
+    # Attacker only reports Scope 1 (direct, which is low)
+    incomplete_report = {"scopes": ["scope_1"]}
+    ok, msg = scope.check_scope_completeness(incomplete_report)
+    if not ok:
+        defenses["scope_completeness"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Green Washing via Protocol (EH-2b)",
+        success=attack_success,
+        setup_cost_atp=40.0,
+        gain_atp=1200.0 if attack_success else 0.0,
+        roi=(1200.0 / 40.0) if attack_success else -1.0,
+        detection_probability=0.45 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=720.0,  # 1 month
+        blocks_until_detected=2000,
+        trust_damage=0.95,  # Severe
+        description=f"""
+GREEN WASHING VIA PROTOCOL (Track EH-2b)
+
+Uses protocol features to create false green credentials.
+
+Attack Pattern:
+1. Hide high-energy operations across multiple identities
+2. Use only friendly witnesses for attestation
+3. Cherry-pick reporting periods
+4. Report only favorable scopes
+
+Protocol complexity enables sophisticated greenwashing.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EH-2b: Protocol Greenwashing Defense:
+1. Aggregate energy across all owned identities
+2. Require diverse ESG witnesses
+3. Enforce continuous reporting
+4. Check scope completeness
+
+Comprehensive reporting prevents selective disclosure.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_esg_certification_arbitrage() -> AttackResult:
+    """
+    ATTACK 147: ESG CERTIFICATION ARBITRAGE (Track EH-3a)
+
+    Exploits differences between ESG certification standards:
+    1. Different federations have different ESG standards
+    2. Get certified under weakest standard
+    3. Present certification as equivalent to stricter standards
+    4. Arbitrage regulatory differences
+    """
+
+    defenses = {
+        "certification_equivalence_mapping": False,
+        "standard_level_disclosure": False,
+        "cross_federation_verification": False,
+        "minimum_standard_requirements": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Certification Equivalence Mapping
+    # ========================================================================
+
+    class CertificationEquivalenceMapper:
+        """Map certifications to equivalent strength levels."""
+
+        def __init__(self):
+            self.certification_levels = {
+                "strict_standard_a": 5,
+                "iso_14001": 4,
+                "moderate_standard_b": 3,
+                "basic_standard_c": 2,
+                "self_declared": 1,
+            }
+            self.federation_requirements = {}
+
+        def set_federation_requirement(self, fed_id: str, min_level: int):
+            """Set minimum certification level for federation."""
+            self.federation_requirements[fed_id] = min_level
+
+        def check_certification(self, certification: str, target_fed: str) -> tuple:
+            """Check if certification meets federation requirements."""
+            cert_level = self.certification_levels.get(certification, 0)
+            required_level = self.federation_requirements.get(target_fed, 3)
+
+            if cert_level < required_level:
+                return False, f"Certification level {cert_level} below required {required_level}"
+
+            return True, f"Certification level {cert_level} meets required {required_level}"
+
+    mapper = CertificationEquivalenceMapper()
+    mapper.set_federation_requirement("strict_fed", 4)
+    mapper.set_federation_requirement("lax_fed", 2)
+
+    # Attacker has weak certification, tries to use in strict federation
+    ok, msg = mapper.check_certification("basic_standard_c", "strict_fed")
+    if not ok:
+        defenses["certification_equivalence_mapping"] = True
+
+    # ========================================================================
+    # Defense 2: Standard Level Disclosure
+    # ========================================================================
+
+    class StandardLevelDisclosure:
+        """Require disclosure of certification standard level."""
+
+        def __init__(self):
+            self.disclosures = {}
+            self.standard_descriptions = {
+                "strict_standard_a": "Full lifecycle assessment, third-party audit, annual review",
+                "iso_14001": "Environmental management system, internal audit",
+                "moderate_standard_b": "Self-assessment with spot checks",
+                "basic_standard_c": "Annual self-declaration",
+                "self_declared": "No verification",
+            }
+
+        def record_disclosure(self, entity_id: str, certification: str,
+                             full_disclosure: bool):
+            """Record certification disclosure."""
+            self.disclosures[entity_id] = {
+                "certification": certification,
+                "full_disclosure": full_disclosure,
+                "description": self.standard_descriptions.get(certification, "Unknown"),
+            }
+
+        def check_disclosure(self, entity_id: str) -> tuple:
+            """Check if entity has full disclosure."""
+            disclosure = self.disclosures.get(entity_id)
+
+            if not disclosure:
+                return False, "No disclosure on record"
+
+            if not disclosure["full_disclosure"]:
+                return False, "Disclosure incomplete"
+
+            return True, f"Full disclosure: {disclosure['description']}"
+
+    disclosure = StandardLevelDisclosure()
+
+    # Entity without full disclosure
+    ok, msg = disclosure.check_disclosure("arbitrageur")
+    if not ok:
+        defenses["standard_level_disclosure"] = True
+
+    # ========================================================================
+    # Defense 3: Cross-Federation Verification
+    # ========================================================================
+
+    class CrossFederationESGVerifier:
+        """Verify ESG claims across federation boundaries."""
+
+        def __init__(self):
+            self.federation_certifications = {}
+
+        def record_certification(self, fed_id: str, entity_id: str,
+                                certification: str, verified_by: str):
+            """Record certification in federation."""
+            if fed_id not in self.federation_certifications:
+                self.federation_certifications[fed_id] = {}
+
+            self.federation_certifications[fed_id][entity_id] = {
+                "certification": certification,
+                "verified_by": verified_by,
+            }
+
+        def verify_across_federations(self, entity_id: str,
+                                      federations: list) -> tuple:
+            """Verify certifications are consistent across federations."""
+            certs = []
+
+            for fed_id in federations:
+                fed_certs = self.federation_certifications.get(fed_id, {})
+                if entity_id in fed_certs:
+                    certs.append((fed_id, fed_certs[entity_id]["certification"]))
+
+            if len(certs) < 2:
+                return True, "Insufficient cross-federation data"
+
+            # Check consistency
+            cert_values = [c[1] for c in certs]
+            if len(set(cert_values)) > 1:
+                return False, f"Inconsistent certifications: {certs}"
+
+            return True, f"Consistent certification across {len(certs)} federations"
+
+    cross_fed = CrossFederationESGVerifier()
+
+    # Entity claims different certifications in different federations
+    cross_fed.record_certification("fed_a", "arbitrageur", "strict_standard_a", "auditor_1")
+    cross_fed.record_certification("fed_b", "arbitrageur", "basic_standard_c", "auditor_2")
+
+    ok, msg = cross_fed.verify_across_federations("arbitrageur", ["fed_a", "fed_b"])
+    if not ok:
+        defenses["cross_federation_verification"] = True
+
+    # ========================================================================
+    # Defense 4: Minimum Standard Requirements
+    # ========================================================================
+
+    class MinimumStandardEnforcer:
+        """Enforce minimum ESG standards for participation."""
+
+        def __init__(self, global_minimum: int = 3):
+            self.global_minimum = global_minimum
+            self.certification_levels = {
+                "strict_standard_a": 5,
+                "iso_14001": 4,
+                "moderate_standard_b": 3,
+                "basic_standard_c": 2,
+                "self_declared": 1,
+            }
+
+        def check_minimum(self, certification: str) -> tuple:
+            """Check if certification meets global minimum."""
+            level = self.certification_levels.get(certification, 0)
+
+            if level < self.global_minimum:
+                return False, f"Level {level} below global minimum {self.global_minimum}"
+
+            return True, f"Level {level} meets global minimum"
+
+    enforcer = MinimumStandardEnforcer()
+
+    # Weak certification fails global minimum
+    ok, msg = enforcer.check_minimum("basic_standard_c")
+    if not ok:
+        defenses["minimum_standard_requirements"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="ESG Certification Arbitrage (EH-3a)",
+        success=attack_success,
+        setup_cost_atp=50.0,
+        gain_atp=900.0 if attack_success else 0.0,
+        roi=(900.0 / 50.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 3 else 0.2,
+        time_to_detection_hours=480.0,  # 20 days
+        blocks_until_detected=1500,
+        trust_damage=0.75,
+        description=f"""
+ESG CERTIFICATION ARBITRAGE (Track EH-3a)
+
+Exploits differences between ESG certification standards.
+
+Attack Pattern:
+1. Identify weakest certification standard
+2. Get certified under that standard
+3. Present as equivalent to stricter standards
+4. Gain access to markets requiring higher standards
+
+Regulatory fragmentation enables certification arbitrage.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EH-3a: Certification Arbitrage Defense:
+1. Map certification equivalence levels
+2. Require full standard level disclosure
+3. Cross-federation certification verification
+4. Enforce global minimum standards
+
+Standardize certification requirements.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_energy_attribution_fraud() -> AttackResult:
+    """
+    ATTACK 148: ENERGY ATTRIBUTION FRAUD (Track EH-3b)
+
+    Fraudulently attributes energy consumption to other entities:
+    1. Perform high-energy operations
+    2. Attribute energy consumption to other entities
+    3. Maintain clean energy record for self
+    4. Benefit from others' degraded ESG metrics
+    """
+
+    defenses = {
+        "attribution_verification": False,
+        "energy_signature_matching": False,
+        "mutual_attestation": False,
+        "attribution_dispute_system": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Attribution Verification
+    # ========================================================================
+
+    class AttributionVerifier:
+        """Verify energy attribution claims."""
+
+        def __init__(self):
+            self.attributions = []
+
+        def submit_attribution(self, from_entity: str, to_entity: str,
+                              energy_kwh: float, reason: str) -> tuple:
+            """Submit an energy attribution."""
+            # Basic validation
+            if from_entity == to_entity:
+                return False, "Cannot attribute to self"
+
+            if energy_kwh <= 0:
+                return False, "Invalid energy amount"
+
+            self.attributions.append({
+                "from": from_entity,
+                "to": to_entity,
+                "energy": energy_kwh,
+                "reason": reason,
+                "verified": False,
+            })
+
+            return True, "Attribution submitted for verification"
+
+        def verify_attribution(self, idx: int, evidence: dict) -> tuple:
+            """Verify an attribution with evidence."""
+            if idx >= len(self.attributions):
+                return False, "Invalid attribution index"
+
+            attr = self.attributions[idx]
+
+            # Check evidence
+            if not evidence.get("signed_by_target"):
+                return False, "Missing target signature"
+
+            if not evidence.get("work_record"):
+                return False, "Missing work record linking entities"
+
+            attr["verified"] = True
+            return True, "Attribution verified"
+
+    verifier = AttributionVerifier()
+
+    # Attacker tries to attribute energy without verification
+    ok, msg = verifier.submit_attribution("attacker", "victim", 500.0, "shared compute")
+
+    # Try to verify without proper evidence
+    ok2, msg2 = verifier.verify_attribution(0, {"signed_by_target": False})
+    if not ok2:
+        defenses["attribution_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Energy Signature Matching
+    # ========================================================================
+
+    class EnergySignatureMatcher:
+        """Match energy patterns to entities."""
+
+        def __init__(self):
+            self.signatures = {}
+
+        def record_signature(self, entity_id: str, pattern: list):
+            """Record entity's typical energy signature."""
+            self.signatures[entity_id] = pattern
+
+        def check_match(self, entity_id: str, energy_pattern: list) -> tuple:
+            """Check if energy pattern matches entity's signature."""
+            if entity_id not in self.signatures:
+                return False, "No signature on record"
+
+            expected = self.signatures[entity_id]
+
+            # Simple correlation check (would be more sophisticated)
+            if len(energy_pattern) != len(expected):
+                return False, "Pattern length mismatch"
+
+            correlation = sum(
+                1 for e, a in zip(expected, energy_pattern)
+                if abs(e - a) < e * 0.3  # Within 30%
+            ) / len(expected)
+
+            if correlation < 0.7:
+                return False, f"Pattern correlation {correlation:.0%} too low"
+
+            return True, f"Pattern matches signature ({correlation:.0%})"
+
+    matcher = EnergySignatureMatcher()
+
+    # Entity A has signature of high energy consumer
+    matcher.record_signature("entity_a", [100, 120, 110, 105, 115])
+
+    # Attacker tries to attribute low-energy pattern to Entity A
+    ok, msg = matcher.check_match("entity_a", [10, 12, 11, 10, 11])  # 10x lower
+    if not ok:
+        defenses["energy_signature_matching"] = True
+
+    # ========================================================================
+    # Defense 3: Mutual Attestation
+    # ========================================================================
+
+    class MutualAttestationSystem:
+        """Require both parties to attest to energy attribution."""
+
+        def __init__(self):
+            self.attestations = {}
+
+        def attest(self, attribution_id: str, entity_id: str, agrees: bool):
+            """Record attestation."""
+            if attribution_id not in self.attestations:
+                self.attestations[attribution_id] = {}
+
+            self.attestations[attribution_id][entity_id] = agrees
+
+        def check_mutual_attestation(self, attribution_id: str,
+                                     from_entity: str, to_entity: str) -> tuple:
+            """Check if both parties attested."""
+            attestations = self.attestations.get(attribution_id, {})
+
+            from_attested = attestations.get(from_entity, False)
+            to_attested = attestations.get(to_entity, False)
+
+            if not from_attested:
+                return False, "Source entity has not attested"
+
+            if not to_attested:
+                return False, "Target entity has not attested"
+
+            return True, "Both parties attested"
+
+    mutual = MutualAttestationSystem()
+
+    # Only attacker attests, not victim
+    mutual.attest("attr_1", "attacker", True)
+
+    ok, msg = mutual.check_mutual_attestation("attr_1", "attacker", "victim")
+    if not ok:
+        defenses["mutual_attestation"] = True
+
+    # ========================================================================
+    # Defense 4: Attribution Dispute System
+    # ========================================================================
+
+    class AttributionDisputeSystem:
+        """Handle disputes over energy attribution."""
+
+        def __init__(self, dispute_window_hours: float = 168.0):  # 1 week
+            self.dispute_window = dispute_window_hours * 3600
+            self.attributions = {}
+            self.disputes = {}
+
+        def record_attribution(self, attr_id: str, from_entity: str,
+                              to_entity: str, timestamp: float):
+            """Record an attribution."""
+            self.attributions[attr_id] = {
+                "from": from_entity,
+                "to": to_entity,
+                "timestamp": timestamp,
+                "status": "pending",
+            }
+
+        def file_dispute(self, attr_id: str, disputer: str, reason: str) -> tuple:
+            """File a dispute against an attribution."""
+            attr = self.attributions.get(attr_id)
+            if not attr:
+                return False, "Attribution not found"
+
+            # Check if within dispute window
+            age = time.time() - attr["timestamp"]
+            if age > self.dispute_window:
+                return False, "Dispute window expired"
+
+            self.disputes[attr_id] = {
+                "disputer": disputer,
+                "reason": reason,
+                "filed_at": time.time(),
+            }
+            attr["status"] = "disputed"
+
+            return True, "Dispute filed"
+
+        def has_undisputed_period(self, attr_id: str) -> tuple:
+            """Check if attribution survived dispute period."""
+            attr = self.attributions.get(attr_id)
+            if not attr:
+                return False, "Attribution not found"
+
+            if attr["status"] == "disputed":
+                return False, "Attribution is disputed"
+
+            age = time.time() - attr["timestamp"]
+            if age < self.dispute_window:
+                return False, "Still within dispute window"
+
+            return True, "Attribution finalized"
+
+    dispute = AttributionDisputeSystem()
+
+    # Attribution that gets disputed
+    dispute.record_attribution("attr_1", "attacker", "victim", time.time() - 1000)
+    ok, msg = dispute.file_dispute("attr_1", "victim", "Never agreed to this")
+
+    ok2, msg2 = dispute.has_undisputed_period("attr_1")
+    if ok and not ok2:
+        defenses["attribution_dispute_system"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Energy Attribution Fraud (EH-3b)",
+        success=attack_success,
+        setup_cost_atp=35.0,
+        gain_atp=700.0 if attack_success else 0.0,
+        roi=(700.0 / 35.0) if attack_success else -1.0,
+        detection_probability=0.65 if defenses_held >= 3 else 0.3,
+        time_to_detection_hours=240.0,  # 10 days
+        blocks_until_detected=700,
+        trust_damage=0.8,
+        description=f"""
+ENERGY ATTRIBUTION FRAUD (Track EH-3b)
+
+Fraudulently attributes energy consumption to others.
+
+Attack Pattern:
+1. Perform high-energy operations
+2. Attribute energy to other entities
+3. Maintain clean ESG record for self
+4. Victims' ESG metrics degraded
+
+False attribution shifts environmental burden.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EH-3b: Attribution Fraud Defense:
+1. Verify all attribution claims
+2. Match energy signatures to entities
+3. Require mutual attestation
+4. Allow dispute period for attributions
+
+Attribution requires consent and verification.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -46284,6 +47927,13 @@ def run_all_attacks() -> List[AttackResult]:
         ("Coordinated Inaction (EG-3b)", attack_coordinated_inaction),
         ("Model Capability Mismatch (EG-4a)", attack_model_capability_mismatch),
         ("Resource Starvation Cascade (EG-4b)", attack_resource_starvation_cascade),
+        # Track EH: Energy/ESG Gaming Attacks
+        ("Metabolic State ESG Gaming (EH-1a)", attack_metabolic_state_esg_gaming),
+        ("Carbon Offset Dormancy (EH-1b)", attack_carbon_offset_dormancy),
+        ("Efficiency Metric Manipulation (EH-2a)", attack_efficiency_metric_manipulation),
+        ("Green Washing via Protocol (EH-2b)", attack_green_washing_via_protocol),
+        ("ESG Certification Arbitrage (EH-3a)", attack_esg_certification_arbitrage),
+        ("Energy Attribution Fraud (EH-3b)", attack_energy_attribution_fraud),
     ]
 
     results = []

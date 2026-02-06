@@ -1,9 +1,9 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 3.0
+**Version**: 3.1
 **Date**: 2026-02-06
-**Total Attacks**: 142
-**Status**: Comprehensive Coverage + AI Coordination Attacks
+**Total Attacks**: 148
+**Status**: Comprehensive Coverage + AI Coordination + ESG Gaming Attacks
 
 ---
 
@@ -317,6 +317,18 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 141 | Model Capability Mismatch | Route tasks to incapable models |
 | 142 | Resource Starvation Cascade | Coordinated resource exhaustion |
 
+### Energy/ESG Gaming (Track EH, Attacks 143-148)
+**Environmental and sustainability claims gaming**
+
+| Attack | Name | Exploitation |
+|--------|------|--------------|
+| 143 | Metabolic State ESG Gaming | False sustainability from dormant states |
+| 144 | Carbon Offset Dormancy | Generate credits through fake dormancy |
+| 145 | Efficiency Metric Manipulation | Off-ledger work, on-ledger efficiency |
+| 146 | Green Washing via Protocol | Protocol features enable greenwashing |
+| 147 | ESG Certification Arbitrage | Exploit certification standard differences |
+| 148 | Energy Attribution Fraud | Attribute energy consumption to others |
+
 ---
 
 ## Defense Statistics
@@ -327,7 +339,7 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 142 |
+| Total Attacks | 148 |
 | Successful Attacks | ~5-10 (varies by parameters) |
 | Average Detection Rate | ~55% |
 | Average Trust Damage | ~0.50 |
@@ -370,7 +382,7 @@ Based on current attack simulations:
    - Social proof diversity
    - Reciprocity tracking
 
-7. **AI Coordination Layer** (20+ defenses) - NEW
+7. **AI Coordination Layer** (20+ defenses)
    - Context summarization and priority retention
    - Hallucination detection and grounding requirements
    - Policy-instruction alignment checking
@@ -379,6 +391,18 @@ Based on current attack simulations:
    - Responsibility assignment and escalation triggers
    - Capability registries and task matching
    - Resource quotas and cascade breakers
+
+8. **ESG/Energy Layer** (24+ defenses) - NEW
+   - External energy verification (power meters, bills)
+   - State transition audit for anomalies
+   - Work-energy correlation checking
+   - Third-party sustainability attestation
+   - Credit generation limits and market circuit breakers
+   - Identity-energy aggregation
+   - Witness diversity for ESG claims
+   - Continuous reporting requirements
+   - Certification equivalence mapping
+   - Attribution verification and dispute systems
 
 ---
 
@@ -448,6 +472,7 @@ Based on current attack simulations:
 | 2026-01 | Sessions 86-95 | 101-126 | Advanced patterns |
 | 2026-02-05 | Track EF | 127-134 | Future threats |
 | 2026-02-06 | Track EG | 135-142 | AI coordination |
+| 2026-02-06 | Track EH | 143-148 | Energy/ESG gaming |
 
 ---
 
