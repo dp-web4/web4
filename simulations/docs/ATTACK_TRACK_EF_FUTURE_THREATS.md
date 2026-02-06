@@ -2,10 +2,11 @@
 
 **Created**: 2026-02-06
 **Updated**: 2026-02-06
-**Status**: Partially Implemented
-**Total Attacks**: 142 (including Track EG)
+**Status**: Substantially Implemented
+**Total Attacks**: 148 (including Tracks EG and EH)
 **Track EF Implemented**: 8 attacks (127-134)
 **Track EG Implemented**: 8 attacks (135-142)
+**Track EH Implemented**: 6 attacks (143-148)
 
 This document identifies attack categories not yet covered by the 126 existing simulations and proposes new vectors for research.
 
@@ -380,6 +381,21 @@ New track added 2026-02-06 focusing on AI agent coordination vulnerabilities:
 
 ---
 
+### Track EH - Energy/ESG Gaming (Attacks 143-148)
+
+New track added 2026-02-06 addressing energy and sustainability gaming:
+
+| Attack | Name | Status |
+|--------|------|--------|
+| 143 | Metabolic State ESG Gaming | ✅ Implemented |
+| 144 | Carbon Offset Dormancy | ✅ Implemented |
+| 145 | Efficiency Metric Manipulation | ✅ Implemented |
+| 146 | Green Washing via Protocol | ✅ Implemented |
+| 147 | ESG Certification Arbitrage | ✅ Implemented |
+| 148 | Energy Attribution Fraud | ✅ Implemented |
+
+---
+
 ## Remaining Proposed Attacks (Not Yet Implemented)
 
 ### EF-3b: Cross-Domain Semantic Injection
@@ -388,11 +404,6 @@ New track added 2026-02-06 focusing on AI agent coordination vulnerabilities:
 
 ### EF-3d: Meaning Laundering
 - Clean malicious meaning through multiple translation domains
-
-### EF-4: Energy/ESG Gaming (3 proposed attacks)
-- Metabolic state ESG claims manipulation
-- Carbon offset via dormancy
-- Efficiency metric manipulation
 
 ### EF-5: Cross-Ledger Consistency (3 proposed attacks)
 - Federation desynchronization
@@ -411,9 +422,9 @@ New track added 2026-02-06 focusing on AI agent coordination vulnerabilities:
 
 1. ~~Create simulation functions for EF-2 (AI Model Degradation)~~ ✅ Done
 2. ~~Add coercion detection mechanism design for EF-8~~ ✅ Done
-3. Implement EF-4 Energy/ESG Gaming attacks (planned for Track EH)
-4. Implement EF-5 Cross-Ledger Consistency attacks
-5. Design EF-6 Privacy Protocol attacks (when ZKPs added)
+3. ~~Implement EF-4 Energy/ESG Gaming attacks~~ ✅ Done (Track EH, attacks 143-148)
+4. Implement EF-5 Cross-Ledger Consistency attacks (planned for Track EI)
+5. Design EF-6 Privacy Protocol attacks (when ZKPs added to Web4)
 
 ---
 
