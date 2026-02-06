@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ATP (Attention Token Pool) Metering System
+ATP (Allocation Transfer Packet) Metering System
 Session #78: Resource consumption tracking and allocation
 
 Purpose:

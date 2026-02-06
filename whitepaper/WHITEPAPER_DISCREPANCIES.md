@@ -21,7 +21,7 @@
 ### Whitepaper Scope
 The whitepaper describes a comprehensive Web4 vision including:
 - Linked Context Tokens (LCTs) for unforgeable identity
-- Alignment Transfer Protocol (ATP) for value/energy cycles
+- Allocation Transfer Packet (ATP) for value/energy cycles
 - Trust Tensors (T3) for multi-dimensional trust
 - Memory as temporal sensing
 - Blockchain typology (Compost, Leaf, Stem, Root chains)
@@ -217,7 +217,7 @@ The current codebase implements:
 
 ## Consistency Check: Whitepaper vs Actual Code
 
-### ATP (Alignment Transfer Protocol)
+### ATP (Allocation Transfer Packet)
 
 **Whitepaper Claims**:
 - Semi-fungible tokens with charged (ATP) and discharged (ADP) states

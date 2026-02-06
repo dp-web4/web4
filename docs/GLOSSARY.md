@@ -39,12 +39,12 @@ The boundary of what an entity can know or affect given its position and history
 
 **See**: [`web4-standard/core-spec/mrh-tensors.md`](../web4-standard/core-spec/mrh-tensors.md)
 
-### ATP (Adaptive Trust Points)
+### ATP (Allocation Transfer Packet)
 Energy-based resource allocation modeled after biological ATP. Consumed when performing actions, regenerated through rest or contribution. Creates economic incentives for good behavior and makes attacks expensive.
 
 **See**: [`web4-standard/core-spec/atp-adp-cycle.md`](../web4-standard/core-spec/atp-adp-cycle.md)
 
-### ADP (Adaptive Development Points)
+### ADP (Allocation Discharge Packet)
 The "spent" form of ATP after work is done. Can be recycled back to ATP through validation and witnessing. Models the biological ATP/ADP cycle.
 
 ---
@@ -142,8 +142,8 @@ Bidirectional learning transfer between systems (e.g., SAGE ↔ Web4). Patterns 
 
 | Abbrev | Full Name |
 |--------|-----------|
-| ATP | Adaptive Trust Points |
-| ADP | Adaptive Development Points |
+| ATP | Allocation Transfer Packet |
+| ADP | Allocation Discharge Packet |
 | LCT | Linked Context Token |
 | MRH | Markov Relevancy Horizon |
 | T3 | Trust Tensor (3-dimensional) |
