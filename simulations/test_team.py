@@ -59,9 +59,11 @@ def test_admin_and_members(team: Team):
     return admin_lct, dev_lct, reviewer_lct
 
 
-def test_atp_and_trust(team: Team, dev_lct: str):
+def test_atp_and_trust(team_with_members):
     """Test ATP and trust management."""
     print("\nTesting ATP and trust...")
+
+    team, admin_lct, dev_lct, reviewer_lct = team_with_members
 
     # Check initial ATP
     atp = team.get_member_atp(dev_lct)
@@ -81,9 +83,11 @@ def test_atp_and_trust(team: Team, dev_lct: str):
     print(f"  After failure: reliability={trust['reliability']:.3f}")
 
 
-def test_r6_workflow(team: Team, admin_lct: str, dev_lct: str, reviewer_lct: str):
+def test_r6_workflow(team_with_members):
     """Test R6 request workflow."""
     print("\nTesting R6 workflow...")
+
+    team, admin_lct, dev_lct, reviewer_lct = team_with_members
 
     policy = Policy()
     workflow = R6Workflow(team, policy)
