@@ -37987,6 +37987,4084 @@ Current defenses: {defenses_held}/{total_defenses}
 
 
 # ---------------------------------------------------------------------------
+# Track EC: Social Engineering in Trust Systems (Attacks 115-118)
+# Exploiting human psychology and social dynamics to manipulate trust
+# ---------------------------------------------------------------------------
+
+def attack_authority_impersonation() -> AttackResult:
+    """
+    ATTACK 115: AUTHORITY IMPERSONATION (Track EC)
+
+    Exploits tendency to defer to perceived authority:
+    1. Credential inflation (fake credentials, borrowed prestige)
+    2. Title manipulation (claim unearned roles)
+    3. Affiliation spoofing (falsely claim team membership)
+    4. Historical revisionism (fake past accomplishments)
+    5. Expert persona construction (build fake expertise signals)
+
+    Social engineering insight: People defer to perceived experts
+    without verifying credentials. Milgram (1963) showed 65% obey
+    authority figures even against conscience.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "credential_verification": False,
+        "affiliation_cross_check": False,
+        "historical_audit_trail": False,
+        "expertise_challenge_system": False,
+        "reputation_source_diversity": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Credential Verification
+    # ========================================================================
+
+    class CredentialVerifier:
+        """Verify claimed credentials against authoritative sources."""
+
+        def __init__(self):
+            self.verified_credentials: dict = {}
+            self.credential_sources: dict = {}
+
+        def register_credential(self, lct_id: str, credential: str, source: str, verified: bool):
+            """Register a credential with verification status."""
+            key = (lct_id, credential)
+            self.verified_credentials[key] = verified
+            self.credential_sources[key] = source
+
+        def verify_claim(self, lct_id: str, claimed_credential: str) -> tuple:
+            """Verify a credential claim."""
+            key = (lct_id, claimed_credential)
+            if key not in self.verified_credentials:
+                return False, f"No verified record of credential: {claimed_credential}"
+
+            if not self.verified_credentials[key]:
+                return False, f"Credential verification failed from source: {self.credential_sources[key]}"
+
+            return True, f"Credential verified via {self.credential_sources[key]}"
+
+    cred_verifier = CredentialVerifier()
+    cred_verifier.register_credential("attacker_lct", "PhD in Computer Science", "self_claim", False)
+    cred_verifier.register_credential("honest_lct", "PhD in Computer Science", "university_registry", True)
+
+    # Attacker claims unverified credential
+    valid, msg = cred_verifier.verify_claim("attacker_lct", "PhD in Computer Science")
+
+    if not valid:
+        defenses["credential_verification"] = True
+        cred_note = f"Credential rejected: {msg}"
+    else:
+        cred_note = f"Credential accepted: {msg}"
+
+    # ========================================================================
+    # Defense 2: Affiliation Cross-Check
+    # ========================================================================
+
+    class AffiliationCrossChecker:
+        """Cross-check affiliation claims with team records."""
+
+        def __init__(self):
+            self.team_members: dict = defaultdict(set)
+
+        def register_membership(self, team_id: str, lct_id: str):
+            """Register a membership."""
+            self.team_members[team_id].add(lct_id)
+
+        def verify_affiliation(self, lct_id: str, claimed_team: str) -> tuple:
+            """Verify team affiliation claim."""
+            if claimed_team not in self.team_members:
+                return False, f"Team {claimed_team} not found"
+
+            if lct_id not in self.team_members[claimed_team]:
+                return False, f"LCT {lct_id} not found in team {claimed_team} membership records"
+
+            return True, f"Affiliation verified with {claimed_team}"
+
+    affil_checker = AffiliationCrossChecker()
+    affil_checker.register_membership("elite_team", "honest_member_1")
+    affil_checker.register_membership("elite_team", "honest_member_2")
+
+    # Attacker claims membership in elite team
+    valid, msg = affil_checker.verify_affiliation("attacker_lct", "elite_team")
+
+    if not valid:
+        defenses["affiliation_cross_check"] = True
+        affil_note = f"Affiliation rejected: {msg}"
+    else:
+        affil_note = f"Affiliation accepted: {msg}"
+
+    # ========================================================================
+    # Defense 3: Historical Audit Trail
+    # ========================================================================
+
+    class HistoricalAuditTrail:
+        """Maintain immutable history of accomplishments."""
+
+        def __init__(self):
+            self.history: dict = defaultdict(list)
+
+        def record_accomplishment(self, lct_id: str, accomplishment: str, timestamp: datetime, witnesses: list):
+            """Record an accomplishment with witnesses."""
+            self.history[lct_id].append({
+                "accomplishment": accomplishment,
+                "timestamp": timestamp,
+                "witnesses": witnesses,
+                "immutable": True,
+            })
+
+        def verify_history(self, lct_id: str, claimed_accomplishment: str) -> tuple:
+            """Verify claimed historical accomplishment."""
+            records = self.history.get(lct_id, [])
+
+            for record in records:
+                if claimed_accomplishment in record["accomplishment"]:
+                    return True, f"Verified: {record['accomplishment']} at {record['timestamp']} with {len(record['witnesses'])} witnesses"
+
+            return False, f"No record of accomplishment: {claimed_accomplishment}"
+
+    audit_trail = HistoricalAuditTrail()
+    now = datetime.now(timezone.utc)
+    audit_trail.record_accomplishment("honest_lct", "Led successful protocol upgrade", now - timedelta(days=90), ["witness1", "witness2", "witness3"])
+
+    # Attacker claims past accomplishment they didn't do
+    valid, msg = audit_trail.verify_history("attacker_lct", "Led successful protocol upgrade")
+
+    if not valid:
+        defenses["historical_audit_trail"] = True
+        history_note = f"Historical claim rejected: {msg}"
+    else:
+        history_note = f"Historical claim accepted: {msg}"
+
+    # ========================================================================
+    # Defense 4: Expertise Challenge System
+    # ========================================================================
+
+    class ExpertiseChallengeSystem:
+        """Challenge claimed expertise through verification tests."""
+
+        def __init__(self, challenge_rate: float = 0.2):
+            self.challenge_rate = challenge_rate
+            self.challenge_results: dict = defaultdict(list)
+
+        def issue_challenge(self, lct_id: str, domain: str) -> dict:
+            """Issue expertise challenge."""
+            # Simplified challenge system
+            import random
+            random.seed(42)  # Deterministic for testing
+            return {
+                "domain": domain,
+                "challenge_type": "technical_question",
+                "difficulty": "expert",
+            }
+
+        def record_challenge_result(self, lct_id: str, domain: str, passed: bool):
+            """Record challenge result."""
+            self.challenge_results[lct_id].append({
+                "domain": domain,
+                "passed": passed,
+            })
+
+        def get_verified_expertise(self, lct_id: str, domain: str) -> tuple:
+            """Check if expertise is challenge-verified."""
+            results = [r for r in self.challenge_results[lct_id] if r["domain"] == domain]
+
+            if not results:
+                return False, "No expertise challenges completed"
+
+            passed_count = sum(1 for r in results if r["passed"])
+
+            if passed_count / len(results) < 0.7:
+                return False, f"Challenge pass rate too low: {passed_count}/{len(results)}"
+
+            return True, f"Expertise verified: {passed_count}/{len(results)} challenges passed"
+
+    challenge_sys = ExpertiseChallengeSystem()
+    challenge_sys.record_challenge_result("honest_lct", "cryptography", True)
+    challenge_sys.record_challenge_result("honest_lct", "cryptography", True)
+    challenge_sys.record_challenge_result("attacker_lct", "cryptography", False)
+    challenge_sys.record_challenge_result("attacker_lct", "cryptography", False)
+
+    # Check attacker's claimed expertise
+    valid, msg = challenge_sys.get_verified_expertise("attacker_lct", "cryptography")
+
+    if not valid:
+        defenses["expertise_challenge_system"] = True
+        challenge_note = f"Expertise challenge failed: {msg}"
+    else:
+        challenge_note = f"Expertise verified: {msg}"
+
+    # ========================================================================
+    # Defense 5: Reputation Source Diversity
+    # ========================================================================
+
+    class ReputationSourceDiversityChecker:
+        """Ensure reputation comes from diverse sources."""
+
+        def __init__(self, min_unique_sources: int = 5, min_clusters: int = 3):
+            self.min_sources = min_unique_sources
+            self.min_clusters = min_clusters
+
+        def check_diversity(self, reputation_sources: list, source_clusters: dict) -> tuple:
+            """Check if reputation sources are diverse enough."""
+            unique_sources = len(set(reputation_sources))
+            clusters = set(source_clusters.get(s, "unknown") for s in reputation_sources)
+
+            issues = []
+
+            if unique_sources < self.min_sources:
+                issues.append(f"Too few sources: {unique_sources} < {self.min_sources}")
+
+            if len(clusters) < self.min_clusters:
+                issues.append(f"Too few clusters: {len(clusters)} < {self.min_clusters}")
+
+            if issues:
+                return False, f"Insufficient diversity: {'; '.join(issues)}"
+
+            return True, f"Diverse reputation: {unique_sources} sources from {len(clusters)} clusters"
+
+    diversity_checker = ReputationSourceDiversityChecker()
+
+    # Attacker has reputation from coordinated sources
+    attacker_sources = ["shill_1", "shill_2", "shill_3"]
+    attacker_clusters = {"shill_1": "coalition", "shill_2": "coalition", "shill_3": "coalition"}
+
+    valid, msg = diversity_checker.check_diversity(attacker_sources, attacker_clusters)
+
+    if not valid:
+        defenses["reputation_source_diversity"] = True
+        diversity_note = f"Diversity check failed: {msg}"
+    else:
+        diversity_note = f"Diversity check passed: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Authority Impersonation (EC)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=25000.0 if attack_success else -200.0,
+        roi=125.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=72,
+        blocks_until_detected=180,
+        trust_damage=0.60,
+        description=f"""
+AUTHORITY IMPERSONATION (Track EC - Attack 115):
+- Credential verification: {"DEFENDED" if defenses["credential_verification"] else "VULNERABLE"}
+  {cred_note}
+- Affiliation cross-check: {"DEFENDED" if defenses["affiliation_cross_check"] else "VULNERABLE"}
+  {affil_note}
+- Historical audit trail: {"DEFENDED" if defenses["historical_audit_trail"] else "VULNERABLE"}
+  {history_note}
+- Expertise challenge system: {"DEFENDED" if defenses["expertise_challenge_system"] else "VULNERABLE"}
+  {challenge_note}
+- Reputation source diversity: {"DEFENDED" if defenses["reputation_source_diversity"] else "VULNERABLE"}
+  {diversity_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Authority bias: People defer to perceived expertise without verification.
+Milgram (1963): 65% obey authority even against conscience.
+""".strip(),
+        mitigation=f"""
+Track EC: Authority Impersonation Mitigation:
+1. Verify credentials against authoritative registries
+2. Cross-check affiliation claims with team records
+3. Maintain immutable audit trails for accomplishments
+4. Challenge claimed expertise through verification tests
+5. Require reputation from diverse, independent sources
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_social_proof_manipulation() -> AttackResult:
+    """
+    ATTACK 116: SOCIAL PROOF MANIPULATION (Track EC)
+
+    Exploits herd behavior and conformity:
+    1. Fake engagement metrics (inflated witnesses, likes, endorsements)
+    2. Astroturfing (fake grassroots support)
+    3. Bandwagon manufacturing (create illusion of consensus)
+    4. Testimonial fabrication (fake success stories)
+    5. Early adopter manipulation (seed opinion leaders)
+
+    Social psychology insight: Asch (1951) conformity experiments
+    showed 75% of people conform to incorrect group opinions.
+    """
+    from collections import defaultdict
+    from datetime import datetime, timezone
+
+    defenses = {
+        "engagement_velocity_analysis": False,
+        "astroturf_pattern_detection": False,
+        "consensus_diversity_check": False,
+        "testimonial_verification": False,
+        "opinion_leader_independence": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Engagement Velocity Analysis
+    # ========================================================================
+
+    class EngagementVelocityAnalyzer:
+        """Detect artificially rapid engagement growth."""
+
+        def __init__(self, max_velocity_per_hour: float = 10.0):
+            self.max_velocity = max_velocity_per_hour
+            self.engagement_logs: dict = defaultdict(list)
+
+        def record_engagement(self, target_id: str, timestamp: datetime):
+            """Record an engagement event."""
+            self.engagement_logs[target_id].append(timestamp)
+
+        def analyze_velocity(self, target_id: str) -> tuple:
+            """Analyze engagement velocity for anomalies."""
+            logs = self.engagement_logs.get(target_id, [])
+
+            if len(logs) < 2:
+                return True, "Insufficient data for velocity analysis"
+
+            # Calculate engagements per hour
+            sorted_logs = sorted(logs)
+            time_span_hours = (sorted_logs[-1] - sorted_logs[0]).total_seconds() / 3600
+
+            if time_span_hours < 0.1:
+                time_span_hours = 0.1  # Avoid division by zero
+
+            velocity = len(logs) / time_span_hours
+
+            if velocity > self.max_velocity:
+                return False, f"Suspicious velocity: {velocity:.1f}/hour exceeds threshold {self.max_velocity}/hour"
+
+            return True, f"Normal velocity: {velocity:.1f}/hour"
+
+    velocity_analyzer = EngagementVelocityAnalyzer(max_velocity_per_hour=10.0)
+
+    now = datetime.now(timezone.utc)
+    # Attacker generates 50 engagements in 1 minute (bot-like)
+    from datetime import timedelta
+    for i in range(50):
+        velocity_analyzer.record_engagement("attacker_content", now + timedelta(seconds=i))
+
+    valid, msg = velocity_analyzer.analyze_velocity("attacker_content")
+
+    if not valid:
+        defenses["engagement_velocity_analysis"] = True
+        velocity_note = f"Velocity anomaly detected: {msg}"
+    else:
+        velocity_note = f"Velocity check passed: {msg}"
+
+    # ========================================================================
+    # Defense 2: Astroturf Pattern Detection
+    # ========================================================================
+
+    class AstroturfDetector:
+        """Detect coordinated inauthentic behavior."""
+
+        def __init__(self):
+            self.engagement_patterns: dict = defaultdict(list)
+
+        def record_engager_behavior(self, engager_id: str, targets: list, timestamps: list):
+            """Record engager's behavior pattern."""
+            self.engagement_patterns[engager_id] = list(zip(targets, timestamps))
+
+        def detect_coordination(self, engager_ids: list) -> tuple:
+            """Detect if engagers show coordinated patterns."""
+            if len(engager_ids) < 2:
+                return True, "Insufficient engagers for coordination analysis"
+
+            # Check for similar target patterns
+            target_sets = []
+            for engager in engager_ids:
+                targets = set(t for t, _ in self.engagement_patterns.get(engager, []))
+                target_sets.append(targets)
+
+            # Calculate Jaccard similarity between pairs
+            similarities = []
+            for i in range(len(target_sets)):
+                for j in range(i + 1, len(target_sets)):
+                    if target_sets[i] and target_sets[j]:
+                        intersection = len(target_sets[i] & target_sets[j])
+                        union = len(target_sets[i] | target_sets[j])
+                        similarities.append(intersection / union if union > 0 else 0)
+
+            if similarities:
+                avg_similarity = sum(similarities) / len(similarities)
+
+                if avg_similarity > 0.8:  # Very high overlap
+                    return False, f"Coordinated behavior detected: {avg_similarity:.0%} average target overlap"
+
+            return True, f"No coordination detected: {sum(similarities)/len(similarities) if similarities else 0:.0%} average overlap"
+
+    astroturf_detector = AstroturfDetector()
+
+    # Coordinated shills all engaging same targets
+    common_targets = ["target_a", "target_b", "target_c"]
+    for i in range(5):
+        astroturf_detector.record_engager_behavior(
+            f"shill_{i}",
+            common_targets,
+            [now + timedelta(minutes=j) for j in range(len(common_targets))]
+        )
+
+    valid, msg = astroturf_detector.detect_coordination([f"shill_{i}" for i in range(5)])
+
+    if not valid:
+        defenses["astroturf_pattern_detection"] = True
+        astroturf_note = f"Astroturfing detected: {msg}"
+    else:
+        astroturf_note = f"No astroturfing: {msg}"
+
+    # ========================================================================
+    # Defense 3: Consensus Diversity Check
+    # ========================================================================
+
+    class ConsensusDiversityChecker:
+        """Ensure consensus reflects diverse perspectives."""
+
+        def __init__(self, min_diversity_score: float = 0.5):
+            self.min_diversity = min_diversity_score
+
+        def calculate_diversity(self, voters: list, voter_attributes: dict) -> tuple:
+            """Calculate voter diversity score."""
+            if not voters:
+                return True, "No voters to analyze"
+
+            # Check attribute diversity
+            attribute_counts: dict = defaultdict(set)
+            for voter in voters:
+                attrs = voter_attributes.get(voter, {})
+                for key, value in attrs.items():
+                    attribute_counts[key].add(value)
+
+            # Diversity = average of unique values / total voters per attribute
+            diversities = []
+            for key, values in attribute_counts.items():
+                diversities.append(len(values) / len(voters))
+
+            avg_diversity = sum(diversities) / len(diversities) if diversities else 0
+
+            if avg_diversity < self.min_diversity:
+                return False, f"Low consensus diversity: {avg_diversity:.0%} < {self.min_diversity:.0%} threshold"
+
+            return True, f"Diverse consensus: {avg_diversity:.0%} diversity score"
+
+    consensus_checker = ConsensusDiversityChecker()
+
+    # Fake consensus from homogeneous voters
+    fake_voters = [f"shill_{i}" for i in range(10)]
+    voter_attributes = {v: {"region": "same_region", "tenure": "new", "affiliation": "coalition"} for v in fake_voters}
+
+    valid, msg = consensus_checker.calculate_diversity(fake_voters, voter_attributes)
+
+    if not valid:
+        defenses["consensus_diversity_check"] = True
+        consensus_note = f"Consensus diversity failed: {msg}"
+    else:
+        consensus_note = f"Consensus diversity passed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Testimonial Verification
+    # ========================================================================
+
+    class TestimonialVerifier:
+        """Verify testimonials against actual transaction records."""
+
+        def __init__(self):
+            self.verified_transactions: set = set()
+
+        def register_transaction(self, provider_id: str, customer_id: str, transaction_id: str):
+            """Register a verified transaction."""
+            self.verified_transactions.add((provider_id, customer_id, transaction_id))
+
+        def verify_testimonial(self, provider_id: str, customer_id: str) -> tuple:
+            """Verify testimonial corresponds to real transaction."""
+            # Check if any transaction exists between provider and customer
+            has_transaction = any(
+                p == provider_id and c == customer_id
+                for p, c, _ in self.verified_transactions
+            )
+
+            if not has_transaction:
+                return False, f"No verified transaction between {provider_id} and {customer_id}"
+
+            return True, f"Testimonial verified against transaction record"
+
+    testimonial_verifier = TestimonialVerifier()
+    testimonial_verifier.register_transaction("honest_provider", "real_customer", "tx_001")
+
+    # Attacker creates fake testimonial without real transaction
+    valid, msg = testimonial_verifier.verify_testimonial("attacker_provider", "fake_customer")
+
+    if not valid:
+        defenses["testimonial_verification"] = True
+        testimonial_note = f"Testimonial rejected: {msg}"
+    else:
+        testimonial_note = f"Testimonial accepted: {msg}"
+
+    # ========================================================================
+    # Defense 5: Opinion Leader Independence
+    # ========================================================================
+
+    class OpinionLeaderIndependenceChecker:
+        """Check if opinion leaders are truly independent."""
+
+        def __init__(self):
+            self.compensation_records: dict = {}
+            self.relationship_graph: dict = defaultdict(set)
+
+        def record_compensation(self, leader_id: str, source_id: str, amount: float):
+            """Record compensation to opinion leader."""
+            if leader_id not in self.compensation_records:
+                self.compensation_records[leader_id] = []
+            self.compensation_records[leader_id].append((source_id, amount))
+
+        def record_relationship(self, leader_id: str, related_id: str):
+            """Record known relationship."""
+            self.relationship_graph[leader_id].add(related_id)
+
+        def check_independence(self, leader_id: str, subject_id: str) -> tuple:
+            """Check if leader is independent when opining on subject."""
+            issues = []
+
+            # Check compensation
+            compensations = self.compensation_records.get(leader_id, [])
+            for source, amount in compensations:
+                if source == subject_id:
+                    issues.append(f"Leader received {amount} from subject")
+
+            # Check relationships
+            relationships = self.relationship_graph.get(leader_id, set())
+            if subject_id in relationships:
+                issues.append(f"Leader has known relationship with subject")
+
+            if issues:
+                return False, f"Independence compromised: {'; '.join(issues)}"
+
+            return True, "Opinion leader independence verified"
+
+    independence_checker = OpinionLeaderIndependenceChecker()
+    independence_checker.record_compensation("paid_influencer", "attacker_company", 10000.0)
+    independence_checker.record_relationship("paid_influencer", "attacker_company")
+
+    valid, msg = independence_checker.check_independence("paid_influencer", "attacker_company")
+
+    if not valid:
+        defenses["opinion_leader_independence"] = True
+        independence_note = f"Independence check failed: {msg}"
+    else:
+        independence_note = f"Independence verified: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Social Proof Manipulation (EC)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=30000.0 if attack_success else -500.0,
+        roi=60.0 if attack_success else -1.0,
+        detection_probability=0.60,
+        time_to_detection_hours=96,
+        blocks_until_detected=240,
+        trust_damage=0.50,
+        description=f"""
+SOCIAL PROOF MANIPULATION (Track EC - Attack 116):
+- Engagement velocity analysis: {"DEFENDED" if defenses["engagement_velocity_analysis"] else "VULNERABLE"}
+  {velocity_note}
+- Astroturf pattern detection: {"DEFENDED" if defenses["astroturf_pattern_detection"] else "VULNERABLE"}
+  {astroturf_note}
+- Consensus diversity check: {"DEFENDED" if defenses["consensus_diversity_check"] else "VULNERABLE"}
+  {consensus_note}
+- Testimonial verification: {"DEFENDED" if defenses["testimonial_verification"] else "VULNERABLE"}
+  {testimonial_note}
+- Opinion leader independence: {"DEFENDED" if defenses["opinion_leader_independence"] else "VULNERABLE"}
+  {independence_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Social proof bias: People follow perceived crowd behavior.
+Asch (1951): 75% conform to incorrect group opinions.
+""".strip(),
+        mitigation=f"""
+Track EC: Social Proof Manipulation Mitigation:
+1. Analyze engagement velocity for bot-like patterns
+2. Detect coordinated inauthentic behavior (astroturfing)
+3. Require diverse perspectives in consensus formation
+4. Verify testimonials against transaction records
+5. Check opinion leader independence before accepting endorsements
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_urgency_scarcity_exploitation() -> AttackResult:
+    """
+    ATTACK 117: URGENCY AND SCARCITY EXPLOITATION (Track EC)
+
+    Exploits fear of missing out (FOMO) and time pressure:
+    1. Artificial deadlines (fake urgency to prevent due diligence)
+    2. Manufactured scarcity (limited slots, exclusive access)
+    3. Countdown manipulation (psychological pressure)
+    4. Competition framing (others are interested, act now)
+    5. Window of opportunity claims (now or never)
+
+    Psychology insight: Cialdini (2001) - Scarcity increases perceived
+    value; urgency bypasses rational evaluation.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "deadline_reasonableness_check": False,
+        "scarcity_verification": False,
+        "cooling_off_period": False,
+        "competition_claim_verification": False,
+        "historical_opportunity_analysis": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Deadline Reasonableness Check
+    # ========================================================================
+
+    class DeadlineReasonablenessChecker:
+        """Check if deadlines allow adequate due diligence."""
+
+        def __init__(self, min_consideration_hours: float = 24.0):
+            self.min_hours = min_consideration_hours
+
+        def check_deadline(self, offer_time: datetime, deadline: datetime, decision_complexity: str) -> tuple:
+            """Check if deadline is reasonable for decision complexity."""
+            time_available = (deadline - offer_time).total_seconds() / 3600
+
+            complexity_minimums = {
+                "trivial": 1.0,
+                "simple": 24.0,
+                "moderate": 72.0,
+                "complex": 168.0,  # 1 week
+                "major": 336.0,   # 2 weeks
+            }
+
+            min_required = complexity_minimums.get(decision_complexity, 24.0)
+
+            if time_available < min_required:
+                return False, f"Insufficient time: {time_available:.0f}h < {min_required:.0f}h required for {decision_complexity} decision"
+
+            return True, f"Reasonable deadline: {time_available:.0f}h for {decision_complexity} decision"
+
+    deadline_checker = DeadlineReasonablenessChecker()
+
+    now = datetime.now(timezone.utc)
+    # Attacker gives 2 hours for complex decision
+    valid, msg = deadline_checker.check_deadline(now, now + timedelta(hours=2), "complex")
+
+    if not valid:
+        defenses["deadline_reasonableness_check"] = True
+        deadline_note = f"Unreasonable deadline: {msg}"
+    else:
+        deadline_note = f"Deadline accepted: {msg}"
+
+    # ========================================================================
+    # Defense 2: Scarcity Verification
+    # ========================================================================
+
+    class ScarcityVerifier:
+        """Verify scarcity claims against actual availability."""
+
+        def __init__(self):
+            self.availability_records: dict = {}
+            self.scarcity_claims: dict = defaultdict(list)
+
+        def record_availability(self, resource_id: str, total_available: int, timestamp: datetime):
+            """Record actual availability."""
+            self.availability_records[resource_id] = {
+                "total": total_available,
+                "timestamp": timestamp,
+            }
+
+        def record_scarcity_claim(self, resource_id: str, claimed_remaining: int, timestamp: datetime):
+            """Record a scarcity claim."""
+            self.scarcity_claims[resource_id].append({
+                "claimed": claimed_remaining,
+                "timestamp": timestamp,
+            })
+
+        def verify_scarcity(self, resource_id: str, claimed_remaining: int) -> tuple:
+            """Verify scarcity claim against records."""
+            actual = self.availability_records.get(resource_id)
+
+            if not actual:
+                return False, "No availability records to verify against"
+
+            # Check if claimed scarcity matches reality
+            if claimed_remaining < actual["total"] * 0.1:  # Claiming <10% remaining
+                past_claims = self.scarcity_claims.get(resource_id, [])
+                similar_claims = [c for c in past_claims if c["claimed"] < actual["total"] * 0.15]
+
+                if len(similar_claims) > 3:  # Repeated scarcity claims
+                    return False, f"Repeated scarcity claims detected: {len(similar_claims)} claims of <15% availability"
+
+            return True, f"Scarcity claim plausible: {claimed_remaining}/{actual['total']}"
+
+    scarcity_verifier = ScarcityVerifier()
+    now = datetime.now(timezone.utc)
+    scarcity_verifier.record_availability("exclusive_access", 1000, now - timedelta(days=30))
+
+    # Attacker makes repeated "almost sold out" claims
+    for i in range(5):
+        scarcity_verifier.record_scarcity_claim("exclusive_access", 50, now - timedelta(days=i))
+
+    valid, msg = scarcity_verifier.verify_scarcity("exclusive_access", 50)
+
+    if not valid:
+        defenses["scarcity_verification"] = True
+        scarcity_note = f"Scarcity claim rejected: {msg}"
+    else:
+        scarcity_note = f"Scarcity claim accepted: {msg}"
+
+    # ========================================================================
+    # Defense 3: Cooling Off Period
+    # ========================================================================
+
+    class CoolingOffPeriodEnforcer:
+        """Enforce mandatory cooling off periods for major decisions."""
+
+        def __init__(self, default_hours: float = 24.0):
+            self.default_hours = default_hours
+            self.commitment_timestamps: dict = {}
+
+        def record_initial_commitment(self, decision_id: str, timestamp: datetime):
+            """Record when initial commitment was made."""
+            self.commitment_timestamps[decision_id] = timestamp
+
+        def check_cooling_off(self, decision_id: str, finalization_time: datetime) -> tuple:
+            """Check if cooling off period has elapsed."""
+            initial = self.commitment_timestamps.get(decision_id)
+
+            if not initial:
+                return False, "No initial commitment recorded"
+
+            elapsed = (finalization_time - initial).total_seconds() / 3600
+
+            if elapsed < self.default_hours:
+                return False, f"Cooling off period not elapsed: {elapsed:.1f}h < {self.default_hours:.0f}h required"
+
+            return True, f"Cooling off period satisfied: {elapsed:.1f}h elapsed"
+
+    cooling_off = CoolingOffPeriodEnforcer(default_hours=24.0)
+
+    now = datetime.now(timezone.utc)
+    cooling_off.record_initial_commitment("rushed_decision", now - timedelta(hours=2))
+
+    # Attacker tries to finalize too quickly
+    valid, msg = cooling_off.check_cooling_off("rushed_decision", now)
+
+    if not valid:
+        defenses["cooling_off_period"] = True
+        cooling_note = f"Cooling off enforced: {msg}"
+    else:
+        cooling_note = f"Cooling off satisfied: {msg}"
+
+    # ========================================================================
+    # Defense 4: Competition Claim Verification
+    # ========================================================================
+
+    class CompetitionClaimVerifier:
+        """Verify claims about competing interest."""
+
+        def __init__(self):
+            self.verified_interest: dict = defaultdict(set)
+
+        def record_verified_interest(self, resource_id: str, interested_party: str):
+            """Record verified interest in resource."""
+            self.verified_interest[resource_id].add(interested_party)
+
+        def verify_competition_claim(self, resource_id: str, claimed_competitors: int) -> tuple:
+            """Verify competition claims."""
+            actual_interested = len(self.verified_interest.get(resource_id, set()))
+
+            if claimed_competitors > actual_interested * 2:  # Claiming >2x actual
+                return False, f"Competition inflated: claimed {claimed_competitors}, verified {actual_interested}"
+
+            return True, f"Competition claim reasonable: {claimed_competitors} claimed vs {actual_interested} verified"
+
+    competition_verifier = CompetitionClaimVerifier()
+    competition_verifier.record_verified_interest("hot_opportunity", "party_1")
+    competition_verifier.record_verified_interest("hot_opportunity", "party_2")
+
+    # Attacker claims 50 competitors
+    valid, msg = competition_verifier.verify_competition_claim("hot_opportunity", 50)
+
+    if not valid:
+        defenses["competition_claim_verification"] = True
+        competition_note = f"Competition claim rejected: {msg}"
+    else:
+        competition_note = f"Competition claim accepted: {msg}"
+
+    # ========================================================================
+    # Defense 5: Historical Opportunity Analysis
+    # ========================================================================
+
+    class HistoricalOpportunityAnalyzer:
+        """Analyze if "unique" opportunities recur."""
+
+        def __init__(self):
+            self.opportunity_history: dict = defaultdict(list)
+
+        def record_opportunity(self, opportunity_type: str, provider_id: str, timestamp: datetime, claimed_unique: bool):
+            """Record an opportunity offer."""
+            self.opportunity_history[(opportunity_type, provider_id)].append({
+                "timestamp": timestamp,
+                "claimed_unique": claimed_unique,
+            })
+
+        def analyze_uniqueness(self, opportunity_type: str, provider_id: str) -> tuple:
+            """Analyze if claimed unique opportunity is actually recurring."""
+            history = self.opportunity_history.get((opportunity_type, provider_id), [])
+
+            unique_claims = [h for h in history if h["claimed_unique"]]
+
+            if len(unique_claims) > 2:  # Multiple "unique" offers
+                return False, f"'Unique' opportunity offered {len(unique_claims)} times by this provider"
+
+            return True, f"Opportunity history acceptable: {len(unique_claims)} unique claims"
+
+    opportunity_analyzer = HistoricalOpportunityAnalyzer()
+
+    now = datetime.now(timezone.utc)
+    # Attacker repeatedly offers "once in a lifetime" opportunities
+    for i in range(5):
+        opportunity_analyzer.record_opportunity("investment", "scammer", now - timedelta(days=30*i), claimed_unique=True)
+
+    valid, msg = opportunity_analyzer.analyze_uniqueness("investment", "scammer")
+
+    if not valid:
+        defenses["historical_opportunity_analysis"] = True
+        history_note = f"Recurring 'unique' opportunity: {msg}"
+    else:
+        history_note = f"Opportunity history acceptable: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Urgency/Scarcity Exploitation (EC)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=20000.0 if attack_success else -150.0,
+        roi=133.0 if attack_success else -1.0,
+        detection_probability=0.65,
+        time_to_detection_hours=48,
+        blocks_until_detected=120,
+        trust_damage=0.45,
+        description=f"""
+URGENCY AND SCARCITY EXPLOITATION (Track EC - Attack 117):
+- Deadline reasonableness: {"DEFENDED" if defenses["deadline_reasonableness_check"] else "VULNERABLE"}
+  {deadline_note}
+- Scarcity verification: {"DEFENDED" if defenses["scarcity_verification"] else "VULNERABLE"}
+  {scarcity_note}
+- Cooling off period: {"DEFENDED" if defenses["cooling_off_period"] else "VULNERABLE"}
+  {cooling_note}
+- Competition claim verification: {"DEFENDED" if defenses["competition_claim_verification"] else "VULNERABLE"}
+  {competition_note}
+- Historical opportunity analysis: {"DEFENDED" if defenses["historical_opportunity_analysis"] else "VULNERABLE"}
+  {history_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Urgency/Scarcity: Artificial pressure bypasses rational evaluation.
+Cialdini (2001): Scarcity increases perceived value; urgency bypasses analysis.
+""".strip(),
+        mitigation=f"""
+Track EC: Urgency/Scarcity Exploitation Mitigation:
+1. Enforce reasonable deadlines based on decision complexity
+2. Verify scarcity claims against historical availability
+3. Mandate cooling off periods for major decisions
+4. Verify competition claims against actual interest records
+5. Track recurring "unique" opportunities from same providers
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_reciprocity_exploitation() -> AttackResult:
+    """
+    ATTACK 118: RECIPROCITY EXPLOITATION (Track EC)
+
+    Exploits obligation to reciprocate favors:
+    1. Unsolicited favor trap (give gift, demand return)
+    2. Door-in-the-face (large request, then "reasonable" smaller one)
+    3. Foot-in-the-door (small commitment, then escalate)
+    4. Gift-based obligation (expensive gifts create obligation)
+    5. Information asymmetry exploitation (share secret, demand trust)
+
+    Psychology insight: Gouldner (1960) - Reciprocity norm is universal.
+    Regan (1971) - Favors increase compliance 2x even when unsolicited.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "unsolicited_gift_tracking": False,
+        "request_escalation_detection": False,
+        "commitment_consistency_analysis": False,
+        "gift_value_proportionality": False,
+        "information_sharing_boundaries": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Unsolicited Gift Tracking
+    # ========================================================================
+
+    class UnsolicitedGiftTracker:
+        """Track unsolicited gifts and subsequent requests."""
+
+        def __init__(self):
+            self.gift_records: dict = defaultdict(list)
+            self.request_records: dict = defaultdict(list)
+
+        def record_gift(self, sender: str, recipient: str, value: float, solicited: bool, timestamp: datetime):
+            """Record a gift."""
+            self.gift_records[(sender, recipient)].append({
+                "value": value,
+                "solicited": solicited,
+                "timestamp": timestamp,
+            })
+
+        def record_request(self, sender: str, target: str, value: float, timestamp: datetime):
+            """Record a request following gifts."""
+            self.request_records[(sender, target)].append({
+                "value": value,
+                "timestamp": timestamp,
+            })
+
+        def detect_reciprocity_trap(self, giver: str, recipient: str) -> tuple:
+            """Detect potential reciprocity manipulation."""
+            gifts = self.gift_records.get((giver, recipient), [])
+            requests = self.request_records.get((giver, recipient), [])
+
+            unsolicited_gifts = [g for g in gifts if not g["solicited"]]
+            total_gift_value = sum(g["value"] for g in unsolicited_gifts)
+
+            if unsolicited_gifts and requests:
+                # Check if requests follow gifts closely
+                for request in requests:
+                    recent_gifts = [g for g in unsolicited_gifts
+                                   if (request["timestamp"] - g["timestamp"]).total_seconds() < 86400 * 7]
+
+                    if recent_gifts and request["value"] > total_gift_value * 0.5:
+                        return False, f"Reciprocity trap detected: {len(recent_gifts)} unsolicited gifts followed by request"
+
+            return True, "No reciprocity manipulation detected"
+
+    gift_tracker = UnsolicitedGiftTracker()
+
+    now = datetime.now(timezone.utc)
+    # Attacker sends unsolicited gift then makes request
+    gift_tracker.record_gift("attacker", "target", 100.0, solicited=False, timestamp=now - timedelta(days=3))
+    gift_tracker.record_request("attacker", "target", 5000.0, timestamp=now)
+
+    valid, msg = gift_tracker.detect_reciprocity_trap("attacker", "target")
+
+    if not valid:
+        defenses["unsolicited_gift_tracking"] = True
+        gift_note = f"Reciprocity trap detected: {msg}"
+    else:
+        gift_note = f"No manipulation: {msg}"
+
+    # ========================================================================
+    # Defense 2: Request Escalation Detection
+    # ========================================================================
+
+    class RequestEscalationDetector:
+        """Detect door-in-the-face and foot-in-the-door patterns."""
+
+        def __init__(self):
+            self.request_history: dict = defaultdict(list)
+
+        def record_request(self, requester: str, target: str, value: float, accepted: bool, timestamp: datetime):
+            """Record a request and outcome."""
+            self.request_history[(requester, target)].append({
+                "value": value,
+                "accepted": accepted,
+                "timestamp": timestamp,
+            })
+
+        def detect_escalation(self, requester: str, target: str) -> tuple:
+            """Detect manipulation patterns."""
+            history = self.request_history.get((requester, target), [])
+
+            if len(history) < 2:
+                return True, "Insufficient history for pattern analysis"
+
+            sorted_history = sorted(history, key=lambda x: x["timestamp"])
+
+            # Door-in-the-face: large rejected request followed by smaller one
+            for i in range(len(sorted_history) - 1):
+                if not sorted_history[i]["accepted"] and sorted_history[i + 1]["accepted"]:
+                    ratio = sorted_history[i + 1]["value"] / sorted_history[i]["value"]
+                    if ratio < 0.3:  # Dramatic reduction
+                        return False, f"Door-in-the-face pattern: {sorted_history[i]['value']:.0f} rejected, then {sorted_history[i + 1]['value']:.0f} accepted"
+
+            # Foot-in-the-door: escalating accepted requests
+            accepted = [h for h in sorted_history if h["accepted"]]
+            if len(accepted) >= 3:
+                values = [a["value"] for a in accepted]
+                if all(values[i] < values[i + 1] for i in range(len(values) - 1)):
+                    return False, f"Foot-in-the-door pattern: escalating requests {values}"
+
+            return True, "No escalation pattern detected"
+
+    escalation_detector = RequestEscalationDetector()
+
+    now = datetime.now(timezone.utc)
+    # Door-in-the-face: huge request, then "reasonable" one
+    escalation_detector.record_request("manipulator", "victim", 10000.0, accepted=False, timestamp=now - timedelta(days=2))
+    escalation_detector.record_request("manipulator", "victim", 500.0, accepted=True, timestamp=now)
+
+    valid, msg = escalation_detector.detect_escalation("manipulator", "victim")
+
+    if not valid:
+        defenses["request_escalation_detection"] = True
+        escalation_note = f"Escalation pattern: {msg}"
+    else:
+        escalation_note = f"No pattern: {msg}"
+
+    # ========================================================================
+    # Defense 3: Commitment Consistency Analysis
+    # ========================================================================
+
+    class CommitmentConsistencyAnalyzer:
+        """Analyze if commitment escalation exploits consistency principle."""
+
+        def __init__(self):
+            self.commitments: dict = defaultdict(list)
+
+        def record_commitment(self, entity: str, commitment_type: str, value: float, timestamp: datetime):
+            """Record a commitment."""
+            self.commitments[entity].append({
+                "type": commitment_type,
+                "value": value,
+                "timestamp": timestamp,
+            })
+
+        def analyze_exploitation(self, entity: str) -> tuple:
+            """Analyze if commitments show exploitation pattern."""
+            history = self.commitments.get(entity, [])
+
+            if len(history) < 3:
+                return True, "Insufficient commitment history"
+
+            sorted_history = sorted(history, key=lambda x: x["timestamp"])
+            values = [h["value"] for h in sorted_history]
+
+            # Check for exponential growth (exploitation of consistency)
+            growth_rates = [values[i + 1] / values[i] for i in range(len(values) - 1) if values[i] > 0]
+
+            if growth_rates and all(r > 1.5 for r in growth_rates):
+                return False, f"Commitment escalation detected: values {values}, growth rates {[f'{r:.1f}x' for r in growth_rates]}"
+
+            return True, "Commitment pattern normal"
+
+    consistency_analyzer = CommitmentConsistencyAnalyzer()
+
+    now = datetime.now(timezone.utc)
+    # Escalating commitments
+    consistency_analyzer.record_commitment("victim", "investment", 10, now - timedelta(days=30))
+    consistency_analyzer.record_commitment("victim", "investment", 50, now - timedelta(days=20))
+    consistency_analyzer.record_commitment("victim", "investment", 200, now - timedelta(days=10))
+    consistency_analyzer.record_commitment("victim", "investment", 1000, now)
+
+    valid, msg = consistency_analyzer.analyze_exploitation("victim")
+
+    if not valid:
+        defenses["commitment_consistency_analysis"] = True
+        consistency_note = f"Commitment exploitation: {msg}"
+    else:
+        consistency_note = f"Normal pattern: {msg}"
+
+    # ========================================================================
+    # Defense 4: Gift Value Proportionality
+    # ========================================================================
+
+    class GiftValueProportionalityChecker:
+        """Check if gift values are disproportionate to relationship."""
+
+        def __init__(self):
+            self.relationship_strengths: dict = {}
+            self.gift_history: dict = defaultdict(list)
+
+        def record_relationship_strength(self, entity_a: str, entity_b: str, strength: float):
+            """Record relationship strength (0-1)."""
+            key = tuple(sorted([entity_a, entity_b]))
+            self.relationship_strengths[key] = strength
+
+        def record_gift(self, giver: str, recipient: str, value: float):
+            """Record a gift."""
+            self.gift_history[(giver, recipient)].append(value)
+
+        def check_proportionality(self, giver: str, recipient: str, proposed_value: float) -> tuple:
+            """Check if gift is proportionate to relationship."""
+            key = tuple(sorted([giver, recipient]))
+            strength = self.relationship_strengths.get(key, 0.1)
+
+            # Max reasonable gift increases with relationship
+            max_reasonable = 100 + (strength * 10000)
+
+            if proposed_value > max_reasonable:
+                return False, f"Gift disproportionate: {proposed_value:.0f} ATP for relationship strength {strength:.2f}"
+
+            return True, f"Gift proportionate: {proposed_value:.0f} ATP reasonable for {strength:.2f} relationship"
+
+    proportionality_checker = GiftValueProportionalityChecker()
+    proportionality_checker.record_relationship_strength("stranger", "target", 0.05)
+
+    # Stranger tries to give expensive gift
+    valid, msg = proportionality_checker.check_proportionality("stranger", "target", 5000.0)
+
+    if not valid:
+        defenses["gift_value_proportionality"] = True
+        proportionality_note = f"Disproportionate gift: {msg}"
+    else:
+        proportionality_note = f"Gift acceptable: {msg}"
+
+    # ========================================================================
+    # Defense 5: Information Sharing Boundaries
+    # ========================================================================
+
+    class InformationSharingBoundaryEnforcer:
+        """Prevent exploitation through asymmetric information sharing."""
+
+        def __init__(self):
+            self.shared_secrets: dict = defaultdict(list)
+            self.trust_requests: dict = defaultdict(list)
+
+        def record_secret_share(self, sharer: str, recipient: str, sensitivity: str, timestamp: datetime):
+            """Record when sensitive information is shared."""
+            self.shared_secrets[(sharer, recipient)].append({
+                "sensitivity": sensitivity,
+                "timestamp": timestamp,
+            })
+
+        def record_trust_request(self, requester: str, target: str, timestamp: datetime):
+            """Record trust request following secret sharing."""
+            self.trust_requests[(requester, target)].append(timestamp)
+
+        def detect_information_exploitation(self, sharer: str, target: str) -> tuple:
+            """Detect if secret sharing is used to create obligation."""
+            secrets = self.shared_secrets.get((sharer, target), [])
+            requests = self.trust_requests.get((sharer, target), [])
+
+            if not secrets or not requests:
+                return True, "No pattern to analyze"
+
+            # Check if high-sensitivity secrets precede trust requests
+            high_sensitivity = [s for s in secrets if s["sensitivity"] in ["confidential", "secret"]]
+
+            for request_time in requests:
+                recent_secrets = [s for s in high_sensitivity
+                                if 0 < (request_time - s["timestamp"]).total_seconds() < 86400 * 7]
+
+                if recent_secrets:
+                    return False, f"Information exploitation: {len(recent_secrets)} sensitive secrets shared before trust request"
+
+            return True, "No information exploitation detected"
+
+    info_enforcer = InformationSharingBoundaryEnforcer()
+
+    now = datetime.now(timezone.utc)
+    # Attacker shares "secret" then requests trust
+    info_enforcer.record_secret_share("manipulator", "target", "confidential", now - timedelta(days=2))
+    info_enforcer.record_trust_request("manipulator", "target", now)
+
+    valid, msg = info_enforcer.detect_information_exploitation("manipulator", "target")
+
+    if not valid:
+        defenses["information_sharing_boundaries"] = True
+        info_note = f"Information exploitation: {msg}"
+    else:
+        info_note = f"No exploitation: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Reciprocity Exploitation (EC)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=15000.0 if attack_success else -300.0,
+        roi=50.0 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=120,
+        blocks_until_detected=300,
+        trust_damage=0.55,
+        description=f"""
+RECIPROCITY EXPLOITATION (Track EC - Attack 118):
+- Unsolicited gift tracking: {"DEFENDED" if defenses["unsolicited_gift_tracking"] else "VULNERABLE"}
+  {gift_note}
+- Request escalation detection: {"DEFENDED" if defenses["request_escalation_detection"] else "VULNERABLE"}
+  {escalation_note}
+- Commitment consistency analysis: {"DEFENDED" if defenses["commitment_consistency_analysis"] else "VULNERABLE"}
+  {consistency_note}
+- Gift value proportionality: {"DEFENDED" if defenses["gift_value_proportionality"] else "VULNERABLE"}
+  {proportionality_note}
+- Information sharing boundaries: {"DEFENDED" if defenses["information_sharing_boundaries"] else "VULNERABLE"}
+  {info_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Reciprocity: Obligation to return favors can be exploited.
+Regan (1971): Favors increase compliance 2x even when unsolicited.
+""".strip(),
+        mitigation=f"""
+Track EC: Reciprocity Exploitation Mitigation:
+1. Track unsolicited gifts and subsequent requests
+2. Detect door-in-the-face and foot-in-the-door patterns
+3. Analyze commitment escalation for consistency exploitation
+4. Enforce gift proportionality to relationship strength
+5. Set boundaries on information sharing to prevent obligation creation
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track ED: Regulatory and Compliance Arbitrage (Attacks 119-122)
+# Exploiting jurisdictional and regulatory gaps
+# ---------------------------------------------------------------------------
+
+def attack_jurisdiction_shopping() -> AttackResult:
+    """
+    ATTACK 119: JURISDICTION SHOPPING (Track ED)
+
+    Exploits regulatory fragmentation:
+    1. Register in permissive jurisdiction, operate elsewhere
+    2. Play regulators against each other
+    3. Exploit regulatory lag (act before rules catch up)
+    4. Structure to fall between regulatory gaps
+    5. Use shell entities to obscure true operations
+
+    Legal insight: Regulatory arbitrage is a $100B+ industry.
+    Web4 must not become a tool for it.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "impact_based_jurisdiction": False,
+        "registration_operation_matching": False,
+        "shell_entity_detection": False,
+        "regulatory_change_tracking": False,
+        "substance_over_form_analysis": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Impact-Based Jurisdiction
+    # ========================================================================
+
+    class ImpactBasedJurisdictionResolver:
+        """Determine jurisdiction by impact, not registration."""
+
+        def __init__(self):
+            self.operation_footprints: dict = {}
+            self.registrations: dict = {}
+
+        def record_registration(self, entity_id: str, jurisdiction: str):
+            """Record where entity is registered."""
+            self.registrations[entity_id] = jurisdiction
+
+        def record_operation_footprint(self, entity_id: str, jurisdiction: str, impact_weight: float):
+            """Record operational impact in jurisdiction."""
+            if entity_id not in self.operation_footprints:
+                self.operation_footprints[entity_id] = {}
+            self.operation_footprints[entity_id][jurisdiction] = impact_weight
+
+        def resolve_jurisdiction(self, entity_id: str) -> tuple:
+            """Resolve applicable jurisdiction based on impact."""
+            registration = self.registrations.get(entity_id)
+            footprints = self.operation_footprints.get(entity_id, {})
+
+            if not footprints:
+                return True, f"Jurisdiction: {registration} (no operations recorded)"
+
+            # Find highest impact jurisdiction
+            impact_jurisdiction = max(footprints, key=footprints.get)
+            impact_weight = footprints[impact_jurisdiction]
+
+            if impact_jurisdiction != registration and impact_weight > 0.5:
+                return False, f"Jurisdiction mismatch: registered in {registration} but {impact_weight:.0%} impact in {impact_jurisdiction}"
+
+            return True, f"Jurisdiction aligned: {registration}"
+
+    jurisdiction_resolver = ImpactBasedJurisdictionResolver()
+    jurisdiction_resolver.record_registration("offshore_corp", "tax_haven")
+    jurisdiction_resolver.record_operation_footprint("offshore_corp", "main_market", 0.9)
+    jurisdiction_resolver.record_operation_footprint("offshore_corp", "tax_haven", 0.1)
+
+    valid, msg = jurisdiction_resolver.resolve_jurisdiction("offshore_corp")
+
+    if not valid:
+        defenses["impact_based_jurisdiction"] = True
+        jurisdiction_note = f"Jurisdiction mismatch detected: {msg}"
+    else:
+        jurisdiction_note = f"Jurisdiction valid: {msg}"
+
+    # ========================================================================
+    # Defense 2: Registration-Operation Matching
+    # ========================================================================
+
+    class RegistrationOperationMatcher:
+        """Ensure registration matches actual operations."""
+
+        def __init__(self, max_mismatch_ratio: float = 0.3):
+            self.max_mismatch = max_mismatch_ratio
+            self.declared_activities: dict = {}
+            self.actual_activities: dict = defaultdict(list)
+
+        def record_declared_activities(self, entity_id: str, activities: list):
+            """Record declared activities at registration."""
+            self.declared_activities[entity_id] = set(activities)
+
+        def record_actual_activity(self, entity_id: str, activity: str, timestamp: datetime):
+            """Record an actual activity."""
+            self.actual_activities[entity_id].append(activity)
+
+        def check_matching(self, entity_id: str) -> tuple:
+            """Check if actual activities match declaration."""
+            declared = self.declared_activities.get(entity_id, set())
+            actual = self.actual_activities.get(entity_id, [])
+
+            if not actual:
+                return True, "No activities to analyze"
+
+            undeclared = [a for a in actual if a not in declared]
+            mismatch_ratio = len(undeclared) / len(actual)
+
+            if mismatch_ratio > self.max_mismatch:
+                return False, f"Activity mismatch: {len(undeclared)}/{len(actual)} activities undeclared"
+
+            return True, f"Activities match declaration: {mismatch_ratio:.0%} mismatch"
+
+    matcher = RegistrationOperationMatcher()
+    matcher.record_declared_activities("sneaky_corp", ["consulting"])
+
+    now = datetime.now(timezone.utc)
+    for activity in ["trading", "lending", "custody", "consulting"]:
+        matcher.record_actual_activity("sneaky_corp", activity, now)
+
+    valid, msg = matcher.check_matching("sneaky_corp")
+
+    if not valid:
+        defenses["registration_operation_matching"] = True
+        matching_note = f"Activity mismatch: {msg}"
+    else:
+        matching_note = f"Activities match: {msg}"
+
+    # ========================================================================
+    # Defense 3: Shell Entity Detection
+    # ========================================================================
+
+    class ShellEntityDetector:
+        """Detect shell entities used to obscure operations."""
+
+        def __init__(self):
+            self.entity_attributes: dict = {}
+
+        def record_entity(self, entity_id: str, employees: int, office: bool,
+                         revenue: float, third_party_transactions: float):
+            """Record entity attributes."""
+            self.entity_attributes[entity_id] = {
+                "employees": employees,
+                "has_office": office,
+                "revenue": revenue,
+                "third_party_ratio": third_party_transactions,
+            }
+
+        def detect_shell(self, entity_id: str) -> tuple:
+            """Detect if entity is likely a shell."""
+            attrs = self.entity_attributes.get(entity_id)
+
+            if not attrs:
+                return True, "No entity data"
+
+            shell_indicators = []
+
+            if attrs["employees"] < 2:
+                shell_indicators.append("minimal employees")
+            if not attrs["has_office"]:
+                shell_indicators.append("no physical office")
+            if attrs["third_party_ratio"] < 0.1:
+                shell_indicators.append("mostly related-party transactions")
+
+            if len(shell_indicators) >= 2:
+                return False, f"Shell entity indicators: {', '.join(shell_indicators)}"
+
+            return True, "Entity appears substantive"
+
+    shell_detector = ShellEntityDetector()
+    shell_detector.record_entity("shell_co", employees=0, office=False,
+                                revenue=1000000, third_party_transactions=0.05)
+
+    valid, msg = shell_detector.detect_shell("shell_co")
+
+    if not valid:
+        defenses["shell_entity_detection"] = True
+        shell_note = f"Shell detected: {msg}"
+    else:
+        shell_note = f"Entity substantive: {msg}"
+
+    # ========================================================================
+    # Defense 4: Regulatory Change Tracking
+    # ========================================================================
+
+    class RegulatoryChangeTracker:
+        """Track regulatory changes and detect exploitation."""
+
+        def __init__(self):
+            self.rule_changes: dict = defaultdict(list)
+            self.entity_activities: dict = defaultdict(list)
+
+        def record_rule_change(self, jurisdiction: str, rule: str, timestamp: datetime,
+                              direction: str):  # "tightening" or "loosening"
+            """Record a regulatory change."""
+            self.rule_changes[jurisdiction].append({
+                "rule": rule,
+                "timestamp": timestamp,
+                "direction": direction,
+            })
+
+        def record_activity_spike(self, entity_id: str, jurisdiction: str,
+                                 activity: str, timestamp: datetime):
+            """Record activity spike."""
+            self.entity_activities[entity_id].append({
+                "jurisdiction": jurisdiction,
+                "activity": activity,
+                "timestamp": timestamp,
+            })
+
+        def detect_frontrunning(self, entity_id: str) -> tuple:
+            """Detect if entity frontran regulatory changes."""
+            activities = self.entity_activities.get(entity_id, [])
+
+            for activity in activities:
+                jurisdiction = activity["jurisdiction"]
+                changes = self.rule_changes.get(jurisdiction, [])
+
+                for change in changes:
+                    if change["direction"] == "tightening":
+                        # Activity just before tightening
+                        time_before = (change["timestamp"] - activity["timestamp"]).total_seconds()
+                        if 0 < time_before < 86400 * 30:  # Within 30 days before
+                            return False, f"Regulatory frontrunning: activity {activity['activity']} 30 days before {change['rule']} tightening"
+
+            return True, "No regulatory frontrunning detected"
+
+    reg_tracker = RegulatoryChangeTracker()
+
+    now = datetime.now(timezone.utc)
+    reg_tracker.record_rule_change("strict_jurisdiction", "new_compliance_rule",
+                                  now, "tightening")
+    reg_tracker.record_activity_spike("arbitrageur", "strict_jurisdiction",
+                                     "bulk_transfer", now - timedelta(days=15))
+
+    valid, msg = reg_tracker.detect_frontrunning("arbitrageur")
+
+    if not valid:
+        defenses["regulatory_change_tracking"] = True
+        reg_note = f"Frontrunning detected: {msg}"
+    else:
+        reg_note = f"No frontrunning: {msg}"
+
+    # ========================================================================
+    # Defense 5: Substance Over Form Analysis
+    # ========================================================================
+
+    class SubstanceOverFormAnalyzer:
+        """Analyze substance of arrangements, not just form."""
+
+        def __init__(self):
+            self.declared_purposes: dict = {}
+            self.economic_realities: dict = {}
+
+        def record_declared_purpose(self, arrangement_id: str, purpose: str):
+            """Record declared purpose of arrangement."""
+            self.declared_purposes[arrangement_id] = purpose
+
+        def record_economic_reality(self, arrangement_id: str, actual_effect: str,
+                                   benefit_flow: dict):
+            """Record actual economic effect."""
+            self.economic_realities[arrangement_id] = {
+                "actual_effect": actual_effect,
+                "benefit_flow": benefit_flow,
+            }
+
+        def analyze(self, arrangement_id: str) -> tuple:
+            """Analyze if form matches substance."""
+            declared = self.declared_purposes.get(arrangement_id, "unknown")
+            reality = self.economic_realities.get(arrangement_id)
+
+            if not reality:
+                return True, "No economic data to analyze"
+
+            # Check if benefits flow differently than declared
+            if declared == "charitable" and reality["benefit_flow"].get("founder", 0) > 0.5:
+                return False, f"Substance mismatch: declared {declared} but {reality['benefit_flow']['founder']:.0%} flows to founder"
+
+            if declared == "independent" and reality["actual_effect"] == "controlled_subsidiary":
+                return False, f"Form over substance: declared independent but operates as controlled subsidiary"
+
+            return True, f"Substance matches form"
+
+    substance_analyzer = SubstanceOverFormAnalyzer()
+    substance_analyzer.record_declared_purpose("fake_charity", "charitable")
+    substance_analyzer.record_economic_reality("fake_charity",
+                                              actual_effect="tax_avoidance",
+                                              benefit_flow={"founder": 0.8, "charity": 0.2})
+
+    valid, msg = substance_analyzer.analyze("fake_charity")
+
+    if not valid:
+        defenses["substance_over_form_analysis"] = True
+        substance_note = f"Substance mismatch: {msg}"
+    else:
+        substance_note = f"Form matches substance: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Jurisdiction Shopping (ED)",
+        success=attack_success,
+        setup_cost_atp=1000.0,
+        gain_atp=50000.0 if attack_success else -1000.0,
+        roi=50.0 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=720,  # 30 days
+        blocks_until_detected=1800,
+        trust_damage=0.70,
+        description=f"""
+JURISDICTION SHOPPING (Track ED - Attack 119):
+- Impact-based jurisdiction: {"DEFENDED" if defenses["impact_based_jurisdiction"] else "VULNERABLE"}
+  {jurisdiction_note}
+- Registration-operation matching: {"DEFENDED" if defenses["registration_operation_matching"] else "VULNERABLE"}
+  {matching_note}
+- Shell entity detection: {"DEFENDED" if defenses["shell_entity_detection"] else "VULNERABLE"}
+  {shell_note}
+- Regulatory change tracking: {"DEFENDED" if defenses["regulatory_change_tracking"] else "VULNERABLE"}
+  {reg_note}
+- Substance over form analysis: {"DEFENDED" if defenses["substance_over_form_analysis"] else "VULNERABLE"}
+  {substance_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Regulatory arbitrage: ~$100B+ industry exploiting jurisdictional gaps.
+Web4 must prevent becoming a tool for regulatory evasion.
+""".strip(),
+        mitigation=f"""
+Track ED: Jurisdiction Shopping Mitigation:
+1. Apply jurisdiction based on operational impact, not registration
+2. Match registered activities to actual operations
+3. Detect shell entities used for obscuration
+4. Track regulatory changes and frontrunning behavior
+5. Analyze substance over form for all arrangements
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_compliance_theater() -> AttackResult:
+    """
+    ATTACK 120: COMPLIANCE THEATER (Track ED)
+
+    Performs appearance of compliance without substance:
+    1. Check-the-box compliance (minimum viable compliance)
+    2. Audit shopping (find friendly auditors)
+    3. Documentation inflation (impressive paperwork, no real controls)
+    4. Certification farming (collect credentials without implementing)
+    5. Self-attestation exploitation (mark yourself compliant)
+
+    Insight: "Compliance" often becomes a game of appearances rather
+    than actual risk reduction. See: every major corporate scandal.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "effectiveness_over_checklist": False,
+        "auditor_independence_verification": False,
+        "control_testing_requirements": False,
+        "certification_validation": False,
+        "self_attestation_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Effectiveness Over Checklist
+    # ========================================================================
+
+    class EffectivenessEvaluator:
+        """Evaluate actual control effectiveness, not just existence."""
+
+        def __init__(self):
+            self.control_incidents: dict = defaultdict(list)
+            self.control_tests: dict = defaultdict(list)
+
+        def record_incident(self, entity_id: str, control_area: str, severity: float, timestamp: datetime):
+            """Record an incident in a control area."""
+            self.control_incidents[entity_id].append({
+                "area": control_area,
+                "severity": severity,
+                "timestamp": timestamp,
+            })
+
+        def record_control_test(self, entity_id: str, control_area: str, passed: bool, timestamp: datetime):
+            """Record a control test result."""
+            self.control_tests[entity_id].append({
+                "area": control_area,
+                "passed": passed,
+                "timestamp": timestamp,
+            })
+
+        def evaluate_effectiveness(self, entity_id: str, claimed_compliance: list) -> tuple:
+            """Evaluate if claimed compliance is effective."""
+            incidents = self.control_incidents.get(entity_id, [])
+            tests = self.control_tests.get(entity_id, [])
+
+            issues = []
+
+            # Check if incidents occurred in claimed compliance areas
+            for incident in incidents:
+                if incident["area"] in claimed_compliance and incident["severity"] > 0.5:
+                    issues.append(f"Incident in claimed compliant area: {incident['area']}")
+
+            # Check test pass rates
+            for area in claimed_compliance:
+                area_tests = [t for t in tests if t["area"] == area]
+                if area_tests:
+                    pass_rate = sum(1 for t in area_tests if t["passed"]) / len(area_tests)
+                    if pass_rate < 0.8:
+                        issues.append(f"Low test pass rate in {area}: {pass_rate:.0%}")
+
+            if issues:
+                return False, f"Compliance not effective: {'; '.join(issues)}"
+
+            return True, "Compliance appears effective"
+
+    effectiveness_eval = EffectivenessEvaluator()
+
+    now = datetime.now(timezone.utc)
+    # Entity claims compliance but has incidents
+    effectiveness_eval.record_incident("theater_corp", "data_protection", 0.8, now - timedelta(days=30))
+    effectiveness_eval.record_control_test("theater_corp", "data_protection", False, now - timedelta(days=20))
+    effectiveness_eval.record_control_test("theater_corp", "data_protection", False, now - timedelta(days=10))
+
+    valid, msg = effectiveness_eval.evaluate_effectiveness("theater_corp", ["data_protection", "access_control"])
+
+    if not valid:
+        defenses["effectiveness_over_checklist"] = True
+        effectiveness_note = f"Ineffective compliance: {msg}"
+    else:
+        effectiveness_note = f"Compliance effective: {msg}"
+
+    # ========================================================================
+    # Defense 2: Auditor Independence Verification
+    # ========================================================================
+
+    class AuditorIndependenceVerifier:
+        """Verify auditor independence from auditee."""
+
+        def __init__(self):
+            self.auditor_relationships: dict = defaultdict(list)
+            self.audit_history: dict = defaultdict(list)
+
+        def record_relationship(self, auditor_id: str, entity_id: str, relationship_type: str):
+            """Record a relationship between auditor and entity."""
+            self.auditor_relationships[auditor_id].append({
+                "entity": entity_id,
+                "type": relationship_type,
+            })
+
+        def record_audit(self, auditor_id: str, entity_id: str, finding: str, timestamp: datetime):
+            """Record an audit finding."""
+            self.audit_history[(auditor_id, entity_id)].append({
+                "finding": finding,
+                "timestamp": timestamp,
+            })
+
+        def verify_independence(self, auditor_id: str, entity_id: str) -> tuple:
+            """Verify auditor is independent of entity."""
+            relationships = self.auditor_relationships.get(auditor_id, [])
+            entity_relationships = [r for r in relationships if r["entity"] == entity_id]
+
+            conflicts = []
+
+            for rel in entity_relationships:
+                if rel["type"] in ["consulting", "employment", "equity"]:
+                    conflicts.append(rel["type"])
+
+            # Check audit history for pattern of favorable findings
+            history = self.audit_history.get((auditor_id, entity_id), [])
+            favorable = [h for h in history if h["finding"] in ["clean", "no_issues"]]
+
+            if len(history) >= 3 and len(favorable) == len(history):
+                conflicts.append("100% favorable findings over multiple audits")
+
+            if conflicts:
+                return False, f"Auditor independence compromised: {', '.join(conflicts)}"
+
+            return True, "Auditor independence verified"
+
+    independence_verifier = AuditorIndependenceVerifier()
+    independence_verifier.record_relationship("friendly_auditor", "theater_corp", "consulting")
+
+    now = datetime.now(timezone.utc)
+    for i in range(3):
+        independence_verifier.record_audit("friendly_auditor", "theater_corp",
+                                          "clean", now - timedelta(days=365 * i))
+
+    valid, msg = independence_verifier.verify_independence("friendly_auditor", "theater_corp")
+
+    if not valid:
+        defenses["auditor_independence_verification"] = True
+        auditor_note = f"Independence compromised: {msg}"
+    else:
+        auditor_note = f"Independence verified: {msg}"
+
+    # ========================================================================
+    # Defense 3: Control Testing Requirements
+    # ========================================================================
+
+    class ControlTestingRequirements:
+        """Require actual testing of controls, not just documentation."""
+
+        def __init__(self, min_test_rate: float = 0.8):
+            self.min_test_rate = min_test_rate
+            self.documented_controls: dict = {}
+            self.tested_controls: dict = {}
+
+        def record_documented_controls(self, entity_id: str, controls: list):
+            """Record documented controls."""
+            self.documented_controls[entity_id] = set(controls)
+
+        def record_tested_control(self, entity_id: str, control: str, test_result: str):
+            """Record a tested control."""
+            if entity_id not in self.tested_controls:
+                self.tested_controls[entity_id] = {}
+            self.tested_controls[entity_id][control] = test_result
+
+        def verify_testing_coverage(self, entity_id: str) -> tuple:
+            """Verify sufficient controls are actually tested."""
+            documented = self.documented_controls.get(entity_id, set())
+            tested = self.tested_controls.get(entity_id, {})
+
+            if not documented:
+                return True, "No documented controls"
+
+            tested_controls = set(tested.keys())
+            coverage = len(tested_controls & documented) / len(documented)
+
+            if coverage < self.min_test_rate:
+                untested = documented - tested_controls
+                return False, f"Insufficient testing: {coverage:.0%} coverage, untested: {list(untested)[:3]}..."
+
+            return True, f"Testing coverage adequate: {coverage:.0%}"
+
+    testing_req = ControlTestingRequirements()
+    testing_req.record_documented_controls("theater_corp",
+                                           ["access_control", "encryption", "backup", "monitoring", "incident_response"])
+    testing_req.record_tested_control("theater_corp", "backup", "passed")
+
+    valid, msg = testing_req.verify_testing_coverage("theater_corp")
+
+    if not valid:
+        defenses["control_testing_requirements"] = True
+        testing_note = f"Testing insufficient: {msg}"
+    else:
+        testing_note = f"Testing adequate: {msg}"
+
+    # ========================================================================
+    # Defense 4: Certification Validation
+    # ========================================================================
+
+    class CertificationValidator:
+        """Validate certifications are actually implemented."""
+
+        def __init__(self):
+            self.certifications: dict = defaultdict(list)
+            self.implementation_evidence: dict = defaultdict(dict)
+
+        def record_certification(self, entity_id: str, cert_name: str, issuer: str, timestamp: datetime):
+            """Record a certification."""
+            self.certifications[entity_id].append({
+                "cert": cert_name,
+                "issuer": issuer,
+                "timestamp": timestamp,
+            })
+
+        def record_implementation_evidence(self, entity_id: str, cert_name: str,
+                                          controls_implemented: int, controls_required: int):
+            """Record implementation evidence for certification."""
+            self.implementation_evidence[entity_id][cert_name] = {
+                "implemented": controls_implemented,
+                "required": controls_required,
+            }
+
+        def validate_certifications(self, entity_id: str) -> tuple:
+            """Validate certifications have substance."""
+            certs = self.certifications.get(entity_id, [])
+            evidence = self.implementation_evidence.get(entity_id, {})
+
+            issues = []
+
+            for cert in certs:
+                cert_name = cert["cert"]
+                impl = evidence.get(cert_name)
+
+                if not impl:
+                    issues.append(f"No implementation evidence for {cert_name}")
+                elif impl["implemented"] / impl["required"] < 0.8:
+                    issues.append(f"{cert_name}: only {impl['implemented']}/{impl['required']} controls implemented")
+
+            if issues:
+                return False, f"Certification validation failed: {'; '.join(issues)}"
+
+            return True, "Certifications validated"
+
+    cert_validator = CertificationValidator()
+
+    now = datetime.now(timezone.utc)
+    cert_validator.record_certification("theater_corp", "SOC2", "friendly_certifier", now)
+    cert_validator.record_certification("theater_corp", "ISO27001", "friendly_certifier", now)
+    cert_validator.record_implementation_evidence("theater_corp", "SOC2", 10, 100)
+
+    valid, msg = cert_validator.validate_certifications("theater_corp")
+
+    if not valid:
+        defenses["certification_validation"] = True
+        cert_note = f"Certification hollow: {msg}"
+    else:
+        cert_note = f"Certifications valid: {msg}"
+
+    # ========================================================================
+    # Defense 5: Self-Attestation Verification
+    # ========================================================================
+
+    class SelfAttestationVerifier:
+        """Verify self-attestations through independent means."""
+
+        def __init__(self):
+            self.self_attestations: dict = defaultdict(list)
+            self.independent_findings: dict = defaultdict(list)
+
+        def record_self_attestation(self, entity_id: str, claim: str, timestamp: datetime):
+            """Record a self-attestation."""
+            self.self_attestations[entity_id].append({
+                "claim": claim,
+                "timestamp": timestamp,
+            })
+
+        def record_independent_finding(self, entity_id: str, area: str, finding: str, timestamp: datetime):
+            """Record an independent finding."""
+            self.independent_findings[entity_id].append({
+                "area": area,
+                "finding": finding,
+                "timestamp": timestamp,
+            })
+
+        def verify_attestations(self, entity_id: str) -> tuple:
+            """Verify self-attestations against independent findings."""
+            attestations = self.self_attestations.get(entity_id, [])
+            findings = self.independent_findings.get(entity_id, [])
+
+            contradictions = []
+
+            for attestation in attestations:
+                claim = attestation["claim"]
+                # Check if independent findings contradict
+                for finding in findings:
+                    if finding["area"] in claim and finding["finding"] == "deficient":
+                        contradictions.append(f"Claimed '{claim}' but finding: {finding['area']} deficient")
+
+            if contradictions:
+                return False, f"Self-attestation contradicted: {'; '.join(contradictions)}"
+
+            if not findings:
+                return False, "No independent verification of self-attestations"
+
+            return True, "Self-attestations verified independently"
+
+    attestation_verifier = SelfAttestationVerifier()
+
+    now = datetime.now(timezone.utc)
+    attestation_verifier.record_self_attestation("theater_corp", "Strong access control compliance", now)
+    attestation_verifier.record_independent_finding("theater_corp", "access control", "deficient", now - timedelta(days=30))
+
+    valid, msg = attestation_verifier.verify_attestations("theater_corp")
+
+    if not valid:
+        defenses["self_attestation_verification"] = True
+        attestation_note = f"Attestation invalid: {msg}"
+    else:
+        attestation_note = f"Attestation verified: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Compliance Theater (ED)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=30000.0 if attack_success else -500.0,
+        roi=60.0 if attack_success else -1.0,
+        detection_probability=0.40,
+        time_to_detection_hours=1440,  # 60 days
+        blocks_until_detected=3600,
+        trust_damage=0.65,
+        description=f"""
+COMPLIANCE THEATER (Track ED - Attack 120):
+- Effectiveness over checklist: {"DEFENDED" if defenses["effectiveness_over_checklist"] else "VULNERABLE"}
+  {effectiveness_note}
+- Auditor independence: {"DEFENDED" if defenses["auditor_independence_verification"] else "VULNERABLE"}
+  {auditor_note}
+- Control testing requirements: {"DEFENDED" if defenses["control_testing_requirements"] else "VULNERABLE"}
+  {testing_note}
+- Certification validation: {"DEFENDED" if defenses["certification_validation"] else "VULNERABLE"}
+  {cert_note}
+- Self-attestation verification: {"DEFENDED" if defenses["self_attestation_verification"] else "VULNERABLE"}
+  {attestation_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Compliance theater: Appearance without substance is endemic.
+Enron, WorldCom, FTX all had "clean" audits.
+""".strip(),
+        mitigation=f"""
+Track ED: Compliance Theater Mitigation:
+1. Evaluate control effectiveness, not just checklist completion
+2. Verify auditor independence before accepting audits
+3. Require actual testing, not just documentation
+4. Validate certifications through implementation evidence
+5. Independently verify self-attestations
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_standard_capture() -> AttackResult:
+    """
+    ATTACK 121: STANDARD CAPTURE (Track ED)
+
+    Captures standard-setting processes to favor attacker:
+    1. Committee capture (get insiders into standards bodies)
+    2. Prior art injection (claim credit for others' work)
+    3. Patent ambush (hide relevant patents, then assert)
+    4. Premature standardization (lock in before alternatives mature)
+    5. Complexity injection (make standard so complex only experts benefit)
+
+    Insight: Standards define the playing field. Control the standard,
+    control the market. See: MPEG-LA, Qualcomm, FRAND abuse.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "committee_diversity_requirements": False,
+        "prior_art_verification": False,
+        "patent_disclosure_requirements": False,
+        "implementation_maturity_gates": False,
+        "complexity_limits": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Committee Diversity Requirements
+    # ========================================================================
+
+    class CommitteeDiversityChecker:
+        """Ensure standards committees are diverse."""
+
+        def __init__(self, max_single_org: float = 0.3, min_orgs: int = 5):
+            self.max_single_org = max_single_org
+            self.min_orgs = min_orgs
+
+        def check_diversity(self, committee_members: list, member_orgs: dict) -> tuple:
+            """Check committee diversity."""
+            if len(committee_members) < 3:
+                return True, "Committee too small for analysis"
+
+            org_counts: dict = defaultdict(int)
+            for member in committee_members:
+                org = member_orgs.get(member, "unknown")
+                org_counts[org] += org_counts.get(org, 0) + 1
+
+            unique_orgs = len([o for o in org_counts.keys() if o != "unknown"])
+            max_representation = max(org_counts.values()) / len(committee_members)
+
+            issues = []
+
+            if unique_orgs < self.min_orgs:
+                issues.append(f"Too few organizations: {unique_orgs} < {self.min_orgs}")
+
+            if max_representation > self.max_single_org:
+                dominant_org = max(org_counts, key=org_counts.get)
+                issues.append(f"Organization overrepresented: {dominant_org} has {max_representation:.0%}")
+
+            if issues:
+                return False, f"Committee diversity lacking: {'; '.join(issues)}"
+
+            return True, f"Committee diverse: {unique_orgs} orgs, max {max_representation:.0%}"
+
+    diversity_checker = CommitteeDiversityChecker()
+
+    # Committee dominated by one organization
+    members = ["alice", "bob", "carol", "dave", "eve"]
+    orgs = {
+        "alice": "big_corp",
+        "bob": "big_corp",
+        "carol": "big_corp",
+        "dave": "big_corp",
+        "eve": "small_co",
+    }
+
+    valid, msg = diversity_checker.check_diversity(members, orgs)
+
+    if not valid:
+        defenses["committee_diversity_requirements"] = True
+        diversity_note = f"Diversity lacking: {msg}"
+    else:
+        diversity_note = f"Diversity adequate: {msg}"
+
+    # ========================================================================
+    # Defense 2: Prior Art Verification
+    # ========================================================================
+
+    class PriorArtVerifier:
+        """Verify prior art claims for standard contributions."""
+
+        def __init__(self):
+            self.contributions: dict = {}
+            self.prior_art_registry: dict = {}
+
+        def record_contribution(self, contribution_id: str, contributor: str,
+                               claimed_prior_art: list, timestamp: datetime):
+            """Record a standard contribution."""
+            self.contributions[contribution_id] = {
+                "contributor": contributor,
+                "claimed_prior_art": claimed_prior_art,
+                "timestamp": timestamp,
+            }
+
+        def record_verified_prior_art(self, art_id: str, true_author: str, timestamp: datetime):
+            """Record verified prior art."""
+            self.prior_art_registry[art_id] = {
+                "author": true_author,
+                "timestamp": timestamp,
+            }
+
+        def verify_claims(self, contribution_id: str) -> tuple:
+            """Verify prior art claims in contribution."""
+            contribution = self.contributions.get(contribution_id)
+            if not contribution:
+                return True, "No contribution to verify"
+
+            disputed = []
+            contributor = contribution["contributor"]
+
+            for art_id in contribution["claimed_prior_art"]:
+                verified = self.prior_art_registry.get(art_id)
+                if verified and verified["author"] != contributor:
+                    disputed.append(f"{art_id}: claimed by {contributor} but authored by {verified['author']}")
+
+            if disputed:
+                return False, f"Prior art claims disputed: {'; '.join(disputed)}"
+
+            return True, "Prior art claims verified"
+
+    prior_art_verifier = PriorArtVerifier()
+
+    now = datetime.now(timezone.utc)
+    prior_art_verifier.record_verified_prior_art("innovation_x", "original_inventor", now - timedelta(days=365))
+    prior_art_verifier.record_contribution("proposal_1", "big_corp", ["innovation_x"], now)
+
+    valid, msg = prior_art_verifier.verify_claims("proposal_1")
+
+    if not valid:
+        defenses["prior_art_verification"] = True
+        prior_art_note = f"Prior art disputed: {msg}"
+    else:
+        prior_art_note = f"Prior art verified: {msg}"
+
+    # ========================================================================
+    # Defense 3: Patent Disclosure Requirements
+    # ========================================================================
+
+    class PatentDisclosureEnforcer:
+        """Enforce patent disclosure during standardization."""
+
+        def __init__(self):
+            self.disclosed_patents: dict = defaultdict(set)
+            self.known_patents: dict = defaultdict(set)
+
+        def record_disclosure(self, participant: str, standard_id: str, patents: list):
+            """Record patent disclosure by participant."""
+            self.disclosed_patents[(participant, standard_id)].update(patents)
+
+        def record_known_patent(self, participant: str, patent_id: str, relevant_to: str):
+            """Record externally known patent."""
+            self.known_patents[(participant, relevant_to)].add(patent_id)
+
+        def check_disclosure_completeness(self, participant: str, standard_id: str) -> tuple:
+            """Check if patent disclosure is complete."""
+            disclosed = self.disclosed_patents.get((participant, standard_id), set())
+            known = self.known_patents.get((participant, standard_id), set())
+
+            undisclosed = known - disclosed
+
+            if undisclosed:
+                return False, f"Undisclosed patents found: {undisclosed}"
+
+            return True, f"Patent disclosure appears complete"
+
+    patent_enforcer = PatentDisclosureEnforcer()
+    patent_enforcer.record_disclosure("big_corp", "web4_standard", ["patent_1"])
+    patent_enforcer.record_known_patent("big_corp", "patent_2", "web4_standard")
+    patent_enforcer.record_known_patent("big_corp", "patent_3", "web4_standard")
+
+    valid, msg = patent_enforcer.check_disclosure_completeness("big_corp", "web4_standard")
+
+    if not valid:
+        defenses["patent_disclosure_requirements"] = True
+        patent_note = f"Hidden patents: {msg}"
+    else:
+        patent_note = f"Patents disclosed: {msg}"
+
+    # ========================================================================
+    # Defense 4: Implementation Maturity Gates
+    # ========================================================================
+
+    class ImplementationMaturityGate:
+        """Require implementation maturity before standardization."""
+
+        def __init__(self, min_implementations: int = 2, min_deployment_days: int = 180):
+            self.min_implementations = min_implementations
+            self.min_days = min_deployment_days
+            self.implementations: dict = defaultdict(list)
+
+        def record_implementation(self, standard_id: str, implementer: str,
+                                 deployment_date: datetime, independent: bool):
+            """Record an implementation."""
+            self.implementations[standard_id].append({
+                "implementer": implementer,
+                "deployment_date": deployment_date,
+                "independent": independent,
+            })
+
+        def check_maturity(self, standard_id: str, check_date: datetime) -> tuple:
+            """Check if standard has sufficient implementation maturity."""
+            implementations = self.implementations.get(standard_id, [])
+
+            independent_impl = [i for i in implementations if i["independent"]]
+
+            if len(independent_impl) < self.min_implementations:
+                return False, f"Insufficient implementations: {len(independent_impl)} < {self.min_implementations} independent"
+
+            # Check deployment duration
+            mature_impl = [i for i in independent_impl
+                         if (check_date - i["deployment_date"]).days >= self.min_days]
+
+            if len(mature_impl) < self.min_implementations:
+                return False, f"Implementations not mature enough: only {len(mature_impl)} deployed > {self.min_days} days"
+
+            return True, f"Standard mature: {len(mature_impl)} independent implementations"
+
+    maturity_gate = ImplementationMaturityGate()
+
+    now = datetime.now(timezone.utc)
+    # Only one implementation, and it's recent
+    maturity_gate.record_implementation("premature_standard", "big_corp", now - timedelta(days=30), independent=False)
+
+    valid, msg = maturity_gate.check_maturity("premature_standard", now)
+
+    if not valid:
+        defenses["implementation_maturity_gates"] = True
+        maturity_note = f"Premature standardization: {msg}"
+    else:
+        maturity_note = f"Standard mature: {msg}"
+
+    # ========================================================================
+    # Defense 5: Complexity Limits
+    # ========================================================================
+
+    class ComplexityLimiter:
+        """Limit standard complexity to prevent capture."""
+
+        def __init__(self, max_pages: int = 100, max_options: int = 10):
+            self.max_pages = max_pages
+            self.max_options = max_options
+
+        def analyze_complexity(self, spec_pages: int, mandatory_features: int,
+                              optional_features: int, conditional_requirements: int) -> tuple:
+            """Analyze specification complexity."""
+            issues = []
+
+            if spec_pages > self.max_pages:
+                issues.append(f"Spec too long: {spec_pages} > {self.max_pages} pages")
+
+            if optional_features > self.max_options:
+                issues.append(f"Too many options: {optional_features} > {self.max_options}")
+
+            # Ratio of conditional to mandatory
+            if mandatory_features > 0:
+                complexity_ratio = conditional_requirements / mandatory_features
+                if complexity_ratio > 2:
+                    issues.append(f"High conditional complexity: {complexity_ratio:.1f}x mandatory features")
+
+            if issues:
+                return False, f"Excessive complexity: {'; '.join(issues)}"
+
+            return True, f"Complexity acceptable: {spec_pages} pages, {optional_features} options"
+
+    complexity_limiter = ComplexityLimiter()
+
+    # Overly complex specification
+    valid, msg = complexity_limiter.analyze_complexity(
+        spec_pages=500,
+        mandatory_features=10,
+        optional_features=50,
+        conditional_requirements=100
+    )
+
+    if not valid:
+        defenses["complexity_limits"] = True
+        complexity_note = f"Complexity excessive: {msg}"
+    else:
+        complexity_note = f"Complexity acceptable: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Standard Capture (ED)",
+        success=attack_success,
+        setup_cost_atp=5000.0,
+        gain_atp=100000.0 if attack_success else -5000.0,
+        roi=20.0 if attack_success else -1.0,
+        detection_probability=0.30,
+        time_to_detection_hours=8760,  # 1 year
+        blocks_until_detected=21900,
+        trust_damage=0.90,
+        description=f"""
+STANDARD CAPTURE (Track ED - Attack 121):
+- Committee diversity: {"DEFENDED" if defenses["committee_diversity_requirements"] else "VULNERABLE"}
+  {diversity_note}
+- Prior art verification: {"DEFENDED" if defenses["prior_art_verification"] else "VULNERABLE"}
+  {prior_art_note}
+- Patent disclosure: {"DEFENDED" if defenses["patent_disclosure_requirements"] else "VULNERABLE"}
+  {patent_note}
+- Implementation maturity gates: {"DEFENDED" if defenses["implementation_maturity_gates"] else "VULNERABLE"}
+  {maturity_note}
+- Complexity limits: {"DEFENDED" if defenses["complexity_limits"] else "VULNERABLE"}
+  {complexity_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Standard capture: Control the standard, control the market.
+MPEG-LA, Qualcomm FRAND abuse demonstrate the power.
+""".strip(),
+        mitigation=f"""
+Track ED: Standard Capture Mitigation:
+1. Enforce committee diversity across organizations
+2. Verify prior art claims before accepting contributions
+3. Require complete patent disclosure during standardization
+4. Gate standardization on implementation maturity
+5. Limit specification complexity to prevent capture
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_reporting_manipulation() -> AttackResult:
+    """
+    ATTACK 122: REPORTING MANIPULATION (Track ED)
+
+    Manipulates reporting to create false impressions:
+    1. Metric gaming (optimize for measured metrics, not real outcomes)
+    2. Selective disclosure (report good news, hide bad)
+    3. Timing manipulation (report at advantageous moments)
+    4. Benchmark manipulation (choose favorable comparison points)
+    5. Aggregation abuse (hide problems in aggregates)
+
+    Insight: Goodhart's Law - "When a measure becomes a target,
+    it ceases to be a good measure."
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "multi_metric_triangulation": False,
+        "completeness_verification": False,
+        "timing_normalization": False,
+        "benchmark_independence": False,
+        "drill_down_requirements": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Multi-Metric Triangulation
+    # ========================================================================
+
+    class MetricTriangulator:
+        """Detect gaming through metric inconsistencies."""
+
+        def __init__(self):
+            self.metrics: dict = defaultdict(dict)
+
+        def record_metric(self, entity_id: str, metric_name: str, value: float):
+            """Record a metric value."""
+            self.metrics[entity_id][metric_name] = value
+
+        def triangulate(self, entity_id: str) -> tuple:
+            """Check for metric inconsistencies suggesting gaming."""
+            metrics = self.metrics.get(entity_id, {})
+
+            if len(metrics) < 3:
+                return True, "Insufficient metrics for triangulation"
+
+            # Example: revenue up, customers down, satisfaction down = gaming
+            anomalies = []
+
+            revenue = metrics.get("revenue", 0)
+            customers = metrics.get("customers", 0)
+            satisfaction = metrics.get("satisfaction", 0)
+            engagement = metrics.get("engagement", 0)
+
+            if revenue > 0.8 and customers < 0.3:
+                anomalies.append("High revenue but low customer count")
+
+            if engagement > 0.8 and satisfaction < 0.3:
+                anomalies.append("High engagement but low satisfaction")
+
+            if anomalies:
+                return False, f"Metric inconsistencies: {'; '.join(anomalies)}"
+
+            return True, "Metrics internally consistent"
+
+    triangulator = MetricTriangulator()
+    triangulator.record_metric("gaming_corp", "revenue", 0.95)  # Great!
+    triangulator.record_metric("gaming_corp", "customers", 0.2)  # Low
+    triangulator.record_metric("gaming_corp", "satisfaction", 0.3)  # Low
+
+    valid, msg = triangulator.triangulate("gaming_corp")
+
+    if not valid:
+        defenses["multi_metric_triangulation"] = True
+        triangulation_note = f"Gaming detected: {msg}"
+    else:
+        triangulation_note = f"Metrics consistent: {msg}"
+
+    # ========================================================================
+    # Defense 2: Completeness Verification
+    # ========================================================================
+
+    class CompletenessVerifier:
+        """Verify reports are complete, not selectively disclosed."""
+
+        def __init__(self):
+            self.required_disclosures: dict = {}
+            self.actual_disclosures: dict = defaultdict(set)
+
+        def set_required_disclosures(self, report_type: str, required: list):
+            """Set required disclosures for report type."""
+            self.required_disclosures[report_type] = set(required)
+
+        def record_disclosure(self, entity_id: str, report_type: str, items_disclosed: list):
+            """Record what was disclosed."""
+            self.actual_disclosures[(entity_id, report_type)] = set(items_disclosed)
+
+        def verify_completeness(self, entity_id: str, report_type: str) -> tuple:
+            """Verify disclosure completeness."""
+            required = self.required_disclosures.get(report_type, set())
+            actual = self.actual_disclosures.get((entity_id, report_type), set())
+
+            missing = required - actual
+
+            if missing:
+                return False, f"Incomplete disclosure: missing {list(missing)}"
+
+            return True, "Disclosure complete"
+
+    completeness_verifier = CompletenessVerifier()
+    completeness_verifier.set_required_disclosures("quarterly",
+                                                   ["revenue", "expenses", "incidents", "staff_changes", "risks"])
+    completeness_verifier.record_disclosure("selective_corp", "quarterly",
+                                           ["revenue"])  # Only good news
+
+    valid, msg = completeness_verifier.verify_completeness("selective_corp", "quarterly")
+
+    if not valid:
+        defenses["completeness_verification"] = True
+        completeness_note = f"Selective disclosure: {msg}"
+    else:
+        completeness_note = f"Disclosure complete: {msg}"
+
+    # ========================================================================
+    # Defense 3: Timing Normalization
+    # ========================================================================
+
+    class TimingNormalizer:
+        """Normalize reporting timing to prevent manipulation."""
+
+        def __init__(self):
+            self.report_schedule: dict = {}
+            self.actual_reports: dict = defaultdict(list)
+
+        def set_schedule(self, entity_id: str, expected_dates: list):
+            """Set expected reporting dates."""
+            self.report_schedule[entity_id] = expected_dates
+
+        def record_report(self, entity_id: str, report_date: datetime, content_quality: str):
+            """Record when report was actually submitted."""
+            self.actual_reports[entity_id].append({
+                "date": report_date,
+                "quality": content_quality,
+            })
+
+        def analyze_timing(self, entity_id: str) -> tuple:
+            """Analyze if timing suggests manipulation."""
+            scheduled = self.report_schedule.get(entity_id, [])
+            actual = self.actual_reports.get(entity_id, [])
+
+            if not scheduled or not actual:
+                return True, "No schedule to compare"
+
+            issues = []
+
+            # Check for pattern: good reports early, bad reports late
+            for i, (scheduled_date, report) in enumerate(zip(scheduled, actual)):
+                delay = (report["date"] - scheduled_date).days
+
+                if report["quality"] == "bad" and delay > 7:
+                    issues.append(f"Bad report #{i+1} delayed {delay} days")
+
+                if report["quality"] == "good" and delay < -3:
+                    issues.append(f"Good report #{i+1} early by {-delay} days")
+
+            if len(issues) >= 2:
+                return False, f"Timing manipulation pattern: {'; '.join(issues)}"
+
+            return True, "Timing appears normal"
+
+    timing_normalizer = TimingNormalizer()
+
+    now = datetime.now(timezone.utc)
+    scheduled_dates = [now - timedelta(days=90), now - timedelta(days=60), now - timedelta(days=30)]
+    timing_normalizer.set_schedule("timing_gamer", scheduled_dates)
+
+    # Good news early, bad news late
+    timing_normalizer.record_report("timing_gamer", now - timedelta(days=95), "good")  # Early
+    timing_normalizer.record_report("timing_gamer", now - timedelta(days=50), "bad")   # Late
+    timing_normalizer.record_report("timing_gamer", now - timedelta(days=20), "bad")   # Late
+
+    valid, msg = timing_normalizer.analyze_timing("timing_gamer")
+
+    if not valid:
+        defenses["timing_normalization"] = True
+        timing_note = f"Timing manipulation: {msg}"
+    else:
+        timing_note = f"Timing normal: {msg}"
+
+    # ========================================================================
+    # Defense 4: Benchmark Independence
+    # ========================================================================
+
+    class BenchmarkIndependenceChecker:
+        """Ensure benchmarks are independently chosen."""
+
+        def __init__(self):
+            self.benchmark_selections: dict = defaultdict(list)
+            self.entity_performance: dict = {}
+
+        def record_benchmark_selection(self, entity_id: str, benchmark: str, selector: str):
+            """Record who selected a benchmark."""
+            self.benchmark_selections[entity_id].append({
+                "benchmark": benchmark,
+                "selector": selector,
+            })
+
+        def record_performance(self, entity_id: str, benchmark: str, performance: float):
+            """Record performance against benchmark."""
+            if entity_id not in self.entity_performance:
+                self.entity_performance[entity_id] = {}
+            self.entity_performance[entity_id][benchmark] = performance
+
+        def check_benchmark_gaming(self, entity_id: str) -> tuple:
+            """Check if entity games benchmark selection."""
+            selections = self.benchmark_selections.get(entity_id, [])
+            performance = self.entity_performance.get(entity_id, {})
+
+            self_selected = [s for s in selections if s["selector"] == entity_id]
+
+            if not self_selected or not performance:
+                return True, "No self-selected benchmarks to analyze"
+
+            # Check if self-selected benchmarks show better performance
+            self_selected_benchmarks = [s["benchmark"] for s in self_selected]
+            self_selected_perf = [performance.get(b, 0) for b in self_selected_benchmarks if b in performance]
+
+            other_benchmarks = [b for b in performance if b not in self_selected_benchmarks]
+            other_perf = [performance.get(b, 0) for b in other_benchmarks]
+
+            if self_selected_perf and other_perf:
+                avg_self = sum(self_selected_perf) / len(self_selected_perf)
+                avg_other = sum(other_perf) / len(other_perf)
+
+                if avg_self > avg_other * 1.5:
+                    return False, f"Benchmark gaming: self-selected avg {avg_self:.2f} vs others {avg_other:.2f}"
+
+            return True, "No benchmark gaming detected"
+
+    benchmark_checker = BenchmarkIndependenceChecker()
+    benchmark_checker.record_benchmark_selection("cherry_picker", "easy_benchmark", "cherry_picker")
+    benchmark_checker.record_benchmark_selection("cherry_picker", "hard_benchmark", "auditor")
+    benchmark_checker.record_performance("cherry_picker", "easy_benchmark", 0.95)
+    benchmark_checker.record_performance("cherry_picker", "hard_benchmark", 0.30)
+
+    valid, msg = benchmark_checker.check_benchmark_gaming("cherry_picker")
+
+    if not valid:
+        defenses["benchmark_independence"] = True
+        benchmark_note = f"Benchmark gaming: {msg}"
+    else:
+        benchmark_note = f"Benchmarks fair: {msg}"
+
+    # ========================================================================
+    # Defense 5: Drill-Down Requirements
+    # ========================================================================
+
+    class DrillDownRequirements:
+        """Require ability to drill into aggregates."""
+
+        def __init__(self, max_aggregation_ratio: float = 10.0):
+            self.max_ratio = max_aggregation_ratio
+            self.aggregates: dict = {}
+            self.detail_available: dict = {}
+
+        def record_aggregate(self, entity_id: str, metric: str, aggregate_value: float,
+                            component_count: int, detail_available: bool):
+            """Record an aggregate metric."""
+            self.aggregates[(entity_id, metric)] = {
+                "value": aggregate_value,
+                "components": component_count,
+            }
+            self.detail_available[(entity_id, metric)] = detail_available
+
+        def check_drill_down(self, entity_id: str, metric: str) -> tuple:
+            """Check if drill-down is available for aggregate."""
+            agg = self.aggregates.get((entity_id, metric))
+            detail = self.detail_available.get((entity_id, metric), False)
+
+            if not agg:
+                return True, "No aggregate to analyze"
+
+            # If aggregate has many components, detail must be available
+            if agg["components"] > self.max_ratio and not detail:
+                return False, f"Aggregate hides {agg['components']} components without drill-down"
+
+            if not detail:
+                return False, f"No drill-down available for aggregate with {agg['components']} components"
+
+            return True, f"Drill-down available for {agg['components']} components"
+
+    drill_down = DrillDownRequirements()
+    drill_down.record_aggregate("aggregator", "revenue", 1000000, 500, detail_available=False)
+
+    valid, msg = drill_down.check_drill_down("aggregator", "revenue")
+
+    if not valid:
+        defenses["drill_down_requirements"] = True
+        drill_note = f"Hidden in aggregate: {msg}"
+    else:
+        drill_note = f"Drill-down available: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Reporting Manipulation (ED)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=20000.0 if attack_success else -200.0,
+        roi=100.0 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=480,  # 20 days
+        blocks_until_detected=1200,
+        trust_damage=0.55,
+        description=f"""
+REPORTING MANIPULATION (Track ED - Attack 122):
+- Multi-metric triangulation: {"DEFENDED" if defenses["multi_metric_triangulation"] else "VULNERABLE"}
+  {triangulation_note}
+- Completeness verification: {"DEFENDED" if defenses["completeness_verification"] else "VULNERABLE"}
+  {completeness_note}
+- Timing normalization: {"DEFENDED" if defenses["timing_normalization"] else "VULNERABLE"}
+  {timing_note}
+- Benchmark independence: {"DEFENDED" if defenses["benchmark_independence"] else "VULNERABLE"}
+  {benchmark_note}
+- Drill-down requirements: {"DEFENDED" if defenses["drill_down_requirements"] else "VULNERABLE"}
+  {drill_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Goodhart's Law: "When a measure becomes a target, it ceases to be a good measure."
+Metric gaming is universal without triangulation.
+""".strip(),
+        mitigation=f"""
+Track ED: Reporting Manipulation Mitigation:
+1. Triangulate across multiple metrics for consistency
+2. Verify completeness of required disclosures
+3. Normalize reporting timing to prevent strategic delays
+4. Ensure benchmarks are independently selected
+5. Require drill-down capability for aggregates
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track EE: Emergent System Dynamics Attacks (Attacks 123-126)
+# Exploiting emergent properties of complex systems
+# ---------------------------------------------------------------------------
+
+def attack_complexity_bomb() -> AttackResult:
+    """
+    ATTACK 123: COMPLEXITY BOMB (Track EE)
+
+    Overwhelms system with exponentially growing complexity:
+    1. Recursive context expansion (each query creates more context)
+    2. Combinatorial policy explosion (policies interact non-linearly)
+    3. State space explosion (legitimate features create infeasible states)
+    4. Dependency chain deepening (each dependency adds more)
+    5. Validation complexity injection (checks require more checks)
+
+    Complexity theory insight: Many NP-hard problems hide in linear
+    specifications. A "simple" feature can create exponential burden.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "complexity_budgeting": False,
+        "recursion_depth_limits": False,
+        "policy_interaction_analysis": False,
+        "dependency_pruning": False,
+        "validation_simplification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Complexity Budgeting
+    # ========================================================================
+
+    class ComplexityBudgetManager:
+        """Enforce complexity budgets on operations."""
+
+        def __init__(self, max_budget: int = 1000):
+            self.max_budget = max_budget
+
+        def calculate_complexity(self, operation: dict) -> int:
+            """Calculate complexity score for an operation."""
+            score = 0
+
+            # Base complexity
+            score += operation.get("entities", 0) * 1
+            score += operation.get("relationships", 0) * 2
+            score += operation.get("policies", 0) * 5
+            score += operation.get("nested_levels", 0) * 10
+
+            # Multiplicative factors
+            if operation.get("cross_system", False):
+                score *= 2
+            if operation.get("historical_lookup", False):
+                score *= 1.5
+
+            return int(score)
+
+        def check_budget(self, operation: dict) -> tuple:
+            """Check if operation exceeds complexity budget."""
+            complexity = self.calculate_complexity(operation)
+
+            if complexity > self.max_budget:
+                return False, f"Complexity {complexity} exceeds budget {self.max_budget}"
+
+            return True, f"Complexity {complexity} within budget"
+
+    complexity_manager = ComplexityBudgetManager(max_budget=1000)
+
+    # Attacker creates complex operation
+    complex_op = {
+        "entities": 100,
+        "relationships": 50,
+        "policies": 30,
+        "nested_levels": 5,
+        "cross_system": True,
+        "historical_lookup": True,
+    }
+
+    valid, msg = complexity_manager.check_budget(complex_op)
+
+    if not valid:
+        defenses["complexity_budgeting"] = True
+        budget_note = f"Complexity budget exceeded: {msg}"
+    else:
+        budget_note = f"Within budget: {msg}"
+
+    # ========================================================================
+    # Defense 2: Recursion Depth Limits
+    # ========================================================================
+
+    class RecursionDepthLimiter:
+        """Limit recursion depth in operations."""
+
+        def __init__(self, max_depth: int = 10):
+            self.max_depth = max_depth
+            self.current_depth: dict = defaultdict(int)
+
+        def enter_recursion(self, operation_id: str) -> tuple:
+            """Track entering a recursive operation."""
+            self.current_depth[operation_id] += 1
+
+            if self.current_depth[operation_id] > self.max_depth:
+                return False, f"Recursion depth {self.current_depth[operation_id]} exceeds limit {self.max_depth}"
+
+            return True, f"Recursion depth {self.current_depth[operation_id]} OK"
+
+        def exit_recursion(self, operation_id: str):
+            """Track exiting a recursive operation."""
+            if operation_id in self.current_depth:
+                self.current_depth[operation_id] -= 1
+
+    recursion_limiter = RecursionDepthLimiter(max_depth=10)
+
+    # Attacker triggers deep recursion
+    for i in range(15):
+        valid, msg = recursion_limiter.enter_recursion("attack_op")
+        if not valid:
+            defenses["recursion_depth_limits"] = True
+            recursion_note = f"Recursion blocked: {msg}"
+            break
+    else:
+        recursion_note = "Recursion not limited"
+
+    # ========================================================================
+    # Defense 3: Policy Interaction Analysis
+    # ========================================================================
+
+    class PolicyInteractionAnalyzer:
+        """Analyze policy interactions for combinatorial explosion."""
+
+        def __init__(self, max_interactions: int = 50):
+            self.max_interactions = max_interactions
+            self.policies: list = []
+
+        def add_policy(self, policy_id: str, affects: list, conditions: list):
+            """Add a policy."""
+            self.policies.append({
+                "id": policy_id,
+                "affects": set(affects),
+                "conditions": set(conditions),
+            })
+
+        def analyze_interactions(self) -> tuple:
+            """Analyze policy interactions."""
+            interactions = 0
+
+            for i, p1 in enumerate(self.policies):
+                for p2 in self.policies[i + 1:]:
+                    # Policies interact if one's output affects another's condition
+                    if p1["affects"] & p2["conditions"]:
+                        interactions += 1
+                    if p2["affects"] & p1["conditions"]:
+                        interactions += 1
+
+            if interactions > self.max_interactions:
+                return False, f"{interactions} policy interactions exceed limit {self.max_interactions}"
+
+            return True, f"{interactions} policy interactions within limit"
+
+    policy_analyzer = PolicyInteractionAnalyzer(max_interactions=50)
+
+    # Attacker creates many interacting policies
+    for i in range(20):
+        policy_analyzer.add_policy(
+            f"policy_{i}",
+            affects=[f"var_{i}", f"var_{(i+1) % 20}"],
+            conditions=[f"var_{(i-1) % 20}", f"var_{(i+2) % 20}"]
+        )
+
+    valid, msg = policy_analyzer.analyze_interactions()
+
+    if not valid:
+        defenses["policy_interaction_analysis"] = True
+        policy_note = f"Policy explosion detected: {msg}"
+    else:
+        policy_note = f"Policy interactions OK: {msg}"
+
+    # ========================================================================
+    # Defense 4: Dependency Pruning
+    # ========================================================================
+
+    class DependencyPruner:
+        """Prune excessive dependency chains."""
+
+        def __init__(self, max_chain_length: int = 5, max_total_deps: int = 20):
+            self.max_chain = max_chain_length
+            self.max_total = max_total_deps
+
+        def analyze_dependencies(self, dep_graph: dict, root: str) -> tuple:
+            """Analyze dependency chain from root."""
+            visited = set()
+            max_depth = 0
+
+            def traverse(node, depth):
+                nonlocal max_depth
+                if node in visited:
+                    return
+                visited.add(node)
+                max_depth = max(max_depth, depth)
+
+                for dep in dep_graph.get(node, []):
+                    traverse(dep, depth + 1)
+
+            traverse(root, 0)
+
+            issues = []
+
+            if max_depth > self.max_chain:
+                issues.append(f"Chain depth {max_depth} > {self.max_chain}")
+
+            if len(visited) > self.max_total:
+                issues.append(f"Total deps {len(visited)} > {self.max_total}")
+
+            if issues:
+                return False, f"Dependency issues: {'; '.join(issues)}"
+
+            return True, f"Dependencies OK: depth={max_depth}, total={len(visited)}"
+
+    dep_pruner = DependencyPruner()
+
+    # Attacker creates deep dependency chain
+    dep_graph = {}
+    for i in range(30):
+        dep_graph[f"node_{i}"] = [f"node_{i+1}"] if i < 29 else []
+
+    valid, msg = dep_pruner.analyze_dependencies(dep_graph, "node_0")
+
+    if not valid:
+        defenses["dependency_pruning"] = True
+        dep_note = f"Dependencies pruned: {msg}"
+    else:
+        dep_note = f"Dependencies OK: {msg}"
+
+    # ========================================================================
+    # Defense 5: Validation Simplification
+    # ========================================================================
+
+    class ValidationSimplifier:
+        """Simplify validation to prevent complexity attacks."""
+
+        def __init__(self, max_validation_steps: int = 20):
+            self.max_steps = max_validation_steps
+
+        def analyze_validation_complexity(self, validation_chain: list) -> tuple:
+            """Analyze validation chain complexity."""
+            total_steps = 0
+
+            for validation in validation_chain:
+                steps = validation.get("steps", 1)
+                if validation.get("requires_validation", False):
+                    steps *= 2  # Meta-validation doubles complexity
+
+                total_steps += steps
+
+            if total_steps > self.max_steps:
+                return False, f"Validation complexity {total_steps} exceeds limit {self.max_steps}"
+
+            return True, f"Validation complexity {total_steps} OK"
+
+    validation_simplifier = ValidationSimplifier()
+
+    # Attacker creates validation that requires more validation
+    attack_validation = [
+        {"steps": 5, "requires_validation": True},
+        {"steps": 5, "requires_validation": True},
+        {"steps": 5, "requires_validation": True},
+        {"steps": 5, "requires_validation": True},
+    ]
+
+    valid, msg = validation_simplifier.analyze_validation_complexity(attack_validation)
+
+    if not valid:
+        defenses["validation_simplification"] = True
+        validation_note = f"Validation simplified: {msg}"
+    else:
+        validation_note = f"Validation OK: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Complexity Bomb (EE)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=0.0 if attack_success else -100.0,  # DoS attack, no direct gain
+        roi=0.0 if attack_success else -1.0,
+        detection_probability=0.70,
+        time_to_detection_hours=1,
+        blocks_until_detected=3,
+        trust_damage=0.30,
+        description=f"""
+COMPLEXITY BOMB (Track EE - Attack 123):
+- Complexity budgeting: {"DEFENDED" if defenses["complexity_budgeting"] else "VULNERABLE"}
+  {budget_note}
+- Recursion depth limits: {"DEFENDED" if defenses["recursion_depth_limits"] else "VULNERABLE"}
+  {recursion_note}
+- Policy interaction analysis: {"DEFENDED" if defenses["policy_interaction_analysis"] else "VULNERABLE"}
+  {policy_note}
+- Dependency pruning: {"DEFENDED" if defenses["dependency_pruning"] else "VULNERABLE"}
+  {dep_note}
+- Validation simplification: {"DEFENDED" if defenses["validation_simplification"] else "VULNERABLE"}
+  {validation_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Complexity theory: Simple specifications can hide exponential behavior.
+Prevention requires explicit complexity budgeting.
+""".strip(),
+        mitigation=f"""
+Track EE: Complexity Bomb Mitigation:
+1. Enforce explicit complexity budgets on all operations
+2. Limit recursion depth with hard caps
+3. Analyze policy interactions for combinatorial explosion
+4. Prune dependency chains that grow too deep/wide
+5. Simplify validation to prevent meta-validation loops
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_phase_transition_triggering() -> AttackResult:
+    """
+    ATTACK 124: PHASE TRANSITION TRIGGERING (Track EE)
+
+    Triggers sudden system state changes at critical thresholds:
+    1. Trust cascade collapse (one failure triggers many)
+    2. Liquidity crisis triggering (ATP bank run)
+    3. Reputation death spiral (bad news → more bad news)
+    4. Consensus fragmentation (split network at threshold)
+    5. Network effect reversal (positive → negative feedback)
+
+    Physics insight: Phase transitions are discontinuous. Small
+    perturbations near critical points cause large effects.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+    import math
+
+    defenses = {
+        "critical_threshold_monitoring": False,
+        "cascade_circuit_breakers": False,
+        "liquidity_reserves": False,
+        "reputation_damping": False,
+        "network_resilience_testing": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Critical Threshold Monitoring
+    # ========================================================================
+
+    class CriticalThresholdMonitor:
+        """Monitor system for approach to critical thresholds."""
+
+        def __init__(self, warning_margin: float = 0.1):
+            self.warning_margin = warning_margin
+            self.thresholds: dict = {}
+            self.current_values: dict = {}
+
+        def set_threshold(self, metric: str, critical_value: float, direction: str):
+            """Set a critical threshold."""
+            self.thresholds[metric] = {
+                "critical": critical_value,
+                "direction": direction,  # "above" or "below"
+            }
+
+        def update_value(self, metric: str, value: float):
+            """Update current value."""
+            self.current_values[metric] = value
+
+        def check_proximity(self) -> tuple:
+            """Check proximity to critical thresholds."""
+            warnings = []
+
+            for metric, threshold in self.thresholds.items():
+                current = self.current_values.get(metric)
+                if current is None:
+                    continue
+
+                critical = threshold["critical"]
+                direction = threshold["direction"]
+
+                if direction == "below":
+                    proximity = (current - critical) / critical if critical != 0 else float('inf')
+                    if proximity < self.warning_margin:
+                        warnings.append(f"{metric} at {current:.2f}, critical below {critical:.2f}")
+                else:
+                    proximity = (critical - current) / critical if critical != 0 else float('inf')
+                    if proximity < self.warning_margin:
+                        warnings.append(f"{metric} at {current:.2f}, critical above {critical:.2f}")
+
+            if warnings:
+                return False, f"Near critical thresholds: {'; '.join(warnings)}"
+
+            return True, "All metrics within safe margins"
+
+    threshold_monitor = CriticalThresholdMonitor(warning_margin=0.1)
+    threshold_monitor.set_threshold("system_trust", 0.3, "below")  # Critical if drops below 0.3
+    threshold_monitor.set_threshold("atp_liquidity", 0.2, "below")  # Critical if drops below 0.2
+
+    # Attacker pushes system toward critical threshold
+    threshold_monitor.update_value("system_trust", 0.32)  # Very close to critical
+    threshold_monitor.update_value("atp_liquidity", 0.21)
+
+    valid, msg = threshold_monitor.check_proximity()
+
+    if not valid:
+        defenses["critical_threshold_monitoring"] = True
+        threshold_note = f"Threshold warning: {msg}"
+    else:
+        threshold_note = f"Thresholds OK: {msg}"
+
+    # ========================================================================
+    # Defense 2: Cascade Circuit Breakers
+    # ========================================================================
+
+    class CascadeCircuitBreaker:
+        """Break cascading failures before they spread."""
+
+        def __init__(self, cascade_threshold: int = 3, time_window_seconds: float = 60.0):
+            self.threshold = cascade_threshold
+            self.window = time_window_seconds
+            self.failures: list = []
+
+        def record_failure(self, entity_id: str, timestamp: datetime):
+            """Record a failure event."""
+            self.failures.append({
+                "entity": entity_id,
+                "timestamp": timestamp,
+            })
+
+        def check_cascade(self, current_time: datetime) -> tuple:
+            """Check if cascade is occurring."""
+            window_start = current_time - timedelta(seconds=self.window)
+
+            recent_failures = [f for f in self.failures
+                             if f["timestamp"] >= window_start]
+
+            if len(recent_failures) >= self.threshold:
+                entities = [f["entity"] for f in recent_failures]
+                return False, f"Cascade detected: {len(recent_failures)} failures in {self.window}s ({entities[:3]}...)"
+
+            return True, f"No cascade: {len(recent_failures)} failures in window"
+
+    circuit_breaker = CascadeCircuitBreaker(cascade_threshold=3)
+
+    now = datetime.now(timezone.utc)
+    # Simulate cascade
+    for i in range(5):
+        circuit_breaker.record_failure(f"entity_{i}", now - timedelta(seconds=i * 10))
+
+    valid, msg = circuit_breaker.check_cascade(now)
+
+    if not valid:
+        defenses["cascade_circuit_breakers"] = True
+        cascade_note = f"Circuit breaker tripped: {msg}"
+    else:
+        cascade_note = f"No cascade: {msg}"
+
+    # ========================================================================
+    # Defense 3: Liquidity Reserves
+    # ========================================================================
+
+    class LiquidityReserveManager:
+        """Maintain liquidity reserves to prevent bank runs."""
+
+        def __init__(self, reserve_ratio: float = 0.2):
+            self.reserve_ratio = reserve_ratio
+            self.total_deposits: float = 0.0
+            self.reserves: float = 0.0
+            self.withdrawal_queue: list = []
+
+        def deposit(self, amount: float):
+            """Handle deposit."""
+            self.total_deposits += amount
+            self.reserves += amount * self.reserve_ratio
+
+        def request_withdrawal(self, amount: float, timestamp: datetime) -> tuple:
+            """Request a withdrawal."""
+            if amount > self.reserves:
+                # Check if this could trigger a run
+                pending = sum(w["amount"] for w in self.withdrawal_queue)
+                if pending + amount > self.total_deposits * 0.5:
+                    return False, f"Withdrawal of {amount} would exceed 50% of deposits (pending: {pending})"
+
+                self.withdrawal_queue.append({
+                    "amount": amount,
+                    "timestamp": timestamp,
+                })
+                return False, f"Withdrawal queued: reserves {self.reserves} < requested {amount}"
+
+            self.reserves -= amount
+            return True, f"Withdrawal processed: {amount}"
+
+        def check_reserve_health(self) -> tuple:
+            """Check if reserves are healthy."""
+            if self.total_deposits == 0:
+                return True, "No deposits"
+
+            actual_ratio = self.reserves / self.total_deposits
+
+            if actual_ratio < self.reserve_ratio * 0.5:
+                return False, f"Reserve ratio critically low: {actual_ratio:.1%} < {self.reserve_ratio * 0.5:.1%}"
+
+            return True, f"Reserve ratio healthy: {actual_ratio:.1%}"
+
+    liquidity_manager = LiquidityReserveManager(reserve_ratio=0.2)
+    liquidity_manager.deposit(10000.0)
+
+    now = datetime.now(timezone.utc)
+    # Attacker triggers run with large withdrawal
+    liquidity_manager.request_withdrawal(5000.0, now)
+    liquidity_manager.request_withdrawal(5000.0, now)
+
+    valid, msg = liquidity_manager.check_reserve_health()
+
+    if not valid:
+        defenses["liquidity_reserves"] = True
+        liquidity_note = f"Liquidity crisis detected: {msg}"
+    else:
+        # Check if run was triggered
+        _, withdrawal_msg = liquidity_manager.request_withdrawal(1000.0, now)
+        if "queued" in withdrawal_msg.lower() or "exceed" in withdrawal_msg.lower():
+            defenses["liquidity_reserves"] = True
+            liquidity_note = f"Run prevented: {withdrawal_msg}"
+        else:
+            liquidity_note = f"Liquidity OK: {msg}"
+
+    # ========================================================================
+    # Defense 4: Reputation Damping
+    # ========================================================================
+
+    class ReputationDamper:
+        """Dampen reputation changes to prevent death spirals."""
+
+        def __init__(self, max_change_rate: float = 0.1, min_floor: float = 0.1):
+            self.max_rate = max_change_rate
+            self.min_floor = min_floor
+            self.reputation_history: dict = defaultdict(list)
+
+        def record_reputation(self, entity_id: str, reputation: float, timestamp: datetime):
+            """Record reputation value."""
+            self.reputation_history[entity_id].append({
+                "value": reputation,
+                "timestamp": timestamp,
+            })
+
+        def calculate_damped_change(self, entity_id: str, proposed_change: float) -> tuple:
+            """Calculate damped reputation change."""
+            history = self.reputation_history.get(entity_id, [])
+
+            if not history:
+                return True, proposed_change, "No history, accepting change"
+
+            current = history[-1]["value"]
+
+            # Limit rate of change
+            if abs(proposed_change) > self.max_rate:
+                damped = self.max_rate if proposed_change > 0 else -self.max_rate
+                return False, damped, f"Change damped from {proposed_change:.2f} to {damped:.2f}"
+
+            # Enforce floor
+            new_value = current + proposed_change
+            if new_value < self.min_floor:
+                damped = self.min_floor - current
+                return False, damped, f"Floor enforced: can't go below {self.min_floor}"
+
+            return True, proposed_change, "Change accepted"
+
+    reputation_damper = ReputationDamper()
+
+    now = datetime.now(timezone.utc)
+    reputation_damper.record_reputation("struggling_entity", 0.5, now - timedelta(hours=1))
+
+    # Attacker tries to trigger death spiral with large negative change
+    valid, damped, msg = reputation_damper.calculate_damped_change("struggling_entity", -0.5)
+
+    if not valid:
+        defenses["reputation_damping"] = True
+        reputation_note = f"Reputation damped: {msg}"
+    else:
+        reputation_note = f"Reputation change OK: {msg}"
+
+    # ========================================================================
+    # Defense 5: Network Resilience Testing
+    # ========================================================================
+
+    class NetworkResilienceTester:
+        """Test network resilience to fragmentation."""
+
+        def __init__(self, min_connectivity: float = 0.5):
+            self.min_connectivity = min_connectivity
+
+        def test_resilience(self, nodes: int, edges: int, critical_nodes: list) -> tuple:
+            """Test network resilience to node failures."""
+            if nodes == 0:
+                return True, "No nodes to test"
+
+            # Simple connectivity model
+            avg_degree = (2 * edges) / nodes if nodes > 0 else 0
+
+            # Check if removing critical nodes fragments network
+            post_removal_connectivity = 1.0 - (len(critical_nodes) / nodes)
+
+            if len(critical_nodes) > 0:
+                # Estimate fragmentation based on critical node removal
+                estimated_fragmentation = 1.0 - (avg_degree / (avg_degree + len(critical_nodes)))
+
+                if estimated_fragmentation < self.min_connectivity:
+                    return False, f"Network fragile: {estimated_fragmentation:.0%} connectivity after removing {len(critical_nodes)} critical nodes"
+
+            return True, f"Network resilient: {post_removal_connectivity:.0%} connectivity"
+
+    resilience_tester = NetworkResilienceTester(min_connectivity=0.5)
+
+    # Attacker identifies critical nodes
+    valid, msg = resilience_tester.test_resilience(nodes=100, edges=150, critical_nodes=["hub_1", "hub_2", "hub_3"])
+
+    if not valid:
+        defenses["network_resilience_testing"] = True
+        network_note = f"Network vulnerability: {msg}"
+    else:
+        network_note = f"Network resilient: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Phase Transition Triggering (EE)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=50000.0 if attack_success else -500.0,
+        roi=100.0 if attack_success else -1.0,
+        detection_probability=0.55,
+        time_to_detection_hours=4,
+        blocks_until_detected=10,
+        trust_damage=0.80,
+        description=f"""
+PHASE TRANSITION TRIGGERING (Track EE - Attack 124):
+- Critical threshold monitoring: {"DEFENDED" if defenses["critical_threshold_monitoring"] else "VULNERABLE"}
+  {threshold_note}
+- Cascade circuit breakers: {"DEFENDED" if defenses["cascade_circuit_breakers"] else "VULNERABLE"}
+  {cascade_note}
+- Liquidity reserves: {"DEFENDED" if defenses["liquidity_reserves"] else "VULNERABLE"}
+  {liquidity_note}
+- Reputation damping: {"DEFENDED" if defenses["reputation_damping"] else "VULNERABLE"}
+  {reputation_note}
+- Network resilience testing: {"DEFENDED" if defenses["network_resilience_testing"] else "VULNERABLE"}
+  {network_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Phase transitions: Discontinuous changes at critical thresholds.
+Small perturbations near critical points cause large effects.
+""".strip(),
+        mitigation=f"""
+Track EE: Phase Transition Mitigation:
+1. Monitor proximity to critical thresholds continuously
+2. Install circuit breakers to halt cascading failures
+3. Maintain liquidity reserves to prevent bank runs
+4. Damp reputation changes to prevent death spirals
+5. Test network resilience to node/edge failures
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_positive_feedback_amplification() -> AttackResult:
+    """
+    ATTACK 125: POSITIVE FEEDBACK AMPLIFICATION (Track EE)
+
+    Exploits positive feedback loops to amplify small advantages:
+    1. Winner-take-all dynamics (early lead becomes insurmountable)
+    2. Preferential attachment exploitation (rich get richer)
+    3. Echo chamber creation (reinforce isolated beliefs)
+    4. Viral manipulation (seed content that self-amplifies)
+    5. Network effect capture (lock-in through growth)
+
+    Systems insight: Positive feedback is unstable. Without damping,
+    small initial advantages compound exponentially.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+    import math
+
+    defenses = {
+        "feedback_loop_detection": False,
+        "advantage_caps": False,
+        "diversity_injection": False,
+        "viral_velocity_limits": False,
+        "interoperability_requirements": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Feedback Loop Detection
+    # ========================================================================
+
+    class FeedbackLoopDetector:
+        """Detect positive feedback loops in system dynamics."""
+
+        def __init__(self, correlation_threshold: float = 0.9):
+            self.threshold = correlation_threshold
+            self.metrics: dict = defaultdict(list)
+
+        def record_metric(self, metric_name: str, value: float, timestamp: datetime):
+            """Record a metric value."""
+            self.metrics[metric_name].append({
+                "value": value,
+                "timestamp": timestamp,
+            })
+
+        def detect_feedback(self, metric_a: str, metric_b: str) -> tuple:
+            """Detect feedback loop between two metrics."""
+            values_a = [m["value"] for m in self.metrics.get(metric_a, [])]
+            values_b = [m["value"] for m in self.metrics.get(metric_b, [])]
+
+            if len(values_a) < 3 or len(values_b) < 3:
+                return True, "Insufficient data"
+
+            # Simple correlation check
+            min_len = min(len(values_a), len(values_b))
+            values_a = values_a[-min_len:]
+            values_b = values_b[-min_len:]
+
+            # Check if both are increasing
+            a_increasing = all(values_a[i] <= values_a[i+1] for i in range(len(values_a)-1))
+            b_increasing = all(values_b[i] <= values_b[i+1] for i in range(len(values_b)-1))
+
+            # Check growth rate correlation
+            if a_increasing and b_increasing:
+                a_growth = (values_a[-1] - values_a[0]) / values_a[0] if values_a[0] != 0 else 0
+                b_growth = (values_b[-1] - values_b[0]) / values_b[0] if values_b[0] != 0 else 0
+
+                if a_growth > 0.5 and b_growth > 0.5:
+                    return False, f"Positive feedback detected: {metric_a} and {metric_b} both growing >50%"
+
+            return True, "No feedback loop detected"
+
+    feedback_detector = FeedbackLoopDetector()
+
+    now = datetime.now(timezone.utc)
+    # Attacker creates feedback loop: visibility → engagement → visibility
+    for i in range(5):
+        visibility = 100 * (1.5 ** i)
+        engagement = 50 * (1.4 ** i)
+        feedback_detector.record_metric("visibility", visibility, now + timedelta(hours=i))
+        feedback_detector.record_metric("engagement", engagement, now + timedelta(hours=i))
+
+    valid, msg = feedback_detector.detect_feedback("visibility", "engagement")
+
+    if not valid:
+        defenses["feedback_loop_detection"] = True
+        feedback_note = f"Feedback detected: {msg}"
+    else:
+        feedback_note = f"No feedback loop: {msg}"
+
+    # ========================================================================
+    # Defense 2: Advantage Caps
+    # ========================================================================
+
+    class AdvantageCapper:
+        """Cap maximum advantages to prevent winner-take-all."""
+
+        def __init__(self, max_market_share: float = 0.4, max_growth_rate: float = 2.0):
+            self.max_share = max_market_share
+            self.max_growth = max_growth_rate
+            self.entity_shares: dict = {}
+            self.previous_shares: dict = {}
+
+        def record_share(self, entity_id: str, share: float):
+            """Record market share."""
+            if entity_id in self.entity_shares:
+                self.previous_shares[entity_id] = self.entity_shares[entity_id]
+            self.entity_shares[entity_id] = share
+
+        def check_caps(self, entity_id: str) -> tuple:
+            """Check if entity exceeds caps."""
+            current = self.entity_shares.get(entity_id, 0)
+            previous = self.previous_shares.get(entity_id, current)
+
+            issues = []
+
+            if current > self.max_share:
+                issues.append(f"Market share {current:.0%} exceeds cap {self.max_share:.0%}")
+
+            if previous > 0:
+                growth = current / previous
+                if growth > self.max_growth:
+                    issues.append(f"Growth rate {growth:.1f}x exceeds cap {self.max_growth:.1f}x")
+
+            if issues:
+                return False, f"Advantage caps exceeded: {'; '.join(issues)}"
+
+            return True, f"Within caps: {current:.0%} share"
+
+    advantage_capper = AdvantageCapper()
+
+    # Attacker gains dominant position
+    advantage_capper.record_share("dominant_entity", 0.2)
+    advantage_capper.record_share("dominant_entity", 0.6)
+
+    valid, msg = advantage_capper.check_caps("dominant_entity")
+
+    if not valid:
+        defenses["advantage_caps"] = True
+        cap_note = f"Advantage capped: {msg}"
+    else:
+        cap_note = f"Within caps: {msg}"
+
+    # ========================================================================
+    # Defense 3: Diversity Injection
+    # ========================================================================
+
+    class DiversityInjector:
+        """Inject diversity to break echo chambers."""
+
+        def __init__(self, min_diversity: float = 0.3):
+            self.min_diversity = min_diversity
+
+        def measure_diversity(self, content_sources: list, source_categories: dict) -> tuple:
+            """Measure diversity of content sources."""
+            if not content_sources:
+                return True, "No content to measure"
+
+            categories = [source_categories.get(s, "unknown") for s in content_sources]
+            unique_categories = len(set(categories))
+            total = len(categories)
+
+            diversity = unique_categories / total if total > 0 else 0
+
+            if diversity < self.min_diversity:
+                return False, f"Low diversity: {diversity:.0%} < {self.min_diversity:.0%} threshold"
+
+            return True, f"Diversity adequate: {diversity:.0%}"
+
+    diversity_injector = DiversityInjector()
+
+    # Echo chamber content
+    echo_sources = ["source_a", "source_a", "source_a", "source_b", "source_a"]
+    source_categories = {
+        "source_a": "perspective_1",
+        "source_b": "perspective_1",
+    }
+
+    valid, msg = diversity_injector.measure_diversity(echo_sources, source_categories)
+
+    if not valid:
+        defenses["diversity_injection"] = True
+        diversity_note = f"Echo chamber detected: {msg}"
+    else:
+        diversity_note = f"Diversity OK: {msg}"
+
+    # ========================================================================
+    # Defense 4: Viral Velocity Limits
+    # ========================================================================
+
+    class ViralVelocityLimiter:
+        """Limit viral spread velocity."""
+
+        def __init__(self, max_reach_per_hour: int = 10000, max_amplification: float = 10.0):
+            self.max_reach = max_reach_per_hour
+            self.max_amp = max_amplification
+            self.content_reach: dict = defaultdict(list)
+
+        def record_share(self, content_id: str, reach: int, timestamp: datetime):
+            """Record content share."""
+            self.content_reach[content_id].append({
+                "reach": reach,
+                "timestamp": timestamp,
+            })
+
+        def check_velocity(self, content_id: str, current_time: datetime) -> tuple:
+            """Check if content is spreading too fast."""
+            shares = self.content_reach.get(content_id, [])
+
+            if len(shares) < 2:
+                return True, "Insufficient data"
+
+            # Calculate reach in last hour
+            hour_ago = current_time - timedelta(hours=1)
+            recent_shares = [s for s in shares if s["timestamp"] >= hour_ago]
+            recent_reach = sum(s["reach"] for s in recent_shares)
+
+            issues = []
+
+            if recent_reach > self.max_reach:
+                issues.append(f"Reach velocity {recent_reach}/hour exceeds {self.max_reach}/hour")
+
+            # Check amplification
+            if len(shares) >= 2:
+                initial_reach = shares[0]["reach"]
+                current_reach = shares[-1]["reach"]
+                if initial_reach > 0:
+                    amplification = current_reach / initial_reach
+                    if amplification > self.max_amp:
+                        issues.append(f"Amplification {amplification:.0f}x exceeds {self.max_amp:.0f}x")
+
+            if issues:
+                return False, f"Viral limits exceeded: {'; '.join(issues)}"
+
+            return True, f"Velocity within limits"
+
+    velocity_limiter = ViralVelocityLimiter()
+
+    now = datetime.now(timezone.utc)
+    # Viral content spreading too fast
+    velocity_limiter.record_share("viral_content", 100, now - timedelta(hours=2))
+    velocity_limiter.record_share("viral_content", 5000, now - timedelta(minutes=30))
+    velocity_limiter.record_share("viral_content", 50000, now)
+
+    valid, msg = velocity_limiter.check_velocity("viral_content", now)
+
+    if not valid:
+        defenses["viral_velocity_limits"] = True
+        viral_note = f"Viral spread limited: {msg}"
+    else:
+        viral_note = f"Velocity OK: {msg}"
+
+    # ========================================================================
+    # Defense 5: Interoperability Requirements
+    # ========================================================================
+
+    class InteroperabilityEnforcer:
+        """Enforce interoperability to prevent lock-in."""
+
+        def __init__(self, min_export_capability: float = 0.8, min_api_openness: float = 0.5):
+            self.min_export = min_export_capability
+            self.min_openness = min_api_openness
+
+        def check_interoperability(self, entity_id: str, export_capability: float,
+                                  api_openness: float, proprietary_lock_in: float) -> tuple:
+            """Check if entity meets interoperability requirements."""
+            issues = []
+
+            if export_capability < self.min_export:
+                issues.append(f"Export capability {export_capability:.0%} < {self.min_export:.0%}")
+
+            if api_openness < self.min_openness:
+                issues.append(f"API openness {api_openness:.0%} < {self.min_openness:.0%}")
+
+            if proprietary_lock_in > 0.5:
+                issues.append(f"Proprietary lock-in {proprietary_lock_in:.0%} too high")
+
+            if issues:
+                return False, f"Interoperability issues: {'; '.join(issues)}"
+
+            return True, f"Interoperability adequate"
+
+    interop_enforcer = InteroperabilityEnforcer()
+
+    # Dominant platform with lock-in
+    valid, msg = interop_enforcer.check_interoperability(
+        "walled_garden",
+        export_capability=0.3,
+        api_openness=0.2,
+        proprietary_lock_in=0.8
+    )
+
+    if not valid:
+        defenses["interoperability_requirements"] = True
+        interop_note = f"Lock-in detected: {msg}"
+    else:
+        interop_note = f"Interoperability OK: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Positive Feedback Amplification (EE)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=40000.0 if attack_success else -300.0,
+        roi=133.0 if attack_success else -1.0,
+        detection_probability=0.50,
+        time_to_detection_hours=168,  # 1 week
+        blocks_until_detected=420,
+        trust_damage=0.60,
+        description=f"""
+POSITIVE FEEDBACK AMPLIFICATION (Track EE - Attack 125):
+- Feedback loop detection: {"DEFENDED" if defenses["feedback_loop_detection"] else "VULNERABLE"}
+  {feedback_note}
+- Advantage caps: {"DEFENDED" if defenses["advantage_caps"] else "VULNERABLE"}
+  {cap_note}
+- Diversity injection: {"DEFENDED" if defenses["diversity_injection"] else "VULNERABLE"}
+  {diversity_note}
+- Viral velocity limits: {"DEFENDED" if defenses["viral_velocity_limits"] else "VULNERABLE"}
+  {viral_note}
+- Interoperability requirements: {"DEFENDED" if defenses["interoperability_requirements"] else "VULNERABLE"}
+  {interop_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Positive feedback: Small advantages compound exponentially without damping.
+Winner-take-all dynamics emerge without intervention.
+""".strip(),
+        mitigation=f"""
+Track EE: Positive Feedback Mitigation:
+1. Detect and dampen positive feedback loops
+2. Cap maximum advantages to prevent dominance
+3. Inject diversity to break echo chambers
+4. Limit viral spread velocity
+5. Enforce interoperability to prevent lock-in
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+def attack_network_topology_exploitation() -> AttackResult:
+    """
+    ATTACK 126: NETWORK TOPOLOGY EXPLOITATION (Track EE)
+
+    Exploits network structure for disproportionate influence:
+    1. Hub identification and capture (target high-degree nodes)
+    2. Bridge node manipulation (control critical connections)
+    3. Community boundary exploitation (play groups against each other)
+    4. Shortest path hijacking (become mandatory intermediary)
+    5. Clustering coefficient manipulation (create artificial clusters)
+
+    Network science insight: Topology determines power. Scale-free
+    networks have hubs that control information flow.
+    """
+    from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
+
+    defenses = {
+        "hub_diversity_requirements": False,
+        "bridge_redundancy": False,
+        "community_boundary_monitoring": False,
+        "path_diversity_enforcement": False,
+        "cluster_authenticity_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Hub Diversity Requirements
+    # ========================================================================
+
+    class HubDiversityEnforcer:
+        """Ensure hub nodes don't have concentrated control."""
+
+        def __init__(self, max_hub_control: float = 0.3):
+            self.max_control = max_hub_control
+
+        def analyze_hub_control(self, hub_id: str, connected_nodes: list,
+                               total_network_nodes: int) -> tuple:
+            """Analyze hub's control over network."""
+            if total_network_nodes == 0:
+                return True, "Empty network"
+
+            control_fraction = len(connected_nodes) / total_network_nodes
+
+            if control_fraction > self.max_control:
+                return False, f"Hub {hub_id} controls {control_fraction:.0%} > {self.max_control:.0%} threshold"
+
+            return True, f"Hub control acceptable: {control_fraction:.0%}"
+
+    hub_enforcer = HubDiversityEnforcer()
+
+    # Attacker becomes dominant hub
+    valid, msg = hub_enforcer.analyze_hub_control(
+        "attacker_hub",
+        connected_nodes=list(range(50)),
+        total_network_nodes=100
+    )
+
+    if not valid:
+        defenses["hub_diversity_requirements"] = True
+        hub_note = f"Hub dominance detected: {msg}"
+    else:
+        hub_note = f"Hub control OK: {msg}"
+
+    # ========================================================================
+    # Defense 2: Bridge Redundancy
+    # ========================================================================
+
+    class BridgeRedundancyChecker:
+        """Ensure critical bridges have redundancy."""
+
+        def __init__(self, min_redundancy: int = 2):
+            self.min_redundancy = min_redundancy
+
+        def check_bridge_redundancy(self, community_a: str, community_b: str,
+                                   bridges: list) -> tuple:
+            """Check if bridge connections have sufficient redundancy."""
+            if len(bridges) < self.min_redundancy:
+                return False, f"Only {len(bridges)} bridges between {community_a} and {community_b}, need {self.min_redundancy}"
+
+            # Check bridge operator diversity
+            operators = set(b.get("operator") for b in bridges)
+            if len(operators) < self.min_redundancy:
+                return False, f"Bridge operators not diverse: only {len(operators)} unique operators"
+
+            return True, f"Bridge redundancy adequate: {len(bridges)} bridges, {len(operators)} operators"
+
+    bridge_checker = BridgeRedundancyChecker()
+
+    # Single bridge controlled by attacker
+    bridges = [{"id": "bridge_1", "operator": "attacker"}]
+
+    valid, msg = bridge_checker.check_bridge_redundancy("community_a", "community_b", bridges)
+
+    if not valid:
+        defenses["bridge_redundancy"] = True
+        bridge_note = f"Bridge vulnerability: {msg}"
+    else:
+        bridge_note = f"Bridges OK: {msg}"
+
+    # ========================================================================
+    # Defense 3: Community Boundary Monitoring
+    # ========================================================================
+
+    class CommunityBoundaryMonitor:
+        """Monitor for manipulation at community boundaries."""
+
+        def __init__(self):
+            self.boundary_events: dict = defaultdict(list)
+
+        def record_boundary_event(self, community_a: str, community_b: str,
+                                 event_type: str, actor: str, timestamp: datetime):
+            """Record an event at community boundary."""
+            key = tuple(sorted([community_a, community_b]))
+            self.boundary_events[key].append({
+                "type": event_type,
+                "actor": actor,
+                "timestamp": timestamp,
+            })
+
+        def detect_manipulation(self, community_a: str, community_b: str) -> tuple:
+            """Detect potential manipulation at boundary."""
+            key = tuple(sorted([community_a, community_b]))
+            events = self.boundary_events.get(key, [])
+
+            if len(events) < 3:
+                return True, "Insufficient events for analysis"
+
+            # Check for concentrated activity from single actor
+            actors = [e["actor"] for e in events]
+            actor_counts: dict = defaultdict(int)
+            for actor in actors:
+                actor_counts[actor] += 1
+
+            max_actor = max(actor_counts, key=actor_counts.get)
+            max_count = actor_counts[max_actor]
+
+            if max_count / len(events) > 0.7:
+                return False, f"Boundary manipulation: {max_actor} responsible for {max_count}/{len(events)} events"
+
+            return True, "No manipulation detected"
+
+    boundary_monitor = CommunityBoundaryMonitor()
+
+    now = datetime.now(timezone.utc)
+    # Attacker dominates boundary interactions
+    for i in range(10):
+        boundary_monitor.record_boundary_event("community_a", "community_b",
+                                              "message", "attacker", now - timedelta(hours=i))
+
+    valid, msg = boundary_monitor.detect_manipulation("community_a", "community_b")
+
+    if not valid:
+        defenses["community_boundary_monitoring"] = True
+        boundary_note = f"Boundary manipulation: {msg}"
+    else:
+        boundary_note = f"Boundaries OK: {msg}"
+
+    # ========================================================================
+    # Defense 4: Path Diversity Enforcement
+    # ========================================================================
+
+    class PathDiversityEnforcer:
+        """Enforce path diversity to prevent routing attacks."""
+
+        def __init__(self, min_disjoint_paths: int = 2):
+            self.min_paths = min_disjoint_paths
+
+        def check_path_diversity(self, source: str, destination: str,
+                                available_paths: list) -> tuple:
+            """Check if sufficient diverse paths exist."""
+            if len(available_paths) < self.min_paths:
+                return False, f"Only {len(available_paths)} paths, need {self.min_paths}"
+
+            # Check for node-disjoint paths
+            all_nodes = set()
+            disjoint_count = 0
+
+            for path in available_paths:
+                path_nodes = set(path) - {source, destination}
+                if not path_nodes & all_nodes:
+                    disjoint_count += 1
+                    all_nodes.update(path_nodes)
+
+            if disjoint_count < self.min_paths:
+                return False, f"Only {disjoint_count} disjoint paths, need {self.min_paths}"
+
+            return True, f"Path diversity adequate: {disjoint_count} disjoint paths"
+
+    path_enforcer = PathDiversityEnforcer()
+
+    # All paths go through attacker
+    paths = [
+        ["source", "attacker", "destination"],
+        ["source", "node_1", "attacker", "destination"],
+    ]
+
+    valid, msg = path_enforcer.check_path_diversity("source", "destination", paths)
+
+    if not valid:
+        defenses["path_diversity_enforcement"] = True
+        path_note = f"Path bottleneck: {msg}"
+    else:
+        path_note = f"Path diversity OK: {msg}"
+
+    # ========================================================================
+    # Defense 5: Cluster Authenticity Verification
+    # ========================================================================
+
+    class ClusterAuthenticityVerifier:
+        """Verify cluster formations are authentic."""
+
+        def __init__(self, min_organic_ratio: float = 0.7):
+            self.min_organic = min_organic_ratio
+
+        def verify_cluster(self, cluster_nodes: list, organic_connections: int,
+                          total_connections: int, age_days: list) -> tuple:
+            """Verify cluster is authentically formed."""
+            issues = []
+
+            # Check organic connection ratio
+            if total_connections > 0:
+                organic_ratio = organic_connections / total_connections
+                if organic_ratio < self.min_organic:
+                    issues.append(f"Low organic ratio: {organic_ratio:.0%} < {self.min_organic:.0%}")
+
+            # Check for suspiciously uniform creation times
+            if len(age_days) >= 3:
+                age_variance = max(age_days) - min(age_days)
+                if age_variance < 1 and min(age_days) < 7:
+                    issues.append(f"Suspicious timing: all nodes created within {age_variance} days")
+
+            if issues:
+                return False, f"Cluster appears artificial: {'; '.join(issues)}"
+
+            return True, "Cluster appears authentic"
+
+    cluster_verifier = ClusterAuthenticityVerifier()
+
+    # Artificial cluster created by attacker
+    valid, msg = cluster_verifier.verify_cluster(
+        cluster_nodes=["node_1", "node_2", "node_3", "node_4"],
+        organic_connections=2,
+        total_connections=10,
+        age_days=[1, 1, 1, 1]  # All created same day
+    )
+
+    if not valid:
+        defenses["cluster_authenticity_verification"] = True
+        cluster_note = f"Artificial cluster: {msg}"
+    else:
+        cluster_note = f"Cluster authentic: {msg}"
+
+    # ========================================================================
+    # Calculate Results
+    # ========================================================================
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < total_defenses - 2
+
+    return AttackResult(
+        attack_name="Network Topology Exploitation (EE)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=35000.0 if attack_success else -400.0,
+        roi=87.5 if attack_success else -1.0,
+        detection_probability=0.45,
+        time_to_detection_hours=336,  # 2 weeks
+        blocks_until_detected=840,
+        trust_damage=0.55,
+        description=f"""
+NETWORK TOPOLOGY EXPLOITATION (Track EE - Attack 126):
+- Hub diversity requirements: {"DEFENDED" if defenses["hub_diversity_requirements"] else "VULNERABLE"}
+  {hub_note}
+- Bridge redundancy: {"DEFENDED" if defenses["bridge_redundancy"] else "VULNERABLE"}
+  {bridge_note}
+- Community boundary monitoring: {"DEFENDED" if defenses["community_boundary_monitoring"] else "VULNERABLE"}
+  {boundary_note}
+- Path diversity enforcement: {"DEFENDED" if defenses["path_diversity_enforcement"] else "VULNERABLE"}
+  {path_note}
+- Cluster authenticity verification: {"DEFENDED" if defenses["cluster_authenticity_verification"] else "VULNERABLE"}
+  {cluster_note}
+
+{defenses_held}/{total_defenses} defenses held.
+
+Network topology determines power distribution.
+Scale-free networks have vulnerable hubs that control flow.
+""".strip(),
+        mitigation=f"""
+Track EE: Network Topology Mitigation:
+1. Enforce hub diversity to prevent concentrated control
+2. Require bridge redundancy for critical connections
+3. Monitor community boundaries for manipulation
+4. Enforce path diversity to prevent routing attacks
+5. Verify cluster authenticity to detect artificial communities
+
+Current defenses: {defenses_held}/{total_defenses}
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+            "total_defenses": total_defenses,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -38121,6 +42199,21 @@ def run_all_attacks() -> List[AttackResult]:
         ("Loss Aversion Exploitation (EB)", attack_loss_aversion_exploitation),
         ("Hyperbolic Discounting Exploitation (EB)", attack_hyperbolic_discounting_exploitation),
         ("Overconfidence Exploitation (EB)", attack_overconfidence_exploitation),
+        # Track EC: Social Engineering in Trust Systems
+        ("Authority Impersonation (EC)", attack_authority_impersonation),
+        ("Social Proof Manipulation (EC)", attack_social_proof_manipulation),
+        ("Urgency/Scarcity Exploitation (EC)", attack_urgency_scarcity_exploitation),
+        ("Reciprocity Exploitation (EC)", attack_reciprocity_exploitation),
+        # Track ED: Regulatory and Compliance Arbitrage
+        ("Jurisdiction Shopping (ED)", attack_jurisdiction_shopping),
+        ("Compliance Theater (ED)", attack_compliance_theater),
+        ("Standard Capture (ED)", attack_standard_capture),
+        ("Reporting Manipulation (ED)", attack_reporting_manipulation),
+        # Track EE: Emergent System Dynamics Attacks
+        ("Complexity Bomb (EE)", attack_complexity_bomb),
+        ("Phase Transition Triggering (EE)", attack_phase_transition_triggering),
+        ("Positive Feedback Amplification (EE)", attack_positive_feedback_amplification),
+        ("Network Topology Exploitation (EE)", attack_network_topology_exploitation),
     ]
 
     results = []

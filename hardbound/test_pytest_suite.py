@@ -66,7 +66,19 @@ class TestAttackSimulations:
         #     Signature Replay & Key Weakness
         # DY: Social/Information Cascade Attacks (1 attack)
         #     Information Cascade Propagation
-        assert len(results) == 101
+        # DZ: Advanced Persistent Threat (APT) Patterns (5 attacks)
+        # EA: Economic Coalition Attacks (4 attacks)
+        # EB: Behavioral Economics Attacks (4 attacks)
+        # EC: Social Engineering in Trust Systems (4 attacks)
+        #     Authority Impersonation, Social Proof Manipulation,
+        #     Urgency/Scarcity Exploitation, Reciprocity Exploitation
+        # ED: Regulatory and Compliance Arbitrage (4 attacks)
+        #     Jurisdiction Shopping, Compliance Theater,
+        #     Standard Capture, Reporting Manipulation
+        # EE: Emergent System Dynamics (4 attacks)
+        #     Complexity Bomb, Phase Transition Triggering,
+        #     Positive Feedback Amplification, Network Topology Exploitation
+        assert len(results) == 126
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
