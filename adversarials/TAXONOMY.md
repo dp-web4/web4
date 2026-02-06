@@ -2,8 +2,8 @@
 
 ## Attack Vectors and Defense Analysis for Web4
 
-Version: 1.1
-Last Updated: 2026-01-18
+Version: 1.2
+Last Updated: 2026-02-05
 
 ---
 
@@ -311,10 +311,44 @@ These attacks aim not to extract value but to destroy the system entirely.
 | Governance attacks | 10% | Framework design |
 | Destruction attacks | 20% | Threat modeling |
 | Governance interface | 5% | External authority hooks + transaction cost metering |
+| Social engineering | 60% | Credential verification standards |
+| Regulatory arbitrage | 40% | Jurisdiction binding implementation |
+| Emergent dynamics | 55% | Circuit breaker deployment |
 
 ---
 
-## 8. Integration with Existing Documentation
+## 8. Attack Simulation Catalog (126 Attacks)
+
+**Updated**: 2026-02-05
+**Total Attacks**: 126 across 35+ tracks
+
+The comprehensive attack simulation catalog (`hardbound/attack_simulations.py`) provides executable tests for all attack vectors. Key tracks added in recent sessions:
+
+### Recent Additions (2026-02-05)
+
+**Track EC: Social Engineering in Trust Systems (Attacks 115-118)**
+- Authority Impersonation (Milgram obedience)
+- Social Proof Manipulation (Asch conformity)
+- Urgency/Scarcity Exploitation (FOMO)
+- Reciprocity Exploitation (gift traps)
+
+**Track ED: Regulatory and Compliance Arbitrage (Attacks 119-122)**
+- Jurisdiction Shopping
+- Compliance Theater
+- Standard Capture
+- Reporting Manipulation (Goodhart's Law)
+
+**Track EE: Emergent System Dynamics (Attacks 123-126)**
+- Complexity Bomb (exponential state space)
+- Phase Transition Triggering (critical thresholds)
+- Positive Feedback Amplification (winner-take-all)
+- Network Topology Exploitation (hub/bridge capture)
+
+**Full catalog documentation**: `hardbound/docs/ATTACK_CATALOG_SUMMARY.md`
+
+---
+
+## 10. Integration with Existing Documentation
 
 This taxonomy consolidates and extends existing web4 security documentation:
 
@@ -335,3 +369,10 @@ This taxonomy consolidates and extends existing web4 security documentation:
 - web4/attack_vectors_reputation_gaming.md - 7 reputation attacks
 - web4/session146_advanced_attack_vectors.md - 6 advanced attacks
 - web4/web4-standard/implementation/authorization/ATTACK_VECTORS.md - Specific vectors
+- **web4/hardbound/attack_simulations.py** - 126 executable attack simulations
+- **web4/hardbound/docs/ATTACK_CATALOG_SUMMARY.md** - Comprehensive attack catalog
+- web4/game/GAME_THEORETIC_EQUILIBRIUM_ANALYSIS.md - Nash equilibrium analysis
+- Kahneman & Tversky (1979) - Prospect Theory
+- Milgram (1963) - Obedience to Authority
+- Asch (1951) - Conformity Studies
+- Cialdini (2001) - Influence: The Psychology of Persuasion
