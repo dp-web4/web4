@@ -90,6 +90,41 @@ Web4 is a trust-native distributed intelligence architecture that implements:
 The `simulations/` directory was formerly named `hardbound/` but renamed to avoid confusion.
 References to "hardbound-core" or "Hardbound" in specs refer to the enterprise product, not this directory.
 
+## Repository Structure (February 2026 Reorganization)
+
+**Root Directory** (essential files only):
+```
+README.md, STATUS.md, CLAUDE.md, CONTRIBUTING.md
+SECURITY.md, PATENTS.md, LICENSE, CITATION.cff
+SESSION_MAP.md, SESSION_MAP.yaml
+```
+
+**Documentation** (organized by purpose):
+```
+docs/
+├── why/          # Vision, motivation, philosophy
+├── what/         # Specifications, definitions
+├── how/          # Implementation guides, integration
+├── history/      # Research, decisions, evolution
+├── reference/    # Glossary, indexes, security
+└── whitepaper-web/
+```
+
+**Research Sessions**:
+```
+sessions/
+├── active/       # Current session scripts (session_*.py)
+├── archive/      # Completed research phases
+├── outputs/      # Session results (.json, .log)
+└── prototypes/   # Working prototypes
+```
+
+**Archive**:
+```
+archive/
+└── game-prototype/   # Original Web4 simulation (evolved into 4-life project)
+```
+
 ## Whitepaper Status
 
 The Web4 whitepaper is actively evolving with:
