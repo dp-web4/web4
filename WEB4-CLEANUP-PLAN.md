@@ -231,8 +231,9 @@ After cleanup:
 ## Execution Status
 
 - [ ] **Step 1**: Move hardbound/ to private repo - **NEEDS USER DECISION** (see options above)
-- [x] **Step 2**: Sync plugin to claude-code fork - **COMPLETED** (Feb 5, 2026)
-  - Synced 16 files including presence.py, git push divergence check, command_patterns
+- [x] **Step 2**: Consolidate plugin to claude-code fork - **COMPLETED** (Feb 5, 2026)
+  - Synced web4 features (presence.py, git push check) to claude-code fork
   - Resolved merge conflict in presets.py (combined time_window + command_patterns)
+  - **Removed `claude-code-plugin/` from web4** - canonical home is now claude-code fork
   - Pushed to `add-web4-governance-plugin` branch
-- [ ] **Step 3**: Clean __pycache__ - Minor, can do anytime
+- [x] **Step 3**: Clean __pycache__ - N/A (removed with plugin directory)
