@@ -78,6 +78,18 @@ Web4 is a trust-native distributed intelligence architecture that implements:
 - ❌ "LCT = Lifecycle-Continuous Trust" (WRONG - LCT already means Linked Context Token)
 - ✅ Use existing LCT for pattern signing, T3 for trust scores
 
+## Directory Naming Clarification
+
+**"Hardbound" vs "simulations/"** — These are different things:
+
+| Name | Location | Description |
+|------|----------|-------------|
+| **Hardbound** | Private `hardbound/` repo | Enterprise product (Rust-based). Authorization tier with role-based access control. |
+| **simulations/** | This repo: `web4/simulations/` | Python research code. Federation modeling, 126 attack simulations, trust system testing. |
+
+The `simulations/` directory was formerly named `hardbound/` but renamed to avoid confusion.
+References to "hardbound-core" or "Hardbound" in specs refer to the enterprise product, not this directory.
+
 ## Whitepaper Status
 
 The Web4 whitepaper is actively evolving with:

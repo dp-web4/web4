@@ -322,7 +322,7 @@ These attacks aim not to extract value but to destroy the system entirely.
 **Updated**: 2026-02-05
 **Total Attacks**: 126 across 35+ tracks
 
-The comprehensive attack simulation catalog (`hardbound/attack_simulations.py`) provides executable tests for all attack vectors. Key tracks added in recent sessions:
+The comprehensive attack simulation catalog (`simulations/attack_simulations.py`) provides executable tests for all attack vectors. Key tracks added in recent sessions:
 
 ### Recent Additions (2026-02-05)
 
@@ -344,7 +344,7 @@ The comprehensive attack simulation catalog (`hardbound/attack_simulations.py`) 
 - Positive Feedback Amplification (winner-take-all)
 - Network Topology Exploitation (hub/bridge capture)
 
-**Full catalog documentation**: `hardbound/docs/ATTACK_CATALOG_SUMMARY.md`
+**Full catalog documentation**: `simulations/docs/ATTACK_CATALOG_SUMMARY.md`
 
 ---
 
@@ -369,8 +369,8 @@ This taxonomy consolidates and extends existing web4 security documentation:
 - web4/attack_vectors_reputation_gaming.md - 7 reputation attacks
 - web4/session146_advanced_attack_vectors.md - 6 advanced attacks
 - web4/web4-standard/implementation/authorization/ATTACK_VECTORS.md - Specific vectors
-- **web4/hardbound/attack_simulations.py** - 126 executable attack simulations
-- **web4/hardbound/docs/ATTACK_CATALOG_SUMMARY.md** - Comprehensive attack catalog
+- **web4/simulations/attack_simulations.py** - 126 executable attack simulations
+- **web4/simulations/docs/ATTACK_CATALOG_SUMMARY.md** - Comprehensive attack catalog
 - web4/game/GAME_THEORETIC_EQUILIBRIUM_ANALYSIS.md - Nash equilibrium analysis
 - Kahneman & Tversky (1979) - Prospect Theory
 - Milgram (1963) - Obedience to Authority
