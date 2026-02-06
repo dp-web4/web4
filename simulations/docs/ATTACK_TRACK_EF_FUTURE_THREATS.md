@@ -1,9 +1,11 @@
 # Attack Track EF: Future Threat Categories
 
 **Created**: 2026-02-06
-**Status**: Research/Exploration
-**Current Attacks**: 126 (Tracks AP-EE)
-**Proposed New**: 20+ (Track EF)
+**Updated**: 2026-02-06
+**Status**: Partially Implemented
+**Total Attacks**: 142 (including Track EG)
+**Track EF Implemented**: 8 attacks (127-134)
+**Track EG Implemented**: 8 attacks (135-142)
 
 This document identifies attack categories not yet covered by the 126 existing simulations and proposes new vectors for research.
 
@@ -346,13 +348,72 @@ Admin physically coerced:
 
 ---
 
+## Implementation Status
+
+### Track EF - Implemented (Attacks 127-134)
+
+| Attack | Sub-Track | Status |
+|--------|-----------|--------|
+| 127 | EF-2a AI Witness Monoculture | ✅ Implemented |
+| 128 | EF-2b Knowledge Cutoff Exploitation | ✅ Implemented |
+| 129 | EF-3a Semantic Drift Exploitation | ✅ Implemented |
+| 130 | EF-3c Compression-Trust Collapse | ✅ Implemented |
+| 131 | EF-1d Post-Quantum Migration | ✅ Implemented |
+| 132 | EF-7a TPM Firmware Exploitation | ✅ Implemented |
+| 133 | EF-8a Device Theft and Cloning | ✅ Implemented |
+| 134 | EF-8b Coercion/Duress Attack | ✅ Implemented |
+
+### Track EG - Cross-Federation AI Coordination (Attacks 135-142)
+
+New track added 2026-02-06 focusing on AI agent coordination vulnerabilities:
+
+| Attack | Name | Status |
+|--------|------|--------|
+| 135 | Context Window Overflow | ✅ Implemented |
+| 136 | Hallucination Injection | ✅ Implemented |
+| 137 | Instruction Conflict | ✅ Implemented |
+| 138 | Agent Impersonation Chain | ✅ Implemented |
+| 139 | Collective Decision Manipulation | ✅ Implemented |
+| 140 | Coordinated Inaction | ✅ Implemented |
+| 141 | Model Capability Mismatch | ✅ Implemented |
+| 142 | Resource Starvation Cascade | ✅ Implemented |
+
+---
+
+## Remaining Proposed Attacks (Not Yet Implemented)
+
+### EF-3b: Cross-Domain Semantic Injection
+- Dictionary Entity manages terms across domains
+- Inject benign term in Domain A with malicious meaning in Domain B
+
+### EF-3d: Meaning Laundering
+- Clean malicious meaning through multiple translation domains
+
+### EF-4: Energy/ESG Gaming (3 proposed attacks)
+- Metabolic state ESG claims manipulation
+- Carbon offset via dormancy
+- Efficiency metric manipulation
+
+### EF-5: Cross-Ledger Consistency (3 proposed attacks)
+- Federation desynchronization
+- Ledger partitioning
+- Cross-ledger replay
+
+### EF-6: Privacy Protocol Attacks (4 proposed attacks)
+- ZK proof malleability
+- Trusted setup exploitation
+- Selective disclosure abuse
+- Correlation attack on private witnesses
+
+---
+
 ## Next Steps
 
-1. Create simulation functions for EF-2 (AI Model Degradation)
-2. Propose Dictionary Entity drift detection for EF-3
-3. Design cross-ledger nonce protocol for EF-5
-4. Survey post-quantum cryptography options for EF-1
-5. Add coercion detection mechanism design for EF-8
+1. ~~Create simulation functions for EF-2 (AI Model Degradation)~~ ✅ Done
+2. ~~Add coercion detection mechanism design for EF-8~~ ✅ Done
+3. Implement EF-4 Energy/ESG Gaming attacks (planned for Track EH)
+4. Implement EF-5 Cross-Ledger Consistency attacks
+5. Design EF-6 Privacy Protocol attacks (when ZKPs added)
 
 ---
 

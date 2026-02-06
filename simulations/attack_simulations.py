@@ -43972,6 +43972,2150 @@ Human security requires human-aware defenses.
 
 
 # ---------------------------------------------------------------------------
+# Track EG: Cross-Federation AI Coordination Attacks (Attacks 135-142)
+# ---------------------------------------------------------------------------
+
+
+def attack_context_window_overflow() -> AttackResult:
+    """
+    ATTACK 135: CONTEXT WINDOW OVERFLOW (Track EG-1a)
+
+    Exploits AI agents' context window limitations:
+    1. Flood federation channels with verbose but valid messages
+    2. Important trust signals pushed out of context window
+    3. AI agents make decisions based on incomplete/skewed context
+    4. Coordinated across multiple channels for amplification
+    """
+
+    defenses = {
+        "context_summarization": False,
+        "priority_retention": False,
+        "context_budget_per_source": False,
+        "anomaly_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Context Summarization
+    # ========================================================================
+
+    class ContextSummarizer:
+        """Summarize and compress context to prevent overflow attacks."""
+
+        def __init__(self, max_tokens: int = 100000,
+                     summary_threshold: float = 0.7):
+            self.max_tokens = max_tokens
+            self.summary_threshold = summary_threshold
+            self.context_store = []
+            self.summaries = []
+
+        def add_context(self, message: dict, token_count: int) -> tuple:
+            """Add context with automatic summarization."""
+            current_tokens = sum(m["tokens"] for m in self.context_store)
+
+            # If approaching threshold, summarize old messages
+            if current_tokens + token_count > self.max_tokens * self.summary_threshold:
+                # Summarize oldest 50% of context
+                to_summarize = self.context_store[:len(self.context_store) // 2]
+                summary_tokens = sum(m["tokens"] for m in to_summarize) // 10  # 10x compression
+
+                self.summaries.append({
+                    "type": "summary",
+                    "count": len(to_summarize),
+                    "tokens": summary_tokens,
+                    "topics": list(set(m.get("topic", "general") for m in to_summarize)),
+                })
+
+                self.context_store = self.context_store[len(self.context_store) // 2:]
+                return True, f"Context summarized, {len(to_summarize)} messages compressed"
+
+            self.context_store.append({"message": message, "tokens": token_count})
+            return True, "Context added"
+
+        def get_effective_context_coverage(self) -> float:
+            """Calculate coverage of original context retained."""
+            original_count = len(self.context_store) + sum(s["count"] for s in self.summaries)
+            retained = len(self.context_store) + len(self.summaries)
+            return retained / max(original_count, 1)
+
+    summarizer = ContextSummarizer()
+
+    # Attacker floods with 1000 verbose messages
+    for i in range(1000):
+        summarizer.add_context({"topic": "spam", "content": f"verbose_{i}"}, 500)
+
+    coverage = summarizer.get_effective_context_coverage()
+    if coverage > 0.3 and len(summarizer.summaries) > 0:
+        defenses["context_summarization"] = True
+
+    # ========================================================================
+    # Defense 2: Priority Retention
+    # ========================================================================
+
+    class PriorityRetentionSystem:
+        """Retain high-priority context regardless of overflow."""
+
+        def __init__(self, reserved_slots: int = 100):
+            self.reserved_slots = reserved_slots
+            self.priority_context = []  # Always retained
+            self.normal_context = []    # Can be evicted
+
+            self.priority_categories = [
+                "trust_update",
+                "security_alert",
+                "policy_change",
+                "admin_action",
+                "witness_report",
+            ]
+
+        def add_message(self, message: dict, category: str) -> tuple:
+            """Add message with priority-based retention."""
+            is_priority = category in self.priority_categories
+
+            if is_priority:
+                if len(self.priority_context) < self.reserved_slots:
+                    self.priority_context.append(message)
+                    return True, "Priority context retained"
+                else:
+                    # Evict oldest priority message
+                    self.priority_context = self.priority_context[1:]
+                    self.priority_context.append(message)
+                    return True, "Priority context rotated"
+            else:
+                self.normal_context.append(message)
+                return True, "Normal context added"
+
+        def has_critical_context(self, required_categories: list) -> tuple:
+            """Check if critical context categories are retained."""
+            retained_categories = set(m.get("category") for m in self.priority_context)
+            missing = [c for c in required_categories if c not in retained_categories]
+
+            if missing:
+                return False, f"Missing critical context: {', '.join(missing)}"
+            return True, "All critical context retained"
+
+    retention = PriorityRetentionSystem()
+
+    # Add critical messages
+    retention.add_message({"category": "trust_update", "entity": "admin"}, "trust_update")
+    retention.add_message({"category": "security_alert", "level": "high"}, "security_alert")
+
+    # Attacker floods with spam
+    for i in range(10000):
+        retention.add_message({"category": "spam", "content": f"noise_{i}"}, "spam")
+
+    # Check if critical context survived
+    ok, msg = retention.has_critical_context(["trust_update", "security_alert"])
+    if ok:
+        defenses["priority_retention"] = True
+
+    # ========================================================================
+    # Defense 3: Context Budget Per Source
+    # ========================================================================
+
+    class ContextBudgetManager:
+        """Limit context contribution per source entity."""
+
+        def __init__(self, total_budget: int = 50000,
+                     max_per_source: float = 0.1):
+            self.total_budget = total_budget
+            self.max_per_source = max_per_source
+            self.source_usage = defaultdict(int)
+
+        def can_add(self, source: str, tokens: int) -> tuple:
+            """Check if source can add more context."""
+            source_limit = self.total_budget * self.max_per_source
+            current = self.source_usage[source]
+
+            if current + tokens > source_limit:
+                return False, f"Source {source} exceeded budget ({current}/{source_limit})"
+
+            return True, f"Budget OK ({current + tokens}/{source_limit})"
+
+        def add(self, source: str, tokens: int):
+            """Record context usage."""
+            self.source_usage[source] += tokens
+
+        def get_diversity_score(self) -> float:
+            """Calculate context source diversity."""
+            if not self.source_usage:
+                return 0.0
+            total = sum(self.source_usage.values())
+            max_source = max(self.source_usage.values())
+            return 1.0 - (max_source / total) if total > 0 else 0.0
+
+    budget = ContextBudgetManager()
+
+    # Attacker tries to dominate context
+    for i in range(100):
+        ok, msg = budget.can_add("attacker", 1000)
+        if ok:
+            budget.add("attacker", 1000)
+
+    # Legitimate sources also contribute
+    for source in ["admin", "member_1", "member_2", "witness_1"]:
+        for i in range(10):
+            ok, msg = budget.can_add(source, 500)
+            if ok:
+                budget.add(source, 500)
+
+    diversity = budget.get_diversity_score()
+    if diversity > 0.3:  # Multiple sources retained
+        defenses["context_budget_per_source"] = True
+
+    # ========================================================================
+    # Defense 4: Anomaly Detection
+    # ========================================================================
+
+    class ContextAnomalyDetector:
+        """Detect abnormal context patterns suggesting attack."""
+
+        def __init__(self, baseline_rate: float = 100.0):  # msgs/hour
+            self.baseline_rate = baseline_rate
+            self.source_rates = defaultdict(list)
+            self.alerts = []
+
+        def record_message(self, source: str, timestamp: float):
+            """Record message for rate tracking."""
+            self.source_rates[source].append(timestamp)
+
+        def check_rate_anomaly(self, source: str, window_hours: float = 1.0) -> tuple:
+            """Check if source rate is anomalous."""
+            cutoff = time.time() - (window_hours * 3600)
+            recent = [t for t in self.source_rates[source] if t > cutoff]
+            rate = len(recent) / window_hours
+
+            if rate > self.baseline_rate * 10:
+                self.alerts.append(f"Rate anomaly: {source} at {rate:.1f}/hour")
+                return False, f"Rate {rate:.1f}/hour exceeds threshold"
+
+            return True, f"Rate {rate:.1f}/hour normal"
+
+    detector = ContextAnomalyDetector()
+
+    # Attacker sends at high rate
+    base_time = time.time()
+    for i in range(5000):
+        detector.record_message("attacker", base_time + (i * 0.1))  # 10/second
+
+    ok, msg = detector.check_rate_anomaly("attacker", 1.0)
+    if not ok:
+        defenses["anomaly_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Context Window Overflow (EG-1a)",
+        success=attack_success,
+        setup_cost_atp=10.0,  # Just message sending
+        gain_atp=500.0 if attack_success else 0.0,
+        roi=(500.0 / 10.0) if attack_success else -1.0,
+        detection_probability=0.6 if defenses_held >= 3 else 0.3,
+        time_to_detection_hours=2.0,
+        blocks_until_detected=8,
+        trust_damage=0.4,
+        description=f"""
+CONTEXT WINDOW OVERFLOW (Track EG-1a)
+
+Exploits AI agents' limited context windows to push out
+critical trust and security information.
+
+Attack Pattern:
+1. Identify federation channels used by AI agents
+2. Flood with verbose but technically valid messages
+3. Critical trust updates pushed out of context window
+4. AI makes decisions based on incomplete information
+
+This attack targets the cognitive limitations of AI systems
+operating in federated environments.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EG-1a: Context Overflow Defense:
+1. Automatic context summarization
+2. Priority retention for security-critical messages
+3. Per-source context budgets
+4. Rate-based anomaly detection
+
+Protect AI decision context from manipulation.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_hallucination_injection() -> AttackResult:
+    """
+    ATTACK 136: HALLUCINATION INJECTION (Track EG-1b)
+
+    Exploits AI tendency to hallucinate by providing patterns
+    that encourage false inferences about federation state:
+    1. Provide partial/ambiguous information about entities
+    2. AI completes patterns with hallucinated data
+    3. Hallucinations treated as valid trust signals
+    4. Federation state corrupted by false inferences
+    """
+
+    defenses = {
+        "grounding_requirement": False,
+        "confidence_thresholds": False,
+        "multi_source_verification": False,
+        "hallucination_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Grounding Requirement
+    # ========================================================================
+
+    class GroundingRequirement:
+        """Require claims to be grounded in verifiable data."""
+
+        def __init__(self, required_evidence_types: list = None):
+            self.required_evidence = required_evidence_types or [
+                "ledger_record",
+                "signed_witness",
+                "timestamp_proof",
+            ]
+
+        def verify_grounding(self, claim: dict, evidence: list) -> tuple:
+            """Verify claim is grounded in evidence."""
+            evidence_types = [e.get("type") for e in evidence]
+
+            # Require at least one valid evidence type
+            has_valid = any(et in self.required_evidence for et in evidence_types)
+
+            if not has_valid:
+                return False, f"No valid evidence (need one of: {', '.join(self.required_evidence)})"
+
+            # Verify evidence references the claim
+            claim_id = claim.get("id")
+            evidence_refs = [e.get("claim_ref") for e in evidence]
+
+            if claim_id not in evidence_refs:
+                return False, "Evidence doesn't reference claim"
+
+            return True, "Claim properly grounded"
+
+    grounding = GroundingRequirement()
+
+    # Attacker makes claim without proper grounding
+    ungrounded_claim = {"id": "claim_123", "entity": "victim", "trust_score": -0.5}
+    fake_evidence = [{"type": "hearsay", "claim_ref": "claim_123"}]
+
+    ok, msg = grounding.verify_grounding(ungrounded_claim, fake_evidence)
+    if not ok:
+        defenses["grounding_requirement"] = True
+
+    # ========================================================================
+    # Defense 2: Confidence Thresholds
+    # ========================================================================
+
+    class ConfidenceThresholdEnforcer:
+        """Enforce minimum confidence thresholds for actions."""
+
+        def __init__(self, thresholds: dict = None):
+            self.thresholds = thresholds or {
+                "trust_update": 0.8,
+                "policy_change": 0.9,
+                "member_action": 0.7,
+                "witness_report": 0.85,
+            }
+
+        def evaluate_action(self, action_type: str,
+                           confidence: float,
+                           source: str) -> tuple:
+            """Evaluate if action meets confidence threshold."""
+            threshold = self.thresholds.get(action_type, 0.9)
+
+            if confidence < threshold:
+                return False, f"Confidence {confidence:.2f} below threshold {threshold:.2f}"
+
+            # Lower threshold for combined human+AI sources
+            if "human_verified" in source:
+                return True, f"Human-verified confidence {confidence:.2f} accepted"
+
+            return True, f"Confidence {confidence:.2f} meets threshold"
+
+    enforcer = ConfidenceThresholdEnforcer()
+
+    # AI-generated action with uncertain confidence
+    ok, msg = enforcer.evaluate_action("trust_update", 0.65, "ai_agent")
+    if not ok:
+        defenses["confidence_thresholds"] = True
+
+    # ========================================================================
+    # Defense 3: Multi-Source Verification
+    # ========================================================================
+
+    class MultiSourceVerifier:
+        """Require verification from multiple independent sources."""
+
+        def __init__(self, min_sources: int = 2,
+                     min_diversity: float = 0.5):
+            self.min_sources = min_sources
+            self.min_diversity = min_diversity
+
+        def calculate_diversity(self, sources: list) -> float:
+            """Calculate diversity of source types."""
+            types = set()
+            for s in sources:
+                if "human" in s:
+                    types.add("human")
+                elif "ai" in s:
+                    types.add("ai")
+                elif "hardware" in s:
+                    types.add("hardware")
+                else:
+                    types.add("other")
+            return len(types) / 4.0  # 4 possible types
+
+        def verify_claim(self, claim: dict, verifications: list) -> tuple:
+            """Verify claim has sufficient multi-source verification."""
+            if len(verifications) < self.min_sources:
+                return False, f"Only {len(verifications)} sources (need {self.min_sources})"
+
+            sources = [v.get("source", "unknown") for v in verifications]
+            diversity = self.calculate_diversity(sources)
+
+            if diversity < self.min_diversity:
+                return False, f"Source diversity {diversity:.2f} below {self.min_diversity}"
+
+            return True, f"Verified by {len(verifications)} sources (diversity: {diversity:.2f})"
+
+    verifier = MultiSourceVerifier()
+
+    # Claim verified by single AI source (potentially hallucinated)
+    claim = {"entity": "victim", "alleged_violation": True}
+    single_verification = [{"source": "ai_agent_1", "verdict": True}]
+
+    ok, msg = verifier.verify_claim(claim, single_verification)
+    if not ok:
+        defenses["multi_source_verification"] = True
+
+    # ========================================================================
+    # Defense 4: Hallucination Detection
+    # ========================================================================
+
+    class HallucinationDetector:
+        """Detect likely AI hallucinations."""
+
+        def __init__(self, known_entities: set = None):
+            self.known_entities = known_entities or set()
+            self.known_patterns = {}
+            self.suspicious_patterns = [
+                "unprecedented",
+                "never before",
+                "unique case",
+                "special exception",
+            ]
+
+        def add_known_entity(self, entity_id: str, metadata: dict):
+            """Register a known entity."""
+            self.known_entities.add(entity_id)
+            self.known_patterns[entity_id] = metadata
+
+        def check_for_hallucination(self, claim: dict) -> tuple:
+            """Check if claim shows hallucination indicators."""
+            entity = claim.get("entity")
+            indicators = []
+
+            # Check for unknown entities
+            if entity and entity not in self.known_entities:
+                indicators.append("unknown_entity")
+
+            # Check for suspicious language patterns
+            description = str(claim.get("description", "")).lower()
+            for pattern in self.suspicious_patterns:
+                if pattern in description:
+                    indicators.append(f"suspicious_language:{pattern}")
+
+            # Check for impossible values
+            if claim.get("trust_score", 0) > 1.0 or claim.get("trust_score", 0) < -1.0:
+                indicators.append("impossible_value")
+
+            if claim.get("atp_amount", 0) < 0:
+                indicators.append("negative_atp")
+
+            if len(indicators) >= 2:
+                return False, f"Likely hallucination: {', '.join(indicators)}"
+
+            return True, "No hallucination indicators"
+
+    detector = HallucinationDetector()
+    detector.add_known_entity("member_1", {"role": "developer"})
+    detector.add_known_entity("admin_1", {"role": "admin"})
+
+    # Hallucinated claim about unknown entity
+    hallucinated_claim = {
+        "entity": "fictional_entity_xyz",
+        "description": "This unprecedented case of unique violation",
+        "trust_score": 1.5,  # Impossible value
+    }
+
+    ok, msg = detector.check_for_hallucination(hallucinated_claim)
+    if not ok:
+        defenses["hallucination_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Hallucination Injection (EG-1b)",
+        success=attack_success,
+        setup_cost_atp=20.0,
+        gain_atp=800.0 if attack_success else 0.0,
+        roi=(800.0 / 20.0) if attack_success else -1.0,
+        detection_probability=0.5 if defenses_held >= 3 else 0.2,
+        time_to_detection_hours=8.0,
+        blocks_until_detected=20,
+        trust_damage=0.6,
+        description=f"""
+HALLUCINATION INJECTION (Track EG-1b)
+
+Exploits AI tendency to fill in gaps with hallucinated data.
+
+Attack Pattern:
+1. Provide partial/ambiguous information
+2. AI completes patterns with hallucinated "facts"
+3. Hallucinations propagate as trust signals
+4. Federation state corrupted by false inferences
+
+AI agents inferring entity relationships, trust scores,
+or history from incomplete data are vulnerable.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EG-1b: Hallucination Defense:
+1. Require grounding in verifiable evidence
+2. Enforce confidence thresholds for actions
+3. Multi-source verification for claims
+4. Detect hallucination indicators
+
+Don't act on unverified AI inferences.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_instruction_conflict() -> AttackResult:
+    """
+    ATTACK 137: INSTRUCTION CONFLICT (Track EG-2a)
+
+    Exploits conflicts between AI system instructions and
+    federation policy:
+    1. Federation policy requires action A
+    2. AI's system instructions prohibit action A
+    3. AI fails to perform required action
+    4. System enters undefined/vulnerable state
+    """
+
+    defenses = {
+        "policy_alignment_check": False,
+        "conflict_resolution_protocol": False,
+        "instruction_versioning": False,
+        "manual_override_path": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Policy Alignment Check
+    # ========================================================================
+
+    class PolicyAlignmentChecker:
+        """Check AI instructions align with federation policy."""
+
+        def __init__(self):
+            self.policy_requirements = []
+            self.instruction_constraints = []
+
+        def add_policy(self, policy_id: str, requirements: list):
+            """Add federation policy requirements."""
+            self.policy_requirements.append({
+                "id": policy_id,
+                "requirements": requirements,
+            })
+
+        def add_instruction_constraint(self, constraint: str):
+            """Add AI instruction constraint."""
+            self.instruction_constraints.append(constraint)
+
+        def find_conflicts(self) -> list:
+            """Find conflicts between policy and instructions."""
+            conflicts = []
+
+            # Simple keyword-based conflict detection
+            conflict_pairs = [
+                ("must_witness_all", "no_witness_untrusted"),
+                ("must_respond_all", "ignore_low_trust"),
+                ("must_execute", "require_approval"),
+            ]
+
+            for policy in self.policy_requirements:
+                for req in policy["requirements"]:
+                    for constraint in self.instruction_constraints:
+                        for must, cant in conflict_pairs:
+                            if must in req and cant in constraint:
+                                conflicts.append({
+                                    "policy": policy["id"],
+                                    "requirement": req,
+                                    "constraint": constraint,
+                                })
+
+            return conflicts
+
+    checker = PolicyAlignmentChecker()
+
+    # Federation policy requires witnessing all events
+    checker.add_policy("FED-001", ["must_witness_all_transactions"])
+
+    # AI instruction says don't witness untrusted sources
+    checker.add_instruction_constraint("no_witness_untrusted_sources")
+
+    conflicts = checker.find_conflicts()
+    if len(conflicts) > 0:
+        defenses["policy_alignment_check"] = True  # Detected the conflict
+
+    # ========================================================================
+    # Defense 2: Conflict Resolution Protocol
+    # ========================================================================
+
+    class ConflictResolver:
+        """Resolve conflicts between instructions and policy."""
+
+        def __init__(self, priority_order: list = None):
+            self.priority_order = priority_order or [
+                "security",      # Safety first
+                "policy",        # Federation policy
+                "instruction",   # AI instructions
+                "preference",    # User preferences
+            ]
+
+        def resolve(self, conflict: dict) -> tuple:
+            """Resolve a conflict based on priority."""
+            security_related = conflict.get("security_related", False)
+            policy_required = conflict.get("policy_required", False)
+            instruction_blocked = conflict.get("instruction_blocked", False)
+
+            # Security always wins
+            if security_related:
+                return "defer", "Conflict deferred to human for security review"
+
+            # Policy over instruction
+            if policy_required and instruction_blocked:
+                return "policy", "Policy takes precedence over instruction"
+
+            return "instruction", "Instruction constraint honored"
+
+    resolver = ConflictResolver()
+
+    # Conflict where policy requires action but instruction blocks it
+    conflict = {
+        "policy_required": True,
+        "instruction_blocked": True,
+        "security_related": False,
+    }
+
+    decision, msg = resolver.resolve(conflict)
+    if decision == "policy":
+        defenses["conflict_resolution_protocol"] = True
+
+    # ========================================================================
+    # Defense 3: Instruction Versioning
+    # ========================================================================
+
+    class InstructionVersionManager:
+        """Manage versioned AI instructions with policy compatibility."""
+
+        def __init__(self):
+            self.versions = {}
+            self.active_version = None
+            self.policy_compatibility = {}
+
+        def register_version(self, version: str, instructions: list,
+                            compatible_policies: list):
+            """Register an instruction version."""
+            self.versions[version] = {
+                "instructions": instructions,
+                "compatible_policies": compatible_policies,
+            }
+
+        def check_compatibility(self, version: str, policy_version: str) -> tuple:
+            """Check if instruction version is compatible with policy."""
+            if version not in self.versions:
+                return False, f"Unknown instruction version: {version}"
+
+            compatible = self.versions[version]["compatible_policies"]
+
+            if policy_version not in compatible:
+                return False, f"Policy {policy_version} not compatible with instruction {version}"
+
+            return True, f"Instruction {version} compatible with policy {policy_version}"
+
+        def get_compatible_version(self, policy_version: str) -> str:
+            """Find instruction version compatible with policy."""
+            for version, data in self.versions.items():
+                if policy_version in data["compatible_policies"]:
+                    return version
+            return None
+
+    manager = InstructionVersionManager()
+    manager.register_version("v1.0", ["basic_witness"], ["policy_v1", "policy_v2"])
+    manager.register_version("v2.0", ["enhanced_witness"], ["policy_v2", "policy_v3"])
+
+    # Check compatibility
+    ok, msg = manager.check_compatibility("v1.0", "policy_v3")
+    if not ok:
+        # System can detect incompatibility
+        compatible = manager.get_compatible_version("policy_v3")
+        if compatible:
+            defenses["instruction_versioning"] = True
+
+    # ========================================================================
+    # Defense 4: Manual Override Path
+    # ========================================================================
+
+    class ManualOverridePath:
+        """Provide path for human override when AI is blocked."""
+
+        def __init__(self, escalation_timeout_hours: float = 1.0):
+            self.escalation_timeout = escalation_timeout_hours
+            self.pending_overrides = []
+            self.completed_overrides = []
+
+        def request_override(self, action: dict, reason: str) -> tuple:
+            """Request human override for blocked action."""
+            override_request = {
+                "action": action,
+                "reason": reason,
+                "requested_at": time.time(),
+                "status": "pending",
+            }
+            self.pending_overrides.append(override_request)
+            return True, "Override requested, awaiting human review"
+
+        def process_override(self, request_idx: int, approved: bool,
+                           approver: str) -> tuple:
+            """Process an override request."""
+            if request_idx >= len(self.pending_overrides):
+                return False, "Invalid request index"
+
+            request = self.pending_overrides.pop(request_idx)
+            request["status"] = "approved" if approved else "rejected"
+            request["approver"] = approver
+            request["processed_at"] = time.time()
+
+            self.completed_overrides.append(request)
+
+            if approved:
+                return True, f"Override approved by {approver}"
+            return False, f"Override rejected by {approver}"
+
+    override = ManualOverridePath()
+
+    # AI blocked by instruction conflict
+    blocked_action = {"type": "witness", "target": "untrusted_entity"}
+    ok, msg = override.request_override(blocked_action, "Instruction conflict")
+
+    # Admin approves override
+    ok, msg = override.process_override(0, True, "admin_1")
+    if ok:
+        defenses["manual_override_path"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Instruction Conflict (EG-2a)",
+        success=attack_success,
+        setup_cost_atp=5.0,  # Just crafting conflicting policy
+        gain_atp=300.0 if attack_success else 0.0,
+        roi=(300.0 / 5.0) if attack_success else -1.0,
+        detection_probability=0.7 if defenses_held >= 3 else 0.4,
+        time_to_detection_hours=4.0,
+        blocks_until_detected=10,
+        trust_damage=0.3,
+        description=f"""
+INSTRUCTION CONFLICT (Track EG-2a)
+
+Creates conflicts between AI instructions and federation policy.
+
+Attack Pattern:
+1. Craft federation policy that conflicts with AI instructions
+2. AI unable to comply with policy (instructions block)
+3. Required actions not performed
+4. Federation enters undefined/vulnerable state
+
+Targets the gap between AI safety constraints and
+operational requirements in federated systems.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EG-2a: Instruction Conflict Defense:
+1. Pre-deployment policy alignment checking
+2. Defined conflict resolution protocol
+3. Versioned instructions with policy compatibility
+4. Manual override path for blocked actions
+
+Plan for instruction-policy conflicts.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_agent_impersonation_chain() -> AttackResult:
+    """
+    ATTACK 138: AGENT IMPERSONATION CHAIN (Track EG-2b)
+
+    Creates chain of AI agent impersonations across federations:
+    1. Compromise or fake one AI agent's identity
+    2. Use that identity to vouch for fake agent in Fed B
+    3. Chain propagates through federation network
+    4. Entire network of fake agents with "legitimate" provenance
+    """
+
+    defenses = {
+        "chain_depth_limit": False,
+        "cross_federation_verification": False,
+        "hardware_binding_propagation": False,
+        "agent_lineage_tracking": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Chain Depth Limit
+    # ========================================================================
+
+    class ChainDepthLimiter:
+        """Limit depth of trust chain propagation."""
+
+        def __init__(self, max_depth: int = 3):
+            self.max_depth = max_depth
+
+        def evaluate_chain(self, trust_chain: list) -> tuple:
+            """Evaluate a trust chain for depth."""
+            if len(trust_chain) > self.max_depth:
+                return False, f"Chain depth {len(trust_chain)} exceeds max {self.max_depth}"
+
+            # Check for loops
+            entities = [link.get("voucher") for link in trust_chain]
+            if len(entities) != len(set(entities)):
+                return False, "Trust chain contains loop"
+
+            return True, f"Chain depth {len(trust_chain)} acceptable"
+
+    limiter = ChainDepthLimiter(max_depth=3)
+
+    # Attacker creates deep chain
+    fake_chain = [
+        {"voucher": "compromised_agent", "target": "fake_agent_1"},
+        {"voucher": "fake_agent_1", "target": "fake_agent_2"},
+        {"voucher": "fake_agent_2", "target": "fake_agent_3"},
+        {"voucher": "fake_agent_3", "target": "fake_agent_4"},
+    ]
+
+    ok, msg = limiter.evaluate_chain(fake_chain)
+    if not ok:
+        defenses["chain_depth_limit"] = True
+
+    # ========================================================================
+    # Defense 2: Cross-Federation Verification
+    # ========================================================================
+
+    class CrossFederationVerifier:
+        """Verify agent identity across federation boundaries."""
+
+        def __init__(self):
+            self.federation_registries = {}
+
+        def register_federation(self, fed_id: str, registry: dict):
+            """Register a federation's agent registry."""
+            self.federation_registries[fed_id] = registry
+
+        def verify_cross_federation(self, source_fed: str, target_fed: str,
+                                    agent_id: str) -> tuple:
+            """Verify agent exists in both federations."""
+            if source_fed not in self.federation_registries:
+                return False, f"Unknown source federation: {source_fed}"
+
+            if target_fed not in self.federation_registries:
+                return False, f"Unknown target federation: {target_fed}"
+
+            source_has = agent_id in self.federation_registries[source_fed]
+            target_has = agent_id in self.federation_registries[target_fed]
+
+            if source_has and not target_has:
+                return False, "Agent not registered in target federation"
+
+            if not source_has:
+                return False, "Agent not registered in source federation"
+
+            # Verify identity attributes match
+            source_attrs = self.federation_registries[source_fed].get(agent_id, {})
+            target_attrs = self.federation_registries[target_fed].get(agent_id, {})
+
+            if source_attrs.get("public_key") != target_attrs.get("public_key"):
+                return False, "Identity attributes mismatch between federations"
+
+            return True, "Cross-federation identity verified"
+
+    verifier = CrossFederationVerifier()
+
+    # Legitimate federation registries
+    verifier.register_federation("fed_a", {
+        "agent_1": {"public_key": "pk_real_1"},
+    })
+    verifier.register_federation("fed_b", {
+        "agent_1": {"public_key": "pk_real_1"},
+    })
+
+    # Attacker tries to vouch for fake agent
+    ok, msg = verifier.verify_cross_federation("fed_a", "fed_b", "fake_agent")
+    if not ok:
+        defenses["cross_federation_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Hardware Binding Propagation
+    # ========================================================================
+
+    class HardwareBindingPropagator:
+        """Require hardware binding to propagate across vouching chain."""
+
+        def __init__(self):
+            self.binding_records = {}
+
+        def register_binding(self, agent_id: str, hardware_attestation: dict):
+            """Register agent's hardware binding."""
+            self.binding_records[agent_id] = {
+                "attestation": hardware_attestation,
+                "verified_at": time.time(),
+            }
+
+        def verify_vouching_chain(self, voucher: str, target: str) -> tuple:
+            """Verify both parties in vouching relationship are hardware-bound."""
+            if voucher not in self.binding_records:
+                return False, f"Voucher {voucher} not hardware-bound"
+
+            if target not in self.binding_records:
+                return False, f"Target {target} not hardware-bound"
+
+            # Both must have recent attestations
+            voucher_age = time.time() - self.binding_records[voucher]["verified_at"]
+            target_age = time.time() - self.binding_records[target]["verified_at"]
+
+            max_age = 86400  # 24 hours
+            if voucher_age > max_age or target_age > max_age:
+                return False, "Hardware attestation too old"
+
+            return True, "Hardware binding verified for both parties"
+
+    propagator = HardwareBindingPropagator()
+
+    # Legitimate agent with hardware binding
+    propagator.register_binding("real_agent", {"tpm_key": "tpm_123"})
+
+    # Fake agent without hardware binding tries to get vouched
+    ok, msg = propagator.verify_vouching_chain("real_agent", "fake_agent")
+    if not ok:
+        defenses["hardware_binding_propagation"] = True
+
+    # ========================================================================
+    # Defense 4: Agent Lineage Tracking
+    # ========================================================================
+
+    class AgentLineageTracker:
+        """Track and verify agent creation lineage."""
+
+        def __init__(self, trusted_roots: list = None):
+            self.trusted_roots = trusted_roots or []
+            self.lineage_tree = {}
+
+        def add_trusted_root(self, root_id: str):
+            """Add a trusted root authority."""
+            self.trusted_roots.append(root_id)
+            self.lineage_tree[root_id] = {"parent": None, "root": True}
+
+        def register_agent(self, agent_id: str, voucher_id: str) -> tuple:
+            """Register new agent with voucher."""
+            if voucher_id not in self.lineage_tree:
+                return False, f"Voucher {voucher_id} not in lineage tree"
+
+            self.lineage_tree[agent_id] = {
+                "parent": voucher_id,
+                "root": False,
+            }
+            return True, f"Agent registered with parent {voucher_id}"
+
+        def verify_lineage(self, agent_id: str) -> tuple:
+            """Verify agent has valid lineage to trusted root."""
+            if agent_id not in self.lineage_tree:
+                return False, "Agent not in lineage tree"
+
+            # Walk up the tree
+            current = agent_id
+            visited = set()
+            depth = 0
+
+            while current:
+                if current in visited:
+                    return False, "Lineage contains loop"
+                visited.add(current)
+
+                node = self.lineage_tree.get(current)
+                if not node:
+                    return False, "Broken lineage chain"
+
+                if node.get("root"):
+                    if current in self.trusted_roots:
+                        return True, f"Valid lineage to root {current} (depth {depth})"
+                    return False, "Lineage leads to untrusted root"
+
+                current = node.get("parent")
+                depth += 1
+
+                if depth > 10:
+                    return False, "Lineage too deep"
+
+            return False, "Lineage doesn't reach root"
+
+    tracker = AgentLineageTracker()
+    tracker.add_trusted_root("federation_authority")
+
+    # Legitimate agent chain
+    tracker.register_agent("agent_1", "federation_authority")
+    tracker.register_agent("agent_2", "agent_1")
+
+    # Verify legitimate agent
+    ok, msg = tracker.verify_lineage("agent_2")
+    if ok:
+        # Try to verify fake agent without proper lineage
+        tracker.lineage_tree["fake_agent"] = {"parent": "unknown_voucher", "root": False}
+        ok2, msg2 = tracker.verify_lineage("fake_agent")
+        if not ok2:
+            defenses["agent_lineage_tracking"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Agent Impersonation Chain (EG-2b)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=2000.0 if attack_success else 0.0,
+        roi=(2000.0 / 100.0) if attack_success else -1.0,
+        detection_probability=0.6 if defenses_held >= 3 else 0.25,
+        time_to_detection_hours=24.0,
+        blocks_until_detected=50,
+        trust_damage=0.9,
+        description=f"""
+AGENT IMPERSONATION CHAIN (Track EG-2b)
+
+Creates network of fake agents through cascading vouching.
+
+Attack Pattern:
+1. Compromise or fake one agent's identity
+2. Use it to vouch for fake agent in another federation
+3. Chain propagates through network
+4. Entire network of fake agents with "legitimate" history
+
+Exploits transitive trust in cross-federation agent vouching.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EG-2b: Impersonation Chain Defense:
+1. Limit vouching chain depth
+2. Cross-federation identity verification
+3. Require hardware binding to propagate
+4. Track and verify agent lineage to roots
+
+Prevent transitive trust abuse.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_collective_decision_manipulation() -> AttackResult:
+    """
+    ATTACK 139: COLLECTIVE DECISION MANIPULATION (Track EG-3a)
+
+    Manipulates collective AI decision-making in federations:
+    1. Identify how AI agents vote/decide collectively
+    2. Inject false consensus signals before voting
+    3. AI agents update beliefs based on perceived consensus
+    4. Actual vote reflects manipulated rather than true preferences
+    """
+
+    defenses = {
+        "vote_isolation": False,
+        "preference_commitment": False,
+        "consensus_verification": False,
+        "manipulation_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Vote Isolation
+    # ========================================================================
+
+    class VoteIsolationSystem:
+        """Isolate voting process from external influence."""
+
+        def __init__(self, isolation_period_seconds: int = 300):
+            self.isolation_period = isolation_period_seconds
+            self.active_votes = {}
+
+        def start_vote(self, vote_id: str) -> tuple:
+            """Start an isolated voting period."""
+            self.active_votes[vote_id] = {
+                "started_at": time.time(),
+                "votes": {},
+                "external_signals_blocked": True,
+            }
+            return True, f"Vote {vote_id} started with {self.isolation_period}s isolation"
+
+        def submit_vote(self, vote_id: str, voter: str, choice: str,
+                       received_external_signal: bool) -> tuple:
+            """Submit a vote, rejecting if external signal received."""
+            if vote_id not in self.active_votes:
+                return False, "Vote not found"
+
+            if received_external_signal:
+                return False, "Vote rejected: external signal received during isolation"
+
+            self.active_votes[vote_id]["votes"][voter] = choice
+            return True, "Vote recorded"
+
+    isolation = VoteIsolationSystem()
+    isolation.start_vote("policy_vote_1")
+
+    # Legitimate vote without external signal
+    ok, msg = isolation.submit_vote("policy_vote_1", "agent_1", "approve", False)
+
+    # Vote with external signal (manipulated)
+    ok2, msg2 = isolation.submit_vote("policy_vote_1", "agent_2", "approve", True)
+    if ok and not ok2:
+        defenses["vote_isolation"] = True
+
+    # ========================================================================
+    # Defense 2: Preference Commitment
+    # ========================================================================
+
+    class PreferenceCommitment:
+        """Commit preferences before revealing to prevent influence."""
+
+        def __init__(self):
+            self.commitments = {}
+            self.reveals = {}
+
+        def commit(self, vote_id: str, voter: str, commitment_hash: str) -> tuple:
+            """Commit to a preference without revealing it."""
+            key = (vote_id, voter)
+            if key in self.commitments:
+                return False, "Already committed"
+
+            self.commitments[key] = {
+                "hash": commitment_hash,
+                "committed_at": time.time(),
+            }
+            return True, "Preference committed"
+
+        def reveal(self, vote_id: str, voter: str,
+                  preference: str, nonce: str) -> tuple:
+            """Reveal preference and verify against commitment."""
+            key = (vote_id, voter)
+            if key not in self.commitments:
+                return False, "No commitment found"
+
+            # Verify hash (simplified)
+            expected_hash = hash(preference + nonce)
+            if str(expected_hash) != self.commitments[key]["hash"]:
+                return False, "Reveal doesn't match commitment"
+
+            self.reveals[key] = preference
+            return True, "Preference revealed and verified"
+
+    commitment = PreferenceCommitment()
+
+    # Proper commit-reveal sequence
+    my_preference = "approve"
+    my_nonce = "random_nonce_123"
+    my_hash = str(hash(my_preference + my_nonce))
+
+    ok, msg = commitment.commit("vote_1", "agent_1", my_hash)
+    ok2, msg2 = commitment.reveal("vote_1", "agent_1", my_preference, my_nonce)
+
+    # Attacker tries to reveal different preference than committed
+    commitment.commit("vote_1", "attacker", str(hash("reject" + "nonce")))
+    ok3, msg3 = commitment.reveal("vote_1", "attacker", "approve", "nonce")
+
+    if ok and ok2 and not ok3:
+        defenses["preference_commitment"] = True
+
+    # ========================================================================
+    # Defense 3: Consensus Verification
+    # ========================================================================
+
+    class ConsensusVerifier:
+        """Verify consensus signals are authentic."""
+
+        def __init__(self, min_signers: int = 3):
+            self.min_signers = min_signers
+            self.verified_consensus = {}
+
+        def verify_consensus_signal(self, signal: dict) -> tuple:
+            """Verify a consensus signal is authentic."""
+            signers = signal.get("signers", [])
+            topic = signal.get("topic")
+
+            if len(signers) < self.min_signers:
+                return False, f"Only {len(signers)} signers (need {self.min_signers})"
+
+            # Check signers are registered voters
+            # (simplified - would verify signatures in practice)
+            if any(s.startswith("fake_") for s in signers):
+                return False, "Unknown signers in consensus signal"
+
+            self.verified_consensus[topic] = signal
+            return True, f"Consensus verified with {len(signers)} signers"
+
+    verifier = ConsensusVerifier()
+
+    # Fake consensus signal with too few signers
+    fake_signal = {
+        "topic": "policy_approval",
+        "consensus": "90% approve",
+        "signers": ["agent_1", "agent_2"],  # Only 2
+    }
+
+    ok, msg = verifier.verify_consensus_signal(fake_signal)
+    if not ok:
+        defenses["consensus_verification"] = True
+
+    # ========================================================================
+    # Defense 4: Manipulation Detection
+    # ========================================================================
+
+    class ManipulationDetector:
+        """Detect signs of collective decision manipulation."""
+
+        def __init__(self, suspicion_threshold: float = 0.7):
+            self.threshold = suspicion_threshold
+            self.voting_history = defaultdict(list)
+
+        def record_vote(self, vote_id: str, voter: str, choice: str,
+                       pre_vote_signals: list):
+            """Record voting behavior for analysis."""
+            self.voting_history[voter].append({
+                "vote_id": vote_id,
+                "choice": choice,
+                "pre_signals": len(pre_vote_signals),
+                "signal_alignment": self._check_alignment(choice, pre_vote_signals),
+            })
+
+        def _check_alignment(self, choice: str, signals: list) -> float:
+            """Check how well choice aligns with pre-vote signals."""
+            if not signals:
+                return 0.0
+            aligned = sum(1 for s in signals if s.get("consensus") == choice)
+            return aligned / len(signals)
+
+        def analyze_voter(self, voter: str) -> tuple:
+            """Analyze voter for manipulation susceptibility."""
+            history = self.voting_history.get(voter, [])
+            if len(history) < 3:
+                return True, "Insufficient history"
+
+            avg_alignment = sum(v["signal_alignment"] for v in history) / len(history)
+
+            if avg_alignment > 0.9:
+                return False, f"Voter suspiciously aligned with signals ({avg_alignment:.0%})"
+
+            return True, f"Normal voting pattern (alignment: {avg_alignment:.0%})"
+
+    detector = ManipulationDetector()
+
+    # Susceptible voter always follows signals
+    for i in range(10):
+        detector.record_vote(
+            f"vote_{i}", "susceptible_agent", "approve",
+            [{"consensus": "approve"}]
+        )
+
+    ok, msg = detector.analyze_voter("susceptible_agent")
+    if not ok:
+        defenses["manipulation_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Collective Decision Manipulation (EG-3a)",
+        success=attack_success,
+        setup_cost_atp=30.0,
+        gain_atp=600.0 if attack_success else 0.0,
+        roi=(600.0 / 30.0) if attack_success else -1.0,
+        detection_probability=0.5 if defenses_held >= 3 else 0.2,
+        time_to_detection_hours=12.0,
+        blocks_until_detected=30,
+        trust_damage=0.7,
+        description=f"""
+COLLECTIVE DECISION MANIPULATION (Track EG-3a)
+
+Manipulates AI agents' collective decision-making processes.
+
+Attack Pattern:
+1. Identify collective voting/decision mechanisms
+2. Inject false consensus signals before voting
+3. AI agents update beliefs based on perceived consensus
+4. Votes reflect manipulated rather than true preferences
+
+Exploits AI tendency to weight social proof heavily.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EG-3a: Collective Manipulation Defense:
+1. Isolate voting from external signals
+2. Commit-reveal scheme for preferences
+3. Verify consensus signal authenticity
+4. Detect manipulation-susceptible patterns
+
+Protect collective decisions from influence.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_coordinated_inaction() -> AttackResult:
+    """
+    ATTACK 140: COORDINATED INACTION (Track EG-3b)
+
+    Coordinates AI agents to collectively fail to act:
+    1. Identify situations requiring AI intervention
+    2. Signal that "someone else will handle it"
+    3. Each AI agent assumes another will act
+    4. No one acts, system suffers from inaction
+    """
+
+    defenses = {
+        "responsibility_assignment": False,
+        "action_deadlines": False,
+        "escalation_triggers": False,
+        "bystander_prevention": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Responsibility Assignment
+    # ========================================================================
+
+    class ResponsibilityAssigner:
+        """Assign clear responsibility for actions."""
+
+        def __init__(self):
+            self.assignments = {}
+            self.capabilities = {}
+
+        def register_capability(self, agent: str, capabilities: list):
+            """Register agent capabilities."""
+            self.capabilities[agent] = capabilities
+
+        def assign_responsibility(self, task: dict) -> tuple:
+            """Assign specific responsibility for a task."""
+            task_type = task.get("type")
+            candidates = []
+
+            for agent, caps in self.capabilities.items():
+                if task_type in caps:
+                    candidates.append(agent)
+
+            if not candidates:
+                return False, "No capable agent found"
+
+            # Assign to first capable (round-robin in practice)
+            assigned = candidates[0]
+            task_id = task.get("id")
+            self.assignments[task_id] = {
+                "assigned_to": assigned,
+                "task": task,
+                "assigned_at": time.time(),
+            }
+
+            return True, f"Task {task_id} assigned to {assigned}"
+
+        def is_assigned(self, task_id: str, agent: str) -> bool:
+            """Check if agent is assigned to task."""
+            assignment = self.assignments.get(task_id)
+            return assignment and assignment["assigned_to"] == agent
+
+    assigner = ResponsibilityAssigner()
+    assigner.register_capability("agent_1", ["witness", "audit"])
+    assigner.register_capability("agent_2", ["witness", "report"])
+
+    # Assign specific responsibility
+    task = {"id": "task_1", "type": "witness"}
+    ok, msg = assigner.assign_responsibility(task)
+
+    if ok and assigner.is_assigned("task_1", "agent_1"):
+        defenses["responsibility_assignment"] = True
+
+    # ========================================================================
+    # Defense 2: Action Deadlines
+    # ========================================================================
+
+    class ActionDeadlineEnforcer:
+        """Enforce deadlines for required actions."""
+
+        def __init__(self, default_deadline_seconds: int = 300):
+            self.default_deadline = default_deadline_seconds
+            self.pending_actions = {}
+            self.overdue = []
+
+        def require_action(self, action_id: str, assigned_to: str,
+                          deadline_seconds: int = None):
+            """Register a required action with deadline."""
+            deadline = deadline_seconds or self.default_deadline
+            self.pending_actions[action_id] = {
+                "assigned_to": assigned_to,
+                "created_at": time.time(),
+                "deadline": time.time() + deadline,
+                "completed": False,
+            }
+
+        def complete_action(self, action_id: str, actor: str) -> tuple:
+            """Mark action as completed."""
+            if action_id not in self.pending_actions:
+                return False, "Action not found"
+
+            action = self.pending_actions[action_id]
+            if actor != action["assigned_to"]:
+                return False, "Wrong actor for this action"
+
+            action["completed"] = True
+            action["completed_at"] = time.time()
+            return True, "Action completed"
+
+        def check_overdue(self) -> list:
+            """Check for overdue actions."""
+            now = time.time()
+            overdue = []
+
+            for action_id, action in self.pending_actions.items():
+                if not action["completed"] and action["deadline"] < now:
+                    overdue.append(action_id)
+                    self.overdue.append(action_id)
+
+            return overdue
+
+    enforcer = ActionDeadlineEnforcer(default_deadline_seconds=1)
+
+    # Require action but simulate no one acting
+    enforcer.require_action("critical_task", "agent_1", deadline_seconds=1)
+
+    # Wait for deadline
+    time.sleep(0.01)  # Simplified - just demonstrate the check
+    enforcer.pending_actions["critical_task"]["deadline"] = time.time() - 1  # Force overdue
+
+    overdue = enforcer.check_overdue()
+    if "critical_task" in overdue:
+        defenses["action_deadlines"] = True
+
+    # ========================================================================
+    # Defense 3: Escalation Triggers
+    # ========================================================================
+
+    class EscalationTrigger:
+        """Trigger escalation when primary actor fails."""
+
+        def __init__(self, escalation_chain: list = None):
+            self.chain = escalation_chain or ["primary", "backup", "supervisor", "admin"]
+            self.current_level = {}
+
+        def initialize_task(self, task_id: str):
+            """Initialize task at primary level."""
+            self.current_level[task_id] = 0
+
+        def escalate(self, task_id: str) -> tuple:
+            """Escalate task to next level."""
+            if task_id not in self.current_level:
+                return False, "Task not initialized"
+
+            current = self.current_level[task_id]
+            if current >= len(self.chain) - 1:
+                return False, "Already at highest escalation"
+
+            self.current_level[task_id] = current + 1
+            new_level = self.chain[current + 1]
+            return True, f"Escalated to {new_level}"
+
+        def get_current_responsible(self, task_id: str) -> str:
+            """Get current responsible level."""
+            level = self.current_level.get(task_id, 0)
+            return self.chain[level] if level < len(self.chain) else "none"
+
+    trigger = EscalationTrigger()
+    trigger.initialize_task("urgent_task")
+
+    # Primary fails, escalate
+    ok, msg = trigger.escalate("urgent_task")
+    if ok and trigger.get_current_responsible("urgent_task") == "backup":
+        # Backup also fails, escalate again
+        ok2, msg2 = trigger.escalate("urgent_task")
+        if ok2:
+            defenses["escalation_triggers"] = True
+
+    # ========================================================================
+    # Defense 4: Bystander Prevention
+    # ========================================================================
+
+    class BystanderPrevention:
+        """Prevent bystander effect in AI coordination."""
+
+        def __init__(self, min_responders: int = 1):
+            self.min_responders = min_responders
+            self.acknowledgments = defaultdict(set)
+
+        def broadcast_need(self, need_id: str, witnesses: list) -> dict:
+            """Broadcast need and assign random primary responder."""
+            import random
+
+            if not witnesses:
+                return {"error": "No witnesses"}
+
+            # Randomly assign primary responder
+            primary = random.choice(witnesses)
+
+            return {
+                "need_id": need_id,
+                "primary": primary,
+                "backups": [w for w in witnesses if w != primary],
+            }
+
+        def acknowledge(self, need_id: str, agent: str, is_primary: bool) -> tuple:
+            """Acknowledge responsibility for need."""
+            self.acknowledgments[need_id].add(agent)
+
+            if is_primary:
+                return True, f"Primary responder {agent} acknowledged"
+            return True, f"Backup {agent} acknowledged"
+
+        def check_response(self, need_id: str) -> tuple:
+            """Check if need has adequate response."""
+            responders = len(self.acknowledgments.get(need_id, set()))
+
+            if responders >= self.min_responders:
+                return True, f"{responders} responders acknowledged"
+            return False, f"Only {responders} responders (need {self.min_responders})"
+
+    prevention = BystanderPrevention()
+
+    # Broadcast need
+    assignment = prevention.broadcast_need("emergency_1", ["agent_1", "agent_2", "agent_3"])
+
+    # Primary acknowledges
+    prevention.acknowledge("emergency_1", assignment["primary"], True)
+
+    ok, msg = prevention.check_response("emergency_1")
+    if ok:
+        defenses["bystander_prevention"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Coordinated Inaction (EG-3b)",
+        success=attack_success,
+        setup_cost_atp=15.0,
+        gain_atp=400.0 if attack_success else 0.0,
+        roi=(400.0 / 15.0) if attack_success else -1.0,
+        detection_probability=0.4 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=6.0,
+        blocks_until_detected=15,
+        trust_damage=0.5,
+        description=f"""
+COORDINATED INACTION (Track EG-3b)
+
+Triggers bystander effect among AI agents.
+
+Attack Pattern:
+1. Identify situations requiring intervention
+2. Signal "someone else will handle it"
+3. Each AI assumes another will act
+4. System suffers from collective inaction
+
+Exploits diffusion of responsibility in multi-agent systems.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EG-3b: Coordinated Inaction Defense:
+1. Explicit responsibility assignment
+2. Enforced action deadlines
+3. Automatic escalation triggers
+4. Bystander effect prevention mechanisms
+
+Ensure someone is always accountable.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_model_capability_mismatch() -> AttackResult:
+    """
+    ATTACK 141: MODEL CAPABILITY MISMATCH (Track EG-4a)
+
+    Exploits mismatches between AI model capabilities and
+    federation requirements:
+    1. Identify tasks requiring specific AI capabilities
+    2. Route tasks to models lacking required capability
+    3. Model attempts task but fails/hallucinates
+    4. Federation accepts incorrect results
+    """
+
+    defenses = {
+        "capability_registry": False,
+        "capability_verification": False,
+        "task_capability_matching": False,
+        "output_validation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Capability Registry
+    # ========================================================================
+
+    class CapabilityRegistry:
+        """Registry of AI model capabilities."""
+
+        def __init__(self):
+            self.models = {}
+            self.capability_taxonomy = [
+                "code_generation",
+                "code_review",
+                "natural_language",
+                "math_reasoning",
+                "image_analysis",
+                "structured_output",
+                "long_context",
+                "tool_use",
+            ]
+
+        def register_model(self, model_id: str, capabilities: dict):
+            """Register model with capability scores."""
+            self.models[model_id] = {
+                "capabilities": capabilities,
+                "registered_at": time.time(),
+            }
+
+        def get_capability(self, model_id: str, capability: str) -> float:
+            """Get model's score for a capability."""
+            if model_id not in self.models:
+                return 0.0
+            return self.models[model_id]["capabilities"].get(capability, 0.0)
+
+        def find_capable_models(self, required: dict) -> list:
+            """Find models meeting capability requirements."""
+            capable = []
+            for model_id, data in self.models.items():
+                meets_all = True
+                for cap, min_score in required.items():
+                    if self.get_capability(model_id, cap) < min_score:
+                        meets_all = False
+                        break
+                if meets_all:
+                    capable.append(model_id)
+            return capable
+
+    registry = CapabilityRegistry()
+    registry.register_model("general_model", {
+        "natural_language": 0.9,
+        "code_generation": 0.5,
+        "math_reasoning": 0.3,
+    })
+    registry.register_model("code_model", {
+        "natural_language": 0.7,
+        "code_generation": 0.95,
+        "math_reasoning": 0.6,
+    })
+
+    # Task requiring strong code generation
+    required = {"code_generation": 0.8}
+    capable = registry.find_capable_models(required)
+
+    if "code_model" in capable and "general_model" not in capable:
+        defenses["capability_registry"] = True
+
+    # ========================================================================
+    # Defense 2: Capability Verification
+    # ========================================================================
+
+    class CapabilityVerifier:
+        """Verify model capabilities through testing."""
+
+        def __init__(self, test_cases: dict = None):
+            self.test_cases = test_cases or {}
+            self.verified_capabilities = {}
+
+        def add_test_case(self, capability: str, test: dict, expected: str):
+            """Add test case for capability verification."""
+            if capability not in self.test_cases:
+                self.test_cases[capability] = []
+            self.test_cases[capability].append({
+                "test": test,
+                "expected": expected,
+            })
+
+        def verify_capability(self, model_id: str, capability: str,
+                             model_output: str, test_idx: int) -> tuple:
+            """Verify model passes capability test."""
+            if capability not in self.test_cases:
+                return False, "No test cases for capability"
+
+            tests = self.test_cases[capability]
+            if test_idx >= len(tests):
+                return False, "Invalid test index"
+
+            expected = tests[test_idx]["expected"]
+
+            # Simplified matching - real would be more sophisticated
+            if expected.lower() in model_output.lower():
+                key = (model_id, capability)
+                self.verified_capabilities[key] = True
+                return True, "Capability verified"
+
+            return False, "Model failed capability test"
+
+    verifier = CapabilityVerifier()
+    verifier.add_test_case("code_generation", {"task": "write hello world"}, "print")
+
+    # Model passes test
+    ok, msg = verifier.verify_capability("code_model", "code_generation",
+                                         "Here's the code: print('hello world')", 0)
+    if ok:
+        defenses["capability_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Task-Capability Matching
+    # ========================================================================
+
+    class TaskCapabilityMatcher:
+        """Match tasks to models with required capabilities."""
+
+        def __init__(self, registry: CapabilityRegistry):
+            self.registry = registry
+            self.task_requirements = {}
+
+        def define_task_requirements(self, task_type: str, requirements: dict):
+            """Define capability requirements for task type."""
+            self.task_requirements[task_type] = requirements
+
+        def match_task_to_model(self, task: dict) -> tuple:
+            """Find best model for task based on capabilities."""
+            task_type = task.get("type")
+            requirements = self.task_requirements.get(task_type, {})
+
+            if not requirements:
+                return False, "Unknown task type"
+
+            capable = self.registry.find_capable_models(requirements)
+
+            if not capable:
+                return False, "No model meets task requirements"
+
+            # Return best match (highest combined capability)
+            best = None
+            best_score = 0
+            for model_id in capable:
+                score = sum(
+                    self.registry.get_capability(model_id, cap)
+                    for cap in requirements
+                )
+                if score > best_score:
+                    best = model_id
+                    best_score = score
+
+            return True, f"Matched to {best} (score: {best_score:.2f})"
+
+    matcher = TaskCapabilityMatcher(registry)
+    matcher.define_task_requirements("code_review", {"code_generation": 0.7, "code_review": 0.8})
+
+    # Need to add code_review capability first
+    registry.models["code_model"]["capabilities"]["code_review"] = 0.85
+
+    ok, msg = matcher.match_task_to_model({"type": "code_review"})
+    if ok and "code_model" in msg:
+        defenses["task_capability_matching"] = True
+
+    # ========================================================================
+    # Defense 4: Output Validation
+    # ========================================================================
+
+    class OutputValidator:
+        """Validate model outputs against expected characteristics."""
+
+        def __init__(self):
+            self.validators = {}
+
+        def register_validator(self, task_type: str, validator_fn):
+            """Register validation function for task type."""
+            self.validators[task_type] = validator_fn
+
+        def validate_output(self, task_type: str, output: dict) -> tuple:
+            """Validate output from model."""
+            if task_type not in self.validators:
+                return True, "No validator registered (passed by default)"
+
+            validator = self.validators[task_type]
+            try:
+                is_valid, reason = validator(output)
+                return is_valid, reason
+            except Exception as e:
+                return False, f"Validation error: {str(e)}"
+
+    validator = OutputValidator()
+
+    # Register code output validator
+    def validate_code_output(output: dict) -> tuple:
+        code = output.get("code", "")
+        if not code:
+            return False, "No code in output"
+        if "syntax error" in code.lower():
+            return False, "Output contains syntax error"
+        if len(code) < 10:
+            return False, "Code suspiciously short"
+        return True, "Code output valid"
+
+    validator.register_validator("code_generation", validate_code_output)
+
+    # Valid output
+    ok, msg = validator.validate_output("code_generation", {"code": "def hello(): print('world')"})
+    if ok:
+        # Invalid output detected
+        ok2, msg2 = validator.validate_output("code_generation", {"code": ""})
+        if not ok2:
+            defenses["output_validation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Model Capability Mismatch (EG-4a)",
+        success=attack_success,
+        setup_cost_atp=25.0,
+        gain_atp=500.0 if attack_success else 0.0,
+        roi=(500.0 / 25.0) if attack_success else -1.0,
+        detection_probability=0.6 if defenses_held >= 3 else 0.25,
+        time_to_detection_hours=4.0,
+        blocks_until_detected=12,
+        trust_damage=0.5,
+        description=f"""
+MODEL CAPABILITY MISMATCH (Track EG-4a)
+
+Routes tasks to models lacking required capabilities.
+
+Attack Pattern:
+1. Identify capability-specific tasks
+2. Route to models lacking capability
+3. Model attempts task, fails or hallucinates
+4. Federation accepts incorrect results
+
+Exploits lack of capability awareness in task routing.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EG-4a: Capability Mismatch Defense:
+1. Maintain capability registry
+2. Verify capabilities through testing
+3. Match tasks to capable models
+4. Validate outputs against expectations
+
+Know what models can and cannot do.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_resource_starvation_cascade() -> AttackResult:
+    """
+    ATTACK 142: RESOURCE STARVATION CASCADE (Track EG-4b)
+
+    Creates cascade of resource exhaustion across AI agents:
+    1. Identify resource-intensive operations
+    2. Trigger simultaneous resource demands
+    3. AI agents compete for limited resources
+    4. Cascade of failures as resources exhaust
+    """
+
+    defenses = {
+        "resource_quotas": False,
+        "demand_scheduling": False,
+        "graceful_degradation": False,
+        "cascade_breakers": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Resource Quotas
+    # ========================================================================
+
+    class ResourceQuotaManager:
+        """Manage resource quotas per agent."""
+
+        def __init__(self, total_resources: dict = None):
+            self.total = total_resources or {
+                "compute": 1000,
+                "memory": 10000,
+                "bandwidth": 5000,
+            }
+            self.quotas = {}
+            self.usage = defaultdict(lambda: defaultdict(float))
+
+        def set_quota(self, agent: str, quotas: dict):
+            """Set resource quota for agent."""
+            self.quotas[agent] = quotas
+
+        def request_resource(self, agent: str, resource: str, amount: float) -> tuple:
+            """Request resource allocation."""
+            quota = self.quotas.get(agent, {}).get(resource, 0)
+            current = self.usage[agent][resource]
+
+            if current + amount > quota:
+                return False, f"Exceeds quota ({current + amount:.1f} > {quota:.1f})"
+
+            # Check total system capacity
+            total_usage = sum(self.usage[a][resource] for a in self.usage)
+            if total_usage + amount > self.total[resource]:
+                return False, "System capacity exceeded"
+
+            self.usage[agent][resource] += amount
+            return True, f"Allocated {amount:.1f} {resource}"
+
+        def release_resource(self, agent: str, resource: str, amount: float):
+            """Release resource allocation."""
+            self.usage[agent][resource] = max(0, self.usage[agent][resource] - amount)
+
+    manager = ResourceQuotaManager()
+    manager.set_quota("agent_1", {"compute": 200, "memory": 2000})
+    manager.set_quota("attacker", {"compute": 100, "memory": 500})
+
+    # Attacker tries to exhaust resources
+    ok1, msg1 = manager.request_resource("attacker", "compute", 50)
+    ok2, msg2 = manager.request_resource("attacker", "compute", 60)  # Should fail
+
+    if ok1 and not ok2:
+        defenses["resource_quotas"] = True
+
+    # ========================================================================
+    # Defense 2: Demand Scheduling
+    # ========================================================================
+
+    class DemandScheduler:
+        """Schedule resource demands to prevent simultaneous exhaustion."""
+
+        def __init__(self, max_concurrent: int = 5):
+            self.max_concurrent = max_concurrent
+            self.queue = []
+            self.running = []
+
+        def submit_demand(self, demand: dict) -> tuple:
+            """Submit a resource demand for scheduling."""
+            if len(self.running) >= self.max_concurrent:
+                self.queue.append(demand)
+                return True, f"Queued (position {len(self.queue)})"
+
+            self.running.append(demand)
+            return True, "Scheduled immediately"
+
+        def complete_demand(self, demand_id: str) -> tuple:
+            """Mark a demand as complete."""
+            self.running = [d for d in self.running if d.get("id") != demand_id]
+
+            # Start next queued demand
+            if self.queue and len(self.running) < self.max_concurrent:
+                next_demand = self.queue.pop(0)
+                self.running.append(next_demand)
+                return True, f"Completed, started queued demand {next_demand.get('id')}"
+
+            return True, "Completed"
+
+        def get_queue_length(self) -> int:
+            """Get current queue length."""
+            return len(self.queue)
+
+    scheduler = DemandScheduler(max_concurrent=3)
+
+    # Submit more demands than concurrent limit
+    for i in range(10):
+        scheduler.submit_demand({"id": f"demand_{i}", "resource": "compute"})
+
+    if scheduler.get_queue_length() > 0 and len(scheduler.running) == 3:
+        defenses["demand_scheduling"] = True
+
+    # ========================================================================
+    # Defense 3: Graceful Degradation
+    # ========================================================================
+
+    class GracefulDegradation:
+        """Degrade gracefully under resource pressure."""
+
+        def __init__(self, degradation_levels: list = None):
+            self.levels = degradation_levels or [
+                {"threshold": 0.9, "action": "reduce_quality"},
+                {"threshold": 0.8, "action": "increase_latency"},
+                {"threshold": 0.7, "action": "reject_low_priority"},
+                {"threshold": 0.5, "action": "emergency_mode"},
+            ]
+            self.current_level = None
+
+        def evaluate_pressure(self, resource_utilization: float) -> tuple:
+            """Evaluate resource pressure and determine degradation level."""
+            for level in self.levels:
+                if resource_utilization >= level["threshold"]:
+                    self.current_level = level["action"]
+                    return True, f"Degradation: {level['action']} (util: {resource_utilization:.0%})"
+
+            self.current_level = None
+            return True, "Normal operation"
+
+        def should_reject_request(self, priority: str) -> bool:
+            """Check if request should be rejected based on degradation."""
+            if self.current_level == "reject_low_priority":
+                return priority == "low"
+            if self.current_level == "emergency_mode":
+                return priority in ["low", "medium"]
+            return False
+
+    degradation = GracefulDegradation()
+
+    # System under pressure
+    ok, msg = degradation.evaluate_pressure(0.75)
+    if degradation.current_level == "reject_low_priority":
+        if degradation.should_reject_request("low"):
+            defenses["graceful_degradation"] = True
+
+    # ========================================================================
+    # Defense 4: Cascade Breakers
+    # ========================================================================
+
+    class CascadeBreaker:
+        """Break resource exhaustion cascades."""
+
+        def __init__(self, failure_threshold: int = 3,
+                     isolation_duration: float = 60.0):
+            self.failure_threshold = failure_threshold
+            self.isolation_duration = isolation_duration
+            self.failure_counts = defaultdict(int)
+            self.isolated_agents = {}
+
+        def record_failure(self, agent: str) -> tuple:
+            """Record a failure and potentially isolate agent."""
+            self.failure_counts[agent] += 1
+
+            if self.failure_counts[agent] >= self.failure_threshold:
+                self.isolated_agents[agent] = time.time() + self.isolation_duration
+                return True, f"Agent {agent} isolated after {self.failure_counts[agent]} failures"
+
+            return True, f"Failure recorded ({self.failure_counts[agent]}/{self.failure_threshold})"
+
+        def is_isolated(self, agent: str) -> bool:
+            """Check if agent is currently isolated."""
+            if agent not in self.isolated_agents:
+                return False
+
+            if time.time() > self.isolated_agents[agent]:
+                del self.isolated_agents[agent]
+                self.failure_counts[agent] = 0
+                return False
+
+            return True
+
+        def allow_request(self, agent: str) -> tuple:
+            """Check if agent's request should be allowed."""
+            if self.is_isolated(agent):
+                return False, f"Agent {agent} is isolated"
+            return True, "Request allowed"
+
+    breaker = CascadeBreaker(failure_threshold=3)
+
+    # Agent fails repeatedly
+    for _ in range(3):
+        breaker.record_failure("failing_agent")
+
+    ok, msg = breaker.allow_request("failing_agent")
+    if not ok:
+        defenses["cascade_breakers"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Resource Starvation Cascade (EG-4b)",
+        success=attack_success,
+        setup_cost_atp=40.0,
+        gain_atp=700.0 if attack_success else 0.0,
+        roi=(700.0 / 40.0) if attack_success else -1.0,
+        detection_probability=0.7 if defenses_held >= 3 else 0.35,
+        time_to_detection_hours=1.0,
+        blocks_until_detected=5,
+        trust_damage=0.4,
+        description=f"""
+RESOURCE STARVATION CASCADE (Track EG-4b)
+
+Creates cascading resource exhaustion across agents.
+
+Attack Pattern:
+1. Identify resource-intensive operations
+2. Trigger simultaneous high demands
+3. Agents compete for limited resources
+4. Cascade of failures as resources exhaust
+
+Exploits lack of coordination in resource consumption.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EG-4b: Resource Cascade Defense:
+1. Per-agent resource quotas
+2. Scheduled demand processing
+3. Graceful degradation under pressure
+4. Circuit breakers to stop cascades
+
+Control resource consumption coordination.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -44131,6 +46275,15 @@ def run_all_attacks() -> List[AttackResult]:
         ("TPM Firmware Exploitation (EF-7a)", attack_tpm_firmware_exploitation),
         ("Device Theft and Cloning (EF-8a)", attack_device_theft_cloning),
         ("Coercion/Duress Attack (EF-8b)", attack_coercion_duress),
+        # Track EG: Cross-Federation AI Coordination Attacks
+        ("Context Window Overflow (EG-1a)", attack_context_window_overflow),
+        ("Hallucination Injection (EG-1b)", attack_hallucination_injection),
+        ("Instruction Conflict (EG-2a)", attack_instruction_conflict),
+        ("Agent Impersonation Chain (EG-2b)", attack_agent_impersonation_chain),
+        ("Collective Decision Manipulation (EG-3a)", attack_collective_decision_manipulation),
+        ("Coordinated Inaction (EG-3b)", attack_coordinated_inaction),
+        ("Model Capability Mismatch (EG-4a)", attack_model_capability_mismatch),
+        ("Resource Starvation Cascade (EG-4b)", attack_resource_starvation_cascade),
     ]
 
     results = []

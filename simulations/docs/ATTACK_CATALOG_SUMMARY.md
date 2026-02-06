@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 2.0
-**Date**: 2026-02-05
-**Total Attacks**: 126
-**Status**: Comprehensive Coverage
+**Version**: 3.0
+**Date**: 2026-02-06
+**Total Attacks**: 142
+**Status**: Comprehensive Coverage + AI Coordination Attacks
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 126 comprehensive attack vectors across 35+ tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 142 comprehensive attack vectors across 40+ tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -289,6 +289,34 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 125 | Positive Feedback Amplification | Winner-take-all |
 | 126 | Network Topology Exploitation | Hub/bridge capture |
 
+### Future Threats - AI & Hardware (Track EF, Attacks 127-134)
+**AI model degradation, quantum, and physical security**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 127 | AI Witness Monoculture | AI diversity collapse |
+| 128 | Knowledge Cutoff Exploitation | Stale AI knowledge |
+| 129 | Semantic Drift Exploitation | Dictionary entity drift |
+| 130 | Compression-Trust Collapse | High-trust compression abuse |
+| 131 | Post-Quantum Migration | PQ transition attacks |
+| 132 | TPM Firmware Exploitation | Hardware security bypass |
+| 133 | Device Theft and Cloning | Physical device compromise |
+| 134 | Coercion/Duress Attack | Human coercion |
+
+### Cross-Federation AI Coordination (Track EG, Attacks 135-142)
+**AI agent coordination attacks in federated systems**
+
+| Attack | Name | Exploitation |
+|--------|------|--------------|
+| 135 | Context Window Overflow | Flood AI context, push out critical info |
+| 136 | Hallucination Injection | Exploit AI inference gaps |
+| 137 | Instruction Conflict | Policy vs system instruction conflicts |
+| 138 | Agent Impersonation Chain | Cascading fake agent vouching |
+| 139 | Collective Decision Manipulation | AI voting/consensus manipulation |
+| 140 | Coordinated Inaction | Trigger bystander effect |
+| 141 | Model Capability Mismatch | Route tasks to incapable models |
+| 142 | Resource Starvation Cascade | Coordinated resource exhaustion |
+
 ---
 
 ## Defense Statistics
@@ -299,7 +327,7 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 126 |
+| Total Attacks | 142 |
 | Successful Attacks | ~5-10 (varies by parameters) |
 | Average Detection Rate | ~55% |
 | Average Trust Damage | ~0.50 |
@@ -342,6 +370,16 @@ Based on current attack simulations:
    - Social proof diversity
    - Reciprocity tracking
 
+7. **AI Coordination Layer** (20+ defenses) - NEW
+   - Context summarization and priority retention
+   - Hallucination detection and grounding requirements
+   - Policy-instruction alignment checking
+   - Agent lineage and hardware binding propagation
+   - Vote isolation and commit-reveal schemes
+   - Responsibility assignment and escalation triggers
+   - Capability registries and task matching
+   - Resource quotas and cascade breakers
+
 ---
 
 ## Key Insights
@@ -359,6 +397,8 @@ Based on current attack simulations:
 2. **Regulatory arbitrage** exploits legal gaps (Track ED)
 3. **Phase transitions** at critical thresholds (Track EE)
 4. **Standard capture** for long-term control (Attack 121)
+5. **AI coordination gaps** in federated multi-agent systems (Track EG)
+6. **Coercion attacks** bypass all technical controls (Attack 134)
 
 ### Defense Patterns
 
@@ -373,10 +413,10 @@ Based on current attack simulations:
 
 ### Unexplored Areas
 
-1. **Quantum-adjacent attacks**: Post-quantum cryptographic transitions
-2. **Cross-blockchain attacks**: Multi-chain arbitrage
-3. **AI vs AI dynamics**: Agent-on-agent attacks
-4. **Physical world bridges**: Hardware attestation gaps
+1. **Cross-blockchain attacks**: Multi-chain arbitrage
+2. **Privacy protocol attacks**: ZK proof vulnerabilities (planned for Track EH)
+3. **Energy/ESG gaming**: Metabolic state environmental claims
+4. **Advanced AI emergence**: Spontaneous agent coordination attacks
 
 ### Formal Verification Needed
 
@@ -399,4 +439,16 @@ Based on current attack simulations:
 
 ---
 
-*This catalog represents 6+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems.*
+## Session History
+
+| Date | Session | Attacks Added | Focus |
+|------|---------|---------------|-------|
+| 2025-Q3 | Initial | 1-6 | Foundation attacks |
+| 2025-Q4 | Sessions 80-85 | 7-100 | Comprehensive coverage |
+| 2026-01 | Sessions 86-95 | 101-126 | Advanced patterns |
+| 2026-02-05 | Track EF | 127-134 | Future threats |
+| 2026-02-06 | Track EG | 135-142 | AI coordination |
+
+---
+
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems.*
