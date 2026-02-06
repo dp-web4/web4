@@ -1,8 +1,8 @@
 # Web4 Threat Model
-**Version**: 1.1
-**Last Updated**: December 17, 2025
+**Version**: 2.0
+**Last Updated**: February 6, 2026
 **Status**: Research prototype formal threat model
-**Scope**: `/game/` security research + federation patterns + coordination framework
+**Scope**: `/simulations/` attack research (160 attacks) + federation patterns + coordination framework
 
 ---
 
@@ -39,6 +39,11 @@ Unlike traditional access control (static ACLs), Web4 treats security as **emerg
 - **LCT Unified Identity**: Cross-system identity format `lct://{component}:{instance}:{role}@{network}`
 - **Coordination Framework**: Phase 2a-2d coordinators for runtime security decisions
 - **Pattern Exchange**: Secure cross-system learning transfer (SAGE ↔ Web4)
+
+**February 2026 Additions:**
+- **Attack Simulation Suite**: 160 attacks across 40+ tracks (see `/simulations/attack_simulations.py`)
+- **New Defense Layers**: Privacy/ZK (Track EI), Cross-Blockchain (Track EJ)
+- **Comprehensive Coverage**: AI coordination, ESG gaming, behavioral economics, APT patterns
 
 ### 1.2 Architecture Layers
 
@@ -816,9 +821,48 @@ Web4 has done **substantial security research** with thoughtful threat analysis 
 
 ---
 
-## Appendix A: Threat Catalog
+## Appendix A: Attack Simulation Reference
 
-Quick reference of all enumerated threats:
+**Full Attack Catalog**: See `/simulations/docs/ATTACK_CATALOG_SUMMARY.md`
+
+**Attack Statistics (February 2026)**:
+- **Total Attacks**: 160
+- **Defense Rate**: 100% (all attacks defended)
+- **Defense Layers**: 10 categories, 200+ individual defenses
+
+**Attack Track Summary**:
+
+| Track | Attacks | Focus |
+|-------|---------|-------|
+| 1-6 | Foundation | Metabolic, Sybil, ATP, Heartbeat |
+| DN | 62-64 | Temporal consensus |
+| DO | 65-66 | Side-channels |
+| DP | 67-68 | Supply chain |
+| DQ | 69-72 | AI/ML-specific |
+| DR | 73-78 | Emergent coordination |
+| DS | 79-84 | Long-con trust |
+| DT | 85-90 | Appeals/recovery gaming |
+| DU | 91-95 | Governance interface |
+| DW | 96-99 | Cross-system chains |
+| DX | 100 | Cryptographic weakness |
+| DY | 101 | Information cascades |
+| DZ | 102-106 | APT patterns |
+| EA | 107-110 | Economic coalitions |
+| EB | 111-114 | Behavioral economics |
+| EC | 115-118 | Social engineering |
+| ED | 119-122 | Regulatory arbitrage |
+| EE | 123-126 | Emergent dynamics |
+| EF | 127-134 | Future threats (AI, quantum, hardware) |
+| EG | 135-142 | Cross-federation AI coordination |
+| EH | 143-148 | Energy/ESG gaming |
+| EI | 149-154 | Privacy/ZK protocols |
+| EJ | 155-160 | Cross-blockchain arbitrage |
+
+---
+
+## Appendix B: Traditional Threat Catalog
+
+Quick reference of originally enumerated threats:
 
 | ID | Threat | Layer | Severity | Mitigation | Status |
 |----|--------|-------|----------|-----------|--------|
@@ -847,8 +891,9 @@ Quick reference of all enumerated threats:
 
 **Document Status:** Living document, updated as security research progresses.
 
-**Last Review:** December 17, 2025
-**Next Review:** March 2026 (After coordination framework integration)
+**Last Review:** February 6, 2026
+**Attack Count**: 160 (increased from 126 in December 2025)
+**Next Review:** April 2026 (After formal verification integration)
 
 **Feedback:** Security researchers are encouraged to identify gaps, propose improvements, and contribute formal analysis.
 
