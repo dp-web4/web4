@@ -29,7 +29,7 @@ LCT (Linked Context Token) documentation is distributed across multiple files. T
 ### Permissions & Authorization
 | File | Description |
 |------|-------------|
-| [`LCT_UNIFIED_PERMISSION_STANDARD.md`](../LCT_UNIFIED_PERMISSION_STANDARD.md) | Permission model specification |
+| [`LCT_UNIFIED_PERMISSION_STANDARD.md`](specs/LCT_UNIFIED_PERMISSION_STANDARD.md) | Permission model specification |
 | [`game/engine/LCT_DATABASE_SCHEMA.md`](../game/engine/LCT_DATABASE_SCHEMA.md) | Database schema for LCT storage |
 
 ### Integration Patterns
@@ -75,10 +75,10 @@ These documents track the implementation progress of the LCT identity system:
 | Phase | Document | Status |
 |-------|----------|--------|
 | Phase 1 | Core identity | Complete |
-| Phase 2 | [`LCT_IDENTITY_PHASE2_COMPLETE.md`](../LCT_IDENTITY_PHASE2_COMPLETE.md) | Complete |
-| Phase 3 | [`LCT_IDENTITY_PHASE3_COMPLETE.md`](../LCT_IDENTITY_PHASE3_COMPLETE.md) | Complete |
+| Phase 2 | [`LCT_IDENTITY_PHASE2_COMPLETE.md`](specs/LCT_IDENTITY_PHASE2_COMPLETE.md) | Complete |
+| Phase 3 | [`LCT_IDENTITY_PHASE3_COMPLETE.md`](specs/LCT_IDENTITY_PHASE3_COMPLETE.md) | Complete |
 | Phase 4 | ATP Integration | Complete |
-| E2E | [`LCT_E2E_INTEGRATION_COMPLETE.md`](../LCT_E2E_INTEGRATION_COMPLETE.md) | Complete |
+| E2E | [`LCT_E2E_INTEGRATION_COMPLETE.md`](specs/LCT_E2E_INTEGRATION_COMPLETE.md) | Complete |
 
 ---
 

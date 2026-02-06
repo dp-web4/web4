@@ -1,7 +1,10 @@
 # Web4 Implementation Status
 
-**Last Updated:** 2025-11-18
+**Last Updated:** 2025-11-18 (historical snapshot)
 **Status:** Active Development - Core Primitives Operational
+
+> **Note**: This document is a historical snapshot from November 2025.
+> For current status, see [STATUS.md](../STATUS.md) which covers Sessions 176-200+.
 
 ## Overview
 

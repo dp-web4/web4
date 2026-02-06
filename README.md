@@ -88,7 +88,7 @@ Neither addresses the core question: **How do I know this agent will behave appr
 | 3 | **[whitepaper/](whitepaper/)** | Conceptual foundation: LCTs, trust tensors, MRH, R6 framework |
 | 4 | **[game/README.md](game/README.md)** | Interactive simulation of Web4 societies |
 | 5 | **[SECURITY.md](SECURITY.md)** | Security research status and known gaps |
-| 6 | **[THREAT_MODEL.md](THREAT_MODEL.md)** | What we're defending against |
+| 6 | **[THREAT_MODEL.md](docs/security/THREAT_MODEL.md)** | What we're defending against |
 | 7 | **[docs/LCT_DOCUMENTATION_INDEX.md](docs/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
 
 ---
@@ -212,7 +212,7 @@ Web4 contains **four development tracks** at different maturity levels:
 |----------|----------------|
 | **[STATUS.md](STATUS.md)** | Honest assessment - what exists, what works, what's missing |
 | **[SECURITY.md](SECURITY.md)** | Security research status and gaps |
-| **[THREAT_MODEL.md](THREAT_MODEL.md)** | Formal threat model for the overall system |
+| **[THREAT_MODEL.md](docs/security/THREAT_MODEL.md)** | Formal threat model for the overall system |
 | **[game/THREAT_MODEL_GAME.md](game/THREAT_MODEL_GAME.md)** | Threat model specific to `/game/` engine |
 | **[Whitepaper](whitepaper/)** | Conceptual foundation (LCTs, trust, MRH) |
 
@@ -339,7 +339,7 @@ web4/
 ├── whitepaper/                        # Conceptual foundation
 ├── STATUS.md                          # Honest project status
 ├── SECURITY.md                        # Security research status
-└── THREAT_MODEL.md                    # System threat model
+└── docs/security/THREAT_MODEL.md      # System threat model
 ```
 
 ---
