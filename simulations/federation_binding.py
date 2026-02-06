@@ -21,13 +21,13 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
-from hardbound.lct_binding_chain import (
+from .lct_binding_chain import (
     LCTBindingChain,
     LCTNode,
     WitnessRelationship,
     BindingType,
 )
-from hardbound.multi_federation import (
+from .multi_federation import (
     MultiFederationRegistry,
     FederationProfile,
     InterFederationTrust,

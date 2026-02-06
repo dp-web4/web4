@@ -22,14 +22,14 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
-from hardbound.multi_federation import (
+from .multi_federation import (
     MultiFederationRegistry,
     FederationProfile,
     InterFederationTrust,
     CrossFederationProposal,
     FederationRelationship,
 )
-from hardbound.trust_economics import (
+from .trust_economics import (
     TrustEconomicsEngine,
     TrustCostPolicy,
     TrustOperationType,

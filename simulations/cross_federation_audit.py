@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from pathlib import Path
 from enum import Enum
 
-from hardbound.governance_audit import (
+from .governance_audit import (
     GovernanceAuditTrail, AuditEventType, AuditRecord
 )
 

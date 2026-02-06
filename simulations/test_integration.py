@@ -35,8 +35,8 @@ def test_unified_audit_chain():
     Hardbound team queries the same ledger for audit trail.
     Both should see the same chain.
     """
-    from hardbound.ledger import Ledger
-    from hardbound.team import Team, TeamConfig
+    from .ledger import Ledger
+    from .team import Team, TeamConfig
 
     print("Test 1: Unified Audit Chain")
     print("-" * 50)
@@ -112,7 +112,7 @@ def test_entity_trust_team_capability():
     The governance plugin accumulates T3 trust tensors per role.
     Hardbound team should be able to read these to determine member capabilities.
     """
-    from hardbound.team import Team, TeamConfig
+    from .team import Team, TeamConfig
 
     print("Test 2: Entity Trust -> Team Capability")
     print("-" * 50)
@@ -182,7 +182,7 @@ def test_heartbeat_team_integration():
     The heartbeat ledger should reflect team activity patterns and
     metabolic state transitions correctly.
     """
-    from hardbound.heartbeat_ledger import HeartbeatLedger, MetabolicState
+    from .heartbeat_ledger import HeartbeatLedger, MetabolicState
 
     print("Test 3: Heartbeat-Team Integration")
     print("-" * 50)
@@ -242,9 +242,9 @@ def test_r6_policy_cross_layer():
     Plugin creates R6 requests. Team policy should be able to check
     whether those requests are allowed based on role, trust, and ATP.
     """
-    from hardbound.team import Team, TeamConfig
-    from hardbound.policy import Policy, PolicyRule, ApprovalType
-    from hardbound.r6 import R6Workflow, R6Status
+    from .team import Team, TeamConfig
+    from .policy import Policy, PolicyRule, ApprovalType
+    from .r6 import R6Workflow, R6Status
 
     print("Test 4: R6 Policy Cross-Layer")
     print("-" * 50)
@@ -335,8 +335,8 @@ def test_presence_team_health():
     When agents go silent (presence tracking), it should affect
     team metabolic health and trust calculations.
     """
-    from hardbound.team import Team, TeamConfig
-    from hardbound.trust_decay import TrustDecayCalculator
+    from .team import Team, TeamConfig
+    from .trust_decay import TrustDecayCalculator
 
     print("Test 5: Presence-Driven Team Health")
     print("-" * 50)

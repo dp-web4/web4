@@ -20,8 +20,8 @@ from typing import Dict, List, Optional, Tuple, Set
 from enum import Enum
 from pathlib import Path
 
-from hardbound.multi_federation import MultiFederationRegistry, InterFederationTrust
-from hardbound.federation_binding import FederationBindingRegistry
+from .multi_federation import MultiFederationRegistry, InterFederationTrust
+from .federation_binding import FederationBindingRegistry
 
 
 class ReputationTier(Enum):
@@ -650,7 +650,7 @@ if __name__ == "__main__":
 
     # Establish trust relationships
     print("\n2. Establish trust relationships:")
-    from hardbound.multi_federation import FederationRelationship
+    from .multi_federation import FederationRelationship
     fed_registry.establish_trust("fed:alpha", "fed:beta", FederationRelationship.PEER, initial_trust=0.6)
     fed_registry.establish_trust("fed:alpha", "fed:gamma", FederationRelationship.PEER, initial_trust=0.5)
     fed_registry.establish_trust("fed:beta", "fed:alpha", FederationRelationship.PEER, initial_trust=0.7)

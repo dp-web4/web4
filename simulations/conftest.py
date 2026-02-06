@@ -2,7 +2,7 @@
 # Hardbound pytest configuration
 
 import pytest
-from hardbound.team import Team, TeamConfig
+from .team import Team, TeamConfig
 
 
 @pytest.fixture

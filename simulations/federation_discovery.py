@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from pathlib import Path
 from enum import Enum
 
-from hardbound.multi_federation import (
+from .multi_federation import (
     MultiFederationRegistry,
     FederationProfile,
     FederationRelationship,

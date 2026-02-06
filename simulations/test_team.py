@@ -7,9 +7,9 @@ from pathlib import Path
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from hardbound.team import Team, TeamConfig, list_teams
-from hardbound.policy import Policy, PolicyRule, ApprovalType
-from hardbound.r6 import R6Workflow, R6Status
+from .team import Team, TeamConfig, list_teams
+from .policy import Policy, PolicyRule, ApprovalType
+from .r6 import R6Workflow, R6Status
 
 
 def test_team_creation():
@@ -151,7 +151,7 @@ def test_team_summary(team: Team):
 def test_trust_decay():
     """Test trust decay over time."""
     from datetime import timedelta
-    from hardbound.trust_decay import TrustDecayCalculator
+    from .trust_decay import TrustDecayCalculator
 
     print("\nTesting trust decay...")
 
@@ -242,7 +242,7 @@ def test_policy_persistence(team: Team, admin_lct: str):
 
 def test_admin_binding():
     """Test admin binding (TPM2 if available, software fallback)."""
-    from hardbound.admin_binding import check_tpm_availability, AdminBindingManager
+    from .admin_binding import check_tpm_availability, AdminBindingManager
 
     print("\nTesting admin binding...")
 
@@ -292,7 +292,7 @@ def test_admin_binding():
 
 def test_multisig():
     """Test multi-sig proposal and voting."""
-    from hardbound.multisig import MultiSigManager, CriticalAction, ProposalStatus
+    from .multisig import MultiSigManager, CriticalAction, ProposalStatus
 
     print("\nTesting multi-sig operations...")
 
@@ -374,7 +374,7 @@ def test_multisig():
 
 def test_rate_limiter():
     """Test rate limiting infrastructure."""
-    from hardbound.rate_limiter import (
+    from .rate_limiter import (
         RateLimiter, RateLimitRule, RateLimitScope, TokenBucket
     )
 
@@ -394,7 +394,7 @@ def test_rate_limiter():
     print(f"  6th consume failed (expected)")
 
     # Test rate limiter with local ledger
-    from hardbound.ledger import Ledger
+    from .ledger import Ledger
 
     ledger = Ledger()
     limiter = RateLimiter(ledger)
@@ -437,7 +437,7 @@ def test_rate_limiter():
 
 def test_synthesis_eval():
     """Test synthesis vs fabrication evaluation."""
-    from hardbound.synthesis_eval import SynthesisEvaluator, ContentMode
+    from .synthesis_eval import SynthesisEvaluator, ContentMode
 
     print("\nTesting synthesis evaluation...")
 

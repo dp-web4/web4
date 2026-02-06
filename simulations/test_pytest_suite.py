@@ -6,7 +6,7 @@
 
 import pytest
 from datetime import datetime, timezone, timedelta
-from hardbound.team import Team, TeamConfig
+from .team import Team, TeamConfig
 
 
 class TestTeamSuite:
@@ -14,7 +14,7 @@ class TestTeamSuite:
 
     def test_full_team_suite(self):
         """Execute all team tests sequentially (they share state)."""
-        from hardbound.test_team import main
+        from .test_team import main
         main()
 
 
@@ -23,7 +23,7 @@ class TestIntegrationSuite:
 
     def test_integration_suite(self):
         """Execute all integration tests."""
-        from hardbound.test_integration import main
+        from .test_integration import main
         main()
 
 
@@ -32,7 +32,7 @@ class TestAttackSimulations:
 
     def test_attack_simulations(self):
         """Execute all attack simulations."""
-        from hardbound.attack_simulations import run_all_attacks
+        from .attack_simulations import run_all_attacks
         results = run_all_attacks()
         # 95 attacks: original 35 + tracks CV-DD (9) + tracks DE-DK (7) + tracks DL-DM (10)
         #           + tracks DN (3) + tracks DO (2) + tracks DP (2) + tracks DQ (4) + tracks DR (6) + tracks DS (6) + tracks DT (6) + tracks DU (5) = 95 total
@@ -115,10 +115,10 @@ class TestEndToEndIntegration:
         3. Federation witness selection and attestation
         4. Execution and outcome propagation
         """
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
-        from hardbound.multisig import MultiSigManager, CriticalAction, ProposalStatus
-        from hardbound.federation import FederationRegistry
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
+        from .multisig import MultiSigManager, CriticalAction, ProposalStatus
+        from .federation import FederationRegistry
 
         # === PHASE 1: Setup teams and federation ===
         config = TeamConfig(
@@ -249,8 +249,8 @@ class TestFullStackIntegration:
         - Maintain trust (or let it decay)
         - Cross-federation witness eligibility
         """
-        from hardbound.federation_binding import FederationBindingRegistry
-        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from .federation_binding import FederationBindingRegistry
+        from .trust_maintenance import TrustMaintenanceManager
         from pathlib import Path
         import tempfile
 
@@ -380,7 +380,7 @@ class TestFullStackIntegration:
 
     def test_trust_decay_over_time(self):
         """Test that trust decays without maintenance."""
-        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from .trust_maintenance import TrustMaintenanceManager
         from datetime import datetime, timezone, timedelta
         from pathlib import Path
         import tempfile
@@ -417,7 +417,7 @@ class TestFullStackIntegration:
 
     def test_presence_permission_gating(self):
         """Test that presence gates federation capabilities."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         from pathlib import Path
         import tempfile
 
@@ -518,12 +518,12 @@ class TestActivityQuality:
 
     def test_activity_quality_self_test(self):
         """Run the full activity quality self-test."""
-        from hardbound.activity_quality import _self_test
+        from .activity_quality import _self_test
         _self_test()
 
     def test_micro_ping_detection(self):
         """Micro-pings should get minimal trust decay credit."""
-        from hardbound.activity_quality import (
+        from .activity_quality import (
             ActivityWindow, ActivityTier, compute_quality_adjusted_decay
         )
         from datetime import datetime, timezone, timedelta
@@ -540,7 +540,7 @@ class TestActivityQuality:
 
     def test_diverse_work_scores_high(self):
         """Diverse meaningful actions should score well."""
-        from hardbound.activity_quality import ActivityWindow, ActivityTier
+        from .activity_quality import ActivityWindow, ActivityTier
         from datetime import datetime, timezone, timedelta
 
         now = datetime.now(timezone.utc)
@@ -560,12 +560,12 @@ class TestSybilDetection:
 
     def test_sybil_self_test(self):
         """Run the full Sybil detection self-test."""
-        from hardbound.sybil_detection import _self_test
+        from .sybil_detection import _self_test
         _self_test()
 
     def test_clean_team_no_false_positives(self):
         """Clean team with diverse trust should not trigger detection."""
-        from hardbound.sybil_detection import SybilDetector, SybilRisk
+        from .sybil_detection import SybilDetector, SybilRisk
 
         detector = SybilDetector()
         trusts = {
@@ -579,7 +579,7 @@ class TestSybilDetection:
 
     def test_identical_trust_detected(self):
         """Members with identical trust should be flagged."""
-        from hardbound.sybil_detection import SybilDetector, SybilRisk
+        from .sybil_detection import SybilDetector, SybilRisk
 
         detector = SybilDetector()
         same = {"reliability": 0.55, "competence": 0.55, "alignment": 0.55,
@@ -703,7 +703,7 @@ class TestCrossTeamWitnessing:
 
     def test_admin_transfer_requires_external_witness(self):
         """ADMIN_TRANSFER cannot execute without external witness."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
+        from .multisig import MultiSigManager, CriticalAction
         import pytest
 
         team = self._make_team_with_members(
@@ -741,7 +741,7 @@ class TestCrossTeamWitnessing:
 
     def test_external_witness_must_be_outside_team(self):
         """External witnesses must not be members of the proposing team."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
+        from .multisig import MultiSigManager, CriticalAction
         import pytest
 
         team = self._make_team_with_members(
@@ -777,7 +777,7 @@ class TestCrossTeamWitnessing:
 
     def test_external_witness_enables_execution(self):
         """With external witness, admin transfer can execute."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
+        from .multisig import MultiSigManager, CriticalAction
 
         team = self._make_team_with_members(
             "xt-execute", "admin:xe",
@@ -817,7 +817,7 @@ class TestCrossTeamWitnessing:
 
     def test_team_dissolution_requires_two_witnesses(self):
         """TEAM_DISSOLUTION requires 2 external witnesses."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
+        from .multisig import MultiSigManager, CriticalAction
         import pytest
 
         team = self._make_team_with_members(
@@ -872,7 +872,7 @@ class TestCrossTeamWitnessing:
 
     def test_witness_diversity_blocks_same_team(self):
         """Two witnesses from the same team are blocked by diversity requirement."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
+        from .multisig import MultiSigManager, CriticalAction
         import pytest
 
         team = self._make_team_with_members(
@@ -1013,7 +1013,7 @@ class TestFederationRegistry:
 
     def test_register_and_find_teams(self):
         """Teams can register and be discovered by domain."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:a", "Alpha", domains=["finance"], member_count=5)
@@ -1029,7 +1029,7 @@ class TestFederationRegistry:
 
     def test_witness_pool_excludes_self(self):
         """Witness pool never includes the requesting team."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:self", "Self Team", member_count=5)
@@ -1041,7 +1041,7 @@ class TestFederationRegistry:
 
     def test_witness_reputation_after_outcomes(self):
         """Witness score degrades after witnessed proposals fail."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:witness", "Witness Team")
@@ -1065,7 +1065,7 @@ class TestFederationRegistry:
 
     def test_reciprocity_detection(self):
         """High reciprocity between teams triggers collusion flag."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:x", "Team X")
@@ -1085,7 +1085,7 @@ class TestFederationRegistry:
 
     def test_collusion_report(self):
         """Collusion report identifies flagged pairs."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         for t in ["team:1", "team:2", "team:3"]:
@@ -1103,7 +1103,7 @@ class TestFederationRegistry:
 
     def test_witness_pool_filters_colluding_teams(self):
         """find_witness_pool() excludes teams with high reciprocity."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:req", "Requester")
@@ -1129,7 +1129,7 @@ class TestRandomWitnessSelection:
 
     def test_select_from_pool(self):
         """select_witnesses returns teams from the pool."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:req", "Requester", creator_lct="alice")
@@ -1145,7 +1145,7 @@ class TestRandomWitnessSelection:
 
     def test_reproducible_with_seed(self):
         """Same seed produces same selection."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:r", "Requester", creator_lct="a")
@@ -1158,7 +1158,7 @@ class TestRandomWitnessSelection:
 
     def test_high_rep_selected_more_often(self):
         """Higher-reputation teams are selected more frequently over many runs."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:r", "Requester", creator_lct="req")
@@ -1196,7 +1196,7 @@ class TestRandomWitnessSelection:
 
     def test_empty_pool_returns_empty(self):
         """No qualified witnesses returns empty list."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:lonely", "Lonely Team")
@@ -1222,8 +1222,8 @@ class TestWitnessSelectionIntegration:
 
     def test_request_witnesses_selects_from_federation(self):
         """request_external_witnesses() selects from qualified teams."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
-        from hardbound.federation import FederationRegistry
+        from .multisig import MultiSigManager, CriticalAction
+        from .federation import FederationRegistry
 
         # Setup requesting team
         team = self._make_team("req-team", "admin:req", ["v1", "v2", "v3", "v4"])
@@ -1254,7 +1254,7 @@ class TestWitnessSelectionIntegration:
 
     def test_request_witnesses_fails_without_federation(self):
         """request_external_witnesses() fails without federation."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
+        from .multisig import MultiSigManager, CriticalAction
         import pytest
 
         team = self._make_team("no-fed", "admin:nf", ["v1", "v2", "v3", "v4"])
@@ -1272,8 +1272,8 @@ class TestWitnessSelectionIntegration:
 
     def test_request_witnesses_returns_empty_when_satisfied(self):
         """Returns empty list when witness requirement already met."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
-        from hardbound.federation import FederationRegistry
+        from .multisig import MultiSigManager, CriticalAction
+        from .federation import FederationRegistry
 
         team = self._make_team("sat-team", "admin:sat", ["v1", "v2", "v3", "v4"])
         fed = FederationRegistry()
@@ -1311,7 +1311,7 @@ class TestFederationHealthDashboard:
 
     def test_healthy_federation(self):
         """Clean federation reports healthy status."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:alpha", "Alpha Corp", creator_lct="alice")
@@ -1326,7 +1326,7 @@ class TestFederationHealthDashboard:
 
     def test_collusion_degrades_health(self):
         """Colluding teams degrade federation health."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:x", "Team X", creator_lct="creator:x")
@@ -1344,7 +1344,7 @@ class TestFederationHealthDashboard:
 
     def test_lineage_issues_flagged(self):
         """Same-creator multi-teams are flagged in health report."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:m1", "Shell 1", creator_lct="mallory")
@@ -1357,7 +1357,7 @@ class TestFederationHealthDashboard:
 
     def test_overlap_analysis_included(self):
         """Member overlap is included when data is provided."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:a", "Team A")
@@ -1374,7 +1374,7 @@ class TestFederationHealthDashboard:
 
     def test_critical_score_on_multiple_issues(self):
         """Multiple critical issues drive score below 40."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         # Same creator teams that witness for each other (lineage + collusion)
@@ -1401,7 +1401,7 @@ class TestPatternSigning:
 
     def test_sign_and_verify_collusion_report(self):
         """Signed collusion report passes verification."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:sig_a", "Team A")
@@ -1419,7 +1419,7 @@ class TestPatternSigning:
 
     def test_tampered_data_fails_verification(self):
         """Modifying signed data causes verification to fail."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:tam_a", "Tamper Test A")
@@ -1435,7 +1435,7 @@ class TestPatternSigning:
 
     def test_sign_lineage_report(self):
         """Lineage reports can be signed and verified."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:lin_a", "Lineage A", creator_lct="creator:x")
@@ -1449,7 +1449,7 @@ class TestPatternSigning:
 
     def test_different_signers_produce_different_signatures(self):
         """Same data signed by different LCTs produces different signatures."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         data = {"test": "value", "count": 42}
@@ -1531,7 +1531,7 @@ class TestMemberOverlap:
 
     def test_no_overlap_is_healthy(self):
         """Teams with disjoint members show healthy status."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         result = reg.analyze_member_overlap({
@@ -1544,7 +1544,7 @@ class TestMemberOverlap:
 
     def test_low_overlap_detected(self):
         """One shared member across teams is detected but low risk."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         result = reg.analyze_member_overlap({
@@ -1559,7 +1559,7 @@ class TestMemberOverlap:
 
     def test_high_overlap_flagged(self):
         """High member overlap triggers warning."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         # 3 out of 5 shared = 60% overlap
@@ -1575,7 +1575,7 @@ class TestMemberOverlap:
 
     def test_full_overlap_critical(self):
         """Fully overlapping teams are critical risk."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         # Same members = shell teams
@@ -1590,7 +1590,7 @@ class TestMemberOverlap:
 
     def test_multi_team_member_tracking(self):
         """Members appearing in 3+ teams are tracked."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         result = reg.analyze_member_overlap({
@@ -1683,8 +1683,8 @@ class TestFederatedWitnessing:
 
     def test_federation_validates_witness_team(self):
         """Unregistered teams are rejected when federation is active."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
-        from hardbound.federation import FederationRegistry
+        from .multisig import MultiSigManager, CriticalAction
+        from .federation import FederationRegistry
         import pytest
 
         team = self._make_team("fed-val", "admin:fv",
@@ -1712,8 +1712,8 @@ class TestFederatedWitnessing:
 
     def test_federation_records_witness_event(self):
         """When federation is active, witness events are recorded."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
-        from hardbound.federation import FederationRegistry
+        from .multisig import MultiSigManager, CriticalAction
+        from .federation import FederationRegistry
 
         team = self._make_team("fed-rec", "admin:fr",
                                ["v:a", "v:b", "v:c", "v:d"])
@@ -1743,8 +1743,8 @@ class TestFederatedWitnessing:
 
     def test_federation_updates_reputation_on_execute(self):
         """Successful execution improves witness reputation."""
-        from hardbound.multisig import MultiSigManager, CriticalAction
-        from hardbound.federation import FederationRegistry
+        from .multisig import MultiSigManager, CriticalAction
+        from .federation import FederationRegistry
 
         team = self._make_team("fed-rep", "admin:frep",
                                ["v:x", "v:y", "v:z", "v:w"])
@@ -1816,7 +1816,7 @@ class TestFederatedSybilDetection:
 
     def test_cross_team_trust_mirroring_detected(self):
         """Members in different teams with identical trust are flagged."""
-        from hardbound.sybil_detection import FederatedSybilDetector, SybilRisk
+        from .sybil_detection import FederatedSybilDetector, SybilRisk
 
         detector = FederatedSybilDetector()
 
@@ -1854,7 +1854,7 @@ class TestFederatedSybilDetection:
 
     def test_cross_team_timing_detected(self):
         """Members in different teams acting simultaneously are flagged."""
-        from hardbound.sybil_detection import FederatedSybilDetector
+        from .sybil_detection import FederatedSybilDetector
 
         detector = FederatedSybilDetector()
         now = datetime.now(timezone.utc)
@@ -1896,7 +1896,7 @@ class TestFederatedSybilDetection:
 
     def test_no_false_positives_across_teams(self):
         """Distinct members in different teams should not trigger."""
-        from hardbound.sybil_detection import FederatedSybilDetector
+        from .sybil_detection import FederatedSybilDetector
 
         detector = FederatedSybilDetector()
 
@@ -1922,7 +1922,7 @@ class TestFederatedSybilDetection:
 
     def test_registration_timing_detection(self):
         """Accounts created at nearly the same time across teams are flagged."""
-        from hardbound.sybil_detection import FederatedSybilDetector
+        from .sybil_detection import FederatedSybilDetector
 
         detector = FederatedSybilDetector()
         now = datetime.now(timezone.utc)
@@ -1955,7 +1955,7 @@ class TestFederatedSybilDetection:
 
     def test_multi_signal_amplification(self):
         """Multiple cross-team signals amplify confidence."""
-        from hardbound.sybil_detection import FederatedSybilDetector
+        from .sybil_detection import FederatedSybilDetector
 
         detector = FederatedSybilDetector()
         now = datetime.now(timezone.utc)
@@ -2001,7 +2001,7 @@ class TestTeamCreationLineage:
 
     def test_creator_lct_stored_on_registration(self):
         """Creator LCT is persisted and retrievable."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         team = reg.register_team(
@@ -2017,7 +2017,7 @@ class TestTeamCreationLineage:
 
     def test_find_teams_by_creator(self):
         """Can find all teams created by the same entity."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:a1", "Alpha 1", creator_lct="creator:mallory")
@@ -2033,7 +2033,7 @@ class TestTeamCreationLineage:
 
     def test_witness_pool_excludes_same_creator(self):
         """Teams created by the same entity cannot witness for each other."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:sybil_a", "Sybil A", creator_lct="creator:mallory")
@@ -2048,7 +2048,7 @@ class TestTeamCreationLineage:
 
     def test_lineage_report_flags_multi_team_creators(self):
         """Lineage report identifies entities creating multiple teams."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:m1", "Mallory 1", creator_lct="creator:mallory")
@@ -2064,7 +2064,7 @@ class TestTeamCreationLineage:
 
     def test_lineage_report_critical_on_cross_witnessing(self):
         """Lineage report goes CRITICAL when same-creator teams witness for each other."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
 
         reg = FederationRegistry()
         reg.register_team("team:s1", "Sybil 1", creator_lct="creator:mallory")
@@ -2135,8 +2135,8 @@ class TestATPEconomics:
 
     def test_r6_execute_rewards_atp(self):
         """R6 execute_request() rewards ATP on successful completion."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-reward", description="R6 reward test")
         team = Team(config=config)
@@ -2263,8 +2263,8 @@ class TestR6Cancellation:
 
     def test_requester_can_cancel_own_request(self):
         """The original requester can cancel their pending request."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-cancel", description="Cancel test")
         team = Team(config=config)
@@ -2294,8 +2294,8 @@ class TestR6Cancellation:
 
     def test_admin_can_cancel_any_request(self):
         """Admin can cancel any member's request."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-admin-cancel", description="Admin cancel")
         team = Team(config=config)
@@ -2323,8 +2323,8 @@ class TestR6Cancellation:
 
     def test_other_member_cannot_cancel(self):
         """A different member cannot cancel someone else's request."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-no-cancel", description="No cancel")
         team = Team(config=config)
@@ -2353,8 +2353,8 @@ class TestR6Cancellation:
 
     def test_cannot_cancel_executed_request(self):
         """Cannot cancel a request that has already been executed."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-no-cancel-exec", description="No cancel executed")
         team = Team(config=config)
@@ -2384,8 +2384,8 @@ class TestR6Cancellation:
 
     def test_cancel_removes_from_persistence(self):
         """Cancelled request is removed from SQLite persistence."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-cancel-persist", description="Cancel persistence")
         team = Team(config=config)
@@ -2437,9 +2437,9 @@ class TestR6MultiSigDelegation:
 
     def test_multisig_proposal_created_for_critical_action(self):
         """R6 request with MULTI_SIG approval creates a linked proposal."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.multisig import MultiSigManager, CriticalAction
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .multisig import MultiSigManager, CriticalAction
+        from .policy import Policy, PolicyRule, ApprovalType
 
         team = self._make_team("msig-r6")
         msig = MultiSigManager(team)
@@ -2473,9 +2473,9 @@ class TestR6MultiSigDelegation:
 
     def test_r6_approval_delegates_to_multisig_vote(self):
         """Approving an R6 request also votes on the linked proposal."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.multisig import MultiSigManager, ProposalStatus
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .multisig import MultiSigManager, ProposalStatus
+        from .policy import Policy, PolicyRule, ApprovalType
 
         team = self._make_team("msig-vote")
         msig = MultiSigManager(team)
@@ -2519,8 +2519,8 @@ class TestR6MultiSigDelegation:
 
     def test_no_multisig_without_manager(self):
         """Without multisig manager, MULTI_SIG approval works with counts only."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         team = self._make_team("no-msig")
 
@@ -2558,8 +2558,8 @@ class TestR6Expiry:
 
     def test_request_has_expiry_timestamp(self):
         """Created R6 requests have an expires_at timestamp."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-expiry", description="Expiry test")
         team = Team(config=config)
@@ -2587,8 +2587,8 @@ class TestR6Expiry:
 
     def test_short_expiry_triggers_expired_status(self):
         """Request with very short expiry becomes expired."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
         import time
 
         config = TeamConfig(name="r6-short-exp", description="Short expiry")
@@ -2627,8 +2627,8 @@ class TestR6Expiry:
 
     def test_cleanup_expired_batch(self):
         """cleanup_expired() expires all timed-out requests."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
         import time
 
         config = TeamConfig(name="r6-batch-exp", description="Batch expiry")
@@ -2670,8 +2670,8 @@ class TestR6Expiry:
 
     def test_no_expiry_when_hours_zero(self):
         """Setting expiry_hours=0 disables expiry."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-no-exp", description="No expiry")
         team = Team(config=config)
@@ -2704,7 +2704,7 @@ class TestPolicyExpiryEnforcement:
 
     def test_policy_rejects_zero_expiry(self):
         """Policy rejects zero-expiry configuration."""
-        from hardbound.policy import Policy
+        from .policy import Policy
 
         policy = Policy(min_expiry_hours=24)
         valid, error, enforced = policy.validate_expiry_hours(0)
@@ -2715,7 +2715,7 @@ class TestPolicyExpiryEnforcement:
 
     def test_policy_enforces_minimum_expiry(self):
         """Policy prevents expiry below minimum."""
-        from hardbound.policy import Policy
+        from .policy import Policy
 
         policy = Policy(min_expiry_hours=48)
         valid, error, enforced = policy.validate_expiry_hours(24)
@@ -2726,7 +2726,7 @@ class TestPolicyExpiryEnforcement:
 
     def test_policy_enforces_maximum_expiry(self):
         """Policy prevents expiry above maximum."""
-        from hardbound.policy import Policy
+        from .policy import Policy
 
         policy = Policy(max_expiry_hours=168)  # 7 days max
         valid, error, enforced = policy.validate_expiry_hours(720)  # 30 days
@@ -2737,8 +2737,8 @@ class TestPolicyExpiryEnforcement:
 
     def test_workflow_clamps_to_policy_minimum(self):
         """R6Workflow respects policy minimum expiry."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy
+        from .r6 import R6Workflow
+        from .policy import Policy
 
         config = TeamConfig(name="policy-min-exp", description="Minimum expiry test")
         team = Team(config=config)
@@ -2760,8 +2760,8 @@ class TestR6Persistence:
 
     def test_pending_request_survives_restart(self):
         """Pending R6 requests persist across R6Workflow instantiations."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-persist", description="R6 persistence test")
         team = Team(config=config)
@@ -2804,8 +2804,8 @@ class TestR6Persistence:
 
     def test_approved_request_persists(self):
         """Approved requests persist with updated status."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-approve-persist", description="Approved persist")
         team = Team(config=config)
@@ -2839,8 +2839,8 @@ class TestR6Persistence:
 
     def test_executed_request_removed_from_active(self):
         """Executed requests are removed from the active requests table."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-exec-clean", description="Exec cleanup")
         team = Team(config=config)
@@ -2873,8 +2873,8 @@ class TestR6Persistence:
 
     def test_rejected_request_removed_from_active(self):
         """Rejected requests are removed from the active requests table."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-reject-clean", description="Reject cleanup")
         team = Team(config=config)
@@ -2909,8 +2909,8 @@ class TestR6HeartbeatIntegration:
 
     def test_r6_events_become_heartbeat_transactions(self):
         """R6 create/approve/execute should appear as heartbeat ledger transactions."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-heartbeat", description="R6 heartbeat test")
         team = Team(config=config)
@@ -2958,8 +2958,8 @@ class TestR6HeartbeatIntegration:
 
     def test_r6_rejection_recorded_in_heartbeat(self):
         """R6 rejection should also appear as a heartbeat transaction."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="r6-reject-hb", description="R6 reject heartbeat")
         team = Team(config=config)
@@ -2993,8 +2993,8 @@ class TestR6HeartbeatIntegration:
 
     def test_pulse_triggers_r6_cleanup(self):
         """pulse() with registered workflow cleans up expired R6 requests."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
         import time
 
         config = TeamConfig(name="r6-pulse-cleanup", description="Pulse cleanup test")
@@ -3059,8 +3059,8 @@ class TestR6DelegationChains:
 
     def test_create_child_request(self):
         """Can create a request that depends on another."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="chain-test", description="Chain test")
         team = Team(config=config)
@@ -3101,8 +3101,8 @@ class TestR6DelegationChains:
 
     def test_parent_success_triggers_child(self):
         """Successful parent execution auto-approves children."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="chain-trigger", description="Chain trigger")
         team = Team(config=config)
@@ -3148,8 +3148,8 @@ class TestR6DelegationChains:
 
     def test_parent_failure_does_not_trigger_child(self):
         """Failed parent does not auto-approve children."""
-        from hardbound.r6 import R6Workflow, R6Status
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow, R6Status
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="chain-fail", description="Chain fail test")
         team = Team(config=config)
@@ -3190,8 +3190,8 @@ class TestR6DelegationChains:
 
     def test_chain_depth_limit(self):
         """Cannot create chains deeper than 10."""
-        from hardbound.r6 import R6Workflow
-        from hardbound.policy import Policy, PolicyRule, ApprovalType
+        from .r6 import R6Workflow
+        from .policy import Policy, PolicyRule, ApprovalType
 
         config = TeamConfig(name="chain-depth", description="Chain depth limit")
         team = Team(config=config)
@@ -3238,7 +3238,7 @@ class TestCrossTeamProposals:
 
     def test_create_cross_team_proposal(self):
         """Can create a proposal requiring multiple team approvals."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3267,7 +3267,7 @@ class TestCrossTeamProposals:
 
     def test_approval_threshold(self):
         """Proposal approved when all approvals received (veto mode)."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3304,7 +3304,7 @@ class TestCrossTeamProposals:
 
     def test_single_rejection_vetoes(self):
         """Single rejection blocks the entire proposal (veto mode)."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3338,7 +3338,7 @@ class TestCrossTeamProposals:
 
     def test_get_pending_for_team(self):
         """Can query pending proposals for a specific team."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3376,7 +3376,7 @@ class TestApprovalReciprocity:
 
     def test_approval_recorded_for_reciprocity(self):
         """Approvals are recorded in the approval_records table."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3399,7 +3399,7 @@ class TestApprovalReciprocity:
 
     def test_mutual_approval_detected(self):
         """High mutual approval rate is flagged as suspicious."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3431,7 +3431,7 @@ class TestApprovalReciprocity:
 
     def test_one_way_approval_not_suspicious(self):
         """One-way approvals without reciprocity are not flagged."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3458,7 +3458,7 @@ class TestApprovalReciprocity:
 
     def test_reciprocity_report(self):
         """Full reciprocity report flags suspicious pairs."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3498,7 +3498,7 @@ class TestApprovalCycleDetection:
 
     def test_simple_three_node_cycle(self):
         """Detects A->B->C->A chain pattern."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3542,7 +3542,7 @@ class TestApprovalCycleDetection:
 
     def test_no_cycle_with_linear_approvals(self):
         """Linear approval chains (A->B->C) without cycle are not flagged."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3573,7 +3573,7 @@ class TestApprovalCycleDetection:
 
     def test_cycle_evades_pairwise_reciprocity(self):
         """Chain pattern evades pairwise reciprocity but cycle detection catches it."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3617,7 +3617,7 @@ class TestApprovalCycleDetection:
 
     def test_longer_cycle_detected(self):
         """Detects longer cycles (A->B->C->D->A)."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3649,7 +3649,7 @@ class TestReputationDecay:
 
     def test_activity_tracked_on_proposal(self):
         """Creating a proposal updates last_activity."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3674,7 +3674,7 @@ class TestReputationDecay:
 
     def test_activity_tracked_on_approval(self):
         """Approving a proposal updates last_activity."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3700,7 +3700,7 @@ class TestReputationDecay:
 
     def test_decay_applied_to_inactive_teams(self):
         """Inactive teams see reputation decay."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         import sqlite3
         from pathlib import Path
@@ -3732,7 +3732,7 @@ class TestReputationDecay:
 
     def test_active_teams_not_decayed(self):
         """Teams with recent activity don't decay."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         import sqlite3
         from pathlib import Path
@@ -3757,7 +3757,7 @@ class TestReputationDecay:
 
     def test_decay_respects_minimum_score(self):
         """Decay doesn't reduce score below minimum."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         import sqlite3
         from pathlib import Path
@@ -3788,7 +3788,7 @@ class TestFederationHeartbeat:
 
     def test_heartbeat_returns_health_metrics(self):
         """Heartbeat returns federation health metrics."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3809,7 +3809,7 @@ class TestFederationHeartbeat:
 
     def test_heartbeat_applies_decay_automatically(self):
         """Heartbeat applies decay to inactive teams when enabled."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         import sqlite3
         from pathlib import Path
@@ -3842,7 +3842,7 @@ class TestFederationHeartbeat:
 
     def test_heartbeat_no_decay_when_disabled(self):
         """Heartbeat skips decay when apply_decay=False."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         import sqlite3
         from pathlib import Path
@@ -3873,7 +3873,7 @@ class TestFederationHeartbeat:
 
     def test_heartbeat_sequence_increments(self):
         """Each heartbeat increments sequence number."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3892,7 +3892,7 @@ class TestFederationHeartbeat:
 
     def test_heartbeat_history_retrieval(self):
         """Can retrieve heartbeat history."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3916,7 +3916,7 @@ class TestFederationHeartbeat:
 
     def test_heartbeat_health_status_degraded(self):
         """Low team count triggers degraded status."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3938,7 +3938,7 @@ class TestTemporalPatternDetection:
 
     def test_instant_approval_flagged(self):
         """Approval within seconds of creation is flagged."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3961,7 +3961,7 @@ class TestTemporalPatternDetection:
 
     def test_no_approvals_not_suspicious(self):
         """Pending proposal with no approvals is not flagged."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -3982,7 +3982,7 @@ class TestTemporalPatternDetection:
 
     def test_temporal_report(self):
         """Temporal analysis report summarizes all proposals."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4010,7 +4010,7 @@ class TestCrossDomainTemporalAnalysis:
 
     def test_burst_detection_flags_many_fast_proposals(self):
         """Burst of proposals from same team is detected."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4044,7 +4044,7 @@ class TestCrossDomainTemporalAnalysis:
 
     def test_team_pattern_detects_fast_approvals(self):
         """Teams with consistently fast approvals are flagged."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4078,7 +4078,7 @@ class TestCrossDomainTemporalAnalysis:
 
     def test_correlated_approvals_detected(self):
         """Correlated approval timing across proposals is flagged."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4118,7 +4118,7 @@ class TestCrossDomainTemporalAnalysis:
 
     def test_healthy_when_no_suspicious_patterns(self):
         """Federation shows healthy when patterns are normal."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4142,7 +4142,7 @@ class TestCrossDomainTemporalAnalysis:
 
     def test_analysis_returns_all_fields(self):
         """Analysis result contains all expected fields."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4173,7 +4173,7 @@ class TestFederationHealthDashboard:
 
     def test_dashboard_returns_all_sections(self):
         """Dashboard returns all expected sections."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4201,7 +4201,7 @@ class TestFederationHealthDashboard:
 
     def test_dashboard_healthy_with_no_issues(self):
         """Dashboard shows healthy when no issues present."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4223,7 +4223,7 @@ class TestFederationHealthDashboard:
 
     def test_dashboard_warning_with_low_teams(self):
         """Dashboard shows warning when team count is low."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4242,7 +4242,7 @@ class TestFederationHealthDashboard:
 
     def test_dashboard_aggregates_audit_warnings(self):
         """Dashboard includes governance audit warnings."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4268,7 +4268,7 @@ class TestFederationHealthDashboard:
 
     def test_dashboard_includes_temporal_analysis(self):
         """Dashboard includes temporal pattern analysis."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4293,7 +4293,7 @@ class TestFederationHealthDashboard:
 
     def test_dashboard_selective_inclusion(self):
         """Dashboard can selectively include sections."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4328,7 +4328,7 @@ class TestAdaptiveThresholds:
 
     def test_severity_policy_retrieval(self):
         """Can retrieve policy for each severity level."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4344,7 +4344,7 @@ class TestAdaptiveThresholds:
 
     def test_critical_action_auto_classified(self):
         """Critical action types are auto-classified as critical severity."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4358,7 +4358,7 @@ class TestAdaptiveThresholds:
 
     def test_severity_applies_policy_defaults(self):
         """Proposals auto-apply severity-based policy defaults."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4381,7 +4381,7 @@ class TestAdaptiveThresholds:
 
     def test_low_severity_gets_relaxed_thresholds(self):
         """Low-severity actions get more permissive thresholds."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4404,7 +4404,7 @@ class TestAdaptiveThresholds:
 
     def test_explicit_override_beats_policy(self):
         """Explicit parameters override severity policy defaults."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4431,7 +4431,7 @@ class TestAdaptiveThresholds:
 
     def test_amount_parameter_affects_severity(self):
         """Large amounts increase severity classification."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4456,7 +4456,7 @@ class TestOutsiderRequirement:
 
     def test_proposal_needs_outsider(self):
         """Proposal with require_outsider waits for outsider approval."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4485,7 +4485,7 @@ class TestOutsiderRequirement:
 
     def test_outsider_approval_completes(self):
         """Adding outsider approval completes the proposal."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4516,7 +4516,7 @@ class TestOutsiderRequirement:
 
     def test_target_cannot_be_outsider(self):
         """Target team cannot also serve as outsider."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4541,7 +4541,7 @@ class TestOutsiderRequirement:
 
     def test_specific_outsider_list(self):
         """Can specify exact list of eligible outsiders."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4581,7 +4581,7 @@ class TestWeightedVoting:
 
     def test_weighted_mode_basic(self):
         """Weighted voting uses team reputation for vote weight."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         import sqlite3
         from pathlib import Path
@@ -4619,7 +4619,7 @@ class TestWeightedVoting:
 
     def test_weighted_rejection_not_veto(self):
         """In weighted mode, single rejection doesn't block if insufficient weight."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         import sqlite3
         from pathlib import Path
@@ -4659,7 +4659,7 @@ class TestWeightedVoting:
 
     def test_high_weight_rejection_blocks(self):
         """High-weight rejection in weighted mode blocks proposal."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         import sqlite3
         from pathlib import Path
@@ -4691,7 +4691,7 @@ class TestWeightedVoting:
 
     def test_veto_mode_explicit(self):
         """Veto mode - single rejection blocks (must be explicit or critical severity)."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4731,7 +4731,7 @@ class TestDefenseEvasion:
 
     def test_attack_simulation_runs(self):
         """Attack 13 simulation completes without error."""
-        from hardbound.attack_simulations import attack_defense_evasion
+        from .attack_simulations import attack_defense_evasion
         result = attack_defense_evasion()
         assert result.attack_name == "Defense Evasion (Testing AP-AS)"
         # Should not succeed - defenses should mostly hold
@@ -4739,14 +4739,14 @@ class TestDefenseEvasion:
 
     def test_three_defenses_hold(self):
         """At least 3 of 4 defenses should hold."""
-        from hardbound.attack_simulations import attack_defense_evasion
+        from .attack_simulations import attack_defense_evasion
         result = attack_defense_evasion()
         defenses_held = result.raw_data.get("defenses_held", 0)
         assert defenses_held >= 3, f"Only {defenses_held}/4 defenses held"
 
     def test_cycle_detection_closes_chain_gap(self):
         """Cycle detection (Track AU) catches chain-pattern evasion."""
-        from hardbound.attack_simulations import attack_defense_evasion
+        from .attack_simulations import attack_defense_evasion
         result = attack_defense_evasion()
         # Chain pattern evades pairwise reciprocity...
         chain_evades_pairwise = result.raw_data.get("chain_evades_reciprocity", False)
@@ -4758,7 +4758,7 @@ class TestDefenseEvasion:
 
     def test_key_defenses_functional(self):
         """Outsider requirement and weighted voting must work."""
-        from hardbound.attack_simulations import attack_defense_evasion
+        from .attack_simulations import attack_defense_evasion
         result = attack_defense_evasion()
         defenses = result.raw_data.get("defenses", {})
         # These are the most important defenses
@@ -4775,21 +4775,21 @@ class TestAdvancedDefenses:
 
     def test_attack_simulation_runs(self):
         """Attack 14 simulation completes without error."""
-        from hardbound.attack_simulations import attack_advanced_defenses
+        from .attack_simulations import attack_advanced_defenses
         result = attack_advanced_defenses()
         assert result.attack_name == "Advanced Defenses (AU-AW)"
         assert not result.success  # Defenses should hold
 
     def test_all_defenses_hold(self):
         """All 3 defenses should hold."""
-        from hardbound.attack_simulations import attack_advanced_defenses
+        from .attack_simulations import attack_advanced_defenses
         result = attack_advanced_defenses()
         defenses_held = result.raw_data.get("defenses_held", 0)
         assert defenses_held == 3, f"Only {defenses_held}/3 defenses held"
 
     def test_reputation_decay_effective(self):
         """Reputation decay reduces dormant team's score."""
-        from hardbound.attack_simulations import attack_advanced_defenses
+        from .attack_simulations import attack_advanced_defenses
         result = attack_advanced_defenses()
         before = result.raw_data.get("dormant_score_before", 0)
         after = result.raw_data.get("dormant_score_after", 1)
@@ -4797,7 +4797,7 @@ class TestAdvancedDefenses:
 
     def test_severity_classification_correct(self):
         """Critical actions are classified correctly."""
-        from hardbound.attack_simulations import attack_advanced_defenses
+        from .attack_simulations import attack_advanced_defenses
         result = attack_advanced_defenses()
         classified = result.raw_data.get("classified_severity")
         assert classified == "critical", f"team_dissolution should be critical, got {classified}"
@@ -4812,27 +4812,27 @@ class TestNewMechanisms:
 
     def test_attack_simulation_runs(self):
         """Attack 15 simulation completes without error."""
-        from hardbound.attack_simulations import attack_new_mechanisms
+        from .attack_simulations import attack_new_mechanisms
         result = attack_new_mechanisms()
         assert result.attack_name == "New Mechanisms (AY-BB)"
         assert not result.success  # Defenses should hold
 
     def test_all_defenses_hold(self):
         """All 4 defenses should hold."""
-        from hardbound.attack_simulations import attack_new_mechanisms
+        from .attack_simulations import attack_new_mechanisms
         result = attack_new_mechanisms()
         defenses_held = result.raw_data.get("defenses_held", 0)
         assert defenses_held == 4, f"Only {defenses_held}/4 defenses held"
 
     def test_audit_logging_captures_downgrade(self):
         """Severity downgrade is captured in audit log."""
-        from hardbound.attack_simulations import attack_new_mechanisms
+        from .attack_simulations import attack_new_mechanisms
         result = attack_new_mechanisms()
         assert result.raw_data.get("downgrade_logged") is True
 
     def test_heartbeat_decay_applied(self):
         """Heartbeat triggers decay on dormant team."""
-        from hardbound.attack_simulations import attack_new_mechanisms
+        from .attack_simulations import attack_new_mechanisms
         result = attack_new_mechanisms()
         before = result.raw_data.get("colluder_score_before", 0)
         after = result.raw_data.get("colluder_score_after", 1)
@@ -4840,13 +4840,13 @@ class TestNewMechanisms:
 
     def test_burst_pattern_detected(self):
         """Burst of proposals is detected."""
-        from hardbound.attack_simulations import attack_new_mechanisms
+        from .attack_simulations import attack_new_mechanisms
         result = attack_new_mechanisms()
         assert result.raw_data.get("burst_detected") is True
 
     def test_dashboard_shows_issues(self):
         """Dashboard reflects the detected issues."""
-        from hardbound.attack_simulations import attack_new_mechanisms
+        from .attack_simulations import attack_new_mechanisms
         result = attack_new_mechanisms()
         dashboard_health = result.raw_data.get("dashboard_health")
         # Dashboard should not show healthy given all the suspicious activity
@@ -4863,14 +4863,14 @@ class TestTrustIntegration:
     def test_bridge_creation(self):
         """Trust integration bridge can be created."""
         try:
-            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+            from .trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
         except ImportError:
             pytest.skip("web4-trust not available")
 
         if not RUST_BACKEND_AVAILABLE:
             pytest.skip("Rust backend not available")
 
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4885,14 +4885,14 @@ class TestTrustIntegration:
     def test_team_to_entity_export(self):
         """Team can be exported as EntityTrust."""
         try:
-            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+            from .trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
         except ImportError:
             pytest.skip("web4-trust not available")
 
         if not RUST_BACKEND_AVAILABLE:
             pytest.skip("Rust backend not available")
 
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4910,14 +4910,14 @@ class TestTrustIntegration:
     def test_trust_mapping_comparison(self):
         """Trust scores from both systems can be compared."""
         try:
-            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+            from .trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
         except ImportError:
             pytest.skip("web4-trust not available")
 
         if not RUST_BACKEND_AVAILABLE:
             pytest.skip("Rust backend not available")
 
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4936,14 +4936,14 @@ class TestTrustIntegration:
     def test_unified_trust_report(self):
         """Unified trust report can be generated."""
         try:
-            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+            from .trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
         except ImportError:
             pytest.skip("web4-trust not available")
 
         if not RUST_BACKEND_AVAILABLE:
             pytest.skip("Rust backend not available")
 
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -4966,14 +4966,14 @@ class TestTrustIntegration:
     def test_score_sync_back_to_team(self):
         """EntityTrust updates can sync back to Hardbound."""
         try:
-            from hardbound.trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
+            from .trust_integration import TrustIntegrationBridge, RUST_BACKEND_AVAILABLE
         except ImportError:
             pytest.skip("web4-trust not available")
 
         if not RUST_BACKEND_AVAILABLE:
             pytest.skip("Rust backend not available")
 
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5009,7 +5009,7 @@ class TestMultiFederation:
 
     def test_federation_registration(self):
         """Federations can be registered."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5023,7 +5023,7 @@ class TestMultiFederation:
 
     def test_trust_establishment(self):
         """Federations can establish trust relationships."""
-        from hardbound.multi_federation import (
+        from .multi_federation import (
             MultiFederationRegistry, FederationRelationship
         )
         import tempfile
@@ -5055,7 +5055,7 @@ class TestMultiFederation:
 
     def test_eligible_witness_federations(self):
         """Can find eligible witness federations."""
-        from hardbound.multi_federation import (
+        from .multi_federation import (
             MultiFederationRegistry, FederationRelationship
         )
         import tempfile
@@ -5085,7 +5085,7 @@ class TestMultiFederation:
 
     def test_cross_federation_proposal(self):
         """Cross-federation proposals can be created and approved."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5109,7 +5109,7 @@ class TestMultiFederation:
 
     def test_approval_from_all_federations(self):
         """Proposal approved when all affected federations approve."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5147,7 +5147,7 @@ class TestMultiFederation:
 
     def test_external_witness_requirement(self):
         """External federation witness requirement enforced."""
-        from hardbound.multi_federation import (
+        from .multi_federation import (
             MultiFederationRegistry, FederationRelationship
         )
         import tempfile
@@ -5202,7 +5202,7 @@ class TestGovernanceAudit:
 
     def test_severity_downgrade_logged_as_warning(self):
         """Downgrading severity from critical to low triggers warning audit."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5230,7 +5230,7 @@ class TestGovernanceAudit:
 
     def test_severity_upgrade_logged_as_info(self):
         """Upgrading severity from low to high is logged as info (conservative)."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5257,7 +5257,7 @@ class TestGovernanceAudit:
 
     def test_policy_override_logged(self):
         """Overriding policy parameters (threshold, outsider) is logged."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5284,7 +5284,7 @@ class TestGovernanceAudit:
 
     def test_no_override_no_audit(self):
         """Normal proposals without overrides don't create audit entries."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5307,7 +5307,7 @@ class TestGovernanceAudit:
 
     def test_audit_log_filtering(self):
         """Audit log can be filtered by type, risk level, and team."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5347,7 +5347,7 @@ class TestAmountThresholdPolicy:
 
     def test_amount_policy_resource_types(self):
         """Different resource types have different thresholds."""
-        from hardbound.federation import AmountThresholdPolicy
+        from .federation import AmountThresholdPolicy
 
         policy = AmountThresholdPolicy()
 
@@ -5367,7 +5367,7 @@ class TestAmountThresholdPolicy:
 
     def test_amount_policy_team_size_scaling(self):
         """Larger teams get higher thresholds (can handle bigger amounts)."""
-        from hardbound.federation import AmountThresholdPolicy
+        from .federation import AmountThresholdPolicy
 
         policy = AmountThresholdPolicy()
 
@@ -5385,7 +5385,7 @@ class TestAmountThresholdPolicy:
 
     def test_amount_policy_size_categories(self):
         """Team size categories are correctly identified."""
-        from hardbound.federation import AmountThresholdPolicy
+        from .federation import AmountThresholdPolicy
 
         policy = AmountThresholdPolicy()
 
@@ -5397,7 +5397,7 @@ class TestAmountThresholdPolicy:
 
     def test_amount_policy_critical_threshold(self):
         """Critical amounts trigger critical severity."""
-        from hardbound.federation import AmountThresholdPolicy
+        from .federation import AmountThresholdPolicy
 
         policy = AmountThresholdPolicy()
 
@@ -5411,7 +5411,7 @@ class TestAmountThresholdPolicy:
 
     def test_classify_action_severity_with_context(self):
         """FederationRegistry uses context-dependent classification."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5443,7 +5443,7 @@ class TestAmountThresholdPolicy:
 
     def test_classify_action_severity_detailed(self):
         """Detailed classification provides transparency."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5469,7 +5469,7 @@ class TestAmountThresholdPolicy:
 
     def test_backward_compatible_classification(self):
         """Old-style classification still works without context."""
-        from hardbound.federation import FederationRegistry
+        from .federation import FederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5496,14 +5496,14 @@ class TestMultiFederationAttack:
 
     def test_attack_simulation_runs(self):
         """Attack 16 runs without errors."""
-        from hardbound.attack_simulations import attack_multi_federation_vectors
+        from .attack_simulations import attack_multi_federation_vectors
         result = attack_multi_federation_vectors()
         assert result is not None
         assert result.attack_name == "Multi-Federation Vectors (BH)"
 
     def test_some_defenses_hold(self):
         """At least some multi-federation defenses should hold."""
-        from hardbound.attack_simulations import attack_multi_federation_vectors
+        from .attack_simulations import attack_multi_federation_vectors
         result = attack_multi_federation_vectors()
 
         defenses = result.raw_data["defenses"]
@@ -5514,7 +5514,7 @@ class TestMultiFederationAttack:
 
     def test_external_witness_required(self):
         """Cross-federation proposals require external witness."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5551,7 +5551,7 @@ class TestMultiFederationAttack:
 
     def test_external_witness_completes(self):
         """Adding external witness allows proposal to complete."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5598,7 +5598,7 @@ class TestMultiFederationAttack:
 
     def test_low_trust_witness_rejected(self):
         """Witness with insufficient trust is rejected."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5642,7 +5642,7 @@ class TestTrustBootstrapLimits:
 
     def test_initial_trust_capped(self):
         """Initial trust is capped at MAX_INITIAL_TRUST."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5662,7 +5662,7 @@ class TestTrustBootstrapLimits:
 
     def test_trust_grows_with_interactions(self):
         """Trust increases with successful interactions (when age permits)."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
         from datetime import datetime, timezone, timedelta
@@ -5695,7 +5695,7 @@ class TestTrustBootstrapLimits:
 
     def test_trust_blocked_by_age_requirement(self):
         """New federations can't exceed age-based trust cap."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5725,7 +5725,7 @@ class TestTrustBootstrapLimits:
 
     def test_trust_decreases_on_failure(self):
         """Trust decreases with failed interactions."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5748,7 +5748,7 @@ class TestTrustBootstrapLimits:
 
     def test_bootstrap_status_shows_limits(self):
         """Bootstrap status shows trust caps and requirements."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5770,7 +5770,7 @@ class TestTrustBootstrapLimits:
 
     def test_trust_requires_interactions_for_higher_levels(self):
         """Higher trust levels require more interactions."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5790,7 +5790,7 @@ class TestTrustBootstrapLimits:
 
     def test_interaction_counts_tracked(self):
         """Interaction counts are properly tracked."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -5817,14 +5817,14 @@ class TestTrustBootstrapAttack:
 
     def test_attack_simulation_runs(self):
         """Attack 17 runs without errors."""
-        from hardbound.attack_simulations import attack_trust_bootstrap_reciprocity
+        from .attack_simulations import attack_trust_bootstrap_reciprocity
         result = attack_trust_bootstrap_reciprocity()
         assert result is not None
         assert result.attack_name == "Trust Bootstrap & Reciprocity (BK)"
 
     def test_all_defenses_hold(self):
         """All trust bootstrap defenses should hold."""
-        from hardbound.attack_simulations import attack_trust_bootstrap_reciprocity
+        from .attack_simulations import attack_trust_bootstrap_reciprocity
         result = attack_trust_bootstrap_reciprocity()
 
         defenses = result.raw_data["defenses"]
@@ -5835,7 +5835,7 @@ class TestTrustBootstrapAttack:
 
     def test_gaps_from_attack_16_closed(self):
         """The gaps identified in Attack 16 are now closed."""
-        from hardbound.attack_simulations import attack_trust_bootstrap_reciprocity
+        from .attack_simulations import attack_trust_bootstrap_reciprocity
         result = attack_trust_bootstrap_reciprocity()
 
         defenses = result.raw_data["defenses"]
@@ -5853,14 +5853,14 @@ class TestEconomicAttack:
 
     def test_attack_simulation_runs(self):
         """Attack 18 runs without errors."""
-        from hardbound.attack_simulations import attack_economic_vectors
+        from .attack_simulations import attack_economic_vectors
         result = attack_economic_vectors()
         assert result is not None
         assert result.attack_name == "Economic Attack Vectors (BO)"
 
     def test_all_defenses_hold(self):
         """All economic defenses should hold."""
-        from hardbound.attack_simulations import attack_economic_vectors
+        from .attack_simulations import attack_economic_vectors
         result = attack_economic_vectors()
 
         defenses = result.raw_data["defenses"]
@@ -5871,14 +5871,14 @@ class TestEconomicAttack:
 
     def test_atp_gating_effective(self):
         """ATP gating blocks operations with insufficient funds."""
-        from hardbound.attack_simulations import attack_economic_vectors
+        from .attack_simulations import attack_economic_vectors
         result = attack_economic_vectors()
 
         assert result.raw_data["defenses"]["atp_gating_works"] == True
 
     def test_collusion_is_expensive(self):
         """Collusion has significant ATP cost."""
-        from hardbound.attack_simulations import attack_economic_vectors
+        from .attack_simulations import attack_economic_vectors
         result = attack_economic_vectors()
 
         assert result.raw_data["defenses"]["collusion_is_expensive"] == True
@@ -5891,14 +5891,14 @@ class TestDecayMaintenanceAttack:
 
     def test_attack_simulation_runs(self):
         """Attack 19 runs without errors."""
-        from hardbound.attack_simulations import attack_decay_and_maintenance
+        from .attack_simulations import attack_decay_and_maintenance
         result = attack_decay_and_maintenance()
         assert result is not None
         assert result.attack_name == "Decay & Maintenance Attacks (BS)"
 
     def test_decay_is_inevitable(self):
         """Trust decay happens when maintenance is skipped."""
-        from hardbound.attack_simulations import attack_decay_and_maintenance
+        from .attack_simulations import attack_decay_and_maintenance
         result = attack_decay_and_maintenance()
 
         assert result.raw_data["defenses"]["decay_is_inevitable"] == True
@@ -5907,7 +5907,7 @@ class TestDecayMaintenanceAttack:
 
     def test_maintenance_requires_payment(self):
         """Maintenance payments cost ATP."""
-        from hardbound.attack_simulations import attack_decay_and_maintenance
+        from .attack_simulations import attack_decay_and_maintenance
         result = attack_decay_and_maintenance()
 
         assert result.raw_data["defenses"]["maintenance_payment_required"] == True
@@ -5915,7 +5915,7 @@ class TestDecayMaintenanceAttack:
 
     def test_economic_dos_blocked(self):
         """Economic DoS requires victim consent."""
-        from hardbound.attack_simulations import attack_decay_and_maintenance
+        from .attack_simulations import attack_decay_and_maintenance
         result = attack_decay_and_maintenance()
 
         assert result.raw_data["defenses"]["economic_dos_requires_consent"] == True
@@ -5926,14 +5926,14 @@ class TestGovernanceAttack:
 
     def test_attack_simulation_runs(self):
         """Attack 20 runs without errors."""
-        from hardbound.attack_simulations import attack_governance_vectors
+        from .attack_simulations import attack_governance_vectors
         result = attack_governance_vectors()
         assert result is not None
         assert result.attack_name == "Governance Attack Vectors (BW)"
 
     def test_vote_buying_expensive(self):
         """Buying votes through trust relationships is expensive."""
-        from hardbound.attack_simulations import attack_governance_vectors
+        from .attack_simulations import attack_governance_vectors
         result = attack_governance_vectors()
 
         assert result.raw_data["defenses"]["vote_buying_expensive"] == True
@@ -5942,7 +5942,7 @@ class TestGovernanceAttack:
 
     def test_proposal_spam_blocked(self):
         """Proposal spam is blocked by ATP costs."""
-        from hardbound.attack_simulations import attack_governance_vectors
+        from .attack_simulations import attack_governance_vectors
         result = attack_governance_vectors()
 
         assert result.raw_data["defenses"]["proposal_spam_blocked"] == True
@@ -5951,7 +5951,7 @@ class TestGovernanceAttack:
 
     def test_atp_manipulation_blocked(self):
         """ATP locking prevents manipulation."""
-        from hardbound.attack_simulations import attack_governance_vectors
+        from .attack_simulations import attack_governance_vectors
         result = attack_governance_vectors()
 
         assert result.raw_data["defenses"]["atp_manipulation_blocked"] == True
@@ -5964,7 +5964,7 @@ class TestTrustEconomics:
 
     def test_cost_policy_defaults(self):
         """Default cost policy has reasonable values."""
-        from hardbound.trust_economics import TrustCostPolicy
+        from .trust_economics import TrustCostPolicy
 
         policy = TrustCostPolicy()
 
@@ -5974,7 +5974,7 @@ class TestTrustEconomics:
 
     def test_establish_cost_calculation(self):
         """Establish trust cost calculation works."""
-        from hardbound.trust_economics import TrustEconomicsEngine
+        from .trust_economics import TrustEconomicsEngine
 
         engine = TrustEconomicsEngine()
 
@@ -5990,7 +5990,7 @@ class TestTrustEconomics:
 
     def test_maintain_cost_scales_with_trust(self):
         """Higher trust levels cost more to maintain."""
-        from hardbound.trust_economics import TrustEconomicsEngine
+        from .trust_economics import TrustEconomicsEngine
 
         engine = TrustEconomicsEngine()
 
@@ -6003,7 +6003,7 @@ class TestTrustEconomics:
 
     def test_increase_cost_calculation(self):
         """Trust increase cost calculated correctly."""
-        from hardbound.trust_economics import TrustEconomicsEngine
+        from .trust_economics import TrustEconomicsEngine
 
         engine = TrustEconomicsEngine()
 
@@ -6014,7 +6014,7 @@ class TestTrustEconomics:
 
     def test_entity_balance_management(self):
         """Entity balance tracking works."""
-        from hardbound.trust_economics import TrustEconomicsEngine, TrustOperationType
+        from .trust_economics import TrustEconomicsEngine, TrustOperationType
 
         engine = TrustEconomicsEngine()
 
@@ -6036,7 +6036,7 @@ class TestTrustEconomics:
 
     def test_insufficient_funds_rejected(self):
         """Operations fail with insufficient funds."""
-        from hardbound.trust_economics import TrustEconomicsEngine, TrustOperationType
+        from .trust_economics import TrustEconomicsEngine, TrustOperationType
 
         engine = TrustEconomicsEngine()
         engine.initialize_balance("poor:entity", 10.0)
@@ -6053,7 +6053,7 @@ class TestTrustEconomics:
 
     def test_sybil_attack_cost_estimation(self):
         """Sybil attack becomes exponentially expensive."""
-        from hardbound.trust_economics import TrustEconomicsEngine
+        from .trust_economics import TrustEconomicsEngine
 
         engine = TrustEconomicsEngine()
 
@@ -6070,7 +6070,7 @@ class TestTrustEconomics:
 
     def test_cost_summary_tracking(self):
         """Cost summary tracks operations correctly."""
-        from hardbound.trust_economics import TrustEconomicsEngine, TrustOperationType
+        from .trust_economics import TrustEconomicsEngine, TrustOperationType
 
         engine = TrustEconomicsEngine()
         engine.initialize_balance("fed:tracker", 1000.0)
@@ -6093,7 +6093,7 @@ class TestFederationReciprocity:
 
     def test_analyze_federation_reciprocity(self):
         """Basic reciprocity analysis works."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6116,7 +6116,7 @@ class TestFederationReciprocity:
 
     def test_reciprocal_approvals_detected(self):
         """Mutual approval patterns are detected as suspicious."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6175,7 +6175,7 @@ class TestFederationReciprocity:
 
     def test_collusion_report(self):
         """System-wide collusion report works."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6197,7 +6197,7 @@ class TestFederationReciprocity:
 
     def test_pre_approval_collusion_check(self):
         """Pre-approval check assesses collusion risk."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6227,7 +6227,7 @@ class TestFederationReciprocity:
 
     def test_healthy_federation_no_flags(self):
         """Federations without suspicious patterns are healthy."""
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6257,7 +6257,7 @@ class TestLCTBindingChain:
 
     def test_root_node_creation(self):
         """Root nodes are created with correct properties."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()  # In-memory
 
@@ -6278,7 +6278,7 @@ class TestLCTBindingChain:
 
     def test_child_binding(self):
         """Children are bound with derived trust."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6303,7 +6303,7 @@ class TestLCTBindingChain:
 
     def test_chain_depth_limit(self):
         """Chain depth is limited to MAX_CHAIN_DEPTH."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
         import pytest
 
         chain = LCTBindingChain()
@@ -6336,7 +6336,7 @@ class TestLCTBindingChain:
 
     def test_trust_flows_downward(self):
         """Trust decreases down the binding chain."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6372,7 +6372,7 @@ class TestLCTBindingChain:
 
     def test_witnessing_requires_minimum_trust(self):
         """Witnesses must have minimum trust level."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
         import pytest
 
         chain = LCTBindingChain()
@@ -6403,7 +6403,7 @@ class TestLCTBindingChain:
 
     def test_witnessing_increases_trust(self):
         """Witnessing contributes to subject's trust."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6427,7 +6427,7 @@ class TestLCTBindingChain:
 
     def test_chain_validation_valid_chain(self):
         """Valid chains pass validation."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6446,7 +6446,7 @@ class TestLCTBindingChain:
 
     def test_chain_validation_detects_missing_witness(self):
         """Validation detects missing witness relationships."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6465,7 +6465,7 @@ class TestLCTBindingChain:
 
     def test_presence_proof_generation(self):
         """Presence proofs are generated correctly."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6488,7 +6488,7 @@ class TestLCTBindingChain:
 
     def test_ancestors_and_descendants(self):
         """Ancestor and descendant queries work correctly."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6515,7 +6515,7 @@ class TestLCTBindingChain:
 
     def test_peer_witnessing(self):
         """Peer nodes can witness each other, but excessive witnessing causes trust inversion."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6544,7 +6544,7 @@ class TestLCTBindingChain:
 
     def test_peer_witnessing_detects_trust_inversion(self):
         """Chain validation detects when witnessing causes trust to exceed parent."""
-        from hardbound.lct_binding_chain import LCTBindingChain, BindingType
+        from .lct_binding_chain import LCTBindingChain, BindingType
 
         chain = LCTBindingChain()
 
@@ -6596,7 +6596,7 @@ class TestEconomicFederation:
 
     def test_federation_gets_initial_balance(self):
         """Federation registration grants initial ATP balance."""
-        from hardbound.economic_federation import EconomicFederationRegistry
+        from .economic_federation import EconomicFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6611,7 +6611,7 @@ class TestEconomicFederation:
 
     def test_establish_trust_costs_atp(self):
         """Establishing trust deducts ATP from source federation."""
-        from hardbound.economic_federation import EconomicFederationRegistry
+        from .economic_federation import EconomicFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6630,7 +6630,7 @@ class TestEconomicFederation:
 
     def test_insufficient_atp_blocks_operation(self):
         """Operations fail when federation has insufficient ATP."""
-        from hardbound.economic_federation import EconomicFederationRegistry
+        from .economic_federation import EconomicFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6648,7 +6648,7 @@ class TestEconomicFederation:
 
     def test_recording_success_costs_atp(self):
         """Recording successful interactions costs ATP."""
-        from hardbound.economic_federation import EconomicFederationRegistry
+        from .economic_federation import EconomicFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6668,7 +6668,7 @@ class TestEconomicFederation:
 
     def test_recording_failure_is_free(self):
         """Recording failed interactions is free (failure is punishment)."""
-        from hardbound.economic_federation import EconomicFederationRegistry
+        from .economic_federation import EconomicFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6688,7 +6688,7 @@ class TestEconomicFederation:
 
     def test_economic_summary(self):
         """Federation economics summary is generated."""
-        from hardbound.economic_federation import EconomicFederationRegistry
+        from .economic_federation import EconomicFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6708,8 +6708,8 @@ class TestEconomicFederation:
 
     def test_operation_impact_estimate(self):
         """Operation impact can be estimated before execution."""
-        from hardbound.economic_federation import EconomicFederationRegistry
-        from hardbound.trust_economics import TrustOperationType
+        from .economic_federation import EconomicFederationRegistry
+        from .trust_economics import TrustOperationType
         import tempfile
         from pathlib import Path
 
@@ -6730,7 +6730,7 @@ class TestEconomicFederation:
 
     def test_cross_federation_multiplier(self):
         """Cross-federation operations cost more due to multiplier."""
-        from hardbound.economic_federation import EconomicFederationRegistry
+        from .economic_federation import EconomicFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6747,7 +6747,7 @@ class TestEconomicFederation:
 
     def test_trust_increase_respects_bootstrap_limits(self):
         """Trust increases are blocked if bootstrap limits not met."""
-        from hardbound.economic_federation import EconomicFederationRegistry
+        from .economic_federation import EconomicFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -6775,7 +6775,7 @@ class TestFederationBinding:
 
     def test_federation_gets_root_lct(self):
         """Federation registration creates a root LCT node."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -6796,7 +6796,7 @@ class TestFederationBinding:
 
     def test_team_binding_derives_trust(self):
         """Teams bound to federation have derived trust."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -6815,7 +6815,7 @@ class TestFederationBinding:
 
     def test_get_federation_teams(self):
         """Can retrieve all teams bound to a federation."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -6835,7 +6835,7 @@ class TestFederationBinding:
 
     def test_binding_status_shows_validity(self):
         """Binding status reports chain validity and presence."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -6856,7 +6856,7 @@ class TestFederationBinding:
 
     def test_witness_eligibility_requires_presence(self):
         """Federations need sufficient presence to be eligible witnesses."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -6876,7 +6876,7 @@ class TestFederationBinding:
 
     def test_cross_federation_witnessing(self):
         """Federations can witness each other when eligible."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -6909,7 +6909,7 @@ class TestFederationBinding:
 
     def test_binding_trust_calculation(self):
         """Federation binding trust is calculated from components."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -6931,7 +6931,7 @@ class TestFederationBinding:
 
     def test_find_eligible_witnesses(self):
         """Can find federations eligible to witness for another."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -6975,7 +6975,7 @@ class TestPresenceAccumulation:
 
     def test_build_internal_presence_increases_presence(self):
         """Building internal presence increases federation's presence score."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7003,7 +7003,7 @@ class TestPresenceAccumulation:
 
     def test_build_internal_presence_requires_teams(self):
         """Building internal presence requires at least 2 teams."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7023,7 +7023,7 @@ class TestPresenceAccumulation:
 
     def test_presence_ranking_sorts_by_presence(self):
         """Presence ranking returns federations sorted by presence."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7051,7 +7051,7 @@ class TestPresenceAccumulation:
 
     def test_presence_weighted_trust_low_presence_reduces_trust(self):
         """Low presence reduces the effective trust."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7075,7 +7075,7 @@ class TestPresenceAccumulation:
 
     def test_presence_weighted_trust_high_presence_boosts_trust(self):
         """High presence boosts the effective trust."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7112,7 +7112,7 @@ class TestPresenceAccumulation:
 
     def test_presence_requirements_returns_thresholds(self):
         """Presence requirements returns correct thresholds for actions."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7134,7 +7134,7 @@ class TestPresenceAccumulation:
 
     def test_presence_requirements_unknown_action(self):
         """Unknown action type returns error with available types."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7152,7 +7152,7 @@ class TestPresenceAccumulation:
 
     def test_check_presence_permission_low_presence_denied(self):
         """Federation with low presence is denied actions requiring presence."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7173,7 +7173,7 @@ class TestPresenceAccumulation:
 
     def test_check_presence_permission_high_presence_granted(self):
         """Federation with high presence is granted actions."""
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7207,7 +7207,7 @@ class TestTrustMaintenance:
 
     def test_maintenance_status_tracked(self):
         """Maintenance status is tracked for trust relationships."""
-        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from .trust_maintenance import TrustMaintenanceManager
         import tempfile
         from pathlib import Path
 
@@ -7227,7 +7227,7 @@ class TestTrustMaintenance:
 
     def test_decay_calculation(self):
         """Trust decays correctly toward minimum."""
-        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from .trust_maintenance import TrustMaintenanceManager
 
         manager = TrustMaintenanceManager()
 
@@ -7250,7 +7250,7 @@ class TestTrustMaintenance:
 
     def test_maintenance_prevents_decay(self):
         """Paying maintenance resets decay timer."""
-        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from .trust_maintenance import TrustMaintenanceManager
         import tempfile
         from pathlib import Path
 
@@ -7273,7 +7273,7 @@ class TestTrustMaintenance:
 
     def test_maintenance_cost_simulation(self):
         """Can simulate maintenance costs over time."""
-        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from .trust_maintenance import TrustMaintenanceManager
         import tempfile
         from pathlib import Path
 
@@ -7294,7 +7294,7 @@ class TestTrustMaintenance:
 
     def test_federation_health_assessment(self):
         """Federation health considers balance vs maintenance costs."""
-        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from .trust_maintenance import TrustMaintenanceManager
         import tempfile
         from pathlib import Path
 
@@ -7319,7 +7319,7 @@ class TestTrustMaintenance:
 
     def test_higher_trust_costs_more_to_maintain(self):
         """Higher trust levels have higher maintenance costs."""
-        from hardbound.trust_maintenance import TrustMaintenanceManager
+        from .trust_maintenance import TrustMaintenanceManager
 
         manager = TrustMaintenanceManager()
 
@@ -7339,9 +7339,9 @@ class TestFederationGovernance:
 
     def test_create_proposal_requires_presence(self):
         """Proposals require minimum presence."""
-        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
-        from hardbound.economic_federation import EconomicFederationRegistry
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .governance_federation import FederationGovernance, GovernanceActionType
+        from .economic_federation import EconomicFederationRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7372,9 +7372,9 @@ class TestFederationGovernance:
 
     def test_create_proposal_requires_atp(self):
         """Proposals require sufficient ATP."""
-        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
-        from hardbound.economic_federation import EconomicFederationRegistry
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .governance_federation import FederationGovernance, GovernanceActionType
+        from .economic_federation import EconomicFederationRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7408,9 +7408,9 @@ class TestFederationGovernance:
 
     def test_proposal_creation_locks_atp(self):
         """Creating proposal locks ATP."""
-        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
-        from hardbound.economic_federation import EconomicFederationRegistry
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .governance_federation import FederationGovernance, GovernanceActionType
+        from .economic_federation import EconomicFederationRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7450,9 +7450,9 @@ class TestFederationGovernance:
 
     def test_voting_with_weighted_power(self):
         """Votes are weighted by presence and trust."""
-        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
-        from hardbound.economic_federation import EconomicFederationRegistry
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .governance_federation import FederationGovernance, GovernanceActionType
+        from .economic_federation import EconomicFederationRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7499,9 +7499,9 @@ class TestFederationGovernance:
 
     def test_governance_readiness_check(self):
         """Governance readiness identifies gaps."""
-        from hardbound.governance_federation import FederationGovernance, GovernanceActionType
-        from hardbound.economic_federation import EconomicFederationRegistry
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .governance_federation import FederationGovernance, GovernanceActionType
+        from .economic_federation import EconomicFederationRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7531,9 +7531,9 @@ class TestFederationGovernance:
 
     def test_voting_power_calculation(self):
         """Voting power combines presence and trust."""
-        from hardbound.governance_federation import FederationGovernance
-        from hardbound.economic_federation import EconomicFederationRegistry
-        from hardbound.federation_binding import FederationBindingRegistry
+        from .governance_federation import FederationGovernance
+        from .economic_federation import EconomicFederationRegistry
+        from .federation_binding import FederationBindingRegistry
         import tempfile
         from pathlib import Path
 
@@ -7571,8 +7571,8 @@ class TestReputationAggregation:
 
     def test_reputation_from_incoming_trust(self):
         """Reputation increases with incoming trust."""
-        from hardbound.reputation_aggregation import ReputationAggregator, ReputationTier
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator, ReputationTier
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -7601,8 +7601,8 @@ class TestReputationAggregation:
 
     def test_reputation_tiers(self):
         """Reputation tiers are assigned correctly."""
-        from hardbound.reputation_aggregation import ReputationAggregator, ReputationTier
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator, ReputationTier
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -7622,8 +7622,8 @@ class TestReputationAggregation:
 
     def test_reputation_ranking(self):
         """Federations can be ranked by reputation."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -7650,8 +7650,8 @@ class TestReputationAggregation:
 
     def test_reputation_comparison(self):
         """Can compare reputation between federations."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -7673,8 +7673,8 @@ class TestReputationAggregation:
 
     def test_reputation_permission_check(self):
         """Can check reputation permissions for actions."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -7693,8 +7693,8 @@ class TestReputationAggregation:
 
     def test_confidence_increases_with_relationships(self):
         """Confidence increases with more relationships."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -7726,10 +7726,10 @@ class TestFederationDiscovery:
 
     def test_publish_announcement(self):
         """Can publish discovery announcement for a federation."""
-        from hardbound.federation_discovery import (
+        from .federation_discovery import (
             FederationDiscovery, DiscoveryCategory, AnnouncementStatus
         )
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -7757,8 +7757,8 @@ class TestFederationDiscovery:
 
     def test_discover_by_category(self):
         """Can discover federations by category."""
-        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_discovery import FederationDiscovery, DiscoveryCategory
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -7803,10 +7803,10 @@ class TestFederationDiscovery:
 
     def test_handshake_initiation(self):
         """Can initiate connection handshake."""
-        from hardbound.federation_discovery import (
+        from .federation_discovery import (
             FederationDiscovery, DiscoveryCategory, HandshakeStatus
         )
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -7841,10 +7841,10 @@ class TestFederationDiscovery:
 
     def test_handshake_acceptance_establishes_trust(self):
         """Accepting handshake establishes trust relationship."""
-        from hardbound.federation_discovery import (
+        from .federation_discovery import (
             FederationDiscovery, DiscoveryCategory, HandshakeStatus
         )
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -7874,10 +7874,10 @@ class TestFederationDiscovery:
 
     def test_handshake_rejection(self):
         """Rejecting handshake does not establish trust."""
-        from hardbound.federation_discovery import (
+        from .federation_discovery import (
             FederationDiscovery, DiscoveryCategory, HandshakeStatus
         )
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -7906,8 +7906,8 @@ class TestFederationDiscovery:
 
     def test_reputation_requirement_blocks_low_rep(self):
         """Federations below reputation threshold cannot initiate handshake."""
-        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_discovery import FederationDiscovery, DiscoveryCategory
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
         import pytest
@@ -7932,8 +7932,8 @@ class TestFederationDiscovery:
 
     def test_discovery_statistics(self):
         """Can get discovery network statistics."""
-        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_discovery import FederationDiscovery, DiscoveryCategory
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -7957,9 +7957,9 @@ class TestFederationDiscovery:
 
     def test_discovery_with_reputation_aggregator(self):
         """Track CA: Discovery uses ReputationAggregator for dynamic reputation."""
-        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .federation_discovery import FederationDiscovery, DiscoveryCategory
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8021,9 +8021,9 @@ class TestReputationHistory:
 
     def test_take_snapshot(self):
         """Can take reputation snapshot."""
-        from hardbound.reputation_history import ReputationHistory
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_history import ReputationHistory
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8044,9 +8044,9 @@ class TestReputationHistory:
 
     def test_change_detection(self):
         """Significant changes are detected and recorded."""
-        from hardbound.reputation_history import ReputationHistory
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_history import ReputationHistory
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8071,9 +8071,9 @@ class TestReputationHistory:
 
     def test_trend_analysis(self):
         """Trend analysis identifies rising/stable/declining patterns."""
-        from hardbound.reputation_history import ReputationHistory, ReputationTrend
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_history import ReputationHistory, ReputationTrend
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8099,9 +8099,9 @@ class TestReputationHistory:
 
     def test_anomaly_detection(self):
         """Large sudden changes are flagged as anomalies."""
-        from hardbound.reputation_history import ReputationHistory
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_history import ReputationHistory
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8130,9 +8130,9 @@ class TestReputationHistory:
 
     def test_timeline_retrieval(self):
         """Can retrieve reputation timeline for a federation."""
-        from hardbound.reputation_history import ReputationHistory
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .reputation_history import ReputationHistory
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -8159,8 +8159,8 @@ class TestDiscoveryReputationAttacks:
 
     def test_spam_federations_have_lower_calculated_reputation(self):
         """Spam federations without endorsers have low calculated reputation."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8185,8 +8185,8 @@ class TestDiscoveryReputationAttacks:
 
     def test_circular_trust_limited(self):
         """Circular trust between small groups provides limited reputation."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8218,8 +8218,8 @@ class TestDiscoveryReputationAttacks:
 
     def test_sybil_endorsement_limited_by_source_quality(self):
         """Sybil endorsers with low presence provide limited reputation boost."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8244,7 +8244,7 @@ class TestDiscoveryReputationAttacks:
 
     def test_attack21_defenses_hold(self):
         """Full Attack 21 simulation passes (all defenses hold)."""
-        from hardbound.attack_simulations import attack_discovery_and_reputation
+        from .attack_simulations import attack_discovery_and_reputation
 
         result = attack_discovery_and_reputation()
 
@@ -8260,7 +8260,7 @@ class TestGovernanceAuditTrail:
 
     def test_record_event_creates_hash_chain(self):
         """Recording events creates linked hash chain."""
-        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        from .governance_audit import GovernanceAuditTrail, AuditEventType
         import tempfile
         from pathlib import Path
 
@@ -8292,7 +8292,7 @@ class TestGovernanceAuditTrail:
 
     def test_verify_chain_integrity_valid(self):
         """Chain verification passes for untampered records."""
-        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        from .governance_audit import GovernanceAuditTrail, AuditEventType
         import tempfile
         from pathlib import Path
 
@@ -8316,7 +8316,7 @@ class TestGovernanceAuditTrail:
 
     def test_get_federation_history(self):
         """Can query audit history for a specific federation."""
-        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        from .governance_audit import GovernanceAuditTrail, AuditEventType
         import tempfile
         from pathlib import Path
 
@@ -8337,7 +8337,7 @@ class TestGovernanceAuditTrail:
 
     def test_get_proposal_history(self):
         """Can track full lifecycle of a proposal."""
-        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        from .governance_audit import GovernanceAuditTrail, AuditEventType
         import tempfile
         from pathlib import Path
 
@@ -8373,7 +8373,7 @@ class TestGovernanceAuditTrail:
 
     def test_export_for_compliance(self):
         """Compliance export includes verification and all records."""
-        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        from .governance_audit import GovernanceAuditTrail, AuditEventType
         import tempfile
         from pathlib import Path
 
@@ -8404,7 +8404,7 @@ class TestGovernanceAuditTrail:
 
     def test_statistics(self):
         """Statistics correctly count events by type."""
-        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        from .governance_audit import GovernanceAuditTrail, AuditEventType
         import tempfile
         from pathlib import Path
 
@@ -8426,7 +8426,7 @@ class TestGovernanceAuditTrail:
 
     def test_filter_by_event_type(self):
         """Can filter federation history by event types."""
-        from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+        from .governance_audit import GovernanceAuditTrail, AuditEventType
         import tempfile
         from pathlib import Path
 
@@ -8455,7 +8455,7 @@ class TestCrossFederationAudit:
 
     def test_record_cross_federation_event(self):
         """Recording cross-federation events creates linked hash chain."""
-        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        from .cross_federation_audit import CrossFederationAudit, CrossFederationEventType
         import tempfile
         from pathlib import Path
 
@@ -8480,7 +8480,7 @@ class TestCrossFederationAudit:
 
     def test_hash_chain_links(self):
         """Multiple records form a linked hash chain."""
-        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        from .cross_federation_audit import CrossFederationAudit, CrossFederationEventType
         import tempfile
         from pathlib import Path
 
@@ -8506,7 +8506,7 @@ class TestCrossFederationAudit:
 
     def test_acknowledge_event(self):
         """Federation acknowledgment tracking works."""
-        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        from .cross_federation_audit import CrossFederationAudit, CrossFederationEventType
         import tempfile
         from pathlib import Path
 
@@ -8537,7 +8537,7 @@ class TestCrossFederationAudit:
 
     def test_get_events_for_federation(self):
         """Can query events involving a specific federation."""
-        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        from .cross_federation_audit import CrossFederationAudit, CrossFederationEventType
         import tempfile
         from pathlib import Path
 
@@ -8569,7 +8569,7 @@ class TestCrossFederationAudit:
 
     def test_verify_chain_integrity(self):
         """Chain verification detects tampering."""
-        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        from .cross_federation_audit import CrossFederationAudit, CrossFederationEventType
         import tempfile
         from pathlib import Path
 
@@ -8591,7 +8591,7 @@ class TestCrossFederationAudit:
 
     def test_export_unified_audit(self):
         """Can export unified audit with acknowledgment status."""
-        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        from .cross_federation_audit import CrossFederationAudit, CrossFederationEventType
         import tempfile
         from pathlib import Path
 
@@ -8630,7 +8630,7 @@ class TestTimeBasedAttacks:
 
     def test_attack22_defenses_hold(self):
         """Full Attack 22 simulation passes (all defenses hold)."""
-        from hardbound.attack_simulations import attack_time_based_vectors
+        from .attack_simulations import attack_time_based_vectors
 
         result = attack_time_based_vectors()
 
@@ -8642,9 +8642,9 @@ class TestTimeBasedAttacks:
 
     def test_discovery_race_prevented(self):
         """Low-reputation federations filtered from discovery results."""
-        from hardbound.federation_discovery import FederationDiscovery, DiscoveryCategory
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .federation_discovery import FederationDiscovery, DiscoveryCategory
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8684,8 +8684,8 @@ class TestTimeBasedAttacks:
 
     def test_trust_update_consistency(self):
         """Trust updates are reflected in reputation calculation (with cache bypass)."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8711,9 +8711,9 @@ class TestTimeBasedAttacks:
 
     def test_reputation_timeline_ordering(self):
         """Reputation timeline maintains correct temporal ordering."""
-        from hardbound.reputation_aggregation import ReputationAggregator
-        from hardbound.reputation_history import ReputationHistory
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .reputation_aggregation import ReputationAggregator
+        from .reputation_history import ReputationHistory
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
         import time
@@ -8741,7 +8741,7 @@ class TestTimeBasedAttacks:
 
     def test_audit_chain_integrity(self):
         """Audit chain maintains integrity under rapid operations."""
-        from hardbound.cross_federation_audit import CrossFederationAudit, CrossFederationEventType
+        from .cross_federation_audit import CrossFederationAudit, CrossFederationEventType
         import tempfile
         from pathlib import Path
 
@@ -8768,8 +8768,8 @@ class TestFederationHealthMonitor:
 
     def test_check_health_returns_report(self):
         """Health check returns comprehensive report."""
-        from hardbound.federation_health import FederationHealthMonitor, HealthLevel
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .federation_health import FederationHealthMonitor, HealthLevel
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8789,8 +8789,8 @@ class TestFederationHealthMonitor:
 
     def test_trust_health_improves_with_relationships(self):
         """Trust health improves with more trust relationships."""
-        from hardbound.federation_health import FederationHealthMonitor
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .federation_health import FederationHealthMonitor
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8818,8 +8818,8 @@ class TestFederationHealthMonitor:
 
     def test_health_history_recorded(self):
         """Health checks are recorded in history."""
-        from hardbound.federation_health import FederationHealthMonitor
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_health import FederationHealthMonitor
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -8840,8 +8840,8 @@ class TestFederationHealthMonitor:
 
     def test_alerts_generated_for_low_trust(self):
         """Alerts generated for federations with low trust diversity."""
-        from hardbound.federation_health import FederationHealthMonitor, AlertType
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_health import FederationHealthMonitor, AlertType
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -8860,8 +8860,8 @@ class TestFederationHealthMonitor:
 
     def test_network_health_summary(self):
         """Network health provides aggregate statistics."""
-        from hardbound.federation_health import FederationHealthMonitor
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .federation_health import FederationHealthMonitor
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8883,8 +8883,8 @@ class TestFederationHealthMonitor:
 
     def test_acknowledge_and_resolve_alerts(self):
         """Alerts can be acknowledged and resolved."""
-        from hardbound.federation_health import FederationHealthMonitor
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_health import FederationHealthMonitor
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -8916,8 +8916,8 @@ class TestTrustNetworkAnalyzer:
 
     def test_build_network(self):
         """Network is built from registry relationships."""
-        from hardbound.trust_network import TrustNetworkAnalyzer
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .trust_network import TrustNetworkAnalyzer
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8938,8 +8938,8 @@ class TestTrustNetworkAnalyzer:
 
     def test_find_trust_path(self):
         """Trust paths can be found between federations."""
-        from hardbound.trust_network import TrustNetworkAnalyzer
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .trust_network import TrustNetworkAnalyzer
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8965,8 +8965,8 @@ class TestTrustNetworkAnalyzer:
 
     def test_detect_clusters(self):
         """Clusters of connected federations are detected."""
-        from hardbound.trust_network import TrustNetworkAnalyzer
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .trust_network import TrustNetworkAnalyzer
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -8997,8 +8997,8 @@ class TestTrustNetworkAnalyzer:
 
     def test_detect_anomalies(self):
         """Network anomalies are detected."""
-        from hardbound.trust_network import TrustNetworkAnalyzer
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .trust_network import TrustNetworkAnalyzer
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -9022,8 +9022,8 @@ class TestTrustNetworkAnalyzer:
 
     def test_export_graph(self):
         """Network can be exported as graph data structure."""
-        from hardbound.trust_network import TrustNetworkAnalyzer
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .trust_network import TrustNetworkAnalyzer
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -9051,8 +9051,8 @@ class TestFederationRecovery:
 
     def test_report_incident(self):
         """Incidents can be reported and recorded."""
-        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_recovery import FederationRecoveryManager, IncidentType
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -9076,8 +9076,8 @@ class TestFederationRecovery:
 
     def test_auto_quarantine_high_severity(self):
         """High severity incidents trigger auto-quarantine."""
-        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -9101,8 +9101,8 @@ class TestFederationRecovery:
 
     def test_recovery_workflow(self):
         """Full recovery workflow: quarantine -> recover -> complete."""
-        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -9132,8 +9132,8 @@ class TestFederationRecovery:
 
     def test_quarantine_preserves_trust_snapshot(self):
         """Quarantine preserves trust relationship snapshot."""
-        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .federation_recovery import FederationRecoveryManager, IncidentType
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -9158,8 +9158,8 @@ class TestFederationRecovery:
 
     def test_revoke_federation(self):
         """Federations can be permanently revoked."""
-        from hardbound.federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .federation_recovery import FederationRecoveryManager, IncidentType, RecoveryStatus
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -9187,8 +9187,8 @@ class TestPartitionResilience:
 
     def test_analyze_network_resilience(self):
         """Can analyze network resilience to partitions."""
-        from hardbound.partition_resilience import PartitionResilienceManager, PartitionRisk
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .partition_resilience import PartitionResilienceManager, PartitionRisk
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -9216,8 +9216,8 @@ class TestPartitionResilience:
 
     def test_detect_partition_status(self):
         """Can detect if network is partitioned."""
-        from hardbound.partition_resilience import PartitionResilienceManager
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .partition_resilience import PartitionResilienceManager
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -9242,8 +9242,8 @@ class TestPartitionResilience:
 
     def test_partition_alerts(self):
         """Can create and manage partition alerts."""
-        from hardbound.partition_resilience import PartitionResilienceManager, PartitionRisk
-        from hardbound.multi_federation import MultiFederationRegistry
+        from .partition_resilience import PartitionResilienceManager, PartitionRisk
+        from .multi_federation import MultiFederationRegistry
         import tempfile
         from pathlib import Path
 
@@ -9273,8 +9273,8 @@ class TestPartitionResilience:
 
     def test_partition_event_recording(self):
         """Can record and verify partition events."""
-        from hardbound.partition_resilience import PartitionResilienceManager
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .partition_resilience import PartitionResilienceManager
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -9295,8 +9295,8 @@ class TestPartitionResilience:
 
     def test_resilience_history(self):
         """Resilience snapshots are tracked over time."""
-        from hardbound.partition_resilience import PartitionResilienceManager
-        from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+        from .partition_resilience import PartitionResilienceManager
+        from .multi_federation import MultiFederationRegistry, FederationRelationship
         import tempfile
         from pathlib import Path
 
@@ -9329,38 +9329,38 @@ class TestMRHExploitation:
 
     def test_attack_simulation_runs(self):
         """MRH exploitation attack can be executed."""
-        from hardbound.attack_simulations import attack_mrh_exploitation
+        from .attack_simulations import attack_mrh_exploitation
         result = attack_mrh_exploitation()
         assert result.attack_name == "MRH Exploitation (CV)"
         assert not result.success  # All defenses should hold
 
     def test_horizon_depth_enforced(self):
         """Horizon depth limits are properly enforced."""
-        from hardbound.attack_simulations import attack_mrh_exploitation
+        from .attack_simulations import attack_mrh_exploitation
         result = attack_mrh_exploitation()
         assert result.raw_data["defenses"]["horizon_depth_enforced"]
 
     def test_role_context_validation(self):
         """Role-context validation prevents cross-role trust leakage."""
-        from hardbound.attack_simulations import attack_mrh_exploitation
+        from .attack_simulations import attack_mrh_exploitation
         result = attack_mrh_exploitation()
         assert result.raw_data["defenses"]["role_context_validation"]
 
     def test_edge_weight_bounds(self):
         """Edge weights are properly bounded."""
-        from hardbound.attack_simulations import attack_mrh_exploitation
+        from .attack_simulations import attack_mrh_exploitation
         result = attack_mrh_exploitation()
         assert result.raw_data["defenses"]["edge_weight_bounds"]
 
     def test_relationship_type_verification(self):
         """Invalid relationship types are rejected."""
-        from hardbound.attack_simulations import attack_mrh_exploitation
+        from .attack_simulations import attack_mrh_exploitation
         result = attack_mrh_exploitation()
         assert result.raw_data["defenses"]["relationship_type_verification"]
 
     def test_circular_reference_detection(self):
         """Circular trust references are detected."""
-        from hardbound.attack_simulations import attack_mrh_exploitation
+        from .attack_simulations import attack_mrh_exploitation
         result = attack_mrh_exploitation()
         assert result.raw_data["defenses"]["circular_reference_detection"]
 
@@ -9374,38 +9374,38 @@ class TestV3Manipulation:
 
     def test_attack_simulation_runs(self):
         """V3 manipulation attack can be executed."""
-        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        from .attack_simulations import attack_v3_value_tensor_manipulation
         result = attack_v3_value_tensor_manipulation()
         assert result.attack_name == "V3 Value Tensor Manipulation (CW)"
         assert not result.success  # All defenses should hold
 
     def test_valuation_inflation_detected(self):
         """Valuation inflation from colluding recipients is detected."""
-        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        from .attack_simulations import attack_v3_value_tensor_manipulation
         result = attack_v3_value_tensor_manipulation()
         assert result.raw_data["defenses"]["valuation_inflation_detected"]
 
     def test_veracity_gaming_blocked(self):
         """Trivial claim gaming is blocked."""
-        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        from .attack_simulations import attack_v3_value_tensor_manipulation
         result = attack_v3_value_tensor_manipulation()
         assert result.raw_data["defenses"]["veracity_gaming_blocked"]
 
     def test_validity_manipulation_blocked(self):
         """Self-validation of transfers is blocked."""
-        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        from .attack_simulations import attack_v3_value_tensor_manipulation
         result = attack_v3_value_tensor_manipulation()
         assert result.raw_data["defenses"]["validity_manipulation_blocked"]
 
     def test_cross_context_isolation(self):
         """V3 scores are isolated by context."""
-        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        from .attack_simulations import attack_v3_value_tensor_manipulation
         result = attack_v3_value_tensor_manipulation()
         assert result.raw_data["defenses"]["cross_context_isolation"]
 
     def test_witness_collusion_detection(self):
         """Repeated witness groups are detected."""
-        from hardbound.attack_simulations import attack_v3_value_tensor_manipulation
+        from .attack_simulations import attack_v3_value_tensor_manipulation
         result = attack_v3_value_tensor_manipulation()
         assert result.raw_data["defenses"]["witness_collusion_detection"]
 
@@ -9419,38 +9419,38 @@ class TestConcurrentRaceConditions:
 
     def test_attack_simulation_runs(self):
         """Race condition attack can be executed."""
-        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        from .attack_simulations import attack_concurrent_race_conditions
         result = attack_concurrent_race_conditions()
         assert result.attack_name == "Concurrent Race Conditions (CX)"
         assert not result.success  # All defenses should hold
 
     def test_atp_double_spend_blocked(self):
         """ATP double-spend via concurrent requests is blocked."""
-        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        from .attack_simulations import attack_concurrent_race_conditions
         result = attack_concurrent_race_conditions()
         assert result.raw_data["defenses"]["atp_double_spend_blocked"]
 
     def test_trust_toctou_protected(self):
         """Trust TOCTOU (time-of-check-time-of-use) is protected."""
-        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        from .attack_simulations import attack_concurrent_race_conditions
         result = attack_concurrent_race_conditions()
         assert result.raw_data["defenses"]["trust_toctou_protected"]
 
     def test_witness_race_protected(self):
         """Witness attestation races are protected."""
-        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        from .attack_simulations import attack_concurrent_race_conditions
         result = attack_concurrent_race_conditions()
         assert result.raw_data["defenses"]["witness_race_protected"]
 
     def test_r6_ordering_enforced(self):
         """R6 request ordering is enforced."""
-        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        from .attack_simulations import attack_concurrent_race_conditions
         result = attack_concurrent_race_conditions()
         assert result.raw_data["defenses"]["r6_ordering_enforced"]
 
     def test_multisig_atomic(self):
         """Multi-sig voting is atomic."""
-        from hardbound.attack_simulations import attack_concurrent_race_conditions
+        from .attack_simulations import attack_concurrent_race_conditions
         result = attack_concurrent_race_conditions()
         assert result.raw_data["defenses"]["multisig_atomic"]
 
@@ -9464,50 +9464,50 @@ class TestAttackChainCombinations:
 
     def test_attack_simulation_runs(self):
         """Attack chain combination can be executed."""
-        from hardbound.attack_simulations import attack_chain_combinations
+        from .attack_simulations import attack_chain_combinations
         result = attack_chain_combinations()
         assert result.attack_name == "Attack Chain Combinations (CY)"
         assert not result.success  # All defenses should hold
 
     def test_sybil_inflation_chain_blocked(self):
         """Sybil + trust inflation chain is blocked."""
-        from hardbound.attack_simulations import attack_chain_combinations
+        from .attack_simulations import attack_chain_combinations
         result = attack_chain_combinations()
         assert result.raw_data["defenses"]["sybil_inflation_chain_blocked"]
 
     def test_metabolic_atp_drain_blocked(self):
         """Metabolic + ATP drain chain is blocked."""
-        from hardbound.attack_simulations import attack_chain_combinations
+        from .attack_simulations import attack_chain_combinations
         result = attack_chain_combinations()
         assert result.raw_data["defenses"]["metabolic_atp_drain_blocked"]
 
     def test_witness_federation_collusion_blocked(self):
         """Witness + federation collusion is blocked."""
-        from hardbound.attack_simulations import attack_chain_combinations
+        from .attack_simulations import attack_chain_combinations
         result = attack_chain_combinations()
         assert result.raw_data["defenses"]["witness_federation_collusion_blocked"]
 
     def test_recovery_exploitation_blocked(self):
         """Recovery exploitation is blocked."""
-        from hardbound.attack_simulations import attack_chain_combinations
+        from .attack_simulations import attack_chain_combinations
         result = attack_chain_combinations()
         assert result.raw_data["defenses"]["recovery_exploitation_blocked"]
 
     def test_mrh_v3_smuggling_blocked(self):
         """MRH + V3 smuggling is blocked."""
-        from hardbound.attack_simulations import attack_chain_combinations
+        from .attack_simulations import attack_chain_combinations
         result = attack_chain_combinations()
         assert result.raw_data["defenses"]["mrh_v3_smuggling_blocked"]
 
     def test_decay_pump_blocked(self):
         """Decay + pump manipulation is blocked."""
-        from hardbound.attack_simulations import attack_chain_combinations
+        from .attack_simulations import attack_chain_combinations
         result = attack_chain_combinations()
         assert result.raw_data["defenses"]["decay_pump_blocked"]
 
     def test_policy_identity_chain_blocked(self):
         """Policy + identity chain is blocked."""
-        from hardbound.attack_simulations import attack_chain_combinations
+        from .attack_simulations import attack_chain_combinations
         result = attack_chain_combinations()
         assert result.raw_data["defenses"]["policy_identity_chain_blocked"]
 
@@ -9521,7 +9521,7 @@ class TestOracleDependencyInjection:
 
     def test_attack_simulation_runs(self):
         """Oracle dependency injection attack can be executed."""
-        from hardbound.attack_simulations import attack_oracle_dependency_injection
+        from .attack_simulations import attack_oracle_dependency_injection
         result = attack_oracle_dependency_injection()
         assert result.attack_name == "Oracle Dependency Injection (CZ)"
         assert not result.success  # Most defenses should hold
@@ -9533,7 +9533,7 @@ class TestOracleDependencyInjection:
         Attack with fewer updates or varying magnitudes can evade detection.
         TODO: Implement sliding window variance analysis.
         """
-        from hardbound.attack_simulations import attack_oracle_dependency_injection
+        from .attack_simulations import attack_oracle_dependency_injection
         result = attack_oracle_dependency_injection()
         # Known vulnerability: detection threshold may be evaded
         # Tracking as known issue pending improved detection algorithm
@@ -9543,7 +9543,7 @@ class TestOracleDependencyInjection:
 
     def test_historical_tampering_blocked(self):
         """Historical tampering is blocked."""
-        from hardbound.attack_simulations import attack_oracle_dependency_injection
+        from .attack_simulations import attack_oracle_dependency_injection
         result = attack_oracle_dependency_injection()
         assert result.raw_data["defenses"]["historical_tampering_blocked"]
 
@@ -9554,7 +9554,7 @@ class TestOracleDependencyInjection:
         has many low-quality oracles that collectively outweigh honest ones.
         TODO: Implement reputation-gated oracle registration.
         """
-        from hardbound.attack_simulations import attack_oracle_dependency_injection
+        from .attack_simulations import attack_oracle_dependency_injection
         result = attack_oracle_dependency_injection()
         # Known vulnerability: weighted consensus can be gamed
         # Tracking as known issue pending reputation-gated oracle system
@@ -9564,13 +9564,13 @@ class TestOracleDependencyInjection:
 
     def test_commitment_enforced(self):
         """Oracle commitment is enforced."""
-        from hardbound.attack_simulations import attack_oracle_dependency_injection
+        from .attack_simulations import attack_oracle_dependency_injection
         result = attack_oracle_dependency_injection()
         assert result.raw_data["defenses"]["commitment_enforced"]
 
     def test_stale_data_rejected(self):
         """Stale oracle data is rejected."""
-        from hardbound.attack_simulations import attack_oracle_dependency_injection
+        from .attack_simulations import attack_oracle_dependency_injection
         result = attack_oracle_dependency_injection()
         assert result.raw_data["defenses"]["stale_data_rejected"]
 
@@ -9584,38 +9584,38 @@ class TestMetabolismDesynchronization:
 
     def test_attack_simulation_runs(self):
         """Metabolism desynchronization attack can be executed."""
-        from hardbound.attack_simulations import attack_metabolism_desynchronization
+        from .attack_simulations import attack_metabolism_desynchronization
         result = attack_metabolism_desynchronization()
         assert result.attack_name == "Metabolism Desynchronization (DA)"
         assert not result.success  # All defenses should hold
 
     def test_global_state_sync(self):
         """Global state synchronization works."""
-        from hardbound.attack_simulations import attack_metabolism_desynchronization
+        from .attack_simulations import attack_metabolism_desynchronization
         result = attack_metabolism_desynchronization()
         assert result.raw_data["defenses"]["global_state_sync"]
 
     def test_cross_component_validation(self):
         """Cross-component state validation works."""
-        from hardbound.attack_simulations import attack_metabolism_desynchronization
+        from .attack_simulations import attack_metabolism_desynchronization
         result = attack_metabolism_desynchronization()
         assert result.raw_data["defenses"]["cross_component_validation"]
 
     def test_atomic_transitions(self):
         """Atomic state transitions are enforced."""
-        from hardbound.attack_simulations import attack_metabolism_desynchronization
+        from .attack_simulations import attack_metabolism_desynchronization
         result = attack_metabolism_desynchronization()
         assert result.raw_data["defenses"]["atomic_transitions"]
 
     def test_conflict_detection(self):
         """State conflicts are detected."""
-        from hardbound.attack_simulations import attack_metabolism_desynchronization
+        from .attack_simulations import attack_metabolism_desynchronization
         result = attack_metabolism_desynchronization()
         assert result.raw_data["defenses"]["conflict_detection"]
 
     def test_decay_state_coupling(self):
         """Trust decay is coupled to verified state."""
-        from hardbound.attack_simulations import attack_metabolism_desynchronization
+        from .attack_simulations import attack_metabolism_desynchronization
         result = attack_metabolism_desynchronization()
         assert result.raw_data["defenses"]["decay_state_coupling"]
 
@@ -9629,44 +9629,44 @@ class TestCheckpointReplay:
 
     def test_attack_simulation_runs(self):
         """Checkpoint replay attack can be executed."""
-        from hardbound.attack_simulations import attack_checkpoint_replay
+        from .attack_simulations import attack_checkpoint_replay
         result = attack_checkpoint_replay()
         assert result.attack_name == "Checkpoint Replay & Recovery (DB)"
         assert not result.success  # All defenses should hold
 
     def test_selective_rollback_blocked(self):
         """Selective rollback is blocked."""
-        from hardbound.attack_simulations import attack_checkpoint_replay
+        from .attack_simulations import attack_checkpoint_replay
         result = attack_checkpoint_replay()
         assert result.raw_data["defenses"]["selective_rollback_blocked"]
 
     def test_double_use_prevention(self):
         """Double-use of checkpoints is prevented."""
-        from hardbound.attack_simulations import attack_checkpoint_replay
+        from .attack_simulations import attack_checkpoint_replay
         result = attack_checkpoint_replay()
         assert result.raw_data["defenses"]["double_use_prevention"]
 
     def test_checkpoint_pollution_bounded(self):
         """Checkpoint pollution is bounded."""
-        from hardbound.attack_simulations import attack_checkpoint_replay
+        from .attack_simulations import attack_checkpoint_replay
         result = attack_checkpoint_replay()
         assert result.raw_data["defenses"]["checkpoint_pollution_bounded"]
 
     def test_recovery_window_monitored(self):
         """Recovery window is monitored."""
-        from hardbound.attack_simulations import attack_checkpoint_replay
+        from .attack_simulations import attack_checkpoint_replay
         result = attack_checkpoint_replay()
         assert result.raw_data["defenses"]["recovery_window_monitored"]
 
     def test_state_decay_on_recovery(self):
         """State decay is applied on recovery."""
-        from hardbound.attack_simulations import attack_checkpoint_replay
+        from .attack_simulations import attack_checkpoint_replay
         result = attack_checkpoint_replay()
         assert result.raw_data["defenses"]["state_decay_on_recovery"]
 
     def test_immutable_recovery_history(self):
         """Recovery history is immutable."""
-        from hardbound.attack_simulations import attack_checkpoint_replay
+        from .attack_simulations import attack_checkpoint_replay
         result = attack_checkpoint_replay()
         assert result.raw_data["defenses"]["immutable_recovery_history"]
 
@@ -9680,44 +9680,44 @@ class TestSemanticPolicyConfusion:
 
     def test_attack_simulation_runs(self):
         """Semantic policy confusion attack can be executed."""
-        from hardbound.attack_simulations import attack_semantic_policy_confusion
+        from .attack_simulations import attack_semantic_policy_confusion
         result = attack_semantic_policy_confusion()
         assert result.attack_name == "Semantic Policy Entity Confusion (DC)"
         assert not result.success  # All defenses should hold
 
     def test_scope_binding_enforced(self):
         """Scope binding is enforced."""
-        from hardbound.attack_simulations import attack_semantic_policy_confusion
+        from .attack_simulations import attack_semantic_policy_confusion
         result = attack_semantic_policy_confusion()
         assert result.raw_data["defenses"]["scope_binding_enforced"]
 
     def test_witness_domain_validation(self):
         """Witness domain validation works."""
-        from hardbound.attack_simulations import attack_semantic_policy_confusion
+        from .attack_simulations import attack_semantic_policy_confusion
         result = attack_semantic_policy_confusion()
         assert result.raw_data["defenses"]["witness_domain_validation"]
 
     def test_semantic_type_separation(self):
         """Semantic type separation is enforced."""
-        from hardbound.attack_simulations import attack_semantic_policy_confusion
+        from .attack_simulations import attack_semantic_policy_confusion
         result = attack_semantic_policy_confusion()
         assert result.raw_data["defenses"]["semantic_type_separation"]
 
     def test_dictionary_access_control(self):
         """Dictionary access control works."""
-        from hardbound.attack_simulations import attack_semantic_policy_confusion
+        from .attack_simulations import attack_semantic_policy_confusion
         result = attack_semantic_policy_confusion()
         assert result.raw_data["defenses"]["dictionary_access_control"]
 
     def test_binding_hierarchy_validation(self):
         """Binding hierarchy is validated."""
-        from hardbound.attack_simulations import attack_semantic_policy_confusion
+        from .attack_simulations import attack_semantic_policy_confusion
         result = attack_semantic_policy_confusion()
         assert result.raw_data["defenses"]["binding_hierarchy_validation"]
 
     def test_role_scope_isolation(self):
         """Role scope is isolated."""
-        from hardbound.attack_simulations import attack_semantic_policy_confusion
+        from .attack_simulations import attack_semantic_policy_confusion
         result = attack_semantic_policy_confusion()
         assert result.raw_data["defenses"]["role_scope_isolation"]
 
@@ -9731,38 +9731,38 @@ class TestAccumulationStarvation:
 
     def test_attack_simulation_runs(self):
         """Accumulation starvation attack can be executed."""
-        from hardbound.attack_simulations import attack_accumulation_starvation
+        from .attack_simulations import attack_accumulation_starvation
         result = attack_accumulation_starvation()
         assert result.attack_name == "Accumulation Starvation (DD)"
         assert not result.success  # Most defenses should hold
 
     def test_witness_availability_reserve(self):
         """Witness availability reserve protects newcomers."""
-        from hardbound.attack_simulations import attack_accumulation_starvation
+        from .attack_simulations import attack_accumulation_starvation
         result = attack_accumulation_starvation()
         assert result.raw_data["defenses"]["witness_availability_reserve"]
 
     def test_reputation_rate_limiting(self):
         """Reputation rate limiting is effective."""
-        from hardbound.attack_simulations import attack_accumulation_starvation
+        from .attack_simulations import attack_accumulation_starvation
         result = attack_accumulation_starvation()
         assert result.raw_data["defenses"]["reputation_rate_limiting"]
 
     def test_backpressure_mechanism(self):
         """Backpressure mechanism works."""
-        from hardbound.attack_simulations import attack_accumulation_starvation
+        from .attack_simulations import attack_accumulation_starvation
         result = attack_accumulation_starvation()
         assert result.raw_data["defenses"]["backpressure_mechanism"]
 
     def test_newcomer_protection(self):
         """Newcomer protection is active."""
-        from hardbound.attack_simulations import attack_accumulation_starvation
+        from .attack_simulations import attack_accumulation_starvation
         result = attack_accumulation_starvation()
         assert result.raw_data["defenses"]["newcomer_protection"]
 
     def test_evidence_retention_guarantee(self):
         """Evidence retention is guaranteed."""
-        from hardbound.attack_simulations import attack_accumulation_starvation
+        from .attack_simulations import attack_accumulation_starvation
         result = attack_accumulation_starvation()
         assert result.raw_data["defenses"]["evidence_retention_guarantee"]
 
@@ -9772,26 +9772,26 @@ class TestDictionaryEntityPoisoning:
 
     def test_attack_simulation_runs(self):
         """Dictionary entity poisoning attack can be executed."""
-        from hardbound.attack_simulations import attack_dictionary_entity_poisoning
+        from .attack_simulations import attack_dictionary_entity_poisoning
         result = attack_dictionary_entity_poisoning()
         assert result.attack_name == "Dictionary Entity Poisoning (DE)"
         assert not result.success  # Most defenses should hold
 
     def test_semantic_diff_audit(self):
         """Semantic diff audit blocks large changes."""
-        from hardbound.attack_simulations import attack_dictionary_entity_poisoning
+        from .attack_simulations import attack_dictionary_entity_poisoning
         result = attack_dictionary_entity_poisoning()
         assert result.raw_data["defenses"]["semantic_diff_audit"]
 
     def test_edit_trust_threshold(self):
         """Edit trust threshold is enforced."""
-        from hardbound.attack_simulations import attack_dictionary_entity_poisoning
+        from .attack_simulations import attack_dictionary_entity_poisoning
         result = attack_dictionary_entity_poisoning()
         assert result.raw_data["defenses"]["edit_trust_threshold"]
 
     def test_rollback_capability(self):
         """Rollback capability exists."""
-        from hardbound.attack_simulations import attack_dictionary_entity_poisoning
+        from .attack_simulations import attack_dictionary_entity_poisoning
         result = attack_dictionary_entity_poisoning()
         assert result.raw_data["defenses"]["rollback_capability"]
 
@@ -9801,26 +9801,26 @@ class TestMCPRelayInjection:
 
     def test_attack_simulation_runs(self):
         """MCP relay injection attack can be executed."""
-        from hardbound.attack_simulations import attack_mcp_relay_injection
+        from .attack_simulations import attack_mcp_relay_injection
         result = attack_mcp_relay_injection()
         assert result.attack_name == "MCP Relay Injection (DF)"
         assert not result.success  # Most defenses should hold
 
     def test_message_signing(self):
         """Message signing prevents tampering."""
-        from hardbound.attack_simulations import attack_mcp_relay_injection
+        from .attack_simulations import attack_mcp_relay_injection
         result = attack_mcp_relay_injection()
         assert result.raw_data["defenses"]["message_signing"]
 
     def test_nonce_replay_prevention(self):
         """Nonce prevents replay attacks."""
-        from hardbound.attack_simulations import attack_mcp_relay_injection
+        from .attack_simulations import attack_mcp_relay_injection
         result = attack_mcp_relay_injection()
         assert result.raw_data["defenses"]["nonce_replay_prevention"]
 
     def test_relay_trust_verification(self):
         """Relay trust is verified."""
-        from hardbound.attack_simulations import attack_mcp_relay_injection
+        from .attack_simulations import attack_mcp_relay_injection
         result = attack_mcp_relay_injection()
         assert result.raw_data["defenses"]["relay_trust_verification"]
 
@@ -9830,26 +9830,26 @@ class TestATPRechargeFrontrunning:
 
     def test_attack_simulation_runs(self):
         """ATP recharge frontrunning attack can be executed."""
-        from hardbound.attack_simulations import attack_atp_recharge_frontrunning
+        from .attack_simulations import attack_atp_recharge_frontrunning
         result = attack_atp_recharge_frontrunning()
         assert result.attack_name == "ATP Recharge Frontrunning (DG)"
         assert not result.success  # Most defenses should hold
 
     def test_commit_reveal_scheme(self):
         """Commit-reveal prevents frontrunning."""
-        from hardbound.attack_simulations import attack_atp_recharge_frontrunning
+        from .attack_simulations import attack_atp_recharge_frontrunning
         result = attack_atp_recharge_frontrunning()
         assert result.raw_data["defenses"]["commit_reveal_scheme"]
 
     def test_producer_binding(self):
         """Producer binding is enforced."""
-        from hardbound.attack_simulations import attack_atp_recharge_frontrunning
+        from .attack_simulations import attack_atp_recharge_frontrunning
         result = attack_atp_recharge_frontrunning()
         assert result.raw_data["defenses"]["producer_binding"]
 
     def test_value_proof_uniqueness(self):
         """Value proofs can only be claimed once."""
-        from hardbound.attack_simulations import attack_atp_recharge_frontrunning
+        from .attack_simulations import attack_atp_recharge_frontrunning
         result = attack_atp_recharge_frontrunning()
         assert result.raw_data["defenses"]["value_proof_uniqueness"]
 
@@ -9859,26 +9859,26 @@ class TestCrossModelDictionaryDrift:
 
     def test_attack_simulation_runs(self):
         """Cross-model dictionary drift attack can be executed."""
-        from hardbound.attack_simulations import attack_cross_model_dictionary_drift
+        from .attack_simulations import attack_cross_model_dictionary_drift
         result = attack_cross_model_dictionary_drift()
         assert result.attack_name == "Cross-Model Dictionary Drift (DH)"
         assert not result.success  # Most defenses should hold
 
     def test_alignment_drift_monitoring(self):
         """Alignment drift is monitored."""
-        from hardbound.attack_simulations import attack_cross_model_dictionary_drift
+        from .attack_simulations import attack_cross_model_dictionary_drift
         result = attack_cross_model_dictionary_drift()
         assert result.raw_data["defenses"]["alignment_drift_monitoring"]
 
     def test_bidirectional_consistency(self):
         """Bidirectional consistency is checked."""
-        from hardbound.attack_simulations import attack_cross_model_dictionary_drift
+        from .attack_simulations import attack_cross_model_dictionary_drift
         result = attack_cross_model_dictionary_drift()
         assert result.raw_data["defenses"]["bidirectional_consistency"]
 
     def test_semantic_canary_terms(self):
         """Semantic canary terms detect drift."""
-        from hardbound.attack_simulations import attack_cross_model_dictionary_drift
+        from .attack_simulations import attack_cross_model_dictionary_drift
         result = attack_cross_model_dictionary_drift()
         assert result.raw_data["defenses"]["semantic_canary_terms"]
 
@@ -9888,26 +9888,26 @@ class TestMRHScopeInflation:
 
     def test_attack_simulation_runs(self):
         """MRH scope inflation attack can be executed."""
-        from hardbound.attack_simulations import attack_mrh_scope_inflation
+        from .attack_simulations import attack_mrh_scope_inflation
         result = attack_mrh_scope_inflation()
         assert result.attack_name == "MRH Scope Inflation (DI)"
         assert not result.success  # Most defenses should hold
 
     def test_mrh_boundary_verification(self):
         """MRH boundary verification is enforced."""
-        from hardbound.attack_simulations import attack_mrh_scope_inflation
+        from .attack_simulations import attack_mrh_scope_inflation
         result = attack_mrh_scope_inflation()
         assert result.raw_data["defenses"]["mrh_boundary_verification"]
 
     def test_scope_change_authorization(self):
         """Scope changes require authorization."""
-        from hardbound.attack_simulations import attack_mrh_scope_inflation
+        from .attack_simulations import attack_mrh_scope_inflation
         result = attack_mrh_scope_inflation()
         assert result.raw_data["defenses"]["scope_change_authorization"]
 
     def test_cross_domain_scope_isolation(self):
         """Cross-domain scope isolation is enforced."""
-        from hardbound.attack_simulations import attack_mrh_scope_inflation
+        from .attack_simulations import attack_mrh_scope_inflation
         result = attack_mrh_scope_inflation()
         assert result.raw_data["defenses"]["cross_domain_scope_isolation"]
 
@@ -9917,32 +9917,32 @@ class TestADPMetadataPersistence:
 
     def test_attack_simulation_runs(self):
         """ADP metadata persistence attack can be executed."""
-        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        from .attack_simulations import attack_adp_metadata_persistence
         result = attack_adp_metadata_persistence()
         assert result.attack_name == "ADP Metadata Persistence (DJ)"
         assert not result.success  # Most defenses should hold
 
     def test_metadata_clearing_verification(self):
         """Metadata clearing is verified."""
-        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        from .attack_simulations import attack_adp_metadata_persistence
         result = attack_adp_metadata_persistence()
         assert result.raw_data["defenses"]["metadata_clearing_verification"]
 
     def test_recharge_isolation(self):
         """Recharge isolation protects metadata."""
-        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        from .attack_simulations import attack_adp_metadata_persistence
         result = attack_adp_metadata_persistence()
         assert result.raw_data["defenses"]["recharge_isolation"]
 
     def test_linkage_prevention(self):
         """Linkage prevention is active."""
-        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        from .attack_simulations import attack_adp_metadata_persistence
         result = attack_adp_metadata_persistence()
         assert result.raw_data["defenses"]["linkage_prevention"]
 
     def test_zero_knowledge_recharge(self):
         """Zero-knowledge recharge is functional."""
-        from hardbound.attack_simulations import attack_adp_metadata_persistence
+        from .attack_simulations import attack_adp_metadata_persistence
         result = attack_adp_metadata_persistence()
         assert result.raw_data["defenses"]["zero_knowledge_recharge"]
 
@@ -9952,44 +9952,44 @@ class TestCrossLayerAttackChains:
 
     def test_attack_simulation_runs(self):
         """Cross-layer attack chain can be executed."""
-        from hardbound.attack_simulations import attack_cross_layer_chains
+        from .attack_simulations import attack_cross_layer_chains
         result = attack_cross_layer_chains()
         assert result.attack_name == "Cross-Layer Attack Chains (DK)"
         assert not result.success  # Most defenses should hold
 
     def test_dictionary_mcp_chain(self):
         """Dictionary-MCP chain is blocked."""
-        from hardbound.attack_simulations import attack_cross_layer_chains
+        from .attack_simulations import attack_cross_layer_chains
         result = attack_cross_layer_chains()
         assert result.raw_data["defenses"]["dictionary_mcp_chain_blocked"]
 
     def test_frontrun_sybil_chain(self):
         """Frontrun-Sybil chain is blocked."""
-        from hardbound.attack_simulations import attack_cross_layer_chains
+        from .attack_simulations import attack_cross_layer_chains
         result = attack_cross_layer_chains()
         assert result.raw_data["defenses"]["frontrun_sybil_chain_blocked"]
 
     def test_mrh_witness_chain(self):
         """MRH-Witness chain is blocked."""
-        from hardbound.attack_simulations import attack_cross_layer_chains
+        from .attack_simulations import attack_cross_layer_chains
         result = attack_cross_layer_chains()
         assert result.raw_data["defenses"]["mrh_witness_chain_blocked"]
 
     def test_metadata_identity_chain(self):
         """Metadata-Identity chain is blocked."""
-        from hardbound.attack_simulations import attack_cross_layer_chains
+        from .attack_simulations import attack_cross_layer_chains
         result = attack_cross_layer_chains()
         assert result.raw_data["defenses"]["metadata_identity_chain_blocked"]
 
     def test_mcp_recovery_chain(self):
         """MCP-Recovery chain is blocked."""
-        from hardbound.attack_simulations import attack_cross_layer_chains
+        from .attack_simulations import attack_cross_layer_chains
         result = attack_cross_layer_chains()
         assert result.raw_data["defenses"]["mcp_recovery_chain_blocked"]
 
     def test_frontrun_governance_chain(self):
         """Frontrun-Governance chain is blocked."""
-        from hardbound.attack_simulations import attack_cross_layer_chains
+        from .attack_simulations import attack_cross_layer_chains
         result = attack_cross_layer_chains()
         assert result.raw_data["defenses"]["frontrun_governance_chain_blocked"]
 
@@ -9999,38 +9999,38 @@ class TestHardwareAnchorSubstitution:
 
     def test_attack_simulation_runs(self):
         """Hardware anchor substitution attack can be executed."""
-        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        from .attack_simulations import attack_hardware_anchor_substitution
         result = attack_hardware_anchor_substitution()
         assert result.attack_name == "Hardware Anchor Substitution (DL)"
         assert not result.success  # All defenses should hold
 
     def test_anchor_type_validation(self):
         """Anchor type is validated for operations."""
-        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        from .attack_simulations import attack_hardware_anchor_substitution
         result = attack_hardware_anchor_substitution()
         assert result.raw_data["defenses"]["anchor_type_validation"]
 
     def test_witness_diversity_required(self):
         """Witness diversity is required."""
-        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        from .attack_simulations import attack_hardware_anchor_substitution
         result = attack_hardware_anchor_substitution()
         assert result.raw_data["defenses"]["witness_diversity_required"]
 
     def test_trust_weight_enforcement(self):
         """Trust weight is enforced based on anchor type."""
-        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        from .attack_simulations import attack_hardware_anchor_substitution
         result = attack_hardware_anchor_substitution()
         assert result.raw_data["defenses"]["trust_weight_enforcement"]
 
     def test_enrollment_freshness_check(self):
         """Enrollment freshness is checked."""
-        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        from .attack_simulations import attack_hardware_anchor_substitution
         result = attack_hardware_anchor_substitution()
         assert result.raw_data["defenses"]["enrollment_freshness_check"]
 
     def test_cross_witness_verification(self):
         """Cross-witness verification is required."""
-        from hardbound.attack_simulations import attack_hardware_anchor_substitution
+        from .attack_simulations import attack_hardware_anchor_substitution
         result = attack_hardware_anchor_substitution()
         assert result.raw_data["defenses"]["cross_witness_verification"]
 
@@ -10040,44 +10040,44 @@ class TestBindingProofForgery:
 
     def test_attack_simulation_runs(self):
         """Binding proof forgery attack can be executed."""
-        from hardbound.attack_simulations import attack_binding_proof_forgery
+        from .attack_simulations import attack_binding_proof_forgery
         result = attack_binding_proof_forgery()
         assert result.attack_name == "Binding Proof Forgery (DL)"
         assert not result.success  # All defenses should hold
 
     def test_attestation_chain_verification(self):
         """Attestation chain is verified."""
-        from hardbound.attack_simulations import attack_binding_proof_forgery
+        from .attack_simulations import attack_binding_proof_forgery
         result = attack_binding_proof_forgery()
         assert result.raw_data["defenses"]["attestation_chain_verification"]
 
     def test_nonce_binding(self):
         """Nonce binding is enforced."""
-        from hardbound.attack_simulations import attack_binding_proof_forgery
+        from .attack_simulations import attack_binding_proof_forgery
         result = attack_binding_proof_forgery()
         assert result.raw_data["defenses"]["nonce_binding"]
 
     def test_manufacturer_root_validation(self):
         """Manufacturer root is validated."""
-        from hardbound.attack_simulations import attack_binding_proof_forgery
+        from .attack_simulations import attack_binding_proof_forgery
         result = attack_binding_proof_forgery()
         assert result.raw_data["defenses"]["manufacturer_root_validation"]
 
     def test_attestation_freshness(self):
         """Attestation freshness is checked."""
-        from hardbound.attack_simulations import attack_binding_proof_forgery
+        from .attack_simulations import attack_binding_proof_forgery
         result = attack_binding_proof_forgery()
         assert result.raw_data["defenses"]["attestation_freshness"]
 
     def test_replay_detection(self):
         """Replay attacks are detected."""
-        from hardbound.attack_simulations import attack_binding_proof_forgery
+        from .attack_simulations import attack_binding_proof_forgery
         result = attack_binding_proof_forgery()
         assert result.raw_data["defenses"]["replay_detection"]
 
     def test_device_state_validation(self):
         """Device state is validated."""
-        from hardbound.attack_simulations import attack_binding_proof_forgery
+        from .attack_simulations import attack_binding_proof_forgery
         result = attack_binding_proof_forgery()
         assert result.raw_data["defenses"]["device_state_validation"]
 
@@ -10087,38 +10087,38 @@ class TestCrossDeviceWitnessReplay:
 
     def test_attack_simulation_runs(self):
         """Cross-device witness replay attack can be executed."""
-        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        from .attack_simulations import attack_cross_device_witness_replay
         result = attack_cross_device_witness_replay()
         assert result.attack_name == "Cross-Device Witness Chain Replay (DL)"
         assert not result.success  # All defenses should hold
 
     def test_witness_nonce_binding(self):
         """Witness nonce binding is enforced."""
-        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        from .attack_simulations import attack_cross_device_witness_replay
         result = attack_cross_device_witness_replay()
         assert result.raw_data["defenses"]["witness_nonce_binding"]
 
     def test_timestamp_verification(self):
         """Timestamp verification is enforced."""
-        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        from .attack_simulations import attack_cross_device_witness_replay
         result = attack_cross_device_witness_replay()
         assert result.raw_data["defenses"]["timestamp_verification"]
 
     def test_device_id_binding(self):
         """Device ID binding is enforced."""
-        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        from .attack_simulations import attack_cross_device_witness_replay
         result = attack_cross_device_witness_replay()
         assert result.raw_data["defenses"]["device_id_binding"]
 
     def test_sequence_number_tracking(self):
         """Sequence numbers are tracked."""
-        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        from .attack_simulations import attack_cross_device_witness_replay
         result = attack_cross_device_witness_replay()
         assert result.raw_data["defenses"]["sequence_number_tracking"]
 
     def test_witness_chain_integrity(self):
         """Witness chain integrity is verified."""
-        from hardbound.attack_simulations import attack_cross_device_witness_replay
+        from .attack_simulations import attack_cross_device_witness_replay
         result = attack_cross_device_witness_replay()
         assert result.raw_data["defenses"]["witness_chain_integrity"]
 
@@ -10128,44 +10128,44 @@ class TestRecoveryQuorumManipulation:
 
     def test_attack_simulation_runs(self):
         """Recovery quorum manipulation attack can be executed."""
-        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        from .attack_simulations import attack_recovery_quorum_manipulation
         result = attack_recovery_quorum_manipulation()
         assert result.attack_name == "Recovery Quorum Manipulation (DL)"
         assert not result.success  # All defenses should hold
 
     def test_minimum_quorum_threshold(self):
         """Minimum quorum threshold is enforced."""
-        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        from .attack_simulations import attack_recovery_quorum_manipulation
         result = attack_recovery_quorum_manipulation()
         assert result.raw_data["defenses"]["minimum_quorum_threshold"]
 
     def test_recovery_delay_period(self):
         """Recovery delay period is enforced."""
-        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        from .attack_simulations import attack_recovery_quorum_manipulation
         result = attack_recovery_quorum_manipulation()
         assert result.raw_data["defenses"]["recovery_delay_period"]
 
     def test_notification_to_all_devices(self):
         """Notification to all devices is sent."""
-        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        from .attack_simulations import attack_recovery_quorum_manipulation
         result = attack_recovery_quorum_manipulation()
         assert result.raw_data["defenses"]["notification_to_all_devices"]
 
     def test_geographic_diversity(self):
         """Geographic diversity is required."""
-        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        from .attack_simulations import attack_recovery_quorum_manipulation
         result = attack_recovery_quorum_manipulation()
         assert result.raw_data["defenses"]["geographic_diversity"]
 
     def test_recovery_challenge_verification(self):
         """Recovery challenge verification is required."""
-        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        from .attack_simulations import attack_recovery_quorum_manipulation
         result = attack_recovery_quorum_manipulation()
         assert result.raw_data["defenses"]["recovery_challenge_verification"]
 
     def test_revocation_blocks_recovery(self):
         """Revocation blocks recovery."""
-        from hardbound.attack_simulations import attack_recovery_quorum_manipulation
+        from .attack_simulations import attack_recovery_quorum_manipulation
         result = attack_recovery_quorum_manipulation()
         assert result.raw_data["defenses"]["revocation_blocks_recovery"]
 
@@ -10175,38 +10175,38 @@ class TestBindingDowngradeAttack:
 
     def test_attack_simulation_runs(self):
         """Binding downgrade attack can be executed."""
-        from hardbound.attack_simulations import attack_binding_downgrade
+        from .attack_simulations import attack_binding_downgrade
         result = attack_binding_downgrade()
         assert result.attack_name == "Binding Downgrade Attack (DL)"
         assert not result.success  # All defenses should hold
 
     def test_downgrade_requires_explicit_consent(self):
         """Downgrade requires explicit consent."""
-        from hardbound.attack_simulations import attack_binding_downgrade
+        from .attack_simulations import attack_binding_downgrade
         result = attack_binding_downgrade()
         assert result.raw_data["defenses"]["downgrade_requires_explicit_consent"]
 
     def test_binding_level_monotonicity(self):
         """Binding level monotonicity is enforced."""
-        from hardbound.attack_simulations import attack_binding_downgrade
+        from .attack_simulations import attack_binding_downgrade
         result = attack_binding_downgrade()
         assert result.raw_data["defenses"]["binding_level_monotonicity"]
 
     def test_downgrade_notification(self):
         """Downgrade notification is sent."""
-        from hardbound.attack_simulations import attack_binding_downgrade
+        from .attack_simulations import attack_binding_downgrade
         result = attack_binding_downgrade()
         assert result.raw_data["defenses"]["downgrade_notification"]
 
     def test_temporary_downgrade_expiry(self):
         """Temporary downgrade expiry is enforced."""
-        from hardbound.attack_simulations import attack_binding_downgrade
+        from .attack_simulations import attack_binding_downgrade
         result = attack_binding_downgrade()
         assert result.raw_data["defenses"]["temporary_downgrade_expiry"]
 
     def test_trust_ceiling_enforcement(self):
         """Trust ceiling is enforced after downgrade."""
-        from hardbound.attack_simulations import attack_binding_downgrade
+        from .attack_simulations import attack_binding_downgrade
         result = attack_binding_downgrade()
         assert result.raw_data["defenses"]["trust_ceiling_enforcement"]
 
@@ -10216,38 +10216,38 @@ class TestT3RoleContextLeakage:
 
     def test_attack_simulation_runs(self):
         """T3 role context leakage attack can be executed."""
-        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        from .attack_simulations import attack_t3_role_context_leakage
         result = attack_t3_role_context_leakage()
         assert result.attack_name == "T3 Role Context Leakage (DM)"
         assert not result.success
 
     def test_uniform_observable_costs(self):
         """Observable costs are uniform."""
-        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        from .attack_simulations import attack_t3_role_context_leakage
         result = attack_t3_role_context_leakage()
         assert result.raw_data["defenses"]["uniform_observable_costs"]
 
     def test_role_permission_isolation(self):
         """Role permissions are isolated."""
-        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        from .attack_simulations import attack_t3_role_context_leakage
         result = attack_t3_role_context_leakage()
         assert result.raw_data["defenses"]["role_permission_isolation"]
 
     def test_action_latency_normalization(self):
         """Action latencies are normalized."""
-        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        from .attack_simulations import attack_t3_role_context_leakage
         result = attack_t3_role_context_leakage()
         assert result.raw_data["defenses"]["action_latency_normalization"]
 
     def test_cross_role_correlation_detection(self):
         """Cross-role correlation is detected."""
-        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        from .attack_simulations import attack_t3_role_context_leakage
         result = attack_t3_role_context_leakage()
         assert result.raw_data["defenses"]["cross_role_correlation_detection"]
 
     def test_minimal_disclosure_responses(self):
         """Minimal disclosure responses are enforced."""
-        from hardbound.attack_simulations import attack_t3_role_context_leakage
+        from .attack_simulations import attack_t3_role_context_leakage
         result = attack_t3_role_context_leakage()
         assert result.raw_data["defenses"]["minimal_disclosure_responses"]
 
@@ -10257,38 +10257,38 @@ class TestRoleBoundaryConfusion:
 
     def test_attack_simulation_runs(self):
         """Role boundary confusion attack can be executed."""
-        from hardbound.attack_simulations import attack_role_boundary_confusion
+        from .attack_simulations import attack_role_boundary_confusion
         result = attack_role_boundary_confusion()
         assert result.attack_name == "Role Boundary Confusion (DM)"
         assert not result.success
 
     def test_role_context_binding(self):
         """Role context binding is enforced."""
-        from hardbound.attack_simulations import attack_role_boundary_confusion
+        from .attack_simulations import attack_role_boundary_confusion
         result = attack_role_boundary_confusion()
         assert result.raw_data["defenses"]["role_context_binding"]
 
     def test_mrh_scope_disjointness(self):
         """MRH scope disjointness is verified."""
-        from hardbound.attack_simulations import attack_role_boundary_confusion
+        from .attack_simulations import attack_role_boundary_confusion
         result = attack_role_boundary_confusion()
         assert result.raw_data["defenses"]["mrh_scope_disjointness"]
 
     def test_action_role_attestation(self):
         """Action role attestation is required."""
-        from hardbound.attack_simulations import attack_role_boundary_confusion
+        from .attack_simulations import attack_role_boundary_confusion
         result = attack_role_boundary_confusion()
         assert result.raw_data["defenses"]["action_role_attestation"]
 
     def test_retroactive_attribution_blocking(self):
         """Retroactive attribution is blocked."""
-        from hardbound.attack_simulations import attack_role_boundary_confusion
+        from .attack_simulations import attack_role_boundary_confusion
         result = attack_role_boundary_confusion()
         assert result.raw_data["defenses"]["retroactive_attribution_blocking"]
 
     def test_role_transition_audit(self):
         """Role transition is audited."""
-        from hardbound.attack_simulations import attack_role_boundary_confusion
+        from .attack_simulations import attack_role_boundary_confusion
         result = attack_role_boundary_confusion()
         assert result.raw_data["defenses"]["role_transition_audit"]
 
@@ -10298,38 +10298,38 @@ class TestT3DimensionIsolationBypass:
 
     def test_attack_simulation_runs(self):
         """T3 dimension isolation bypass attack can be executed."""
-        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        from .attack_simulations import attack_t3_dimension_isolation_bypass
         result = attack_t3_dimension_isolation_bypass()
         assert result.attack_name == "T3 Dimension Isolation Bypass (DM)"
         assert not result.success
 
     def test_dimension_independence_enforcement(self):
         """Dimension independence is enforced."""
-        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        from .attack_simulations import attack_t3_dimension_isolation_bypass
         result = attack_t3_dimension_isolation_bypass()
         assert result.raw_data["defenses"]["dimension_independence_enforcement"]
 
     def test_update_source_validation(self):
         """Update source is validated."""
-        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        from .attack_simulations import attack_t3_dimension_isolation_bypass
         result = attack_t3_dimension_isolation_bypass()
         assert result.raw_data["defenses"]["update_source_validation"]
 
     def test_cross_dimension_cap(self):
         """Cross-dimension cap is applied."""
-        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        from .attack_simulations import attack_t3_dimension_isolation_bypass
         result = attack_t3_dimension_isolation_bypass()
         assert result.raw_data["defenses"]["cross_dimension_cap"]
 
     def test_dimension_specific_evidence(self):
         """Dimension-specific evidence is required."""
-        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        from .attack_simulations import attack_t3_dimension_isolation_bypass
         result = attack_t3_dimension_isolation_bypass()
         assert result.raw_data["defenses"]["dimension_specific_evidence"]
 
     def test_anomaly_detection(self):
         """Anomaly detection is active."""
-        from hardbound.attack_simulations import attack_t3_dimension_isolation_bypass
+        from .attack_simulations import attack_t3_dimension_isolation_bypass
         result = attack_t3_dimension_isolation_bypass()
         assert result.raw_data["defenses"]["anomaly_detection"]
 
@@ -10339,38 +10339,38 @@ class TestV3VeracityWitnessCollusion:
 
     def test_attack_simulation_runs(self):
         """V3 veracity witness collusion attack can be executed."""
-        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        from .attack_simulations import attack_v3_veracity_witness_collusion
         result = attack_v3_veracity_witness_collusion()
         assert result.attack_name == "V3 Veracity Witness Collusion (DM)"
         assert not result.success
 
     def test_witness_independence_verification(self):
         """Witness independence is verified."""
-        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        from .attack_simulations import attack_v3_veracity_witness_collusion
         result = attack_v3_veracity_witness_collusion()
         assert result.raw_data["defenses"]["witness_independence_verification"]
 
     def test_veracity_evidence_requirement(self):
         """Veracity evidence is required."""
-        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        from .attack_simulations import attack_v3_veracity_witness_collusion
         result = attack_v3_veracity_witness_collusion()
         assert result.raw_data["defenses"]["veracity_evidence_requirement"]
 
     def test_cross_validation_requirement(self):
         """Cross-validation is required."""
-        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        from .attack_simulations import attack_v3_veracity_witness_collusion
         result = attack_v3_veracity_witness_collusion()
         assert result.raw_data["defenses"]["cross_validation_requirement"]
 
     def test_collusion_pattern_detection(self):
         """Collusion patterns are detected."""
-        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        from .attack_simulations import attack_v3_veracity_witness_collusion
         result = attack_v3_veracity_witness_collusion()
         assert result.raw_data["defenses"]["collusion_pattern_detection"]
 
     def test_witness_stake_requirement(self):
         """Witness stake is required."""
-        from hardbound.attack_simulations import attack_v3_veracity_witness_collusion
+        from .attack_simulations import attack_v3_veracity_witness_collusion
         result = attack_v3_veracity_witness_collusion()
         assert result.raw_data["defenses"]["witness_stake_requirement"]
 
@@ -10380,38 +10380,38 @@ class TestRoleTaskMismatch:
 
     def test_attack_simulation_runs(self):
         """Role-task mismatch attack can be executed."""
-        from hardbound.attack_simulations import attack_role_task_mismatch
+        from .attack_simulations import attack_role_task_mismatch
         result = attack_role_task_mismatch()
         assert result.attack_name == "Role-Task Mismatch Exploitation (DM)"
         assert not result.success
 
     def test_task_role_alignment_check(self):
         """Task-role alignment is checked."""
-        from hardbound.attack_simulations import attack_role_task_mismatch
+        from .attack_simulations import attack_role_task_mismatch
         result = attack_role_task_mismatch()
         assert result.raw_data["defenses"]["task_role_alignment_check"]
 
     def test_cross_role_quota_tracking(self):
         """Cross-role quota is tracked."""
-        from hardbound.attack_simulations import attack_role_task_mismatch
+        from .attack_simulations import attack_role_task_mismatch
         result = attack_role_task_mismatch()
         assert result.raw_data["defenses"]["cross_role_quota_tracking"]
 
     def test_role_capability_verification(self):
         """Role capability is verified."""
-        from hardbound.attack_simulations import attack_role_task_mismatch
+        from .attack_simulations import attack_role_task_mismatch
         result = attack_role_task_mismatch()
         assert result.raw_data["defenses"]["role_capability_verification"]
 
     def test_suspicious_role_switching_detection(self):
         """Suspicious role switching is detected."""
-        from hardbound.attack_simulations import attack_role_task_mismatch
+        from .attack_simulations import attack_role_task_mismatch
         result = attack_role_task_mismatch()
         assert result.raw_data["defenses"]["suspicious_role_switching_detection"]
 
     def test_cooldown_inheritance(self):
         """Cooldown inheritance is enforced."""
-        from hardbound.attack_simulations import attack_role_task_mismatch
+        from .attack_simulations import attack_role_task_mismatch
         result = attack_role_task_mismatch()
         assert result.raw_data["defenses"]["cooldown_inheritance"]
 

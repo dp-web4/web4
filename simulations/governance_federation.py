@@ -18,10 +18,10 @@ from typing import Dict, List, Optional, Tuple
 from enum import Enum
 from pathlib import Path
 
-from hardbound.r6 import R6Workflow, R6Request, R6Response, R6Status
-from hardbound.economic_federation import EconomicFederationRegistry, EconomicOperationResult
-from hardbound.federation_binding import FederationBindingRegistry
-from hardbound.trust_maintenance import TrustMaintenanceManager
+from .r6 import R6Workflow, R6Request, R6Response, R6Status
+from .economic_federation import EconomicFederationRegistry, EconomicOperationResult
+from .federation_binding import FederationBindingRegistry
+from .trust_maintenance import TrustMaintenanceManager
 
 
 class GovernanceActionType(Enum):

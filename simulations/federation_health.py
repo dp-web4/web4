@@ -27,8 +27,8 @@ from enum import Enum
 import json
 import hashlib
 
-from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
-from hardbound.reputation_aggregation import ReputationAggregator, ReputationScore
+from .multi_federation import MultiFederationRegistry, FederationRelationship
+from .reputation_aggregation import ReputationAggregator, ReputationScore
 
 
 class HealthLevel(Enum):

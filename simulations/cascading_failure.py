@@ -27,9 +27,9 @@ import json
 import hashlib
 import math
 
-from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
-from hardbound.trust_network import TrustNetworkAnalyzer
-from hardbound.partition_resilience import PartitionResilienceManager, PartitionRisk
+from .multi_federation import MultiFederationRegistry, FederationRelationship
+from .trust_network import TrustNetworkAnalyzer
+from .partition_resilience import PartitionResilienceManager, PartitionRisk
 
 
 class FailureType(Enum):

@@ -24,7 +24,7 @@ from collections import defaultdict
 import json
 import math
 
-from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+from .multi_federation import MultiFederationRegistry, FederationRelationship
 
 
 @dataclass

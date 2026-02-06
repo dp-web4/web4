@@ -23,9 +23,9 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
-from hardbound.trust_decay import TrustDecayCalculator, DecayConfig
-from hardbound.economic_federation import EconomicFederationRegistry, EconomicOperationResult
-from hardbound.trust_economics import TrustOperationType
+from .trust_decay import TrustDecayCalculator, DecayConfig
+from .economic_federation import EconomicFederationRegistry, EconomicOperationResult
+from .trust_economics import TrustOperationType
 
 
 @dataclass

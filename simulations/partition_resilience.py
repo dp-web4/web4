@@ -24,8 +24,8 @@ import json
 import hashlib
 from collections import defaultdict
 
-from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
-from hardbound.trust_network import TrustNetworkAnalyzer, NetworkAnomaly
+from .multi_federation import MultiFederationRegistry, FederationRelationship
+from .trust_network import TrustNetworkAnalyzer, NetworkAnomaly
 
 
 class PartitionRisk(Enum):

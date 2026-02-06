@@ -24,8 +24,8 @@ from enum import Enum
 import json
 import hashlib
 
-from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
-from hardbound.governance_audit import GovernanceAuditTrail, AuditEventType
+from .multi_federation import MultiFederationRegistry, FederationRelationship
+from .governance_audit import GovernanceAuditTrail, AuditEventType
 
 
 class RecoveryStatus(Enum):

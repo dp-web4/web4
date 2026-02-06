@@ -25,7 +25,7 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from enum import Enum
 
-from hardbound.reputation_aggregation import ReputationAggregator, ReputationScore
+from .reputation_aggregation import ReputationAggregator, ReputationScore
 
 
 class ReputationTrend(Enum):
@@ -602,7 +602,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     import tempfile
-    from hardbound.multi_federation import MultiFederationRegistry, FederationRelationship
+    from .multi_federation import MultiFederationRegistry, FederationRelationship
 
     tmp_dir = Path(tempfile.mkdtemp())
     registry = MultiFederationRegistry(db_path=tmp_dir / "federation.db")
