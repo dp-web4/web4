@@ -84,7 +84,15 @@ class TestAttackSimulations:
         # EF: Future Threats - Quantum, Hardware, Physical Security (4 attacks)
         #     Post-Quantum Migration, TPM Firmware Exploitation,
         #     Device Theft and Cloning, Coercion/Duress Attack
-        assert len(results) == 134  # 126 original + 8 Track EF attacks
+        # EG: Cross-Federation AI Coordination (8 attacks) - added 2026-02-06 AM
+        # EH: Energy/ESG Gaming (6 attacks) - added 2026-02-06 AM
+        # EI: Privacy/ZK Protocol Attacks (6 attacks) - added 2026-02-06 PM
+        #     ZK Proof Malleability, Privacy Deanonymization, ZK Circuit Backdoor,
+        #     Witness Extraction, Commitment Grinding, Verifiable Computation Forgery
+        # EJ: Cross-Blockchain Arbitrage (6 attacks) - added 2026-02-06 PM
+        #     Cross-Chain Replay, Bridge Liquidity Drain, Oracle Price Manipulation,
+        #     Finality Racing, Chain Reorg Exploitation, Merkle Proof Forgery
+        assert len(results) == 160  # 148 + 12 new (EI: 6, EJ: 6)
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:

@@ -1,9 +1,9 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 3.1
+**Version**: 3.2
 **Date**: 2026-02-06
-**Total Attacks**: 148
-**Status**: Comprehensive Coverage + AI Coordination + ESG Gaming Attacks
+**Total Attacks**: 160
+**Status**: Comprehensive Coverage + Privacy/ZK + Cross-Blockchain Attacks
 
 ---
 
@@ -329,6 +329,30 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 147 | ESG Certification Arbitrage | Exploit certification standard differences |
 | 148 | Energy Attribution Fraud | Attribute energy consumption to others |
 
+### Privacy/Zero-Knowledge Protocol Attacks (Track EI, Attacks 149-154)
+**Cryptographic privacy and ZK protocol attacks**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 149 | ZK Proof Malleability | Modify proofs while maintaining validity |
+| 150 | Privacy Deanonymization | Link anonymous transactions to identities |
+| 151 | ZK Circuit Backdoor | Hidden trapdoors in circuit design |
+| 152 | Witness Extraction | Extract private inputs from proofs |
+| 153 | Commitment Grinding | Find favorable commitment openings |
+| 154 | Verifiable Computation Forgery | Forge proofs of computation |
+
+### Cross-Blockchain Arbitrage Attacks (Track EJ, Attacks 155-160)
+**Multi-chain coordination and bridge attacks**
+
+| Attack | Name | Mechanism |
+|--------|------|-----------|
+| 155 | Cross-Chain Replay | Replay transactions across chains |
+| 156 | Bridge Liquidity Drain | Exploit verification delays |
+| 157 | Oracle Price Manipulation | Manipulate cross-chain price feeds |
+| 158 | Finality Racing | Exploit different finality times |
+| 159 | Chain Reorg Exploitation | Profit from blockchain reorganizations |
+| 160 | Merkle Proof Forgery | Forge state proofs for light clients |
+
 ---
 
 ## Defense Statistics
@@ -339,7 +363,7 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 148 |
+| Total Attacks | 160 |
 | Successful Attacks | ~5-10 (varies by parameters) |
 | Average Detection Rate | ~55% |
 | Average Trust Damage | ~0.50 |
@@ -392,7 +416,7 @@ Based on current attack simulations:
    - Capability registries and task matching
    - Resource quotas and cascade breakers
 
-8. **ESG/Energy Layer** (24+ defenses) - NEW
+8. **ESG/Energy Layer** (24+ defenses)
    - External energy verification (power meters, bills)
    - State transition audit for anomalies
    - Work-energy correlation checking
@@ -403,6 +427,34 @@ Based on current attack simulations:
    - Continuous reporting requirements
    - Certification equivalence mapping
    - Attribution verification and dispute systems
+
+9. **Privacy/ZK Layer** (24+ defenses) - NEW
+   - Proof binding to contexts
+   - Nullifier tracking
+   - Proof freshness requirements
+   - Amount obfuscation (Pedersen commitments)
+   - Timing randomization
+   - Decoy transactions
+   - Ring signatures (min size 11)
+   - Circuit audits and formal verification
+   - Multi-party trusted setup
+   - Constant-time operations
+   - Witness blinding
+
+10. **Cross-Blockchain Layer** (24+ defenses) - NEW
+    - Chain ID binding
+    - Cross-chain nonce coordination
+    - Global transaction ID registry
+    - Replay detection
+    - Verification completion gates
+    - Liquidity reserves
+    - Bridge rate limiting
+    - Fraud proof windows
+    - Multi-source oracles
+    - TWAP price oracles
+    - Reorg depth limits
+    - Finality checkpoints
+    - Deep confirmation requirements
 
 ---
 
@@ -437,10 +489,12 @@ Based on current attack simulations:
 
 ### Unexplored Areas
 
-1. **Cross-blockchain attacks**: Multi-chain arbitrage
-2. **Privacy protocol attacks**: ZK proof vulnerabilities (planned for Track EH)
-3. **Energy/ESG gaming**: Metabolic state environmental claims
+1. ~~**Cross-blockchain attacks**: Multi-chain arbitrage~~ ✅ Track EJ (160 attacks)
+2. ~~**Privacy protocol attacks**: ZK proof vulnerabilities~~ ✅ Track EI (160 attacks)
+3. ~~**Energy/ESG gaming**: Metabolic state environmental claims~~ ✅ Track EH (148 attacks)
 4. **Advanced AI emergence**: Spontaneous agent coordination attacks
+5. **Quantum-resistant cryptographic migration attacks**
+6. **Formal verification bypass attacks**
 
 ### Formal Verification Needed
 
@@ -471,9 +525,11 @@ Based on current attack simulations:
 | 2025-Q4 | Sessions 80-85 | 7-100 | Comprehensive coverage |
 | 2026-01 | Sessions 86-95 | 101-126 | Advanced patterns |
 | 2026-02-05 | Track EF | 127-134 | Future threats |
-| 2026-02-06 | Track EG | 135-142 | AI coordination |
-| 2026-02-06 | Track EH | 143-148 | Energy/ESG gaming |
+| 2026-02-06 AM | Track EG | 135-142 | AI coordination |
+| 2026-02-06 AM | Track EH | 143-148 | Energy/ESG gaming |
+| 2026-02-06 PM | Track EI | 149-154 | Privacy/ZK protocol |
+| 2026-02-06 PM | Track EJ | 155-160 | Cross-blockchain arbitrage |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 160 attacks across 40+ tracks.*
