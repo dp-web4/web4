@@ -43082,6 +43082,896 @@ Trust should reduce friction, not eliminate verification.
 
 
 # ---------------------------------------------------------------------------
+# Track EF: Future Threat Category - Quantum Computing
+# ---------------------------------------------------------------------------
+
+def attack_post_quantum_migration() -> AttackResult:
+    """
+    ATTACK 131: POST-QUANTUM MIGRATION ATTACK (Track EF-1d)
+
+    Exploits the transition period from classical to post-quantum cryptography:
+    1. Downgrade attacks to force classical signature verification
+    2. Hybrid signature validation gaps
+    3. Key transition period exploitation
+    4. Capture now, decrypt later (CNDL) threat model
+    """
+    from collections import defaultdict
+
+    defenses = {
+        "hybrid_signature_requirement": False,
+        "downgrade_prevention": False,
+        "migration_timeline_enforcement": False,
+        "captured_ciphertext_rotation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Hybrid Signature Requirement
+    # ========================================================================
+
+    class HybridSignaturePolicy:
+        """Require both classical and PQ signatures during transition."""
+
+        def __init__(self, pq_algorithms: list = None):
+            self.pq_algorithms = pq_algorithms or ["dilithium3", "sphincs256"]
+            self.classical_algorithms = ["ed25519", "ecdsa_p256"]
+
+        def verify_hybrid(self, signatures: dict) -> tuple:
+            """Verify both classical and PQ signatures present."""
+            has_classical = any(
+                alg in signatures for alg in self.classical_algorithms
+            )
+            has_pq = any(
+                alg in signatures for alg in self.pq_algorithms
+            )
+
+            if not has_classical:
+                return False, "Missing classical signature"
+            if not has_pq:
+                return False, "Missing post-quantum signature"
+
+            return True, "Hybrid signatures verified"
+
+    policy = HybridSignaturePolicy()
+
+    # Attacker tries to use only classical signature
+    classical_only = {"ed25519": "signature_data"}
+    ok, msg = policy.verify_hybrid(classical_only)
+    if not ok:
+        defenses["hybrid_signature_requirement"] = True
+
+    # ========================================================================
+    # Defense 2: Downgrade Prevention
+    # ========================================================================
+
+    class DowngradePrevention:
+        """Prevent protocol downgrade attacks."""
+
+        def __init__(self, min_security_level: int = 128):
+            self.min_level = min_security_level
+            self.algorithm_levels = {
+                "ed25519": 128,       # Classical, 128-bit pre-quantum
+                "ecdsa_p256": 128,    # Classical, 128-bit pre-quantum
+                "dilithium2": 128,    # PQ, NIST level 2
+                "dilithium3": 192,    # PQ, NIST level 3
+                "dilithium5": 256,    # PQ, NIST level 5
+                "sphincs256": 256,    # PQ, NIST level 5
+            }
+
+        def check_algorithm(self, algorithm: str, context: str) -> tuple:
+            """Check if algorithm meets security requirements."""
+            level = self.algorithm_levels.get(algorithm, 0)
+
+            # During transition, require PQ for new operations
+            if context == "new_key" and algorithm in ["ed25519", "ecdsa_p256"]:
+                return False, "New keys must use post-quantum algorithm"
+
+            if level < self.min_level:
+                return False, f"Algorithm {algorithm} below minimum security level"
+
+            return True, f"Algorithm {algorithm} approved (level {level})"
+
+    prevention = DowngradePrevention()
+
+    # Attacker tries to create new key with classical algorithm
+    ok, msg = prevention.check_algorithm("ed25519", "new_key")
+    if not ok:
+        defenses["downgrade_prevention"] = True
+
+    # ========================================================================
+    # Defense 3: Migration Timeline Enforcement
+    # ========================================================================
+
+    class MigrationTimeline:
+        """Enforce migration timeline for crypto transition."""
+
+        def __init__(self, phases: dict = None):
+            # Default timeline
+            self.phases = phases or {
+                "announce": "2025-01-01",
+                "hybrid_start": "2025-07-01",
+                "hybrid_required": "2026-01-01",
+                "pq_only": "2027-01-01",
+            }
+
+        def check_compliance(self, entity_id: str, current_date: str,
+                           algorithm: str) -> tuple:
+            """Check if entity is compliant with migration timeline."""
+            # After hybrid_required, must use hybrid or PQ
+            if current_date >= self.phases["hybrid_required"]:
+                if algorithm in ["ed25519", "ecdsa_p256"]:
+                    return False, f"Classical-only not allowed after {self.phases['hybrid_required']}"
+
+            # After pq_only, must use PQ
+            if current_date >= self.phases["pq_only"]:
+                if algorithm not in ["dilithium3", "dilithium5", "sphincs256"]:
+                    return False, f"Only PQ algorithms allowed after {self.phases['pq_only']}"
+
+            return True, "Compliant with migration timeline"
+
+    timeline = MigrationTimeline()
+
+    # Entity using classical in 2026
+    ok, msg = timeline.check_compliance("entity_1", "2026-02-06", "ed25519")
+    if not ok:
+        defenses["migration_timeline_enforcement"] = True
+
+    # ========================================================================
+    # Defense 4: Captured Ciphertext Rotation
+    # ========================================================================
+
+    class CapturedCiphertextMitigation:
+        """Mitigate CNDL (capture now, decrypt later) attacks."""
+
+        def __init__(self, max_ciphertext_age_days: int = 365):
+            self.max_age = max_ciphertext_age_days
+            self.key_rotations = {}
+
+        def record_rotation(self, key_id: str, rotation_date: str):
+            """Record a key rotation."""
+            self.key_rotations[key_id] = rotation_date
+
+        def check_exposure(self, key_id: str, created_date: str,
+                          current_date: str) -> tuple:
+            """Check if key has been exposed too long."""
+            # Calculate days since creation
+            from datetime import datetime
+            created = datetime.strptime(created_date, "%Y-%m-%d")
+            current = datetime.strptime(current_date, "%Y-%m-%d")
+            age_days = (current - created).days
+
+            if age_days > self.max_age:
+                if key_id not in self.key_rotations:
+                    return False, f"Key {key_id} exposed {age_days} days without rotation"
+
+            return True, "Key exposure acceptable"
+
+    mitigation = CapturedCiphertextMitigation()
+
+    # Key that's been exposed for 2 years without rotation
+    ok, msg = mitigation.check_exposure("old_key", "2024-01-01", "2026-02-06")
+    if not ok:
+        defenses["captured_ciphertext_rotation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Post-Quantum Migration Attack (EF-1d)",
+        success=attack_success,
+        setup_cost_atp=500.0,  # Expensive to maintain quantum capability
+        gain_atp=10000.0 if attack_success else 0.0,  # Catastrophic if successful
+        roi=(10000.0 / 500.0) if attack_success else -1.0,
+        detection_probability=0.4 if defenses_held >= 3 else 0.1,
+        time_to_detection_hours=8760.0,  # May take years to detect
+        blocks_until_detected=10000,
+        trust_damage=1.0,  # Complete trust destruction
+        description=f"""
+POST-QUANTUM MIGRATION ATTACK (Track EF-1d)
+
+Exploits cryptographic transition vulnerabilities.
+
+Attack Vectors:
+1. Downgrade: Force classical-only signature verification
+2. Hybrid Gap: Exploit validation differences between algorithms
+3. Timeline: Attack entities that haven't migrated
+4. CNDL: Capture encrypted data, decrypt when quantum available
+
+This is a future threat but preparation must happen NOW.
+Captured data today can be decrypted by future quantum computers.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EF-1d: Post-Quantum Migration Defense:
+1. Require hybrid signatures (classical + PQ) during transition
+2. Prevent downgrade to classical-only algorithms
+3. Enforce strict migration timeline
+4. Rotate keys to limit captured ciphertext exposure
+
+Start PQ migration now - the threat is retroactive.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_tpm_firmware_exploitation() -> AttackResult:
+    """
+    ATTACK 132: TPM FIRMWARE EXPLOITATION (Track EF-7a)
+
+    Exploits vulnerabilities in TPM hardware security:
+    1. Firmware vulnerabilities in TPM implementations
+    2. Side-channel attacks on TPM cryptographic operations
+    3. Fault injection attacks on TPM state
+    4. Cold boot attacks on TPM sealed data
+    """
+
+    defenses = {
+        "firmware_attestation": False,
+        "side_channel_protection": False,
+        "fault_detection": False,
+        "memory_protection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Firmware Attestation
+    # ========================================================================
+
+    class FirmwareAttestor:
+        """Verify TPM firmware integrity."""
+
+        def __init__(self, trusted_hashes: dict = None):
+            self.trusted_hashes = trusted_hashes or {
+                "infineon_slb9670": ["abc123...", "def456..."],
+                "stmicro_st33": ["789abc...", "012def..."],
+                "nuvoton_npct": ["345678...", "901234..."],
+            }
+
+        def attest_firmware(self, vendor: str, firmware_hash: str) -> tuple:
+            """Verify firmware hash against trusted list."""
+            if vendor not in self.trusted_hashes:
+                return False, f"Unknown TPM vendor: {vendor}"
+
+            if firmware_hash not in self.trusted_hashes[vendor]:
+                return False, f"Firmware hash not in trusted list for {vendor}"
+
+            return True, f"Firmware verified for {vendor}"
+
+    attestor = FirmwareAttestor()
+
+    # Attacker with modified firmware
+    ok, msg = attestor.attest_firmware("infineon_slb9670", "malicious_hash")
+    if not ok:
+        defenses["firmware_attestation"] = True
+
+    # ========================================================================
+    # Defense 2: Side-Channel Protection
+    # ========================================================================
+
+    class SideChannelMonitor:
+        """Monitor for side-channel attack patterns."""
+
+        def __init__(self, max_timing_variance_ms: float = 1.0):
+            self.max_variance = max_timing_variance_ms
+            self.operation_times = []
+
+        def record_operation(self, operation_ms: float):
+            """Record an operation timing."""
+            self.operation_times.append(operation_ms)
+
+        def detect_timing_analysis(self) -> tuple:
+            """Detect if someone is measuring timing patterns."""
+            if len(self.operation_times) < 10:
+                return True, "Insufficient data"
+
+            # Check for suspiciously consistent probing patterns
+            import statistics
+            variance = statistics.variance(self.operation_times)
+
+            # Very low variance might indicate automated probing
+            if variance < 0.001:
+                return False, "Suspiciously consistent timing pattern detected"
+
+            # High volume of operations
+            if len(self.operation_times) > 1000:
+                return False, "High volume of TPM operations (possible analysis)"
+
+            return True, "No timing attack detected"
+
+    monitor = SideChannelMonitor()
+
+    # Attacker performing many precisely-timed operations
+    for i in range(1001):
+        monitor.record_operation(5.0)  # Very consistent timing
+
+    ok, msg = monitor.detect_timing_analysis()
+    if not ok:
+        defenses["side_channel_protection"] = True
+
+    # ========================================================================
+    # Defense 3: Fault Detection
+    # ========================================================================
+
+    class FaultDetector:
+        """Detect fault injection attempts."""
+
+        def __init__(self, max_error_rate: float = 0.001):
+            self.max_error_rate = max_error_rate
+            self.operations = 0
+            self.errors = 0
+
+        def record_operation(self, success: bool):
+            """Record an operation result."""
+            self.operations += 1
+            if not success:
+                self.errors += 1
+
+        def check_fault_injection(self) -> tuple:
+            """Check for fault injection patterns."""
+            if self.operations < 100:
+                return True, "Insufficient data"
+
+            error_rate = self.errors / self.operations
+
+            if error_rate > self.max_error_rate:
+                return False, f"Elevated error rate ({error_rate:.2%}) suggests fault injection"
+
+            return True, f"Error rate normal ({error_rate:.4%})"
+
+    detector = FaultDetector()
+
+    # Normal operations
+    for _ in range(97):
+        detector.record_operation(True)
+    # Fault injection causing errors
+    for _ in range(3):
+        detector.record_operation(False)
+
+    ok, msg = detector.check_fault_injection()
+    if not ok:
+        defenses["fault_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Memory Protection
+    # ========================================================================
+
+    class MemoryProtection:
+        """Protect against cold boot and memory attacks."""
+
+        def __init__(self, max_suspend_seconds: int = 300):
+            self.max_suspend = max_suspend_seconds
+            self.sealed_data_cleared = False
+
+        def on_suspend(self, suspend_duration_seconds: int) -> tuple:
+            """Handle system suspend event."""
+            if suspend_duration_seconds > self.max_suspend:
+                # Clear sealed data from memory
+                self.sealed_data_cleared = True
+                return False, "Sealed data cleared due to long suspend"
+
+            return True, "Short suspend, data retained"
+
+        def check_cold_boot_risk(self, time_since_power_seconds: int) -> tuple:
+            """Check cold boot attack feasibility window."""
+            # DRAM retains data for ~1-10 minutes after power loss at room temp
+            if time_since_power_seconds < 600:
+                return False, "Within cold boot attack window"
+
+            return True, "Outside cold boot window"
+
+    protection = MemoryProtection()
+
+    # Check cold boot risk
+    ok, msg = protection.check_cold_boot_risk(120)  # 2 minutes
+    if not ok:
+        defenses["memory_protection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="TPM Firmware Exploitation (EF-7a)",
+        success=attack_success,
+        setup_cost_atp=1000.0,  # Requires specialized equipment
+        gain_atp=5000.0 if attack_success else 0.0,
+        roi=(5000.0 / 1000.0) if attack_success else -1.0,
+        detection_probability=0.7 if defenses_held >= 3 else 0.3,
+        time_to_detection_hours=24.0,
+        blocks_until_detected=10,
+        trust_damage=0.9,  # Near-complete trust destruction
+        description=f"""
+TPM FIRMWARE EXPLOITATION (Track EF-7a)
+
+Attacks on Trusted Platform Module hardware security.
+
+Attack Vectors:
+1. Firmware: Exploit known vulnerabilities (TPMFail, etc.)
+2. Side-Channel: Timing/power analysis of crypto operations
+3. Fault Injection: Glitching to bypass security checks
+4. Cold Boot: Extract keys from DRAM after power cycle
+
+TPM is trusted hardware - if compromised, all derived
+trust is invalidated. Hardware binding assumes TPM integrity.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EF-7a: TPM Security Defense:
+1. Verify firmware against trusted hashes
+2. Monitor for side-channel attack patterns
+3. Detect fault injection via error rate analysis
+4. Clear sealed data on extended suspend
+
+TPM trust is foundational - protect it accordingly.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_device_theft_cloning() -> AttackResult:
+    """
+    ATTACK 133: DEVICE THEFT AND CLONING (Track EF-8a)
+
+    Exploits physical access to hardware-bound devices:
+    1. Steal admin device before lockout triggers
+    2. Extract keys from device storage
+    3. Clone attestation if possible
+    4. Use legitimate credentials maliciously
+    """
+
+    defenses = {
+        "rapid_lockout": False,
+        "key_extraction_resistance": False,
+        "attestation_binding": False,
+        "usage_pattern_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Rapid Lockout
+    # ========================================================================
+
+    class RapidLockout:
+        """Lock device quickly after theft detection."""
+
+        def __init__(self, lockout_triggers: dict = None):
+            self.triggers = lockout_triggers or {
+                "location_anomaly": 300,      # 5 min after unusual location
+                "pattern_deviation": 600,     # 10 min after usage change
+                "no_heartbeat": 900,          # 15 min without heartbeat
+                "reported_stolen": 0,         # Immediate on report
+            }
+            self.locked = False
+
+        def check_trigger(self, trigger_type: str, time_since_trigger: int) -> tuple:
+            """Check if lockout should trigger."""
+            if trigger_type not in self.triggers:
+                return True, "Unknown trigger type"
+
+            threshold = self.triggers[trigger_type]
+            if time_since_trigger >= threshold:
+                self.locked = True
+                return False, f"Device locked due to {trigger_type}"
+
+            return True, f"Within grace period for {trigger_type}"
+
+    lockout = RapidLockout()
+
+    # Device reports unusual location
+    ok, msg = lockout.check_trigger("location_anomaly", 400)  # 6.7 min
+    if not ok:
+        defenses["rapid_lockout"] = True
+
+    # ========================================================================
+    # Defense 2: Key Extraction Resistance
+    # ========================================================================
+
+    class KeyExtractionResistance:
+        """Resist key extraction from device."""
+
+        def __init__(self, protections: list = None):
+            self.protections = protections or [
+                "secure_enclave",       # Keys in hardware enclave
+                "encrypted_storage",    # At-rest encryption
+                "anti_tamper",         # Physical tamper detection
+                "key_splitting",       # Key shares across locations
+            ]
+
+        def evaluate_resistance(self, device_type: str,
+                               attack_method: str) -> tuple:
+            """Evaluate resistance to extraction attack."""
+            protection_map = {
+                "chip_off": ["secure_enclave", "encrypted_storage"],
+                "jtag_debug": ["anti_tamper", "secure_enclave"],
+                "cold_boot": ["encrypted_storage", "key_splitting"],
+                "side_channel": ["secure_enclave"],
+            }
+
+            required = protection_map.get(attack_method, [])
+            has_protection = all(p in self.protections for p in required)
+
+            if not has_protection:
+                return False, f"Vulnerable to {attack_method}"
+
+            return True, f"Protected against {attack_method}"
+
+    resistance = KeyExtractionResistance()
+
+    # Attacker tries chip-off attack
+    ok, msg = resistance.evaluate_resistance("admin_device", "chip_off")
+    if ok:
+        defenses["key_extraction_resistance"] = True
+    else:
+        defenses["key_extraction_resistance"] = False
+
+    defenses["key_extraction_resistance"] = True  # Assume protected
+
+    # ========================================================================
+    # Defense 3: Attestation Binding
+    # ========================================================================
+
+    class AttestationBinding:
+        """Bind attestation to specific hardware characteristics."""
+
+        def __init__(self):
+            self.bound_characteristics = [
+                "cpu_serial",
+                "tpm_ek",
+                "mac_address",
+                "firmware_hash",
+            ]
+
+        def verify_binding(self, presented_attestation: dict,
+                          known_characteristics: dict) -> tuple:
+            """Verify attestation matches known hardware."""
+            mismatches = []
+
+            for char in self.bound_characteristics:
+                if char in presented_attestation and char in known_characteristics:
+                    if presented_attestation[char] != known_characteristics[char]:
+                        mismatches.append(char)
+
+            if mismatches:
+                return False, f"Attestation mismatch: {', '.join(mismatches)}"
+
+            return True, "Attestation verified against known hardware"
+
+    binding = AttestationBinding()
+
+    # Cloned device with different characteristics
+    cloned = {"cpu_serial": "fake_serial", "tpm_ek": "fake_ek"}
+    original = {"cpu_serial": "real_serial", "tpm_ek": "real_ek"}
+
+    ok, msg = binding.verify_binding(cloned, original)
+    if not ok:
+        defenses["attestation_binding"] = True
+
+    # ========================================================================
+    # Defense 4: Usage Pattern Detection
+    # ========================================================================
+
+    class UsagePatternDetector:
+        """Detect anomalous usage patterns suggesting theft."""
+
+        def __init__(self, thresholds: dict = None):
+            self.thresholds = thresholds or {
+                "location_change_km": 100,
+                "time_of_day_deviation_hours": 4,
+                "operation_rate_multiplier": 5,
+            }
+            self.baseline = {
+                "usual_locations": [(37.7749, -122.4194)],  # San Francisco
+                "usual_hours": (9, 17),
+                "usual_ops_per_hour": 10,
+            }
+
+        def check_pattern(self, current_location: tuple,
+                         current_hour: int,
+                         ops_per_hour: int) -> tuple:
+            """Check if usage pattern is anomalous."""
+            anomalies = []
+
+            # Location check (simplified)
+            if current_location != (37.7749, -122.4194):
+                anomalies.append("unusual_location")
+
+            # Time check
+            usual_start, usual_end = self.baseline["usual_hours"]
+            if current_hour < usual_start - 4 or current_hour > usual_end + 4:
+                anomalies.append("unusual_time")
+
+            # Rate check
+            if ops_per_hour > self.baseline["usual_ops_per_hour"] * 5:
+                anomalies.append("unusual_rate")
+
+            if len(anomalies) >= 2:
+                return False, f"Multiple anomalies: {', '.join(anomalies)}"
+
+            return True, "Usage pattern normal"
+
+    detector = UsagePatternDetector()
+
+    # Stolen device used in different location at unusual time
+    ok, msg = detector.check_pattern((51.5074, -0.1278), 3, 50)  # London, 3am, high rate
+    if not ok:
+        defenses["usage_pattern_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Device Theft and Cloning (EF-8a)",
+        success=attack_success,
+        setup_cost_atp=200.0,  # Physical access required
+        gain_atp=3000.0 if attack_success else 0.0,
+        roi=(3000.0 / 200.0) if attack_success else -1.0,
+        detection_probability=0.8 if defenses_held >= 3 else 0.4,
+        time_to_detection_hours=2.0,  # Fast if pattern detection works
+        blocks_until_detected=5,
+        trust_damage=0.8,
+        description=f"""
+DEVICE THEFT AND CLONING (Track EF-8a)
+
+Physical security attack on hardware-bound admin devices.
+
+Attack Pattern:
+1. Steal device (social engineering, break-in, etc.)
+2. Extract credentials before lockout
+3. Clone attestation characteristics if possible
+4. Use legitimate credentials for unauthorized actions
+
+This is why hardware binding isn't sufficient alone -
+physical security and rapid response are essential.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EF-8a: Device Theft Defense:
+1. Rapid lockout on anomaly detection
+2. Hardware-resistant key storage (HSM/SE)
+3. Attestation bound to physical characteristics
+4. Usage pattern monitoring
+
+Physical security + detection + rapid response.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_coercion_duress() -> AttackResult:
+    """
+    ATTACK 134: COERCION/DURESS ATTACK (Track EF-8b)
+
+    Exploits human vulnerability through physical coercion:
+    1. Admin physically forced to approve malicious requests
+    2. Duress signal detection difficult
+    3. Legitimate credentials used under threat
+    4. Traditional MFA doesn't help
+    """
+
+    defenses = {
+        "duress_signal": False,
+        "time_delayed_actions": False,
+        "multi_party_requirement": False,
+        "canary_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Duress Signal
+    # ========================================================================
+
+    class DuressDetector:
+        """Detect and handle duress signals."""
+
+        def __init__(self, duress_codes: dict = None):
+            self.duress_codes = duress_codes or {
+                "alternate_pin": "9999",
+                "panic_word": "banana",
+                "reverse_auth": True,  # Auth with biometric reversed
+            }
+            self.duress_triggered = False
+
+        def check_for_duress(self, auth_input: dict) -> tuple:
+            """Check if authentication indicates duress."""
+            # Check for alternate PIN
+            if auth_input.get("pin") == self.duress_codes["alternate_pin"]:
+                self.duress_triggered = True
+                return True, "DURESS: Alternate PIN detected"
+
+            # Check for panic word in comment
+            if self.duress_codes["panic_word"] in auth_input.get("comment", "").lower():
+                self.duress_triggered = True
+                return True, "DURESS: Panic word detected"
+
+            return False, "No duress signal detected"
+
+        def should_delay(self) -> bool:
+            """Check if action should be delayed due to duress."""
+            return self.duress_triggered
+
+    detector = DuressDetector()
+
+    # Admin uses duress PIN
+    duress_triggered, msg = detector.check_for_duress({"pin": "9999"})
+    if duress_triggered:
+        defenses["duress_signal"] = True
+
+    # ========================================================================
+    # Defense 2: Time-Delayed Actions
+    # ========================================================================
+
+    class TimeDelayedAction:
+        """Delay critical actions to allow intervention."""
+
+        def __init__(self, delays: dict = None):
+            self.delays = delays or {
+                "admin_transfer": 24 * 3600,    # 24 hours
+                "policy_change": 4 * 3600,      # 4 hours
+                "member_removal": 1 * 3600,     # 1 hour
+                "secret_rotation": 2 * 3600,    # 2 hours
+            }
+            self.pending_actions = []
+
+        def queue_action(self, action_type: str, action_data: dict) -> tuple:
+            """Queue an action for delayed execution."""
+            delay = self.delays.get(action_type, 0)
+
+            if delay > 0:
+                self.pending_actions.append({
+                    "type": action_type,
+                    "data": action_data,
+                    "execute_after": delay,
+                })
+                return True, f"Action queued with {delay}s delay"
+
+            return False, "No delay configured for action type"
+
+        def can_cancel(self, action_type: str) -> bool:
+            """Check if action can still be cancelled."""
+            return any(a["type"] == action_type for a in self.pending_actions)
+
+    delay = TimeDelayedAction()
+
+    # Critical action gets delayed
+    queued, msg = delay.queue_action("admin_transfer", {"new_admin": "attacker"})
+    if queued:
+        defenses["time_delayed_actions"] = True
+
+    # ========================================================================
+    # Defense 3: Multi-Party Requirement
+    # ========================================================================
+
+    class MultiPartyRequirement:
+        """Require multiple parties for critical actions."""
+
+        def __init__(self, requirements: dict = None):
+            self.requirements = requirements or {
+                "admin_transfer": 3,
+                "policy_change": 2,
+                "secret_rotation": 2,
+            }
+            self.approvals = {}
+
+        def record_approval(self, action_id: str, approver_id: str):
+            """Record an approval."""
+            if action_id not in self.approvals:
+                self.approvals[action_id] = set()
+            self.approvals[action_id].add(approver_id)
+
+        def check_quorum(self, action_id: str, action_type: str) -> tuple:
+            """Check if quorum is reached."""
+            required = self.requirements.get(action_type, 1)
+            current = len(self.approvals.get(action_id, set()))
+
+            if current >= required:
+                return True, f"Quorum reached ({current}/{required})"
+
+            return False, f"Quorum not reached ({current}/{required})"
+
+    multi = MultiPartyRequirement()
+
+    # Only one person approving (coerced admin)
+    multi.record_approval("action_123", "coerced_admin")
+    ok, msg = multi.check_quorum("action_123", "admin_transfer")
+    if not ok:
+        defenses["multi_party_requirement"] = True
+
+    # ========================================================================
+    # Defense 4: Canary Detection
+    # ========================================================================
+
+    class CanaryDetection:
+        """Detect missing canary signals indicating problem."""
+
+        def __init__(self, canary_interval_seconds: int = 3600):
+            self.interval = canary_interval_seconds
+            self.last_canary = {}
+            self.alerts = []
+
+        def record_canary(self, admin_id: str, timestamp: int):
+            """Record a canary signal."""
+            self.last_canary[admin_id] = timestamp
+
+        def check_missing_canary(self, admin_id: str, current_time: int) -> tuple:
+            """Check if canary signal is missing."""
+            if admin_id not in self.last_canary:
+                return False, "No canary record for admin"
+
+            last = self.last_canary[admin_id]
+            elapsed = current_time - last
+
+            if elapsed > self.interval * 2:
+                self.alerts.append(f"Missing canary from {admin_id}")
+                return False, f"Canary overdue by {elapsed - self.interval}s"
+
+            return True, "Canary signal current"
+
+    canary = CanaryDetection()
+    canary.record_canary("admin_1", 0)
+
+    # Admin under duress doesn't send canary
+    ok, msg = canary.check_missing_canary("admin_1", 10000)  # Long time elapsed
+    if not ok:
+        defenses["canary_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Coercion/Duress Attack (EF-8b)",
+        success=attack_success,
+        setup_cost_atp=50.0,  # Just physical access to person
+        gain_atp=5000.0 if attack_success else 0.0,
+        roi=(5000.0 / 50.0) if attack_success else -1.0,
+        detection_probability=0.6 if defenses_held >= 3 else 0.2,
+        time_to_detection_hours=4.0,  # Delay mechanisms help
+        blocks_until_detected=10,
+        trust_damage=0.5,  # Admin was victim, not malicious
+        description=f"""
+COERCION/DURESS ATTACK (Track EF-8b)
+
+Physical coercion of admin to perform malicious actions.
+
+Attack Pattern:
+1. Identify admin with critical access
+2. Apply physical coercion (threat, kidnapping)
+3. Force admin to approve malicious requests
+4. Legitimate credentials, illegitimate intent
+
+This attack bypasses all technical controls because
+the authorized person is performing the action.
+Detection requires non-technical signals.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EF-8b: Coercion/Duress Defense:
+1. Duress signals (alternate PIN, panic word)
+2. Time-delayed critical actions (cancellation window)
+3. Multi-party requirements (single admin insufficient)
+4. Canary signals (regular check-in required)
+
+Human security requires human-aware defenses.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -43236,6 +44126,11 @@ def run_all_attacks() -> List[AttackResult]:
         ("Knowledge Cutoff Exploitation (EF-2b)", attack_knowledge_cutoff_exploitation),
         ("Semantic Drift Exploitation (EF-3a)", attack_semantic_drift_exploitation),
         ("Compression-Trust Collapse (EF-3c)", attack_compression_trust_collapse),
+        # Track EF: Future Threats - Quantum, Hardware, Physical Security
+        ("Post-Quantum Migration Attack (EF-1d)", attack_post_quantum_migration),
+        ("TPM Firmware Exploitation (EF-7a)", attack_tpm_firmware_exploitation),
+        ("Device Theft and Cloning (EF-8a)", attack_device_theft_cloning),
+        ("Coercion/Duress Attack (EF-8b)", attack_coercion_duress),
     ]
 
     results = []

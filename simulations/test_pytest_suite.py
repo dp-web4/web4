@@ -81,7 +81,10 @@ class TestAttackSimulations:
         # EF: Future Threats - AI Model Degradation & Semantic Attacks (4 attacks)
         #     AI Witness Monoculture, Knowledge Cutoff Exploitation,
         #     Semantic Drift Exploitation, Compression-Trust Collapse
-        assert len(results) == 130  # 126 original + 4 Track EF attacks
+        # EF: Future Threats - Quantum, Hardware, Physical Security (4 attacks)
+        #     Post-Quantum Migration, TPM Firmware Exploitation,
+        #     Device Theft and Cloning, Coercion/Duress Attack
+        assert len(results) == 134  # 126 original + 8 Track EF attacks
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
