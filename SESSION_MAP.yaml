@@ -10,7 +10,7 @@ metadata:
   focus: "Distributed Trust Infrastructure"
   date_range: "2025-08 to 2026-02"
   existing_manifest: "ARCHIVE_MANIFEST.md"
-  milestone: "GAME_THEORETIC_EQUILIBRIUM_ANALYSIS.md added - Nash equilibrium proof! 99 attack vectors (Tracks DU, DW added). Honest behavior = dominant strategy (π_H=8800 vs π_M=-42500 ATP/month)."
+  milestone: "208 attack vectors across 48 tracks! Tracks EO-ER added (AI Emergence, Hardware Enclave, Interoperability, LCT Lifecycle). Merge conflict RESOLVED. attack_simulations.py at 62,863 lines."
 
 # =============================================================================
 # RESEARCH ARCS
@@ -218,8 +218,13 @@ game_theory:
     - "Detection threshold: honesty dominant as long as detection >29% (currently 70%)"
     - "Stake 75,000 ATP provides 3.5× safety margin"
     - "Long-con NPV-negative (-32,500 ATP) vs honest (+176,000 ATP/12mo)"
-  attack_vectors_total: 99
+  attack_vectors_total: 208
   recent_tracks:
+    - {id: "EO", name: "Advanced AI Emergence Attacks", attacks: 6, date: "2026-02-07"}
+    - {id: "EP", name: "Hardware Enclave Attacks", attacks: 6, date: "2026-02-07"}
+    - {id: "EQ", name: "Interoperability Standards Attacks", attacks: 6, date: "2026-02-07"}
+    - {id: "ER", name: "LCT Lifecycle Attacks", attacks: 6, date: "2026-02-07"}
+    - {id: "EK-EN", name: "Various Tracks", attacks: 24, date: "2026-02-06"}
     - {id: "DU", name: "Governance Interface", attacks: 5, date: "2026-02-05"}
     - {id: "DW", name: "Cross-System Attack Chains", attacks: 4, date: "2026-02-05"}
 
@@ -231,7 +236,7 @@ statistics:
   arcs: 6
   test_sessions: 17
   implementation_files: 50
-  attack_vectors: 99
-  latest_session_date: "2026-02-05"
+  attack_vectors: 208
+  latest_session_date: "2026-02-07"
   quality_rating: "EXCELLENT"
   deployment_status: "Legion validated, Thor ready, Sprout pending"
