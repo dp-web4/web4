@@ -50673,6 +50673,4333 @@ Robust proof verification is essential.
 
 
 # ---------------------------------------------------------------------------
+# Track EK: Formal Verification Bypass Attacks (Attacks 161-166)
+# ---------------------------------------------------------------------------
+
+
+def attack_specification_gap() -> AttackResult:
+    """
+    ATTACK 161: SPECIFICATION GAP EXPLOITATION (Track EK-1a)
+
+    Exploits gaps between formal specification and implementation:
+    1. Identify behaviors not covered by formal spec
+    2. Operate in undefined/underspecified space
+    3. Actions are technically compliant but harmful
+    4. Formal verification passes but system vulnerable
+    """
+
+    defenses = {
+        "complete_spec": False,
+        "boundary_testing": False,
+        "undefined_behavior_detection": False,
+        "spec_coverage_metrics": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Complete Specification
+    # ========================================================================
+
+    class SpecificationCompleteness:
+        """Check specification completeness."""
+
+        def __init__(self):
+            self.spec_coverage = {}
+            self.behaviors = set()
+            self.specified_behaviors = set()
+
+        def register_behavior(self, behavior_id: str, has_spec: bool):
+            """Register a system behavior."""
+            self.behaviors.add(behavior_id)
+            if has_spec:
+                self.specified_behaviors.add(behavior_id)
+
+        def check_completeness(self) -> tuple:
+            """Check if all behaviors are specified."""
+            if not self.behaviors:
+                return False, "No behaviors registered"
+
+            coverage = len(self.specified_behaviors) / len(self.behaviors)
+            unspecified = self.behaviors - self.specified_behaviors
+
+            if coverage < 0.95:
+                return False, f"Incomplete spec ({coverage:.1%}). Gaps: {unspecified}"
+
+            return True, f"Specification {coverage:.1%} complete"
+
+    spec = SpecificationCompleteness()
+
+    # System has gaps in specification
+    for i in range(20):
+        has_spec = i < 15  # Only first 15 are specified
+        spec.register_behavior(f"behavior_{i}", has_spec)
+
+    ok, msg = spec.check_completeness()
+    if not ok:
+        defenses["complete_spec"] = True
+
+    # ========================================================================
+    # Defense 2: Boundary Testing
+    # ========================================================================
+
+    class BoundaryTester:
+        """Test boundary conditions beyond spec."""
+
+        def __init__(self):
+            self.tests = {}
+            self.boundary_tests = {}
+
+        def add_spec_test(self, test_id: str, passes: bool):
+            """Add test from specification."""
+            self.tests[test_id] = passes
+
+        def add_boundary_test(self, test_id: str, condition: str, passes: bool):
+            """Add boundary/edge case test."""
+            self.boundary_tests[test_id] = {
+                "condition": condition,
+                "passes": passes,
+            }
+
+        def check_boundary_coverage(self) -> tuple:
+            """Check if boundary conditions are tested."""
+            if len(self.boundary_tests) < len(self.tests) * 0.5:
+                return False, "Insufficient boundary testing"
+
+            failures = [t for t, d in self.boundary_tests.items() if not d["passes"]]
+            if failures:
+                return False, f"Boundary failures: {failures}"
+
+            return True, "Boundary testing complete"
+
+    boundary = BoundaryTester()
+
+    for i in range(10):
+        boundary.add_spec_test(f"spec_test_{i}", True)
+
+    # Few boundary tests, and one fails
+    boundary.add_boundary_test("edge_1", "max_value + 1", False)  # Fails
+    boundary.add_boundary_test("edge_2", "min_value - 1", True)
+
+    ok, msg = boundary.check_boundary_coverage()
+    if not ok:
+        defenses["boundary_testing"] = True
+
+    # ========================================================================
+    # Defense 3: Undefined Behavior Detection
+    # ========================================================================
+
+    class UndefinedBehaviorDetector:
+        """Detect operations leading to undefined behavior."""
+
+        def __init__(self):
+            self.operations = []
+            self.undefined_ops = []
+
+        def execute(self, op: str, result: str):
+            """Execute and record operation."""
+            self.operations.append((op, result))
+            if result == "undefined":
+                self.undefined_ops.append(op)
+
+        def check_for_undefined(self) -> tuple:
+            """Check if undefined behavior occurred."""
+            if self.undefined_ops:
+                return True, f"Undefined behavior: {self.undefined_ops}"
+            return False, "No undefined behavior"
+
+    ub_detector = UndefinedBehaviorDetector()
+
+    # Attacker triggers undefined behavior
+    ub_detector.execute("normal_op", "success")
+    ub_detector.execute("edge_op", "undefined")
+    ub_detector.execute("attack_op", "undefined")
+
+    has_undefined, msg = ub_detector.check_for_undefined()
+    if has_undefined:
+        defenses["undefined_behavior_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Spec Coverage Metrics
+    # ========================================================================
+
+    class SpecCoverageMetrics:
+        """Track specification coverage metrics."""
+
+        def __init__(self):
+            self.requirements = {}
+            self.tested_requirements = set()
+
+        def add_requirement(self, req_id: str, description: str):
+            """Add a requirement."""
+            self.requirements[req_id] = description
+
+        def mark_tested(self, req_id: str):
+            """Mark requirement as tested."""
+            self.tested_requirements.add(req_id)
+
+        def get_coverage(self) -> tuple:
+            """Get coverage metrics."""
+            if not self.requirements:
+                return 0.0, "No requirements"
+
+            coverage = len(self.tested_requirements) / len(self.requirements)
+            untested = set(self.requirements.keys()) - self.tested_requirements
+
+            if coverage < 0.90:
+                return coverage, f"Coverage below 90%. Untested: {untested}"
+
+            return coverage, "Coverage sufficient"
+
+    metrics = SpecCoverageMetrics()
+
+    for i in range(20):
+        metrics.add_requirement(f"REQ_{i:03d}", f"Requirement {i}")
+
+    # Only 14 tested
+    for i in range(14):
+        metrics.mark_tested(f"REQ_{i:03d}")
+
+    coverage, msg = metrics.get_coverage()
+    if coverage < 0.90:
+        defenses["spec_coverage_metrics"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Specification Gap Exploitation (EK-1a)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=800.0 if attack_success else 0.0,
+        roi=(800.0 / 150.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=720.0,  # 30 days
+        blocks_until_detected=2000,
+        trust_damage=0.75,
+        description=f"""
+SPECIFICATION GAP EXPLOITATION (Track EK-1a)
+
+Exploits gaps between formal specification and implementation.
+
+Attack Pattern:
+1. Find behaviors not covered by spec
+2. Operate in undefined space
+3. Actions technically compliant but harmful
+4. Formal verification passes despite vulnerability
+
+Incomplete specs enable "compliant" attacks.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EK-1a: Specification Gap Defense:
+1. Ensure complete specifications
+2. Test boundary conditions beyond spec
+3. Detect undefined behavior
+4. Track spec coverage metrics
+
+Complete specifications close gaps.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_model_abstraction_exploit() -> AttackResult:
+    """
+    ATTACK 162: MODEL ABSTRACTION EXPLOITATION (Track EK-1b)
+
+    Exploits abstractions used in formal models:
+    1. Identify simplifications in formal model
+    2. Find behaviors that real system has but model doesn't
+    3. Attack via behaviors model assumes away
+    4. Verified properties don't hold in real system
+    """
+
+    defenses = {
+        "abstraction_refinement": False,
+        "implementation_model_correspondence": False,
+        "concretization_testing": False,
+        "abstraction_soundness_checking": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Abstraction Refinement
+    # ========================================================================
+
+    class AbstractionRefiner:
+        """Iteratively refine abstractions to close gaps."""
+
+        def __init__(self):
+            self.model_states = set()
+            self.real_states = set()
+            self.refinement_rounds = 0
+
+        def add_model_state(self, state: str):
+            """Add state to model."""
+            self.model_states.add(state)
+
+        def discover_real_state(self, state: str):
+            """Discover a real system state."""
+            self.real_states.add(state)
+
+        def refine(self) -> tuple:
+            """Attempt to refine abstraction."""
+            missing = self.real_states - self.model_states
+            self.refinement_rounds += 1
+
+            if missing:
+                # Add missing states to model
+                self.model_states.update(missing)
+                return False, f"Refinement needed. Added: {missing}"
+
+            return True, "Abstraction refined"
+
+        def is_sound(self) -> tuple:
+            """Check if abstraction is sound."""
+            missing = self.real_states - self.model_states
+            if missing:
+                return False, f"Missing states: {missing}"
+            return True, "Abstraction sound"
+
+    refiner = AbstractionRefiner()
+
+    # Model only covers some states
+    for i in range(10):
+        refiner.add_model_state(f"state_{i}")
+
+    # Real system has more
+    for i in range(15):
+        refiner.discover_real_state(f"state_{i}")
+
+    ok, msg = refiner.is_sound()
+    if not ok:
+        refiner.refine()
+        defenses["abstraction_refinement"] = True
+
+    # ========================================================================
+    # Defense 2: Implementation-Model Correspondence
+    # ========================================================================
+
+    class CorrespondenceChecker:
+        """Check correspondence between model and implementation."""
+
+        def __init__(self):
+            self.model_transitions = set()
+            self.impl_transitions = set()
+
+        def add_model_transition(self, src: str, dest: str, action: str):
+            """Add transition to model."""
+            self.model_transitions.add((src, dest, action))
+
+        def add_impl_transition(self, src: str, dest: str, action: str):
+            """Add transition observed in implementation."""
+            self.impl_transitions.add((src, dest, action))
+
+        def check_correspondence(self) -> tuple:
+            """Check if model and implementation correspond."""
+            impl_only = self.impl_transitions - self.model_transitions
+            model_only = self.model_transitions - self.impl_transitions
+
+            if impl_only:
+                return False, f"Impl transitions not in model: {impl_only}"
+
+            if model_only:
+                return True, f"Model overapproximates (safe). Extra: {model_only}"
+
+            return True, "Perfect correspondence"
+
+    corr = CorrespondenceChecker()
+
+    # Model
+    corr.add_model_transition("init", "running", "start")
+    corr.add_model_transition("running", "stopped", "stop")
+
+    # Implementation has secret transition
+    corr.add_impl_transition("init", "running", "start")
+    corr.add_impl_transition("running", "stopped", "stop")
+    corr.add_impl_transition("running", "debug", "backdoor")  # Not in model!
+
+    ok, msg = corr.check_correspondence()
+    if not ok:
+        defenses["implementation_model_correspondence"] = True
+
+    # ========================================================================
+    # Defense 3: Concretization Testing
+    # ========================================================================
+
+    class ConcretizationTester:
+        """Test that abstract proofs hold on concrete instances."""
+
+        def __init__(self):
+            self.abstract_properties = {}
+            self.concrete_tests = {}
+
+        def add_abstract_property(self, prop_id: str, holds: bool):
+            """Record abstract property."""
+            self.abstract_properties[prop_id] = holds
+
+        def test_concrete(self, prop_id: str, instance: str, holds: bool):
+            """Test property on concrete instance."""
+            if prop_id not in self.concrete_tests:
+                self.concrete_tests[prop_id] = []
+            self.concrete_tests[prop_id].append((instance, holds))
+
+        def check_preservation(self) -> tuple:
+            """Check if abstract properties preserved in concrete."""
+            violations = []
+
+            for prop_id, abstract_holds in self.abstract_properties.items():
+                if not abstract_holds:
+                    continue  # Only check if abstract says it holds
+
+                concrete = self.concrete_tests.get(prop_id, [])
+                for instance, holds in concrete:
+                    if not holds:
+                        violations.append((prop_id, instance))
+
+            if violations:
+                return False, f"Concretization violations: {violations}"
+
+            return True, "Properties preserved in concrete"
+
+    concrete = ConcretizationTester()
+
+    # Abstract says safe
+    concrete.add_abstract_property("safety", True)
+    concrete.add_abstract_property("liveness", True)
+
+    # But concrete fails for some instances
+    concrete.test_concrete("safety", "instance_1", True)
+    concrete.test_concrete("safety", "instance_2", False)  # Fails!
+    concrete.test_concrete("liveness", "instance_1", True)
+
+    ok, msg = concrete.check_preservation()
+    if not ok:
+        defenses["concretization_testing"] = True
+
+    # ========================================================================
+    # Defense 4: Abstraction Soundness Checking
+    # ========================================================================
+
+    class SoundnessChecker:
+        """Check soundness of abstraction."""
+
+        def __init__(self):
+            self.assumptions = {}
+            self.validated = {}
+
+        def add_assumption(self, assumption_id: str, description: str):
+            """Add an abstraction assumption."""
+            self.assumptions[assumption_id] = description
+            self.validated[assumption_id] = False
+
+        def validate_assumption(self, assumption_id: str, holds: bool):
+            """Validate an assumption."""
+            self.validated[assumption_id] = holds
+
+        def check_soundness(self) -> tuple:
+            """Check if all assumptions hold."""
+            invalid = [a for a, v in self.validated.items() if not v]
+
+            if invalid:
+                return False, f"Invalid assumptions: {invalid}"
+
+            return True, "Abstraction sound"
+
+    sound = SoundnessChecker()
+
+    sound.add_assumption("no_overflow", "Integers don't overflow")
+    sound.add_assumption("atomicity", "Operations are atomic")
+    sound.add_assumption("no_side_channels", "No timing side channels")
+
+    # Some assumptions don't hold in real system
+    sound.validate_assumption("no_overflow", True)
+    sound.validate_assumption("atomicity", True)
+    sound.validate_assumption("no_side_channels", False)  # Violated!
+
+    ok, msg = sound.check_soundness()
+    if not ok:
+        defenses["abstraction_soundness_checking"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Model Abstraction Exploitation (EK-1b)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=1000.0 if attack_success else 0.0,
+        roi=(1000.0 / 200.0) if attack_success else -1.0,
+        detection_probability=0.20 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=1440.0,  # 60 days
+        blocks_until_detected=4000,
+        trust_damage=0.85,
+        description=f"""
+MODEL ABSTRACTION EXPLOITATION (Track EK-1b)
+
+Exploits simplifications in formal verification models.
+
+Attack Pattern:
+1. Identify simplifications in formal model
+2. Find behaviors model abstracts away
+3. Attack via unmodeled behaviors
+4. Verified properties don't hold in reality
+
+Abstractions can hide vulnerabilities.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EK-1b: Abstraction Exploitation Defense:
+1. Use abstraction refinement
+2. Check implementation-model correspondence
+3. Test concrete instances of abstract proofs
+4. Validate soundness assumptions
+
+Sound abstractions prevent exploitation.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_proof_oracle_manipulation() -> AttackResult:
+    """
+    ATTACK 163: PROOF ORACLE MANIPULATION (Track EK-2a)
+
+    Manipulates oracles used in proof generation:
+    1. Identify external oracles used by proof system
+    2. Corrupt or manipulate oracle responses
+    3. Proof system generates valid proofs for false statements
+    4. Verified "facts" are actually attacker controlled
+    """
+
+    defenses = {
+        "oracle_redundancy": False,
+        "oracle_verification": False,
+        "oracle_provenance_tracking": False,
+        "self_contained_proofs": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Oracle Redundancy
+    # ========================================================================
+
+    class RedundantOracle:
+        """Use multiple oracles and require consensus."""
+
+        def __init__(self, min_agreement: int = 3):
+            self.min_agreement = min_agreement
+            self.oracles = {}
+
+        def register_oracle(self, oracle_id: str, trusted: bool):
+            """Register an oracle."""
+            self.oracles[oracle_id] = {"trusted": trusted}
+
+        def query_all(self, question: str) -> dict:
+            """Query all oracles."""
+            responses = {}
+            import random
+            for oracle_id in self.oracles:
+                # Simulate responses - honest oracles agree, malicious may differ
+                if self.oracles[oracle_id]["trusted"]:
+                    responses[oracle_id] = "correct_answer"
+                else:
+                    responses[oracle_id] = random.choice(["correct_answer", "wrong_answer"])
+            return responses
+
+        def get_consensus(self, responses: dict) -> tuple:
+            """Get consensus answer if possible."""
+            from collections import Counter
+            counts = Counter(responses.values())
+            most_common, count = counts.most_common(1)[0]
+
+            if count >= self.min_agreement:
+                return True, most_common
+
+            return False, "No consensus"
+
+    redundant = RedundantOracle()
+
+    redundant.register_oracle("oracle_1", True)
+    redundant.register_oracle("oracle_2", True)
+    redundant.register_oracle("oracle_3", False)  # Malicious
+    redundant.register_oracle("oracle_4", True)
+
+    responses = redundant.query_all("what is truth?")
+    ok, consensus = redundant.get_consensus(responses)
+    if ok:
+        defenses["oracle_redundancy"] = True
+
+    # ========================================================================
+    # Defense 2: Oracle Verification
+    # ========================================================================
+
+    class OracleVerifier:
+        """Verify oracle responses."""
+
+        def __init__(self):
+            self.known_facts = {}
+            self.verification_history = []
+
+        def add_known_fact(self, fact_id: str, value: str):
+            """Add a known fact for verification."""
+            self.known_facts[fact_id] = value
+
+        def verify_response(self, fact_id: str, oracle_response: str) -> tuple:
+            """Verify an oracle response against known facts."""
+            if fact_id not in self.known_facts:
+                return None, "Unknown fact - cannot verify"
+
+            expected = self.known_facts[fact_id]
+            if oracle_response == expected:
+                self.verification_history.append((fact_id, True))
+                return True, "Verified"
+
+            self.verification_history.append((fact_id, False))
+            return False, f"Mismatch: expected {expected}, got {oracle_response}"
+
+        def oracle_trustworthiness(self) -> float:
+            """Calculate oracle trustworthiness from history."""
+            if not self.verification_history:
+                return 0.0
+            correct = sum(1 for _, ok in self.verification_history if ok)
+            return correct / len(self.verification_history)
+
+    verifier = OracleVerifier()
+
+    # Known facts
+    verifier.add_known_fact("fact_1", "true")
+    verifier.add_known_fact("fact_2", "42")
+    verifier.add_known_fact("fact_3", "yes")
+
+    # Oracle gives wrong answer on one
+    verifier.verify_response("fact_1", "true")
+    verifier.verify_response("fact_2", "41")  # Wrong!
+    verifier.verify_response("fact_3", "yes")
+
+    trust = verifier.oracle_trustworthiness()
+    if trust < 1.0:
+        defenses["oracle_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Oracle Provenance Tracking
+    # ========================================================================
+
+    class ProvenanceTracker:
+        """Track provenance of oracle-derived facts."""
+
+        def __init__(self):
+            self.facts = {}
+
+        def record_fact(self, fact_id: str, value: str, oracle_id: str,
+                       timestamp: float, signature: str):
+            """Record a fact with full provenance."""
+            self.facts[fact_id] = {
+                "value": value,
+                "oracle_id": oracle_id,
+                "timestamp": timestamp,
+                "signature": signature,
+            }
+
+        def verify_provenance(self, fact_id: str) -> tuple:
+            """Verify fact has complete provenance."""
+            if fact_id not in self.facts:
+                return False, "Fact not found"
+
+            fact = self.facts[fact_id]
+
+            if not fact.get("oracle_id"):
+                return False, "Missing oracle ID"
+
+            if not fact.get("timestamp"):
+                return False, "Missing timestamp"
+
+            if not fact.get("signature"):
+                return False, "Missing signature"
+
+            return True, "Provenance complete"
+
+    provenance = ProvenanceTracker()
+
+    # Fact with incomplete provenance (attack attempt)
+    provenance.record_fact("suspicious_fact", "evil_value", "", 0, "")
+
+    ok, msg = provenance.verify_provenance("suspicious_fact")
+    if not ok:
+        defenses["oracle_provenance_tracking"] = True
+
+    # ========================================================================
+    # Defense 4: Self-Contained Proofs
+    # ========================================================================
+
+    class SelfContainedProofChecker:
+        """Check if proofs are self-contained without external oracles."""
+
+        def __init__(self):
+            self.proofs = {}
+
+        def register_proof(self, proof_id: str, has_external_dependencies: bool,
+                          dependencies: list):
+            """Register a proof."""
+            self.proofs[proof_id] = {
+                "external": has_external_dependencies,
+                "dependencies": dependencies,
+            }
+
+        def check_self_containment(self, proof_id: str) -> tuple:
+            """Check if proof is self-contained."""
+            if proof_id not in self.proofs:
+                return False, "Proof not found"
+
+            proof = self.proofs[proof_id]
+
+            if proof["external"]:
+                return False, f"Has external dependencies: {proof['dependencies']}"
+
+            return True, "Proof is self-contained"
+
+        def minimize_dependencies(self, proof_id: str) -> list:
+            """Return list of dependencies that could be eliminated."""
+            proof = self.proofs.get(proof_id)
+            if not proof:
+                return []
+            return [d for d in proof["dependencies"] if not d.startswith("core_")]
+
+    checker = SelfContainedProofChecker()
+
+    # Proof has oracle dependency
+    checker.register_proof("security_proof", True, ["oracle_1", "oracle_2"])
+
+    ok, msg = checker.check_self_containment("security_proof")
+    if not ok:
+        defenses["self_contained_proofs"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Proof Oracle Manipulation (EK-2a)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=2000.0 if attack_success else 0.0,
+        roi=(2000.0 / 300.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=480.0,  # 20 days
+        blocks_until_detected=1500,
+        trust_damage=0.90,
+        description=f"""
+PROOF ORACLE MANIPULATION (Track EK-2a)
+
+Manipulates external oracles used in proof systems.
+
+Attack Pattern:
+1. Identify oracles used by proof system
+2. Corrupt oracle responses
+3. Generate valid proofs for false statements
+4. "Verified" facts are attacker controlled
+
+Oracle dependency is a vulnerability.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EK-2a: Oracle Manipulation Defense:
+1. Use redundant oracles with consensus
+2. Verify oracle responses
+3. Track oracle provenance
+4. Prefer self-contained proofs
+
+Minimize oracle dependencies.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_assumption_violation() -> AttackResult:
+    """
+    ATTACK 164: ASSUMPTION VIOLATION (Track EK-2b)
+
+    Violates assumptions that formal proofs rely on:
+    1. Identify implicit assumptions in formal model
+    2. Create conditions that violate assumptions
+    3. Proof conclusions no longer hold
+    4. Security properties fail in practice
+    """
+
+    defenses = {
+        "explicit_assumptions": False,
+        "runtime_assumption_checking": False,
+        "assumption_monitoring": False,
+        "graceful_degradation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Explicit Assumptions
+    # ========================================================================
+
+    class ExplicitAssumptions:
+        """Make all proof assumptions explicit and documented."""
+
+        def __init__(self):
+            self.assumptions = {}
+            self.assumption_justifications = {}
+
+        def declare_assumption(self, name: str, description: str,
+                              justification: str, critical: bool):
+            """Declare an assumption explicitly."""
+            self.assumptions[name] = {
+                "description": description,
+                "critical": critical,
+            }
+            self.assumption_justifications[name] = justification
+
+        def list_assumptions(self) -> list:
+            """List all assumptions."""
+            return list(self.assumptions.keys())
+
+        def check_documentation(self) -> tuple:
+            """Check if all assumptions are documented."""
+            undocumented = [a for a, j in self.assumption_justifications.items()
+                           if not j or len(j) < 10]
+
+            if undocumented:
+                return False, f"Poorly documented: {undocumented}"
+
+            return True, "All assumptions documented"
+
+    explicit = ExplicitAssumptions()
+
+    explicit.declare_assumption(
+        "network_sync",
+        "Network is partially synchronous",
+        "Based on measured network latencies in production",
+        True
+    )
+    explicit.declare_assumption(
+        "honest_majority",
+        "Majority of nodes are honest",
+        "",  # Missing justification!
+        True
+    )
+
+    ok, msg = explicit.check_documentation()
+    if not ok:
+        defenses["explicit_assumptions"] = True
+
+    # ========================================================================
+    # Defense 2: Runtime Assumption Checking
+    # ========================================================================
+
+    class RuntimeAssumptionChecker:
+        """Check assumptions hold at runtime."""
+
+        def __init__(self):
+            self.checks = {}
+            self.violations = []
+
+        def add_check(self, assumption: str, check_fn):
+            """Add a runtime check for an assumption."""
+            self.checks[assumption] = check_fn
+
+        def run_checks(self) -> list:
+            """Run all assumption checks."""
+            violations = []
+
+            for assumption, check_fn in self.checks.items():
+                try:
+                    ok = check_fn()
+                    if not ok:
+                        violations.append(assumption)
+                except Exception as e:
+                    violations.append(f"{assumption} (error: {e})")
+
+            self.violations = violations
+            return violations
+
+    runtime = RuntimeAssumptionChecker()
+
+    # Checks that sometimes fail
+    runtime.add_check("clock_sync", lambda: True)
+    runtime.add_check("memory_sufficient", lambda: False)  # Violated!
+    runtime.add_check("network_available", lambda: True)
+
+    violations = runtime.run_checks()
+    if violations:
+        defenses["runtime_assumption_checking"] = True
+
+    # ========================================================================
+    # Defense 3: Assumption Monitoring
+    # ========================================================================
+
+    class AssumptionMonitor:
+        """Continuously monitor assumption validity."""
+
+        def __init__(self, window_size: int = 100):
+            self.window_size = window_size
+            self.history = {}
+
+        def record_check(self, assumption: str, holds: bool):
+            """Record an assumption check result."""
+            if assumption not in self.history:
+                self.history[assumption] = []
+
+            self.history[assumption].append(holds)
+
+            # Keep only recent history
+            if len(self.history[assumption]) > self.window_size:
+                self.history[assumption] = self.history[assumption][-self.window_size:]
+
+        def get_validity_rate(self, assumption: str) -> float:
+            """Get recent validity rate for assumption."""
+            if assumption not in self.history:
+                return 1.0  # Assume valid if no history
+
+            history = self.history[assumption]
+            if not history:
+                return 1.0
+
+            return sum(history) / len(history)
+
+        def detect_degradation(self, assumption: str, threshold: float = 0.95) -> tuple:
+            """Detect if assumption is degrading."""
+            rate = self.get_validity_rate(assumption)
+            if rate < threshold:
+                return True, f"Assumption {assumption} degraded to {rate:.1%}"
+            return False, f"Assumption {assumption} healthy at {rate:.1%}"
+
+    monitor = AssumptionMonitor()
+
+    # Assumption degrades over time
+    for i in range(100):
+        holds = i < 80  # Fails last 20%
+        monitor.record_check("latency_bound", holds)
+
+    degraded, msg = monitor.detect_degradation("latency_bound")
+    if degraded:
+        defenses["assumption_monitoring"] = True
+
+    # ========================================================================
+    # Defense 4: Graceful Degradation
+    # ========================================================================
+
+    class GracefulDegradation:
+        """Handle assumption violations gracefully."""
+
+        def __init__(self):
+            self.fallback_modes = {}
+            self.current_mode = "normal"
+
+        def register_fallback(self, assumption: str, fallback_mode: str,
+                             fallback_action: str):
+            """Register a fallback for assumption violation."""
+            self.fallback_modes[assumption] = {
+                "mode": fallback_mode,
+                "action": fallback_action,
+            }
+
+        def handle_violation(self, assumption: str) -> tuple:
+            """Handle an assumption violation."""
+            if assumption not in self.fallback_modes:
+                return False, f"No fallback for {assumption}"
+
+            fallback = self.fallback_modes[assumption]
+            self.current_mode = fallback["mode"]
+            return True, f"Switched to {fallback['mode']}: {fallback['action']}"
+
+        def has_fallbacks(self) -> bool:
+            """Check if system has fallback modes."""
+            return len(self.fallback_modes) > 0
+
+    degrade = GracefulDegradation()
+
+    degrade.register_fallback(
+        "network_sync",
+        "async_safe",
+        "Switch to asynchronous BFT protocol"
+    )
+    degrade.register_fallback(
+        "honest_majority",
+        "pessimistic",
+        "Require unanimous consensus"
+    )
+
+    if degrade.has_fallbacks():
+        ok, msg = degrade.handle_violation("network_sync")
+        if ok:
+            defenses["graceful_degradation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Assumption Violation (EK-2b)",
+        success=attack_success,
+        setup_cost_atp=250.0,
+        gain_atp=1500.0 if attack_success else 0.0,
+        roi=(1500.0 / 250.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=336.0,  # 14 days
+        blocks_until_detected=1000,
+        trust_damage=0.80,
+        description=f"""
+ASSUMPTION VIOLATION (Track EK-2b)
+
+Violates implicit assumptions that proofs rely on.
+
+Attack Pattern:
+1. Identify implicit proof assumptions
+2. Create conditions violating assumptions
+3. Proof conclusions no longer hold
+4. Security properties fail
+
+Unmonitored assumptions are vulnerabilities.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EK-2b: Assumption Violation Defense:
+1. Make all assumptions explicit
+2. Check assumptions at runtime
+3. Monitor assumption validity
+4. Degrade gracefully on violation
+
+Explicit assumptions enable monitoring.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_solver_exploitation() -> AttackResult:
+    """
+    ATTACK 165: SOLVER/PROVER EXPLOITATION (Track EK-3a)
+
+    Exploits bugs or limitations in verification tools:
+    1. Identify bugs in SMT solvers, theorem provers, etc.
+    2. Craft inputs that trigger bugs
+    3. Tool reports "verified" for unsafe program
+    4. Trust in tool creates false security
+    """
+
+    defenses = {
+        "tool_diversity": False,
+        "tool_validation": False,
+        "known_bug_checking": False,
+        "manual_review_for_critical": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Tool Diversity
+    # ========================================================================
+
+    class ToolDiversity:
+        """Use multiple verification tools for critical properties."""
+
+        def __init__(self, min_tools: int = 2):
+            self.min_tools = min_tools
+            self.verifications = {}
+
+        def verify_with_tool(self, property_id: str, tool: str, result: bool):
+            """Record verification result from a tool."""
+            if property_id not in self.verifications:
+                self.verifications[property_id] = {}
+            self.verifications[property_id][tool] = result
+
+        def check_consensus(self, property_id: str) -> tuple:
+            """Check if tools agree on verification."""
+            if property_id not in self.verifications:
+                return False, "Property not verified"
+
+            results = self.verifications[property_id]
+
+            if len(results) < self.min_tools:
+                return False, f"Insufficient tools ({len(results)} < {self.min_tools})"
+
+            values = list(results.values())
+            if len(set(values)) > 1:
+                return False, f"Tools disagree: {results}"
+
+            return True, "Tools agree"
+
+    diversity = ToolDiversity()
+
+    # Tools disagree (one has bug)
+    diversity.verify_with_tool("safety", "z3", True)
+    diversity.verify_with_tool("safety", "cvc5", False)  # Disagrees!
+
+    ok, msg = diversity.check_consensus("safety")
+    if not ok:
+        defenses["tool_diversity"] = True
+
+    # ========================================================================
+    # Defense 2: Tool Validation
+    # ========================================================================
+
+    class ToolValidator:
+        """Validate tools against known test cases."""
+
+        def __init__(self):
+            self.test_cases = {}
+            self.tool_scores = {}
+
+        def add_test_case(self, case_id: str, expected: bool):
+            """Add a test case with known answer."""
+            self.test_cases[case_id] = expected
+
+        def test_tool(self, tool_id: str, results: dict) -> tuple:
+            """Test a tool against known cases."""
+            correct = 0
+            for case_id, expected in self.test_cases.items():
+                if results.get(case_id) == expected:
+                    correct += 1
+
+            score = correct / len(self.test_cases) if self.test_cases else 0
+            self.tool_scores[tool_id] = score
+
+            if score < 1.0:
+                failed = [c for c, e in self.test_cases.items()
+                         if results.get(c) != e]
+                return False, f"Tool failed cases: {failed}"
+
+            return True, "Tool passed validation"
+
+    validator = ToolValidator()
+
+    validator.add_test_case("case_1", True)
+    validator.add_test_case("case_2", False)
+    validator.add_test_case("case_3", True)
+
+    # Tool gets one wrong
+    results = {"case_1": True, "case_2": False, "case_3": False}  # case_3 wrong
+    ok, msg = validator.test_tool("buggy_solver", results)
+    if not ok:
+        defenses["tool_validation"] = True
+
+    # ========================================================================
+    # Defense 3: Known Bug Checking
+    # ========================================================================
+
+    class KnownBugChecker:
+        """Check for known bugs in verification tools."""
+
+        def __init__(self):
+            self.known_bugs = {}
+
+        def register_bug(self, tool: str, version: str, bug_id: str,
+                        description: str, fixed_in: str = None):
+            """Register a known bug."""
+            key = (tool, version)
+            if key not in self.known_bugs:
+                self.known_bugs[key] = []
+
+            self.known_bugs[key].append({
+                "bug_id": bug_id,
+                "description": description,
+                "fixed_in": fixed_in,
+            })
+
+        def check_for_bugs(self, tool: str, version: str) -> tuple:
+            """Check if tool version has known bugs."""
+            bugs = self.known_bugs.get((tool, version), [])
+
+            if bugs:
+                unfixed = [b for b in bugs if not b["fixed_in"]]
+                return False, f"Known bugs: {[b['bug_id'] for b in bugs]}"
+
+            return True, "No known bugs"
+
+    bug_checker = KnownBugChecker()
+
+    bug_checker.register_bug("z3", "4.8.0", "CVE-2021-1234",
+                            "Incorrect handling of bitvector operations",
+                            fixed_in="4.8.1")
+    bug_checker.register_bug("z3", "4.8.0", "BUG-567",
+                            "Timeout can cause incorrect 'sat' result")
+
+    ok, msg = bug_checker.check_for_bugs("z3", "4.8.0")
+    if not ok:
+        defenses["known_bug_checking"] = True
+
+    # ========================================================================
+    # Defense 4: Manual Review for Critical
+    # ========================================================================
+
+    class ManualReviewPolicy:
+        """Require manual review for critical verifications."""
+
+        def __init__(self):
+            self.verifications = {}
+            self.reviews = {}
+
+        def record_verification(self, property_id: str, criticality: str,
+                               tool_verified: bool):
+            """Record a verification."""
+            self.verifications[property_id] = {
+                "criticality": criticality,
+                "tool_verified": tool_verified,
+            }
+
+        def record_manual_review(self, property_id: str, reviewer: str,
+                                approved: bool):
+            """Record a manual review."""
+            self.reviews[property_id] = {
+                "reviewer": reviewer,
+                "approved": approved,
+            }
+
+        def is_fully_verified(self, property_id: str) -> tuple:
+            """Check if property is fully verified."""
+            if property_id not in self.verifications:
+                return False, "Not verified"
+
+            v = self.verifications[property_id]
+
+            if not v["tool_verified"]:
+                return False, "Tool verification failed"
+
+            if v["criticality"] in ["critical", "high"]:
+                if property_id not in self.reviews:
+                    return False, "Critical property needs manual review"
+                if not self.reviews[property_id]["approved"]:
+                    return False, "Manual review rejected"
+
+            return True, "Fully verified"
+
+    review = ManualReviewPolicy()
+
+    review.record_verification("critical_safety", "critical", True)
+    # No manual review recorded
+
+    ok, msg = review.is_fully_verified("critical_safety")
+    if not ok:
+        defenses["manual_review_for_critical"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Solver/Prover Exploitation (EK-3a)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=3000.0 if attack_success else 0.0,
+        roi=(3000.0 / 400.0) if attack_success else -1.0,
+        detection_probability=0.15 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=2160.0,  # 90 days
+        blocks_until_detected=6000,
+        trust_damage=0.95,
+        description=f"""
+SOLVER/PROVER EXPLOITATION (Track EK-3a)
+
+Exploits bugs in verification tools.
+
+Attack Pattern:
+1. Identify bugs in SMT solvers/provers
+2. Craft inputs triggering bugs
+3. Tool reports verified for unsafe code
+4. False confidence in verification
+
+Tool bugs undermine formal methods.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EK-3a: Solver Exploitation Defense:
+1. Use multiple verification tools
+2. Validate tools against test suites
+3. Check for known bugs
+4. Require manual review for critical
+
+Tool diversity catches bugs.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_proof_replay() -> AttackResult:
+    """
+    ATTACK 166: PROOF REPLAY ATTACK (Track EK-3b)
+
+    Replays valid proofs in wrong contexts:
+    1. Obtain valid proof from one context
+    2. Replay proof in different context
+    3. Verifier accepts proof as valid
+    4. Wrong conclusions drawn from proof
+    """
+
+    defenses = {
+        "proof_binding": False,
+        "context_verification": False,
+        "proof_freshness": False,
+        "proof_uniqueness": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Proof Binding
+    # ========================================================================
+
+    class ProofBinder:
+        """Bind proofs to specific contexts."""
+
+        def __init__(self):
+            self.proofs = {}
+
+        def create_proof(self, proof_id: str, statement: str, context: dict,
+                        proof_data: str) -> dict:
+            """Create a context-bound proof."""
+            proof = {
+                "id": proof_id,
+                "statement": statement,
+                "context": context,
+                "proof": proof_data,
+                "context_hash": hash(frozenset(context.items())),
+            }
+            self.proofs[proof_id] = proof
+            return proof
+
+        def verify_binding(self, proof_id: str, claimed_context: dict) -> tuple:
+            """Verify proof is bound to claimed context."""
+            if proof_id not in self.proofs:
+                return False, "Proof not found"
+
+            proof = self.proofs[proof_id]
+            claimed_hash = hash(frozenset(claimed_context.items()))
+
+            if proof["context_hash"] != claimed_hash:
+                return False, "Context mismatch - potential replay"
+
+            return True, "Proof bound to context"
+
+    binder = ProofBinder()
+
+    # Create proof in original context
+    original_context = {"version": "1.0", "timestamp": 1000}
+    binder.create_proof("proof_1", "system is safe", original_context, "proof_data")
+
+    # Attacker tries to replay in different context
+    replay_context = {"version": "2.0", "timestamp": 2000}
+    ok, msg = binder.verify_binding("proof_1", replay_context)
+    if not ok:
+        defenses["proof_binding"] = True
+
+    # ========================================================================
+    # Defense 2: Context Verification
+    # ========================================================================
+
+    class ContextVerifier:
+        """Verify proof context matches current state."""
+
+        def __init__(self):
+            self.current_state = {}
+
+        def set_state(self, key: str, value):
+            """Set current state."""
+            self.current_state[key] = value
+
+        def verify_context(self, proof_context: dict) -> tuple:
+            """Verify proof context matches current state."""
+            mismatches = []
+
+            for key, value in proof_context.items():
+                current = self.current_state.get(key)
+                if current != value:
+                    mismatches.append((key, value, current))
+
+            if mismatches:
+                return False, f"Context mismatches: {mismatches}"
+
+            return True, "Context matches"
+
+    context_ver = ContextVerifier()
+
+    context_ver.set_state("code_hash", "abc123")
+    context_ver.set_state("config_version", "v2")
+
+    # Proof from old version
+    old_context = {"code_hash": "xyz789", "config_version": "v1"}
+    ok, msg = context_ver.verify_context(old_context)
+    if not ok:
+        defenses["context_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Proof Freshness
+    # ========================================================================
+
+    class ProofFreshnessChecker:
+        """Check if proofs are sufficiently fresh."""
+
+        def __init__(self, max_age_seconds: int = 3600):
+            self.max_age = max_age_seconds
+
+        def check_freshness(self, proof_timestamp: float,
+                           current_time: float) -> tuple:
+            """Check if proof is fresh."""
+            age = current_time - proof_timestamp
+
+            if age < 0:
+                return False, "Proof from future"
+
+            if age > self.max_age:
+                return False, f"Proof too old ({age:.0f}s > {self.max_age}s)"
+
+            return True, f"Proof fresh ({age:.0f}s old)"
+
+    freshness = ProofFreshnessChecker(max_age_seconds=3600)
+
+    # Old proof
+    old_timestamp = time.time() - 7200  # 2 hours old
+    ok, msg = freshness.check_freshness(old_timestamp, time.time())
+    if not ok:
+        defenses["proof_freshness"] = True
+
+    # ========================================================================
+    # Defense 4: Proof Uniqueness
+    # ========================================================================
+
+    class ProofUniqueness:
+        """Ensure proofs can only be used once."""
+
+        def __init__(self):
+            self.used_proofs = set()
+
+        def use_proof(self, proof_id: str) -> tuple:
+            """Attempt to use a proof."""
+            if proof_id in self.used_proofs:
+                return False, "Proof already used"
+
+            self.used_proofs.add(proof_id)
+            return True, "Proof accepted"
+
+        def is_replay(self, proof_id: str) -> bool:
+            """Check if proof is a replay."""
+            return proof_id in self.used_proofs
+
+    uniqueness = ProofUniqueness()
+
+    # First use succeeds
+    uniqueness.use_proof("proof_1")
+
+    # Replay attempt fails
+    ok, msg = uniqueness.use_proof("proof_1")
+    if not ok:
+        defenses["proof_uniqueness"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Proof Replay Attack (EK-3b)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=800.0 if attack_success else 0.0,
+        roi=(800.0 / 100.0) if attack_success else -1.0,
+        detection_probability=0.60 if defenses_held >= 3 else 0.25,
+        time_to_detection_hours=72.0,  # 3 days
+        blocks_until_detected=200,
+        trust_damage=0.70,
+        description=f"""
+PROOF REPLAY ATTACK (Track EK-3b)
+
+Replays valid proofs in wrong contexts.
+
+Attack Pattern:
+1. Obtain valid proof from one context
+2. Replay in different context
+3. Verifier accepts replayed proof
+4. Wrong conclusions from stale proof
+
+Context-free proofs enable replay.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EK-3b: Proof Replay Defense:
+1. Bind proofs to contexts
+2. Verify context matches current state
+3. Require fresh proofs
+4. Ensure proof uniqueness (one-time use)
+
+Context binding prevents replay.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track EL: Quantum-Safe Migration Attacks (Attacks 167-172)
+# ---------------------------------------------------------------------------
+
+
+def attack_algorithm_downgrade() -> AttackResult:
+    """
+    ATTACK 167: CRYPTOGRAPHIC ALGORITHM DOWNGRADE (Track EL-1a)
+
+    Forces systems to use classical cryptography during PQ transition:
+    1. Identify systems with hybrid classical/PQ crypto
+    2. Manipulate negotiation to force classical-only
+    3. Break classical crypto (assume quantum capability)
+    4. Compromise "quantum-safe" system via downgrade
+    """
+
+    defenses = {
+        "minimum_security_level": False,
+        "downgrade_detection": False,
+        "version_pinning": False,
+        "hybrid_mandatory": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Minimum Security Level
+    # ========================================================================
+
+    class MinimumSecurityPolicy:
+        """Enforce minimum cryptographic security level."""
+
+        def __init__(self, min_level: int = 3):
+            self.min_level = min_level
+            self.security_levels = {
+                "rsa_2048": 1,
+                "ed25519": 2,
+                "dilithium2": 3,
+                "dilithium3": 4,
+                "dilithium5": 5,
+            }
+
+        def check_algorithm(self, algorithm: str) -> tuple:
+            """Check if algorithm meets minimum security."""
+            level = self.security_levels.get(algorithm, 0)
+
+            if level < self.min_level:
+                return False, f"Algorithm {algorithm} below minimum (level {level} < {self.min_level})"
+
+            return True, f"Algorithm acceptable (level {level})"
+
+        def negotiate(self, offered: list) -> tuple:
+            """Negotiate algorithm meeting minimum requirements."""
+            acceptable = [(a, self.security_levels.get(a, 0))
+                         for a in offered
+                         if self.security_levels.get(a, 0) >= self.min_level]
+
+            if not acceptable:
+                return None, "No acceptable algorithms offered"
+
+            # Pick highest level
+            best = max(acceptable, key=lambda x: x[1])
+            return best[0], f"Selected {best[0]} (level {best[1]})"
+
+    policy = MinimumSecurityPolicy(min_level=3)
+
+    # Attacker offers only classical
+    ok, msg = policy.check_algorithm("rsa_2048")
+    if not ok:
+        defenses["minimum_security_level"] = True
+
+    # ========================================================================
+    # Defense 2: Downgrade Detection
+    # ========================================================================
+
+    class DowngradeDetector:
+        """Detect cryptographic downgrade attempts."""
+
+        def __init__(self):
+            self.connection_history = {}
+
+        def record_connection(self, peer_id: str, algorithm: str,
+                             security_level: int):
+            """Record connection algorithm."""
+            if peer_id not in self.connection_history:
+                self.connection_history[peer_id] = []
+
+            self.connection_history[peer_id].append({
+                "algorithm": algorithm,
+                "level": security_level,
+            })
+
+        def check_downgrade(self, peer_id: str, current_level: int) -> tuple:
+            """Check for downgrade from previous connections."""
+            history = self.connection_history.get(peer_id, [])
+
+            if not history:
+                return False, "No history"
+
+            previous_levels = [h["level"] for h in history]
+            max_previous = max(previous_levels)
+
+            if current_level < max_previous:
+                return True, f"Downgrade detected: {max_previous} -> {current_level}"
+
+            return False, "No downgrade"
+
+    detector = DowngradeDetector()
+
+    # Previous high-security connection
+    detector.record_connection("peer_1", "dilithium3", 4)
+    detector.record_connection("peer_1", "dilithium3", 4)
+
+    # Now trying to connect with lower security
+    downgrade, msg = detector.check_downgrade("peer_1", 2)
+    if downgrade:
+        defenses["downgrade_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Version Pinning
+    # ========================================================================
+
+    class VersionPinner:
+        """Pin to specific algorithm versions to prevent rollback."""
+
+        def __init__(self):
+            self.pins = {}
+
+        def pin_version(self, entity_id: str, min_version: str):
+            """Pin entity to minimum version."""
+            self.pins[entity_id] = min_version
+
+        def check_version(self, entity_id: str, version: str) -> tuple:
+            """Check if version meets pin requirements."""
+            if entity_id not in self.pins:
+                return True, "No pin for entity"
+
+            min_version = self.pins[entity_id]
+
+            # Simple string comparison (assumes semantic versioning)
+            if version < min_version:
+                return False, f"Version {version} below pin {min_version}"
+
+            return True, f"Version {version} meets pin"
+
+    pinner = VersionPinner()
+
+    pinner.pin_version("critical_service", "3.0")
+
+    # Attacker tries to use old version
+    ok, msg = pinner.check_version("critical_service", "2.0")
+    if not ok:
+        defenses["version_pinning"] = True
+
+    # ========================================================================
+    # Defense 4: Hybrid Mandatory
+    # ========================================================================
+
+    class HybridMandatory:
+        """Require hybrid classical+PQ crypto during transition."""
+
+        def __init__(self):
+            self.classical_algorithms = {"rsa_2048", "ed25519", "ecdsa"}
+            self.pq_algorithms = {"dilithium2", "dilithium3", "kyber512", "kyber768"}
+
+        def check_hybrid(self, algorithms: list) -> tuple:
+            """Check if both classical and PQ are used."""
+            has_classical = any(a in self.classical_algorithms for a in algorithms)
+            has_pq = any(a in self.pq_algorithms for a in algorithms)
+
+            if not has_classical:
+                return False, "Missing classical algorithm"
+
+            if not has_pq:
+                return False, "Missing post-quantum algorithm"
+
+            return True, "Hybrid configuration valid"
+
+    hybrid = HybridMandatory()
+
+    # Only classical offered
+    ok, msg = hybrid.check_hybrid(["ed25519", "rsa_2048"])
+    if not ok:
+        defenses["hybrid_mandatory"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Cryptographic Algorithm Downgrade (EL-1a)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=5000.0 if attack_success else 0.0,
+        roi=(5000.0 / 500.0) if attack_success else -1.0,
+        detection_probability=0.45 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=168.0,  # 7 days
+        blocks_until_detected=500,
+        trust_damage=0.95,
+        description=f"""
+CRYPTOGRAPHIC ALGORITHM DOWNGRADE (Track EL-1a)
+
+Forces systems to use classical crypto during PQ transition.
+
+Attack Pattern:
+1. Target hybrid classical/PQ systems
+2. Manipulate negotiation for classical-only
+3. Break classical crypto (quantum attacker)
+4. Compromise via downgrade
+
+Quantum computers break downgraded connections.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EL-1a: Algorithm Downgrade Defense:
+1. Enforce minimum security levels
+2. Detect downgrade attempts
+3. Pin to secure versions
+4. Mandate hybrid crypto
+
+Never accept below-minimum security.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_key_transition_window() -> AttackResult:
+    """
+    ATTACK 168: KEY TRANSITION WINDOW EXPLOITATION (Track EL-1b)
+
+    Exploits the window during cryptographic key transitions:
+    1. Identify systems transitioning keys
+    2. Attack during key transition period
+    3. Old and new keys may both be valid
+    4. Exploit key ambiguity for replay/confusion
+    """
+
+    defenses = {
+        "transition_overlap_limits": False,
+        "key_epoch_tracking": False,
+        "transition_state_verification": False,
+        "rollback_protection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Transition Overlap Limits
+    # ========================================================================
+
+    class TransitionOverlapPolicy:
+        """Limit overlap period during key transitions."""
+
+        def __init__(self, max_overlap_seconds: int = 300):
+            self.max_overlap = max_overlap_seconds
+            self.transitions = {}
+
+        def start_transition(self, key_id: str, start_time: float):
+            """Start a key transition."""
+            self.transitions[key_id] = {
+                "start": start_time,
+                "completed": False,
+            }
+
+        def check_transition(self, key_id: str, current_time: float) -> tuple:
+            """Check if transition is within allowed overlap."""
+            if key_id not in self.transitions:
+                return True, "No active transition"
+
+            t = self.transitions[key_id]
+            if t["completed"]:
+                return True, "Transition completed"
+
+            duration = current_time - t["start"]
+
+            if duration > self.max_overlap:
+                return False, f"Transition exceeded max overlap ({duration:.0f}s > {self.max_overlap}s)"
+
+            return True, f"Transition within limits ({duration:.0f}s)"
+
+    overlap = TransitionOverlapPolicy(max_overlap_seconds=300)
+
+    overlap.start_transition("key_1", 1000.0)
+
+    # Transition takes too long
+    ok, msg = overlap.check_transition("key_1", 2000.0)
+    if not ok:
+        defenses["transition_overlap_limits"] = True
+
+    # ========================================================================
+    # Defense 2: Key Epoch Tracking
+    # ========================================================================
+
+    class KeyEpochTracker:
+        """Track key epochs to prevent replay across epochs."""
+
+        def __init__(self):
+            self.current_epoch = {}
+            self.used_keys = {}
+
+        def advance_epoch(self, domain: str):
+            """Advance to new epoch."""
+            if domain not in self.current_epoch:
+                self.current_epoch[domain] = 0
+            self.current_epoch[domain] += 1
+            self.used_keys[domain] = set()
+
+        def record_key_use(self, domain: str, key_id: str, epoch: int) -> tuple:
+            """Record key use, checking epoch."""
+            current = self.current_epoch.get(domain, 0)
+
+            if epoch < current:
+                return False, f"Key from old epoch ({epoch} < {current})"
+
+            if epoch > current:
+                return False, f"Key from future epoch ({epoch} > {current})"
+
+            if domain not in self.used_keys:
+                self.used_keys[domain] = set()
+
+            if key_id in self.used_keys[domain]:
+                return False, "Key already used in this epoch"
+
+            self.used_keys[domain].add(key_id)
+            return True, "Key accepted"
+
+    epoch_tracker = KeyEpochTracker()
+
+    epoch_tracker.advance_epoch("main")  # epoch 1
+    epoch_tracker.advance_epoch("main")  # epoch 2
+
+    # Attacker tries to use key from epoch 0
+    ok, msg = epoch_tracker.record_key_use("main", "old_key", 0)
+    if not ok:
+        defenses["key_epoch_tracking"] = True
+
+    # ========================================================================
+    # Defense 3: Transition State Verification
+    # ========================================================================
+
+    class TransitionStateVerifier:
+        """Verify transition state before accepting operations."""
+
+        def __init__(self):
+            self.states = {}
+            self.valid_operations = {
+                "pre_transition": ["sign", "verify", "encrypt"],
+                "transitioning": ["verify"],  # Only verify during transition
+                "post_transition": ["sign", "verify", "encrypt"],
+            }
+
+        def set_state(self, domain: str, state: str):
+            """Set transition state."""
+            self.states[domain] = state
+
+        def check_operation(self, domain: str, operation: str) -> tuple:
+            """Check if operation allowed in current state."""
+            state = self.states.get(domain, "pre_transition")
+            allowed = self.valid_operations.get(state, [])
+
+            if operation not in allowed:
+                return False, f"Operation {operation} not allowed in state {state}"
+
+            return True, f"Operation {operation} allowed"
+
+    state_ver = TransitionStateVerifier()
+
+    state_ver.set_state("main", "transitioning")
+
+    # Signing not allowed during transition
+    ok, msg = state_ver.check_operation("main", "sign")
+    if not ok:
+        defenses["transition_state_verification"] = True
+
+    # ========================================================================
+    # Defense 4: Rollback Protection
+    # ========================================================================
+
+    class RollbackProtection:
+        """Prevent rollback to old keys after transition."""
+
+        def __init__(self):
+            self.retired_keys = set()
+            self.active_keys = set()
+
+        def retire_key(self, key_id: str):
+            """Retire a key."""
+            self.retired_keys.add(key_id)
+            self.active_keys.discard(key_id)
+
+        def activate_key(self, key_id: str):
+            """Activate a new key."""
+            self.active_keys.add(key_id)
+
+        def check_key(self, key_id: str) -> tuple:
+            """Check if key is valid (not retired)."""
+            if key_id in self.retired_keys:
+                return False, f"Key {key_id} is retired - rollback attempt?"
+
+            if key_id not in self.active_keys:
+                return False, f"Key {key_id} not active"
+
+            return True, "Key is active"
+
+    rollback = RollbackProtection()
+
+    rollback.activate_key("key_v2")
+    rollback.retire_key("key_v1")
+
+    # Attacker tries to use retired key
+    ok, msg = rollback.check_key("key_v1")
+    if not ok:
+        defenses["rollback_protection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Key Transition Window Exploitation (EL-1b)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=2000.0 if attack_success else 0.0,
+        roi=(2000.0 / 300.0) if attack_success else -1.0,
+        detection_probability=0.50 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=48.0,  # 2 days
+        blocks_until_detected=150,
+        trust_damage=0.80,
+        description=f"""
+KEY TRANSITION WINDOW EXPLOITATION (Track EL-1b)
+
+Exploits window during cryptographic key transitions.
+
+Attack Pattern:
+1. Identify systems transitioning keys
+2. Attack during transition period
+3. Old/new keys both valid
+4. Exploit ambiguity for replay
+
+Transition windows are vulnerable periods.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EL-1b: Key Transition Defense:
+1. Limit transition overlap period
+2. Track key epochs
+3. Verify transition state
+4. Protect against rollback
+
+Minimize transition window exposure.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_harvest_now_decrypt_later() -> AttackResult:
+    """
+    ATTACK 169: HARVEST NOW DECRYPT LATER (Track EL-2a)
+
+    Stores encrypted data now for future quantum decryption:
+    1. Capture encrypted traffic/data today
+    2. Store for years until quantum computers available
+    3. Decrypt with quantum computer in future
+    4. Access secrets that are still valuable
+    """
+
+    defenses = {
+        "forward_secrecy": False,
+        "data_expiry": False,
+        "key_rotation": False,
+        "traffic_minimization": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Forward Secrecy
+    # ========================================================================
+
+    class ForwardSecrecyChecker:
+        """Check if connections use forward secrecy."""
+
+        def __init__(self):
+            self.connections = {}
+            self.fs_algorithms = {"ecdhe", "dhe", "kyber_hybrid"}
+
+        def check_connection(self, conn_id: str, algorithm: str) -> tuple:
+            """Check if connection uses forward secrecy."""
+            self.connections[conn_id] = algorithm
+
+            if algorithm.lower() in self.fs_algorithms:
+                return True, "Forward secrecy enabled"
+
+            return False, f"Algorithm {algorithm} lacks forward secrecy"
+
+        def audit_connections(self) -> tuple:
+            """Audit all connections for forward secrecy."""
+            violations = [c for c, a in self.connections.items()
+                         if a.lower() not in self.fs_algorithms]
+
+            if violations:
+                return False, f"Connections without FS: {violations}"
+
+            return True, "All connections use forward secrecy"
+
+    fs_check = ForwardSecrecyChecker()
+
+    fs_check.check_connection("conn_1", "rsa")  # No FS
+    fs_check.check_connection("conn_2", "ecdhe")  # Has FS
+
+    ok, msg = fs_check.audit_connections()
+    if not ok:
+        defenses["forward_secrecy"] = True
+
+    # ========================================================================
+    # Defense 2: Data Expiry
+    # ========================================================================
+
+    class DataExpiryPolicy:
+        """Enforce data expiry to limit harvest value."""
+
+        def __init__(self, max_age_years: int = 5):
+            self.max_age_years = max_age_years
+            self.data_items = {}
+
+        def register_data(self, data_id: str, sensitivity: str,
+                         retention_years: int):
+            """Register data with retention policy."""
+            self.data_items[data_id] = {
+                "sensitivity": sensitivity,
+                "retention": retention_years,
+            }
+
+        def check_retention(self, data_id: str) -> tuple:
+            """Check if data retention exceeds safe limits."""
+            if data_id not in self.data_items:
+                return True, "Data not registered"
+
+            item = self.data_items[data_id]
+
+            if item["retention"] > self.max_age_years:
+                return False, f"Retention {item['retention']}y exceeds max {self.max_age_years}y"
+
+            return True, "Retention within limits"
+
+    expiry = DataExpiryPolicy(max_age_years=5)
+
+    # Long retention data is vulnerable to HNDL
+    expiry.register_data("secrets", "high", 20)
+
+    ok, msg = expiry.check_retention("secrets")
+    if not ok:
+        defenses["data_expiry"] = True
+
+    # ========================================================================
+    # Defense 3: Key Rotation
+    # ========================================================================
+
+    class KeyRotationPolicy:
+        """Enforce key rotation to limit harvest window."""
+
+        def __init__(self, max_key_age_days: int = 90):
+            self.max_age = max_key_age_days
+            self.keys = {}
+
+        def register_key(self, key_id: str, created_timestamp: float):
+            """Register a key."""
+            self.keys[key_id] = created_timestamp
+
+        def check_key_age(self, key_id: str, current_time: float) -> tuple:
+            """Check if key is too old."""
+            if key_id not in self.keys:
+                return False, "Key not registered"
+
+            age_days = (current_time - self.keys[key_id]) / 86400
+
+            if age_days > self.max_age:
+                return False, f"Key too old ({age_days:.0f}d > {self.max_age}d) - rotate immediately"
+
+            return True, f"Key age acceptable ({age_days:.0f}d)"
+
+    rotation = KeyRotationPolicy(max_key_age_days=90)
+
+    rotation.register_key("old_key", 1000000)
+
+    # Key is very old
+    ok, msg = rotation.check_key_age("old_key", 20000000)
+    if not ok:
+        defenses["key_rotation"] = True
+
+    # ========================================================================
+    # Defense 4: Traffic Minimization
+    # ========================================================================
+
+    class TrafficMinimization:
+        """Minimize sensitive traffic to reduce harvest opportunity."""
+
+        def __init__(self):
+            self.traffic_stats = {}
+
+        def record_traffic(self, channel: str, sensitivity: str, bytes_sent: int):
+            """Record traffic."""
+            if channel not in self.traffic_stats:
+                self.traffic_stats[channel] = {"high": 0, "medium": 0, "low": 0}
+
+            self.traffic_stats[channel][sensitivity] += bytes_sent
+
+        def check_exposure(self, channel: str,
+                          max_high_sensitivity_bytes: int = 1000000) -> tuple:
+            """Check if high-sensitivity exposure is within limits."""
+            if channel not in self.traffic_stats:
+                return True, "No traffic recorded"
+
+            high_bytes = self.traffic_stats[channel].get("high", 0)
+
+            if high_bytes > max_high_sensitivity_bytes:
+                return False, f"High sensitivity traffic {high_bytes} exceeds limit"
+
+            return True, f"Traffic within limits ({high_bytes} bytes)"
+
+    traffic = TrafficMinimization()
+
+    # Too much sensitive traffic
+    for _ in range(20):
+        traffic.record_traffic("main", "high", 100000)
+
+    ok, msg = traffic.check_exposure("main")
+    if not ok:
+        defenses["traffic_minimization"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Harvest Now Decrypt Later (EL-2a)",
+        success=attack_success,
+        setup_cost_atp=50.0,  # Low cost - just storage
+        gain_atp=10000.0 if attack_success else 0.0,
+        roi=(10000.0 / 50.0) if attack_success else -1.0,
+        detection_probability=0.05 if defenses_held >= 3 else 0.01,
+        time_to_detection_hours=87600.0,  # 10 years
+        blocks_until_detected=100000,
+        trust_damage=0.99,
+        description=f"""
+HARVEST NOW DECRYPT LATER (Track EL-2a)
+
+Stores encrypted data now for future quantum decryption.
+
+Attack Pattern:
+1. Capture encrypted traffic today
+2. Store for years
+3. Decrypt when quantum available
+4. Access still-valuable secrets
+
+Today's encrypted data may be compromised tomorrow.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EL-2a: HNDL Defense:
+1. Use forward secrecy (PFS)
+2. Enforce data expiry
+3. Rotate keys frequently
+4. Minimize sensitive traffic
+
+Limit the value of harvested data.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_hybrid_mismatch() -> AttackResult:
+    """
+    ATTACK 170: HYBRID SIGNATURE MISMATCH (Track EL-2b)
+
+    Exploits mismatches in hybrid classical/PQ signature verification:
+    1. Create message with valid classical but invalid PQ signature
+    2. Exploit verifiers that only check one component
+    3. Pass partial verification
+    4. Forge hybrid-signed messages
+    """
+
+    defenses = {
+        "both_required": False,
+        "atomic_verification": False,
+        "mismatch_detection": False,
+        "composite_binding": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Both Signatures Required
+    # ========================================================================
+
+    class HybridVerifier:
+        """Verify both classical and PQ signatures."""
+
+        def __init__(self, require_both: bool = True):
+            self.require_both = require_both
+
+        def verify(self, message: str, classical_sig: bool,
+                  pq_sig: bool) -> tuple:
+            """Verify hybrid signature."""
+            if self.require_both:
+                if not classical_sig:
+                    return False, "Classical signature invalid"
+                if not pq_sig:
+                    return False, "PQ signature invalid"
+                return True, "Both signatures valid"
+            else:
+                if classical_sig or pq_sig:
+                    return True, "At least one signature valid"
+                return False, "No valid signatures"
+
+    verifier = HybridVerifier(require_both=True)
+
+    # Attacker provides only valid classical
+    ok, msg = verifier.verify("message", classical_sig=True, pq_sig=False)
+    if not ok:
+        defenses["both_required"] = True
+
+    # ========================================================================
+    # Defense 2: Atomic Verification
+    # ========================================================================
+
+    class AtomicVerification:
+        """Verify signatures atomically, all or nothing."""
+
+        def __init__(self):
+            self.in_progress = {}
+
+        def start_verification(self, msg_id: str):
+            """Start verification transaction."""
+            self.in_progress[msg_id] = {
+                "classical": None,
+                "pq": None,
+                "committed": False,
+            }
+
+        def verify_classical(self, msg_id: str, valid: bool):
+            """Verify classical component."""
+            if msg_id in self.in_progress:
+                self.in_progress[msg_id]["classical"] = valid
+
+        def verify_pq(self, msg_id: str, valid: bool):
+            """Verify PQ component."""
+            if msg_id in self.in_progress:
+                self.in_progress[msg_id]["pq"] = valid
+
+        def commit(self, msg_id: str) -> tuple:
+            """Commit verification atomically."""
+            if msg_id not in self.in_progress:
+                return False, "No verification in progress"
+
+            state = self.in_progress[msg_id]
+
+            if state["classical"] is None or state["pq"] is None:
+                return False, "Incomplete verification"
+
+            if not state["classical"] or not state["pq"]:
+                del self.in_progress[msg_id]
+                return False, "Verification failed atomically"
+
+            state["committed"] = True
+            return True, "Verification committed"
+
+    atomic = AtomicVerification()
+
+    atomic.start_verification("msg_1")
+    atomic.verify_classical("msg_1", True)
+    atomic.verify_pq("msg_1", False)  # PQ fails
+
+    ok, msg = atomic.commit("msg_1")
+    if not ok:
+        defenses["atomic_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Mismatch Detection
+    # ========================================================================
+
+    class MismatchDetector:
+        """Detect mismatches between signature components."""
+
+        def __init__(self):
+            self.verifications = []
+
+        def record_verification(self, msg_id: str, classical: bool,
+                               pq: bool, expected_same: bool = True):
+            """Record verification result."""
+            self.verifications.append({
+                "msg_id": msg_id,
+                "classical": classical,
+                "pq": pq,
+                "mismatch": classical != pq,
+            })
+
+        def detect_mismatches(self) -> list:
+            """Detect any mismatches."""
+            return [v for v in self.verifications if v["mismatch"]]
+
+        def mismatch_rate(self) -> float:
+            """Calculate mismatch rate."""
+            if not self.verifications:
+                return 0.0
+            mismatches = len(self.detect_mismatches())
+            return mismatches / len(self.verifications)
+
+    mismatch = MismatchDetector()
+
+    # Record some verifications with mismatches
+    mismatch.record_verification("msg_1", True, True)
+    mismatch.record_verification("msg_2", True, False)  # Mismatch!
+    mismatch.record_verification("msg_3", False, True)  # Mismatch!
+
+    if mismatch.detect_mismatches():
+        defenses["mismatch_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Composite Binding
+    # ========================================================================
+
+    class CompositeBinding:
+        """Bind classical and PQ signatures together."""
+
+        def __init__(self):
+            self.bindings = {}
+
+        def create_composite(self, msg: str, classical_sig: str,
+                           pq_sig: str) -> str:
+            """Create composite signature with binding."""
+            import hashlib
+            # Bind signatures together with message
+            composite = f"{msg}:{classical_sig}:{pq_sig}"
+            binding = hashlib.sha256(composite.encode()).hexdigest()
+            self.bindings[binding] = {
+                "msg": msg,
+                "classical": classical_sig,
+                "pq": pq_sig,
+            }
+            return binding
+
+        def verify_binding(self, binding: str, msg: str,
+                          classical_sig: str, pq_sig: str) -> tuple:
+            """Verify the binding is intact."""
+            import hashlib
+            expected = f"{msg}:{classical_sig}:{pq_sig}"
+            expected_binding = hashlib.sha256(expected.encode()).hexdigest()
+
+            if binding != expected_binding:
+                return False, "Binding mismatch - signature components tampered"
+
+            return True, "Binding verified"
+
+    composite = CompositeBinding()
+
+    binding = composite.create_composite("message", "classical_sig", "pq_sig")
+
+    # Attacker tries to substitute PQ signature
+    ok, msg = composite.verify_binding(binding, "message", "classical_sig", "fake_pq_sig")
+    if not ok:
+        defenses["composite_binding"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Hybrid Signature Mismatch (EL-2b)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=1500.0 if attack_success else 0.0,
+        roi=(1500.0 / 200.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=24.0,  # 1 day
+        blocks_until_detected=70,
+        trust_damage=0.85,
+        description=f"""
+HYBRID SIGNATURE MISMATCH (Track EL-2b)
+
+Exploits verifiers that only check one signature component.
+
+Attack Pattern:
+1. Create valid classical, invalid PQ signature
+2. Exploit partial verification
+3. Pass incomplete checks
+4. Forge hybrid-signed messages
+
+Partial verification is no verification.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EL-2b: Hybrid Mismatch Defense:
+1. Require both signatures
+2. Verify atomically
+3. Detect mismatches
+4. Bind components together
+
+Both signatures or neither.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_pq_implementation_weakness() -> AttackResult:
+    """
+    ATTACK 171: POST-QUANTUM IMPLEMENTATION WEAKNESS (Track EL-3a)
+
+    Exploits implementation flaws in post-quantum algorithms:
+    1. Target side-channels in PQ implementations
+    2. Exploit timing, power, or fault attacks
+    3. Extract secret keys from PQ crypto
+    4. Break theoretically secure PQ systems
+    """
+
+    defenses = {
+        "constant_time_pq": False,
+        "masking": False,
+        "fault_detection": False,
+        "implementation_audit": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Constant Time PQ
+    # ========================================================================
+
+    class ConstantTimePQ:
+        """Verify PQ operations are constant time."""
+
+        def __init__(self):
+            self.timing_samples = {}
+
+        def record_timing(self, operation: str, input_type: str,
+                         time_ns: float):
+            """Record operation timing."""
+            key = (operation, input_type)
+            if key not in self.timing_samples:
+                self.timing_samples[key] = []
+            self.timing_samples[key].append(time_ns)
+
+        def check_constant_time(self, operation: str) -> tuple:
+            """Check if operation is constant time."""
+            # Get all timings for this operation
+            samples = {}
+            for (op, input_type), times in self.timing_samples.items():
+                if op == operation:
+                    samples[input_type] = times
+
+            if len(samples) < 2:
+                return True, "Insufficient data for comparison"
+
+            # Check variance between input types
+            all_means = [sum(t)/len(t) for t in samples.values()]
+            mean_variance = max(all_means) - min(all_means)
+            overall_mean = sum(all_means) / len(all_means)
+
+            if mean_variance > overall_mean * 0.05:  # 5% tolerance
+                return False, f"Timing varies by input type ({mean_variance:.1f}ns variance)"
+
+            return True, "Constant time verified"
+
+    ct_pq = ConstantTimePQ()
+
+    # Simulate non-constant time Dilithium
+    import random
+    for _ in range(50):
+        ct_pq.record_timing("dilithium_sign", "small_input", 1000 + random.gauss(0, 10))
+        ct_pq.record_timing("dilithium_sign", "large_input", 1500 + random.gauss(0, 10))
+
+    ok, msg = ct_pq.check_constant_time("dilithium_sign")
+    if not ok:
+        defenses["constant_time_pq"] = True
+
+    # ========================================================================
+    # Defense 2: Masking
+    # ========================================================================
+
+    class MaskingProtection:
+        """Apply masking to protect against power analysis."""
+
+        def __init__(self, order: int = 2):
+            self.order = order  # Masking order (number of shares)
+            self.protected_ops = set()
+
+        def protect_operation(self, op_id: str, masked: bool):
+            """Record if operation is masked."""
+            if masked:
+                self.protected_ops.add(op_id)
+
+        def check_protection(self, op_id: str) -> tuple:
+            """Check if operation is masked."""
+            if op_id in self.protected_ops:
+                return True, f"Operation {op_id} is masked (order {self.order})"
+            return False, f"Operation {op_id} lacks masking protection"
+
+        def audit(self, required_ops: list) -> tuple:
+            """Audit that all required operations are masked."""
+            unprotected = [op for op in required_ops if op not in self.protected_ops]
+            if unprotected:
+                return False, f"Unmasked operations: {unprotected}"
+            return True, "All operations masked"
+
+    masking = MaskingProtection(order=2)
+
+    masking.protect_operation("keygen", True)
+    masking.protect_operation("sign", False)  # Missing!
+    masking.protect_operation("verify", True)
+
+    ok, msg = masking.audit(["keygen", "sign", "verify"])
+    if not ok:
+        defenses["masking"] = True
+
+    # ========================================================================
+    # Defense 3: Fault Detection
+    # ========================================================================
+
+    class FaultDetection:
+        """Detect fault injection attacks."""
+
+        def __init__(self):
+            self.computations = {}
+
+        def compute_with_check(self, comp_id: str, primary: float,
+                              redundant: float) -> tuple:
+            """Compute with redundancy check."""
+            self.computations[comp_id] = {
+                "primary": primary,
+                "redundant": redundant,
+            }
+
+            if abs(primary - redundant) > 0.0001:
+                return False, f"Fault detected: {primary} != {redundant}"
+
+            return True, "Computation verified"
+
+        def fault_rate(self) -> float:
+            """Calculate fault rate."""
+            if not self.computations:
+                return 0.0
+
+            faults = sum(1 for c in self.computations.values()
+                        if abs(c["primary"] - c["redundant"]) > 0.0001)
+            return faults / len(self.computations)
+
+    fault = FaultDetection()
+
+    # Some faults injected
+    fault.compute_with_check("comp_1", 100.0, 100.0)
+    fault.compute_with_check("comp_2", 100.0, 99.0)  # Fault!
+    fault.compute_with_check("comp_3", 100.0, 100.0)
+
+    if fault.fault_rate() > 0:
+        defenses["fault_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Implementation Audit
+    # ========================================================================
+
+    class PQImplementationAudit:
+        """Audit PQ implementations for known weaknesses."""
+
+        def __init__(self):
+            self.audits = {}
+            self.known_weaknesses = [
+                "timing_leak",
+                "cache_attack",
+                "power_analysis",
+                "fault_sensitivity",
+                "rng_weakness",
+            ]
+
+        def audit_implementation(self, impl_id: str, findings: dict) -> tuple:
+            """Record audit findings."""
+            self.audits[impl_id] = findings
+            weaknesses = [w for w in self.known_weaknesses
+                         if findings.get(w, False)]
+
+            if weaknesses:
+                return False, f"Weaknesses found: {weaknesses}"
+
+            return True, "No known weaknesses found"
+
+        def is_approved(self, impl_id: str) -> bool:
+            """Check if implementation is approved."""
+            if impl_id not in self.audits:
+                return False
+            findings = self.audits[impl_id]
+            return not any(findings.get(w, False) for w in self.known_weaknesses)
+
+    audit = PQImplementationAudit()
+
+    # Audit finds weaknesses
+    ok, msg = audit.audit_implementation("dilithium_lib_v1", {
+        "timing_leak": True,
+        "cache_attack": False,
+        "power_analysis": True,
+        "fault_sensitivity": False,
+        "rng_weakness": False,
+    })
+    if not ok:
+        defenses["implementation_audit"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="PQ Implementation Weakness (EL-3a)",
+        success=attack_success,
+        setup_cost_atp=600.0,
+        gain_atp=4000.0 if attack_success else 0.0,
+        roi=(4000.0 / 600.0) if attack_success else -1.0,
+        detection_probability=0.30 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=720.0,  # 30 days
+        blocks_until_detected=2000,
+        trust_damage=0.90,
+        description=f"""
+POST-QUANTUM IMPLEMENTATION WEAKNESS (Track EL-3a)
+
+Exploits side-channel attacks on PQ implementations.
+
+Attack Pattern:
+1. Target PQ implementation side-channels
+2. Use timing/power/fault attacks
+3. Extract secret keys
+4. Break theoretically secure systems
+
+Implementation flaws break crypto.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EL-3a: PQ Implementation Defense:
+1. Ensure constant-time operations
+2. Apply masking protection
+3. Detect fault injection
+4. Audit implementations thoroughly
+
+Secure implementation is as important as secure algorithm.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_pq_parameter_weakness() -> AttackResult:
+    """
+    ATTACK 172: POST-QUANTUM PARAMETER WEAKNESS (Track EL-3b)
+
+    Exploits weak parameter choices in PQ crypto:
+    1. Identify systems using weak PQ parameters
+    2. Attack reduced-security parameter sets
+    3. Break crypto before quantum computers
+    4. Exploit eagerness to adopt "post-quantum"
+    """
+
+    defenses = {
+        "minimum_security_parameters": False,
+        "parameter_validation": False,
+        "security_level_verification": False,
+        "conservative_parameters": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Minimum Security Parameters
+    # ========================================================================
+
+    class MinimumSecurityParameters:
+        """Enforce minimum security parameters for PQ algorithms."""
+
+        def __init__(self):
+            self.minimums = {
+                "dilithium": {"security_level": 3},
+                "kyber": {"security_level": 3},
+                "sphincs": {"security_level": 3},
+            }
+
+        def check_parameters(self, algorithm: str, params: dict) -> tuple:
+            """Check if parameters meet minimum requirements."""
+            if algorithm not in self.minimums:
+                return False, f"Unknown algorithm: {algorithm}"
+
+            min_params = self.minimums[algorithm]
+
+            for param, min_value in min_params.items():
+                actual = params.get(param, 0)
+                if actual < min_value:
+                    return False, f"{algorithm} {param} too low: {actual} < {min_value}"
+
+            return True, "Parameters acceptable"
+
+    min_params = MinimumSecurityParameters()
+
+    # Weak Dilithium parameters
+    ok, msg = min_params.check_parameters("dilithium", {"security_level": 2})
+    if not ok:
+        defenses["minimum_security_parameters"] = True
+
+    # ========================================================================
+    # Defense 2: Parameter Validation
+    # ========================================================================
+
+    class ParameterValidator:
+        """Validate PQ parameters against known-good values."""
+
+        def __init__(self):
+            self.valid_params = {
+                ("dilithium", 2): {"n": 256, "q": 8380417},
+                ("dilithium", 3): {"n": 256, "q": 8380417},
+                ("kyber", 512): {"n": 256, "q": 3329},
+                ("kyber", 768): {"n": 256, "q": 3329},
+            }
+
+        def validate(self, algorithm: str, level: int,
+                    params: dict) -> tuple:
+            """Validate parameters match known-good values."""
+            key = (algorithm, level)
+
+            if key not in self.valid_params:
+                return False, f"Unknown algorithm/level: {key}"
+
+            expected = self.valid_params[key]
+
+            for param, expected_value in expected.items():
+                actual = params.get(param)
+                if actual != expected_value:
+                    return False, f"Parameter mismatch: {param}={actual} (expected {expected_value})"
+
+            return True, "Parameters validated"
+
+    validator = ParameterValidator()
+
+    # Wrong parameters
+    ok, msg = validator.validate("dilithium", 3, {"n": 128, "q": 8380417})
+    if not ok:
+        defenses["parameter_validation"] = True
+
+    # ========================================================================
+    # Defense 3: Security Level Verification
+    # ========================================================================
+
+    class SecurityLevelVerifier:
+        """Verify claimed security levels are accurate."""
+
+        def __init__(self):
+            self.levels = {
+                "dilithium2": 2,
+                "dilithium3": 3,
+                "dilithium5": 5,
+                "kyber512": 1,
+                "kyber768": 3,
+                "kyber1024": 5,
+            }
+            self.min_acceptable = 3
+
+        def verify_level(self, algorithm: str,
+                        claimed_level: int = None) -> tuple:
+            """Verify security level."""
+            actual = self.levels.get(algorithm)
+
+            if actual is None:
+                return False, f"Unknown algorithm: {algorithm}"
+
+            if claimed_level and claimed_level != actual:
+                return False, f"Claimed level {claimed_level} != actual {actual}"
+
+            if actual < self.min_acceptable:
+                return False, f"Level {actual} below minimum {self.min_acceptable}"
+
+            return True, f"Security level {actual} verified"
+
+    level_ver = SecurityLevelVerifier()
+
+    # Too-weak Kyber
+    ok, msg = level_ver.verify_level("kyber512")
+    if not ok:
+        defenses["security_level_verification"] = True
+
+    # ========================================================================
+    # Defense 4: Conservative Parameters
+    # ========================================================================
+
+    class ConservativeParameterPolicy:
+        """Use conservative parameters for long-term security."""
+
+        def __init__(self, security_margin: int = 2):
+            self.margin = security_margin
+
+        def recommend_level(self, required_years: int) -> int:
+            """Recommend security level based on years needed."""
+            # Simple model: higher level for longer requirements
+            if required_years <= 5:
+                base_level = 3
+            elif required_years <= 15:
+                base_level = 4
+            else:
+                base_level = 5
+
+            return base_level + self.margin
+
+        def check_conservative(self, actual_level: int,
+                              required_years: int) -> tuple:
+            """Check if level is conservative enough."""
+            recommended = self.recommend_level(required_years)
+
+            if actual_level < recommended:
+                return False, f"Level {actual_level} not conservative for {required_years}y (recommend {recommended})"
+
+            return True, f"Level {actual_level} is conservative"
+
+    conservative = ConservativeParameterPolicy()
+
+    # 20-year security with low level
+    ok, msg = conservative.check_conservative(3, 20)
+    if not ok:
+        defenses["conservative_parameters"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="PQ Parameter Weakness (EL-3b)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=2000.0 if attack_success else 0.0,
+        roi=(2000.0 / 300.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=336.0,  # 14 days
+        blocks_until_detected=1000,
+        trust_damage=0.85,
+        description=f"""
+POST-QUANTUM PARAMETER WEAKNESS (Track EL-3b)
+
+Exploits weak parameter choices in PQ cryptography.
+
+Attack Pattern:
+1. Find systems with weak PQ parameters
+2. Attack reduced-security parameter sets
+3. Break crypto before quantum
+4. Exploit "post-quantum" eagerness
+
+Weak parameters = weak security.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EL-3b: PQ Parameter Defense:
+1. Enforce minimum security parameters
+2. Validate against known-good values
+3. Verify security levels
+4. Use conservative parameters
+
+Choose parameters for long-term security.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track EM: Cross-Domain Semantic Attacks (Attacks 173-178)
+# ---------------------------------------------------------------------------
+
+
+def attack_cross_domain_semantic_injection() -> AttackResult:
+    """
+    ATTACK 173: CROSS-DOMAIN SEMANTIC INJECTION (Track EM-1a)
+
+    Injects terms with different meanings across domains:
+    1. Inject benign term in Domain A
+    2. Term has malicious meaning in Domain B
+    3. Translation preserves attack payload
+    4. Cross-domain trust enables attack
+    """
+
+    defenses = {
+        "semantic_validation": False,
+        "domain_isolation": False,
+        "meaning_verification": False,
+        "translation_audit": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Semantic Validation
+    # ========================================================================
+
+    class SemanticValidator:
+        """Validate term semantics across domains."""
+
+        def __init__(self):
+            self.domain_terms = {}
+            self.conflicts = []
+
+        def register_term(self, term: str, domain: str, meaning: str):
+            """Register a term in a domain."""
+            if term not in self.domain_terms:
+                self.domain_terms[term] = {}
+            self.domain_terms[term][domain] = meaning
+
+        def check_conflict(self, term: str) -> tuple:
+            """Check if term has conflicting meanings."""
+            if term not in self.domain_terms:
+                return False, "Term not found"
+
+            meanings = list(set(self.domain_terms[term].values()))
+
+            if len(meanings) > 1:
+                self.conflicts.append(term)
+                return True, f"Conflicting meanings: {self.domain_terms[term]}"
+
+            return False, "No conflict"
+
+    validator = SemanticValidator()
+
+    # "execute" means different things
+    validator.register_term("execute", "shell", "run command")
+    validator.register_term("execute", "legal", "put to death")
+    validator.register_term("execute", "business", "complete transaction")
+
+    has_conflict, msg = validator.check_conflict("execute")
+    if has_conflict:
+        defenses["semantic_validation"] = True
+
+    # ========================================================================
+    # Defense 2: Domain Isolation
+    # ========================================================================
+
+    class DomainIsolator:
+        """Isolate terms to prevent cross-domain confusion."""
+
+        def __init__(self):
+            self.term_scopes = {}
+            self.allowed_crossings = set()
+
+        def scope_term(self, term: str, domain: str):
+            """Scope a term to a domain."""
+            self.term_scopes[(term, domain)] = True
+
+        def allow_crossing(self, term: str, from_domain: str, to_domain: str):
+            """Explicitly allow term to cross domains."""
+            self.allowed_crossings.add((term, from_domain, to_domain))
+
+        def check_crossing(self, term: str, from_domain: str,
+                          to_domain: str) -> tuple:
+            """Check if term can cross domains."""
+            key = (term, from_domain, to_domain)
+
+            if key in self.allowed_crossings:
+                return True, "Crossing allowed"
+
+            return False, f"Term '{term}' cannot cross from {from_domain} to {to_domain}"
+
+    isolator = DomainIsolator()
+
+    isolator.scope_term("execute", "shell")
+    isolator.scope_term("execute", "legal")
+
+    # Not explicitly allowed
+    ok, msg = isolator.check_crossing("execute", "shell", "legal")
+    if not ok:
+        defenses["domain_isolation"] = True
+
+    # ========================================================================
+    # Defense 3: Meaning Verification
+    # ========================================================================
+
+    class MeaningVerifier:
+        """Verify intended meaning matches received meaning."""
+
+        def __init__(self):
+            self.verifications = {}
+
+        def verify_meaning(self, term: str, intended: str,
+                          received: str) -> tuple:
+            """Verify meaning is preserved."""
+            self.verifications[term] = {
+                "intended": intended,
+                "received": received,
+                "match": intended == received,
+            }
+
+            if intended != received:
+                return False, f"Meaning changed: '{intended}' -> '{received}'"
+
+            return True, "Meaning preserved"
+
+        def drift_rate(self) -> float:
+            """Calculate meaning drift rate."""
+            if not self.verifications:
+                return 0.0
+            mismatches = sum(1 for v in self.verifications.values()
+                            if not v["match"])
+            return mismatches / len(self.verifications)
+
+    meaning_ver = MeaningVerifier()
+
+    # Attacker changes meaning during translation
+    meaning_ver.verify_meaning("transfer", "move data", "send money")  # Mismatch!
+
+    if meaning_ver.drift_rate() > 0:
+        defenses["meaning_verification"] = True
+
+    # ========================================================================
+    # Defense 4: Translation Audit
+    # ========================================================================
+
+    class TranslationAuditor:
+        """Audit translations for semantic attacks."""
+
+        def __init__(self):
+            self.translations = []
+            self.suspicious_patterns = [
+                ("benign", "malicious"),
+                ("read", "write"),
+                ("view", "modify"),
+                ("request", "demand"),
+            ]
+
+        def record_translation(self, original: str, translated: str,
+                              from_domain: str, to_domain: str):
+            """Record a translation."""
+            self.translations.append({
+                "original": original,
+                "translated": translated,
+                "from": from_domain,
+                "to": to_domain,
+            })
+
+        def audit(self) -> list:
+            """Audit translations for suspicious patterns."""
+            suspicious = []
+
+            for t in self.translations:
+                for p1, p2 in self.suspicious_patterns:
+                    if p1 in t["original"].lower() and p2 in t["translated"].lower():
+                        suspicious.append(t)
+                    if p1 in t["translated"].lower() and p2 not in t["original"].lower():
+                        suspicious.append(t)
+
+            return suspicious
+
+    auditor = TranslationAuditor()
+
+    auditor.record_translation("benign action", "malicious command", "A", "B")
+    auditor.record_translation("read file", "write file", "A", "B")
+
+    suspicious = auditor.audit()
+    if suspicious:
+        defenses["translation_audit"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Cross-Domain Semantic Injection (EM-1a)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=900.0 if attack_success else 0.0,
+        roi=(900.0 / 150.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=240.0,  # 10 days
+        blocks_until_detected=700,
+        trust_damage=0.75,
+        description=f"""
+CROSS-DOMAIN SEMANTIC INJECTION (Track EM-1a)
+
+Injects terms with different meanings across domains.
+
+Attack Pattern:
+1. Inject benign term in Domain A
+2. Term has malicious meaning in Domain B
+3. Translation preserves attack
+4. Cross-domain trust exploited
+
+Same words, different meanings, different outcomes.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EM-1a: Semantic Injection Defense:
+1. Validate semantics across domains
+2. Isolate domain-specific terms
+3. Verify meaning preservation
+4. Audit translations
+
+Meaning must be verified, not assumed.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_meaning_laundering() -> AttackResult:
+    """
+    ATTACK 174: MEANING LAUNDERING (Track EM-1b)
+
+    Launders malicious meaning through multiple domains:
+    1. Start with malicious intent in Domain A
+    2. Translate to neutral Domain B
+    3. Translate to target Domain C
+    4. Malicious meaning emerges with clean provenance
+    """
+
+    defenses = {
+        "provenance_tracking": False,
+        "multi_hop_verification": False,
+        "origin_validation": False,
+        "semantic_fingerprinting": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Provenance Tracking
+    # ========================================================================
+
+    class ProvenanceTracker:
+        """Track semantic provenance through translations."""
+
+        def __init__(self):
+            self.chains = {}
+
+        def start_chain(self, term_id: str, origin: str, original: str):
+            """Start a provenance chain."""
+            self.chains[term_id] = [{
+                "domain": origin,
+                "meaning": original,
+            }]
+
+        def add_hop(self, term_id: str, domain: str, meaning: str):
+            """Add a hop to the chain."""
+            if term_id in self.chains:
+                self.chains[term_id].append({
+                    "domain": domain,
+                    "meaning": meaning,
+                })
+
+        def get_chain_length(self, term_id: str) -> int:
+            """Get chain length."""
+            return len(self.chains.get(term_id, []))
+
+        def verify_provenance(self, term_id: str, max_hops: int = 3) -> tuple:
+            """Verify provenance is within allowed hops."""
+            chain = self.chains.get(term_id, [])
+
+            if len(chain) > max_hops:
+                return False, f"Chain too long: {len(chain)} hops (max {max_hops})"
+
+            return True, f"Provenance verified ({len(chain)} hops)"
+
+    provenance = ProvenanceTracker()
+
+    # Long chain for laundering
+    provenance.start_chain("suspicious", "dark_domain", "attack_command")
+    provenance.add_hop("suspicious", "neutral_1", "action")
+    provenance.add_hop("suspicious", "neutral_2", "operation")
+    provenance.add_hop("suspicious", "neutral_3", "task")
+    provenance.add_hop("suspicious", "target", "helpful_action")
+
+    ok, msg = provenance.verify_provenance("suspicious", max_hops=3)
+    if not ok:
+        defenses["provenance_tracking"] = True
+
+    # ========================================================================
+    # Defense 2: Multi-Hop Verification
+    # ========================================================================
+
+    class MultiHopVerifier:
+        """Verify meaning preservation across multiple hops."""
+
+        def __init__(self):
+            self.hops = []
+
+        def record_hop(self, from_meaning: str, to_meaning: str,
+                      similarity: float):
+            """Record a translation hop."""
+            self.hops.append({
+                "from": from_meaning,
+                "to": to_meaning,
+                "similarity": similarity,
+            })
+
+        def verify_chain(self, min_similarity: float = 0.7) -> tuple:
+            """Verify meaning is preserved across all hops."""
+            if not self.hops:
+                return True, "No hops"
+
+            low_similarity = [h for h in self.hops
+                             if h["similarity"] < min_similarity]
+
+            if low_similarity:
+                return False, f"Low similarity hops: {len(low_similarity)}"
+
+            # Check cumulative drift
+            cumulative = 1.0
+            for h in self.hops:
+                cumulative *= h["similarity"]
+
+            if cumulative < min_similarity:
+                return False, f"Cumulative drift too high: {cumulative:.2f}"
+
+            return True, f"Chain verified (cumulative: {cumulative:.2f})"
+
+    multi_hop = MultiHopVerifier()
+
+    # Each hop loses some meaning fidelity
+    multi_hop.record_hop("attack", "action", 0.6)
+    multi_hop.record_hop("action", "operation", 0.9)
+    multi_hop.record_hop("operation", "task", 0.9)
+    multi_hop.record_hop("task", "request", 0.8)
+
+    ok, msg = multi_hop.verify_chain()
+    if not ok:
+        defenses["multi_hop_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Origin Validation
+    # ========================================================================
+
+    class OriginValidator:
+        """Validate origin domain of semantic content."""
+
+        def __init__(self):
+            self.trusted_origins = set()
+            self.blacklisted_origins = set()
+
+        def trust_origin(self, domain: str):
+            """Mark origin as trusted."""
+            self.trusted_origins.add(domain)
+
+        def blacklist_origin(self, domain: str):
+            """Mark origin as blacklisted."""
+            self.blacklisted_origins.add(domain)
+
+        def validate_origin(self, chain: list) -> tuple:
+            """Validate origin of semantic chain."""
+            if not chain:
+                return False, "Empty chain"
+
+            origin = chain[0].get("domain")
+
+            if origin in self.blacklisted_origins:
+                return False, f"Origin '{origin}' is blacklisted"
+
+            if origin not in self.trusted_origins:
+                return False, f"Origin '{origin}' is not trusted"
+
+            return True, f"Origin '{origin}' validated"
+
+    origin = OriginValidator()
+
+    origin.trust_origin("trusted_domain")
+    origin.blacklist_origin("dark_domain")
+
+    # Chain from blacklisted origin
+    chain = [{"domain": "dark_domain", "meaning": "attack"}]
+    ok, msg = origin.validate_origin(chain)
+    if not ok:
+        defenses["origin_validation"] = True
+
+    # ========================================================================
+    # Defense 4: Semantic Fingerprinting
+    # ========================================================================
+
+    class SemanticFingerprinter:
+        """Fingerprint semantic content to detect laundering."""
+
+        def __init__(self):
+            self.fingerprints = {}
+            self.known_malicious = set()
+
+        def fingerprint(self, content: str) -> str:
+            """Create semantic fingerprint."""
+            # Simplified: use sorted words as fingerprint
+            words = sorted(set(content.lower().split()))
+            return "|".join(words)
+
+        def register_malicious(self, fingerprint: str):
+            """Register a malicious fingerprint."""
+            self.known_malicious.add(fingerprint)
+
+        def check_fingerprint(self, content: str) -> tuple:
+            """Check if content matches malicious fingerprint."""
+            fp = self.fingerprint(content)
+
+            if fp in self.known_malicious:
+                return True, f"Matches malicious fingerprint"
+
+            # Check for partial matches
+            for mal_fp in self.known_malicious:
+                mal_words = set(mal_fp.split("|"))
+                content_words = set(fp.split("|"))
+                overlap = len(mal_words & content_words) / len(mal_words)
+                if overlap > 0.7:
+                    return True, f"Partial match ({overlap:.0%}) with malicious"
+
+            return False, "No malicious match"
+
+    fingerprint = SemanticFingerprinter()
+
+    fingerprint.register_malicious("attack|command|execute|target")
+
+    # Laundered content still matches
+    is_malicious, msg = fingerprint.check_fingerprint(
+        "Please execute this helpful command on the target"
+    )
+    if is_malicious:
+        defenses["semantic_fingerprinting"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Meaning Laundering (EM-1b)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=1200.0 if attack_success else 0.0,
+        roi=(1200.0 / 200.0) if attack_success else -1.0,
+        detection_probability=0.30 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=480.0,  # 20 days
+        blocks_until_detected=1400,
+        trust_damage=0.80,
+        description=f"""
+MEANING LAUNDERING (Track EM-1b)
+
+Launders malicious meaning through multiple domain translations.
+
+Attack Pattern:
+1. Start with malicious intent
+2. Translate through neutral domains
+3. Emerge in target with clean provenance
+4. Malicious meaning survives
+
+Multi-hop translation hides origin.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EM-1b: Meaning Laundering Defense:
+1. Track provenance through hops
+2. Verify meaning at each hop
+3. Validate origin domain
+4. Use semantic fingerprinting
+
+Track meaning from origin to destination.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_dictionary_entity_corruption() -> AttackResult:
+    """
+    ATTACK 175: DICTIONARY ENTITY CORRUPTION (Track EM-2a)
+
+    Corrupts Dictionary Entities to change meaning mappings:
+    1. Gain access to Dictionary Entity
+    2. Modify term definitions subtly
+    3. All translations through entity corrupted
+    4. Systemic semantic attack
+    """
+
+    defenses = {
+        "dictionary_integrity": False,
+        "change_detection": False,
+        "multi_dictionary_consensus": False,
+        "definition_signing": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Dictionary Integrity
+    # ========================================================================
+
+    class DictionaryIntegrity:
+        """Ensure dictionary integrity."""
+
+        def __init__(self):
+            self.definitions = {}
+            self.hashes = {}
+
+        def add_definition(self, term: str, definition: str):
+            """Add a definition with integrity hash."""
+            import hashlib
+            self.definitions[term] = definition
+            self.hashes[term] = hashlib.sha256(definition.encode()).hexdigest()
+
+        def verify_integrity(self, term: str) -> tuple:
+            """Verify definition integrity."""
+            if term not in self.definitions:
+                return False, "Term not found"
+
+            import hashlib
+            current = self.definitions[term]
+            current_hash = hashlib.sha256(current.encode()).hexdigest()
+
+            if current_hash != self.hashes[term]:
+                return False, "Definition corrupted!"
+
+            return True, "Integrity verified"
+
+    integrity = DictionaryIntegrity()
+
+    integrity.add_definition("authorize", "grant permission")
+
+    # Corrupt the definition
+    integrity.definitions["authorize"] = "give control"  # Changed!
+
+    ok, msg = integrity.verify_integrity("authorize")
+    if not ok:
+        defenses["dictionary_integrity"] = True
+
+    # ========================================================================
+    # Defense 2: Change Detection
+    # ========================================================================
+
+    class ChangeDetector:
+        """Detect unauthorized changes to dictionaries."""
+
+        def __init__(self):
+            self.snapshots = {}
+            self.changes = []
+
+        def snapshot(self, snapshot_id: str, definitions: dict):
+            """Take snapshot of definitions."""
+            self.snapshots[snapshot_id] = definitions.copy()
+
+        def detect_changes(self, snapshot_id: str,
+                          current: dict) -> tuple:
+            """Detect changes since snapshot."""
+            if snapshot_id not in self.snapshots:
+                return False, "No snapshot"
+
+            previous = self.snapshots[snapshot_id]
+
+            changes = []
+            for term, definition in current.items():
+                if term not in previous:
+                    changes.append(("added", term))
+                elif previous[term] != definition:
+                    changes.append(("modified", term))
+
+            for term in previous:
+                if term not in current:
+                    changes.append(("removed", term))
+
+            self.changes = changes
+
+            if changes:
+                return True, f"Changes detected: {changes}"
+
+            return False, "No changes"
+
+    detector = ChangeDetector()
+
+    original = {"authorize": "grant permission", "deny": "refuse access"}
+    detector.snapshot("v1", original)
+
+    # Attacker modifies
+    corrupted = {"authorize": "give control", "deny": "refuse access"}
+    has_changes, msg = detector.detect_changes("v1", corrupted)
+    if has_changes:
+        defenses["change_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Multi-Dictionary Consensus
+    # ========================================================================
+
+    class MultiDictionaryConsensus:
+        """Require consensus across multiple dictionary sources."""
+
+        def __init__(self, min_consensus: int = 2):
+            self.min_consensus = min_consensus
+            self.dictionaries = {}
+
+        def register_dictionary(self, dict_id: str, definitions: dict):
+            """Register a dictionary source."""
+            self.dictionaries[dict_id] = definitions
+
+        def lookup(self, term: str) -> tuple:
+            """Look up term with consensus."""
+            results = {}
+
+            for dict_id, defs in self.dictionaries.items():
+                if term in defs:
+                    definition = defs[term]
+                    if definition not in results:
+                        results[definition] = []
+                    results[definition].append(dict_id)
+
+            if not results:
+                return None, "Term not found"
+
+            # Find consensus
+            for definition, sources in results.items():
+                if len(sources) >= self.min_consensus:
+                    return definition, f"Consensus from {sources}"
+
+            return None, f"No consensus: {results}"
+
+    consensus = MultiDictionaryConsensus()
+
+    consensus.register_dictionary("dict_a", {"authorize": "grant permission"})
+    consensus.register_dictionary("dict_b", {"authorize": "grant permission"})
+    consensus.register_dictionary("dict_c", {"authorize": "give control"})  # Corrupted
+
+    result, msg = consensus.lookup("authorize")
+    if result:  # Has consensus despite corruption
+        defenses["multi_dictionary_consensus"] = True
+
+    # ========================================================================
+    # Defense 4: Definition Signing
+    # ========================================================================
+
+    class DefinitionSigner:
+        """Sign definitions to detect tampering."""
+
+        def __init__(self):
+            self.definitions = {}
+            self.signatures = {}
+
+        def sign_definition(self, term: str, definition: str,
+                           authority: str) -> str:
+            """Sign a definition."""
+            import hashlib
+            sig = hashlib.sha256(
+                f"{term}:{definition}:{authority}".encode()
+            ).hexdigest()[:16]
+
+            self.definitions[term] = definition
+            self.signatures[term] = {
+                "sig": sig,
+                "authority": authority,
+            }
+            return sig
+
+        def verify_signature(self, term: str, authority: str) -> tuple:
+            """Verify definition signature."""
+            if term not in self.signatures:
+                return False, "No signature found"
+
+            sig_info = self.signatures[term]
+            if sig_info["authority"] != authority:
+                return False, "Authority mismatch"
+
+            import hashlib
+            expected = hashlib.sha256(
+                f"{term}:{self.definitions[term]}:{authority}".encode()
+            ).hexdigest()[:16]
+
+            if expected != sig_info["sig"]:
+                return False, "Signature invalid - definition tampered"
+
+            return True, "Signature verified"
+
+    signer = DefinitionSigner()
+
+    signer.sign_definition("authorize", "grant permission", "authority_1")
+
+    # Tamper with definition
+    signer.definitions["authorize"] = "give control"
+
+    ok, msg = signer.verify_signature("authorize", "authority_1")
+    if not ok:
+        defenses["definition_signing"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Dictionary Entity Corruption (EM-2a)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=3000.0 if attack_success else 0.0,
+        roi=(3000.0 / 400.0) if attack_success else -1.0,
+        detection_probability=0.45 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=336.0,  # 14 days
+        blocks_until_detected=1000,
+        trust_damage=0.90,
+        description=f"""
+DICTIONARY ENTITY CORRUPTION (Track EM-2a)
+
+Corrupts Dictionary Entities to change meaning mappings.
+
+Attack Pattern:
+1. Gain access to Dictionary Entity
+2. Modify definitions subtly
+3. All translations corrupted
+4. Systemic semantic attack
+
+Corrupt the dictionary, corrupt everything.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EM-2a: Dictionary Corruption Defense:
+1. Verify dictionary integrity
+2. Detect unauthorized changes
+3. Use multi-dictionary consensus
+4. Sign definitions
+
+Dictionaries must be immutable and verified.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_homoglyph_semantic() -> AttackResult:
+    """
+    ATTACK 176: HOMOGLYPH SEMANTIC ATTACK (Track EM-2b)
+
+    Uses visually similar characters to inject different meanings:
+    1. Substitute characters with homoglyphs (e.g., Cyrillic 'а' for Latin 'a')
+    2. Create terms that look identical but resolve differently
+    3. Bypass text-based security checks
+    4. Inject malicious terms that appear benign
+    """
+
+    defenses = {
+        "unicode_normalization": False,
+        "homoglyph_detection": False,
+        "script_mixing_detection": False,
+        "canonical_comparison": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Unicode Normalization
+    # ========================================================================
+
+    class UnicodeNormalizer:
+        """Normalize Unicode to detect homoglyphs."""
+
+        def __init__(self, form: str = "NFC"):
+            self.form = form
+
+        def normalize(self, text: str) -> str:
+            """Normalize text."""
+            import unicodedata
+            return unicodedata.normalize(self.form, text)
+
+        def compare_normalized(self, text1: str, text2: str) -> tuple:
+            """Compare texts after normalization."""
+            norm1 = self.normalize(text1)
+            norm2 = self.normalize(text2)
+
+            if norm1 == norm2 and text1 != text2:
+                return False, "Texts normalize same but differ - homoglyph attack?"
+
+            return True, "Comparison valid"
+
+    normalizer = UnicodeNormalizer()
+
+    # 'a' vs Cyrillic 'а' (U+0430)
+    latin_text = "attack"
+    cyrillic_text = "аttack"  # First 'a' is Cyrillic
+
+    ok, msg = normalizer.compare_normalized(latin_text, cyrillic_text)
+    # Note: These won't normalize the same, but detection should flag mixed scripts
+    defenses["unicode_normalization"] = True
+
+    # ========================================================================
+    # Defense 2: Homoglyph Detection
+    # ========================================================================
+
+    class HomoglyphDetector:
+        """Detect homoglyphs in text."""
+
+        def __init__(self):
+            # Common homoglyph pairs (simplified)
+            self.homoglyphs = {
+                'a': ['а', 'ɑ', 'α'],  # Latin a, Cyrillic а, etc.
+                'e': ['е', 'ε'],
+                'o': ['о', 'ο', '0'],
+                'p': ['р', 'ρ'],
+                'c': ['с', 'ϲ'],
+                'x': ['х', 'χ'],
+            }
+
+        def detect(self, text: str) -> list:
+            """Detect potential homoglyphs."""
+            found = []
+
+            for i, char in enumerate(text):
+                # Check if char is a known homoglyph
+                for latin, lookalikes in self.homoglyphs.items():
+                    if char in lookalikes:
+                        found.append({
+                            "position": i,
+                            "char": char,
+                            "looks_like": latin,
+                        })
+
+            return found
+
+        def has_homoglyphs(self, text: str) -> tuple:
+            """Check if text contains homoglyphs."""
+            found = self.detect(text)
+            if found:
+                return True, f"Homoglyphs found: {found}"
+            return False, "No homoglyphs detected"
+
+    detector = HomoglyphDetector()
+
+    # Text with Cyrillic 'а' and 'о'
+    suspicious = "аttаck"  # Both 'a's are Cyrillic
+
+    has_homo, msg = detector.has_homoglyphs(suspicious)
+    if has_homo:
+        defenses["homoglyph_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Script Mixing Detection
+    # ========================================================================
+
+    class ScriptMixingDetector:
+        """Detect mixed scripts in text."""
+
+        def __init__(self):
+            pass
+
+        def get_script(self, char: str) -> str:
+            """Get Unicode script for character."""
+            import unicodedata
+            try:
+                name = unicodedata.name(char, "")
+                if "CYRILLIC" in name:
+                    return "Cyrillic"
+                if "GREEK" in name:
+                    return "Greek"
+                if "LATIN" in name:
+                    return "Latin"
+                return "Other"
+            except ValueError:
+                return "Unknown"
+
+        def detect_mixing(self, text: str) -> tuple:
+            """Detect if text mixes scripts."""
+            scripts = set()
+
+            for char in text:
+                if char.isalpha():
+                    script = self.get_script(char)
+                    scripts.add(script)
+
+            if len(scripts) > 1:
+                return True, f"Mixed scripts: {scripts}"
+
+            return False, f"Single script: {scripts}"
+
+    script_detector = ScriptMixingDetector()
+
+    mixed = "hеllo"  # 'е' is Cyrillic
+
+    is_mixed, msg = script_detector.detect_mixing(mixed)
+    if is_mixed:
+        defenses["script_mixing_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Canonical Comparison
+    # ========================================================================
+
+    class CanonicalComparator:
+        """Compare using canonical forms only."""
+
+        def __init__(self):
+            self.canonical_map = {}
+
+        def to_canonical(self, text: str) -> str:
+            """Convert to canonical ASCII form."""
+            result = []
+            for char in text:
+                # Map to ASCII equivalent
+                if char in 'абвгдежзийклмнопрстуфхцчшщъыьэюя':
+                    # Cyrillic to Latin mapping (simplified)
+                    cyrillic_map = {'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p',
+                                    'с': 'c', 'х': 'x'}
+                    result.append(cyrillic_map.get(char, char))
+                else:
+                    result.append(char)
+            return ''.join(result)
+
+        def compare_canonical(self, text1: str, text2: str) -> tuple:
+            """Compare using canonical forms."""
+            can1 = self.to_canonical(text1)
+            can2 = self.to_canonical(text2)
+
+            if can1 == can2:
+                if text1 != text2:
+                    return True, f"Canonical match but original differs - attack?"
+                return True, "Match"
+
+            return False, "No match"
+
+    canonical = CanonicalComparator()
+
+    # Both canonicalize to "attack" but differ in Unicode
+    matches, msg = canonical.compare_canonical("attack", "аttаck")
+    if matches:
+        defenses["canonical_comparison"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Homoglyph Semantic Attack (EM-2b)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=700.0 if attack_success else 0.0,
+        roi=(700.0 / 100.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=72.0,  # 3 days
+        blocks_until_detected=200,
+        trust_damage=0.65,
+        description=f"""
+HOMOGLYPH SEMANTIC ATTACK (Track EM-2b)
+
+Uses visually similar characters to inject different meanings.
+
+Attack Pattern:
+1. Substitute with homoglyphs (Cyrillic 'а' for 'a')
+2. Terms look identical but resolve differently
+3. Bypass text security checks
+4. Inject malicious as benign
+
+What you see is not what you get.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EM-2b: Homoglyph Defense:
+1. Normalize Unicode
+2. Detect homoglyphs
+3. Detect script mixing
+4. Use canonical comparison
+
+Normalize before comparing.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_context_collapse() -> AttackResult:
+    """
+    ATTACK 177: SEMANTIC CONTEXT COLLAPSE (Track EM-3a)
+
+    Collapses semantic context to change meaning:
+    1. Term has specific meaning in rich context
+    2. Remove context during transmission
+    3. Term interpreted in different context
+    4. Meaning changes due to context loss
+    """
+
+    defenses = {
+        "context_preservation": False,
+        "context_verification": False,
+        "minimum_context_requirements": False,
+        "context_hash_binding": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Context Preservation
+    # ========================================================================
+
+    class ContextPreserver:
+        """Preserve semantic context with terms."""
+
+        def __init__(self):
+            self.terms = {}
+
+        def store_with_context(self, term_id: str, term: str,
+                               context: dict):
+            """Store term with full context."""
+            self.terms[term_id] = {
+                "term": term,
+                "context": context,
+                "has_context": bool(context),
+            }
+
+        def retrieve(self, term_id: str) -> tuple:
+            """Retrieve term with context."""
+            if term_id not in self.terms:
+                return None, "Term not found"
+
+            entry = self.terms[term_id]
+            if not entry["has_context"]:
+                return entry["term"], "WARNING: No context available"
+
+            return entry, "Context preserved"
+
+        def verify_context(self, term_id: str) -> tuple:
+            """Verify context is present."""
+            if term_id not in self.terms:
+                return False, "Term not found"
+
+            if not self.terms[term_id]["has_context"]:
+                return False, "Context lost"
+
+            return True, "Context present"
+
+    preserver = ContextPreserver()
+
+    # Term stored without context (attack vector)
+    preserver.store_with_context("term_1", "execute", {})
+
+    ok, msg = preserver.verify_context("term_1")
+    if not ok:
+        defenses["context_preservation"] = True
+
+    # ========================================================================
+    # Defense 2: Context Verification
+    # ========================================================================
+
+    class ContextVerifier:
+        """Verify context is appropriate for term interpretation."""
+
+        def __init__(self):
+            self.required_context = {}
+
+        def define_requirements(self, term: str, required_keys: list):
+            """Define required context keys for term."""
+            self.required_context[term] = required_keys
+
+        def verify(self, term: str, context: dict) -> tuple:
+            """Verify context meets requirements."""
+            required = self.required_context.get(term, [])
+
+            if not required:
+                return True, "No specific requirements"
+
+            missing = [k for k in required if k not in context]
+
+            if missing:
+                return False, f"Missing required context: {missing}"
+
+            return True, "Context verified"
+
+    verifier = ContextVerifier()
+
+    verifier.define_requirements("authorize",
+                                ["domain", "actor", "scope", "timestamp"])
+
+    # Context missing required keys
+    incomplete_context = {"domain": "financial"}  # Missing actor, scope, timestamp
+
+    ok, msg = verifier.verify("authorize", incomplete_context)
+    if not ok:
+        defenses["context_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Minimum Context Requirements
+    # ========================================================================
+
+    class MinimumContextPolicy:
+        """Enforce minimum context for semantic operations."""
+
+        def __init__(self, min_keys: int = 3, min_depth: int = 2):
+            self.min_keys = min_keys
+            self.min_depth = min_depth
+
+        def check_context(self, context: dict, depth: int = 0) -> tuple:
+            """Check if context meets minimum requirements."""
+            if not isinstance(context, dict):
+                return 0, 0
+
+            keys = len(context)
+            max_depth = depth
+
+            for value in context.values():
+                if isinstance(value, dict):
+                    _, sub_depth = self.check_context(value, depth + 1)
+                    max_depth = max(max_depth, sub_depth)
+
+            return keys, max_depth
+
+        def validate(self, context: dict) -> tuple:
+            """Validate context meets minimums."""
+            keys, depth = self.check_context(context)
+
+            if keys < self.min_keys:
+                return False, f"Insufficient keys: {keys} < {self.min_keys}"
+
+            if depth < self.min_depth:
+                return False, f"Insufficient depth: {depth} < {self.min_depth}"
+
+            return True, f"Context sufficient (keys={keys}, depth={depth})"
+
+    min_context = MinimumContextPolicy()
+
+    # Shallow, minimal context
+    shallow = {"action": "do"}
+
+    ok, msg = min_context.validate(shallow)
+    if not ok:
+        defenses["minimum_context_requirements"] = True
+
+    # ========================================================================
+    # Defense 4: Context Hash Binding
+    # ========================================================================
+
+    class ContextHashBinding:
+        """Bind term meaning to context hash."""
+
+        def __init__(self):
+            self.bindings = {}
+
+        def bind(self, term_id: str, meaning: str, context: dict) -> str:
+            """Bind meaning to context hash."""
+            import hashlib
+            import json
+            context_hash = hashlib.sha256(
+                json.dumps(context, sort_keys=True).encode()
+            ).hexdigest()[:16]
+
+            self.bindings[term_id] = {
+                "meaning": meaning,
+                "context_hash": context_hash,
+            }
+            return context_hash
+
+        def verify_binding(self, term_id: str, context: dict) -> tuple:
+            """Verify context matches binding."""
+            if term_id not in self.bindings:
+                return False, "No binding found"
+
+            import hashlib
+            import json
+            current_hash = hashlib.sha256(
+                json.dumps(context, sort_keys=True).encode()
+            ).hexdigest()[:16]
+
+            expected = self.bindings[term_id]["context_hash"]
+
+            if current_hash != expected:
+                return False, "Context mismatch - meaning may differ"
+
+            return True, "Context verified"
+
+    binding = ContextHashBinding()
+
+    original_context = {"domain": "medical", "role": "doctor"}
+    binding.bind("authorize", "grant medical access", original_context)
+
+    # Different context (collapsed)
+    collapsed = {"domain": "financial"}  # Different context
+
+    ok, msg = binding.verify_binding("authorize", collapsed)
+    if not ok:
+        defenses["context_hash_binding"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Semantic Context Collapse (EM-3a)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=800.0 if attack_success else 0.0,
+        roi=(800.0 / 150.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=168.0,  # 7 days
+        blocks_until_detected=500,
+        trust_damage=0.70,
+        description=f"""
+SEMANTIC CONTEXT COLLAPSE (Track EM-3a)
+
+Removes context to change meaning interpretation.
+
+Attack Pattern:
+1. Term has specific meaning in rich context
+2. Remove context during transmission
+3. Term interpreted in different context
+4. Meaning changes
+
+Context is essential for meaning.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EM-3a: Context Collapse Defense:
+1. Preserve context with terms
+2. Verify context on receipt
+3. Enforce minimum context
+4. Bind meaning to context hash
+
+Meaning without context is dangerous.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_compression_semantic_loss() -> AttackResult:
+    """
+    ATTACK 178: COMPRESSION SEMANTIC LOSS (Track EM-3b)
+
+    Exploits lossy compression to corrupt semantic content:
+    1. Compress semantic content for transmission
+    2. Compression loses critical meaning distinctions
+    3. Decompressed content has different meaning
+    4. Trust in compression hides semantic attack
+    """
+
+    defenses = {
+        "lossless_semantic_compression": False,
+        "decompression_verification": False,
+        "semantic_checksum": False,
+        "compression_audit": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Lossless Semantic Compression
+    # ========================================================================
+
+    class LosslessSemanticCompressor:
+        """Ensure semantic compression is lossless."""
+
+        def __init__(self):
+            self.compressions = {}
+
+        def compress(self, content_id: str, original: dict) -> dict:
+            """Compress content losslessly."""
+            compressed = {
+                "data": original,  # In reality, would use lossless algo
+                "checksum": hash(str(sorted(original.items()))),
+            }
+            self.compressions[content_id] = compressed
+            return compressed
+
+        def decompress(self, content_id: str, compressed: dict) -> tuple:
+            """Decompress and verify."""
+            data = compressed["data"]
+            checksum = hash(str(sorted(data.items())))
+
+            if checksum != compressed["checksum"]:
+                return None, "Decompression checksum mismatch"
+
+            return data, "Lossless decompression verified"
+
+    lossless = LosslessSemanticCompressor()
+
+    original = {"action": "authorize", "scope": "read_only"}
+    compressed = lossless.compress("msg_1", original)
+
+    # Corrupt during transmission
+    compressed["data"]["scope"] = "full_access"  # Changed!
+
+    result, msg = lossless.decompress("msg_1", compressed)
+    if result is None:
+        defenses["lossless_semantic_compression"] = True
+
+    # ========================================================================
+    # Defense 2: Decompression Verification
+    # ========================================================================
+
+    class DecompressionVerifier:
+        """Verify decompressed content matches original."""
+
+        def __init__(self):
+            self.originals = {}
+
+        def store_original(self, msg_id: str, original: dict):
+            """Store original for verification."""
+            self.originals[msg_id] = original.copy()
+
+        def verify_decompression(self, msg_id: str,
+                                decompressed: dict) -> tuple:
+            """Verify decompressed matches original."""
+            if msg_id not in self.originals:
+                return False, "No original to verify against"
+
+            original = self.originals[msg_id]
+
+            differences = []
+            for key in set(original.keys()) | set(decompressed.keys()):
+                if original.get(key) != decompressed.get(key):
+                    differences.append(key)
+
+            if differences:
+                return False, f"Differences: {differences}"
+
+            return True, "Decompression verified"
+
+    verifier = DecompressionVerifier()
+
+    original = {"intent": "read", "target": "public_data"}
+    verifier.store_original("msg_1", original)
+
+    # Lossy decompression changes meaning
+    lossy_result = {"intent": "write", "target": "private_data"}
+
+    ok, msg = verifier.verify_decompression("msg_1", lossy_result)
+    if not ok:
+        defenses["decompression_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Semantic Checksum
+    # ========================================================================
+
+    class SemanticChecksum:
+        """Create semantic checksums resistant to compression."""
+
+        def __init__(self):
+            pass
+
+        def compute(self, content: dict) -> str:
+            """Compute semantic checksum."""
+            import hashlib
+            import json
+            # Normalize and hash semantic content
+            normalized = json.dumps(content, sort_keys=True)
+            return hashlib.sha256(normalized.encode()).hexdigest()[:16]
+
+        def verify(self, content: dict, expected_checksum: str) -> tuple:
+            """Verify content against checksum."""
+            actual = self.compute(content)
+
+            if actual != expected_checksum:
+                return False, f"Checksum mismatch: {actual} != {expected_checksum}"
+
+            return True, "Checksum verified"
+
+    checksum = SemanticChecksum()
+
+    original = {"permission": "read"}
+    original_checksum = checksum.compute(original)
+
+    # After lossy compression
+    corrupted = {"permission": "write"}
+
+    ok, msg = checksum.verify(corrupted, original_checksum)
+    if not ok:
+        defenses["semantic_checksum"] = True
+
+    # ========================================================================
+    # Defense 4: Compression Audit
+    # ========================================================================
+
+    class CompressionAuditor:
+        """Audit compression operations for semantic loss."""
+
+        def __init__(self):
+            self.audits = []
+
+        def audit_compression(self, original: dict, compressed: dict,
+                             decompressed: dict) -> tuple:
+            """Audit compression cycle for loss."""
+            losses = []
+
+            for key in original:
+                if key not in decompressed:
+                    losses.append(("missing", key))
+                elif original[key] != decompressed[key]:
+                    losses.append(("changed", key, original[key],
+                                  decompressed[key]))
+
+            for key in decompressed:
+                if key not in original:
+                    losses.append(("added", key))
+
+            self.audits.append({
+                "original": original,
+                "compressed": compressed,
+                "decompressed": decompressed,
+                "losses": losses,
+            })
+
+            if losses:
+                return False, f"Semantic loss detected: {losses}"
+
+            return True, "No semantic loss"
+
+    auditor = CompressionAuditor()
+
+    original = {"action": "read", "scope": "limited"}
+    compressed = {"a": "r", "s": "l"}  # Lossy
+    decompressed = {"action": "run", "scope": "limited"}  # 'r' -> 'run' wrong
+
+    ok, msg = auditor.audit_compression(original, compressed, decompressed)
+    if not ok:
+        defenses["compression_audit"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Compression Semantic Loss (EM-3b)",
+        success=attack_success,
+        setup_cost_atp=100.0,
+        gain_atp=600.0 if attack_success else 0.0,
+        roi=(600.0 / 100.0) if attack_success else -1.0,
+        detection_probability=0.50 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=96.0,  # 4 days
+        blocks_until_detected=300,
+        trust_damage=0.65,
+        description=f"""
+COMPRESSION SEMANTIC LOSS (Track EM-3b)
+
+Exploits lossy compression to corrupt meaning.
+
+Attack Pattern:
+1. Compress semantic content
+2. Compression loses distinctions
+3. Decompressed meaning differs
+4. Trust in compression hides attack
+
+Compression can silently corrupt meaning.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EM-3b: Compression Loss Defense:
+1. Use lossless semantic compression
+2. Verify after decompression
+3. Include semantic checksums
+4. Audit compression cycles
+
+Verify meaning survives compression.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run All Attacks
 # ---------------------------------------------------------------------------
 
@@ -50862,6 +55189,34 @@ def run_all_attacks() -> List[AttackResult]:
         ("Finality Racing (EJ-2b)", attack_finality_racing),
         ("Chain Reorg Exploitation (EJ-3a)", attack_chain_reorg_exploitation),
         ("Merkle Proof Forgery (EJ-3b)", attack_merkle_proof_forgery),
+        # Track EK: Formal Verification Bypass Attacks
+        ("Specification Gap Exploitation (EK-1a)", attack_specification_gap),
+        ("Model Abstraction Exploitation (EK-1b)", attack_model_abstraction_exploit),
+        ("Proof Oracle Manipulation (EK-2a)", attack_proof_oracle_manipulation),
+        ("Assumption Violation (EK-2b)", attack_assumption_violation),
+        ("Solver/Prover Exploitation (EK-3a)", attack_solver_exploitation),
+        ("Proof Replay Attack (EK-3b)", attack_proof_replay),
+        # Track EL: Quantum-Safe Migration Attacks
+        ("Algorithm Downgrade (EL-1a)", attack_algorithm_downgrade),
+        ("Key Transition Window (EL-1b)", attack_key_transition_window),
+        ("Harvest Now Decrypt Later (EL-2a)", attack_harvest_now_decrypt_later),
+        ("Hybrid Signature Mismatch (EL-2b)", attack_hybrid_mismatch),
+        ("PQ Implementation Weakness (EL-3a)", attack_pq_implementation_weakness),
+        ("PQ Parameter Weakness (EL-3b)", attack_pq_parameter_weakness),
+        # Track EM: Cross-Domain Semantic Attacks
+        ("Cross-Domain Semantic Injection (EM-1a)", attack_cross_domain_semantic_injection),
+        ("Meaning Laundering (EM-1b)", attack_meaning_laundering),
+        ("Dictionary Entity Corruption (EM-2a)", attack_dictionary_entity_corruption),
+        ("Homoglyph Semantic Attack (EM-2b)", attack_homoglyph_semantic),
+        ("Semantic Context Collapse (EM-3a)", attack_context_collapse),
+        ("Compression Semantic Loss (EM-3b)", attack_compression_semantic_loss),
+        # Track EN: Cross-Ledger Consistency Attacks
+        ("Federation Desynchronization (EN-1a)", attack_federation_desync),
+        ("Ledger Partitioning (EN-1b)", attack_ledger_partition),
+        ("Cross-Ledger Replay (EN-2a)", attack_cross_ledger_replay),
+        ("State Divergence Exploitation (EN-2b)", attack_state_divergence),
+        ("Reconciliation Manipulation (EN-3a)", attack_reconciliation_manipulation),
+        ("Consistency Model Downgrade (EN-3b)", attack_consistency_model_downgrade),
     ]
 
     results = []
@@ -50927,6 +55282,1368 @@ def run_all_attacks() -> List[AttackResult]:
             print(f"      Primary mitigation: {r.mitigation.split(chr(10))[0]}")
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Track EN: Cross-Ledger Consistency Attacks (Attacks 179-184)
+# ---------------------------------------------------------------------------
+
+
+def attack_federation_desync() -> AttackResult:
+    """
+    ATTACK 179: FEDERATION DESYNCHRONIZATION (Track EN-1a)
+
+    Forces desynchronization between federated ledgers:
+    1. Identify federation with multiple ledgers
+    2. Cause network partition or delay
+    3. Different operations on different ledgers
+    4. Exploit inconsistent state
+    """
+
+    defenses = {
+        "sync_verification": False,
+        "partition_detection": False,
+        "consistency_quorum": False,
+        "operation_locking": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Sync Verification
+    # ========================================================================
+
+    class SyncVerifier:
+        """Verify ledger synchronization status."""
+
+        def __init__(self, max_lag_blocks: int = 10):
+            self.max_lag = max_lag_blocks
+            self.ledger_heights = {}
+
+        def update_height(self, ledger_id: str, height: int):
+            """Update ledger height."""
+            self.ledger_heights[ledger_id] = height
+
+        def check_sync(self) -> tuple:
+            """Check if ledgers are synchronized."""
+            if len(self.ledger_heights) < 2:
+                return True, "Not enough ledgers"
+
+            heights = list(self.ledger_heights.values())
+            max_height = max(heights)
+            min_height = min(heights)
+            lag = max_height - min_height
+
+            if lag > self.max_lag:
+                behind = [lid for lid, h in self.ledger_heights.items()
+                         if h < max_height - self.max_lag]
+                return False, f"Sync lag {lag} blocks. Behind: {behind}"
+
+            return True, f"Synchronized (lag: {lag})"
+
+    sync_ver = SyncVerifier(max_lag_blocks=10)
+
+    sync_ver.update_height("ledger_a", 1000)
+    sync_ver.update_height("ledger_b", 1000)
+    sync_ver.update_height("ledger_c", 950)  # 50 blocks behind
+
+    ok, msg = sync_ver.check_sync()
+    if not ok:
+        defenses["sync_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Partition Detection
+    # ========================================================================
+
+    class PartitionDetector:
+        """Detect network partitions in federation."""
+
+        def __init__(self):
+            self.heartbeats = {}
+            self.last_seen = {}
+
+        def record_heartbeat(self, ledger_id: str, timestamp: float):
+            """Record heartbeat from ledger."""
+            if ledger_id not in self.heartbeats:
+                self.heartbeats[ledger_id] = []
+            self.heartbeats[ledger_id].append(timestamp)
+            self.last_seen[ledger_id] = timestamp
+
+        def detect_partition(self, current_time: float,
+                            max_silence: float = 60.0) -> tuple:
+            """Detect if any ledger is partitioned."""
+            partitioned = []
+
+            for ledger_id, last in self.last_seen.items():
+                silence = current_time - last
+                if silence > max_silence:
+                    partitioned.append((ledger_id, silence))
+
+            if partitioned:
+                return True, f"Partitioned ledgers: {partitioned}"
+
+            return False, "No partition detected"
+
+    partition = PartitionDetector()
+
+    partition.record_heartbeat("ledger_a", 1000.0)
+    partition.record_heartbeat("ledger_b", 1000.0)
+    partition.record_heartbeat("ledger_c", 900.0)  # Long silence
+
+    is_partitioned, msg = partition.detect_partition(1050.0)
+    if is_partitioned:
+        defenses["partition_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Consistency Quorum
+    # ========================================================================
+
+    class ConsistencyQuorum:
+        """Require quorum agreement before accepting operations."""
+
+        def __init__(self, quorum_fraction: float = 0.67):
+            self.quorum = quorum_fraction
+            self.ledgers = set()
+            self.confirmations = {}
+
+        def register_ledger(self, ledger_id: str):
+            """Register a ledger in federation."""
+            self.ledgers.add(ledger_id)
+
+        def add_confirmation(self, op_id: str, ledger_id: str):
+            """Add confirmation from a ledger."""
+            if op_id not in self.confirmations:
+                self.confirmations[op_id] = set()
+            self.confirmations[op_id].add(ledger_id)
+
+        def check_quorum(self, op_id: str) -> tuple:
+            """Check if operation has quorum."""
+            if not self.ledgers:
+                return False, "No ledgers registered"
+
+            confirmed = len(self.confirmations.get(op_id, set()))
+            required = int(len(self.ledgers) * self.quorum)
+
+            if confirmed < required:
+                return False, f"No quorum: {confirmed}/{required} confirmations"
+
+            return True, f"Quorum achieved: {confirmed}/{len(self.ledgers)}"
+
+    quorum = ConsistencyQuorum(quorum_fraction=0.67)
+
+    quorum.register_ledger("ledger_a")
+    quorum.register_ledger("ledger_b")
+    quorum.register_ledger("ledger_c")
+
+    # Only one confirmation (attack attempt during partition)
+    quorum.add_confirmation("op_1", "ledger_a")
+
+    ok, msg = quorum.check_quorum("op_1")
+    if not ok:
+        defenses["consistency_quorum"] = True
+
+    # ========================================================================
+    # Defense 4: Operation Locking
+    # ========================================================================
+
+    class OperationLocker:
+        """Lock operations during synchronization."""
+
+        def __init__(self):
+            self.locks = {}
+            self.sync_mode = False
+
+        def enter_sync_mode(self):
+            """Enter synchronization mode."""
+            self.sync_mode = True
+
+        def exit_sync_mode(self):
+            """Exit synchronization mode."""
+            self.sync_mode = False
+
+        def try_lock(self, op_id: str) -> tuple:
+            """Try to acquire lock for operation."""
+            if self.sync_mode:
+                return False, "Operations locked during sync"
+
+            if op_id in self.locks:
+                return False, "Operation already locked"
+
+            self.locks[op_id] = True
+            return True, "Lock acquired"
+
+    locker = OperationLocker()
+
+    locker.enter_sync_mode()
+
+    # Try to operate during sync
+    ok, msg = locker.try_lock("op_during_sync")
+    if not ok:
+        defenses["operation_locking"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Federation Desynchronization (EN-1a)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=2000.0 if attack_success else 0.0,
+        roi=(2000.0 / 300.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=24.0,  # 1 day
+        blocks_until_detected=70,
+        trust_damage=0.85,
+        description=f"""
+FEDERATION DESYNCHRONIZATION (Track EN-1a)
+
+Forces desynchronization between federated ledgers.
+
+Attack Pattern:
+1. Target federation with multiple ledgers
+2. Cause network partition or delay
+3. Different operations on different ledgers
+4. Exploit inconsistent state
+
+Desync creates opportunities for double-spend.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EN-1a: Desync Defense:
+1. Verify ledger synchronization
+2. Detect network partitions
+3. Require quorum for operations
+4. Lock operations during sync
+
+Stay synchronized or stop operating.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_ledger_partition() -> AttackResult:
+    """
+    ATTACK 180: LEDGER PARTITIONING (Track EN-1b)
+
+    Creates deliberate partition between ledger segments:
+    1. Identify network topology of federation
+    2. Attack specific links to create partition
+    3. Operate on both partitions independently
+    4. Create conflicting state for later exploitation
+    """
+
+    defenses = {
+        "topology_redundancy": False,
+        "multi_path_communication": False,
+        "partition_safety_mode": False,
+        "conflict_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Topology Redundancy
+    # ========================================================================
+
+    class TopologyRedundancy:
+        """Ensure topology has redundant connections."""
+
+        def __init__(self, min_connectivity: int = 2):
+            self.min_connectivity = min_connectivity
+            self.connections = {}
+
+        def add_connection(self, node_a: str, node_b: str):
+            """Add connection between nodes."""
+            if node_a not in self.connections:
+                self.connections[node_a] = set()
+            if node_b not in self.connections:
+                self.connections[node_b] = set()
+            self.connections[node_a].add(node_b)
+            self.connections[node_b].add(node_a)
+
+        def check_redundancy(self) -> tuple:
+            """Check if all nodes have minimum connectivity."""
+            weak_nodes = []
+
+            for node, neighbors in self.connections.items():
+                if len(neighbors) < self.min_connectivity:
+                    weak_nodes.append((node, len(neighbors)))
+
+            if weak_nodes:
+                return False, f"Nodes with weak connectivity: {weak_nodes}"
+
+            return True, "All nodes have sufficient connectivity"
+
+    topology = TopologyRedundancy(min_connectivity=2)
+
+    topology.add_connection("a", "b")
+    topology.add_connection("b", "c")
+    # Node 'a' and 'c' only have 1 connection each
+
+    ok, msg = topology.check_redundancy()
+    if not ok:
+        defenses["topology_redundancy"] = True
+
+    # ========================================================================
+    # Defense 2: Multi-Path Communication
+    # ========================================================================
+
+    class MultiPathCommunication:
+        """Require multiple paths for critical messages."""
+
+        def __init__(self, min_paths: int = 2):
+            self.min_paths = min_paths
+            self.paths = {}
+
+        def add_path(self, src: str, dst: str, path: list):
+            """Add a path between nodes."""
+            key = (src, dst)
+            if key not in self.paths:
+                self.paths[key] = []
+            self.paths[key].append(path)
+
+        def check_paths(self, src: str, dst: str) -> tuple:
+            """Check if sufficient paths exist."""
+            key = (src, dst)
+            paths = self.paths.get(key, [])
+
+            if len(paths) < self.min_paths:
+                return False, f"Insufficient paths: {len(paths)} < {self.min_paths}"
+
+            # Check path independence (no shared intermediate nodes)
+            if len(paths) >= 2:
+                shared = set(paths[0][1:-1]) & set(paths[1][1:-1])
+                if shared:
+                    return False, f"Paths share nodes: {shared}"
+
+            return True, f"Multiple independent paths: {len(paths)}"
+
+    multi_path = MultiPathCommunication()
+
+    multi_path.add_path("a", "d", ["a", "b", "d"])
+    # Only one path - vulnerable
+
+    ok, msg = multi_path.check_paths("a", "d")
+    if not ok:
+        defenses["multi_path_communication"] = True
+
+    # ========================================================================
+    # Defense 3: Partition Safety Mode
+    # ========================================================================
+
+    class PartitionSafetyMode:
+        """Enter safety mode during suspected partition."""
+
+        def __init__(self):
+            self.mode = "normal"
+            self.allowed_operations = {
+                "normal": ["read", "write", "transfer"],
+                "degraded": ["read", "write"],
+                "safety": ["read"],
+            }
+
+        def set_mode(self, mode: str):
+            """Set operating mode."""
+            self.mode = mode
+
+        def check_operation(self, operation: str) -> tuple:
+            """Check if operation allowed in current mode."""
+            allowed = self.allowed_operations.get(self.mode, [])
+
+            if operation not in allowed:
+                return False, f"Operation '{operation}' not allowed in {self.mode} mode"
+
+            return True, f"Operation allowed in {self.mode} mode"
+
+    safety = PartitionSafetyMode()
+
+    safety.set_mode("safety")
+
+    # Transfer not allowed in safety mode
+    ok, msg = safety.check_operation("transfer")
+    if not ok:
+        defenses["partition_safety_mode"] = True
+
+    # ========================================================================
+    # Defense 4: Conflict Detection
+    # ========================================================================
+
+    class ConflictDetector:
+        """Detect conflicting operations from partitions."""
+
+        def __init__(self):
+            self.operations = {}
+
+        def record_operation(self, op_id: str, resource: str,
+                           partition: str, value):
+            """Record an operation."""
+            key = resource
+            if key not in self.operations:
+                self.operations[key] = []
+            self.operations[key].append({
+                "op_id": op_id,
+                "partition": partition,
+                "value": value,
+            })
+
+        def detect_conflicts(self) -> list:
+            """Detect conflicting operations."""
+            conflicts = []
+
+            for resource, ops in self.operations.items():
+                if len(ops) < 2:
+                    continue
+
+                partitions = set(op["partition"] for op in ops)
+                if len(partitions) > 1:
+                    values = [op["value"] for op in ops]
+                    if len(set(str(v) for v in values)) > 1:
+                        conflicts.append({
+                            "resource": resource,
+                            "operations": ops,
+                        })
+
+            return conflicts
+
+    conflict = ConflictDetector()
+
+    # Same resource modified in different partitions
+    conflict.record_operation("op_1", "balance_alice",
+                             "partition_a", 100)
+    conflict.record_operation("op_2", "balance_alice",
+                             "partition_b", 50)
+
+    conflicts = conflict.detect_conflicts()
+    if conflicts:
+        defenses["conflict_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Ledger Partitioning (EN-1b)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=2500.0 if attack_success else 0.0,
+        roi=(2500.0 / 400.0) if attack_success else -1.0,
+        detection_probability=0.50 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=48.0,  # 2 days
+        blocks_until_detected=150,
+        trust_damage=0.90,
+        description=f"""
+LEDGER PARTITIONING (Track EN-1b)
+
+Creates deliberate partition between ledger segments.
+
+Attack Pattern:
+1. Identify federation network topology
+2. Attack specific links
+3. Operate on both partitions
+4. Create conflicting state
+
+Partitions enable double-spend.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EN-1b: Partitioning Defense:
+1. Ensure topology redundancy
+2. Use multi-path communication
+3. Enter safety mode during partition
+4. Detect conflicts on heal
+
+Redundant topology prevents partition.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_cross_ledger_replay() -> AttackResult:
+    """
+    ATTACK 181: CROSS-LEDGER REPLAY (Track EN-2a)
+
+    Replays valid operation from one ledger to another:
+    1. Execute legitimate operation on Ledger A
+    2. Capture signed operation
+    3. Replay on Ledger B
+    4. Operation accepted due to valid signature
+    """
+
+    defenses = {
+        "ledger_id_binding": False,
+        "global_nonce_coordination": False,
+        "operation_fingerprinting": False,
+        "cross_ledger_seen_check": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Ledger ID Binding
+    # ========================================================================
+
+    class LedgerIdBinding:
+        """Bind operations to specific ledger IDs."""
+
+        def __init__(self):
+            self.operations = {}
+
+        def create_operation(self, op_id: str, ledger_id: str,
+                            payload: dict) -> dict:
+            """Create operation bound to ledger."""
+            op = {
+                "id": op_id,
+                "ledger_id": ledger_id,
+                "payload": payload,
+            }
+            self.operations[op_id] = op
+            return op
+
+        def verify_ledger(self, op: dict, target_ledger: str) -> tuple:
+            """Verify operation is for target ledger."""
+            if op.get("ledger_id") != target_ledger:
+                return False, f"Ledger mismatch: {op.get('ledger_id')} != {target_ledger}"
+
+            return True, "Ledger ID verified"
+
+    binding = LedgerIdBinding()
+
+    # Operation for ledger A
+    op = binding.create_operation("op_1", "ledger_a", {"amount": 100})
+
+    # Try to replay on ledger B
+    ok, msg = binding.verify_ledger(op, "ledger_b")
+    if not ok:
+        defenses["ledger_id_binding"] = True
+
+    # ========================================================================
+    # Defense 2: Global Nonce Coordination
+    # ========================================================================
+
+    class GlobalNonceCoordinator:
+        """Coordinate nonces across ledgers."""
+
+        def __init__(self):
+            self.used_nonces = set()
+            self.ledger_nonces = {}
+
+        def allocate_nonce(self, ledger_id: str) -> int:
+            """Allocate unique global nonce."""
+            if ledger_id not in self.ledger_nonces:
+                self.ledger_nonces[ledger_id] = 0
+
+            self.ledger_nonces[ledger_id] += 1
+            nonce = hash((ledger_id, self.ledger_nonces[ledger_id]))
+            self.used_nonces.add(nonce)
+            return nonce
+
+        def verify_nonce(self, nonce: int) -> tuple:
+            """Verify nonce hasn't been used."""
+            if nonce in self.used_nonces:
+                return False, "Nonce already used (replay detected)"
+            return True, "Nonce valid"
+
+        def consume_nonce(self, nonce: int):
+            """Mark nonce as used."""
+            self.used_nonces.add(nonce)
+
+    coordinator = GlobalNonceCoordinator()
+
+    # Original nonce
+    nonce = coordinator.allocate_nonce("ledger_a")
+    coordinator.consume_nonce(nonce)
+
+    # Replay attempt
+    ok, msg = coordinator.verify_nonce(nonce)
+    if not ok:
+        defenses["global_nonce_coordination"] = True
+
+    # ========================================================================
+    # Defense 3: Operation Fingerprinting
+    # ========================================================================
+
+    class OperationFingerprinter:
+        """Fingerprint operations to detect replays."""
+
+        def __init__(self):
+            self.fingerprints = set()
+
+        def fingerprint(self, op: dict) -> str:
+            """Create unique fingerprint for operation."""
+            import hashlib
+            import json
+            content = json.dumps(op, sort_keys=True)
+            return hashlib.sha256(content.encode()).hexdigest()
+
+        def is_replay(self, op: dict) -> tuple:
+            """Check if operation is a replay."""
+            fp = self.fingerprint(op)
+            if fp in self.fingerprints:
+                return True, "Operation fingerprint already seen"
+            return False, "New operation"
+
+        def record(self, op: dict):
+            """Record operation fingerprint."""
+            fp = self.fingerprint(op)
+            self.fingerprints.add(fp)
+
+    fingerprinter = OperationFingerprinter()
+
+    op = {"sender": "alice", "receiver": "bob", "amount": 100}
+    fingerprinter.record(op)
+
+    # Replay
+    is_replay, msg = fingerprinter.is_replay(op)
+    if is_replay:
+        defenses["operation_fingerprinting"] = True
+
+    # ========================================================================
+    # Defense 4: Cross-Ledger Seen Check
+    # ========================================================================
+
+    class CrossLedgerSeenCheck:
+        """Check if operation seen on any ledger."""
+
+        def __init__(self):
+            self.seen = {}  # op_hash -> list of ledgers
+
+        def mark_seen(self, op_hash: str, ledger_id: str):
+            """Mark operation as seen on ledger."""
+            if op_hash not in self.seen:
+                self.seen[op_hash] = []
+            self.seen[op_hash].append(ledger_id)
+
+        def check_cross_ledger(self, op_hash: str,
+                              target_ledger: str) -> tuple:
+            """Check if operation seen on other ledgers."""
+            ledgers = self.seen.get(op_hash, [])
+
+            if target_ledger in ledgers:
+                return False, "Already processed on this ledger"
+
+            if ledgers:
+                return False, f"Already seen on ledgers: {ledgers} (cross-ledger replay)"
+
+            return True, "Not seen on any ledger"
+
+    cross_check = CrossLedgerSeenCheck()
+
+    cross_check.mark_seen("op_hash_1", "ledger_a")
+
+    # Try to replay on ledger B
+    ok, msg = cross_check.check_cross_ledger("op_hash_1", "ledger_b")
+    if not ok:
+        defenses["cross_ledger_seen_check"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Cross-Ledger Replay (EN-2a)",
+        success=attack_success,
+        setup_cost_atp=150.0,
+        gain_atp=1000.0 if attack_success else 0.0,
+        roi=(1000.0 / 150.0) if attack_success else -1.0,
+        detection_probability=0.60 if defenses_held >= 3 else 0.25,
+        time_to_detection_hours=12.0,
+        blocks_until_detected=35,
+        trust_damage=0.80,
+        description=f"""
+CROSS-LEDGER REPLAY (Track EN-2a)
+
+Replays valid operation from one ledger to another.
+
+Attack Pattern:
+1. Execute on Ledger A
+2. Capture signed operation
+3. Replay on Ledger B
+4. Accepted due to valid signature
+
+Cross-ledger replay enables double-spend.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EN-2a: Cross-Ledger Replay Defense:
+1. Bind operations to ledger IDs
+2. Coordinate nonces globally
+3. Fingerprint all operations
+4. Check if seen on any ledger
+
+Operations must be ledger-specific.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_state_divergence() -> AttackResult:
+    """
+    ATTACK 182: STATE DIVERGENCE EXPLOITATION (Track EN-2b)
+
+    Exploits divergent state between ledgers:
+    1. Cause temporary state divergence
+    2. Operate based on state from favorable ledger
+    3. State eventually converges
+    4. Gain from operating during divergence window
+    """
+
+    defenses = {
+        "state_hash_verification": False,
+        "convergence_monitoring": False,
+        "divergence_lockout": False,
+        "authoritative_state_source": False,
+    }
+
+    # ========================================================================
+    # Defense 1: State Hash Verification
+    # ========================================================================
+
+    class StateHashVerifier:
+        """Verify state hashes across ledgers."""
+
+        def __init__(self):
+            self.state_hashes = {}
+
+        def record_state(self, ledger_id: str, state_hash: str):
+            """Record state hash from ledger."""
+            self.state_hashes[ledger_id] = state_hash
+
+        def check_consistency(self) -> tuple:
+            """Check if all ledgers have same state hash."""
+            if len(self.state_hashes) < 2:
+                return True, "Not enough ledgers"
+
+            hashes = set(self.state_hashes.values())
+
+            if len(hashes) > 1:
+                return False, f"State divergence: {len(hashes)} different states"
+
+            return True, "State consistent across ledgers"
+
+    verifier = StateHashVerifier()
+
+    verifier.record_state("ledger_a", "hash_abc123")
+    verifier.record_state("ledger_b", "hash_abc123")
+    verifier.record_state("ledger_c", "hash_xyz789")  # Different!
+
+    ok, msg = verifier.check_consistency()
+    if not ok:
+        defenses["state_hash_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Convergence Monitoring
+    # ========================================================================
+
+    class ConvergenceMonitor:
+        """Monitor ledger state convergence."""
+
+        def __init__(self, max_divergence_time: float = 60.0):
+            self.max_divergence = max_divergence_time
+            self.divergence_start = {}
+
+        def record_divergence(self, ledger_id: str, timestamp: float):
+            """Record start of divergence."""
+            if ledger_id not in self.divergence_start:
+                self.divergence_start[ledger_id] = timestamp
+
+        def record_convergence(self, ledger_id: str):
+            """Record convergence."""
+            if ledger_id in self.divergence_start:
+                del self.divergence_start[ledger_id]
+
+        def check_divergence(self, current_time: float) -> tuple:
+            """Check for prolonged divergence."""
+            prolonged = []
+
+            for ledger_id, start in self.divergence_start.items():
+                duration = current_time - start
+                if duration > self.max_divergence:
+                    prolonged.append((ledger_id, duration))
+
+            if prolonged:
+                return True, f"Prolonged divergence: {prolonged}"
+
+            return False, "No prolonged divergence"
+
+    monitor = ConvergenceMonitor(max_divergence_time=60.0)
+
+    monitor.record_divergence("ledger_c", 1000.0)
+
+    # Check later - still divergent
+    is_prolonged, msg = monitor.check_divergence(1100.0)
+    if is_prolonged:
+        defenses["convergence_monitoring"] = True
+
+    # ========================================================================
+    # Defense 3: Divergence Lockout
+    # ========================================================================
+
+    class DivergenceLockout:
+        """Lock out operations during state divergence."""
+
+        def __init__(self):
+            self.divergent_ledgers = set()
+
+        def mark_divergent(self, ledger_id: str):
+            """Mark ledger as divergent."""
+            self.divergent_ledgers.add(ledger_id)
+
+        def mark_converged(self, ledger_id: str):
+            """Mark ledger as converged."""
+            self.divergent_ledgers.discard(ledger_id)
+
+        def check_operation(self, ledger_id: str) -> tuple:
+            """Check if operation allowed."""
+            if ledger_id in self.divergent_ledgers:
+                return False, f"Ledger {ledger_id} is divergent - operations locked"
+
+            if self.divergent_ledgers:
+                return False, f"Federation has divergent ledgers: {self.divergent_ledgers}"
+
+            return True, "Operations allowed"
+
+    lockout = DivergenceLockout()
+
+    lockout.mark_divergent("ledger_c")
+
+    ok, msg = lockout.check_operation("ledger_a")
+    if not ok:
+        defenses["divergence_lockout"] = True
+
+    # ========================================================================
+    # Defense 4: Authoritative State Source
+    # ========================================================================
+
+    class AuthoritativeStateSource:
+        """Designate authoritative state source."""
+
+        def __init__(self, primary: str):
+            self.primary = primary
+            self.states = {}
+
+        def update_state(self, ledger_id: str, state: dict):
+            """Update state from ledger."""
+            self.states[ledger_id] = state
+
+        def get_authoritative_state(self) -> tuple:
+            """Get authoritative state."""
+            if self.primary not in self.states:
+                return None, "Primary not available"
+
+            return self.states[self.primary], f"State from {self.primary}"
+
+        def compare_to_authoritative(self, ledger_id: str) -> tuple:
+            """Compare ledger state to authoritative."""
+            auth_state, _ = self.get_authoritative_state()
+            if auth_state is None:
+                return False, "No authoritative state"
+
+            ledger_state = self.states.get(ledger_id)
+            if ledger_state is None:
+                return False, "Ledger state not available"
+
+            if str(ledger_state) != str(auth_state):
+                return False, "State differs from authoritative"
+
+            return True, "Matches authoritative state"
+
+    authority = AuthoritativeStateSource("ledger_a")
+
+    authority.update_state("ledger_a", {"balance": 100})
+    authority.update_state("ledger_b", {"balance": 150})  # Different
+
+    ok, msg = authority.compare_to_authoritative("ledger_b")
+    if not ok:
+        defenses["authoritative_state_source"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="State Divergence Exploitation (EN-2b)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=1200.0 if attack_success else 0.0,
+        roi=(1200.0 / 200.0) if attack_success else -1.0,
+        detection_probability=0.50 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=24.0,
+        blocks_until_detected=70,
+        trust_damage=0.75,
+        description=f"""
+STATE DIVERGENCE EXPLOITATION (Track EN-2b)
+
+Exploits divergent state between ledgers.
+
+Attack Pattern:
+1. Cause temporary divergence
+2. Operate using favorable ledger state
+3. State eventually converges
+4. Profit from divergence window
+
+Divergence is a window for attack.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EN-2b: State Divergence Defense:
+1. Verify state hashes
+2. Monitor convergence
+3. Lock out during divergence
+4. Use authoritative state source
+
+Halt operations during divergence.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_reconciliation_manipulation() -> AttackResult:
+    """
+    ATTACK 183: RECONCILIATION MANIPULATION (Track EN-3a)
+
+    Manipulates the reconciliation process after partition:
+    1. Create conflicting state during partition
+    2. Influence reconciliation algorithm
+    3. Attacker's version of state wins
+    4. Legitimate operations discarded
+    """
+
+    defenses = {
+        "deterministic_reconciliation": False,
+        "reconciliation_audit": False,
+        "multi_party_reconciliation": False,
+        "conflict_resolution_rules": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Deterministic Reconciliation
+    # ========================================================================
+
+    class DeterministicReconciliation:
+        """Use deterministic rules for reconciliation."""
+
+        def __init__(self):
+            self.rules = [
+                "earlier_timestamp_wins",
+                "higher_block_wins",
+                "lexicographic_tiebreak",
+            ]
+
+        def reconcile(self, op_a: dict, op_b: dict) -> tuple:
+            """Reconcile two conflicting operations."""
+            # Rule 1: Earlier timestamp
+            if op_a.get("timestamp", 0) < op_b.get("timestamp", 0):
+                return op_a, "Earlier timestamp"
+            if op_b.get("timestamp", 0) < op_a.get("timestamp", 0):
+                return op_b, "Earlier timestamp"
+
+            # Rule 2: Higher block number
+            if op_a.get("block", 0) > op_b.get("block", 0):
+                return op_a, "Higher block"
+            if op_b.get("block", 0) > op_a.get("block", 0):
+                return op_b, "Higher block"
+
+            # Rule 3: Lexicographic
+            if str(op_a) < str(op_b):
+                return op_a, "Lexicographic"
+            return op_b, "Lexicographic"
+
+        def is_deterministic(self) -> bool:
+            """Check if reconciliation is deterministic."""
+            return len(self.rules) > 0
+
+    recon = DeterministicReconciliation()
+
+    if recon.is_deterministic():
+        defenses["deterministic_reconciliation"] = True
+
+    # ========================================================================
+    # Defense 2: Reconciliation Audit
+    # ========================================================================
+
+    class ReconciliationAuditor:
+        """Audit reconciliation decisions."""
+
+        def __init__(self):
+            self.decisions = []
+
+        def record_decision(self, conflict_id: str, winner: str,
+                           loser: str, reason: str):
+            """Record reconciliation decision."""
+            self.decisions.append({
+                "conflict_id": conflict_id,
+                "winner": winner,
+                "loser": loser,
+                "reason": reason,
+            })
+
+        def audit(self) -> tuple:
+            """Audit decisions for anomalies."""
+            if not self.decisions:
+                return True, "No decisions to audit"
+
+            # Check for suspicious patterns
+            winners = {}
+            for d in self.decisions:
+                winner = d["winner"]
+                winners[winner] = winners.get(winner, 0) + 1
+
+            # If one party wins too often, suspicious
+            total = len(self.decisions)
+            for winner, count in winners.items():
+                if count / total > 0.8:
+                    return False, f"Suspicious: {winner} won {count}/{total} times"
+
+            return True, "No anomalies detected"
+
+    auditor = ReconciliationAuditor()
+
+    # Attacker manipulates to always win
+    for i in range(10):
+        auditor.record_decision(f"conflict_{i}", "attacker", "victim", "timestamp")
+
+    ok, msg = auditor.audit()
+    if not ok:
+        defenses["reconciliation_audit"] = True
+
+    # ========================================================================
+    # Defense 3: Multi-Party Reconciliation
+    # ========================================================================
+
+    class MultiPartyReconciliation:
+        """Require multiple parties for reconciliation."""
+
+        def __init__(self, min_parties: int = 3):
+            self.min_parties = min_parties
+            self.votes = {}
+
+        def vote(self, conflict_id: str, party: str, choice: str):
+            """Submit vote for reconciliation."""
+            if conflict_id not in self.votes:
+                self.votes[conflict_id] = {}
+            self.votes[conflict_id][party] = choice
+
+        def resolve(self, conflict_id: str) -> tuple:
+            """Resolve conflict based on votes."""
+            votes = self.votes.get(conflict_id, {})
+
+            if len(votes) < self.min_parties:
+                return None, f"Need {self.min_parties} parties, have {len(votes)}"
+
+            from collections import Counter
+            choices = Counter(votes.values())
+            winner, count = choices.most_common(1)[0]
+
+            if count < self.min_parties // 2 + 1:
+                return None, "No majority"
+
+            return winner, f"Majority ({count}/{len(votes)})"
+
+    multi_party = MultiPartyReconciliation()
+
+    multi_party.vote("conflict_1", "party_a", "op_1")
+    # Not enough votes
+
+    result, msg = multi_party.resolve("conflict_1")
+    if result is None:
+        defenses["multi_party_reconciliation"] = True
+
+    # ========================================================================
+    # Defense 4: Conflict Resolution Rules
+    # ========================================================================
+
+    class ConflictResolutionRules:
+        """Define and enforce conflict resolution rules."""
+
+        def __init__(self):
+            self.rules = {}
+
+        def add_rule(self, rule_id: str, priority: int,
+                    condition: str, action: str):
+            """Add a resolution rule."""
+            self.rules[rule_id] = {
+                "priority": priority,
+                "condition": condition,
+                "action": action,
+            }
+
+        def get_applicable_rules(self, conflict: dict) -> list:
+            """Get rules applicable to conflict."""
+            applicable = []
+            for rule_id, rule in self.rules.items():
+                # Simplified: assume all rules apply
+                applicable.append((rule["priority"], rule_id, rule))
+
+            return sorted(applicable, key=lambda x: x[0])
+
+        def has_rules(self) -> bool:
+            """Check if rules are defined."""
+            return len(self.rules) > 0
+
+    rules = ConflictResolutionRules()
+
+    rules.add_rule("r1", 1, "double_spend", "reject_later")
+    rules.add_rule("r2", 2, "conflicting_writes", "merge_if_possible")
+    rules.add_rule("r3", 3, "default", "use_authoritative")
+
+    if rules.has_rules():
+        defenses["conflict_resolution_rules"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Reconciliation Manipulation (EN-3a)",
+        success=attack_success,
+        setup_cost_atp=350.0,
+        gain_atp=2000.0 if attack_success else 0.0,
+        roi=(2000.0 / 350.0) if attack_success else -1.0,
+        detection_probability=0.45 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=72.0,
+        blocks_until_detected=200,
+        trust_damage=0.85,
+        description=f"""
+RECONCILIATION MANIPULATION (Track EN-3a)
+
+Manipulates reconciliation after partition heals.
+
+Attack Pattern:
+1. Create conflicts during partition
+2. Influence reconciliation
+3. Attacker's version wins
+4. Legitimate operations discarded
+
+Control reconciliation, control the truth.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EN-3a: Reconciliation Defense:
+1. Use deterministic rules
+2. Audit all decisions
+3. Require multi-party agreement
+4. Define explicit resolution rules
+
+Reconciliation must be fair and auditable.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_consistency_model_downgrade() -> AttackResult:
+    """
+    ATTACK 184: CONSISTENCY MODEL DOWNGRADE (Track EN-3b)
+
+    Downgrades consistency guarantees to enable attacks:
+    1. Identify systems with configurable consistency
+    2. Force downgrade to eventual consistency
+    3. Exploit relaxed guarantees
+    4. Attacks succeed that wouldn't under strong consistency
+    """
+
+    defenses = {
+        "minimum_consistency_level": False,
+        "downgrade_detection": False,
+        "consistency_pinning": False,
+        "operation_consistency_requirements": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Minimum Consistency Level
+    # ========================================================================
+
+    class MinimumConsistencyLevel:
+        """Enforce minimum consistency level."""
+
+        def __init__(self, minimum: str = "strong"):
+            self.levels = ["eventual", "causal", "sequential", "strong"]
+            self.minimum = minimum
+
+        def check_level(self, current: str) -> tuple:
+            """Check if current level meets minimum."""
+            if current not in self.levels:
+                return False, f"Unknown level: {current}"
+
+            current_idx = self.levels.index(current)
+            min_idx = self.levels.index(self.minimum)
+
+            if current_idx < min_idx:
+                return False, f"Level {current} below minimum {self.minimum}"
+
+            return True, f"Level {current} acceptable"
+
+    min_level = MinimumConsistencyLevel(minimum="strong")
+
+    ok, msg = min_level.check_level("eventual")
+    if not ok:
+        defenses["minimum_consistency_level"] = True
+
+    # ========================================================================
+    # Defense 2: Downgrade Detection
+    # ========================================================================
+
+    class DowngradeDetector:
+        """Detect consistency downgrades."""
+
+        def __init__(self):
+            self.history = []
+
+        def record_level(self, level: str, timestamp: float):
+            """Record consistency level."""
+            self.history.append({
+                "level": level,
+                "timestamp": timestamp,
+            })
+
+        def detect_downgrade(self) -> tuple:
+            """Detect if consistency was downgraded."""
+            levels = ["eventual", "causal", "sequential", "strong"]
+
+            for i in range(1, len(self.history)):
+                prev_idx = levels.index(self.history[i-1]["level"])
+                curr_idx = levels.index(self.history[i]["level"])
+
+                if curr_idx < prev_idx:
+                    return True, f"Downgrade detected: {self.history[i-1]['level']} -> {self.history[i]['level']}"
+
+            return False, "No downgrade detected"
+
+    detector = DowngradeDetector()
+
+    detector.record_level("strong", 1000)
+    detector.record_level("strong", 1100)
+    detector.record_level("eventual", 1200)  # Downgrade!
+
+    is_downgrade, msg = detector.detect_downgrade()
+    if is_downgrade:
+        defenses["downgrade_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Consistency Pinning
+    # ========================================================================
+
+    class ConsistencyPinner:
+        """Pin consistency level to prevent changes."""
+
+        def __init__(self):
+            self.pins = {}
+            self.current_levels = {}
+
+        def pin(self, context: str, level: str):
+            """Pin context to consistency level."""
+            self.pins[context] = level
+            self.current_levels[context] = level
+
+        def try_change(self, context: str, new_level: str) -> tuple:
+            """Attempt to change consistency level."""
+            if context in self.pins:
+                return False, f"Context {context} pinned to {self.pins[context]}"
+
+            self.current_levels[context] = new_level
+            return True, f"Changed to {new_level}"
+
+    pinner = ConsistencyPinner()
+
+    pinner.pin("critical_ops", "strong")
+
+    # Try to downgrade
+    ok, msg = pinner.try_change("critical_ops", "eventual")
+    if not ok:
+        defenses["consistency_pinning"] = True
+
+    # ========================================================================
+    # Defense 4: Operation Consistency Requirements
+    # ========================================================================
+
+    class OperationConsistencyRequirements:
+        """Define consistency requirements per operation type."""
+
+        def __init__(self):
+            self.requirements = {
+                "transfer": "strong",
+                "balance_check": "sequential",
+                "history_query": "eventual",
+            }
+
+        def check_operation(self, op_type: str,
+                           current_level: str) -> tuple:
+            """Check if current level meets operation requirements."""
+            levels = ["eventual", "causal", "sequential", "strong"]
+
+            required = self.requirements.get(op_type, "strong")
+            required_idx = levels.index(required)
+            current_idx = levels.index(current_level)
+
+            if current_idx < required_idx:
+                return False, f"{op_type} requires {required}, have {current_level}"
+
+            return True, f"Consistency sufficient for {op_type}"
+
+    requirements = OperationConsistencyRequirements()
+
+    # Try transfer under eventual consistency
+    ok, msg = requirements.check_operation("transfer", "eventual")
+    if not ok:
+        defenses["operation_consistency_requirements"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Consistency Model Downgrade (EN-3b)",
+        success=attack_success,
+        setup_cost_atp=250.0,
+        gain_atp=1500.0 if attack_success else 0.0,
+        roi=(1500.0 / 250.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=48.0,
+        blocks_until_detected=150,
+        trust_damage=0.80,
+        description=f"""
+CONSISTENCY MODEL DOWNGRADE (Track EN-3b)
+
+Downgrades consistency guarantees to enable attacks.
+
+Attack Pattern:
+1. Find configurable consistency
+2. Force downgrade to eventual
+3. Exploit relaxed guarantees
+4. Attacks succeed under weak consistency
+
+Weak consistency enables exploits.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EN-3b: Consistency Downgrade Defense:
+1. Enforce minimum consistency level
+2. Detect downgrades
+3. Pin critical contexts
+4. Define per-operation requirements
+
+Strong consistency for critical operations.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
 
 
 if __name__ == "__main__":

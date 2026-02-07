@@ -92,7 +92,19 @@ class TestAttackSimulations:
         # EJ: Cross-Blockchain Arbitrage (6 attacks) - added 2026-02-06 PM
         #     Cross-Chain Replay, Bridge Liquidity Drain, Oracle Price Manipulation,
         #     Finality Racing, Chain Reorg Exploitation, Merkle Proof Forgery
-        assert len(results) == 160  # 148 + 12 new (EI: 6, EJ: 6)
+        # EK: Formal Verification Bypass (6 attacks) - added 2026-02-06 PM
+        #     Specification Gap, Model Abstraction, Proof Oracle, Assumption Violation,
+        #     Solver/Prover Exploitation, Proof Replay
+        # EL: Quantum-Safe Migration (6 attacks) - added 2026-02-06 PM
+        #     Algorithm Downgrade, Key Transition, Harvest Now Decrypt Later,
+        #     Hybrid Mismatch, PQ Implementation, PQ Parameter
+        # EM: Cross-Domain Semantic (6 attacks) - added 2026-02-06 PM
+        #     Semantic Injection, Meaning Laundering, Dictionary Corruption,
+        #     Homoglyph, Context Collapse, Compression Loss
+        # EN: Cross-Ledger Consistency (6 attacks) - added 2026-02-06 PM
+        #     Federation Desync, Ledger Partition, Cross-Ledger Replay,
+        #     State Divergence, Reconciliation, Consistency Downgrade
+        assert len(results) == 184  # 160 + 24 new (EK: 6, EL: 6, EM: 6, EN: 6)
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
