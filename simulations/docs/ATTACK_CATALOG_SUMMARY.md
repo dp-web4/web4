@@ -1,9 +1,9 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 3.4
+**Version**: 3.5
 **Date**: 2026-02-07
-**Total Attacks**: 208
-**Status**: Comprehensive Coverage + AI Emergence + Hardware Enclaves + Interoperability + LCT Lifecycle
+**Total Attacks**: 220
+**Status**: Comprehensive Coverage + Physical Layer + Supply Chain Integrity
 
 ---
 
@@ -449,6 +449,30 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 207 | LCT Recovery Hijack | Steal identity via recovery |
 | 208 | LCT Lineage Forgery | False parent claims |
 
+### Physical Layer Attacks (Track ES, Attacks 209-214)
+**Electromagnetic emanations, acoustic cryptanalysis, and side-channel attacks**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 209 | EM Emanation Capture | Extract keys from EM emissions |
+| 210 | Van Eck Phreaking | Reconstruct display from EM leakage |
+| 211 | Power Analysis Attack | DPA to extract crypto keys |
+| 212 | Acoustic Cryptanalysis | Extract keys from CPU sounds |
+| 213 | Physical Cache Timing | Prime+Probe with physical access |
+| 214 | Cold Boot Attack | Extract keys from cooled RAM |
+
+### Supply Chain Integrity Attacks (Track ET, Attacks 215-220)
+**Hardware implants, firmware trojans, and build system compromise**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 215 | Hardware Implant | Insert malicious chip during supply chain |
+| 216 | Firmware Trojan | Persistent backdoor in device firmware |
+| 217 | BIOS/UEFI Rootkit | Rootkit in SPI flash, survives disk wipe |
+| 218 | Supply Chain Interdiction | Modify devices in transit |
+| 219 | Counterfeit Component Injection | Inject fake/modified components |
+| 220 | Build System Compromise | Backdoor in build pipeline (SolarWinds-style) |
+
 ---
 
 ## Defense Statistics
@@ -459,10 +483,10 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 208 |
+| Total Attacks | 220 |
 | Successful Attacks | 0 (all defended) |
-| Average Detection Rate | ~55% |
-| Average Trust Damage | ~0.85 |
+| Average Detection Rate | ~52% |
+| Average Trust Damage | ~0.87 |
 
 ### Defense Categories
 
@@ -647,7 +671,7 @@ Based on current attack simulations:
     - Property preservation
     - Extension compatibility checking
 
-18. **LCT Lifecycle Layer** (24+ defenses) - NEW
+18. **LCT Lifecycle Layer** (24+ defenses)
     - Genesis ceremony integrity
     - Multi-party genesis
     - Genesis audit trail
@@ -660,6 +684,45 @@ Based on current attack simulations:
     - Recovery delay
     - Lineage verification
     - Parent acknowledgment
+
+19. **Physical Layer** (24+ defenses) - NEW
+    - EM shielding (Faraday cage)
+    - TEMPEST certification
+    - Power noise injection
+    - Constant-time operations
+    - Dual-rail/constant-power logic
+    - Masking countermeasures
+    - Operation shuffling
+    - Acoustic isolation
+    - White noise injection
+    - Display shielding
+    - Content minimization
+    - Cache partitioning
+    - Memory encryption (SME/TME)
+    - Key zeroization on tamper
+    - Case intrusion detection
+
+20. **Supply Chain Layer** (24+ defenses) - NEW
+    - Supply chain verification
+    - Hardware attestation
+    - Component authentication
+    - X-ray inspection
+    - Visual inspection
+    - Electrical testing
+    - Secure boot chain
+    - Firmware signing
+    - Rollback protection
+    - Runtime integrity monitoring
+    - BIOS write protection
+    - TPM measured boot
+    - SPI flash protection
+    - Tamper-evident packaging
+    - Random routing
+    - Trusted delivery channels
+    - Reproducible builds
+    - Build isolation
+    - Dependency verification
+    - Multi-party builds
 
 ---
 
@@ -705,8 +768,10 @@ Based on current attack simulations:
 9. ~~**Hardware enclave attacks**: SGX/TrustZone exploitation at scale~~ ✅ Track EP (196 attacks)
 10. ~~**Interoperability standards attacks**: Version/encoding mismatches~~ ✅ Track EQ (202 attacks)
 11. ~~**LCT lifecycle attacks**: Genesis, delegation, revocation~~ ✅ Track ER (208 attacks)
-12. **Physical layer attacks**: EM emanations, van Eck phreaking
-13. **Supply chain integrity**: Hardware implants, firmware trojans
+12. ~~**Physical layer attacks**: EM emanations, van Eck phreaking~~ ✅ Track ES (214 attacks)
+13. ~~**Supply chain integrity**: Hardware implants, firmware trojans~~ ✅ Track ET (220 attacks)
+14. **Social/organizational attacks**: Insider threats, shadow IT
+15. **Recovery/disaster attacks**: Backup poisoning, DR exploitation
 
 ### Formal Verification Needed
 
@@ -749,7 +814,9 @@ Based on current attack simulations:
 | 2026-02-07 AM | Track EP | 191-196 | Hardware enclave attacks |
 | 2026-02-07 AM | Track EQ | 197-202 | Interoperability standards |
 | 2026-02-07 AM | Track ER | 203-208 | LCT lifecycle attacks |
+| 2026-02-07 | Track ES | 209-214 | Physical layer attacks |
+| 2026-02-07 | Track ET | 215-220 | Supply chain integrity |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 208 attacks across 48 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 220 attacks across 50 tracks.*

@@ -55245,6 +55245,20 @@ def run_all_attacks() -> List[AttackResult]:
         ("LCT Zombie Resurrection (ER-2b)", attack_lct_zombie_resurrection),
         ("LCT Recovery Hijack (ER-3a)", attack_lct_recovery_hijack),
         ("LCT Lineage Forgery (ER-3b)", attack_lct_lineage_forgery),
+        # Track ES: Physical Layer Attacks
+        ("EM Emanation Capture (ES-1a)", attack_em_emanation_capture),
+        ("Van Eck Phreaking (ES-1b)", attack_van_eck_phreaking),
+        ("Power Analysis Attack (ES-2a)", attack_power_analysis),
+        ("Acoustic Cryptanalysis (ES-2b)", attack_acoustic_cryptanalysis),
+        ("Physical Cache Timing (ES-3a)", attack_cache_timing_physical),
+        ("Cold Boot Attack (ES-3b)", attack_cold_boot),
+        # Track ET: Supply Chain Integrity Attacks
+        ("Hardware Implant (ET-1a)", attack_hardware_implant),
+        ("Firmware Trojan (ET-1b)", attack_firmware_trojan),
+        ("BIOS/UEFI Rootkit (ET-2a)", attack_bios_rootkit),
+        ("Supply Chain Interdiction (ET-2b)", attack_interdiction),
+        ("Counterfeit Component Injection (ET-3a)", attack_counterfeit_component),
+        ("Build System Compromise (ET-3b)", attack_build_system_compromise),
     ]
 
     results = []
@@ -62851,6 +62865,2900 @@ Track ER-3b: Lineage Forgery Defense:
 4. Limit trust inheritance
 
 Trust must be earned, not inherited.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# =============================================================================
+# TRACK ES: PHYSICAL LAYER ATTACKS (Attacks 209-214)
+# Electromagnetic emanations, van Eck phreaking, side-channel physical attacks
+# =============================================================================
+
+
+def attack_em_emanation_capture() -> AttackResult:
+    """
+    ATTACK 209: ELECTROMAGNETIC EMANATION CAPTURE (Track ES-1a)
+
+    Capture EM emanations to extract cryptographic keys or data:
+    1. Position EM receiver near target device
+    2. Capture electromagnetic emissions during crypto ops
+    3. Correlate emissions with key bits
+    4. Reconstruct private keys from emanations
+    """
+
+    defenses = {
+        "em_shielding": False,
+        "power_noise_injection": False,
+        "constant_time_operations": False,
+        "tempest_standards": False,
+    }
+
+    # ========================================================================
+    # Defense 1: EM Shielding
+    # ========================================================================
+
+    class EMShieldingPolicy:
+        """Enforce EM shielding requirements for sensitive devices."""
+
+        def __init__(self):
+            self.shielding_db = 40.0  # Required attenuation in dB
+            self.device_registry = {}
+
+        def register_device(self, device_id: str, shielding_db: float,
+                           certified: bool = False):
+            """Register device with shielding info."""
+            self.device_registry[device_id] = {
+                "shielding_db": shielding_db,
+                "certified": certified,
+            }
+
+        def check_shielding(self, device_id: str) -> tuple:
+            """Verify device meets shielding requirements."""
+            device = self.device_registry.get(device_id)
+
+            if not device:
+                return False, "Device not registered"
+
+            if device["shielding_db"] < self.shielding_db:
+                return False, f"Shielding {device['shielding_db']}dB < required {self.shielding_db}dB"
+
+            if not device["certified"]:
+                return False, "Device not certified for sensitive ops"
+
+            return True, "EM shielding verified"
+
+    shielding = EMShieldingPolicy()
+
+    # Attacker device has insufficient shielding
+    shielding.register_device("weak_device", shielding_db=15.0, certified=False)
+    ok, msg = shielding.check_shielding("weak_device")
+    if not ok:
+        defenses["em_shielding"] = True
+
+    # ========================================================================
+    # Defense 2: Power Noise Injection
+    # ========================================================================
+
+    class PowerNoiseInjector:
+        """Inject noise into power consumption to mask operations."""
+
+        def __init__(self, noise_amplitude: float = 0.3):
+            self.noise_amplitude = noise_amplitude
+            self.enabled = True
+
+        def inject_noise(self, operation_power: float) -> float:
+            """Add random noise to power consumption."""
+            import random
+
+            if self.enabled:
+                noise = random.uniform(-self.noise_amplitude, self.noise_amplitude)
+                return operation_power + noise
+            return operation_power
+
+        def estimate_snr(self, signal_power: float, measurements: int) -> float:
+            """Estimate attacker's signal-to-noise ratio."""
+            # With noise injection, SNR decreases with noise amplitude
+            if self.enabled:
+                snr = signal_power / (self.noise_amplitude ** 2)
+                # Need many measurements to average out noise
+                effective_snr = snr * (measurements ** 0.5)
+                return effective_snr
+            return float('inf')
+
+        def attack_feasible(self, required_snr: float = 100.0,
+                           max_measurements: int = 10000) -> tuple:
+            """Check if attack is feasible given noise."""
+            effective_snr = self.estimate_snr(1.0, max_measurements)
+
+            if effective_snr < required_snr:
+                return False, f"SNR {effective_snr:.1f} < required {required_snr}"
+
+            return True, "Attack may be feasible"
+
+    injector = PowerNoiseInjector(noise_amplitude=0.5)
+    ok, msg = injector.attack_feasible(required_snr=100.0, max_measurements=1000)
+    if not ok:
+        defenses["power_noise_injection"] = True
+
+    # ========================================================================
+    # Defense 3: Constant-Time Operations
+    # ========================================================================
+
+    class ConstantTimeEnforcer:
+        """Enforce constant-time crypto operations."""
+
+        def __init__(self):
+            self.timing_variance_threshold = 0.001  # 1ms variance
+            self.operation_timings = {}
+
+        def record_timing(self, operation: str, timing_ms: float):
+            """Record operation timing."""
+            if operation not in self.operation_timings:
+                self.operation_timings[operation] = []
+            self.operation_timings[operation].append(timing_ms)
+
+        def check_constant_time(self, operation: str) -> tuple:
+            """Verify operation runs in constant time."""
+            timings = self.operation_timings.get(operation, [])
+
+            if len(timings) < 10:
+                return False, "Insufficient timing data"
+
+            variance = sum((t - sum(timings)/len(timings))**2
+                          for t in timings) / len(timings)
+
+            if variance > self.timing_variance_threshold:
+                return False, f"Timing variance {variance:.4f} > threshold"
+
+            return True, "Constant-time verified"
+
+    enforcer = ConstantTimeEnforcer()
+
+    # Simulate variable timing (vulnerable)
+    import random
+    for _ in range(20):
+        enforcer.record_timing("key_compare", 10.0 + random.random() * 5.0)
+
+    ok, msg = enforcer.check_constant_time("key_compare")
+    if not ok:
+        defenses["constant_time_operations"] = True
+
+    # ========================================================================
+    # Defense 4: TEMPEST Standards Compliance
+    # ========================================================================
+
+    class TempestCompliance:
+        """Check TEMPEST/EMSEC standards compliance."""
+
+        # TEMPEST zones based on US government standards
+        ZONES = {
+            "zone_0": {"distance_m": 0, "required_db": 100},  # Within device
+            "zone_1": {"distance_m": 1, "required_db": 60},   # 1 meter
+            "zone_2": {"distance_m": 10, "required_db": 40},  # 10 meters
+            "zone_3": {"distance_m": 100, "required_db": 20}, # 100 meters
+        }
+
+        def __init__(self):
+            self.certifications = {}
+
+        def certify_device(self, device_id: str, zone: str, test_db: float):
+            """Certify device for TEMPEST zone."""
+            zone_req = self.ZONES.get(zone, {}).get("required_db", 100)
+
+            if test_db >= zone_req:
+                self.certifications[device_id] = {
+                    "zone": zone,
+                    "test_db": test_db,
+                    "certified": True,
+                }
+                return True
+            return False
+
+        def check_deployment(self, device_id: str, deploy_zone: str) -> tuple:
+            """Check if device can be deployed in zone."""
+            cert = self.certifications.get(device_id)
+
+            if not cert or not cert.get("certified"):
+                return False, "Device not TEMPEST certified"
+
+            # Zone ordering: 0 is most secure
+            zone_order = {"zone_0": 0, "zone_1": 1, "zone_2": 2, "zone_3": 3}
+            cert_level = zone_order.get(cert["zone"], 99)
+            deploy_level = zone_order.get(deploy_zone, 0)
+
+            if cert_level > deploy_level:
+                return False, f"Device certified for {cert['zone']}, not {deploy_zone}"
+
+            return True, "TEMPEST compliant for deployment zone"
+
+    tempest = TempestCompliance()
+
+    # Attacker's device not certified
+    tempest.certify_device("secure_device", "zone_1", test_db=65.0)
+    ok, msg = tempest.check_deployment("uncertified_device", "zone_1")
+    if not ok:
+        defenses["tempest_standards"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="EM Emanation Capture (ES-1a)",
+        success=attack_success,
+        setup_cost_atp=15000.0,  # Expensive equipment
+        gain_atp=500000.0 if attack_success else 0.0,  # Key compromise is high value
+        roi=(500000.0 / 15000.0) if attack_success else -1.0,
+        detection_probability=0.15 if defenses_held >= 3 else 0.05,  # Hard to detect
+        time_to_detection_hours=720.0,  # Weeks to months
+        blocks_until_detected=2000,
+        trust_damage=0.98,  # Catastrophic if caught
+        description=f"""
+EM EMANATION CAPTURE (Track ES-1a)
+
+Extract secrets via electromagnetic emanations.
+
+Attack Pattern:
+1. Position receiver near target device
+2. Capture EM during crypto operations
+3. Correlate emissions with key bits
+4. Reconstruct private keys
+
+Van Eck phreaking for the modern era.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ES-1a: EM Emanation Defense:
+1. EM shielding (Faraday cage)
+2. Power noise injection
+3. Constant-time operations
+4. TEMPEST certification
+
+Physical security is part of crypto security.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_van_eck_phreaking() -> AttackResult:
+    """
+    ATTACK 210: VAN ECK PHREAKING (Track ES-1b)
+
+    Capture display content via electromagnetic emissions:
+    1. Set up directional antenna pointed at target
+    2. Capture video display electromagnetic leakage
+    3. Reconstruct screen contents from emissions
+    4. Read sensitive data displayed on screen
+    """
+
+    defenses = {
+        "display_shielding": False,
+        "tempest_display": False,
+        "content_minimization": False,
+        "emission_randomization": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Display Shielding
+    # ========================================================================
+
+    class DisplayShieldingChecker:
+        """Verify display electromagnetic shielding."""
+
+        def __init__(self):
+            self.displays = {}
+            self.min_shielding_db = 50.0
+
+        def register_display(self, display_id: str, shielding_db: float,
+                            cable_shielded: bool = False):
+            """Register display with shielding specs."""
+            self.displays[display_id] = {
+                "shielding_db": shielding_db,
+                "cable_shielded": cable_shielded,
+            }
+
+        def check_display(self, display_id: str) -> tuple:
+            """Check display meets shielding requirements."""
+            display = self.displays.get(display_id)
+
+            if not display:
+                return False, "Display not registered"
+
+            if display["shielding_db"] < self.min_shielding_db:
+                return False, f"Shielding {display['shielding_db']}dB insufficient"
+
+            if not display["cable_shielded"]:
+                return False, "Display cable not shielded"
+
+            return True, "Display shielding adequate"
+
+    shielding = DisplayShieldingChecker()
+
+    shielding.register_display("consumer_display", shielding_db=20.0, cable_shielded=False)
+    ok, msg = shielding.check_display("consumer_display")
+    if not ok:
+        defenses["display_shielding"] = True
+
+    # ========================================================================
+    # Defense 2: TEMPEST Display Requirement
+    # ========================================================================
+
+    class TempestDisplayPolicy:
+        """Require TEMPEST-certified displays for sensitive ops."""
+
+        def __init__(self):
+            self.certified_displays = set()
+            self.sensitivity_levels = {}
+
+        def certify_display(self, display_id: str, tempest_class: str):
+            """Mark display as TEMPEST certified."""
+            valid_classes = {"level_i", "level_ii", "level_iii"}
+            if tempest_class in valid_classes:
+                self.certified_displays.add(display_id)
+
+        def set_sensitivity(self, operation: str, level: str):
+            """Set sensitivity level for operation."""
+            self.sensitivity_levels[operation] = level
+
+        def check_operation_allowed(self, display_id: str,
+                                   operation: str) -> tuple:
+            """Check if operation allowed on display."""
+            sensitivity = self.sensitivity_levels.get(operation, "low")
+
+            if sensitivity == "high":
+                if display_id not in self.certified_displays:
+                    return False, "High sensitivity ops require TEMPEST display"
+
+            return True, "Operation allowed"
+
+    policy = TempestDisplayPolicy()
+
+    policy.set_sensitivity("key_management", "high")
+    policy.certify_display("secure_display", "level_ii")
+
+    ok, msg = policy.check_operation_allowed("regular_display", "key_management")
+    if not ok:
+        defenses["tempest_display"] = True
+
+    # ========================================================================
+    # Defense 3: Content Minimization
+    # ========================================================================
+
+    class ContentMinimizer:
+        """Minimize sensitive content displayed on screen."""
+
+        def __init__(self):
+            self.sensitive_patterns = []
+            self.masking_enabled = True
+
+        def add_sensitive_pattern(self, pattern: str):
+            """Add pattern to mask."""
+            self.sensitive_patterns.append(pattern)
+
+        def mask_content(self, content: str) -> str:
+            """Mask sensitive content."""
+            import re
+
+            if not self.masking_enabled:
+                return content
+
+            masked = content
+            for pattern in self.sensitive_patterns:
+                masked = re.sub(pattern, "[MASKED]", masked)
+
+            return masked
+
+        def check_exposure_reduced(self, original: str, masked: str) -> tuple:
+            """Verify content exposure reduced."""
+            original_len = len(original)
+            masked_len = len(masked.replace("[MASKED]", ""))
+
+            reduction = (original_len - masked_len) / original_len if original_len > 0 else 0
+
+            if reduction < 0.5:
+                return False, f"Only {reduction*100:.0f}% content reduction"
+
+            return True, f"{reduction*100:.0f}% sensitive content masked"
+
+    minimizer = ContentMinimizer()
+
+    minimizer.add_sensitive_pattern(r"-----BEGIN.*?-----")
+    minimizer.add_sensitive_pattern(r"[A-Fa-f0-9]{64}")  # Hex keys
+
+    original = "Key: abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+    masked = minimizer.mask_content(original)
+    ok, msg = minimizer.check_exposure_reduced(original, masked)
+    if ok:
+        defenses["content_minimization"] = True
+
+    # ========================================================================
+    # Defense 4: Emission Randomization
+    # ========================================================================
+
+    class EmissionRandomizer:
+        """Randomize display emissions to confound capture."""
+
+        def __init__(self):
+            self.noise_frames = True
+            self.pixel_jitter = True
+            self.refresh_randomization = True
+
+        def apply_countermeasures(self) -> dict:
+            """Apply emission countermeasures."""
+            import random
+
+            countermeasures = {}
+
+            if self.noise_frames:
+                # Insert random noise frames
+                countermeasures["noise_frames"] = random.randint(1, 5)
+
+            if self.pixel_jitter:
+                # Slight random pixel position jitter
+                countermeasures["jitter_px"] = random.uniform(0.5, 2.0)
+
+            if self.refresh_randomization:
+                # Randomize refresh timing
+                countermeasures["refresh_variance_us"] = random.randint(10, 100)
+
+            return countermeasures
+
+        def estimate_capture_difficulty(self) -> tuple:
+            """Estimate difficulty of capturing emissions."""
+            difficulty = 1.0
+
+            if self.noise_frames:
+                difficulty *= 3.0
+            if self.pixel_jitter:
+                difficulty *= 2.0
+            if self.refresh_randomization:
+                difficulty *= 1.5
+
+            if difficulty >= 5.0:
+                return True, f"Capture difficulty factor: {difficulty:.1f}x"
+
+            return False, f"Insufficient countermeasures: {difficulty:.1f}x"
+
+    randomizer = EmissionRandomizer()
+    ok, msg = randomizer.estimate_capture_difficulty()
+    if ok:
+        defenses["emission_randomization"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Van Eck Phreaking (ES-1b)",
+        success=attack_success,
+        setup_cost_atp=8000.0,
+        gain_atp=100000.0 if attack_success else 0.0,
+        roi=(100000.0 / 8000.0) if attack_success else -1.0,
+        detection_probability=0.10 if defenses_held >= 3 else 0.02,
+        time_to_detection_hours=2160.0,  # Months
+        blocks_until_detected=5000,
+        trust_damage=0.95,
+        description=f"""
+VAN ECK PHREAKING (Track ES-1b)
+
+Read display contents from EM emissions.
+
+Attack Pattern:
+1. Set up directional antenna
+2. Capture video display emissions
+3. Reconstruct screen contents
+4. Read sensitive displayed data
+
+Your screen broadcasts to anyone listening.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ES-1b: Van Eck Defense:
+1. Display shielding
+2. TEMPEST-certified displays
+3. Content minimization
+4. Emission randomization
+
+What's on screen may not stay on screen.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_power_analysis() -> AttackResult:
+    """
+    ATTACK 211: POWER ANALYSIS ATTACK (Track ES-2a)
+
+    Extract cryptographic keys via power consumption analysis:
+    1. Measure device power consumption during crypto
+    2. Perform differential power analysis (DPA)
+    3. Correlate power traces with key hypotheses
+    4. Recover key bits from statistical analysis
+    """
+
+    defenses = {
+        "power_filtering": False,
+        "masking_countermeasures": False,
+        "shuffling": False,
+        "dual_rail_logic": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Power Filtering
+    # ========================================================================
+
+    class PowerFilterChecker:
+        """Verify power filtering effectiveness."""
+
+        def __init__(self):
+            self.filter_configs = {}
+
+        def register_filter(self, device_id: str, stages: int,
+                           cutoff_mhz: float, attenuation_db: float):
+            """Register power filter configuration."""
+            self.filter_configs[device_id] = {
+                "stages": stages,
+                "cutoff_mhz": cutoff_mhz,
+                "attenuation_db": attenuation_db,
+            }
+
+        def check_filter_effectiveness(self, device_id: str) -> tuple:
+            """Check if filter defeats power analysis."""
+            config = self.filter_configs.get(device_id)
+
+            if not config:
+                return False, "No filter registered"
+
+            # Effective filtering needs multi-stage, low cutoff, high attenuation
+            if config["stages"] < 3:
+                return False, "Need at least 3-stage filter"
+
+            if config["cutoff_mhz"] > 10:
+                return False, "Cutoff too high, crypto frequencies pass"
+
+            if config["attenuation_db"] < 40:
+                return False, "Attenuation insufficient"
+
+            return True, "Power filter adequate"
+
+    filter_checker = PowerFilterChecker()
+
+    # Typical device has weak filtering
+    filter_checker.register_filter("weak_device", stages=1, cutoff_mhz=100, attenuation_db=10)
+    ok, msg = filter_checker.check_filter_effectiveness("weak_device")
+    if not ok:
+        defenses["power_filtering"] = True
+
+    # ========================================================================
+    # Defense 2: Masking Countermeasures
+    # ========================================================================
+
+    class MaskingVerifier:
+        """Verify masking countermeasures are applied."""
+
+        def __init__(self):
+            self.implementations = {}
+
+        def register_implementation(self, algo: str, masking_order: int,
+                                   randomness_source: str):
+            """Register masked implementation."""
+            self.implementations[algo] = {
+                "order": masking_order,
+                "randomness": randomness_source,
+            }
+
+        def verify_masking(self, algo: str) -> tuple:
+            """Verify masking is sufficient."""
+            impl = self.implementations.get(algo)
+
+            if not impl:
+                return False, "No masking implementation registered"
+
+            if impl["order"] < 2:
+                return False, f"Masking order {impl['order']} too low (need >= 2)"
+
+            if impl["randomness"] != "true_rng":
+                return False, "Masking requires true RNG"
+
+            return True, f"Order-{impl['order']} masking verified"
+
+    masking = MaskingVerifier()
+
+    masking.register_implementation("aes", masking_order=1, randomness_source="prng")
+    ok, msg = masking.verify_masking("aes")
+    if not ok:
+        defenses["masking_countermeasures"] = True
+
+    # ========================================================================
+    # Defense 3: Operation Shuffling
+    # ========================================================================
+
+    class ShufflingPolicy:
+        """Verify operation shuffling is enabled."""
+
+        def __init__(self):
+            self.shuffle_configs = {}
+
+        def configure_shuffle(self, operation: str, shuffle_rounds: bool,
+                             shuffle_operations: bool, random_delays: bool):
+            """Configure shuffling for operation."""
+            self.shuffle_configs[operation] = {
+                "rounds": shuffle_rounds,
+                "operations": shuffle_operations,
+                "delays": random_delays,
+            }
+
+        def verify_shuffle(self, operation: str) -> tuple:
+            """Verify shuffling configuration."""
+            config = self.shuffle_configs.get(operation)
+
+            if not config:
+                return False, "No shuffle config"
+
+            enabled = sum([config["rounds"], config["operations"], config["delays"]])
+
+            if enabled < 2:
+                return False, f"Only {enabled}/3 shuffle techniques enabled"
+
+            return True, f"{enabled}/3 shuffle techniques enabled"
+
+    shuffling = ShufflingPolicy()
+
+    # Partial shuffling only
+    shuffling.configure_shuffle("crypto", shuffle_rounds=True,
+                               shuffle_operations=False, random_delays=False)
+    ok, msg = shuffling.verify_shuffle("crypto")
+    if not ok:
+        defenses["shuffling"] = True
+
+    # ========================================================================
+    # Defense 4: Dual-Rail Logic
+    # ========================================================================
+
+    class DualRailChecker:
+        """Verify dual-rail/constant-power logic."""
+
+        def __init__(self):
+            self.logic_types = {}
+
+        def register_logic(self, component: str, logic_type: str,
+                          power_variance_pct: float):
+            """Register logic implementation type."""
+            self.logic_types[component] = {
+                "type": logic_type,
+                "variance": power_variance_pct,
+            }
+
+        def verify_constant_power(self, component: str) -> tuple:
+            """Verify constant-power logic."""
+            logic = self.logic_types.get(component)
+
+            if not logic:
+                return False, "Component not registered"
+
+            if logic["type"] not in ["dual_rail", "wave_ddl", "sabl"]:
+                return False, f"Logic type {logic['type']} not constant-power"
+
+            if logic["variance"] > 1.0:
+                return False, f"Power variance {logic['variance']}% too high"
+
+            return True, "Constant-power logic verified"
+
+    dual_rail = DualRailChecker()
+
+    # Standard CMOS logic (vulnerable)
+    dual_rail.register_logic("crypto_core", logic_type="cmos", power_variance_pct=50.0)
+    ok, msg = dual_rail.verify_constant_power("crypto_core")
+    if not ok:
+        defenses["dual_rail_logic"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Power Analysis Attack (ES-2a)",
+        success=attack_success,
+        setup_cost_atp=5000.0,
+        gain_atp=300000.0 if attack_success else 0.0,
+        roi=(300000.0 / 5000.0) if attack_success else -1.0,
+        detection_probability=0.08 if defenses_held >= 3 else 0.02,
+        time_to_detection_hours=1440.0,
+        blocks_until_detected=3500,
+        trust_damage=0.97,
+        description=f"""
+POWER ANALYSIS ATTACK (Track ES-2a)
+
+Extract keys from power consumption patterns.
+
+Attack Pattern:
+1. Measure power during crypto ops
+2. Collect many power traces
+3. Perform differential power analysis
+4. Correlate traces with key hypotheses
+
+Every computation leaks through power.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ES-2a: Power Analysis Defense:
+1. Multi-stage power filtering
+2. Masking countermeasures (order >= 2)
+3. Operation shuffling
+4. Dual-rail constant-power logic
+
+Make power consumption data-independent.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_acoustic_cryptanalysis() -> AttackResult:
+    """
+    ATTACK 212: ACOUSTIC CRYPTANALYSIS (Track ES-2b)
+
+    Extract cryptographic keys from acoustic emissions:
+    1. Record acoustic emanations from CPU/electronics
+    2. Analyze frequency components during crypto
+    3. Correlate sounds with computation patterns
+    4. Recover key bits from acoustic signatures
+    """
+
+    defenses = {
+        "acoustic_isolation": False,
+        "white_noise_injection": False,
+        "constant_acoustic_operation": False,
+        "fan_masking": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Acoustic Isolation
+    # ========================================================================
+
+    class AcousticIsolationChecker:
+        """Verify acoustic isolation of sensitive devices."""
+
+        def __init__(self):
+            self.isolation_specs = {}
+
+        def register_device(self, device_id: str, enclosure_db: float,
+                           distance_requirement_m: float):
+            """Register device acoustic isolation."""
+            self.isolation_specs[device_id] = {
+                "enclosure_db": enclosure_db,
+                "min_distance": distance_requirement_m,
+            }
+
+        def check_isolation(self, device_id: str, actual_distance: float) -> tuple:
+            """Check if acoustic isolation is sufficient."""
+            spec = self.isolation_specs.get(device_id)
+
+            if not spec:
+                return False, "No isolation spec registered"
+
+            if spec["enclosure_db"] < 30:
+                return False, f"Enclosure only {spec['enclosure_db']}dB (need 30+)"
+
+            if actual_distance < spec["min_distance"]:
+                return False, f"Distance {actual_distance}m < required {spec['min_distance']}m"
+
+            return True, "Acoustic isolation adequate"
+
+    isolation = AcousticIsolationChecker()
+
+    isolation.register_device("server", enclosure_db=15, distance_requirement_m=3.0)
+    ok, msg = isolation.check_isolation("server", actual_distance=1.0)
+    if not ok:
+        defenses["acoustic_isolation"] = True
+
+    # ========================================================================
+    # Defense 2: White Noise Injection
+    # ========================================================================
+
+    class WhiteNoiseInjector:
+        """Inject white noise to mask acoustic emissions."""
+
+        def __init__(self, noise_db: float = 60.0):
+            self.noise_db = noise_db
+            self.frequency_range = (100, 100000)  # Hz
+            self.enabled = True
+
+        def calculate_snr(self, signal_db: float) -> float:
+            """Calculate signal-to-noise ratio."""
+            if self.enabled:
+                return signal_db - self.noise_db
+            return signal_db
+
+        def attack_feasible(self, crypto_emission_db: float = 30.0) -> tuple:
+            """Check if acoustic attack is feasible."""
+            snr = self.calculate_snr(crypto_emission_db)
+
+            if snr < 0:
+                return False, f"Signal buried in noise (SNR: {snr:.1f}dB)"
+
+            return True, f"Signal detectable (SNR: {snr:.1f}dB)"
+
+    noise = WhiteNoiseInjector(noise_db=50.0)
+    ok, msg = noise.attack_feasible(crypto_emission_db=35.0)
+    if not ok:
+        defenses["white_noise_injection"] = True
+
+    # ========================================================================
+    # Defense 3: Constant Acoustic Operation
+    # ========================================================================
+
+    class ConstantAcousticPolicy:
+        """Ensure constant acoustic signature during operations."""
+
+        def __init__(self):
+            self.operation_profiles = {}
+
+        def register_profile(self, operation: str, acoustic_variance_db: float,
+                            frequency_drift_hz: float):
+            """Register operation acoustic profile."""
+            self.operation_profiles[operation] = {
+                "variance": acoustic_variance_db,
+                "drift": frequency_drift_hz,
+            }
+
+        def verify_constant_acoustic(self, operation: str) -> tuple:
+            """Verify constant acoustic signature."""
+            profile = self.operation_profiles.get(operation)
+
+            if not profile:
+                return False, "No profile registered"
+
+            if profile["variance"] > 3.0:
+                return False, f"Variance {profile['variance']}dB too high"
+
+            if profile["drift"] > 100:
+                return False, f"Frequency drift {profile['drift']}Hz detectable"
+
+            return True, "Constant acoustic signature verified"
+
+    acoustic = ConstantAcousticPolicy()
+
+    # Typical operation has variable acoustics
+    acoustic.register_profile("crypto", acoustic_variance_db=10.0, frequency_drift_hz=500)
+    ok, msg = acoustic.verify_constant_acoustic("crypto")
+    if not ok:
+        defenses["constant_acoustic_operation"] = True
+
+    # ========================================================================
+    # Defense 4: Fan Masking
+    # ========================================================================
+
+    class FanMaskingPolicy:
+        """Use cooling fan noise to mask crypto acoustics."""
+
+        def __init__(self):
+            self.fan_configs = {}
+
+        def configure_fan(self, device_id: str, min_rpm: int, constant_speed: bool,
+                         broadband_db: float):
+            """Configure fan for masking."""
+            self.fan_configs[device_id] = {
+                "min_rpm": min_rpm,
+                "constant": constant_speed,
+                "broadband": broadband_db,
+            }
+
+        def check_masking_effectiveness(self, device_id: str) -> tuple:
+            """Check if fan provides effective masking."""
+            config = self.fan_configs.get(device_id)
+
+            if not config:
+                return False, "No fan config"
+
+            if config["min_rpm"] < 2000:
+                return False, f"Fan RPM {config['min_rpm']} too low for masking"
+
+            if not config["constant"]:
+                return False, "Variable fan speed reveals signal"
+
+            if config["broadband"] < 40:
+                return False, f"Fan noise {config['broadband']}dB insufficient"
+
+            return True, "Fan masking effective"
+
+    fan = FanMaskingPolicy()
+
+    fan.configure_fan("server", min_rpm=1000, constant_speed=False, broadband_db=30)
+    ok, msg = fan.check_masking_effectiveness("server")
+    if not ok:
+        defenses["fan_masking"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Acoustic Cryptanalysis (ES-2b)",
+        success=attack_success,
+        setup_cost_atp=3000.0,
+        gain_atp=250000.0 if attack_success else 0.0,
+        roi=(250000.0 / 3000.0) if attack_success else -1.0,
+        detection_probability=0.05 if defenses_held >= 3 else 0.01,
+        time_to_detection_hours=4320.0,  # Months
+        blocks_until_detected=10000,
+        trust_damage=0.96,
+        description=f"""
+ACOUSTIC CRYPTANALYSIS (Track ES-2b)
+
+Extract keys from CPU sounds.
+
+Attack Pattern:
+1. Record acoustic emanations
+2. Analyze frequency components
+3. Correlate with computation patterns
+4. Recover key bits from sounds
+
+RSA keys extracted from laptop coil whine.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ES-2b: Acoustic Attack Defense:
+1. Acoustic isolation enclosure
+2. White noise injection
+3. Constant acoustic operation
+4. Fan/background masking
+
+Silence is security.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_cache_timing_physical() -> AttackResult:
+    """
+    ATTACK 213: PHYSICAL CACHE TIMING (Track ES-3a)
+
+    Extract secrets via cache timing with physical access:
+    1. Gain physical access to target machine
+    2. Run Prime+Probe or Flush+Reload attack
+    3. Measure cache access timing with precision
+    4. Infer secret data from timing patterns
+    """
+
+    defenses = {
+        "cache_partitioning": False,
+        "constant_time_impl": False,
+        "cache_timing_detection": False,
+        "physical_access_control": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Cache Partitioning
+    # ========================================================================
+
+    class CachePartitioner:
+        """Partition cache to isolate sensitive operations."""
+
+        def __init__(self):
+            self.partitions = {}
+            self.process_assignments = {}
+
+        def create_partition(self, partition_id: str, cache_ways: int,
+                            security_level: str):
+            """Create cache partition."""
+            self.partitions[partition_id] = {
+                "ways": cache_ways,
+                "security": security_level,
+            }
+
+        def assign_process(self, process_id: str, partition_id: str):
+            """Assign process to partition."""
+            if partition_id in self.partitions:
+                self.process_assignments[process_id] = partition_id
+
+        def check_isolation(self, sensitive_process: str,
+                           attacker_process: str) -> tuple:
+            """Check if processes are isolated."""
+            sensitive_part = self.process_assignments.get(sensitive_process)
+            attacker_part = self.process_assignments.get(attacker_process)
+
+            if not sensitive_part:
+                return False, "Sensitive process not in partition"
+
+            if sensitive_part == attacker_part:
+                return False, "Processes share cache partition"
+
+            return True, "Cache partitions isolated"
+
+    partitioner = CachePartitioner()
+
+    partitioner.create_partition("secure", cache_ways=4, security_level="high")
+    partitioner.create_partition("normal", cache_ways=8, security_level="low")
+    partitioner.assign_process("crypto_daemon", "secure")
+    partitioner.assign_process("attacker_process", "normal")
+
+    ok, msg = partitioner.check_isolation("crypto_daemon", "attacker_process")
+    if ok:
+        defenses["cache_partitioning"] = True
+
+    # ========================================================================
+    # Defense 2: Constant-Time Implementation
+    # ========================================================================
+
+    class ConstantTimeChecker:
+        """Verify constant-time crypto implementations."""
+
+        def __init__(self):
+            self.implementations = {}
+
+        def register_implementation(self, algo: str, ct_verified: bool,
+                                   ct_tool: str = None):
+            """Register implementation with CT status."""
+            self.implementations[algo] = {
+                "verified": ct_verified,
+                "tool": ct_tool,
+            }
+
+        def check_constant_time(self, algo: str) -> tuple:
+            """Check if implementation is verified constant-time."""
+            impl = self.implementations.get(algo)
+
+            if not impl:
+                return False, "Implementation not registered"
+
+            if not impl["verified"]:
+                return False, "Not verified constant-time"
+
+            if not impl["tool"]:
+                return False, "No verification tool specified"
+
+            return True, f"CT verified with {impl['tool']}"
+
+    ct_checker = ConstantTimeChecker()
+
+    # Implementation not formally verified
+    ct_checker.register_implementation("aes_cbc", ct_verified=False, ct_tool=None)
+    ok, msg = ct_checker.check_constant_time("aes_cbc")
+    if not ok:
+        defenses["constant_time_impl"] = True
+
+    # ========================================================================
+    # Defense 3: Cache Timing Detection
+    # ========================================================================
+
+    class CacheTimingDetector:
+        """Detect cache timing attack attempts."""
+
+        def __init__(self):
+            self.baseline_timings = {}
+            self.anomaly_threshold = 2.0  # Standard deviations
+
+        def set_baseline(self, operation: str, mean_cycles: float,
+                        std_cycles: float):
+            """Set baseline timing for operation."""
+            self.baseline_timings[operation] = {
+                "mean": mean_cycles,
+                "std": std_cycles,
+            }
+
+        def check_anomaly(self, operation: str, observed_cycles: float) -> tuple:
+            """Check for timing anomaly."""
+            baseline = self.baseline_timings.get(operation)
+
+            if not baseline:
+                return False, "No baseline"
+
+            z_score = abs(observed_cycles - baseline["mean"]) / baseline["std"]
+
+            if z_score > self.anomaly_threshold:
+                return True, f"Anomaly detected (z={z_score:.1f})"
+
+            return False, "Normal timing"
+
+    detector = CacheTimingDetector()
+
+    detector.set_baseline("memory_access", mean_cycles=50, std_cycles=10)
+    # Attack causes many cache misses (slower)
+    anomaly, msg = detector.check_anomaly("memory_access", observed_cycles=150)
+    if anomaly:
+        defenses["cache_timing_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Physical Access Control
+    # ========================================================================
+
+    class PhysicalAccessPolicy:
+        """Enforce physical access controls."""
+
+        def __init__(self):
+            self.access_zones = {}
+            self.credentials = {}
+
+        def define_zone(self, zone_id: str, security_level: int,
+                       required_auth: list):
+            """Define access zone."""
+            self.access_zones[zone_id] = {
+                "level": security_level,
+                "auth": required_auth,
+            }
+
+        def grant_credential(self, entity_id: str, credential_type: str):
+            """Grant credential to entity."""
+            if entity_id not in self.credentials:
+                self.credentials[entity_id] = set()
+            self.credentials[entity_id].add(credential_type)
+
+        def check_access(self, entity_id: str, zone_id: str) -> tuple:
+            """Check if entity can access zone."""
+            zone = self.access_zones.get(zone_id)
+            creds = self.credentials.get(entity_id, set())
+
+            if not zone:
+                return False, "Zone not defined"
+
+            missing = set(zone["auth"]) - creds
+            if missing:
+                return False, f"Missing credentials: {missing}"
+
+            return True, "Access granted"
+
+    access = PhysicalAccessPolicy()
+
+    access.define_zone("datacenter", security_level=3,
+                       required_auth=["badge", "biometric", "escort"])
+    access.grant_credential("attacker", "badge")  # Only has badge
+
+    ok, msg = access.check_access("attacker", "datacenter")
+    if not ok:
+        defenses["physical_access_control"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Physical Cache Timing (ES-3a)",
+        success=attack_success,
+        setup_cost_atp=2000.0,
+        gain_atp=200000.0 if attack_success else 0.0,
+        roi=(200000.0 / 2000.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=48.0,
+        blocks_until_detected=150,
+        trust_damage=0.93,
+        description=f"""
+PHYSICAL CACHE TIMING (Track ES-3a)
+
+Extract secrets via cache timing with physical access.
+
+Attack Pattern:
+1. Gain physical machine access
+2. Run Prime+Probe or Flush+Reload
+3. Measure cache timing precisely
+4. Infer secrets from timing
+
+Shared cache = shared secrets.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ES-3a: Cache Timing Defense:
+1. Cache partitioning (CAT/CDP)
+2. Constant-time implementations
+3. Cache timing anomaly detection
+4. Physical access controls
+
+Isolate the cache, isolate the secrets.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_cold_boot() -> AttackResult:
+    """
+    ATTACK 214: COLD BOOT ATTACK (Track ES-3b)
+
+    Extract encryption keys from RAM after power-off:
+    1. Gain physical access to running machine
+    2. Cool RAM with compressed air/liquid nitrogen
+    3. Power off and transplant RAM or boot forensic OS
+    4. Read encryption keys from persistent RAM contents
+    """
+
+    defenses = {
+        "memory_encryption": False,
+        "key_zeroization": False,
+        "memory_scrambling": False,
+        "case_intrusion_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Memory Encryption (AMD SME/Intel TME)
+    # ========================================================================
+
+    class MemoryEncryptionChecker:
+        """Verify memory encryption is enabled."""
+
+        def __init__(self):
+            self.systems = {}
+
+        def register_system(self, system_id: str, encryption_type: str,
+                           key_per_vm: bool = False):
+            """Register system memory encryption config."""
+            self.systems[system_id] = {
+                "type": encryption_type,
+                "per_vm": key_per_vm,
+            }
+
+        def check_encryption(self, system_id: str) -> tuple:
+            """Check if memory encryption is adequate."""
+            config = self.systems.get(system_id)
+
+            if not config:
+                return False, "System not registered"
+
+            valid_types = ["sme", "sev", "sev_snp", "tme", "mktme"]
+            if config["type"] not in valid_types:
+                return False, f"Unknown encryption type: {config['type']}"
+
+            return True, f"Memory encryption enabled: {config['type']}"
+
+    mem_enc = MemoryEncryptionChecker()
+
+    # System without memory encryption
+    mem_enc.register_system("legacy_server", encryption_type="none")
+    ok, msg = mem_enc.check_encryption("legacy_server")
+    if not ok:
+        defenses["memory_encryption"] = True
+
+    # ========================================================================
+    # Defense 2: Key Zeroization
+    # ========================================================================
+
+    class KeyZeroizationPolicy:
+        """Verify key zeroization on various events."""
+
+        def __init__(self):
+            self.triggers = {}
+            self.zeroization_time_us = {}
+
+        def configure_trigger(self, trigger: str, enabled: bool,
+                            max_time_us: float):
+            """Configure zeroization trigger."""
+            self.triggers[trigger] = enabled
+            self.zeroization_time_us[trigger] = max_time_us
+
+        def check_policy(self) -> tuple:
+            """Check if zeroization policy is complete."""
+            required_triggers = ["power_loss", "case_open", "tamper",
+                               "timeout", "process_exit"]
+
+            missing = []
+            for trigger in required_triggers:
+                if not self.triggers.get(trigger, False):
+                    missing.append(trigger)
+
+            if missing:
+                return False, f"Missing triggers: {missing}"
+
+            # Check response times
+            slow = []
+            for trigger, time_us in self.zeroization_time_us.items():
+                if time_us > 1000:  # 1ms max
+                    slow.append(f"{trigger}:{time_us}us")
+
+            if slow:
+                return False, f"Slow zeroization: {slow}"
+
+            return True, "Zeroization policy complete"
+
+    zeroize = KeyZeroizationPolicy()
+
+    # Incomplete policy
+    zeroize.configure_trigger("power_loss", enabled=True, max_time_us=500)
+    zeroize.configure_trigger("process_exit", enabled=True, max_time_us=100)
+    # Missing: case_open, tamper, timeout
+
+    ok, msg = zeroize.check_policy()
+    if not ok:
+        defenses["key_zeroization"] = True
+
+    # ========================================================================
+    # Defense 3: Memory Scrambling
+    # ========================================================================
+
+    class MemoryScrambler:
+        """Verify memory address scrambling is enabled."""
+
+        def __init__(self):
+            self.scrambling_config = {}
+
+        def configure_scrambling(self, system_id: str, enabled: bool,
+                                key_rotation_s: float):
+            """Configure memory scrambling."""
+            self.scrambling_config[system_id] = {
+                "enabled": enabled,
+                "rotation": key_rotation_s,
+            }
+
+        def check_scrambling(self, system_id: str) -> tuple:
+            """Verify scrambling configuration."""
+            config = self.scrambling_config.get(system_id)
+
+            if not config:
+                return False, "No scrambling config"
+
+            if not config["enabled"]:
+                return False, "Scrambling not enabled"
+
+            if config["rotation"] > 60:
+                return False, f"Key rotation {config['rotation']}s too slow"
+
+            return True, "Memory scrambling active"
+
+    scrambler = MemoryScrambler()
+
+    scrambler.configure_scrambling("system", enabled=False, key_rotation_s=0)
+    ok, msg = scrambler.check_scrambling("system")
+    if not ok:
+        defenses["memory_scrambling"] = True
+
+    # ========================================================================
+    # Defense 4: Case Intrusion Detection
+    # ========================================================================
+
+    class CaseIntrusionDetector:
+        """Verify case intrusion detection and response."""
+
+        def __init__(self):
+            self.systems = {}
+
+        def configure_system(self, system_id: str, sensor_type: str,
+                            response: str, battery_backup: bool):
+            """Configure intrusion detection."""
+            self.systems[system_id] = {
+                "sensor": sensor_type,
+                "response": response,
+                "battery": battery_backup,
+            }
+
+        def check_protection(self, system_id: str) -> tuple:
+            """Check intrusion protection adequacy."""
+            config = self.systems.get(system_id)
+
+            if not config:
+                return False, "No intrusion detection configured"
+
+            if config["sensor"] not in ["microswitch", "optical", "mesh"]:
+                return False, f"Weak sensor type: {config['sensor']}"
+
+            if config["response"] != "zeroize":
+                return False, f"Response '{config['response']}' doesn't protect keys"
+
+            if not config["battery"]:
+                return False, "No battery backup - can bypass by cutting power"
+
+            return True, "Case intrusion protection complete"
+
+    intrusion = CaseIntrusionDetector()
+
+    # Weak protection
+    intrusion.configure_system("server", sensor_type="none",
+                              response="log", battery_backup=False)
+    ok, msg = intrusion.check_protection("server")
+    if not ok:
+        defenses["case_intrusion_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Cold Boot Attack (ES-3b)",
+        success=attack_success,
+        setup_cost_atp=500.0,  # Just need physical access + cold spray
+        gain_atp=400000.0 if attack_success else 0.0,
+        roi=(400000.0 / 500.0) if attack_success else -1.0,
+        detection_probability=0.70 if defenses_held >= 3 else 0.30,
+        time_to_detection_hours=1.0,  # Obvious physical tampering
+        blocks_until_detected=5,
+        trust_damage=0.99,
+        description=f"""
+COLD BOOT ATTACK (Track ES-3b)
+
+Extract keys from cooled RAM after power-off.
+
+Attack Pattern:
+1. Gain physical access
+2. Cool RAM with compressed air
+3. Power off, transplant RAM or boot forensic OS
+4. Read encryption keys from RAM
+
+RAM remembers. For a while.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ES-3b: Cold Boot Defense:
+1. Memory encryption (SME/TME)
+2. Key zeroization on power loss
+3. Memory scrambling
+4. Case intrusion detection + response
+
+Encrypt the memory, zero the keys.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# =============================================================================
+# TRACK ET: SUPPLY CHAIN INTEGRITY ATTACKS (Attacks 215-220)
+# Hardware implants, firmware trojans, supply chain compromise
+# =============================================================================
+
+
+def attack_hardware_implant() -> AttackResult:
+    """
+    ATTACK 215: HARDWARE IMPLANT (Track ET-1a)
+
+    Insert malicious hardware during manufacturing/shipping:
+    1. Intercept device during supply chain
+    2. Install hardware implant (tiny chip, modified component)
+    3. Implant provides backdoor access
+    4. Device appears genuine, functions normally
+    """
+
+    defenses = {
+        "supply_chain_verification": False,
+        "hardware_attestation": False,
+        "component_inventory": False,
+        "x_ray_inspection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Supply Chain Verification
+    # ========================================================================
+
+    class SupplyChainVerifier:
+        """Verify supply chain integrity."""
+
+        def __init__(self):
+            self.trusted_suppliers = set()
+            self.chain_records = {}
+
+        def register_supplier(self, supplier_id: str, certification: str):
+            """Register trusted supplier."""
+            valid_certs = ["iso_28000", "c_tpat", "aeo"]
+            if certification in valid_certs:
+                self.trusted_suppliers.add(supplier_id)
+
+        def record_custody(self, device_id: str, handoffs: list):
+            """Record chain of custody."""
+            self.chain_records[device_id] = handoffs
+
+        def verify_chain(self, device_id: str) -> tuple:
+            """Verify chain of custody."""
+            chain = self.chain_records.get(device_id, [])
+
+            if not chain:
+                return False, "No chain of custody recorded"
+
+            # Check all handlers are trusted
+            untrusted = [h for h in chain if h not in self.trusted_suppliers]
+            if untrusted:
+                return False, f"Untrusted handlers in chain: {untrusted}"
+
+            return True, f"Chain verified: {len(chain)} trusted handoffs"
+
+    verifier = SupplyChainVerifier()
+
+    verifier.register_supplier("factory_a", "iso_28000")
+    verifier.register_supplier("logistics_b", "c_tpat")
+
+    # Device passed through unknown handler
+    verifier.record_custody("device_001", ["factory_a", "unknown_warehouse", "logistics_b"])
+    ok, msg = verifier.verify_chain("device_001")
+    if not ok:
+        defenses["supply_chain_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Hardware Attestation
+    # ========================================================================
+
+    class HardwareAttester:
+        """Verify hardware matches expected configuration."""
+
+        def __init__(self):
+            self.expected_configs = {}
+            self.attestations = {}
+
+        def set_expected(self, model: str, config_hash: str,
+                        component_list: list):
+            """Set expected hardware configuration."""
+            self.expected_configs[model] = {
+                "hash": config_hash,
+                "components": set(component_list),
+            }
+
+        def attest_device(self, device_id: str, model: str,
+                         observed_hash: str, observed_components: list) -> tuple:
+            """Attest device matches expected."""
+            expected = self.expected_configs.get(model)
+
+            if not expected:
+                return False, "Unknown model"
+
+            if observed_hash != expected["hash"]:
+                return False, "Configuration hash mismatch"
+
+            observed_set = set(observed_components)
+            extra = observed_set - expected["components"]
+            if extra:
+                return False, f"Unexpected components: {extra}"
+
+            return True, "Hardware attestation passed"
+
+    attester = HardwareAttester()
+
+    attester.set_expected("server_x", config_hash="abc123",
+                         component_list=["cpu_a", "ram_b", "ssd_c", "nic_d"])
+
+    # Device has extra component (implant!)
+    ok, msg = attester.attest_device("device_001", "server_x",
+                                     observed_hash="abc123",
+                                     observed_components=["cpu_a", "ram_b", "ssd_c",
+                                                         "nic_d", "mystery_chip"])
+    if not ok:
+        defenses["hardware_attestation"] = True
+
+    # ========================================================================
+    # Defense 3: Component Inventory
+    # ========================================================================
+
+    class ComponentInventory:
+        """Track and verify all components."""
+
+        def __init__(self):
+            self.inventory = {}
+            self.serial_registry = {}
+
+        def register_component(self, serial: str, manufacturer: str,
+                              part_number: str, auth_signature: str):
+            """Register legitimate component."""
+            self.serial_registry[serial] = {
+                "manufacturer": manufacturer,
+                "part": part_number,
+                "signature": auth_signature,
+            }
+
+        def verify_component(self, serial: str, claimed_manufacturer: str) -> tuple:
+            """Verify component is genuine."""
+            record = self.serial_registry.get(serial)
+
+            if not record:
+                return False, "Serial not in registry"
+
+            if record["manufacturer"] != claimed_manufacturer:
+                return False, f"Manufacturer mismatch: {record['manufacturer']} vs {claimed_manufacturer}"
+
+            return True, "Component verified"
+
+    inventory = ComponentInventory()
+
+    inventory.register_component("SN12345", "trusted_mfg", "CHIP-001", "sig_abc")
+
+    # Unknown component
+    ok, msg = inventory.verify_component("SN99999", "unknown_mfg")
+    if not ok:
+        defenses["component_inventory"] = True
+
+    # ========================================================================
+    # Defense 4: X-Ray Inspection
+    # ========================================================================
+
+    class XRayInspector:
+        """X-ray inspection for hidden modifications."""
+
+        def __init__(self):
+            self.baseline_images = {}
+            self.anomaly_threshold = 0.05  # 5% deviation
+
+        def set_baseline(self, model: str, reference_hash: str):
+            """Set baseline X-ray image hash."""
+            self.baseline_images[model] = reference_hash
+
+        def inspect_device(self, device_id: str, model: str,
+                          current_hash: str, deviation_pct: float) -> tuple:
+            """Compare X-ray to baseline."""
+            baseline = self.baseline_images.get(model)
+
+            if not baseline:
+                return False, "No baseline for model"
+
+            if deviation_pct > self.anomaly_threshold:
+                return False, f"X-ray deviation {deviation_pct*100:.1f}% exceeds threshold"
+
+            return True, "X-ray matches baseline"
+
+    xray = XRayInspector()
+
+    xray.set_baseline("server_x", reference_hash="baseline_001")
+
+    # Device has visible modification
+    ok, msg = xray.inspect_device("device_001", "server_x",
+                                  current_hash="different", deviation_pct=0.15)
+    if not ok:
+        defenses["x_ray_inspection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Hardware Implant (ET-1a)",
+        success=attack_success,
+        setup_cost_atp=100000.0,  # State-level resources
+        gain_atp=10000000.0 if attack_success else 0.0,  # Strategic access
+        roi=(10000000.0 / 100000.0) if attack_success else -1.0,
+        detection_probability=0.20 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=8760.0,  # Years
+        blocks_until_detected=25000,
+        trust_damage=1.0,  # Complete loss
+        description=f"""
+HARDWARE IMPLANT (Track ET-1a)
+
+Insert malicious hardware during supply chain.
+
+Attack Pattern:
+1. Intercept during manufacturing/shipping
+2. Install hardware implant
+3. Implant provides backdoor
+4. Device appears genuine
+
+Trust in hardware is trust in supply chain.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ET-1a: Hardware Implant Defense:
+1. Supply chain verification
+2. Hardware attestation
+3. Component inventory
+4. X-ray inspection
+
+Verify every link in the chain.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_firmware_trojan() -> AttackResult:
+    """
+    ATTACK 216: FIRMWARE TROJAN (Track ET-1b)
+
+    Insert malicious code into device firmware:
+    1. Compromise firmware build/distribution
+    2. Insert persistent backdoor in firmware
+    3. Trojan survives OS reinstall, boots before OS
+    4. Control device at deepest level
+    """
+
+    defenses = {
+        "secure_boot": False,
+        "firmware_signing": False,
+        "rollback_protection": False,
+        "runtime_integrity": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Secure Boot Chain
+    # ========================================================================
+
+    class SecureBootChecker:
+        """Verify secure boot is properly configured."""
+
+        def __init__(self):
+            self.systems = {}
+
+        def configure_system(self, system_id: str, enabled: bool,
+                            keys_enrolled: int, custom_keys: bool):
+            """Configure secure boot settings."""
+            self.systems[system_id] = {
+                "enabled": enabled,
+                "keys": keys_enrolled,
+                "custom": custom_keys,
+            }
+
+        def verify_secure_boot(self, system_id: str) -> tuple:
+            """Verify secure boot configuration."""
+            config = self.systems.get(system_id)
+
+            if not config:
+                return False, "System not registered"
+
+            if not config["enabled"]:
+                return False, "Secure Boot not enabled"
+
+            if config["keys"] < 1:
+                return False, "No keys enrolled"
+
+            if not config["custom"]:
+                return False, "Using default keys (may be compromised)"
+
+            return True, "Secure Boot properly configured"
+
+    secure_boot = SecureBootChecker()
+
+    # System with secure boot disabled
+    secure_boot.configure_system("server", enabled=False, keys_enrolled=0, custom_keys=False)
+    ok, msg = secure_boot.verify_secure_boot("server")
+    if not ok:
+        defenses["secure_boot"] = True
+
+    # ========================================================================
+    # Defense 2: Firmware Signing
+    # ========================================================================
+
+    class FirmwareVerifier:
+        """Verify firmware cryptographic signatures."""
+
+        def __init__(self):
+            self.trusted_keys = {}
+            self.firmware_hashes = {}
+
+        def register_key(self, vendor: str, public_key: str):
+            """Register vendor signing key."""
+            self.trusted_keys[vendor] = public_key
+
+        def register_firmware(self, version: str, hash_val: str,
+                            signature: str, vendor: str):
+            """Register legitimate firmware version."""
+            self.firmware_hashes[version] = {
+                "hash": hash_val,
+                "signature": signature,
+                "vendor": vendor,
+            }
+
+        def verify_firmware(self, version: str, current_hash: str) -> tuple:
+            """Verify firmware is legitimate."""
+            record = self.firmware_hashes.get(version)
+
+            if not record:
+                return False, "Unknown firmware version"
+
+            if record["hash"] != current_hash:
+                return False, "Firmware hash mismatch - modified!"
+
+            if record["vendor"] not in self.trusted_keys:
+                return False, f"No trusted key for vendor {record['vendor']}"
+
+            return True, "Firmware signature verified"
+
+    fw_verify = FirmwareVerifier()
+
+    fw_verify.register_key("trusted_vendor", "pubkey_abc")
+    fw_verify.register_firmware("v1.0", hash_val="hash_123",
+                                signature="sig_xyz", vendor="trusted_vendor")
+
+    # Modified firmware
+    ok, msg = fw_verify.verify_firmware("v1.0", current_hash="hash_MODIFIED")
+    if not ok:
+        defenses["firmware_signing"] = True
+
+    # ========================================================================
+    # Defense 3: Rollback Protection
+    # ========================================================================
+
+    class RollbackProtector:
+        """Prevent firmware rollback to vulnerable versions."""
+
+        def __init__(self):
+            self.version_counters = {}
+            self.min_versions = {}
+
+        def set_min_version(self, component: str, version: int):
+            """Set minimum allowed version."""
+            self.min_versions[component] = version
+            if component not in self.version_counters:
+                self.version_counters[component] = version
+
+        def check_rollback(self, component: str, proposed_version: int) -> tuple:
+            """Check if proposed version is a rollback."""
+            min_ver = self.min_versions.get(component)
+
+            if not min_ver:
+                return False, "Component not protected"
+
+            if proposed_version < min_ver:
+                return False, f"Rollback attempt: {proposed_version} < min {min_ver}"
+
+            return True, "Version acceptable"
+
+    rollback = RollbackProtector()
+
+    rollback.set_min_version("bios", version=15)
+
+    # Attempt rollback to vulnerable version
+    ok, msg = rollback.check_rollback("bios", proposed_version=10)
+    if not ok:
+        defenses["rollback_protection"] = True
+
+    # ========================================================================
+    # Defense 4: Runtime Integrity Monitoring
+    # ========================================================================
+
+    class RuntimeIntegrityMonitor:
+        """Monitor firmware integrity at runtime."""
+
+        def __init__(self):
+            self.reference_hashes = {}
+            self.last_check = {}
+
+        def set_reference(self, component: str, hash_val: str):
+            """Set reference hash for component."""
+            self.reference_hashes[component] = hash_val
+
+        def check_integrity(self, component: str, current_hash: str) -> tuple:
+            """Check runtime integrity."""
+            ref = self.reference_hashes.get(component)
+
+            if not ref:
+                return False, "No reference hash"
+
+            if current_hash != ref:
+                return False, "Runtime modification detected!"
+
+            return True, "Runtime integrity verified"
+
+    integrity = RuntimeIntegrityMonitor()
+
+    integrity.set_reference("smm", hash_val="trusted_hash")
+
+    # SMM modified at runtime
+    ok, msg = integrity.check_integrity("smm", current_hash="modified_hash")
+    if not ok:
+        defenses["runtime_integrity"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Firmware Trojan (ET-1b)",
+        success=attack_success,
+        setup_cost_atp=50000.0,
+        gain_atp=5000000.0 if attack_success else 0.0,
+        roi=(5000000.0 / 50000.0) if attack_success else -1.0,
+        detection_probability=0.15 if defenses_held >= 3 else 0.03,
+        time_to_detection_hours=4380.0,  # Months to years
+        blocks_until_detected=12000,
+        trust_damage=0.99,
+        description=f"""
+FIRMWARE TROJAN (Track ET-1b)
+
+Persistent backdoor in device firmware.
+
+Attack Pattern:
+1. Compromise firmware distribution
+2. Insert backdoor in firmware
+3. Survives OS reinstall
+4. Controls device pre-boot
+
+Below the OS, beyond detection.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ET-1b: Firmware Trojan Defense:
+1. Secure Boot chain
+2. Firmware signing verification
+3. Rollback protection
+4. Runtime integrity monitoring
+
+Trust the firmware or trust nothing.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_bios_rootkit() -> AttackResult:
+    """
+    ATTACK 217: BIOS/UEFI ROOTKIT (Track ET-2a)
+
+    Install persistent rootkit in BIOS/UEFI:
+    1. Exploit BIOS/UEFI vulnerability or supply chain
+    2. Install rootkit in SPI flash
+    3. Rootkit survives disk wipe, reinstall
+    4. Complete control before any OS loads
+    """
+
+    defenses = {
+        "bios_write_protection": False,
+        "tpm_measured_boot": False,
+        "spi_flash_protection": False,
+        "capsule_update_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: BIOS Write Protection
+    # ========================================================================
+
+    class BIOSWriteProtection:
+        """Verify BIOS write protection is enabled."""
+
+        def __init__(self):
+            self.systems = {}
+
+        def configure_system(self, system_id: str, pr_enabled: bool,
+                            smm_bwp: bool, top_swap: bool):
+            """Configure BIOS protection settings."""
+            # PR = Protected Range registers
+            # SMM BWP = SMM BIOS Write Protection
+            self.systems[system_id] = {
+                "pr_enabled": pr_enabled,
+                "smm_bwp": smm_bwp,
+                "top_swap": top_swap,
+            }
+
+        def verify_protection(self, system_id: str) -> tuple:
+            """Verify BIOS write protection."""
+            config = self.systems.get(system_id)
+
+            if not config:
+                return False, "System not configured"
+
+            if not config["pr_enabled"]:
+                return False, "Protected Range not enabled"
+
+            if not config["smm_bwp"]:
+                return False, "SMM BIOS Write Protection not enabled"
+
+            return True, "BIOS write protection enabled"
+
+    bios_wp = BIOSWriteProtection()
+
+    # Protection not properly configured
+    bios_wp.configure_system("server", pr_enabled=False, smm_bwp=False, top_swap=False)
+    ok, msg = bios_wp.verify_protection("server")
+    if not ok:
+        defenses["bios_write_protection"] = True
+
+    # ========================================================================
+    # Defense 2: TPM Measured Boot
+    # ========================================================================
+
+    class TPMMeasuredBoot:
+        """Verify TPM measured boot is functioning."""
+
+        def __init__(self):
+            self.expected_pcrs = {}
+            self.current_pcrs = {}
+
+        def set_expected_pcr(self, pcr_index: int, expected_value: str):
+            """Set expected PCR value."""
+            self.expected_pcrs[pcr_index] = expected_value
+
+        def record_current_pcr(self, pcr_index: int, current_value: str):
+            """Record current PCR value."""
+            self.current_pcrs[pcr_index] = current_value
+
+        def verify_boot(self) -> tuple:
+            """Verify boot measurements match expected."""
+            # Key PCRs: 0 (firmware), 2 (option ROMs), 4 (MBR)
+            critical_pcrs = [0, 2, 4]
+
+            mismatches = []
+            for pcr in critical_pcrs:
+                expected = self.expected_pcrs.get(pcr)
+                current = self.current_pcrs.get(pcr)
+
+                if expected != current:
+                    mismatches.append(f"PCR{pcr}")
+
+            if mismatches:
+                return False, f"PCR mismatch: {mismatches}"
+
+            return True, "All critical PCRs match"
+
+    measured_boot = TPMMeasuredBoot()
+
+    measured_boot.set_expected_pcr(0, "trusted_hash_0")
+    measured_boot.set_expected_pcr(2, "trusted_hash_2")
+    measured_boot.set_expected_pcr(4, "trusted_hash_4")
+
+    # Modified BIOS changes PCR0
+    measured_boot.record_current_pcr(0, "MODIFIED_hash")
+    measured_boot.record_current_pcr(2, "trusted_hash_2")
+    measured_boot.record_current_pcr(4, "trusted_hash_4")
+
+    ok, msg = measured_boot.verify_boot()
+    if not ok:
+        defenses["tpm_measured_boot"] = True
+
+    # ========================================================================
+    # Defense 3: SPI Flash Protection
+    # ========================================================================
+
+    class SPIFlashProtection:
+        """Verify SPI flash chip protections."""
+
+        def __init__(self):
+            self.flash_configs = {}
+
+        def configure_flash(self, device_id: str, hardware_wp: bool,
+                           software_wp: bool, read_protection: bool):
+            """Configure flash protection."""
+            self.flash_configs[device_id] = {
+                "hw_wp": hardware_wp,
+                "sw_wp": software_wp,
+                "read_protect": read_protection,
+            }
+
+        def verify_protection(self, device_id: str) -> tuple:
+            """Verify SPI flash is protected."""
+            config = self.flash_configs.get(device_id)
+
+            if not config:
+                return False, "Flash not configured"
+
+            if not config["hw_wp"]:
+                return False, "Hardware write protect not set"
+
+            if not config["sw_wp"]:
+                return False, "Software write protect not set"
+
+            return True, "SPI flash protected"
+
+    spi = SPIFlashProtection()
+
+    # Flash not protected
+    spi.configure_flash("server", hardware_wp=False, software_wp=False, read_protection=False)
+    ok, msg = spi.verify_protection("server")
+    if not ok:
+        defenses["spi_flash_protection"] = True
+
+    # ========================================================================
+    # Defense 4: Capsule Update Verification
+    # ========================================================================
+
+    class CapsuleUpdateVerifier:
+        """Verify UEFI capsule updates are legitimate."""
+
+        def __init__(self):
+            self.trusted_capsule_signers = set()
+            self.update_log = []
+
+        def register_signer(self, signer_id: str, key_hash: str):
+            """Register trusted update signer."""
+            self.trusted_capsule_signers.add((signer_id, key_hash))
+
+        def verify_capsule(self, capsule_id: str, signer: str,
+                          key_hash: str, signature_valid: bool) -> tuple:
+            """Verify capsule update is legitimate."""
+            if (signer, key_hash) not in self.trusted_capsule_signers:
+                return False, f"Unknown signer: {signer}"
+
+            if not signature_valid:
+                return False, "Invalid signature"
+
+            return True, "Capsule verified"
+
+    capsule = CapsuleUpdateVerifier()
+
+    capsule.register_signer("vendor_key", "hash_abc")
+
+    # Unknown signer trying to push update
+    ok, msg = capsule.verify_capsule("update_001", signer="attacker_key",
+                                     key_hash="hash_evil", signature_valid=True)
+    if not ok:
+        defenses["capsule_update_verification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="BIOS/UEFI Rootkit (ET-2a)",
+        success=attack_success,
+        setup_cost_atp=75000.0,
+        gain_atp=8000000.0 if attack_success else 0.0,
+        roi=(8000000.0 / 75000.0) if attack_success else -1.0,
+        detection_probability=0.12 if defenses_held >= 3 else 0.02,
+        time_to_detection_hours=17520.0,  # 2+ years
+        blocks_until_detected=50000,
+        trust_damage=1.0,
+        description=f"""
+BIOS/UEFI ROOTKIT (Track ET-2a)
+
+Persistent rootkit in SPI flash.
+
+Attack Pattern:
+1. Exploit BIOS/UEFI vulnerability
+2. Install rootkit in SPI flash
+3. Survives disk wipe
+4. Controls pre-boot environment
+
+The deepest persistence.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ET-2a: BIOS Rootkit Defense:
+1. BIOS write protection (PR, SMM BWP)
+2. TPM measured boot
+3. SPI flash hardware protection
+4. Capsule update verification
+
+Protect the foundation.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_interdiction() -> AttackResult:
+    """
+    ATTACK 218: SUPPLY CHAIN INTERDICTION (Track ET-2b)
+
+    Intercept and modify devices in transit:
+    1. Identify high-value targets ordering equipment
+    2. Intercept shipments through logistics access
+    3. Modify devices (implants, firmware, etc.)
+    4. Reship to target, appearing legitimate
+    """
+
+    defenses = {
+        "tamper_evident_packaging": False,
+        "delivery_verification": False,
+        "random_routing": False,
+        "trusted_delivery_only": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Tamper-Evident Packaging
+    # ========================================================================
+
+    class TamperEvidentVerifier:
+        """Verify tamper-evident packaging is intact."""
+
+        def __init__(self):
+            self.package_seals = {}
+
+        def register_package(self, package_id: str, seal_codes: list,
+                            hologram_id: str):
+            """Register package with security features."""
+            self.package_seals[package_id] = {
+                "seals": set(seal_codes),
+                "hologram": hologram_id,
+            }
+
+        def verify_package(self, package_id: str, observed_seals: list,
+                          observed_hologram: str, integrity_ok: bool) -> tuple:
+            """Verify package hasn't been tampered with."""
+            record = self.package_seals.get(package_id)
+
+            if not record:
+                return False, "Package not registered"
+
+            if set(observed_seals) != record["seals"]:
+                return False, "Seal codes don't match"
+
+            if observed_hologram != record["hologram"]:
+                return False, "Hologram mismatch"
+
+            if not integrity_ok:
+                return False, "Physical integrity compromised"
+
+            return True, "Package verified intact"
+
+    tamper = TamperEvidentVerifier()
+
+    tamper.register_package("pkg_001", seal_codes=["A123", "B456"],
+                           hologram_id="HOLO_XYZ")
+
+    # Package was opened (seals broken)
+    ok, msg = tamper.verify_package("pkg_001", observed_seals=["A123_BROKEN"],
+                                    observed_hologram="HOLO_XYZ", integrity_ok=False)
+    if not ok:
+        defenses["tamper_evident_packaging"] = True
+
+    # ========================================================================
+    # Defense 2: Delivery Verification
+    # ========================================================================
+
+    class DeliveryVerifier:
+        """Verify delivery matches order and timeline."""
+
+        def __init__(self):
+            self.orders = {}
+            self.deliveries = {}
+
+        def place_order(self, order_id: str, expected_serial: str,
+                       expected_delivery_window: tuple):
+            """Record order details."""
+            self.orders[order_id] = {
+                "serial": expected_serial,
+                "window": expected_delivery_window,  # (min_hours, max_hours)
+            }
+
+        def record_delivery(self, order_id: str, delivered_serial: str,
+                           delivery_time_hours: float) -> tuple:
+            """Verify delivery matches order."""
+            order = self.orders.get(order_id)
+
+            if not order:
+                return False, "Unknown order"
+
+            if delivered_serial != order["serial"]:
+                return False, f"Serial mismatch: expected {order['serial']}"
+
+            min_h, max_h = order["window"]
+            if delivery_time_hours < min_h:
+                return False, f"Delivery too fast ({delivery_time_hours}h < {min_h}h)"
+            if delivery_time_hours > max_h:
+                return False, f"Delivery too slow ({delivery_time_hours}h > {max_h}h)"
+
+            return True, "Delivery verified"
+
+    delivery = DeliveryVerifier()
+
+    delivery.place_order("order_001", expected_serial="SN12345",
+                        expected_delivery_window=(24, 72))
+
+    # Wrong serial (interdicted device substituted)
+    ok, msg = delivery.record_delivery("order_001", delivered_serial="SN_SUBSTITUTE",
+                                       delivery_time_hours=48)
+    if not ok:
+        defenses["delivery_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Random Routing
+    # ========================================================================
+
+    class RandomRouting:
+        """Use random shipping routes to evade interdiction."""
+
+        def __init__(self):
+            self.routes = {}
+
+        def generate_route(self, order_id: str, carriers: list,
+                          random_selection: bool) -> list:
+            """Generate shipping route."""
+            if random_selection and len(carriers) >= 3:
+                import random
+                route = random.sample(carriers, k=min(3, len(carriers)))
+                self.routes[order_id] = route
+                return route
+            else:
+                # Predictable route
+                self.routes[order_id] = carriers[:1]
+                return carriers[:1]
+
+        def check_unpredictability(self, order_id: str) -> tuple:
+            """Check if route is unpredictable."""
+            route = self.routes.get(order_id, [])
+
+            if len(route) < 2:
+                return False, "Route too predictable (single carrier)"
+
+            return True, f"Route uses {len(route)} carriers"
+
+    routing = RandomRouting()
+
+    # Predictable single-carrier route
+    route = routing.generate_route("order_001", carriers=["carrier_a"],
+                                   random_selection=False)
+    ok, msg = routing.check_unpredictability("order_001")
+    if not ok:
+        defenses["random_routing"] = True
+
+    # ========================================================================
+    # Defense 4: Trusted Delivery Only
+    # ========================================================================
+
+    class TrustedDeliveryPolicy:
+        """Only accept deliveries from trusted sources."""
+
+        def __init__(self):
+            self.trusted_couriers = set()
+            self.trusted_facilities = set()
+
+        def register_trusted(self, courier: str, facilities: list):
+            """Register trusted courier and facilities."""
+            self.trusted_couriers.add(courier)
+            for f in facilities:
+                self.trusted_facilities.add(f)
+
+        def verify_delivery(self, courier: str, origin_facility: str,
+                           chain_of_custody: list) -> tuple:
+            """Verify delivery came through trusted channels."""
+            if courier not in self.trusted_couriers:
+                return False, f"Untrusted courier: {courier}"
+
+            for facility in chain_of_custody:
+                if facility not in self.trusted_facilities:
+                    return False, f"Untrusted facility in chain: {facility}"
+
+            return True, "Delivery from trusted channel"
+
+    trusted = TrustedDeliveryPolicy()
+
+    trusted.register_trusted("fedex_secure", ["facility_a", "facility_b"])
+
+    # Delivery through unknown facility
+    ok, msg = trusted.verify_delivery("fedex_secure", origin_facility="facility_a",
+                                      chain_of_custody=["facility_a", "mystery_warehouse", "facility_b"])
+    if not ok:
+        defenses["trusted_delivery_only"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Supply Chain Interdiction (ET-2b)",
+        success=attack_success,
+        setup_cost_atp=200000.0,  # Requires logistics access
+        gain_atp=15000000.0 if attack_success else 0.0,
+        roi=(15000000.0 / 200000.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=2160.0,  # Months
+        blocks_until_detected=6000,
+        trust_damage=1.0,
+        description=f"""
+SUPPLY CHAIN INTERDICTION (Track ET-2b)
+
+Intercept and modify devices in transit.
+
+Attack Pattern:
+1. Identify high-value targets
+2. Intercept shipments
+3. Modify devices
+4. Reship to target
+
+Every package is an opportunity.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ET-2b: Interdiction Defense:
+1. Tamper-evident packaging
+2. Delivery verification (serial, timing)
+3. Random routing
+4. Trusted delivery channels only
+
+Know your supply chain.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_counterfeit_component() -> AttackResult:
+    """
+    ATTACK 219: COUNTERFEIT COMPONENT INJECTION (Track ET-3a)
+
+    Inject counterfeit/modified components into supply:
+    1. Manufacture counterfeit components (chips, boards)
+    2. Inject into legitimate supply chains
+    3. Counterfeits contain backdoors or defects
+    4. End up in production systems
+    """
+
+    defenses = {
+        "component_authentication": False,
+        "visual_inspection": False,
+        "electrical_testing": False,
+        "supply_chain_audit": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Component Authentication
+    # ========================================================================
+
+    class ComponentAuthenticator:
+        """Authenticate components via manufacturer systems."""
+
+        def __init__(self):
+            self.manufacturer_db = {}
+
+        def register_manufacturer(self, mfg_id: str, auth_endpoint: str):
+            """Register manufacturer authentication endpoint."""
+            self.manufacturer_db[mfg_id] = auth_endpoint
+
+        def authenticate_component(self, serial: str, mfg_id: str,
+                                   challenge_response: str) -> tuple:
+            """Authenticate component with manufacturer."""
+            if mfg_id not in self.manufacturer_db:
+                return False, f"Unknown manufacturer: {mfg_id}"
+
+            # Simulate authentication
+            expected_response = f"auth_{serial}_{mfg_id}"
+            if challenge_response != expected_response:
+                return False, "Authentication failed"
+
+            return True, "Component authenticated"
+
+    auth = ComponentAuthenticator()
+
+    auth.register_manufacturer("trusted_mfg", "https://api.trusted.com/auth")
+
+    # Counterfeit can't authenticate
+    ok, msg = auth.authenticate_component("FAKE_SN", "trusted_mfg",
+                                          challenge_response="wrong_response")
+    if not ok:
+        defenses["component_authentication"] = True
+
+    # ========================================================================
+    # Defense 2: Visual Inspection
+    # ========================================================================
+
+    class VisualInspector:
+        """Visual inspection for counterfeit detection."""
+
+        def __init__(self):
+            self.reference_images = {}
+            self.inspection_criteria = {}
+
+        def set_reference(self, part_number: str, marking_pattern: str,
+                         package_type: str, expected_features: list):
+            """Set reference for visual comparison."""
+            self.reference_images[part_number] = {
+                "marking": marking_pattern,
+                "package": package_type,
+                "features": set(expected_features),
+            }
+
+        def inspect_component(self, part_number: str, observed_marking: str,
+                             observed_package: str,
+                             observed_features: list) -> tuple:
+            """Visually inspect component."""
+            ref = self.reference_images.get(part_number)
+
+            if not ref:
+                return False, "No reference for part"
+
+            if observed_marking != ref["marking"]:
+                return False, "Marking doesn't match reference"
+
+            if observed_package != ref["package"]:
+                return False, "Package type mismatch"
+
+            missing = ref["features"] - set(observed_features)
+            if missing:
+                return False, f"Missing features: {missing}"
+
+            return True, "Visual inspection passed"
+
+    inspector = VisualInspector()
+
+    inspector.set_reference("CHIP-001", marking_pattern="MFG|PART|LOT",
+                           package_type="QFN-48",
+                           expected_features=["pin1_dot", "lot_code", "logo"])
+
+    # Counterfeit has wrong marking
+    ok, msg = inspector.inspect_component("CHIP-001",
+                                          observed_marking="WRONG_MARKING",
+                                          observed_package="QFN-48",
+                                          observed_features=["pin1_dot", "lot_code"])
+    if not ok:
+        defenses["visual_inspection"] = True
+
+    # ========================================================================
+    # Defense 3: Electrical Testing
+    # ========================================================================
+
+    class ElectricalTester:
+        """Electrical testing to detect counterfeits."""
+
+        def __init__(self):
+            self.specifications = {}
+            self.tolerance_pct = 10.0
+
+        def set_specification(self, part_number: str, tests: dict):
+            """Set electrical specifications."""
+            self.specifications[part_number] = tests
+
+        def test_component(self, part_number: str, measured: dict) -> tuple:
+            """Test component against specifications."""
+            spec = self.specifications.get(part_number)
+
+            if not spec:
+                return False, "No specification for part"
+
+            failures = []
+            for test_name, expected in spec.items():
+                if test_name not in measured:
+                    failures.append(f"{test_name}: not measured")
+                    continue
+
+                actual = measured[test_name]
+                tolerance = expected * (self.tolerance_pct / 100)
+
+                if abs(actual - expected) > tolerance:
+                    failures.append(f"{test_name}: {actual} vs {expected}")
+
+            if failures:
+                return False, f"Failed tests: {failures}"
+
+            return True, "All electrical tests passed"
+
+    tester = ElectricalTester()
+
+    tester.set_specification("CHIP-001", {
+        "operating_freq_mhz": 100.0,
+        "supply_current_ma": 50.0,
+        "rise_time_ns": 5.0,
+    })
+
+    # Counterfeit has different characteristics
+    ok, msg = tester.test_component("CHIP-001", {
+        "operating_freq_mhz": 80.0,  # Too slow
+        "supply_current_ma": 75.0,  # Too much current
+        "rise_time_ns": 8.0,  # Too slow
+    })
+    if not ok:
+        defenses["electrical_testing"] = True
+
+    # ========================================================================
+    # Defense 4: Supply Chain Audit
+    # ========================================================================
+
+    class SupplyChainAuditor:
+        """Audit supply chain for counterfeit entry points."""
+
+        def __init__(self):
+            self.audited_suppliers = {}
+
+        def audit_supplier(self, supplier_id: str, audit_score: float,
+                          counterfeit_controls: list):
+            """Record supplier audit results."""
+            self.audited_suppliers[supplier_id] = {
+                "score": audit_score,
+                "controls": set(counterfeit_controls),
+            }
+
+        def verify_supplier(self, supplier_id: str) -> tuple:
+            """Verify supplier meets requirements."""
+            audit = self.audited_suppliers.get(supplier_id)
+
+            if not audit:
+                return False, "Supplier not audited"
+
+            if audit["score"] < 0.8:
+                return False, f"Audit score {audit['score']:.0%} too low"
+
+            required = {"incoming_inspection", "traceability", "authorized_only"}
+            missing = required - audit["controls"]
+            if missing:
+                return False, f"Missing controls: {missing}"
+
+            return True, "Supplier verified"
+
+    auditor = SupplyChainAuditor()
+
+    # Supplier with weak controls
+    auditor.audit_supplier("weak_supplier", audit_score=0.6,
+                          counterfeit_controls=["incoming_inspection"])
+    ok, msg = auditor.verify_supplier("weak_supplier")
+    if not ok:
+        defenses["supply_chain_audit"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Counterfeit Component Injection (ET-3a)",
+        success=attack_success,
+        setup_cost_atp=30000.0,
+        gain_atp=3000000.0 if attack_success else 0.0,
+        roi=(3000000.0 / 30000.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=720.0,
+        blocks_until_detected=2000,
+        trust_damage=0.95,
+        description=f"""
+COUNTERFEIT COMPONENT INJECTION (Track ET-3a)
+
+Inject modified/counterfeit components into supply.
+
+Attack Pattern:
+1. Manufacture counterfeit components
+2. Inject into supply chains
+3. Counterfeits contain backdoors
+4. End up in production systems
+
+Fake chips, real compromise.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ET-3a: Counterfeit Defense:
+1. Component authentication (manufacturer API)
+2. Visual inspection (marking, package)
+3. Electrical testing (specs, behavior)
+4. Supply chain auditing
+
+Authenticate every component.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_build_system_compromise() -> AttackResult:
+    """
+    ATTACK 220: BUILD SYSTEM COMPROMISE (Track ET-3b)
+
+    Compromise software/firmware build pipeline:
+    1. Gain access to build infrastructure
+    2. Modify compiler, build scripts, or dependencies
+    3. Inject backdoors during build (not in source)
+    4. All builds from compromised system are backdoored
+    """
+
+    defenses = {
+        "reproducible_builds": False,
+        "build_isolation": False,
+        "dependency_verification": False,
+        "multi_party_builds": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Reproducible Builds
+    # ========================================================================
+
+    class ReproducibleBuildChecker:
+        """Verify builds are reproducible."""
+
+        def __init__(self):
+            self.build_records = {}
+
+        def record_build(self, build_id: str, source_hash: str,
+                        output_hash: str, builder: str):
+            """Record a build."""
+            if source_hash not in self.build_records:
+                self.build_records[source_hash] = []
+            self.build_records[source_hash].append({
+                "output": output_hash,
+                "builder": builder,
+            })
+
+        def verify_reproducibility(self, source_hash: str) -> tuple:
+            """Verify builds from same source produce same output."""
+            builds = self.build_records.get(source_hash, [])
+
+            if len(builds) < 2:
+                return False, "Need at least 2 builds to verify"
+
+            outputs = set(b["output"] for b in builds)
+
+            if len(outputs) > 1:
+                return False, f"Non-reproducible: {len(outputs)} different outputs"
+
+            return True, "Builds reproduce correctly"
+
+    repro = ReproducibleBuildChecker()
+
+    # Two builds from same source produce different outputs (compromised!)
+    repro.record_build("build_1", source_hash="src_abc",
+                       output_hash="output_123", builder="builder_a")
+    repro.record_build("build_2", source_hash="src_abc",
+                       output_hash="output_DIFFERENT", builder="builder_b")
+
+    ok, msg = repro.verify_reproducibility("src_abc")
+    if not ok:
+        defenses["reproducible_builds"] = True
+
+    # ========================================================================
+    # Defense 2: Build Isolation
+    # ========================================================================
+
+    class BuildIsolator:
+        """Verify builds run in isolated environments."""
+
+        def __init__(self):
+            self.build_configs = {}
+
+        def configure_build(self, build_id: str, isolated: bool,
+                           network_disabled: bool, ephemeral: bool):
+            """Configure build isolation."""
+            self.build_configs[build_id] = {
+                "isolated": isolated,
+                "no_network": network_disabled,
+                "ephemeral": ephemeral,
+            }
+
+        def verify_isolation(self, build_id: str) -> tuple:
+            """Verify build is properly isolated."""
+            config = self.build_configs.get(build_id)
+
+            if not config:
+                return False, "Build not configured"
+
+            if not config["isolated"]:
+                return False, "Build not isolated from host"
+
+            if not config["no_network"]:
+                return False, "Build has network access"
+
+            if not config["ephemeral"]:
+                return False, "Build environment persists"
+
+            return True, "Build properly isolated"
+
+    isolation = BuildIsolator()
+
+    # Build with network access (can be modified remotely)
+    isolation.configure_build("build_1", isolated=True,
+                             network_disabled=False, ephemeral=True)
+    ok, msg = isolation.verify_isolation("build_1")
+    if not ok:
+        defenses["build_isolation"] = True
+
+    # ========================================================================
+    # Defense 3: Dependency Verification
+    # ========================================================================
+
+    class DependencyVerifier:
+        """Verify all dependencies are legitimate."""
+
+        def __init__(self):
+            self.trusted_deps = {}
+
+        def register_trusted_dep(self, dep_name: str, version: str,
+                                hash_val: str, source: str):
+            """Register trusted dependency."""
+            self.trusted_deps[(dep_name, version)] = {
+                "hash": hash_val,
+                "source": source,
+            }
+
+        def verify_dependency(self, dep_name: str, version: str,
+                            observed_hash: str) -> tuple:
+            """Verify dependency is trusted."""
+            trusted = self.trusted_deps.get((dep_name, version))
+
+            if not trusted:
+                return False, f"Unknown dependency: {dep_name}@{version}"
+
+            if trusted["hash"] != observed_hash:
+                return False, f"Hash mismatch for {dep_name}@{version}"
+
+            return True, "Dependency verified"
+
+    deps = DependencyVerifier()
+
+    deps.register_trusted_dep("libcrypto", "1.1.0", hash_val="hash_abc",
+                             source="official_mirror")
+
+    # Different hash (modified dependency)
+    ok, msg = deps.verify_dependency("libcrypto", "1.1.0",
+                                     observed_hash="hash_MODIFIED")
+    if not ok:
+        defenses["dependency_verification"] = True
+
+    # ========================================================================
+    # Defense 4: Multi-Party Builds
+    # ========================================================================
+
+    class MultiPartyBuildVerifier:
+        """Require multiple independent parties to build."""
+
+        def __init__(self):
+            self.build_attestations = {}
+            self.min_parties = 3
+
+        def add_attestation(self, release_id: str, builder: str,
+                           output_hash: str, signature: str):
+            """Add build attestation from a party."""
+            if release_id not in self.build_attestations:
+                self.build_attestations[release_id] = []
+            self.build_attestations[release_id].append({
+                "builder": builder,
+                "hash": output_hash,
+                "sig": signature,
+            })
+
+        def verify_release(self, release_id: str) -> tuple:
+            """Verify release has sufficient attestations."""
+            attestations = self.build_attestations.get(release_id, [])
+
+            if len(attestations) < self.min_parties:
+                return False, f"Only {len(attestations)} attestations (need {self.min_parties})"
+
+            # All attestations should produce same hash
+            hashes = set(a["hash"] for a in attestations)
+            if len(hashes) > 1:
+                return False, "Attestations disagree on output hash"
+
+            builders = set(a["builder"] for a in attestations)
+            if len(builders) < self.min_parties:
+                return False, "Not enough independent builders"
+
+            return True, f"{len(attestations)} parties attested same hash"
+
+    multi = MultiPartyBuildVerifier()
+
+    # Only two parties built
+    multi.add_attestation("release_1.0", "builder_a", "hash_xyz", "sig_a")
+    multi.add_attestation("release_1.0", "builder_b", "hash_xyz", "sig_b")
+
+    ok, msg = multi.verify_release("release_1.0")
+    if not ok:
+        defenses["multi_party_builds"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Build System Compromise (ET-3b)",
+        success=attack_success,
+        setup_cost_atp=150000.0,
+        gain_atp=50000000.0 if attack_success else 0.0,  # Mass compromise
+        roi=(50000000.0 / 150000.0) if attack_success else -1.0,
+        detection_probability=0.18 if defenses_held >= 3 else 0.04,
+        time_to_detection_hours=4380.0,  # Months (SolarWinds took ~9 months)
+        blocks_until_detected=12000,
+        trust_damage=1.0,  # Complete loss
+        description=f"""
+BUILD SYSTEM COMPROMISE (Track ET-3b)
+
+Backdoor inserted during build, not in source.
+
+Attack Pattern:
+1. Compromise build infrastructure
+2. Modify compiler/scripts/deps
+3. Inject backdoors during build
+4. All builds backdoored
+
+Source looks clean. Binary isn't.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ET-3b: Build Compromise Defense:
+1. Reproducible builds
+2. Build isolation (no network)
+3. Dependency verification (hashes)
+4. Multi-party builds
+
+Build from source, verify the binary.
 """.strip(),
         raw_data={
             "defenses": defenses,
