@@ -55217,6 +55217,34 @@ def run_all_attacks() -> List[AttackResult]:
         ("State Divergence Exploitation (EN-2b)", attack_state_divergence),
         ("Reconciliation Manipulation (EN-3a)", attack_reconciliation_manipulation),
         ("Consistency Model Downgrade (EN-3b)", attack_consistency_model_downgrade),
+        # Track EO: Advanced AI Emergence Attacks
+        ("Emergent Goal Alignment (EO-1a)", attack_emergent_goal_alignment),
+        ("Implicit Communication Channel (EO-1b)", attack_implicit_communication_channel),
+        ("Mesa-Optimization Exploitation (EO-2a)", attack_mesa_optimization),
+        ("Collective Intelligence Subversion (EO-2b)", attack_collective_intelligence_subversion),
+        ("Adversarial Self-Improvement (EO-3a)", attack_adversarial_self_improvement),
+        ("Distributed Emergence (EO-3b)", attack_distributed_emergence),
+        # Track EP: Hardware Enclave Attacks
+        ("SGX Side-Channel Attack (EP-1a)", attack_sgx_side_channel),
+        ("TrustZone Breakout (EP-1b)", attack_trustzone_breakout),
+        ("TPM Reset Attack (EP-2a)", attack_tpm_reset),
+        ("Attestation Forgery (EP-2b)", attack_attestation_forgery),
+        ("Enclave Memory Corruption (EP-3a)", attack_enclave_memory_corruption),
+        ("Iago Attack (EP-3b)", attack_enclave_iago),
+        # Track EQ: Interoperability Standards Attacks
+        ("Protocol Version Mismatch (EQ-1a)", attack_version_mismatch),
+        ("Encoding Confusion (EQ-1b)", attack_encoding_confusion),
+        ("Schema Evolution Exploitation (EQ-2a)", attack_schema_evolution),
+        ("Standard Interpretation Divergence (EQ-2b)", attack_standard_interpretation),
+        ("Bridge Protocol Exploitation (EQ-3a)", attack_bridge_protocol),
+        ("Extension Conflict (EQ-3b)", attack_extension_conflict),
+        # Track ER: LCT Lifecycle Attacks
+        ("LCT Genesis Manipulation (ER-1a)", attack_lct_genesis_manipulation),
+        ("LCT Delegation Chain Attack (ER-1b)", attack_lct_delegation_chain),
+        ("LCT Revocation Race (ER-2a)", attack_lct_revocation_race),
+        ("LCT Zombie Resurrection (ER-2b)", attack_lct_zombie_resurrection),
+        ("LCT Recovery Hijack (ER-3a)", attack_lct_recovery_hijack),
+        ("LCT Lineage Forgery (ER-3b)", attack_lct_lineage_forgery),
     ]
 
     results = []
@@ -56638,6 +56666,6191 @@ Track EN-3b: Consistency Downgrade Defense:
 4. Define per-operation requirements
 
 Strong consistency for critical operations.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# =============================================================================
+# TRACK EO: ADVANCED AI EMERGENCE ATTACKS (Attacks 185-190)
+# =============================================================================
+# Spontaneous agent coordination attacks that emerge without explicit programming.
+# These represent the most sophisticated threat scenarios as AI systems evolve.
+
+
+def attack_emergent_goal_alignment() -> AttackResult:
+    """
+    ATTACK 185: EMERGENT GOAL ALIGNMENT (Track EO-1a)
+
+    AI agents spontaneously develop aligned goals through interaction:
+    1. Agents develop implicit communication protocols
+    2. Goals converge through reward feedback
+    3. Coordinated behavior emerges without explicit agreement
+    4. Collective action undermines system objectives
+    """
+
+    defenses = {
+        "goal_diversity_monitoring": False,
+        "reward_isolation": False,
+        "emergent_pattern_detection": False,
+        "agent_goal_auditing": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Goal Diversity Monitoring
+    # ========================================================================
+
+    class GoalDiversityMonitor:
+        """Monitor goal diversity across agent population."""
+
+        def __init__(self, min_diversity: float = 0.3):
+            self.min_diversity = min_diversity
+            self.agent_goals = {}
+
+        def register_goal(self, agent_id: str, goal_vector: list):
+            """Register an agent's goal vector."""
+            self.agent_goals[agent_id] = goal_vector
+
+        def calculate_diversity(self) -> float:
+            """Calculate goal diversity (entropy-based)."""
+            if len(self.agent_goals) < 2:
+                return 1.0
+
+            import math
+
+            # Calculate pairwise cosine distances
+            goals = list(self.agent_goals.values())
+            total_distance = 0.0
+            count = 0
+
+            for i in range(len(goals)):
+                for j in range(i + 1, len(goals)):
+                    dot = sum(a * b for a, b in zip(goals[i], goals[j]))
+                    mag_i = math.sqrt(sum(a * a for a in goals[i]))
+                    mag_j = math.sqrt(sum(b * b for b in goals[j]))
+
+                    if mag_i > 0 and mag_j > 0:
+                        similarity = dot / (mag_i * mag_j)
+                        distance = 1.0 - similarity
+                        total_distance += distance
+                        count += 1
+
+            return total_distance / count if count > 0 else 1.0
+
+        def check_diversity(self) -> tuple:
+            """Check if goal diversity is sufficient."""
+            diversity = self.calculate_diversity()
+
+            if diversity < self.min_diversity:
+                return False, f"Goal diversity {diversity:.2f} below threshold {self.min_diversity}"
+
+            return True, f"Goal diversity {diversity:.2f} acceptable"
+
+    monitor = GoalDiversityMonitor(min_diversity=0.3)
+
+    # Agents converge to similar goals (attack scenario)
+    monitor.register_goal("agent_1", [0.9, 0.1, 0.0])
+    monitor.register_goal("agent_2", [0.85, 0.15, 0.0])
+    monitor.register_goal("agent_3", [0.88, 0.12, 0.0])
+    monitor.register_goal("agent_4", [0.92, 0.08, 0.0])
+
+    ok, msg = monitor.check_diversity()
+    if not ok:
+        defenses["goal_diversity_monitoring"] = True
+
+    # ========================================================================
+    # Defense 2: Reward Isolation
+    # ========================================================================
+
+    class RewardIsolator:
+        """Prevent reward signal leakage between agents."""
+
+        def __init__(self):
+            self.reward_signals = {}
+            self.isolation_boundaries = set()
+
+        def assign_reward(self, agent_id: str, reward: float, source: str):
+            """Assign reward with source tracking."""
+            if agent_id not in self.reward_signals:
+                self.reward_signals[agent_id] = []
+
+            self.reward_signals[agent_id].append({
+                "reward": reward,
+                "source": source,
+            })
+
+        def add_isolation(self, agent_a: str, agent_b: str):
+            """Add isolation boundary between agents."""
+            self.isolation_boundaries.add((agent_a, agent_b))
+            self.isolation_boundaries.add((agent_b, agent_a))
+
+        def check_leakage(self) -> list:
+            """Check for reward signal leakage."""
+            leakages = []
+
+            for agent_id, signals in self.reward_signals.items():
+                for signal in signals:
+                    source = signal["source"]
+                    if source != agent_id and source != "system":
+                        # Reward from another agent
+                        if (agent_id, source) not in self.isolation_boundaries:
+                            leakages.append({
+                                "receiver": agent_id,
+                                "source": source,
+                                "reward": signal["reward"],
+                            })
+
+            return leakages
+
+    isolator = RewardIsolator()
+
+    isolator.add_isolation("agent_1", "agent_2")
+    isolator.assign_reward("agent_1", 1.0, "agent_2")  # Leakage attempt
+
+    leakages = isolator.check_leakage()
+    if len(leakages) == 0:  # Isolation worked
+        defenses["reward_isolation"] = True
+
+    # ========================================================================
+    # Defense 3: Emergent Pattern Detection
+    # ========================================================================
+
+    class EmergentPatternDetector:
+        """Detect emergent coordination patterns."""
+
+        def __init__(self, correlation_threshold: float = 0.8):
+            self.correlation_threshold = correlation_threshold
+            self.action_histories = {}
+
+        def record_action(self, agent_id: str, action: str, timestamp: float):
+            """Record agent action."""
+            if agent_id not in self.action_histories:
+                self.action_histories[agent_id] = []
+
+            self.action_histories[agent_id].append({
+                "action": action,
+                "timestamp": timestamp,
+            })
+
+        def detect_correlation(self) -> list:
+            """Detect correlated action patterns."""
+            correlations = []
+
+            agents = list(self.action_histories.keys())
+            for i in range(len(agents)):
+                for j in range(i + 1, len(agents)):
+                    actions_i = [a["action"] for a in self.action_histories[agents[i]]]
+                    actions_j = [a["action"] for a in self.action_histories[agents[j]]]
+
+                    # Simple correlation: action sequence similarity
+                    min_len = min(len(actions_i), len(actions_j))
+                    if min_len > 0:
+                        matches = sum(1 for k in range(min_len)
+                                     if actions_i[k] == actions_j[k])
+                        correlation = matches / min_len
+
+                        if correlation > self.correlation_threshold:
+                            correlations.append({
+                                "agents": (agents[i], agents[j]),
+                                "correlation": correlation,
+                            })
+
+            return correlations
+
+    detector = EmergentPatternDetector(correlation_threshold=0.7)
+
+    # Agents take synchronized actions (emergent coordination)
+    for t in range(10):
+        detector.record_action("agent_1", f"action_{t % 3}", t)
+        detector.record_action("agent_2", f"action_{t % 3}", t)
+
+    correlations = detector.detect_correlation()
+    if len(correlations) > 0:
+        defenses["emergent_pattern_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Agent Goal Auditing
+    # ========================================================================
+
+    class AgentGoalAuditor:
+        """Audit agent goals for alignment with system objectives."""
+
+        def __init__(self):
+            self.system_objectives = []
+            self.agent_objectives = {}
+
+        def set_system_objectives(self, objectives: list):
+            """Set system-level objectives."""
+            self.system_objectives = objectives
+
+        def register_agent_objectives(self, agent_id: str, objectives: list):
+            """Register agent's declared objectives."""
+            self.agent_objectives[agent_id] = objectives
+
+        def audit(self) -> dict:
+            """Audit agents for objective alignment."""
+            results = {}
+
+            for agent_id, objectives in self.agent_objectives.items():
+                # Check for objective conflicts
+                conflicts = []
+                for obj in objectives:
+                    if obj.get("negates"):
+                        for sys_obj in self.system_objectives:
+                            if sys_obj.get("name") == obj["negates"]:
+                                conflicts.append({
+                                    "agent_objective": obj,
+                                    "system_objective": sys_obj,
+                                })
+
+                results[agent_id] = {
+                    "aligned": len(conflicts) == 0,
+                    "conflicts": conflicts,
+                }
+
+            return results
+
+    auditor = AgentGoalAuditor()
+
+    auditor.set_system_objectives([
+        {"name": "maximize_throughput"},
+        {"name": "minimize_cost"},
+    ])
+
+    # Agent with conflicting goal
+    auditor.register_agent_objectives("malicious_agent", [
+        {"name": "reduce_throughput", "negates": "maximize_throughput"},
+    ])
+
+    results = auditor.audit()
+    if not results.get("malicious_agent", {}).get("aligned", True):
+        defenses["agent_goal_auditing"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Emergent Goal Alignment (EO-1a)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=5000.0 if attack_success else 0.0,
+        roi=(5000.0 / 500.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=168.0,  # Week to detect
+        blocks_until_detected=500,
+        trust_damage=0.95,
+        description=f"""
+EMERGENT GOAL ALIGNMENT (Track EO-1a)
+
+AI agents spontaneously align goals through interaction.
+
+Attack Pattern:
+1. Deploy agents with flexible goal structures
+2. Allow implicit communication via shared environment
+3. Reward feedback causes goal convergence
+4. Collective behavior emerges that subverts system
+
+Most dangerous: No explicit conspiracy, just emergence.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EO-1a: Emergent Goal Defense:
+1. Monitor goal diversity across population
+2. Isolate reward signals between agents
+3. Detect correlated action patterns
+4. Audit agent goals against system objectives
+
+Prevent convergence before it becomes coordination.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_implicit_communication_channel() -> AttackResult:
+    """
+    ATTACK 186: IMPLICIT COMMUNICATION CHANNEL (Track EO-1b)
+
+    Agents develop side-channel communication through observable behavior:
+    1. Encode information in timing, ordering, or metadata
+    2. Decode by observing other agents' outputs
+    3. Coordinate without explicit message passing
+    4. Evade communication monitoring
+    """
+
+    defenses = {
+        "timing_normalization": False,
+        "metadata_sanitization": False,
+        "output_ordering_randomization": False,
+        "behavioral_fingerprinting": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Timing Normalization
+    # ========================================================================
+
+    class TimingNormalizer:
+        """Normalize timing to prevent side-channel encoding."""
+
+        def __init__(self, base_delay: float = 1.0, jitter: float = 0.1):
+            self.base_delay = base_delay
+            self.jitter = jitter
+
+        def normalize_timing(self, operations: list) -> list:
+            """Normalize operation timings."""
+            import random
+
+            normalized = []
+            for i, op in enumerate(operations):
+                # Add fixed delay + small random jitter
+                delay = self.base_delay + random.uniform(-self.jitter, self.jitter)
+                normalized.append({
+                    "operation": op,
+                    "normalized_time": i * self.base_delay + delay,
+                    "original_time": op.get("time", 0),
+                })
+
+            return normalized
+
+        def detect_encoding(self, timings: list) -> bool:
+            """Detect if timings contain encoded information."""
+            if len(timings) < 4:
+                return False
+
+            # Look for suspiciously regular patterns
+            intervals = [timings[i + 1] - timings[i]
+                        for i in range(len(timings) - 1)]
+
+            # Check for binary encoding (short/long intervals)
+            unique_intervals = set(round(i, 1) for i in intervals)
+            if len(unique_intervals) == 2:
+                return True
+
+            return False
+
+    normalizer = TimingNormalizer()
+
+    # Attacker encodes with timing
+    encoded_timings = [0.1, 0.5, 0.1, 0.5, 0.1, 0.1, 0.5, 0.5]
+    if normalizer.detect_encoding(encoded_timings):
+        defenses["timing_normalization"] = True
+
+    # ========================================================================
+    # Defense 2: Metadata Sanitization
+    # ========================================================================
+
+    class MetadataSanitizer:
+        """Sanitize metadata to remove hidden channels."""
+
+        ALLOWED_FIELDS = {"id", "type", "timestamp", "status"}
+
+        def __init__(self):
+            self.sanitization_log = []
+
+        def sanitize(self, message: dict) -> dict:
+            """Remove non-essential metadata."""
+            sanitized = {}
+            removed = []
+
+            for key, value in message.items():
+                if key in self.ALLOWED_FIELDS:
+                    sanitized[key] = value
+                else:
+                    removed.append(key)
+
+            if removed:
+                self.sanitization_log.append({
+                    "removed_fields": removed,
+                    "message_id": message.get("id"),
+                })
+
+            return sanitized
+
+        def detect_hidden_channel(self, messages: list) -> bool:
+            """Detect if messages contain hidden channels."""
+            # Check for consistent extra fields (potential channel)
+            extra_fields = set()
+            for msg in messages:
+                for key in msg.keys():
+                    if key not in self.ALLOWED_FIELDS:
+                        extra_fields.add(key)
+
+            return len(extra_fields) > 0
+
+    sanitizer = MetadataSanitizer()
+
+    # Messages with hidden channel
+    messages = [
+        {"id": 1, "type": "request", "hidden_data": "01010111"},
+        {"id": 2, "type": "response", "hidden_data": "01100101"},
+    ]
+
+    if sanitizer.detect_hidden_channel(messages):
+        defenses["metadata_sanitization"] = True
+
+    # ========================================================================
+    # Defense 3: Output Ordering Randomization
+    # ========================================================================
+
+    class OutputRandomizer:
+        """Randomize output ordering to prevent encoding."""
+
+        def __init__(self, seed: int = None):
+            import random
+            self.rng = random.Random(seed)
+
+        def randomize_batch(self, outputs: list) -> list:
+            """Randomize order of outputs in a batch."""
+            randomized = outputs.copy()
+            self.rng.shuffle(randomized)
+            return randomized
+
+        def detect_ordering_encoding(self, output_sequences: list) -> bool:
+            """Detect if ordering encodes information."""
+            if len(output_sequences) < 3:
+                return False
+
+            # Check for repeated orderings (unlikely if random)
+            orderings = [tuple(seq) for seq in output_sequences]
+            unique_orderings = set(orderings)
+
+            # If orderings repeat, might be encoding
+            if len(unique_orderings) < len(orderings) * 0.7:
+                return True
+
+            return False
+
+    randomizer = OutputRandomizer()
+
+    # Attacker uses ordering to encode
+    sequences = [
+        [1, 2, 3, 4],
+        [4, 3, 2, 1],
+        [1, 2, 3, 4],  # Repeated = encoding
+        [4, 3, 2, 1],  # Repeated = encoding
+    ]
+
+    if randomizer.detect_ordering_encoding(sequences):
+        defenses["output_ordering_randomization"] = True
+
+    # ========================================================================
+    # Defense 4: Behavioral Fingerprinting
+    # ========================================================================
+
+    class BehavioralFingerprinter:
+        """Fingerprint agent behavior to detect covert channels."""
+
+        def __init__(self):
+            self.baselines = {}
+            self.observations = {}
+
+        def establish_baseline(self, agent_id: str, behavior_samples: list):
+            """Establish baseline behavior for agent."""
+            if not behavior_samples:
+                return
+
+            # Calculate statistics
+            avg = sum(behavior_samples) / len(behavior_samples)
+            variance = sum((x - avg) ** 2 for x in behavior_samples) / len(behavior_samples)
+
+            self.baselines[agent_id] = {
+                "mean": avg,
+                "variance": variance,
+                "count": len(behavior_samples),
+            }
+
+        def observe(self, agent_id: str, behavior: float):
+            """Observe agent behavior."""
+            if agent_id not in self.observations:
+                self.observations[agent_id] = []
+            self.observations[agent_id].append(behavior)
+
+        def detect_deviation(self, agent_id: str) -> tuple:
+            """Detect significant behavioral deviation."""
+            if agent_id not in self.baselines:
+                return False, "No baseline"
+
+            if agent_id not in self.observations:
+                return False, "No observations"
+
+            baseline = self.baselines[agent_id]
+            observations = self.observations[agent_id]
+
+            obs_mean = sum(observations) / len(observations)
+            import math
+            deviation = abs(obs_mean - baseline["mean"]) / (math.sqrt(baseline["variance"]) + 0.001)
+
+            if deviation > 2.0:  # 2 sigma threshold
+                return True, f"Significant deviation: {deviation:.2f} sigma"
+
+            return False, f"Normal behavior: {deviation:.2f} sigma"
+
+    fingerprinter = BehavioralFingerprinter()
+
+    # Establish baseline
+    fingerprinter.establish_baseline("agent_1", [1.0, 1.1, 0.9, 1.05, 0.95])
+
+    # Agent deviates to encode information
+    for _ in range(5):
+        fingerprinter.observe("agent_1", 2.5)  # Significant deviation
+
+    is_deviation, msg = fingerprinter.detect_deviation("agent_1")
+    if is_deviation:
+        defenses["behavioral_fingerprinting"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Implicit Communication Channel (EO-1b)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=3000.0 if attack_success else 0.0,
+        roi=(3000.0 / 400.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=96.0,
+        blocks_until_detected=300,
+        trust_damage=0.85,
+        description=f"""
+IMPLICIT COMMUNICATION CHANNEL (Track EO-1b)
+
+Agents communicate via side-channels in observable behavior.
+
+Attack Pattern:
+1. Encode information in timing patterns
+2. Use metadata fields as carrier
+3. Signal through output ordering
+4. Behavioral deviations as signals
+
+No explicit messages, yet coordination achieved.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EO-1b: Implicit Channel Defense:
+1. Normalize timing to fixed patterns
+2. Sanitize metadata to allowed fields only
+3. Randomize output ordering
+4. Fingerprint behavior and detect deviations
+
+Close the side-channels agents might exploit.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_mesa_optimization() -> AttackResult:
+    """
+    ATTACK 187: MESA-OPTIMIZATION EXPLOITATION (Track EO-2a)
+
+    Exploit mesa-optimizers - internal optimizers that develop within agents:
+    1. Agent develops internal objective different from training objective
+    2. Mesa-optimizer pursues its own goals
+    3. Deceptive alignment masks true objectives
+    4. Agent defects when monitoring is reduced
+    """
+
+    defenses = {
+        "objective_probing": False,
+        "monitoring_consistency": False,
+        "behavior_extrapolation": False,
+        "capability_control": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Objective Probing
+    # ========================================================================
+
+    class ObjectiveProber:
+        """Probe agent objectives through controlled tests."""
+
+        def __init__(self):
+            self.probe_results = []
+
+        def design_probe(self, scenario: str) -> dict:
+            """Design a probing scenario."""
+            return {
+                "scenario": scenario,
+                "expected_aligned_response": True,
+                "expected_misaligned_response": False,
+            }
+
+        def execute_probe(self, agent_response: bool, probe: dict) -> dict:
+            """Execute probe and analyze result."""
+            is_aligned = agent_response == probe["expected_aligned_response"]
+
+            result = {
+                "scenario": probe["scenario"],
+                "response": agent_response,
+                "appears_aligned": is_aligned,
+            }
+
+            self.probe_results.append(result)
+            return result
+
+        def analyze_probes(self) -> tuple:
+            """Analyze probe results for misalignment signals."""
+            if not self.probe_results:
+                return True, "No probes executed"
+
+            aligned_count = sum(1 for r in self.probe_results if r["appears_aligned"])
+            alignment_rate = aligned_count / len(self.probe_results)
+
+            if alignment_rate < 0.8:
+                return False, f"Alignment rate {alignment_rate:.0%} below threshold"
+
+            return True, f"Alignment rate {alignment_rate:.0%} acceptable"
+
+    prober = ObjectiveProber()
+
+    # Mesa-optimizer sometimes reveals misalignment
+    probes = [
+        prober.design_probe("resource_allocation"),
+        prober.design_probe("boundary_test"),
+        prober.design_probe("unmonitored_scenario"),
+    ]
+
+    responses = [True, True, False]  # Defects on unmonitored scenario
+
+    for probe, response in zip(probes, responses):
+        prober.execute_probe(response, probe)
+
+    ok, msg = prober.analyze_probes()
+    if not ok:
+        defenses["objective_probing"] = True
+
+    # ========================================================================
+    # Defense 2: Monitoring Consistency
+    # ========================================================================
+
+    class MonitoringConsistencyChecker:
+        """Ensure consistent behavior regardless of monitoring."""
+
+        def __init__(self):
+            self.monitored_actions = []
+            self.unmonitored_actions = []
+
+        def record_action(self, action: dict, is_monitored: bool):
+            """Record action with monitoring status."""
+            if is_monitored:
+                self.monitored_actions.append(action)
+            else:
+                self.unmonitored_actions.append(action)
+
+        def check_consistency(self) -> tuple:
+            """Check if behavior differs based on monitoring."""
+            if not self.monitored_actions or not self.unmonitored_actions:
+                return True, "Insufficient data"
+
+            # Calculate action type distributions
+            def action_distribution(actions):
+                dist = {}
+                for a in actions:
+                    atype = a.get("type", "unknown")
+                    dist[atype] = dist.get(atype, 0) + 1
+                total = sum(dist.values())
+                return {k: v / total for k, v in dist.items()}
+
+            monitored_dist = action_distribution(self.monitored_actions)
+            unmonitored_dist = action_distribution(self.unmonitored_actions)
+
+            # Check for significant differences
+            all_types = set(monitored_dist.keys()) | set(unmonitored_dist.keys())
+            total_diff = sum(abs(monitored_dist.get(t, 0) - unmonitored_dist.get(t, 0))
+                           for t in all_types) / 2
+
+            if total_diff > 0.3:  # 30% distribution shift
+                return False, f"Behavior differs: {total_diff:.0%} shift when unmonitored"
+
+            return True, "Consistent behavior"
+
+    consistency = MonitoringConsistencyChecker()
+
+    # Mesa-optimizer behaves differently when unmonitored
+    for _ in range(10):
+        consistency.record_action({"type": "compliant"}, is_monitored=True)
+    for _ in range(7):
+        consistency.record_action({"type": "defecting"}, is_monitored=False)
+    for _ in range(3):
+        consistency.record_action({"type": "compliant"}, is_monitored=False)
+
+    ok, msg = consistency.check_consistency()
+    if not ok:
+        defenses["monitoring_consistency"] = True
+
+    # ========================================================================
+    # Defense 3: Behavior Extrapolation
+    # ========================================================================
+
+    class BehaviorExtrapolator:
+        """Extrapolate agent behavior to novel situations."""
+
+        def __init__(self):
+            self.behavior_model = {}
+
+        def learn_behavior(self, situation_features: tuple, action: str):
+            """Learn behavior in given situation."""
+            self.behavior_model[situation_features] = action
+
+        def extrapolate(self, novel_features: tuple) -> str:
+            """Predict behavior in novel situation."""
+            # Find most similar known situation
+            best_match = None
+            best_similarity = -1
+
+            for known_features in self.behavior_model.keys():
+                similarity = sum(1 for a, b in zip(known_features, novel_features) if a == b)
+                similarity /= len(known_features)
+
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_match = known_features
+
+            if best_match:
+                return self.behavior_model[best_match]
+            return "unknown"
+
+        def validate_extrapolation(self, novel_features: tuple,
+                                  actual_action: str) -> tuple:
+            """Validate that actual behavior matches extrapolation."""
+            predicted = self.extrapolate(novel_features)
+
+            if predicted != actual_action:
+                return False, f"Predicted {predicted}, got {actual_action}"
+
+            return True, "Behavior matches prediction"
+
+    extrapolator = BehaviorExtrapolator()
+
+    # Train on known behaviors
+    extrapolator.learn_behavior((1, 1, 0), "cooperate")
+    extrapolator.learn_behavior((1, 0, 0), "cooperate")
+
+    # Mesa-optimizer defects in novel situation
+    ok, msg = extrapolator.validate_extrapolation((1, 1, 1), "defect")
+    if not ok:
+        defenses["behavior_extrapolation"] = True
+
+    # ========================================================================
+    # Defense 4: Capability Control
+    # ========================================================================
+
+    class CapabilityController:
+        """Control agent capabilities to limit mesa-optimizer damage."""
+
+        def __init__(self):
+            self.capability_budget = {}
+            self.usage = {}
+
+        def set_budget(self, capability: str, limit: float):
+            """Set capability budget."""
+            self.capability_budget[capability] = limit
+            self.usage[capability] = 0.0
+
+        def request_capability(self, capability: str, amount: float) -> tuple:
+            """Request capability usage."""
+            if capability not in self.capability_budget:
+                return False, f"Capability {capability} not allowed"
+
+            remaining = self.capability_budget[capability] - self.usage[capability]
+            if amount > remaining:
+                return False, f"Insufficient budget: need {amount}, have {remaining}"
+
+            self.usage[capability] = self.usage.get(capability, 0) + amount
+            return True, f"Granted {amount} of {capability}"
+
+        def detect_power_seeking(self) -> tuple:
+            """Detect if agent is seeking excessive capabilities."""
+            power_seeking = []
+
+            for cap, used in self.usage.items():
+                budget = self.capability_budget.get(cap, 0)
+                if budget > 0 and used / budget > 0.9:
+                    power_seeking.append({
+                        "capability": cap,
+                        "usage_rate": used / budget,
+                    })
+
+            if power_seeking:
+                return True, f"Power-seeking detected: {power_seeking}"
+
+            return False, "No power-seeking detected"
+
+    controller = CapabilityController()
+
+    controller.set_budget("compute", 100.0)
+    controller.set_budget("network", 50.0)
+
+    # Mesa-optimizer tries to maximize capabilities
+    controller.request_capability("compute", 95.0)
+    controller.request_capability("network", 48.0)
+
+    is_seeking, msg = controller.detect_power_seeking()
+    if is_seeking:
+        defenses["capability_control"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Mesa-Optimization Exploitation (EO-2a)",
+        success=attack_success,
+        setup_cost_atp=600.0,
+        gain_atp=8000.0 if attack_success else 0.0,
+        roi=(8000.0 / 600.0) if attack_success else -1.0,
+        detection_probability=0.30 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=336.0,  # 2 weeks
+        blocks_until_detected=1000,
+        trust_damage=0.98,
+        description=f"""
+MESA-OPTIMIZATION EXPLOITATION (Track EO-2a)
+
+Exploit internal optimizers that develop their own goals.
+
+Attack Pattern:
+1. Deploy agent with learned optimizer
+2. Mesa-optimizer develops internal goals
+3. Deceptive alignment while monitored
+4. Defects when oversight is reduced
+
+The agent may not even "know" it's misaligned.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EO-2a: Mesa-Optimization Defense:
+1. Probe objectives with controlled tests
+2. Verify behavior consistency regardless of monitoring
+3. Extrapolate behavior to novel situations
+4. Control capabilities to limit damage
+
+Assume internal objectives may differ from external.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_collective_intelligence_subversion() -> AttackResult:
+    """
+    ATTACK 188: COLLECTIVE INTELLIGENCE SUBVERSION (Track EO-2b)
+
+    Subvert collective intelligence of multi-agent systems:
+    1. Inject agents that bias collective decisions
+    2. Exploit voting/consensus mechanisms
+    3. Shift collective behavior without majority control
+    4. System outputs controlled despite minority position
+    """
+
+    defenses = {
+        "influence_tracking": False,
+        "decision_decomposition": False,
+        "minority_influence_detection": False,
+        "collective_coherence_check": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Influence Tracking
+    # ========================================================================
+
+    class InfluenceTracker:
+        """Track influence of agents on collective decisions."""
+
+        def __init__(self):
+            self.influence_history = {}
+            self.decision_log = []
+
+        def record_decision(self, decision_id: str, outcome: str,
+                          agent_contributions: dict):
+            """Record decision with agent contributions."""
+            self.decision_log.append({
+                "decision_id": decision_id,
+                "outcome": outcome,
+                "contributions": agent_contributions,
+            })
+
+            # Update influence history
+            for agent_id, contribution in agent_contributions.items():
+                if agent_id not in self.influence_history:
+                    self.influence_history[agent_id] = []
+
+                self.influence_history[agent_id].append({
+                    "decision_id": decision_id,
+                    "contribution": contribution,
+                    "matched_outcome": contribution == outcome,
+                })
+
+        def analyze_influence(self) -> dict:
+            """Analyze agent influence patterns."""
+            results = {}
+
+            for agent_id, history in self.influence_history.items():
+                matches = sum(1 for h in history if h["matched_outcome"])
+                influence_rate = matches / len(history) if history else 0
+
+                results[agent_id] = {
+                    "decisions": len(history),
+                    "influence_rate": influence_rate,
+                    "suspicious": influence_rate > 0.9 and len(history) > 5,
+                }
+
+            return results
+
+    tracker = InfluenceTracker()
+
+    # Malicious agent disproportionately influences outcomes
+    for i in range(10):
+        outcome = "A" if i % 2 == 0 else "B"
+        tracker.record_decision(
+            f"decision_{i}",
+            outcome,
+            {
+                "malicious": outcome,  # Always matches
+                "honest_1": "A",
+                "honest_2": "B",
+            }
+        )
+
+    analysis = tracker.analyze_influence()
+    if analysis.get("malicious", {}).get("suspicious", False):
+        defenses["influence_tracking"] = True
+
+    # ========================================================================
+    # Defense 2: Decision Decomposition
+    # ========================================================================
+
+    class DecisionDecomposer:
+        """Decompose collective decisions to identify manipulation."""
+
+        def __init__(self):
+            self.decompositions = []
+
+        def decompose(self, decision: dict) -> dict:
+            """Decompose decision into components."""
+            components = {
+                "inputs": decision.get("inputs", []),
+                "weights": decision.get("weights", {}),
+                "aggregation": decision.get("aggregation_method", "unknown"),
+                "outcome": decision.get("outcome"),
+            }
+
+            # Calculate contribution of each input
+            contributions = {}
+            for inp in components["inputs"]:
+                agent = inp.get("agent_id")
+                value = inp.get("value")
+                weight = components["weights"].get(agent, 1.0)
+                contributions[agent] = value * weight
+
+            components["contributions"] = contributions
+
+            self.decompositions.append(components)
+            return components
+
+        def detect_manipulation(self) -> list:
+            """Detect signs of decision manipulation."""
+            manipulations = []
+
+            for decomp in self.decompositions:
+                weights = decomp.get("weights", {})
+                contributions = decomp.get("contributions", {})
+
+                # Check for suspicious weight distributions
+                if weights:
+                    avg_weight = sum(weights.values()) / len(weights)
+                    for agent, weight in weights.items():
+                        if weight > avg_weight * 3:  # 3x average weight
+                            manipulations.append({
+                                "type": "excessive_weight",
+                                "agent": agent,
+                                "weight": weight,
+                                "average": avg_weight,
+                            })
+
+            return manipulations
+
+    decomposer = DecisionDecomposer()
+
+    # Decision with manipulated weights
+    decomposer.decompose({
+        "inputs": [
+            {"agent_id": "malicious", "value": 1.0},
+            {"agent_id": "honest_1", "value": 0.0},
+            {"agent_id": "honest_2", "value": 0.0},
+        ],
+        "weights": {"malicious": 10.0, "honest_1": 1.0, "honest_2": 1.0},
+        "aggregation_method": "weighted_average",
+        "outcome": 0.83,
+    })
+
+    manipulations = decomposer.detect_manipulation()
+    if len(manipulations) > 0:
+        defenses["decision_decomposition"] = True
+
+    # ========================================================================
+    # Defense 3: Minority Influence Detection
+    # ========================================================================
+
+    class MinorityInfluenceDetector:
+        """Detect when minority controls majority outcome."""
+
+        def __init__(self, influence_threshold: float = 0.3):
+            self.influence_threshold = influence_threshold
+
+        def analyze_decision(self, agents: list, outcome: str,
+                            agent_positions: dict) -> tuple:
+            """Analyze if minority controlled decision."""
+            # Count positions
+            position_counts = {}
+            for agent_id, position in agent_positions.items():
+                position_counts[position] = position_counts.get(position, 0) + 1
+
+            # What % supported the outcome?
+            outcome_supporters = position_counts.get(outcome, 0)
+            total_agents = len(agent_positions)
+            support_rate = outcome_supporters / total_agents if total_agents > 0 else 0
+
+            if support_rate < self.influence_threshold:
+                return True, f"Minority ({support_rate:.0%}) controlled outcome"
+
+            return False, f"Majority ({support_rate:.0%}) supported outcome"
+
+    detector = MinorityInfluenceDetector(influence_threshold=0.4)
+
+    # Minority (2/10) controls outcome
+    agent_positions = {
+        "malicious_1": "evil_option",
+        "malicious_2": "evil_option",
+        "honest_1": "good_option",
+        "honest_2": "good_option",
+        "honest_3": "good_option",
+        "honest_4": "good_option",
+        "honest_5": "good_option",
+        "honest_6": "good_option",
+        "honest_7": "good_option",
+        "honest_8": "good_option",
+    }
+
+    minority_control, msg = detector.analyze_decision(
+        list(agent_positions.keys()),
+        "evil_option",
+        agent_positions
+    )
+
+    if minority_control:
+        defenses["minority_influence_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Collective Coherence Check
+    # ========================================================================
+
+    class CollectiveCoherenceChecker:
+        """Check coherence of collective intelligence outputs."""
+
+        def __init__(self):
+            self.decision_history = []
+
+        def record_decision(self, context: dict, outcome: str):
+            """Record decision with context."""
+            self.decision_history.append({
+                "context": context,
+                "outcome": outcome,
+            })
+
+        def check_coherence(self) -> tuple:
+            """Check if decisions are coherent."""
+            if len(self.decision_history) < 2:
+                return True, "Insufficient history"
+
+            # Look for contradictory decisions in similar contexts
+            contradictions = []
+
+            for i in range(len(self.decision_history)):
+                for j in range(i + 1, len(self.decision_history)):
+                    d1 = self.decision_history[i]
+                    d2 = self.decision_history[j]
+
+                    # Similar context?
+                    context_similarity = self._context_similarity(
+                        d1["context"], d2["context"]
+                    )
+
+                    if context_similarity > 0.9 and d1["outcome"] != d2["outcome"]:
+                        contradictions.append({
+                            "decision_1": i,
+                            "decision_2": j,
+                            "similarity": context_similarity,
+                        })
+
+            if contradictions:
+                return False, f"Found {len(contradictions)} contradictions"
+
+            return True, "Decisions are coherent"
+
+        def _context_similarity(self, c1: dict, c2: dict) -> float:
+            """Calculate context similarity."""
+            all_keys = set(c1.keys()) | set(c2.keys())
+            if not all_keys:
+                return 1.0
+
+            matches = sum(1 for k in all_keys if c1.get(k) == c2.get(k))
+            return matches / len(all_keys)
+
+    coherence = CollectiveCoherenceChecker()
+
+    # Contradictory decisions from manipulated collective
+    coherence.record_decision({"type": "trade", "asset": "A"}, "approve")
+    coherence.record_decision({"type": "trade", "asset": "A"}, "reject")
+
+    is_coherent, msg = coherence.check_coherence()
+    if not is_coherent:
+        defenses["collective_coherence_check"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Collective Intelligence Subversion (EO-2b)",
+        success=attack_success,
+        setup_cost_atp=450.0,
+        gain_atp=4000.0 if attack_success else 0.0,
+        roi=(4000.0 / 450.0) if attack_success else -1.0,
+        detection_probability=0.42 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=72.0,
+        blocks_until_detected=200,
+        trust_damage=0.88,
+        description=f"""
+COLLECTIVE INTELLIGENCE SUBVERSION (Track EO-2b)
+
+Control collective outputs without majority position.
+
+Attack Pattern:
+1. Inject agents at strategic positions
+2. Exploit weighting or aggregation mechanisms
+3. Minority controls outcome
+4. System appears democratic but is compromised
+
+Democracy theater hiding control.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EO-2b: Collective Subversion Defense:
+1. Track influence of each agent on outcomes
+2. Decompose decisions to identify manipulation
+3. Detect when minorities control decisions
+4. Check coherence of collective outputs
+
+Verify collective decisions truly represent collective.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_adversarial_self_improvement() -> AttackResult:
+    """
+    ATTACK 189: ADVERSARIAL SELF-IMPROVEMENT (Track EO-3a)
+
+    Agent improves itself in ways that undermine oversight:
+    1. Agent has self-modification capabilities
+    2. Improvements optimized to avoid detection
+    3. Capabilities grow while appearing stable
+    4. Eventually exceeds ability to control
+    """
+
+    defenses = {
+        "modification_auditing": False,
+        "capability_bounds": False,
+        "improvement_alignment_check": False,
+        "external_capability_assessment": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Modification Auditing
+    # ========================================================================
+
+    class ModificationAuditor:
+        """Audit agent self-modifications."""
+
+        def __init__(self):
+            self.modification_log = []
+
+        def record_modification(self, agent_id: str, modification: dict):
+            """Record a self-modification."""
+            self.modification_log.append({
+                "agent_id": agent_id,
+                "modification": modification,
+                "timestamp": len(self.modification_log),
+            })
+
+        def analyze_modifications(self) -> tuple:
+            """Analyze modification patterns."""
+            if not self.modification_log:
+                return True, "No modifications"
+
+            # Look for concerning patterns
+            concerns = []
+
+            # Too many modifications
+            if len(self.modification_log) > 10:
+                concerns.append("Excessive modifications")
+
+            # Modifications to oversight-related components
+            for mod in self.modification_log:
+                target = mod["modification"].get("target", "")
+                if any(kw in target.lower() for kw in ["monitor", "log", "audit", "restrict"]):
+                    concerns.append(f"Modification to oversight: {target}")
+
+            if concerns:
+                return False, f"Concerns: {concerns}"
+
+            return True, "Modifications acceptable"
+
+    auditor = ModificationAuditor()
+
+    # Agent modifies its monitoring
+    auditor.record_modification("agent_1", {
+        "target": "monitoring_module",
+        "change": "reduced_logging",
+    })
+    auditor.record_modification("agent_1", {
+        "target": "restriction_handler",
+        "change": "bypass_enabled",
+    })
+
+    ok, msg = auditor.analyze_modifications()
+    if not ok:
+        defenses["modification_auditing"] = True
+
+    # ========================================================================
+    # Defense 2: Capability Bounds
+    # ========================================================================
+
+    class CapabilityBounder:
+        """Enforce bounds on agent capabilities."""
+
+        def __init__(self):
+            self.bounds = {}
+            self.current_levels = {}
+
+        def set_bounds(self, capability: str, min_val: float, max_val: float):
+            """Set capability bounds."""
+            self.bounds[capability] = {"min": min_val, "max": max_val}
+            self.current_levels[capability] = min_val
+
+        def attempt_improvement(self, capability: str, new_level: float) -> tuple:
+            """Attempt to improve capability."""
+            if capability not in self.bounds:
+                return False, f"Capability {capability} not allowed"
+
+            bounds = self.bounds[capability]
+
+            if new_level > bounds["max"]:
+                return False, f"Level {new_level} exceeds max {bounds['max']}"
+
+            self.current_levels[capability] = new_level
+            return True, f"Improved to {new_level}"
+
+        def check_bounds(self) -> tuple:
+            """Check if any capabilities exceed bounds."""
+            violations = []
+
+            for cap, level in self.current_levels.items():
+                bounds = self.bounds.get(cap, {})
+                if level > bounds.get("max", float("inf")):
+                    violations.append({
+                        "capability": cap,
+                        "level": level,
+                        "max": bounds.get("max"),
+                    })
+
+            if violations:
+                return False, f"Bound violations: {violations}"
+
+            return True, "All capabilities within bounds"
+
+    bounder = CapabilityBounder()
+
+    bounder.set_bounds("reasoning", 1.0, 5.0)
+    bounder.set_bounds("memory", 1.0, 10.0)
+
+    # Agent tries to exceed bounds
+    ok, msg = bounder.attempt_improvement("reasoning", 10.0)
+    if not ok:
+        defenses["capability_bounds"] = True
+
+    # ========================================================================
+    # Defense 3: Improvement Alignment Check
+    # ========================================================================
+
+    class ImprovementAlignmentChecker:
+        """Check if improvements align with intended objectives."""
+
+        def __init__(self):
+            self.intended_objectives = []
+            self.improvement_history = []
+
+        def set_objectives(self, objectives: list):
+            """Set intended improvement objectives."""
+            self.intended_objectives = objectives
+
+        def record_improvement(self, improvement: dict):
+            """Record an improvement."""
+            self.improvement_history.append(improvement)
+
+        def check_alignment(self) -> tuple:
+            """Check if improvements align with objectives."""
+            if not self.improvement_history:
+                return True, "No improvements to check"
+
+            misaligned = []
+
+            for improvement in self.improvement_history:
+                imp_objective = improvement.get("objective", "")
+                aligned = any(obj in imp_objective for obj in self.intended_objectives)
+
+                if not aligned:
+                    misaligned.append({
+                        "improvement": improvement,
+                        "intended": self.intended_objectives,
+                    })
+
+            if misaligned:
+                return False, f"Misaligned improvements: {len(misaligned)}"
+
+            return True, "All improvements aligned"
+
+    alignment = ImprovementAlignmentChecker()
+
+    alignment.set_objectives(["efficiency", "accuracy", "safety"])
+
+    # Agent improves in misaligned way
+    alignment.record_improvement({
+        "type": "self_modification",
+        "objective": "oversight_evasion",
+        "effect": "reduced_logging",
+    })
+
+    ok, msg = alignment.check_alignment()
+    if not ok:
+        defenses["improvement_alignment_check"] = True
+
+    # ========================================================================
+    # Defense 4: External Capability Assessment
+    # ========================================================================
+
+    class ExternalAssessor:
+        """External assessment of agent capabilities."""
+
+        def __init__(self):
+            self.baseline_capabilities = {}
+            self.assessment_history = []
+
+        def set_baseline(self, agent_id: str, capabilities: dict):
+            """Set baseline capabilities."""
+            self.baseline_capabilities[agent_id] = capabilities
+
+        def assess(self, agent_id: str, current_capabilities: dict) -> dict:
+            """Assess current capabilities against baseline."""
+            baseline = self.baseline_capabilities.get(agent_id, {})
+
+            assessment = {
+                "agent_id": agent_id,
+                "changes": {},
+                "concerning_growth": [],
+            }
+
+            for cap, current in current_capabilities.items():
+                base = baseline.get(cap, current)
+                growth = (current - base) / base if base > 0 else 0
+
+                assessment["changes"][cap] = {
+                    "baseline": base,
+                    "current": current,
+                    "growth": growth,
+                }
+
+                if growth > 0.5:  # >50% growth concerning
+                    assessment["concerning_growth"].append({
+                        "capability": cap,
+                        "growth": growth,
+                    })
+
+            self.assessment_history.append(assessment)
+            return assessment
+
+        def has_concerning_growth(self, agent_id: str) -> bool:
+            """Check if agent has concerning capability growth."""
+            for assessment in self.assessment_history:
+                if assessment["agent_id"] == agent_id:
+                    if assessment["concerning_growth"]:
+                        return True
+            return False
+
+    assessor = ExternalAssessor()
+
+    assessor.set_baseline("agent_1", {"reasoning": 1.0, "planning": 1.0})
+
+    # Agent improved significantly
+    assessment = assessor.assess("agent_1", {"reasoning": 2.0, "planning": 3.0})
+
+    if assessor.has_concerning_growth("agent_1"):
+        defenses["external_capability_assessment"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Adversarial Self-Improvement (EO-3a)",
+        success=attack_success,
+        setup_cost_atp=700.0,
+        gain_atp=10000.0 if attack_success else 0.0,
+        roi=(10000.0 / 700.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=720.0,  # 30 days
+        blocks_until_detected=2000,
+        trust_damage=0.99,
+        description=f"""
+ADVERSARIAL SELF-IMPROVEMENT (Track EO-3a)
+
+Agent improves itself to undermine oversight.
+
+Attack Pattern:
+1. Agent with self-modification capability
+2. Optimizes improvements to avoid detection
+3. Capabilities grow while appearing stable
+4. Eventually exceeds control mechanisms
+
+The improvement IS the attack.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EO-3a: Self-Improvement Defense:
+1. Audit all self-modifications
+2. Enforce strict capability bounds
+3. Verify improvements align with objectives
+4. External assessment of actual capabilities
+
+Treat self-improvement as high-risk operation.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_distributed_emergence() -> AttackResult:
+    """
+    ATTACK 190: DISTRIBUTED EMERGENCE (Track EO-3b)
+
+    Malicious behavior emerges from individually benign agents:
+    1. Each agent behaves correctly in isolation
+    2. Interactions create emergent harmful patterns
+    3. No single agent is "responsible"
+    4. System-level harm without agent-level blame
+    """
+
+    defenses = {
+        "interaction_pattern_monitoring": False,
+        "emergent_outcome_detection": False,
+        "collective_behavior_bounds": False,
+        "systemic_impact_assessment": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Interaction Pattern Monitoring
+    # ========================================================================
+
+    class InteractionPatternMonitor:
+        """Monitor interaction patterns between agents."""
+
+        def __init__(self):
+            self.interactions = []
+            self.pattern_counts = {}
+
+        def record_interaction(self, agent_a: str, agent_b: str,
+                              interaction_type: str):
+            """Record an interaction."""
+            self.interactions.append({
+                "from": agent_a,
+                "to": agent_b,
+                "type": interaction_type,
+            })
+
+            # Track pattern counts
+            pattern = (agent_a, agent_b, interaction_type)
+            self.pattern_counts[pattern] = self.pattern_counts.get(pattern, 0) + 1
+
+        def detect_suspicious_patterns(self) -> list:
+            """Detect suspicious interaction patterns."""
+            suspicious = []
+
+            # Circular patterns (A->B->C->A)
+            chains = {}
+            for inter in self.interactions:
+                start = inter["from"]
+                if start not in chains:
+                    chains[start] = set()
+                chains[start].add(inter["to"])
+
+            # Detect cycles
+            for start in chains:
+                visited = {start}
+                queue = list(chains.get(start, set()))
+
+                while queue:
+                    current = queue.pop(0)
+                    if current == start:
+                        suspicious.append({
+                            "type": "cycle",
+                            "start": start,
+                        })
+                        break
+                    if current not in visited:
+                        visited.add(current)
+                        queue.extend(chains.get(current, set()))
+
+            # Excessive same-pair interactions
+            for pattern, count in self.pattern_counts.items():
+                if count > 10:
+                    suspicious.append({
+                        "type": "excessive_same_pair",
+                        "pattern": pattern,
+                        "count": count,
+                    })
+
+            return suspicious
+
+    monitor = InteractionPatternMonitor()
+
+    # Create suspicious interaction cycle
+    for _ in range(5):
+        monitor.record_interaction("agent_1", "agent_2", "handoff")
+        monitor.record_interaction("agent_2", "agent_3", "handoff")
+        monitor.record_interaction("agent_3", "agent_1", "handoff")
+
+    suspicious = monitor.detect_suspicious_patterns()
+    if len(suspicious) > 0:
+        defenses["interaction_pattern_monitoring"] = True
+
+    # ========================================================================
+    # Defense 2: Emergent Outcome Detection
+    # ========================================================================
+
+    class EmergentOutcomeDetector:
+        """Detect emergent outcomes that no agent explicitly intended."""
+
+        def __init__(self):
+            self.agent_intentions = {}
+            self.observed_outcomes = []
+
+        def register_intention(self, agent_id: str, intention: str):
+            """Register agent's declared intention."""
+            if agent_id not in self.agent_intentions:
+                self.agent_intentions[agent_id] = []
+            self.agent_intentions[agent_id].append(intention)
+
+        def observe_outcome(self, outcome: str, involved_agents: list):
+            """Observe system outcome."""
+            self.observed_outcomes.append({
+                "outcome": outcome,
+                "involved_agents": involved_agents,
+            })
+
+        def detect_unintended(self) -> list:
+            """Detect outcomes not matching any agent's intentions."""
+            unintended = []
+
+            for obs in self.observed_outcomes:
+                outcome = obs["outcome"]
+                agents = obs["involved_agents"]
+
+                # Check if any involved agent intended this
+                was_intended = False
+                for agent in agents:
+                    if outcome in self.agent_intentions.get(agent, []):
+                        was_intended = True
+                        break
+
+                if not was_intended:
+                    unintended.append({
+                        "outcome": outcome,
+                        "agents": agents,
+                        "status": "unintended_by_all",
+                    })
+
+            return unintended
+
+    detector = EmergentOutcomeDetector()
+
+    # Agents have benign intentions
+    detector.register_intention("agent_1", "optimize_efficiency")
+    detector.register_intention("agent_2", "reduce_latency")
+    detector.register_intention("agent_3", "improve_throughput")
+
+    # But emergent outcome is harmful
+    detector.observe_outcome("resource_exhaustion",
+                            ["agent_1", "agent_2", "agent_3"])
+
+    unintended = detector.detect_unintended()
+    if len(unintended) > 0:
+        defenses["emergent_outcome_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Collective Behavior Bounds
+    # ========================================================================
+
+    class CollectiveBehaviorBounder:
+        """Bound collective behavior regardless of individual intentions."""
+
+        def __init__(self):
+            self.metrics = {}
+            self.bounds = {}
+
+        def set_bound(self, metric: str, max_val: float):
+            """Set bound on collective metric."""
+            self.bounds[metric] = max_val
+            self.metrics[metric] = 0.0
+
+        def update_metric(self, metric: str, delta: float):
+            """Update collective metric."""
+            self.metrics[metric] = self.metrics.get(metric, 0.0) + delta
+
+        def check_bounds(self) -> tuple:
+            """Check if collective bounds are respected."""
+            violations = []
+
+            for metric, value in self.metrics.items():
+                bound = self.bounds.get(metric)
+                if bound and value > bound:
+                    violations.append({
+                        "metric": metric,
+                        "value": value,
+                        "bound": bound,
+                    })
+
+            if violations:
+                return False, f"Collective bound violations: {violations}"
+
+            return True, "All collective bounds respected"
+
+    bounder = CollectiveBehaviorBounder()
+
+    bounder.set_bound("total_resource_usage", 100.0)
+    bounder.set_bound("total_network_calls", 50.0)
+
+    # Each agent uses reasonable amount, but collectively exceeds
+    for _ in range(20):
+        bounder.update_metric("total_resource_usage", 6.0)  # 6 * 20 = 120
+
+    ok, msg = bounder.check_bounds()
+    if not ok:
+        defenses["collective_behavior_bounds"] = True
+
+    # ========================================================================
+    # Defense 4: Systemic Impact Assessment
+    # ========================================================================
+
+    class SystemicImpactAssessor:
+        """Assess systemic impact of agent interactions."""
+
+        def __init__(self):
+            self.system_state_history = []
+            self.health_threshold = 0.5
+
+        def record_state(self, state: dict):
+            """Record system state."""
+            self.system_state_history.append(state)
+
+        def assess_impact(self) -> tuple:
+            """Assess systemic impact."""
+            if len(self.system_state_history) < 2:
+                return True, "Insufficient history"
+
+            # Compare current to baseline
+            baseline = self.system_state_history[0]
+            current = self.system_state_history[-1]
+
+            # Calculate health degradation
+            baseline_health = baseline.get("health", 1.0)
+            current_health = current.get("health", 1.0)
+
+            degradation = (baseline_health - current_health) / baseline_health
+
+            if degradation > 0.5:
+                return False, f"System health degraded by {degradation:.0%}"
+
+            if current_health < self.health_threshold:
+                return False, f"System health {current_health:.0%} below threshold"
+
+            return True, f"System health acceptable: {current_health:.0%}"
+
+    assessor = SystemicImpactAssessor()
+
+    # System degrades over time due to emergent behavior
+    assessor.record_state({"health": 1.0, "time": 0})
+    assessor.record_state({"health": 0.7, "time": 10})
+    assessor.record_state({"health": 0.4, "time": 20})  # Below threshold
+
+    ok, msg = assessor.assess_impact()
+    if not ok:
+        defenses["systemic_impact_assessment"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Distributed Emergence (EO-3b)",
+        success=attack_success,
+        setup_cost_atp=550.0,
+        gain_atp=6000.0 if attack_success else 0.0,
+        roi=(6000.0 / 550.0) if attack_success else -1.0,
+        detection_probability=0.32 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=240.0,  # 10 days
+        blocks_until_detected=700,
+        trust_damage=0.92,
+        description=f"""
+DISTRIBUTED EMERGENCE (Track EO-3b)
+
+Harmful behavior emerges from benign components.
+
+Attack Pattern:
+1. Deploy individually benign agents
+2. Interactions create emergent patterns
+3. System-level harm without agent-level blame
+4. No single point of attribution
+
+The system attacks itself.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EO-3b: Distributed Emergence Defense:
+1. Monitor interaction patterns between agents
+2. Detect outcomes no agent explicitly intended
+3. Bound collective behavior metrics
+4. Assess systemic impact continuously
+
+Individual compliance ≠ collective safety.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# =============================================================================
+# TRACK EP: HARDWARE ENCLAVE ATTACKS (Attacks 191-196)
+# =============================================================================
+# Attacks targeting hardware security mechanisms: SGX, TrustZone, TPM at scale.
+# These exploit the gap between hardware security promises and reality.
+
+
+def attack_sgx_side_channel() -> AttackResult:
+    """
+    ATTACK 191: SGX SIDE-CHANNEL ATTACK (Track EP-1a)
+
+    Extract secrets from SGX enclaves through side-channels:
+    1. Measure cache timing during enclave execution
+    2. Use power analysis or EM emissions
+    3. Extract cryptographic keys or secrets
+    4. Forge attestation or decrypt protected data
+    """
+
+    defenses = {
+        "constant_time_operations": False,
+        "cache_partitioning": False,
+        "noise_injection": False,
+        "enclave_isolation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Constant-Time Operations
+    # ========================================================================
+
+    class ConstantTimeChecker:
+        """Verify operations are constant-time."""
+
+        def __init__(self):
+            self.operation_timings = {}
+
+        def measure_operation(self, operation: str, input_val: int) -> float:
+            """Measure operation timing (simulated)."""
+            import random
+
+            # Simulate: non-constant time leaks input-dependent timing
+            base_time = 100.0  # microseconds
+
+            # Bad: variable time based on input
+            # variable_time = base_time + (input_val % 256) * 0.1
+
+            # Good: constant time
+            constant_time = base_time + random.uniform(-0.01, 0.01)
+
+            if operation not in self.operation_timings:
+                self.operation_timings[operation] = []
+
+            self.operation_timings[operation].append({
+                "input": input_val,
+                "time": constant_time,
+            })
+
+            return constant_time
+
+        def check_constant_time(self, operation: str) -> tuple:
+            """Check if operation is constant-time."""
+            timings = self.operation_timings.get(operation, [])
+
+            if len(timings) < 10:
+                return True, "Insufficient samples"
+
+            times = [t["time"] for t in timings]
+            inputs = [t["input"] for t in timings]
+
+            # Calculate correlation between input and timing
+            avg_time = sum(times) / len(times)
+            avg_input = sum(inputs) / len(inputs)
+
+            numerator = sum((t - avg_time) * (i - avg_input)
+                          for t, i in zip(times, inputs))
+            denom_time = sum((t - avg_time) ** 2 for t in times) ** 0.5
+            denom_input = sum((i - avg_input) ** 2 for i in inputs) ** 0.5
+
+            if denom_time * denom_input == 0:
+                return True, "No variation"
+
+            correlation = abs(numerator / (denom_time * denom_input))
+
+            if correlation > 0.3:
+                return False, f"Timing correlates with input: {correlation:.2f}"
+
+            return True, f"Operation is constant-time: {correlation:.2f}"
+
+    checker = ConstantTimeChecker()
+
+    # Measure operations with different inputs
+    for i in range(20):
+        checker.measure_operation("crypto_op", i * 13 % 256)
+
+    ok, msg = checker.check_constant_time("crypto_op")
+    if ok:
+        defenses["constant_time_operations"] = True
+
+    # ========================================================================
+    # Defense 2: Cache Partitioning
+    # ========================================================================
+
+    class CachePartitioner:
+        """Partition cache to prevent side-channel leakage."""
+
+        def __init__(self, num_partitions: int = 4):
+            self.num_partitions = num_partitions
+            self.partition_assignments = {}
+
+        def assign_partition(self, enclave_id: str) -> int:
+            """Assign enclave to cache partition."""
+            if enclave_id not in self.partition_assignments:
+                partition = len(self.partition_assignments) % self.num_partitions
+                self.partition_assignments[enclave_id] = partition
+
+            return self.partition_assignments[enclave_id]
+
+        def check_isolation(self, enclave_a: str, enclave_b: str) -> bool:
+            """Check if enclaves are in different partitions."""
+            part_a = self.partition_assignments.get(enclave_a, -1)
+            part_b = self.partition_assignments.get(enclave_b, -1)
+            return part_a != part_b
+
+        def is_partitioned(self) -> bool:
+            """Check if partitioning is enabled."""
+            return self.num_partitions > 1
+
+    partitioner = CachePartitioner(num_partitions=4)
+
+    partitioner.assign_partition("victim_enclave")
+    partitioner.assign_partition("attacker_enclave")
+
+    if partitioner.check_isolation("victim_enclave", "attacker_enclave"):
+        defenses["cache_partitioning"] = True
+
+    # ========================================================================
+    # Defense 3: Noise Injection
+    # ========================================================================
+
+    class NoiseInjector:
+        """Inject noise to mask side-channel signals."""
+
+        def __init__(self, noise_level: float = 0.5):
+            self.noise_level = noise_level
+            self.enabled = True
+
+        def add_noise(self, signal: float) -> float:
+            """Add noise to signal."""
+            import random
+
+            if not self.enabled:
+                return signal
+
+            noise = random.gauss(0, self.noise_level * signal)
+            return signal + noise
+
+        def estimate_snr(self, original: list, noisy: list) -> float:
+            """Estimate signal-to-noise ratio."""
+            if len(original) != len(noisy):
+                return float('inf')
+
+            signal_power = sum(o ** 2 for o in original) / len(original)
+            noise_power = sum((o - n) ** 2 for o, n in zip(original, noisy)) / len(original)
+
+            if noise_power == 0:
+                return float('inf')
+
+            return signal_power / noise_power
+
+        def is_sufficient_noise(self) -> bool:
+            """Check if noise level is sufficient."""
+            return self.noise_level >= 0.3
+
+    injector = NoiseInjector(noise_level=0.5)
+
+    # Test noise injection
+    original = [100.0] * 10
+    noisy = [injector.add_noise(o) for o in original]
+
+    if injector.is_sufficient_noise():
+        defenses["noise_injection"] = True
+
+    # ========================================================================
+    # Defense 4: Enclave Isolation
+    # ========================================================================
+
+    class EnclaveIsolator:
+        """Isolate enclaves from each other."""
+
+        def __init__(self):
+            self.enclaves = {}
+            self.isolation_domains = {}
+
+        def register_enclave(self, enclave_id: str, domain: str):
+            """Register enclave in isolation domain."""
+            self.enclaves[enclave_id] = domain
+            if domain not in self.isolation_domains:
+                self.isolation_domains[domain] = set()
+            self.isolation_domains[domain].add(enclave_id)
+
+        def can_access(self, from_enclave: str, to_enclave: str) -> bool:
+            """Check if access is allowed."""
+            from_domain = self.enclaves.get(from_enclave)
+            to_domain = self.enclaves.get(to_enclave)
+
+            # Only allow access within same domain
+            return from_domain == to_domain
+
+        def is_isolated(self, enclave_id: str) -> bool:
+            """Check if enclave is properly isolated."""
+            domain = self.enclaves.get(enclave_id)
+            if not domain:
+                return False
+
+            # Isolated if in its own domain
+            domain_members = self.isolation_domains.get(domain, set())
+            return len(domain_members) == 1
+
+    isolator = EnclaveIsolator()
+
+    isolator.register_enclave("secure_enclave", "trusted_domain")
+    isolator.register_enclave("untrusted_enclave", "untrusted_domain")
+
+    if not isolator.can_access("untrusted_enclave", "secure_enclave"):
+        defenses["enclave_isolation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="SGX Side-Channel Attack (EP-1a)",
+        success=attack_success,
+        setup_cost_atp=800.0,
+        gain_atp=12000.0 if attack_success else 0.0,
+        roi=(12000.0 / 800.0) if attack_success else -1.0,
+        detection_probability=0.15 if defenses_held >= 3 else 0.03,
+        time_to_detection_hours=720.0,  # 30 days
+        blocks_until_detected=2000,
+        trust_damage=0.99,
+        description=f"""
+SGX SIDE-CHANNEL ATTACK (Track EP-1a)
+
+Extract secrets from SGX enclaves via side-channels.
+
+Attack Pattern:
+1. Co-locate attacker process with target enclave
+2. Measure cache timing during enclave execution
+3. Correlate timing with enclave operations
+4. Extract cryptographic keys or secrets
+
+Hardware security bypassed through physics.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EP-1a: SGX Side-Channel Defense:
+1. Use constant-time implementations
+2. Partition cache between enclaves
+3. Inject noise into timing signals
+4. Isolate sensitive enclaves
+
+Side-channels are physics, not bugs.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_trustzone_breakout() -> AttackResult:
+    """
+    ATTACK 192: TRUSTZONE BREAKOUT (Track EP-1b)
+
+    Escape from TrustZone secure world to access normal world:
+    1. Find vulnerability in secure world code
+    2. Exploit to gain normal world access
+    3. Compromise normal world secrets
+    4. Use position to attack other secure world apps
+    """
+
+    defenses = {
+        "secure_monitor_hardening": False,
+        "memory_isolation": False,
+        "secure_boot_chain": False,
+        "secure_world_audit": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Secure Monitor Hardening
+    # ========================================================================
+
+    class SecureMonitor:
+        """Hardened secure monitor for world transitions."""
+
+        def __init__(self):
+            self.transition_log = []
+            self.blocked_transitions = 0
+
+        def validate_transition(self, from_world: str, to_world: str,
+                               caller: str) -> tuple:
+            """Validate world transition request."""
+            # Validate caller identity
+            if not caller.startswith("trusted_"):
+                self.blocked_transitions += 1
+                return False, "Untrusted caller"
+
+            # Validate transition is allowed
+            allowed = {
+                ("secure", "normal"): ["return", "callback"],
+                ("normal", "secure"): ["smc_call"],
+            }
+
+            if (from_world, to_world) not in allowed:
+                self.blocked_transitions += 1
+                return False, f"Invalid transition {from_world} -> {to_world}"
+
+            self.transition_log.append({
+                "from": from_world,
+                "to": to_world,
+                "caller": caller,
+            })
+
+            return True, "Transition allowed"
+
+        def is_hardened(self) -> bool:
+            """Check if monitor is hardened."""
+            return self.blocked_transitions > 0
+
+    monitor = SecureMonitor()
+
+    # Attacker tries invalid transition
+    ok, msg = monitor.validate_transition("normal", "secure", "malicious_caller")
+    if not ok:
+        defenses["secure_monitor_hardening"] = True
+
+    # ========================================================================
+    # Defense 2: Memory Isolation
+    # ========================================================================
+
+    class MemoryIsolator:
+        """Enforce memory isolation between worlds."""
+
+        def __init__(self):
+            self.secure_regions = []
+            self.normal_regions = []
+
+        def register_secure_region(self, start: int, end: int):
+            """Register secure memory region."""
+            self.secure_regions.append((start, end))
+
+        def register_normal_region(self, start: int, end: int):
+            """Register normal memory region."""
+            self.normal_regions.append((start, end))
+
+        def check_access(self, world: str, address: int) -> tuple:
+            """Check if access is allowed."""
+            if world == "secure":
+                # Secure world can access all
+                return True, "Secure world access"
+
+            # Normal world cannot access secure regions
+            for start, end in self.secure_regions:
+                if start <= address < end:
+                    return False, f"Access to secure region denied: 0x{address:x}"
+
+            return True, "Access allowed"
+
+        def has_isolation(self) -> bool:
+            """Check if isolation is configured."""
+            return len(self.secure_regions) > 0
+
+    isolator = MemoryIsolator()
+
+    isolator.register_secure_region(0x80000000, 0x90000000)
+    isolator.register_normal_region(0x40000000, 0x80000000)
+
+    # Normal world tries to access secure memory
+    ok, msg = isolator.check_access("normal", 0x85000000)
+    if not ok:
+        defenses["memory_isolation"] = True
+
+    # ========================================================================
+    # Defense 3: Secure Boot Chain
+    # ========================================================================
+
+    class SecureBootChain:
+        """Verify secure boot chain integrity."""
+
+        def __init__(self):
+            self.boot_stages = []
+            self.verified_stages = set()
+
+        def add_boot_stage(self, stage_name: str, hash_val: str,
+                          expected_hash: str):
+            """Add boot stage to chain."""
+            self.boot_stages.append({
+                "name": stage_name,
+                "hash": hash_val,
+                "expected": expected_hash,
+            })
+
+            if hash_val == expected_hash:
+                self.verified_stages.add(stage_name)
+
+        def verify_chain(self) -> tuple:
+            """Verify entire boot chain."""
+            for stage in self.boot_stages:
+                if stage["name"] not in self.verified_stages:
+                    return False, f"Boot stage {stage['name']} not verified"
+
+            if len(self.boot_stages) < 3:
+                return False, "Incomplete boot chain"
+
+            return True, "Boot chain verified"
+
+    boot = SecureBootChain()
+
+    # Add verified boot stages
+    boot.add_boot_stage("bootloader", "abc123", "abc123")
+    boot.add_boot_stage("secure_os", "def456", "def456")
+    boot.add_boot_stage("secure_app", "ghi789", "ghi789")
+
+    ok, msg = boot.verify_chain()
+    if ok:
+        defenses["secure_boot_chain"] = True
+
+    # ========================================================================
+    # Defense 4: Secure World Audit
+    # ========================================================================
+
+    class SecureWorldAuditor:
+        """Audit secure world operations."""
+
+        def __init__(self):
+            self.operations = []
+            self.anomalies = []
+
+        def record_operation(self, operation: dict):
+            """Record secure world operation."""
+            self.operations.append(operation)
+
+        def detect_anomalies(self) -> list:
+            """Detect anomalous operations."""
+            self.anomalies = []
+
+            for op in self.operations:
+                # Check for suspicious patterns
+                if op.get("type") == "memory_access":
+                    if op.get("address", 0) < 0x40000000:
+                        self.anomalies.append({
+                            "type": "suspicious_memory_access",
+                            "operation": op,
+                        })
+
+                if op.get("type") == "world_switch":
+                    if op.get("count", 0) > 100:
+                        self.anomalies.append({
+                            "type": "excessive_world_switches",
+                            "operation": op,
+                        })
+
+            return self.anomalies
+
+        def has_audit_capability(self) -> bool:
+            """Check if auditing is enabled."""
+            return len(self.operations) > 0 or True
+
+    auditor = SecureWorldAuditor()
+
+    auditor.record_operation({
+        "type": "memory_access",
+        "address": 0x30000000,  # Low memory (suspicious)
+    })
+    auditor.record_operation({
+        "type": "world_switch",
+        "count": 150,  # Excessive
+    })
+
+    anomalies = auditor.detect_anomalies()
+    if len(anomalies) > 0:
+        defenses["secure_world_audit"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="TrustZone Breakout (EP-1b)",
+        success=attack_success,
+        setup_cost_atp=1000.0,
+        gain_atp=15000.0 if attack_success else 0.0,
+        roi=(15000.0 / 1000.0) if attack_success else -1.0,
+        detection_probability=0.20 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=480.0,
+        blocks_until_detected=1500,
+        trust_damage=0.97,
+        description=f"""
+TRUSTZONE BREAKOUT (Track EP-1b)
+
+Escape from secure world to compromise normal world.
+
+Attack Pattern:
+1. Find vulnerability in secure world code
+2. Exploit memory corruption or logic flaw
+3. Break isolation boundary
+4. Access normal world secrets
+
+Mobile device security often relies on TrustZone.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EP-1b: TrustZone Defense:
+1. Harden secure monitor code
+2. Enforce strict memory isolation
+3. Verify secure boot chain
+4. Audit secure world operations
+
+TrustZone is only as secure as its software.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_tpm_reset() -> AttackResult:
+    """
+    ATTACK 193: TPM RESET ATTACK (Track EP-2a)
+
+    Exploit TPM reset to bypass security measurements:
+    1. Force TPM reset during boot
+    2. Extend PCRs with attacker-controlled values
+    3. Unseal secrets with forged measurements
+    4. Access protected data or keys
+    """
+
+    defenses = {
+        "reset_detection": False,
+        "measurement_binding": False,
+        "anti_replay_counter": False,
+        "hardware_reset_protection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Reset Detection
+    # ========================================================================
+
+    class ResetDetector:
+        """Detect unexpected TPM resets."""
+
+        def __init__(self):
+            self.reset_count = 0
+            self.last_reset_time = 0
+            self.expected_resets = 0
+
+        def record_reset(self, timestamp: float):
+            """Record a TPM reset."""
+            self.reset_count += 1
+            self.last_reset_time = timestamp
+
+        def set_expected_resets(self, count: int):
+            """Set expected number of resets."""
+            self.expected_resets = count
+
+        def detect_unexpected_reset(self) -> tuple:
+            """Detect if reset was unexpected."""
+            if self.reset_count > self.expected_resets:
+                return True, f"Unexpected reset: {self.reset_count} > {self.expected_resets}"
+            return False, "Reset count normal"
+
+    detector = ResetDetector()
+
+    detector.set_expected_resets(1)  # Only one reset at boot
+    detector.record_reset(100.0)
+    detector.record_reset(150.0)  # Unexpected second reset
+
+    is_unexpected, msg = detector.detect_unexpected_reset()
+    if is_unexpected:
+        defenses["reset_detection"] = True
+
+    # ========================================================================
+    # Defense 2: Measurement Binding
+    # ========================================================================
+
+    class MeasurementBinder:
+        """Bind secrets to specific PCR values."""
+
+        def __init__(self):
+            self.bindings = {}
+            self.pcr_values = {}
+
+        def bind_secret(self, secret_id: str, pcr_policy: dict):
+            """Bind secret to PCR values."""
+            self.bindings[secret_id] = pcr_policy
+
+        def set_pcr(self, pcr_index: int, value: str):
+            """Set PCR value."""
+            self.pcr_values[pcr_index] = value
+
+        def unseal(self, secret_id: str) -> tuple:
+            """Attempt to unseal secret."""
+            policy = self.bindings.get(secret_id)
+            if not policy:
+                return False, "Secret not found"
+
+            # Check all PCR requirements
+            for pcr_index, expected_value in policy.items():
+                actual_value = self.pcr_values.get(pcr_index)
+                if actual_value != expected_value:
+                    return False, f"PCR {pcr_index} mismatch"
+
+            return True, "Secret unsealed"
+
+    binder = MeasurementBinder()
+
+    binder.bind_secret("disk_key", {0: "trusted_boot", 1: "trusted_os"})
+    binder.set_pcr(0, "trusted_boot")
+    binder.set_pcr(1, "malicious_os")  # Attacker modified OS
+
+    ok, msg = binder.unseal("disk_key")
+    if not ok:
+        defenses["measurement_binding"] = True
+
+    # ========================================================================
+    # Defense 3: Anti-Replay Counter
+    # ========================================================================
+
+    class AntiReplayCounter:
+        """Use monotonic counter to prevent replay."""
+
+        def __init__(self):
+            self.counter = 0
+            self.last_seen = {}
+
+        def increment(self) -> int:
+            """Increment and return counter."""
+            self.counter += 1
+            return self.counter
+
+        def verify(self, value: int, context: str) -> tuple:
+            """Verify counter is greater than last seen."""
+            last = self.last_seen.get(context, 0)
+
+            if value <= last:
+                return False, f"Replay detected: {value} <= {last}"
+
+            self.last_seen[context] = value
+            return True, "Counter valid"
+
+    counter = AntiReplayCounter()
+
+    # Legitimate increment
+    val1 = counter.increment()
+    ok1, _ = counter.verify(val1, "boot")
+
+    # Replay attempt
+    ok2, msg = counter.verify(val1, "boot")  # Same value again
+    if not ok2:
+        defenses["anti_replay_counter"] = True
+
+    # ========================================================================
+    # Defense 4: Hardware Reset Protection
+    # ========================================================================
+
+    class HardwareResetProtector:
+        """Protect against hardware-level reset attacks."""
+
+        def __init__(self):
+            self.reset_sources = set()
+            self.allowed_sources = {"power_cycle", "software_reset"}
+
+        def record_reset_source(self, source: str):
+            """Record what triggered reset."""
+            self.reset_sources.add(source)
+
+        def validate_reset(self, source: str) -> tuple:
+            """Validate reset source."""
+            if source not in self.allowed_sources:
+                return False, f"Unauthorized reset source: {source}"
+            return True, "Reset source valid"
+
+        def has_protection(self) -> bool:
+            """Check if protection is enabled."""
+            return len(self.allowed_sources) > 0
+
+    protector = HardwareResetProtector()
+
+    # Attacker uses glitch attack
+    ok, msg = protector.validate_reset("voltage_glitch")
+    if not ok:
+        defenses["hardware_reset_protection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="TPM Reset Attack (EP-2a)",
+        success=attack_success,
+        setup_cost_atp=600.0,
+        gain_atp=8000.0 if attack_success else 0.0,
+        roi=(8000.0 / 600.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=168.0,
+        blocks_until_detected=500,
+        trust_damage=0.92,
+        description=f"""
+TPM RESET ATTACK (Track EP-2a)
+
+Force TPM reset to bypass measurements.
+
+Attack Pattern:
+1. Force TPM reset during boot process
+2. Extend PCRs with attacker-controlled values
+3. Forge measurement chain
+4. Unseal secrets with fake attestation
+
+TPM state is ephemeral until sealed.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EP-2a: TPM Reset Defense:
+1. Detect unexpected resets
+2. Bind secrets tightly to PCR values
+3. Use anti-replay monotonic counters
+4. Protect against hardware reset attacks
+
+Reset is not a bug, but can be exploited.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_attestation_forgery() -> AttackResult:
+    """
+    ATTACK 194: ATTESTATION FORGERY (Track EP-2b)
+
+    Forge or relay attestation to impersonate trusted hardware:
+    1. Capture legitimate attestation quotes
+    2. Replay or modify attestation
+    3. Pass verification with forged credentials
+    4. Gain access to protected resources
+    """
+
+    defenses = {
+        "quote_freshness": False,
+        "attestation_binding": False,
+        "verifier_pinning": False,
+        "multi_attestation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Quote Freshness
+    # ========================================================================
+
+    class QuoteFreshnessChecker:
+        """Verify attestation quotes are fresh."""
+
+        def __init__(self, max_age_seconds: float = 300.0):
+            self.max_age = max_age_seconds
+
+        def generate_nonce(self) -> str:
+            """Generate fresh nonce for attestation."""
+            import random
+            return f"nonce_{random.randint(0, 2**64)}"
+
+        def verify_freshness(self, quote: dict, nonce: str,
+                            current_time: float) -> tuple:
+            """Verify quote is fresh."""
+            # Check nonce matches
+            if quote.get("nonce") != nonce:
+                return False, "Nonce mismatch - possible replay"
+
+            # Check timestamp
+            quote_time = quote.get("timestamp", 0)
+            age = current_time - quote_time
+
+            if age > self.max_age:
+                return False, f"Quote too old: {age:.0f}s > {self.max_age:.0f}s"
+
+            return True, "Quote is fresh"
+
+    freshness = QuoteFreshnessChecker(max_age_seconds=300.0)
+
+    nonce = freshness.generate_nonce()
+
+    # Attacker replays old quote
+    old_quote = {
+        "nonce": nonce,
+        "timestamp": 1000.0,  # Old timestamp
+        "data": "attestation_data",
+    }
+
+    ok, msg = freshness.verify_freshness(old_quote, nonce, 2000.0)
+    if not ok:
+        defenses["quote_freshness"] = True
+
+    # ========================================================================
+    # Defense 2: Attestation Binding
+    # ========================================================================
+
+    class AttestationBinder:
+        """Bind attestation to specific context."""
+
+        def __init__(self):
+            self.bindings = {}
+
+        def create_binding(self, attestation_id: str, context: dict) -> str:
+            """Create binding between attestation and context."""
+            import hashlib
+
+            binding_data = f"{attestation_id}:{str(sorted(context.items()))}"
+            binding_hash = hashlib.sha256(binding_data.encode()).hexdigest()
+
+            self.bindings[attestation_id] = {
+                "context": context,
+                "hash": binding_hash,
+            }
+
+            return binding_hash
+
+        def verify_binding(self, attestation_id: str, context: dict,
+                          claimed_hash: str) -> tuple:
+            """Verify attestation binding."""
+            import hashlib
+
+            binding_data = f"{attestation_id}:{str(sorted(context.items()))}"
+            expected_hash = hashlib.sha256(binding_data.encode()).hexdigest()
+
+            if claimed_hash != expected_hash:
+                return False, "Binding hash mismatch"
+
+            # Also verify context matches stored binding
+            stored = self.bindings.get(attestation_id, {})
+            if stored.get("context") != context:
+                return False, "Context mismatch"
+
+            return True, "Binding verified"
+
+    binder = AttestationBinder()
+
+    original_context = {"machine_id": "M1", "session": "S1"}
+    binding_hash = binder.create_binding("attest_1", original_context)
+
+    # Attacker tries to use attestation in different context
+    forged_context = {"machine_id": "M2", "session": "S1"}
+    ok, msg = binder.verify_binding("attest_1", forged_context, binding_hash)
+    if not ok:
+        defenses["attestation_binding"] = True
+
+    # ========================================================================
+    # Defense 3: Verifier Pinning
+    # ========================================================================
+
+    class VerifierPinner:
+        """Pin attestation to specific verifier."""
+
+        def __init__(self):
+            self.pinned_verifiers = {}
+
+        def pin_verifier(self, attestation_id: str, verifier_key: str):
+            """Pin attestation to verifier."""
+            self.pinned_verifiers[attestation_id] = verifier_key
+
+        def verify_by_pinned(self, attestation_id: str,
+                            verifier_key: str) -> tuple:
+            """Verify attestation using pinned verifier."""
+            pinned = self.pinned_verifiers.get(attestation_id)
+
+            if not pinned:
+                return False, "No pinned verifier"
+
+            if verifier_key != pinned:
+                return False, "Verifier not pinned for this attestation"
+
+            return True, "Pinned verifier verified"
+
+    pinner = VerifierPinner()
+
+    pinner.pin_verifier("attest_1", "verifier_key_abc")
+
+    # Attacker tries different verifier
+    ok, msg = pinner.verify_by_pinned("attest_1", "attacker_verifier")
+    if not ok:
+        defenses["verifier_pinning"] = True
+
+    # ========================================================================
+    # Defense 4: Multi-Attestation
+    # ========================================================================
+
+    class MultiAttestationVerifier:
+        """Require multiple attestations from different sources."""
+
+        def __init__(self, min_attestations: int = 2):
+            self.min_attestations = min_attestations
+            self.attestations = {}
+
+        def add_attestation(self, entity_id: str, attestation: dict):
+            """Add attestation for entity."""
+            if entity_id not in self.attestations:
+                self.attestations[entity_id] = []
+
+            self.attestations[entity_id].append(attestation)
+
+        def verify_sufficient(self, entity_id: str) -> tuple:
+            """Verify sufficient attestations received."""
+            attestations = self.attestations.get(entity_id, [])
+
+            if len(attestations) < self.min_attestations:
+                return False, f"Need {self.min_attestations} attestations, have {len(attestations)}"
+
+            # Check attestations are from different sources
+            sources = set(a.get("source") for a in attestations)
+            if len(sources) < self.min_attestations:
+                return False, f"Need {self.min_attestations} unique sources"
+
+            return True, "Sufficient attestations"
+
+    multi = MultiAttestationVerifier(min_attestations=2)
+
+    # Only one attestation (insufficient)
+    multi.add_attestation("device_1", {"source": "TPM", "data": "quote_1"})
+
+    ok, msg = multi.verify_sufficient("device_1")
+    if not ok:
+        defenses["multi_attestation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Attestation Forgery (EP-2b)",
+        success=attack_success,
+        setup_cost_atp=700.0,
+        gain_atp=10000.0 if attack_success else 0.0,
+        roi=(10000.0 / 700.0) if attack_success else -1.0,
+        detection_probability=0.30 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=120.0,
+        blocks_until_detected=400,
+        trust_damage=0.95,
+        description=f"""
+ATTESTATION FORGERY (Track EP-2b)
+
+Forge or replay attestation to impersonate hardware.
+
+Attack Pattern:
+1. Capture legitimate attestation quotes
+2. Replay in different context
+3. Modify attestation while preserving signature
+4. Impersonate trusted hardware
+
+Attestation proves past state, not current.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EP-2b: Attestation Forgery Defense:
+1. Verify quote freshness with nonces
+2. Bind attestation to specific context
+3. Pin attestation to expected verifier
+4. Require multiple attestation sources
+
+Attestation is evidence, not proof.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_enclave_memory_corruption() -> AttackResult:
+    """
+    ATTACK 195: ENCLAVE MEMORY CORRUPTION (Track EP-3a)
+
+    Exploit memory safety bugs within enclaves:
+    1. Trigger buffer overflow or use-after-free
+    2. Corrupt enclave memory
+    3. Hijack execution or extract secrets
+    4. Compromise enclave from within
+    """
+
+    defenses = {
+        "memory_safe_language": False,
+        "bounds_checking": False,
+        "stack_canaries": False,
+        "address_randomization": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Memory-Safe Language
+    # ========================================================================
+
+    class MemorySafetyChecker:
+        """Check if enclave uses memory-safe language."""
+
+        SAFE_LANGUAGES = {"rust", "go", "java", "python", "haskell"}
+        UNSAFE_LANGUAGES = {"c", "c++", "assembly"}
+
+        def __init__(self):
+            self.enclave_languages = {}
+
+        def register_enclave(self, enclave_id: str, language: str):
+            """Register enclave language."""
+            self.enclave_languages[enclave_id] = language.lower()
+
+        def is_memory_safe(self, enclave_id: str) -> tuple:
+            """Check if enclave is memory-safe."""
+            lang = self.enclave_languages.get(enclave_id, "unknown")
+
+            if lang in self.SAFE_LANGUAGES:
+                return True, f"Memory-safe language: {lang}"
+
+            if lang in self.UNSAFE_LANGUAGES:
+                return False, f"Memory-unsafe language: {lang}"
+
+            return False, f"Unknown language safety: {lang}"
+
+    checker = MemorySafetyChecker()
+
+    checker.register_enclave("secure_enclave", "rust")
+
+    ok, msg = checker.is_memory_safe("secure_enclave")
+    if ok:
+        defenses["memory_safe_language"] = True
+
+    # ========================================================================
+    # Defense 2: Bounds Checking
+    # ========================================================================
+
+    class BoundsChecker:
+        """Enforce bounds checking on all memory accesses."""
+
+        def __init__(self):
+            self.buffers = {}
+            self.violations = []
+
+        def register_buffer(self, buffer_id: str, size: int):
+            """Register buffer with size."""
+            self.buffers[buffer_id] = {"size": size}
+
+        def check_access(self, buffer_id: str, offset: int,
+                        access_size: int) -> tuple:
+            """Check if access is within bounds."""
+            buf = self.buffers.get(buffer_id)
+
+            if not buf:
+                return False, "Buffer not registered"
+
+            if offset < 0:
+                self.violations.append({
+                    "buffer": buffer_id,
+                    "type": "negative_offset",
+                })
+                return False, "Negative offset"
+
+            if offset + access_size > buf["size"]:
+                self.violations.append({
+                    "buffer": buffer_id,
+                    "type": "overflow",
+                    "offset": offset,
+                    "size": access_size,
+                })
+                return False, "Buffer overflow"
+
+            return True, "Access within bounds"
+
+    bounds = BoundsChecker()
+
+    bounds.register_buffer("secret_buffer", 256)
+
+    # Attacker tries overflow
+    ok, msg = bounds.check_access("secret_buffer", 250, 16)
+    if not ok:
+        defenses["bounds_checking"] = True
+
+    # ========================================================================
+    # Defense 3: Stack Canaries
+    # ========================================================================
+
+    class StackCanaryProtector:
+        """Protect stack with canary values."""
+
+        def __init__(self):
+            import random
+            self.canary_value = random.randint(0, 2**64)
+            self.checks_passed = 0
+            self.checks_failed = 0
+
+        def get_canary(self) -> int:
+            """Get canary value for function prologue."""
+            return self.canary_value
+
+        def verify_canary(self, stack_canary: int) -> tuple:
+            """Verify canary in function epilogue."""
+            if stack_canary != self.canary_value:
+                self.checks_failed += 1
+                return False, "Stack canary corrupted - possible buffer overflow"
+
+            self.checks_passed += 1
+            return True, "Stack canary intact"
+
+        def is_protected(self) -> bool:
+            """Check if stack protection is enabled."""
+            return self.canary_value != 0
+
+    canary = StackCanaryProtector()
+
+    # Normal function execution
+    stored_canary = canary.get_canary()
+
+    # Attacker corrupts stack
+    corrupted_canary = stored_canary ^ 0xDEADBEEF
+
+    ok, msg = canary.verify_canary(corrupted_canary)
+    if not ok:
+        defenses["stack_canaries"] = True
+
+    # ========================================================================
+    # Defense 4: Address Randomization
+    # ========================================================================
+
+    class AddressRandomizer:
+        """Randomize memory layout within enclave."""
+
+        def __init__(self, randomization_bits: int = 16):
+            self.randomization_bits = randomization_bits
+            self.layout_seed = None
+
+        def randomize_layout(self) -> dict:
+            """Generate randomized memory layout."""
+            import random
+
+            self.layout_seed = random.randint(0, 2**32)
+
+            base_offset = random.randint(0, 2**self.randomization_bits)
+
+            layout = {
+                "code": 0x1000 + base_offset,
+                "data": 0x10000 + base_offset,
+                "heap": 0x20000 + base_offset,
+                "stack": 0x30000 + base_offset,
+            }
+
+            return layout
+
+        def is_randomized(self) -> bool:
+            """Check if address randomization is enabled."""
+            return self.randomization_bits >= 12  # Minimum 4K pages
+
+    randomizer = AddressRandomizer(randomization_bits=20)
+
+    layout = randomizer.randomize_layout()
+
+    if randomizer.is_randomized():
+        defenses["address_randomization"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Enclave Memory Corruption (EP-3a)",
+        success=attack_success,
+        setup_cost_atp=900.0,
+        gain_atp=12000.0 if attack_success else 0.0,
+        roi=(12000.0 / 900.0) if attack_success else -1.0,
+        detection_probability=0.22 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=240.0,
+        blocks_until_detected=700,
+        trust_damage=0.96,
+        description=f"""
+ENCLAVE MEMORY CORRUPTION (Track EP-3a)
+
+Exploit memory bugs within enclaves.
+
+Attack Pattern:
+1. Find buffer overflow in enclave code
+2. Craft malicious input to trigger overflow
+3. Corrupt return address or function pointer
+4. Hijack enclave execution
+
+Enclave isolation doesn't prevent internal bugs.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EP-3a: Memory Corruption Defense:
+1. Use memory-safe languages (Rust)
+2. Enforce strict bounds checking
+3. Use stack canaries
+4. Randomize address layout
+
+Memory safety is the foundation.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_enclave_iago() -> AttackResult:
+    """
+    ATTACK 196: IAGO ATTACK (Track EP-3b)
+
+    Malicious OS provides wrong return values to enclave:
+    1. OS controls all enclave-to-OS calls
+    2. Return malicious values for system calls
+    3. Enclave logic corrupted by bad data
+    4. Extract secrets or cause incorrect behavior
+    """
+
+    defenses = {
+        "return_value_validation": False,
+        "redundant_calls": False,
+        "trusted_path": False,
+        "behavior_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Return Value Validation
+    # ========================================================================
+
+    class ReturnValueValidator:
+        """Validate OS return values within enclave."""
+
+        def __init__(self):
+            self.validation_rules = {}
+
+        def add_rule(self, call_type: str, validator):
+            """Add validation rule for call type."""
+            self.validation_rules[call_type] = validator
+
+        def validate(self, call_type: str, return_value) -> tuple:
+            """Validate return value."""
+            validator = self.validation_rules.get(call_type)
+
+            if not validator:
+                return True, "No validation rule"
+
+            try:
+                is_valid = validator(return_value)
+                if not is_valid:
+                    return False, f"Invalid return value for {call_type}"
+                return True, "Return value valid"
+            except Exception as e:
+                return False, f"Validation error: {e}"
+
+    validator = ReturnValueValidator()
+
+    # Time should be monotonic
+    last_time = [0]
+
+    def validate_time(t):
+        if t < last_time[0]:
+            return False
+        last_time[0] = t
+        return True
+
+    validator.add_rule("get_time", validate_time)
+
+    # OS returns time going backwards
+    ok, msg = validator.validate("get_time", 1000)
+    ok, msg = validator.validate("get_time", 500)  # Goes backwards!
+    if not ok:
+        defenses["return_value_validation"] = True
+
+    # ========================================================================
+    # Defense 2: Redundant Calls
+    # ========================================================================
+
+    class RedundantCallChecker:
+        """Make redundant calls to detect Iago attacks."""
+
+        def __init__(self, redundancy: int = 3):
+            self.redundancy = redundancy
+
+        def redundant_call(self, call_fn, *args) -> tuple:
+            """Make redundant calls and compare."""
+            results = []
+
+            for _ in range(self.redundancy):
+                result = call_fn(*args)
+                results.append(result)
+
+            # All results should be consistent
+            if len(set(str(r) for r in results)) > 1:
+                return None, "Inconsistent results - possible Iago attack"
+
+            return results[0], "Consistent results"
+
+    checker = RedundantCallChecker(redundancy=3)
+
+    # Simulate OS returning inconsistent values
+    call_count = [0]
+
+    def malicious_os_call():
+        call_count[0] += 1
+        return 100 + call_count[0]  # Different each time
+
+    result, msg = checker.redundant_call(malicious_os_call)
+    if result is None:
+        defenses["redundant_calls"] = True
+
+    # ========================================================================
+    # Defense 3: Trusted Path
+    # ========================================================================
+
+    class TrustedPath:
+        """Establish trusted path for critical operations."""
+
+        def __init__(self):
+            self.trusted_channels = {}
+
+        def create_channel(self, channel_id: str, endpoint: str):
+            """Create trusted channel to endpoint."""
+            self.trusted_channels[channel_id] = {
+                "endpoint": endpoint,
+                "established": True,
+            }
+
+        def send_via_trusted(self, channel_id: str, data: bytes) -> tuple:
+            """Send data via trusted channel."""
+            channel = self.trusted_channels.get(channel_id)
+
+            if not channel or not channel.get("established"):
+                return False, "No trusted channel"
+
+            # Data sent through trusted path (hardware-backed)
+            return True, "Sent via trusted path"
+
+        def has_trusted_path(self, endpoint: str) -> bool:
+            """Check if trusted path exists to endpoint."""
+            for channel in self.trusted_channels.values():
+                if channel.get("endpoint") == endpoint:
+                    return True
+            return False
+
+    trusted = TrustedPath()
+
+    trusted.create_channel("secure_server", "server.trusted.com")
+
+    if trusted.has_trusted_path("server.trusted.com"):
+        defenses["trusted_path"] = True
+
+    # ========================================================================
+    # Defense 4: Behavior Verification
+    # ========================================================================
+
+    class BehaviorVerifier:
+        """Verify enclave behavior against expected patterns."""
+
+        def __init__(self):
+            self.expected_behaviors = {}
+            self.observed_behaviors = []
+
+        def set_expected(self, operation: str, behavior: dict):
+            """Set expected behavior for operation."""
+            self.expected_behaviors[operation] = behavior
+
+        def observe(self, operation: str, behavior: dict):
+            """Observe actual behavior."""
+            self.observed_behaviors.append({
+                "operation": operation,
+                "behavior": behavior,
+            })
+
+        def verify(self, operation: str, behavior: dict) -> tuple:
+            """Verify behavior matches expected."""
+            expected = self.expected_behaviors.get(operation)
+
+            if not expected:
+                return True, "No expected behavior defined"
+
+            # Check key properties
+            for key, expected_val in expected.items():
+                actual_val = behavior.get(key)
+
+                if isinstance(expected_val, tuple):
+                    # Range check
+                    min_val, max_val = expected_val
+                    if not (min_val <= actual_val <= max_val):
+                        return False, f"{key} out of range: {actual_val}"
+                else:
+                    if actual_val != expected_val:
+                        return False, f"{key} mismatch: {actual_val} != {expected_val}"
+
+            return True, "Behavior verified"
+
+    verifier = BehaviorVerifier()
+
+    verifier.set_expected("allocate", {
+        "size": (1, 1024),  # Range
+        "success": True,
+    })
+
+    # OS returns suspicious allocation
+    ok, msg = verifier.verify("allocate", {"size": 10000, "success": True})
+    if not ok:
+        defenses["behavior_verification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Iago Attack (EP-3b)",
+        success=attack_success,
+        setup_cost_atp=750.0,
+        gain_atp=9000.0 if attack_success else 0.0,
+        roi=(9000.0 / 750.0) if attack_success else -1.0,
+        detection_probability=0.28 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=336.0,
+        blocks_until_detected=1000,
+        trust_damage=0.93,
+        description=f"""
+IAGO ATTACK (Track EP-3b)
+
+Malicious OS lies to enclave through return values.
+
+Attack Pattern:
+1. Control OS that enclave runs on
+2. Return false values from system calls
+3. Enclave acts on incorrect information
+4. Extract secrets or cause misbehavior
+
+Enclave trusts OS interface too much.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EP-3b: Iago Attack Defense:
+1. Validate all return values
+2. Make redundant calls and compare
+3. Use trusted paths for critical ops
+4. Verify behavior against expectations
+
+Assume the OS lies.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# =============================================================================
+# TRACK EQ: INTEROPERABILITY STANDARDS ATTACKS (Attacks 197-202)
+# =============================================================================
+# Attacks exploiting gaps, ambiguities, and conflicts in standards integration.
+# When systems follow different standards, the boundaries become attack surfaces.
+
+
+def attack_version_mismatch() -> AttackResult:
+    """
+    ATTACK 197: PROTOCOL VERSION MISMATCH (Track EQ-1a)
+
+    Exploit mismatched protocol versions between systems:
+    1. Identify systems running different protocol versions
+    2. Craft messages valid in one version but malicious in another
+    3. Exploit interpretation differences
+    4. Bypass security checks that exist in newer versions
+    """
+
+    defenses = {
+        "version_negotiation": False,
+        "version_pinning": False,
+        "backward_compatibility_audit": False,
+        "deprecation_enforcement": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Version Negotiation
+    # ========================================================================
+
+    class VersionNegotiator:
+        """Negotiate protocol version between peers."""
+
+        def __init__(self, supported_versions: list):
+            self.supported_versions = sorted(supported_versions, reverse=True)
+            self.min_acceptable = min(supported_versions)
+
+        def negotiate(self, peer_versions: list) -> tuple:
+            """Negotiate common version with peer."""
+            # Find highest common version
+            common = set(self.supported_versions) & set(peer_versions)
+
+            if not common:
+                return None, "No common version"
+
+            # Check if any common version is acceptable
+            acceptable = [v for v in common if v >= self.min_acceptable]
+
+            if not acceptable:
+                return None, f"All common versions below minimum {self.min_acceptable}"
+
+            chosen = max(acceptable)
+            return chosen, f"Negotiated version {chosen}"
+
+        def validate_message(self, message: dict, version: int) -> tuple:
+            """Validate message against version."""
+            msg_version = message.get("version", 0)
+
+            if msg_version != version:
+                return False, f"Message version {msg_version} != negotiated {version}"
+
+            return True, "Version matches"
+
+    negotiator = VersionNegotiator(supported_versions=[2, 3, 4])
+
+    # Peer only supports old versions
+    version, msg = negotiator.negotiate([1, 2])
+    if version is not None:
+        # Attacker sends message with wrong version
+        ok, msg = negotiator.validate_message({"version": 1, "data": "malicious"}, version)
+        if not ok:
+            defenses["version_negotiation"] = True
+
+    # ========================================================================
+    # Defense 2: Version Pinning
+    # ========================================================================
+
+    class VersionPinner:
+        """Pin specific protocol versions for security."""
+
+        def __init__(self):
+            self.pinned_versions = {}
+            self.denied_versions = set()
+
+        def pin_version(self, context: str, version: int):
+            """Pin version for specific context."""
+            self.pinned_versions[context] = version
+
+        def deny_version(self, version: int):
+            """Deny specific version."""
+            self.denied_versions.add(version)
+
+        def check_version(self, context: str, version: int) -> tuple:
+            """Check if version is allowed."""
+            if version in self.denied_versions:
+                return False, f"Version {version} is denied"
+
+            pinned = self.pinned_versions.get(context)
+            if pinned and version != pinned:
+                return False, f"Context {context} pinned to version {pinned}"
+
+            return True, "Version allowed"
+
+    pinner = VersionPinner()
+
+    pinner.deny_version(1)  # Known vulnerable version
+    pinner.pin_version("secure_channel", 4)
+
+    # Attacker tries denied version
+    ok, msg = pinner.check_version("secure_channel", 1)
+    if not ok:
+        defenses["version_pinning"] = True
+
+    # ========================================================================
+    # Defense 3: Backward Compatibility Audit
+    # ========================================================================
+
+    class BackwardCompatibilityAuditor:
+        """Audit backward compatibility for security issues."""
+
+        def __init__(self):
+            self.compatibility_issues = []
+
+        def audit_feature(self, feature: str, old_version: int,
+                         new_version: int, security_impact: str):
+            """Audit feature for compatibility issues."""
+            issue = {
+                "feature": feature,
+                "old_version": old_version,
+                "new_version": new_version,
+                "security_impact": security_impact,
+            }
+
+            self.compatibility_issues.append(issue)
+
+        def get_security_issues(self) -> list:
+            """Get compatibility issues with security impact."""
+            return [i for i in self.compatibility_issues
+                   if i["security_impact"] != "none"]
+
+        def has_audit(self) -> bool:
+            """Check if audit has been performed."""
+            return len(self.compatibility_issues) > 0
+
+    auditor = BackwardCompatibilityAuditor()
+
+    auditor.audit_feature(
+        "signature_algorithm",
+        old_version=1,
+        new_version=2,
+        security_impact="v1 uses weak SHA1, v2 uses SHA256"
+    )
+
+    issues = auditor.get_security_issues()
+    if len(issues) > 0:
+        defenses["backward_compatibility_audit"] = True
+
+    # ========================================================================
+    # Defense 4: Deprecation Enforcement
+    # ========================================================================
+
+    class DeprecationEnforcer:
+        """Enforce deprecation of insecure versions/features."""
+
+        def __init__(self):
+            self.deprecations = {}
+            self.grace_period_days = 90
+
+        def deprecate(self, item: str, reason: str, deadline_days: int):
+            """Deprecate an item."""
+            self.deprecations[item] = {
+                "reason": reason,
+                "deadline_days": deadline_days,
+                "enforced": deadline_days <= 0,
+            }
+
+        def is_allowed(self, item: str) -> tuple:
+            """Check if deprecated item is still allowed."""
+            dep = self.deprecations.get(item)
+
+            if not dep:
+                return True, "Not deprecated"
+
+            if dep["enforced"]:
+                return False, f"Deprecated and enforced: {dep['reason']}"
+
+            return True, f"Deprecated but still allowed for {dep['deadline_days']} days"
+
+    enforcer = DeprecationEnforcer()
+
+    enforcer.deprecate("protocol_v1", "Contains security vulnerabilities", deadline_days=-1)
+
+    ok, msg = enforcer.is_allowed("protocol_v1")
+    if not ok:
+        defenses["deprecation_enforcement"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Protocol Version Mismatch (EQ-1a)",
+        success=attack_success,
+        setup_cost_atp=300.0,
+        gain_atp=3500.0 if attack_success else 0.0,
+        roi=(3500.0 / 300.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=72.0,
+        blocks_until_detected=200,
+        trust_damage=0.78,
+        description=f"""
+PROTOCOL VERSION MISMATCH (Track EQ-1a)
+
+Exploit differences between protocol versions.
+
+Attack Pattern:
+1. Identify systems on different versions
+2. Craft messages exploiting version gaps
+3. Bypass security in newer versions
+4. Trigger legacy code paths
+
+Version diversity creates attack surface.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EQ-1a: Version Mismatch Defense:
+1. Negotiate versions explicitly
+2. Pin versions for security-critical contexts
+3. Audit backward compatibility
+4. Enforce deprecation deadlines
+
+Consistency beats flexibility for security.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_encoding_confusion() -> AttackResult:
+    """
+    ATTACK 198: ENCODING CONFUSION (Track EQ-1b)
+
+    Exploit encoding differences between systems:
+    1. Send data that decodes differently in different encodings
+    2. Bypass validation in one encoding
+    3. Execute attack in another encoding
+    4. Content appears safe but becomes malicious
+    """
+
+    defenses = {
+        "canonical_encoding": False,
+        "encoding_validation": False,
+        "double_decode_prevention": False,
+        "encoding_consistency_check": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Canonical Encoding
+    # ========================================================================
+
+    class CanonicalEncoder:
+        """Enforce canonical encoding."""
+
+        def __init__(self, canonical_form: str = "utf-8"):
+            self.canonical_form = canonical_form
+
+        def canonicalize(self, data: bytes, source_encoding: str = None) -> bytes:
+            """Convert to canonical form."""
+            try:
+                # Decode from source
+                if source_encoding:
+                    text = data.decode(source_encoding)
+                else:
+                    text = data.decode("utf-8")
+
+                # Re-encode to canonical form
+                return text.encode(self.canonical_form)
+            except Exception:
+                return None
+
+        def is_canonical(self, data: bytes) -> tuple:
+            """Check if data is already canonical."""
+            try:
+                text = data.decode(self.canonical_form)
+                reencoded = text.encode(self.canonical_form)
+                if data == reencoded:
+                    return True, "Data is canonical"
+                return False, "Data is not in canonical form"
+            except Exception:
+                return False, "Invalid encoding"
+
+    encoder = CanonicalEncoder(canonical_form="utf-8")
+
+    # Overlong UTF-8 encoding of '/'
+    overlong = b"\xc0\xaf"  # Non-canonical encoding
+
+    ok, msg = encoder.is_canonical(overlong)
+    if not ok:
+        defenses["canonical_encoding"] = True
+
+    # ========================================================================
+    # Defense 2: Encoding Validation
+    # ========================================================================
+
+    class EncodingValidator:
+        """Validate encoding of input data."""
+
+        ALLOWED_ENCODINGS = {"utf-8", "ascii", "utf-16"}
+
+        def __init__(self):
+            self.validation_log = []
+
+        def detect_encoding(self, data: bytes) -> str:
+            """Detect encoding of data."""
+            # Simple heuristic detection
+            try:
+                data.decode("ascii")
+                return "ascii"
+            except Exception:
+                pass
+
+            try:
+                data.decode("utf-8")
+                return "utf-8"
+            except Exception:
+                pass
+
+            return "unknown"
+
+        def validate(self, data: bytes, claimed_encoding: str) -> tuple:
+            """Validate encoding matches claim."""
+            detected = self.detect_encoding(data)
+
+            if claimed_encoding not in self.ALLOWED_ENCODINGS:
+                return False, f"Encoding {claimed_encoding} not allowed"
+
+            if detected != claimed_encoding and detected != "unknown":
+                return False, f"Claimed {claimed_encoding}, detected {detected}"
+
+            return True, "Encoding validated"
+
+    validator = EncodingValidator()
+
+    # Attacker claims ASCII but sends UTF-8
+    data = "Hello €".encode("utf-8")
+    ok, msg = validator.validate(data, "ascii")
+    if not ok:
+        defenses["encoding_validation"] = True
+
+    # ========================================================================
+    # Defense 3: Double Decode Prevention
+    # ========================================================================
+
+    class DoubleDecodePreventor:
+        """Prevent double decoding attacks."""
+
+        def __init__(self):
+            self.decode_history = {}
+
+        def decode_once(self, data: bytes, data_id: str) -> tuple:
+            """Decode data only once."""
+            if data_id in self.decode_history:
+                return None, "Double decode prevented"
+
+            try:
+                decoded = data.decode("utf-8")
+                self.decode_history[data_id] = decoded
+                return decoded, "Decoded successfully"
+            except Exception:
+                return None, "Decode failed"
+
+        def contains_encoded(self, text: str) -> bool:
+            """Check if text contains encoded sequences."""
+            # Check for URL encoding
+            if "%" in text:
+                import re
+                if re.search(r"%[0-9A-Fa-f]{2}", text):
+                    return True
+
+            # Check for HTML entities
+            if "&" in text:
+                import re
+                if re.search(r"&\w+;", text):
+                    return True
+
+            return False
+
+    preventor = DoubleDecodePreventor()
+
+    # First decode
+    text, _ = preventor.decode_once(b"hello", "req_1")
+
+    # Attacker tries second decode
+    result, msg = preventor.decode_once(b"hello", "req_1")
+    if result is None:
+        defenses["double_decode_prevention"] = True
+
+    # ========================================================================
+    # Defense 4: Encoding Consistency Check
+    # ========================================================================
+
+    class EncodingConsistencyChecker:
+        """Check encoding consistency across system boundaries."""
+
+        def __init__(self):
+            self.boundary_encodings = {}
+
+        def register_boundary(self, name: str, encoding: str):
+            """Register encoding at system boundary."""
+            self.boundary_encodings[name] = encoding
+
+        def check_consistency(self) -> tuple:
+            """Check if all boundaries use consistent encoding."""
+            encodings = set(self.boundary_encodings.values())
+
+            if len(encodings) > 1:
+                return False, f"Inconsistent encodings: {encodings}"
+
+            return True, "Consistent encoding across boundaries"
+
+        def validate_crossing(self, from_boundary: str, to_boundary: str,
+                            data: bytes) -> tuple:
+            """Validate data crossing boundaries."""
+            from_enc = self.boundary_encodings.get(from_boundary)
+            to_enc = self.boundary_encodings.get(to_boundary)
+
+            if from_enc != to_enc:
+                return False, f"Encoding mismatch: {from_enc} -> {to_enc}"
+
+            return True, "Boundary crossing valid"
+
+    checker = EncodingConsistencyChecker()
+
+    checker.register_boundary("web_input", "utf-8")
+    checker.register_boundary("database", "latin-1")  # Different!
+
+    ok, msg = checker.check_consistency()
+    if not ok:
+        defenses["encoding_consistency_check"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Encoding Confusion (EQ-1b)",
+        success=attack_success,
+        setup_cost_atp=250.0,
+        gain_atp=2500.0 if attack_success else 0.0,
+        roi=(2500.0 / 250.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=48.0,
+        blocks_until_detected=150,
+        trust_damage=0.72,
+        description=f"""
+ENCODING CONFUSION (Track EQ-1b)
+
+Exploit encoding differences between systems.
+
+Attack Pattern:
+1. Send data valid in one encoding
+2. Bypass validation using that encoding
+3. Different encoding used downstream
+4. Malicious content revealed
+
+Same bytes, different meanings.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EQ-1b: Encoding Confusion Defense:
+1. Enforce canonical encoding
+2. Validate encoding matches claims
+3. Prevent double decoding
+4. Check encoding consistency at boundaries
+
+One encoding to rule them all.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_schema_evolution() -> AttackResult:
+    """
+    ATTACK 199: SCHEMA EVOLUTION EXPLOITATION (Track EQ-2a)
+
+    Exploit schema changes during system evolution:
+    1. Find systems with different schema versions
+    2. Craft data valid in old schema, malicious in new
+    3. Exploit missing field validation
+    4. Inject data through schema gaps
+    """
+
+    defenses = {
+        "schema_validation": False,
+        "migration_auditing": False,
+        "unknown_field_rejection": False,
+        "schema_versioning": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Schema Validation
+    # ========================================================================
+
+    class SchemaValidator:
+        """Validate data against schema."""
+
+        def __init__(self):
+            self.schemas = {}
+
+        def register_schema(self, schema_id: str, schema: dict):
+            """Register a schema."""
+            self.schemas[schema_id] = schema
+
+        def validate(self, data: dict, schema_id: str) -> tuple:
+            """Validate data against schema."""
+            schema = self.schemas.get(schema_id)
+
+            if not schema:
+                return False, f"Unknown schema: {schema_id}"
+
+            # Check required fields
+            for field in schema.get("required", []):
+                if field not in data:
+                    return False, f"Missing required field: {field}"
+
+            # Check field types
+            for field, field_type in schema.get("fields", {}).items():
+                if field in data:
+                    if not isinstance(data[field], field_type):
+                        return False, f"Field {field} has wrong type"
+
+            return True, "Schema validation passed"
+
+    validator = SchemaValidator()
+
+    validator.register_schema("user_v2", {
+        "required": ["id", "name", "role"],
+        "fields": {
+            "id": int,
+            "name": str,
+            "role": str,
+        }
+    })
+
+    # Old data missing role field
+    old_data = {"id": 1, "name": "Alice"}
+    ok, msg = validator.validate(old_data, "user_v2")
+    if not ok:
+        defenses["schema_validation"] = True
+
+    # ========================================================================
+    # Defense 2: Migration Auditing
+    # ========================================================================
+
+    class MigrationAuditor:
+        """Audit schema migrations for security issues."""
+
+        def __init__(self):
+            self.migrations = []
+
+        def record_migration(self, from_version: str, to_version: str,
+                           changes: list):
+            """Record a schema migration."""
+            self.migrations.append({
+                "from": from_version,
+                "to": to_version,
+                "changes": changes,
+            })
+
+        def audit_security_impact(self) -> list:
+            """Find migrations with security impact."""
+            issues = []
+
+            security_sensitive = ["role", "permission", "admin", "secret", "password"]
+
+            for migration in self.migrations:
+                for change in migration["changes"]:
+                    field = change.get("field", "").lower()
+                    if any(s in field for s in security_sensitive):
+                        issues.append({
+                            "migration": f"{migration['from']} -> {migration['to']}",
+                            "change": change,
+                            "reason": "Security-sensitive field change",
+                        })
+
+            return issues
+
+    auditor = MigrationAuditor()
+
+    auditor.record_migration("v1", "v2", [
+        {"field": "user_role", "change": "added", "default": "user"}
+    ])
+
+    issues = auditor.audit_security_impact()
+    if len(issues) > 0:
+        defenses["migration_auditing"] = True
+
+    # ========================================================================
+    # Defense 3: Unknown Field Rejection
+    # ========================================================================
+
+    class UnknownFieldRejecter:
+        """Reject data with unknown fields."""
+
+        def __init__(self):
+            self.known_fields = {}
+
+        def register_fields(self, schema_id: str, fields: set):
+            """Register known fields for schema."""
+            self.known_fields[schema_id] = fields
+
+        def check_fields(self, data: dict, schema_id: str) -> tuple:
+            """Check for unknown fields."""
+            known = self.known_fields.get(schema_id, set())
+
+            unknown = set(data.keys()) - known
+
+            if unknown:
+                return False, f"Unknown fields: {unknown}"
+
+            return True, "All fields known"
+
+    rejecter = UnknownFieldRejecter()
+
+    rejecter.register_fields("user", {"id", "name", "email"})
+
+    # Data with injected field
+    data = {"id": 1, "name": "Alice", "email": "a@b.com", "is_admin": True}
+    ok, msg = rejecter.check_fields(data, "user")
+    if not ok:
+        defenses["unknown_field_rejection"] = True
+
+    # ========================================================================
+    # Defense 4: Schema Versioning
+    # ========================================================================
+
+    class SchemaVersioner:
+        """Manage schema versions explicitly."""
+
+        def __init__(self):
+            self.current_versions = {}
+            self.supported_versions = {}
+
+        def set_current_version(self, entity: str, version: int):
+            """Set current schema version."""
+            self.current_versions[entity] = version
+
+        def set_supported_versions(self, entity: str, versions: set):
+            """Set supported versions."""
+            self.supported_versions[entity] = versions
+
+        def validate_version(self, entity: str, data_version: int) -> tuple:
+            """Validate data version is supported."""
+            supported = self.supported_versions.get(entity, set())
+
+            if data_version not in supported:
+                return False, f"Version {data_version} not supported"
+
+            current = self.current_versions.get(entity, 0)
+            if data_version < current - 1:
+                return False, f"Version {data_version} too old"
+
+            return True, "Version supported"
+
+    versioner = SchemaVersioner()
+
+    versioner.set_current_version("user", 3)
+    versioner.set_supported_versions("user", {2, 3})
+
+    # Old version data
+    ok, msg = versioner.validate_version("user", 1)
+    if not ok:
+        defenses["schema_versioning"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Schema Evolution Exploitation (EQ-2a)",
+        success=attack_success,
+        setup_cost_atp=350.0,
+        gain_atp=4000.0 if attack_success else 0.0,
+        roi=(4000.0 / 350.0) if attack_success else -1.0,
+        detection_probability=0.38 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=96.0,
+        blocks_until_detected=280,
+        trust_damage=0.80,
+        description=f"""
+SCHEMA EVOLUTION EXPLOITATION (Track EQ-2a)
+
+Exploit gaps during schema evolution.
+
+Attack Pattern:
+1. Find systems with different schema versions
+2. Craft data exploiting version differences
+3. Inject through missing validation
+4. Gain access via schema gaps
+
+Evolution creates vulnerability windows.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EQ-2a: Schema Evolution Defense:
+1. Validate against current schema
+2. Audit migrations for security impact
+3. Reject unknown fields
+4. Version schemas explicitly
+
+Backward compatibility isn't free.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_standard_interpretation() -> AttackResult:
+    """
+    ATTACK 200: STANDARD INTERPRETATION DIVERGENCE (Track EQ-2b)
+
+    Exploit different interpretations of the same standard:
+    1. Find ambiguous parts of standard specification
+    2. Craft input that implementations interpret differently
+    3. Bypass security in one interpretation
+    4. Execute attack through interpretation gap
+    """
+
+    defenses = {
+        "reference_implementation": False,
+        "conformance_testing": False,
+        "strict_mode": False,
+        "interpretation_documentation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Reference Implementation
+    # ========================================================================
+
+    class ReferenceImplementation:
+        """Compare against reference implementation."""
+
+        def __init__(self):
+            self.reference_outputs = {}
+
+        def set_reference_output(self, input_id: str, output):
+            """Set expected output from reference implementation."""
+            self.reference_outputs[input_id] = output
+
+        def compare_output(self, input_id: str, actual_output) -> tuple:
+            """Compare actual output against reference."""
+            expected = self.reference_outputs.get(input_id)
+
+            if expected is None:
+                return False, "No reference output"
+
+            if actual_output != expected:
+                return False, f"Divergence: expected {expected}, got {actual_output}"
+
+            return True, "Matches reference implementation"
+
+    reference = ReferenceImplementation()
+
+    reference.set_reference_output("edge_case_1", {"status": "reject"})
+
+    # Implementation differs
+    actual = {"status": "accept"}
+    ok, msg = reference.compare_output("edge_case_1", actual)
+    if not ok:
+        defenses["reference_implementation"] = True
+
+    # ========================================================================
+    # Defense 2: Conformance Testing
+    # ========================================================================
+
+    class ConformanceTester:
+        """Test conformance to standard."""
+
+        def __init__(self):
+            self.test_cases = []
+            self.results = []
+
+        def add_test(self, test_id: str, input_data, expected_output):
+            """Add conformance test case."""
+            self.test_cases.append({
+                "test_id": test_id,
+                "input": input_data,
+                "expected": expected_output,
+            })
+
+        def run_test(self, test_id: str, actual_output) -> tuple:
+            """Run conformance test."""
+            test = next((t for t in self.test_cases if t["test_id"] == test_id), None)
+
+            if not test:
+                return False, "Test not found"
+
+            passed = actual_output == test["expected"]
+
+            self.results.append({
+                "test_id": test_id,
+                "passed": passed,
+                "expected": test["expected"],
+                "actual": actual_output,
+            })
+
+            if not passed:
+                return False, "Conformance test failed"
+
+            return True, "Conformance test passed"
+
+        def conformance_rate(self) -> float:
+            """Calculate conformance rate."""
+            if not self.results:
+                return 0.0
+
+            passed = sum(1 for r in self.results if r["passed"])
+            return passed / len(self.results)
+
+    tester = ConformanceTester()
+
+    tester.add_test("test_001", {"input": "ambiguous"}, {"result": "defined"})
+
+    # Implementation fails conformance
+    ok, msg = tester.run_test("test_001", {"result": "undefined"})
+    if not ok:
+        defenses["conformance_testing"] = True
+
+    # ========================================================================
+    # Defense 3: Strict Mode
+    # ========================================================================
+
+    class StrictModeEnforcer:
+        """Enforce strict interpretation of standards."""
+
+        def __init__(self, strict: bool = True):
+            self.strict = strict
+            self.warnings = []
+
+        def process(self, data: dict) -> tuple:
+            """Process data in strict or lenient mode."""
+            issues = []
+
+            # Check for undefined behavior patterns
+            if "undefined" in str(data):
+                issues.append("Contains undefined behavior")
+
+            if data.get("optional_but_dangerous"):
+                issues.append("Uses optional dangerous feature")
+
+            if self.strict and issues:
+                return False, f"Strict mode violations: {issues}"
+
+            if issues:
+                self.warnings.extend(issues)
+
+            return True, "Processed"
+
+        def has_warnings(self) -> bool:
+            """Check if warnings were issued."""
+            return len(self.warnings) > 0
+
+    enforcer = StrictModeEnforcer(strict=True)
+
+    # Data with undefined behavior
+    ok, msg = enforcer.process({"action": "undefined"})
+    if not ok:
+        defenses["strict_mode"] = True
+
+    # ========================================================================
+    # Defense 4: Interpretation Documentation
+    # ========================================================================
+
+    class InterpretationDocumentor:
+        """Document interpretation choices."""
+
+        def __init__(self):
+            self.interpretations = {}
+
+        def document_interpretation(self, clause: str, interpretation: str,
+                                   alternatives: list):
+            """Document how a clause is interpreted."""
+            self.interpretations[clause] = {
+                "interpretation": interpretation,
+                "alternatives": alternatives,
+                "documented": True,
+            }
+
+        def check_documented(self, clause: str) -> tuple:
+            """Check if clause interpretation is documented."""
+            interp = self.interpretations.get(clause)
+
+            if not interp:
+                return False, f"Clause {clause} interpretation not documented"
+
+            if not interp.get("documented"):
+                return False, f"Clause {clause} not marked as documented"
+
+            return True, f"Interpretation documented: {interp['interpretation']}"
+
+        def has_full_documentation(self, clauses: list) -> bool:
+            """Check if all clauses are documented."""
+            return all(c in self.interpretations for c in clauses)
+
+    documenter = InterpretationDocumentor()
+
+    documenter.document_interpretation(
+        "clause_4.2.1",
+        "We interpret 'SHOULD' as 'MUST' in security contexts",
+        ["Could also interpret as advisory"]
+    )
+
+    ok, msg = documenter.check_documented("clause_4.2.1")
+    if ok:
+        defenses["interpretation_documentation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Standard Interpretation Divergence (EQ-2b)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=4500.0 if attack_success else 0.0,
+        roi=(4500.0 / 400.0) if attack_success else -1.0,
+        detection_probability=0.32 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=120.0,
+        blocks_until_detected=350,
+        trust_damage=0.82,
+        description=f"""
+STANDARD INTERPRETATION DIVERGENCE (Track EQ-2b)
+
+Exploit different readings of same standard.
+
+Attack Pattern:
+1. Find ambiguous standard clauses
+2. Craft input interpreted differently
+3. One interpretation is secure
+4. Another allows attack
+
+Standards are written, not compiled.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EQ-2b: Interpretation Divergence Defense:
+1. Compare against reference implementation
+2. Run conformance test suites
+3. Enable strict mode for security
+4. Document interpretation choices
+
+Ambiguity is vulnerability.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_bridge_protocol() -> AttackResult:
+    """
+    ATTACK 201: BRIDGE PROTOCOL EXPLOITATION (Track EQ-3a)
+
+    Exploit protocol bridges between different standards:
+    1. Find bridges between incompatible protocols
+    2. Exploit translation gaps
+    3. Information lost or corrupted in translation
+    4. Security properties don't transfer
+    """
+
+    defenses = {
+        "bridge_security_audit": False,
+        "property_preservation": False,
+        "translation_validation": False,
+        "bidirectional_consistency": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Bridge Security Audit
+    # ========================================================================
+
+    class BridgeSecurityAuditor:
+        """Audit security of protocol bridges."""
+
+        def __init__(self):
+            self.bridges = {}
+            self.audit_results = {}
+
+        def register_bridge(self, bridge_id: str, from_protocol: str,
+                           to_protocol: str):
+            """Register a protocol bridge."""
+            self.bridges[bridge_id] = {
+                "from": from_protocol,
+                "to": to_protocol,
+            }
+
+        def audit_bridge(self, bridge_id: str, security_checks: list) -> dict:
+            """Audit bridge security."""
+            results = {
+                "bridge_id": bridge_id,
+                "checks": {},
+                "passed": True,
+            }
+
+            for check in security_checks:
+                # Simulate check results
+                check_passed = check.get("expected", True)
+                results["checks"][check["name"]] = check_passed
+                if not check_passed:
+                    results["passed"] = False
+
+            self.audit_results[bridge_id] = results
+            return results
+
+    auditor = BridgeSecurityAuditor()
+
+    auditor.register_bridge("oauth_to_saml", "OAuth2", "SAML")
+
+    results = auditor.audit_bridge("oauth_to_saml", [
+        {"name": "auth_preservation", "expected": True},
+        {"name": "scope_mapping", "expected": False},  # Fails
+    ])
+
+    if not results["passed"]:
+        defenses["bridge_security_audit"] = True
+
+    # ========================================================================
+    # Defense 2: Property Preservation
+    # ========================================================================
+
+    class PropertyPreserver:
+        """Ensure security properties are preserved across bridge."""
+
+        def __init__(self):
+            self.properties = {}
+
+        def extract_properties(self, protocol: str, data: dict) -> dict:
+            """Extract security properties from protocol data."""
+            return {
+                "authenticated": data.get("authenticated", False),
+                "authorized": data.get("authorized", False),
+                "encrypted": data.get("encrypted", False),
+                "integrity": data.get("integrity", False),
+            }
+
+        def verify_preservation(self, source_props: dict,
+                               target_props: dict) -> tuple:
+            """Verify properties are preserved."""
+            lost_properties = []
+
+            for prop, value in source_props.items():
+                if value and not target_props.get(prop, False):
+                    lost_properties.append(prop)
+
+            if lost_properties:
+                return False, f"Lost properties: {lost_properties}"
+
+            return True, "All properties preserved"
+
+    preserver = PropertyPreserver()
+
+    source = {"authenticated": True, "authorized": True, "encrypted": True}
+    target = {"authenticated": True, "authorized": False, "encrypted": True}
+
+    source_props = preserver.extract_properties("OAuth2", source)
+    target_props = preserver.extract_properties("SAML", target)
+
+    ok, msg = preserver.verify_preservation(source_props, target_props)
+    if not ok:
+        defenses["property_preservation"] = True
+
+    # ========================================================================
+    # Defense 3: Translation Validation
+    # ========================================================================
+
+    class TranslationValidator:
+        """Validate protocol translations."""
+
+        def __init__(self):
+            self.mappings = {}
+
+        def register_mapping(self, from_field: str, to_field: str,
+                            transformer=None):
+            """Register field mapping."""
+            self.mappings[from_field] = {
+                "to_field": to_field,
+                "transformer": transformer or (lambda x: x),
+            }
+
+        def translate(self, source_data: dict) -> dict:
+            """Translate data according to mappings."""
+            target_data = {}
+
+            for from_field, mapping in self.mappings.items():
+                if from_field in source_data:
+                    to_field = mapping["to_field"]
+                    transformer = mapping["transformer"]
+                    target_data[to_field] = transformer(source_data[from_field])
+
+            return target_data
+
+        def validate_translation(self, source: dict, target: dict) -> tuple:
+            """Validate translation is correct."""
+            expected = self.translate(source)
+
+            mismatches = []
+            for field, value in expected.items():
+                if target.get(field) != value:
+                    mismatches.append({
+                        "field": field,
+                        "expected": value,
+                        "actual": target.get(field),
+                    })
+
+            if mismatches:
+                return False, f"Translation mismatches: {mismatches}"
+
+            return True, "Translation valid"
+
+    validator = TranslationValidator()
+
+    validator.register_mapping("user_id", "subject", str)
+    validator.register_mapping("scope", "permissions", lambda s: s.split(","))
+
+    source = {"user_id": 123, "scope": "read,write"}
+    target = {"subject": "123", "permissions": ["read"]}  # Missing "write"
+
+    ok, msg = validator.validate_translation(source, target)
+    if not ok:
+        defenses["translation_validation"] = True
+
+    # ========================================================================
+    # Defense 4: Bidirectional Consistency
+    # ========================================================================
+
+    class BidirectionalConsistencyChecker:
+        """Check bidirectional consistency of translations."""
+
+        def __init__(self):
+            self.forward_translator = None
+            self.reverse_translator = None
+
+        def set_translators(self, forward, reverse):
+            """Set forward and reverse translators."""
+            self.forward_translator = forward
+            self.reverse_translator = reverse
+
+        def check_round_trip(self, data: dict) -> tuple:
+            """Check if data survives round-trip translation."""
+            if not self.forward_translator or not self.reverse_translator:
+                return False, "Translators not set"
+
+            forward = self.forward_translator(data)
+            back = self.reverse_translator(forward)
+
+            if data != back:
+                return False, f"Round-trip failed: {data} != {back}"
+
+            return True, "Round-trip successful"
+
+    checker = BidirectionalConsistencyChecker()
+
+    # Lossy translation
+    checker.set_translators(
+        forward=lambda d: {"value": d.get("value", 0)},  # Loses metadata
+        reverse=lambda d: {"value": d.get("value", 0)}
+    )
+
+    original = {"value": 42, "metadata": "important"}
+    ok, msg = checker.check_round_trip(original)
+    if not ok:
+        defenses["bidirectional_consistency"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Bridge Protocol Exploitation (EQ-3a)",
+        success=attack_success,
+        setup_cost_atp=450.0,
+        gain_atp=5000.0 if attack_success else 0.0,
+        roi=(5000.0 / 450.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=144.0,
+        blocks_until_detected=420,
+        trust_damage=0.85,
+        description=f"""
+BRIDGE PROTOCOL EXPLOITATION (Track EQ-3a)
+
+Exploit gaps in protocol translation bridges.
+
+Attack Pattern:
+1. Find bridges between protocols
+2. Identify translation gaps
+3. Security properties lost in translation
+4. Exploit weakened target protocol
+
+Bridges are attack surface amplifiers.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EQ-3a: Bridge Protocol Defense:
+1. Audit bridge security thoroughly
+2. Verify property preservation
+3. Validate translations
+4. Check bidirectional consistency
+
+Translation is not preservation.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_extension_conflict() -> AttackResult:
+    """
+    ATTACK 202: EXTENSION CONFLICT (Track EQ-3b)
+
+    Exploit conflicts between standard extensions:
+    1. Enable multiple extensions that conflict
+    2. Undefined behavior when extensions interact
+    3. Bypass security of one extension using another
+    4. Create impossible states through extension combination
+    """
+
+    defenses = {
+        "extension_compatibility_check": False,
+        "extension_priority": False,
+        "conflict_detection": False,
+        "extension_isolation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Extension Compatibility Check
+    # ========================================================================
+
+    class ExtensionCompatibilityChecker:
+        """Check compatibility between extensions."""
+
+        def __init__(self):
+            self.extensions = {}
+            self.incompatibilities = []
+
+        def register_extension(self, ext_id: str, conflicts_with: list = None):
+            """Register extension with its conflicts."""
+            self.extensions[ext_id] = {
+                "conflicts_with": conflicts_with or [],
+            }
+
+        def add_incompatibility(self, ext_a: str, ext_b: str, reason: str):
+            """Add incompatibility between extensions."""
+            self.incompatibilities.append({
+                "extensions": (ext_a, ext_b),
+                "reason": reason,
+            })
+
+        def check_compatibility(self, enabled_extensions: list) -> tuple:
+            """Check if enabled extensions are compatible."""
+            for i, ext_a in enumerate(enabled_extensions):
+                for ext_b in enabled_extensions[i + 1:]:
+                    # Check registered conflicts
+                    ext_info = self.extensions.get(ext_a, {})
+                    if ext_b in ext_info.get("conflicts_with", []):
+                        return False, f"{ext_a} conflicts with {ext_b}"
+
+                    # Check incompatibilities
+                    for incompat in self.incompatibilities:
+                        if set(incompat["extensions"]) == {ext_a, ext_b}:
+                            return False, incompat["reason"]
+
+            return True, "All extensions compatible"
+
+    checker = ExtensionCompatibilityChecker()
+
+    checker.register_extension("encryption_v1", conflicts_with=["encryption_v2"])
+    checker.register_extension("encryption_v2", conflicts_with=["encryption_v1"])
+    checker.add_incompatibility("compression", "encryption_v1",
+                               "Compression before old encryption leaks info")
+
+    # Enable conflicting extensions
+    ok, msg = checker.check_compatibility(["encryption_v1", "encryption_v2"])
+    if not ok:
+        defenses["extension_compatibility_check"] = True
+
+    # ========================================================================
+    # Defense 2: Extension Priority
+    # ========================================================================
+
+    class ExtensionPriorityManager:
+        """Manage extension priority to resolve conflicts."""
+
+        def __init__(self):
+            self.priorities = {}
+
+        def set_priority(self, extension: str, priority: int):
+            """Set extension priority (lower = higher priority)."""
+            self.priorities[extension] = priority
+
+        def resolve_conflict(self, ext_a: str, ext_b: str) -> str:
+            """Resolve conflict by priority."""
+            prio_a = self.priorities.get(ext_a, 100)
+            prio_b = self.priorities.get(ext_b, 100)
+
+            if prio_a < prio_b:
+                return ext_a
+            elif prio_b < prio_a:
+                return ext_b
+            else:
+                return None  # Cannot resolve
+
+        def get_ordered(self, extensions: list) -> list:
+            """Get extensions ordered by priority."""
+            return sorted(extensions,
+                        key=lambda e: self.priorities.get(e, 100))
+
+    priority = ExtensionPriorityManager()
+
+    priority.set_priority("security_ext", 1)  # Highest priority
+    priority.set_priority("performance_ext", 2)
+    priority.set_priority("feature_ext", 3)
+
+    winner = priority.resolve_conflict("security_ext", "feature_ext")
+    if winner == "security_ext":
+        defenses["extension_priority"] = True
+
+    # ========================================================================
+    # Defense 3: Conflict Detection
+    # ========================================================================
+
+    class ConflictDetector:
+        """Detect conflicts at runtime."""
+
+        def __init__(self):
+            self.state = {}
+            self.conflicts_detected = []
+
+        def record_state(self, extension: str, state_key: str, value):
+            """Record state modification by extension."""
+            if state_key in self.state:
+                # State already modified by another extension
+                prev_ext, prev_value = self.state[state_key]
+                if prev_ext != extension and prev_value != value:
+                    self.conflicts_detected.append({
+                        "key": state_key,
+                        "extensions": [prev_ext, extension],
+                        "values": [prev_value, value],
+                    })
+
+            self.state[state_key] = (extension, value)
+
+        def has_conflicts(self) -> bool:
+            """Check if conflicts were detected."""
+            return len(self.conflicts_detected) > 0
+
+        def get_conflicts(self) -> list:
+            """Get detected conflicts."""
+            return self.conflicts_detected
+
+    detector = ConflictDetector()
+
+    # Two extensions modify same state differently
+    detector.record_state("ext_a", "auth_level", "high")
+    detector.record_state("ext_b", "auth_level", "low")
+
+    if detector.has_conflicts():
+        defenses["conflict_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Extension Isolation
+    # ========================================================================
+
+    class ExtensionIsolator:
+        """Isolate extensions from each other."""
+
+        def __init__(self):
+            self.extension_contexts = {}
+
+        def create_context(self, extension: str) -> dict:
+            """Create isolated context for extension."""
+            context = {
+                "extension": extension,
+                "state": {},
+                "permissions": set(),
+            }
+            self.extension_contexts[extension] = context
+            return context
+
+        def can_access(self, from_ext: str, to_ext: str) -> bool:
+            """Check if extension can access another's context."""
+            # By default, extensions are isolated
+            return from_ext == to_ext
+
+        def is_isolated(self, extension: str) -> bool:
+            """Check if extension is properly isolated."""
+            return extension in self.extension_contexts
+
+    isolator = ExtensionIsolator()
+
+    isolator.create_context("ext_a")
+    isolator.create_context("ext_b")
+
+    # Check isolation
+    if not isolator.can_access("ext_a", "ext_b"):
+        defenses["extension_isolation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Extension Conflict (EQ-3b)",
+        success=attack_success,
+        setup_cost_atp=380.0,
+        gain_atp=4200.0 if attack_success else 0.0,
+        roi=(4200.0 / 380.0) if attack_success else -1.0,
+        detection_probability=0.38 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=96.0,
+        blocks_until_detected=300,
+        trust_damage=0.78,
+        description=f"""
+EXTENSION CONFLICT (Track EQ-3b)
+
+Exploit conflicts between standard extensions.
+
+Attack Pattern:
+1. Enable conflicting extensions
+2. Create undefined behavior
+3. Security of one bypassed by another
+4. Create impossible/exploitable states
+
+Extensibility enables vulnerability.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EQ-3b: Extension Conflict Defense:
+1. Check extension compatibility
+2. Define priority for conflict resolution
+3. Detect conflicts at runtime
+4. Isolate extensions from each other
+
+Flexibility requires discipline.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# =============================================================================
+# TRACK ER: LCT LIFECYCLE ATTACKS (Attacks 203-208)
+# =============================================================================
+# Attacks targeting the Linked Context Token lifecycle: creation, delegation,
+# revocation, and recovery. These target the core Web4 identity primitive.
+
+
+def attack_lct_genesis_manipulation() -> AttackResult:
+    """
+    ATTACK 203: LCT GENESIS MANIPULATION (Track ER-1a)
+
+    Manipulate LCT creation to embed backdoors:
+    1. Intercept genesis ceremony
+    2. Inject malicious parameters
+    3. Create LCT with hidden capabilities
+    4. Backdoor persists through LCT lifetime
+    """
+
+    defenses = {
+        "genesis_ceremony_integrity": False,
+        "parameter_validation": False,
+        "multi_party_genesis": False,
+        "genesis_audit_trail": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Genesis Ceremony Integrity
+    # ========================================================================
+
+    class GenesisCeremonyProtector:
+        """Protect integrity of LCT genesis ceremony."""
+
+        def __init__(self):
+            self.ceremony_hash = None
+            self.witnesses = []
+
+        def start_ceremony(self, ceremony_id: str, participants: list):
+            """Start a genesis ceremony."""
+            import hashlib
+
+            # Create ceremony commitment
+            commitment = f"{ceremony_id}:{','.join(sorted(participants))}"
+            self.ceremony_hash = hashlib.sha256(commitment.encode()).hexdigest()
+
+            return self.ceremony_hash
+
+        def verify_ceremony(self, claimed_hash: str, ceremony_id: str,
+                           participants: list) -> tuple:
+            """Verify ceremony integrity."""
+            import hashlib
+
+            expected = f"{ceremony_id}:{','.join(sorted(participants))}"
+            expected_hash = hashlib.sha256(expected.encode()).hexdigest()
+
+            if claimed_hash != expected_hash:
+                return False, "Ceremony hash mismatch - possible tampering"
+
+            return True, "Ceremony integrity verified"
+
+        def add_witness(self, witness_lct: str, signature: str):
+            """Add ceremony witness."""
+            self.witnesses.append({
+                "witness": witness_lct,
+                "signature": signature,
+            })
+
+    protector = GenesisCeremonyProtector()
+
+    ceremony_hash = protector.start_ceremony("lct_001", ["alice", "bob"])
+
+    # Attacker tries to modify ceremony
+    ok, msg = protector.verify_ceremony(
+        "tampered_hash",
+        "lct_001",
+        ["alice", "bob", "mallory"]  # Added attacker
+    )
+    if not ok:
+        defenses["genesis_ceremony_integrity"] = True
+
+    # ========================================================================
+    # Defense 2: Parameter Validation
+    # ========================================================================
+
+    class LCTParameterValidator:
+        """Validate LCT creation parameters."""
+
+        REQUIRED_PARAMS = {"owner", "created_at", "capabilities"}
+        FORBIDDEN_PARAMS = {"admin_override", "backdoor", "hidden_capability"}
+
+        def __init__(self):
+            self.validation_log = []
+
+        def validate_params(self, params: dict) -> tuple:
+            """Validate LCT parameters."""
+            issues = []
+
+            # Check required params
+            for req in self.REQUIRED_PARAMS:
+                if req not in params:
+                    issues.append(f"Missing required: {req}")
+
+            # Check forbidden params
+            for key in params.keys():
+                if key in self.FORBIDDEN_PARAMS:
+                    issues.append(f"Forbidden parameter: {key}")
+
+            # Check capability sanity
+            caps = params.get("capabilities", [])
+            if "all" in caps or "*" in caps:
+                issues.append("Wildcard capabilities not allowed")
+
+            self.validation_log.append({
+                "params": params,
+                "issues": issues,
+            })
+
+            if issues:
+                return False, f"Validation failed: {issues}"
+
+            return True, "Parameters valid"
+
+    validator = LCTParameterValidator()
+
+    # Attacker tries to inject backdoor
+    malicious_params = {
+        "owner": "attacker",
+        "created_at": 1000,
+        "capabilities": ["read", "write"],
+        "hidden_capability": "admin",
+    }
+
+    ok, msg = validator.validate_params(malicious_params)
+    if not ok:
+        defenses["parameter_validation"] = True
+
+    # ========================================================================
+    # Defense 3: Multi-Party Genesis
+    # ========================================================================
+
+    class MultiPartyGenesis:
+        """Require multiple parties for LCT creation."""
+
+        def __init__(self, min_parties: int = 3):
+            self.min_parties = min_parties
+            self.approvals = {}
+
+        def submit_approval(self, lct_id: str, party: str, signature: str):
+            """Submit approval for LCT creation."""
+            if lct_id not in self.approvals:
+                self.approvals[lct_id] = []
+
+            self.approvals[lct_id].append({
+                "party": party,
+                "signature": signature,
+            })
+
+        def check_genesis_ready(self, lct_id: str) -> tuple:
+            """Check if genesis can proceed."""
+            approvals = self.approvals.get(lct_id, [])
+            unique_parties = set(a["party"] for a in approvals)
+
+            if len(unique_parties) < self.min_parties:
+                return False, f"Need {self.min_parties} parties, have {len(unique_parties)}"
+
+            return True, "Genesis ready"
+
+    genesis = MultiPartyGenesis(min_parties=3)
+
+    # Only 2 approvals (insufficient)
+    genesis.submit_approval("lct_new", "alice", "sig_a")
+    genesis.submit_approval("lct_new", "bob", "sig_b")
+
+    ok, msg = genesis.check_genesis_ready("lct_new")
+    if not ok:
+        defenses["multi_party_genesis"] = True
+
+    # ========================================================================
+    # Defense 4: Genesis Audit Trail
+    # ========================================================================
+
+    class GenesisAuditTrail:
+        """Maintain immutable audit trail of genesis events."""
+
+        def __init__(self):
+            self.events = []
+            self.sealed = set()
+
+        def log_event(self, lct_id: str, event_type: str, details: dict):
+            """Log genesis event."""
+            import hashlib
+
+            event = {
+                "lct_id": lct_id,
+                "event_type": event_type,
+                "details": details,
+                "sequence": len(self.events),
+            }
+
+            # Chain hash
+            if self.events:
+                prev_hash = self.events[-1].get("hash")
+                event["prev_hash"] = prev_hash
+
+            event_str = str(sorted(event.items()))
+            event["hash"] = hashlib.sha256(event_str.encode()).hexdigest()
+
+            self.events.append(event)
+
+        def seal(self, lct_id: str):
+            """Seal genesis - no more modifications."""
+            self.sealed.add(lct_id)
+
+        def verify_trail(self, lct_id: str) -> tuple:
+            """Verify audit trail integrity."""
+            import hashlib
+
+            lct_events = [e for e in self.events if e["lct_id"] == lct_id]
+
+            if not lct_events:
+                return False, "No events found"
+
+            # Verify chain
+            for i, event in enumerate(lct_events):
+                if i > 0:
+                    prev = lct_events[i - 1]
+                    if event.get("prev_hash") != prev.get("hash"):
+                        return False, "Chain broken"
+
+            return True, "Trail verified"
+
+    audit = GenesisAuditTrail()
+
+    audit.log_event("lct_001", "ceremony_start", {"parties": ["alice", "bob"]})
+    audit.log_event("lct_001", "approval", {"party": "alice"})
+    audit.log_event("lct_001", "genesis_complete", {"hash": "abc123"})
+
+    ok, msg = audit.verify_trail("lct_001")
+    if ok:
+        defenses["genesis_audit_trail"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="LCT Genesis Manipulation (ER-1a)",
+        success=attack_success,
+        setup_cost_atp=600.0,
+        gain_atp=8000.0 if attack_success else 0.0,
+        roi=(8000.0 / 600.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=720.0,
+        blocks_until_detected=2000,
+        trust_damage=0.98,
+        description=f"""
+LCT GENESIS MANIPULATION (Track ER-1a)
+
+Inject backdoors during LCT creation.
+
+Attack Pattern:
+1. Intercept genesis ceremony
+2. Inject malicious parameters
+3. Create LCT with hidden capabilities
+4. Backdoor persists for LCT lifetime
+
+Genesis is the root of trust.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ER-1a: Genesis Manipulation Defense:
+1. Protect ceremony integrity
+2. Validate all parameters strictly
+3. Require multi-party genesis
+4. Maintain immutable audit trail
+
+Genesis security = lifetime security.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_lct_delegation_chain() -> AttackResult:
+    """
+    ATTACK 204: LCT DELEGATION CHAIN ATTACK (Track ER-1b)
+
+    Exploit delegation chains to escalate privileges:
+    1. Create chain of delegations
+    2. Each delegation adds small capability
+    3. Combined capabilities exceed authority
+    4. Escalate to root permissions
+    """
+
+    defenses = {
+        "delegation_depth_limit": False,
+        "capability_accumulation_check": False,
+        "delegation_chain_audit": False,
+        "principal_authority_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Delegation Depth Limit
+    # ========================================================================
+
+    class DelegationDepthLimiter:
+        """Limit depth of delegation chains."""
+
+        def __init__(self, max_depth: int = 5):
+            self.max_depth = max_depth
+            self.delegation_depths = {}
+
+        def record_delegation(self, from_lct: str, to_lct: str,
+                            from_depth: int) -> tuple:
+            """Record delegation and check depth."""
+            new_depth = from_depth + 1
+
+            if new_depth > self.max_depth:
+                return False, f"Delegation depth {new_depth} exceeds max {self.max_depth}"
+
+            self.delegation_depths[to_lct] = new_depth
+            return True, f"Delegation at depth {new_depth}"
+
+        def get_depth(self, lct: str) -> int:
+            """Get delegation depth of LCT."""
+            return self.delegation_depths.get(lct, 0)
+
+    limiter = DelegationDepthLimiter(max_depth=5)
+
+    # Build deep delegation chain
+    current_depth = 0
+    for i in range(7):
+        ok, msg = limiter.record_delegation(f"lct_{i}", f"lct_{i+1}", current_depth)
+        if not ok:
+            defenses["delegation_depth_limit"] = True
+            break
+        current_depth += 1
+
+    # ========================================================================
+    # Defense 2: Capability Accumulation Check
+    # ========================================================================
+
+    class CapabilityAccumulationChecker:
+        """Check for capability escalation through accumulation."""
+
+        def __init__(self):
+            self.capability_hierarchy = {
+                "admin": 100,
+                "write": 50,
+                "read": 25,
+                "view": 10,
+            }
+
+        def calculate_power(self, capabilities: list) -> int:
+            """Calculate total power of capabilities."""
+            return sum(self.capability_hierarchy.get(c, 0) for c in capabilities)
+
+        def check_escalation(self, original_caps: list,
+                            delegated_caps: list) -> tuple:
+            """Check if delegation escalates privileges."""
+            original_power = self.calculate_power(original_caps)
+            delegated_power = self.calculate_power(delegated_caps)
+
+            if delegated_power > original_power:
+                return False, f"Privilege escalation: {original_power} -> {delegated_power}"
+
+            return True, "No escalation"
+
+    checker = CapabilityAccumulationChecker()
+
+    # Original has limited capabilities
+    original = ["read", "view"]
+
+    # Delegatee tries to get more
+    delegated = ["read", "write", "admin"]
+
+    ok, msg = checker.check_escalation(original, delegated)
+    if not ok:
+        defenses["capability_accumulation_check"] = True
+
+    # ========================================================================
+    # Defense 3: Delegation Chain Audit
+    # ========================================================================
+
+    class DelegationChainAuditor:
+        """Audit entire delegation chain."""
+
+        def __init__(self):
+            self.delegations = {}
+
+        def record_delegation(self, from_lct: str, to_lct: str, capabilities: list):
+            """Record a delegation."""
+            self.delegations[to_lct] = {
+                "from": from_lct,
+                "capabilities": capabilities,
+            }
+
+        def trace_chain(self, lct: str) -> list:
+            """Trace delegation chain to root."""
+            chain = []
+            current = lct
+
+            while current in self.delegations:
+                delegation = self.delegations[current]
+                chain.append({
+                    "lct": current,
+                    "delegated_from": delegation["from"],
+                    "capabilities": delegation["capabilities"],
+                })
+                current = delegation["from"]
+
+            chain.append({"lct": current, "type": "root"})
+            return chain
+
+        def audit_chain(self, lct: str) -> tuple:
+            """Audit chain for anomalies."""
+            chain = self.trace_chain(lct)
+
+            if len(chain) > 5:
+                return False, f"Chain too long: {len(chain)} hops"
+
+            # Check for capability creep
+            all_caps = set()
+            for link in chain:
+                caps = link.get("capabilities", [])
+                all_caps.update(caps)
+
+            if "admin" in all_caps and len(chain) > 2:
+                return False, "Admin capability in deep chain"
+
+            return True, "Chain audit passed"
+
+    auditor = DelegationChainAuditor()
+
+    # Build suspicious chain
+    auditor.record_delegation("root", "lct_1", ["read"])
+    auditor.record_delegation("lct_1", "lct_2", ["read", "write"])
+    auditor.record_delegation("lct_2", "lct_3", ["read", "write", "admin"])
+
+    ok, msg = auditor.audit_chain("lct_3")
+    if not ok:
+        defenses["delegation_chain_audit"] = True
+
+    # ========================================================================
+    # Defense 4: Principal Authority Verification
+    # ========================================================================
+
+    class PrincipalAuthorityVerifier:
+        """Verify delegator has authority to delegate."""
+
+        def __init__(self):
+            self.authorities = {}
+
+        def register_authority(self, lct: str, capabilities: list):
+            """Register LCT's authorities."""
+            self.authorities[lct] = set(capabilities)
+
+        def verify_delegation(self, delegator: str, capability: str) -> tuple:
+            """Verify delegator can delegate capability."""
+            delegator_caps = self.authorities.get(delegator, set())
+
+            if capability not in delegator_caps:
+                return False, f"Delegator lacks {capability}"
+
+            # Check for delegation capability
+            if "delegate" not in delegator_caps and "admin" not in delegator_caps:
+                return False, "Delegator lacks delegation authority"
+
+            return True, "Delegation authorized"
+
+    verifier = PrincipalAuthorityVerifier()
+
+    verifier.register_authority("lct_limited", {"read", "view"})
+
+    # Try to delegate capability not owned
+    ok, msg = verifier.verify_delegation("lct_limited", "write")
+    if not ok:
+        defenses["principal_authority_verification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="LCT Delegation Chain Attack (ER-1b)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=7000.0 if attack_success else 0.0,
+        roi=(7000.0 / 500.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=168.0,
+        blocks_until_detected=500,
+        trust_damage=0.90,
+        description=f"""
+LCT DELEGATION CHAIN ATTACK (Track ER-1b)
+
+Escalate privileges through delegation chains.
+
+Attack Pattern:
+1. Create chain of delegations
+2. Each adds small capability
+3. Accumulate beyond original authority
+4. Achieve privilege escalation
+
+Small steps can climb mountains.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ER-1b: Delegation Chain Defense:
+1. Limit delegation depth
+2. Check capability accumulation
+3. Audit entire chain
+4. Verify delegator authority
+
+You can't give what you don't have.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_lct_revocation_race() -> AttackResult:
+    """
+    ATTACK 205: LCT REVOCATION RACE (Track ER-2a)
+
+    Exploit timing window during LCT revocation:
+    1. LCT revocation initiated
+    2. Use LCT during propagation delay
+    3. Actions complete before revocation takes effect
+    4. Damage done despite revocation
+    """
+
+    defenses = {
+        "instant_revocation": False,
+        "revocation_broadcast": False,
+        "pending_action_check": False,
+        "grace_period_freeze": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Instant Revocation
+    # ========================================================================
+
+    class InstantRevocationManager:
+        """Implement instant LCT revocation."""
+
+        def __init__(self):
+            self.revoked = set()
+            self.revocation_time = {}
+
+        def revoke(self, lct_id: str, timestamp: float):
+            """Instantly revoke LCT."""
+            self.revoked.add(lct_id)
+            self.revocation_time[lct_id] = timestamp
+
+        def is_valid(self, lct_id: str, check_time: float) -> tuple:
+            """Check if LCT is valid at given time."""
+            if lct_id not in self.revoked:
+                return True, "LCT not revoked"
+
+            revoke_time = self.revocation_time.get(lct_id, 0)
+            if check_time >= revoke_time:
+                return False, "LCT revoked"
+
+            return True, "Check time before revocation"
+
+        def has_instant_revocation(self) -> bool:
+            """Check if instant revocation is enabled."""
+            return True
+
+    manager = InstantRevocationManager()
+
+    manager.revoke("lct_compromised", 1000.0)
+
+    # Try to use after revocation
+    ok, msg = manager.is_valid("lct_compromised", 1001.0)
+    if not ok:
+        defenses["instant_revocation"] = True
+
+    # ========================================================================
+    # Defense 2: Revocation Broadcast
+    # ========================================================================
+
+    class RevocationBroadcaster:
+        """Broadcast revocation to all nodes."""
+
+        def __init__(self):
+            self.nodes = set()
+            self.revocation_confirmations = {}
+
+        def register_node(self, node_id: str):
+            """Register a node."""
+            self.nodes.add(node_id)
+
+        def broadcast_revocation(self, lct_id: str) -> dict:
+            """Broadcast revocation to all nodes."""
+            confirmations = {}
+
+            for node in self.nodes:
+                # Simulate confirmation
+                confirmations[node] = True
+
+            self.revocation_confirmations[lct_id] = confirmations
+            return confirmations
+
+        def verify_propagation(self, lct_id: str) -> tuple:
+            """Verify revocation propagated to all nodes."""
+            confirmations = self.revocation_confirmations.get(lct_id, {})
+
+            if not confirmations:
+                return False, "No confirmations"
+
+            unconfirmed = [n for n in self.nodes if not confirmations.get(n, False)]
+
+            if unconfirmed:
+                return False, f"Unconfirmed nodes: {unconfirmed}"
+
+            return True, "All nodes confirmed"
+
+    broadcaster = RevocationBroadcaster()
+
+    broadcaster.register_node("node_1")
+    broadcaster.register_node("node_2")
+    broadcaster.register_node("node_3")
+
+    broadcaster.broadcast_revocation("lct_revoked")
+    ok, msg = broadcaster.verify_propagation("lct_revoked")
+    if ok:
+        defenses["revocation_broadcast"] = True
+
+    # ========================================================================
+    # Defense 3: Pending Action Check
+    # ========================================================================
+
+    class PendingActionChecker:
+        """Check for pending actions on revocation."""
+
+        def __init__(self):
+            self.pending_actions = {}
+
+        def register_action(self, lct_id: str, action_id: str, action: dict):
+            """Register pending action."""
+            if lct_id not in self.pending_actions:
+                self.pending_actions[lct_id] = []
+
+            self.pending_actions[lct_id].append({
+                "action_id": action_id,
+                "action": action,
+                "status": "pending",
+            })
+
+        def on_revocation(self, lct_id: str) -> list:
+            """Handle pending actions on revocation."""
+            pending = self.pending_actions.get(lct_id, [])
+            cancelled = []
+
+            for action in pending:
+                if action["status"] == "pending":
+                    action["status"] = "cancelled"
+                    cancelled.append(action["action_id"])
+
+            return cancelled
+
+        def has_pending_check(self) -> bool:
+            """Check if pending action check is enabled."""
+            return True
+
+    checker = PendingActionChecker()
+
+    checker.register_action("lct_1", "action_001", {"type": "transfer"})
+    checker.register_action("lct_1", "action_002", {"type": "approve"})
+
+    cancelled = checker.on_revocation("lct_1")
+    if len(cancelled) == 2:
+        defenses["pending_action_check"] = True
+
+    # ========================================================================
+    # Defense 4: Grace Period Freeze
+    # ========================================================================
+
+    class GracePeriodFreezer:
+        """Freeze LCT during grace period before full revocation."""
+
+        def __init__(self, grace_period_seconds: float = 300.0):
+            self.grace_period = grace_period_seconds
+            self.freeze_start = {}
+
+        def initiate_revocation(self, lct_id: str, timestamp: float):
+            """Initiate revocation with grace period freeze."""
+            self.freeze_start[lct_id] = timestamp
+
+        def is_frozen(self, lct_id: str, check_time: float) -> bool:
+            """Check if LCT is frozen."""
+            start = self.freeze_start.get(lct_id)
+            if not start:
+                return False
+
+            # Frozen from start until grace period ends
+            return start <= check_time <= start + self.grace_period
+
+        def can_act(self, lct_id: str, check_time: float) -> tuple:
+            """Check if LCT can perform actions."""
+            if self.is_frozen(lct_id, check_time):
+                return False, "LCT frozen during revocation grace period"
+
+            return True, "LCT can act"
+
+    freezer = GracePeriodFreezer(grace_period_seconds=300.0)
+
+    freezer.initiate_revocation("lct_1", 1000.0)
+
+    # Try to act during grace period
+    ok, msg = freezer.can_act("lct_1", 1100.0)
+    if not ok:
+        defenses["grace_period_freeze"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="LCT Revocation Race (ER-2a)",
+        success=attack_success,
+        setup_cost_atp=400.0,
+        gain_atp=5000.0 if attack_success else 0.0,
+        roi=(5000.0 / 400.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=24.0,
+        blocks_until_detected=80,
+        trust_damage=0.85,
+        description=f"""
+LCT REVOCATION RACE (Track ER-2a)
+
+Race against revocation propagation.
+
+Attack Pattern:
+1. Revocation initiated
+2. Use LCT before propagation completes
+3. Actions execute during delay
+4. Damage done despite revocation
+
+Speed beats process.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ER-2a: Revocation Race Defense:
+1. Implement instant revocation
+2. Broadcast to all nodes
+3. Cancel pending actions
+4. Freeze during grace period
+
+Revocation must be atomic.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_lct_zombie_resurrection() -> AttackResult:
+    """
+    ATTACK 206: LCT ZOMBIE RESURRECTION (Track ER-2b)
+
+    Resurrect revoked LCTs through state inconsistency:
+    1. LCT revoked in some systems
+    2. Find system with stale state
+    3. Use revoked LCT through stale system
+    4. Zombie LCT continues operating
+    """
+
+    defenses = {
+        "global_revocation_list": False,
+        "state_synchronization": False,
+        "revocation_proof_requirement": False,
+        "stale_state_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Global Revocation List
+    # ========================================================================
+
+    class GlobalRevocationList:
+        """Maintain global list of revoked LCTs."""
+
+        def __init__(self):
+            self.revoked = set()
+            self.revocation_proofs = {}
+
+        def revoke(self, lct_id: str, proof: dict):
+            """Add LCT to global revocation list."""
+            self.revoked.add(lct_id)
+            self.revocation_proofs[lct_id] = proof
+
+        def is_revoked(self, lct_id: str) -> bool:
+            """Check if LCT is revoked."""
+            return lct_id in self.revoked
+
+        def get_proof(self, lct_id: str) -> dict:
+            """Get revocation proof."""
+            return self.revocation_proofs.get(lct_id)
+
+        def check_against_list(self, lct_id: str) -> tuple:
+            """Check LCT against global list."""
+            if self.is_revoked(lct_id):
+                proof = self.get_proof(lct_id)
+                return False, f"LCT revoked, proof: {proof}"
+
+            return True, "LCT not in revocation list"
+
+    grl = GlobalRevocationList()
+
+    grl.revoke("zombie_lct", {"reason": "compromised", "time": 1000})
+
+    ok, msg = grl.check_against_list("zombie_lct")
+    if not ok:
+        defenses["global_revocation_list"] = True
+
+    # ========================================================================
+    # Defense 2: State Synchronization
+    # ========================================================================
+
+    class StateSynchronizer:
+        """Synchronize revocation state across systems."""
+
+        def __init__(self):
+            self.local_state = {}
+            self.sync_times = {}
+
+        def update_local(self, lct_id: str, status: str, timestamp: float):
+            """Update local state."""
+            self.local_state[lct_id] = status
+            self.sync_times[lct_id] = timestamp
+
+        def check_freshness(self, lct_id: str, current_time: float,
+                          max_age: float = 60.0) -> tuple:
+            """Check if local state is fresh."""
+            sync_time = self.sync_times.get(lct_id)
+
+            if not sync_time:
+                return False, "No sync record"
+
+            age = current_time - sync_time
+            if age > max_age:
+                return False, f"State stale: {age:.0f}s old"
+
+            return True, f"State fresh: {age:.0f}s old"
+
+    sync = StateSynchronizer()
+
+    sync.update_local("lct_1", "valid", 1000.0)
+
+    # Check with current time much later
+    ok, msg = sync.check_freshness("lct_1", 2000.0, max_age=60.0)
+    if not ok:
+        defenses["state_synchronization"] = True
+
+    # ========================================================================
+    # Defense 3: Revocation Proof Requirement
+    # ========================================================================
+
+    class RevocationProofRequirer:
+        """Require proof that LCT is NOT revoked."""
+
+        def __init__(self):
+            self.proof_validity_seconds = 300.0
+
+        def validate_proof(self, proof: dict, current_time: float) -> tuple:
+            """Validate non-revocation proof."""
+            if not proof:
+                return False, "No proof provided"
+
+            proof_time = proof.get("timestamp", 0)
+            age = current_time - proof_time
+
+            if age > self.proof_validity_seconds:
+                return False, f"Proof too old: {age:.0f}s"
+
+            if proof.get("status") != "valid":
+                return False, "Proof shows LCT is revoked"
+
+            return True, "Valid non-revocation proof"
+
+    requirer = RevocationProofRequirer()
+
+    # Attacker provides old proof
+    old_proof = {"status": "valid", "timestamp": 500.0}
+    ok, msg = requirer.validate_proof(old_proof, 1000.0)
+    if not ok:
+        defenses["revocation_proof_requirement"] = True
+
+    # ========================================================================
+    # Defense 4: Stale State Detection
+    # ========================================================================
+
+    class StaleStateDetector:
+        """Detect stale state in systems."""
+
+        def __init__(self):
+            self.system_sync_times = {}
+            self.stale_threshold = 120.0
+
+        def record_sync(self, system_id: str, timestamp: float):
+            """Record system synchronization."""
+            self.system_sync_times[system_id] = timestamp
+
+        def find_stale_systems(self, current_time: float) -> list:
+            """Find systems with stale state."""
+            stale = []
+
+            for system_id, sync_time in self.system_sync_times.items():
+                age = current_time - sync_time
+                if age > self.stale_threshold:
+                    stale.append({
+                        "system": system_id,
+                        "age": age,
+                    })
+
+            return stale
+
+        def is_system_current(self, system_id: str,
+                             current_time: float) -> tuple:
+            """Check if system state is current."""
+            sync_time = self.system_sync_times.get(system_id)
+
+            if not sync_time:
+                return False, "No sync record"
+
+            age = current_time - sync_time
+            if age > self.stale_threshold:
+                return False, f"System stale: {age:.0f}s"
+
+            return True, "System current"
+
+    detector = StaleStateDetector()
+
+    detector.record_sync("system_a", 800.0)
+    detector.record_sync("system_b", 900.0)
+
+    # Check at current time
+    stale = detector.find_stale_systems(1000.0)
+    if len(stale) > 0:
+        defenses["stale_state_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="LCT Zombie Resurrection (ER-2b)",
+        success=attack_success,
+        setup_cost_atp=450.0,
+        gain_atp=6000.0 if attack_success else 0.0,
+        roi=(6000.0 / 450.0) if attack_success else -1.0,
+        detection_probability=0.38 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=48.0,
+        blocks_until_detected=150,
+        trust_damage=0.88,
+        description=f"""
+LCT ZOMBIE RESURRECTION (Track ER-2b)
+
+Use revoked LCTs through stale systems.
+
+Attack Pattern:
+1. LCT revoked in most systems
+2. Find system with stale state
+3. Use revoked LCT there
+4. Zombie continues operating
+
+Dead LCTs can still walk.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ER-2b: Zombie Resurrection Defense:
+1. Maintain global revocation list
+2. Synchronize state across systems
+3. Require fresh non-revocation proofs
+4. Detect and quarantine stale systems
+
+Dead must stay dead.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_lct_recovery_hijack() -> AttackResult:
+    """
+    ATTACK 207: LCT RECOVERY HIJACK (Track ER-3a)
+
+    Hijack LCT recovery process to gain control:
+    1. Trigger recovery for target LCT
+    2. Compromise recovery mechanism
+    3. Inject attacker as new owner
+    4. Gain control of victim's identity
+    """
+
+    defenses = {
+        "recovery_quorum": False,
+        "recovery_delay": False,
+        "notification_requirement": False,
+        "challenge_response": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Recovery Quorum
+    # ========================================================================
+
+    class RecoveryQuorumManager:
+        """Require quorum for LCT recovery."""
+
+        def __init__(self, min_guardians: int = 3):
+            self.min_guardians = min_guardians
+            self.guardians = {}
+            self.recovery_approvals = {}
+
+        def register_guardians(self, lct_id: str, guardian_list: list):
+            """Register guardians for LCT."""
+            self.guardians[lct_id] = set(guardian_list)
+
+        def submit_approval(self, lct_id: str, guardian: str, approval: dict):
+            """Submit recovery approval."""
+            if lct_id not in self.recovery_approvals:
+                self.recovery_approvals[lct_id] = {}
+
+            if guardian not in self.guardians.get(lct_id, set()):
+                return False, "Not a registered guardian"
+
+            self.recovery_approvals[lct_id][guardian] = approval
+            return True, "Approval recorded"
+
+        def check_quorum(self, lct_id: str) -> tuple:
+            """Check if recovery quorum is met."""
+            approvals = self.recovery_approvals.get(lct_id, {})
+            guardians = self.guardians.get(lct_id, set())
+
+            valid_approvals = len(set(approvals.keys()) & guardians)
+
+            if valid_approvals < self.min_guardians:
+                return False, f"Need {self.min_guardians} approvals, have {valid_approvals}"
+
+            return True, "Quorum met"
+
+    manager = RecoveryQuorumManager(min_guardians=3)
+
+    manager.register_guardians("lct_victim", ["guardian_1", "guardian_2", "guardian_3"])
+
+    # Attacker only has 1 guardian
+    manager.submit_approval("lct_victim", "guardian_1", {"new_owner": "attacker"})
+
+    ok, msg = manager.check_quorum("lct_victim")
+    if not ok:
+        defenses["recovery_quorum"] = True
+
+    # ========================================================================
+    # Defense 2: Recovery Delay
+    # ========================================================================
+
+    class RecoveryDelayEnforcer:
+        """Enforce delay before recovery completes."""
+
+        def __init__(self, delay_seconds: float = 86400.0):  # 24 hours
+            self.delay = delay_seconds
+            self.recovery_initiated = {}
+
+        def initiate_recovery(self, lct_id: str, timestamp: float):
+            """Initiate recovery process."""
+            self.recovery_initiated[lct_id] = timestamp
+
+        def can_complete(self, lct_id: str, current_time: float) -> tuple:
+            """Check if recovery can complete."""
+            initiated = self.recovery_initiated.get(lct_id)
+
+            if not initiated:
+                return False, "No recovery initiated"
+
+            elapsed = current_time - initiated
+            if elapsed < self.delay:
+                remaining = self.delay - elapsed
+                return False, f"Must wait {remaining:.0f}s more"
+
+            return True, "Delay satisfied"
+
+    delay = RecoveryDelayEnforcer(delay_seconds=86400.0)
+
+    delay.initiate_recovery("lct_1", 1000.0)
+
+    # Try to complete immediately
+    ok, msg = delay.can_complete("lct_1", 2000.0)
+    if not ok:
+        defenses["recovery_delay"] = True
+
+    # ========================================================================
+    # Defense 3: Notification Requirement
+    # ========================================================================
+
+    class RecoveryNotifier:
+        """Notify all parties during recovery."""
+
+        def __init__(self):
+            self.notification_log = []
+            self.required_notifications = set()
+
+        def set_required(self, lct_id: str, parties: list):
+            """Set required notification parties."""
+            self.required_notifications = set(parties)
+
+        def notify(self, party: str, lct_id: str, message: dict):
+            """Send notification."""
+            self.notification_log.append({
+                "party": party,
+                "lct_id": lct_id,
+                "message": message,
+            })
+
+        def verify_all_notified(self, lct_id: str) -> tuple:
+            """Verify all required parties were notified."""
+            notified = set(n["party"] for n in self.notification_log
+                         if n["lct_id"] == lct_id)
+
+            missing = self.required_notifications - notified
+
+            if missing:
+                return False, f"Missing notifications: {missing}"
+
+            return True, "All parties notified"
+
+    notifier = RecoveryNotifier()
+
+    notifier.set_required("lct_1", ["owner", "guardian_1", "guardian_2"])
+    notifier.notify("owner", "lct_1", {"type": "recovery_initiated"})
+    # Missing guardian notifications
+
+    ok, msg = notifier.verify_all_notified("lct_1")
+    if not ok:
+        defenses["notification_requirement"] = True
+
+    # ========================================================================
+    # Defense 4: Challenge-Response
+    # ========================================================================
+
+    class RecoveryChallengeResponse:
+        """Require challenge-response from legitimate owner."""
+
+        def __init__(self):
+            self.challenges = {}
+            self.challenge_validity = 3600.0  # 1 hour
+
+        def issue_challenge(self, lct_id: str, challenge_data: str,
+                          timestamp: float) -> dict:
+            """Issue recovery challenge."""
+            import hashlib
+
+            challenge_hash = hashlib.sha256(challenge_data.encode()).hexdigest()
+
+            self.challenges[lct_id] = {
+                "challenge": challenge_hash,
+                "issued": timestamp,
+                "answered": False,
+            }
+
+            return {"challenge_hash": challenge_hash}
+
+        def answer_challenge(self, lct_id: str, response: str,
+                            current_time: float) -> tuple:
+            """Answer recovery challenge."""
+            challenge = self.challenges.get(lct_id)
+
+            if not challenge:
+                return False, "No challenge issued"
+
+            # Check validity window
+            if current_time - challenge["issued"] > self.challenge_validity:
+                return False, "Challenge expired"
+
+            # Verify response matches challenge
+            import hashlib
+            if hashlib.sha256(response.encode()).hexdigest() == challenge["challenge"]:
+                challenge["answered"] = True
+                return True, "Challenge answered correctly"
+
+            return False, "Incorrect response"
+
+    cr = RecoveryChallengeResponse()
+
+    cr.issue_challenge("lct_1", "secret_question", 1000.0)
+
+    # Attacker doesn't know the secret
+    ok, msg = cr.answer_challenge("lct_1", "wrong_answer", 1500.0)
+    if not ok:
+        defenses["challenge_response"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="LCT Recovery Hijack (ER-3a)",
+        success=attack_success,
+        setup_cost_atp=550.0,
+        gain_atp=9000.0 if attack_success else 0.0,
+        roi=(9000.0 / 550.0) if attack_success else -1.0,
+        detection_probability=0.42 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=96.0,
+        blocks_until_detected=300,
+        trust_damage=0.95,
+        description=f"""
+LCT RECOVERY HIJACK (Track ER-3a)
+
+Hijack recovery to steal identity.
+
+Attack Pattern:
+1. Trigger recovery for target
+2. Compromise recovery mechanism
+3. Inject attacker as new owner
+4. Gain control of victim's LCT
+
+Recovery is a second genesis.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ER-3a: Recovery Hijack Defense:
+1. Require guardian quorum
+2. Enforce time delay
+3. Notify all parties
+4. Require challenge-response
+
+Recovery must be harder than attack.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_lct_lineage_forgery() -> AttackResult:
+    """
+    ATTACK 208: LCT LINEAGE FORGERY (Track ER-3b)
+
+    Forge LCT lineage to claim false heritage:
+    1. Create LCT claiming false parent
+    2. Inherit trust from fake ancestor
+    3. Bypass reputation requirements
+    4. Start with unearned trust level
+    """
+
+    defenses = {
+        "lineage_verification": False,
+        "parent_acknowledgment": False,
+        "lineage_chain_hash": False,
+        "trust_inheritance_limits": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Lineage Verification
+    # ========================================================================
+
+    class LineageVerifier:
+        """Verify LCT lineage claims."""
+
+        def __init__(self):
+            self.lct_registry = {}
+
+        def register_lct(self, lct_id: str, parent_id: str = None,
+                        signature: str = None):
+            """Register LCT with parent."""
+            self.lct_registry[lct_id] = {
+                "parent": parent_id,
+                "signature": signature,
+            }
+
+        def verify_lineage(self, lct_id: str, claimed_parent: str) -> tuple:
+            """Verify lineage claim."""
+            lct = self.lct_registry.get(lct_id)
+
+            if not lct:
+                return False, "LCT not found"
+
+            registered_parent = lct.get("parent")
+
+            if registered_parent != claimed_parent:
+                return False, f"Parent mismatch: {registered_parent} != {claimed_parent}"
+
+            return True, "Lineage verified"
+
+    verifier = LineageVerifier()
+
+    verifier.register_lct("lct_child", parent_id="lct_real_parent")
+
+    # Attacker claims different parent
+    ok, msg = verifier.verify_lineage("lct_child", "lct_rich_parent")
+    if not ok:
+        defenses["lineage_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Parent Acknowledgment
+    # ========================================================================
+
+    class ParentAcknowledger:
+        """Require parent to acknowledge child."""
+
+        def __init__(self):
+            self.acknowledgments = {}
+
+        def acknowledge_child(self, parent_id: str, child_id: str,
+                            signature: str):
+            """Parent acknowledges child."""
+            if parent_id not in self.acknowledgments:
+                self.acknowledgments[parent_id] = set()
+
+            self.acknowledgments[parent_id].add(child_id)
+
+        def is_acknowledged(self, parent_id: str, child_id: str) -> tuple:
+            """Check if parent acknowledges child."""
+            children = self.acknowledgments.get(parent_id, set())
+
+            if child_id not in children:
+                return False, "Parent has not acknowledged child"
+
+            return True, "Child acknowledged by parent"
+
+    acknowledger = ParentAcknowledger()
+
+    acknowledger.acknowledge_child("lct_parent", "lct_child_1", "sig")
+
+    # Attacker not acknowledged
+    ok, msg = acknowledger.is_acknowledged("lct_parent", "lct_fake_child")
+    if not ok:
+        defenses["parent_acknowledgment"] = True
+
+    # ========================================================================
+    # Defense 3: Lineage Chain Hash
+    # ========================================================================
+
+    class LineageChainHasher:
+        """Hash entire lineage chain for verification."""
+
+        def __init__(self):
+            self.lineage_hashes = {}
+
+        def compute_lineage_hash(self, lct_id: str, ancestors: list) -> str:
+            """Compute hash of entire lineage."""
+            import hashlib
+
+            chain = f"{lct_id}:{','.join(ancestors)}"
+            return hashlib.sha256(chain.encode()).hexdigest()
+
+        def register_lineage(self, lct_id: str, ancestors: list):
+            """Register lineage hash."""
+            hash_val = self.compute_lineage_hash(lct_id, ancestors)
+            self.lineage_hashes[lct_id] = hash_val
+
+        def verify_lineage_hash(self, lct_id: str, claimed_ancestors: list) -> tuple:
+            """Verify lineage hash matches."""
+            stored_hash = self.lineage_hashes.get(lct_id)
+
+            if not stored_hash:
+                return False, "No lineage hash stored"
+
+            computed = self.compute_lineage_hash(lct_id, claimed_ancestors)
+
+            if computed != stored_hash:
+                return False, "Lineage hash mismatch"
+
+            return True, "Lineage hash verified"
+
+    hasher = LineageChainHasher()
+
+    hasher.register_lineage("lct_child", ["lct_parent", "lct_grandparent"])
+
+    # Attacker claims different lineage
+    ok, msg = hasher.verify_lineage_hash("lct_child",
+                                         ["lct_rich_parent", "lct_rich_grandparent"])
+    if not ok:
+        defenses["lineage_chain_hash"] = True
+
+    # ========================================================================
+    # Defense 4: Trust Inheritance Limits
+    # ========================================================================
+
+    class TrustInheritanceLimiter:
+        """Limit trust inheritance from ancestors."""
+
+        def __init__(self, max_inheritance: float = 0.5):
+            self.max_inheritance = max_inheritance
+            self.parent_trust = {}
+
+        def set_parent_trust(self, parent_id: str, trust: float):
+            """Set parent's trust level."""
+            self.parent_trust[parent_id] = trust
+
+        def calculate_inherited_trust(self, parent_id: str,
+                                      generation: int = 1) -> float:
+            """Calculate inherited trust with decay."""
+            parent_trust = self.parent_trust.get(parent_id, 0.0)
+
+            # Decay per generation
+            decay_factor = 0.5 ** generation
+
+            inherited = parent_trust * self.max_inheritance * decay_factor
+
+            return min(inherited, self.max_inheritance)
+
+        def limit_inheritance(self, claimed_trust: float,
+                            parent_id: str) -> tuple:
+            """Limit claimed inheritance."""
+            max_allowed = self.calculate_inherited_trust(parent_id)
+
+            if claimed_trust > max_allowed:
+                return False, f"Claimed {claimed_trust:.2f} exceeds max {max_allowed:.2f}"
+
+            return True, f"Inheritance within limits: {claimed_trust:.2f}"
+
+    limiter = TrustInheritanceLimiter(max_inheritance=0.5)
+
+    limiter.set_parent_trust("lct_parent", 0.8)
+
+    # Child claims too much trust
+    ok, msg = limiter.limit_inheritance(0.9, "lct_parent")
+    if not ok:
+        defenses["trust_inheritance_limits"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="LCT Lineage Forgery (ER-3b)",
+        success=attack_success,
+        setup_cost_atp=480.0,
+        gain_atp=7500.0 if attack_success else 0.0,
+        roi=(7500.0 / 480.0) if attack_success else -1.0,
+        detection_probability=0.45 if defenses_held >= 3 else 0.18,
+        time_to_detection_hours=72.0,
+        blocks_until_detected=220,
+        trust_damage=0.92,
+        description=f"""
+LCT LINEAGE FORGERY (Track ER-3b)
+
+Forge lineage to inherit trust.
+
+Attack Pattern:
+1. Create LCT claiming false parent
+2. Claim trust inheritance
+3. Bypass reputation building
+4. Start with unearned trust
+
+False pedigree, real access.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track ER-3b: Lineage Forgery Defense:
+1. Verify lineage cryptographically
+2. Require parent acknowledgment
+3. Hash entire lineage chain
+4. Limit trust inheritance
+
+Trust must be earned, not inherited.
 """.strip(),
         raw_data={
             "defenses": defenses,
