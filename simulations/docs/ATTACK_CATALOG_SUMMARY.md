@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 3.6
+**Version**: 3.7
 **Date**: 2026-02-07
-**Total Attacks**: 232
-**Status**: Comprehensive Coverage + Insider Threats + Recovery Exploitation
+**Total Attacks**: 244
+**Status**: Comprehensive Coverage + Geopolitical + ML Model Attacks
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 142 comprehensive attack vectors across 40+ tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 244 comprehensive attack vectors across 54 tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -497,6 +497,30 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 231 | Crisis Exploitation | Attack during active incident |
 | 232 | Failback Attack | Attack during return to production |
 
+### Geopolitical/Jurisdictional Attacks (Track EW, Attacks 233-238)
+**Sanctions evasion, jurisdictional conflicts, regulatory gaps**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 233 | Sanctions Evasion | Use trust network to circumvent sanctions |
+| 234 | Jurisdictional Fragmentation | Operate across jurisdictions under thresholds |
+| 235 | Data Localization Bypass | Circumvent data residency requirements |
+| 236 | Extraterritorial Conflict | Exploit conflicts between jurisdictional requirements |
+| 237 | Regulatory Fragmentation Exploit | Exploit gaps between regulatory agencies |
+| 238 | Political Pressure Exploitation | Exploit political pressure on regulators |
+
+### ML Model Training/Inference Attacks (Track EX, Attacks 239-244)
+**Training data poisoning, model tampering, inference manipulation**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 239 | Training Data Manipulation | Inject biased/malicious training examples |
+| 240 | Model Weight Tampering | Modify model weights post-training |
+| 241 | Inference Manipulation | Intercept and modify inference requests/outputs |
+| 242 | Model Extraction | Extract model through repeated queries |
+| 243 | Gradient Exploitation | Craft adversarial inputs via gradient estimation |
+| 244 | Model Inversion | Invert model to extract training data |
+
 ---
 
 ## Defense Statistics
@@ -507,10 +531,10 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 232 |
+| Total Attacks | 244 |
 | Successful Attacks | 0 (all defended) |
-| Average Detection Rate | ~50% |
-| Average Trust Damage | ~0.88 |
+| Average Detection Rate | ~52% |
+| Average Trust Damage | ~0.82 |
 
 ### Defense Categories
 
@@ -773,7 +797,7 @@ Based on current attack simulations:
     - Access scoping
     - Contractual controls
 
-22. **Recovery/Disaster Layer** (24+ defenses) - NEW
+22. **Recovery/Disaster Layer** (24+ defenses)
     - Backup integrity verification
     - Isolated backup network
     - Immutable (WORM) backups
@@ -798,6 +822,58 @@ Based on current attack simulations:
     - Security revalidation
     - Staged failback
     - Post-failback verification
+
+23. **Geopolitical/Jurisdictional Layer** (24+ defenses) - NEW
+    - Origin chain verification
+    - Jurisdictional compliance gateways
+    - Beneficial ownership registry
+    - Transaction pattern analysis
+    - Cross-jurisdictional data sharing
+    - Regulatory coordination protocol
+    - Global entity identifier (LEI)
+    - Substance over form testing
+    - Data residency verification
+    - Network flow analysis
+    - TEE processing attestation
+    - Regulatory audit trails
+    - Conflict detection systems
+    - Blocking statute protocols
+    - International treaty frameworks
+    - Localized processing architecture
+    - Inter-agency coordination
+    - Gap filling mechanisms
+    - Coordinated regulatory sandboxes
+    - Unified licensing frameworks
+    - Independent enforcement authority
+    - Career staff continuity
+    - Transparent enforcement metrics
+    - Whistleblower protection
+
+24. **ML Model Security Layer** (24+ defenses) - NEW
+    - Data provenance tracking
+    - Adversarial example detection
+    - Training data certification
+    - Differential training analysis
+    - Cryptographic model signing
+    - Weight integrity monitoring
+    - Behavioral fingerprinting
+    - Secure model enclaves
+    - Input validation
+    - Output verification
+    - Request authentication
+    - Inference audit trail
+    - Query rate limiting
+    - Extraction pattern detection
+    - Output perturbation
+    - Model fingerprinting (watermarking)
+    - Gradient masking
+    - Adversarial training
+    - Input preprocessing
+    - Ensemble voting
+    - Confidence score rounding
+    - Differential privacy
+    - Membership inference detection
+    - Model unlearning support
 
 ---
 
@@ -847,8 +923,8 @@ Based on current attack simulations:
 13. ~~**Supply chain integrity**: Hardware implants, firmware trojans~~ ✅ Track ET (220 attacks)
 14. ~~**Social/organizational attacks**: Insider threats, shadow IT~~ ✅ Track EU (226 attacks)
 15. ~~**Recovery/disaster attacks**: Backup poisoning, DR exploitation~~ ✅ Track EV (232 attacks)
-16. **Geopolitical attacks**: Sanctions evasion, jurisdictional conflicts
-17. **ML model attacks**: Training poisoning, inference manipulation
+16. ~~**Geopolitical attacks**: Sanctions evasion, jurisdictional conflicts~~ ✅ Track EW (238 attacks)
+17. ~~**ML model attacks**: Training poisoning, inference manipulation~~ ✅ Track EX (244 attacks)
 
 ### Formal Verification Needed
 
@@ -895,7 +971,9 @@ Based on current attack simulations:
 | 2026-02-07 | Track ET | 215-220 | Supply chain integrity |
 | 2026-02-07 | Track EU | 221-226 | Insider threat/social-org |
 | 2026-02-07 | Track EV | 227-232 | Recovery/disaster exploitation |
+| 2026-02-07 PM | Track EW | 233-238 | Geopolitical/jurisdictional |
+| 2026-02-07 PM | Track EX | 239-244 | ML model attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 232 attacks across 52 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 244 attacks across 54 tracks.*

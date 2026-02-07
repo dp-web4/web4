@@ -104,7 +104,37 @@ class TestAttackSimulations:
         # EN: Cross-Ledger Consistency (6 attacks) - added 2026-02-06 PM
         #     Federation Desync, Ledger Partition, Cross-Ledger Replay,
         #     State Divergence, Reconciliation, Consistency Downgrade
-        assert len(results) == 184  # 160 + 24 new (EK: 6, EL: 6, EM: 6, EN: 6)
+        # EO: Advanced AI Emergence (6 attacks) - added 2026-02-07
+        #     Emergent Goal Alignment, Implicit Communication, Mesa-Optimization,
+        #     Collective Intelligence Subversion, Adversarial Self-Improvement, Distributed Emergence
+        # EP: Hardware Enclave Attacks (6 attacks) - added 2026-02-07
+        #     SGX Side-Channel, TrustZone Breakout, TPM Reset, Attestation Forgery,
+        #     Enclave Memory Corruption, Iago Attack
+        # EQ: Interoperability Standards (6 attacks) - added 2026-02-07
+        #     Protocol Version Mismatch, Encoding Confusion, Schema Evolution,
+        #     Standard Interpretation, Bridge Protocol, Extension Conflict
+        # ER: LCT Lifecycle (6 attacks) - added 2026-02-07
+        #     Genesis Manipulation, Delegation Chain, Revocation Race,
+        #     Zombie Resurrection, Recovery Hijack, Lineage Forgery
+        # ES: Physical Layer (6 attacks) - added 2026-02-07
+        #     EM Emanation, Van Eck Phreaking, Power Analysis,
+        #     Acoustic Cryptanalysis, Physical Cache Timing, Cold Boot
+        # ET: Supply Chain Integrity (6 attacks) - added 2026-02-07
+        #     Hardware Implant, Firmware Trojan, BIOS/UEFI Rootkit,
+        #     Supply Chain Interdiction, Counterfeit Component, Build System Compromise
+        # EU: Insider Threat/Social-Org (6 attacks) - added 2026-02-07
+        #     Privileged Insider Abuse, Shadow IT, Credential Sharing,
+        #     Internal Social Engineering, Departing Employee, Third-Party Access
+        # EV: Recovery/Disaster Exploitation (6 attacks) - added 2026-02-07
+        #     Backup Poisoning, DR Site Compromise, Recovery Credential Theft,
+        #     Recovery Process Manipulation, Crisis Exploitation, Failback Attack
+        # EW: Geopolitical/Jurisdictional (6 attacks) - added 2026-02-07
+        #     Sanctions Evasion, Jurisdictional Fragmentation, Data Localization Bypass,
+        #     Extraterritorial Conflict, Regulatory Fragmentation, Political Pressure
+        # EX: ML Model Attacks (6 attacks) - added 2026-02-07
+        #     Training Data Manipulation, Model Weight Tampering, Inference Manipulation,
+        #     Model Extraction, Gradient Exploitation, Model Inversion
+        assert len(results) == 244  # 232 + 12 new (EW: 6, EX: 6)
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:

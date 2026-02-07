@@ -486,8 +486,9 @@ def main():
 
     team = test_team_creation()
     admin_lct, dev_lct, reviewer_lct = test_admin_and_members(team)
-    test_atp_and_trust(team, dev_lct)
-    test_r6_workflow(team, admin_lct, dev_lct, reviewer_lct)
+    team_with_members = (team, admin_lct, dev_lct, reviewer_lct)
+    test_atp_and_trust(team_with_members)
+    test_r6_workflow(team_with_members)
     test_audit_trail(team)
     test_team_summary(team)
     test_trust_decay()

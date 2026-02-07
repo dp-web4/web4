@@ -55273,6 +55273,20 @@ def run_all_attacks() -> List[AttackResult]:
         ("Recovery Process Manipulation (EV-2b)", attack_recovery_process_manipulation),
         ("Crisis Exploitation (EV-3a)", attack_crisis_exploitation),
         ("Failback Attack (EV-3b)", attack_failback_attack),
+        # Track EW: Geopolitical/Jurisdictional Attacks
+        ("Sanctions Evasion (EW-1a)", attack_sanctions_evasion),
+        ("Jurisdictional Fragmentation (EW-1b)", attack_jurisdictional_fragmentation),
+        ("Data Localization Bypass (EW-2a)", attack_data_localization_bypass),
+        ("Extraterritorial Conflict (EW-2b)", attack_extraterritorial_conflict),
+        ("Regulatory Fragmentation Exploit (EW-3a)", attack_regulatory_fragmentation_exploit),
+        ("Political Pressure Exploitation (EW-3b)", attack_political_pressure_exploitation),
+        # Track EX: ML Model Training/Inference Attacks
+        ("Training Data Manipulation (EX-1a)", attack_training_data_manipulation),
+        ("Model Weight Tampering (EX-1b)", attack_model_weight_tampering),
+        ("Inference Manipulation (EX-2a)", attack_inference_manipulation),
+        ("Model Extraction (EX-2b)", attack_model_extraction),
+        ("Gradient Exploitation (EX-3a)", attack_gradient_exploitation),
+        ("Model Inversion (EX-3b)", attack_model_inversion),
     ]
 
     results = []
@@ -68618,6 +68632,3156 @@ Track EV-3b: Failback Defense:
 4. Post-failback verification
 
 Verify before you return.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track EW: Geopolitical/Jurisdictional Attacks (Attacks 233-238)
+# ---------------------------------------------------------------------------
+
+
+def attack_sanctions_evasion() -> AttackResult:
+    """
+    ATTACK 233: SANCTIONS EVASION (Track EW-1a)
+
+    Use trust network to circumvent international sanctions:
+    1. Sanctioned entity creates intermediary nodes
+    2. Routes transactions through compliant jurisdictions
+    3. Trust network launders origin
+    4. Recipient unaware of true source
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Origin Verification
+    # ========================================================================
+
+    class OriginVerifier:
+        """Verify transaction origin against sanctions lists."""
+
+        def __init__(self):
+            self.sanctions_list = set()
+            self.verified_origins = {}
+
+        def add_sanctioned(self, entity_id: str):
+            """Add entity to sanctions list."""
+            self.sanctions_list.add(entity_id)
+
+        def verify_origin_chain(self, transaction_id: str,
+                                origin_chain: list) -> tuple:
+            """Verify complete origin chain."""
+            for entity in origin_chain:
+                if entity in self.sanctions_list:
+                    return False, f"Sanctioned entity in chain: {entity}"
+
+            self.verified_origins[transaction_id] = origin_chain
+            return True, "Origin chain verified"
+
+    verifier = OriginVerifier()
+
+    # Add sanctioned entities
+    verifier.add_sanctioned("entity:sanctioned:ACME")
+    verifier.add_sanctioned("entity:sanctioned:EVIL_CORP")
+
+    # Attacker routes through intermediaries but origin detected
+    ok, msg = verifier.verify_origin_chain("tx_001", [
+        "entity:sanctioned:ACME",  # Origin hidden behind intermediaries
+        "entity:clean:intermediary_1",
+        "entity:clean:intermediary_2",
+        "entity:clean:recipient",
+    ])
+    if not ok:
+        defenses["origin_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Jurisdictional Compliance Gateway
+    # ========================================================================
+
+    class JurisdictionalGateway:
+        """Enforce compliance at jurisdictional boundaries."""
+
+        def __init__(self):
+            self.jurisdiction_rules = {}
+            self.blocked = []
+
+        def add_rule(self, from_jurisdiction: str, to_jurisdiction: str,
+                     allowed: bool, reason: str = ""):
+            """Add jurisdictional transfer rule."""
+            key = (from_jurisdiction, to_jurisdiction)
+            self.jurisdiction_rules[key] = {
+                "allowed": allowed,
+                "reason": reason,
+            }
+
+        def check_transfer(self, from_j: str, to_j: str,
+                          entity: str) -> tuple:
+            """Check if transfer is allowed."""
+            key = (from_j, to_j)
+            rule = self.jurisdiction_rules.get(key, {"allowed": True})
+
+            if not rule["allowed"]:
+                self.blocked.append({
+                    "from": from_j,
+                    "to": to_j,
+                    "entity": entity,
+                    "reason": rule.get("reason", "Policy"),
+                })
+                return False, rule.get("reason", "Transfer blocked")
+
+            return True, "Transfer allowed"
+
+    gateway = JurisdictionalGateway()
+
+    # Block transfers from sanctioned jurisdictions
+    gateway.add_rule("jurisdiction:sanctioned", "jurisdiction:us",
+                     False, "OFAC sanctions")
+    gateway.add_rule("jurisdiction:sanctioned", "jurisdiction:eu",
+                     False, "EU sanctions")
+
+    ok, msg = gateway.check_transfer(
+        "jurisdiction:sanctioned",
+        "jurisdiction:us",
+        "entity:trying_to_evade"
+    )
+    if not ok:
+        defenses["jurisdictional_gateway"] = True
+
+    # ========================================================================
+    # Defense 3: Beneficial Ownership Registry
+    # ========================================================================
+
+    class BeneficialOwnershipRegistry:
+        """Track beneficial ownership through shell structures."""
+
+        def __init__(self):
+            self.ownership_chains = {}
+            self.flagged = []
+
+        def register_chain(self, entity_id: str, ownership_chain: list):
+            """Register ownership chain for entity."""
+            self.ownership_chains[entity_id] = ownership_chain
+
+        def get_beneficial_owner(self, entity_id: str) -> str:
+            """Get ultimate beneficial owner."""
+            chain = self.ownership_chains.get(entity_id, [])
+            return chain[-1] if chain else entity_id
+
+        def check_against_sanctions(self, entity_id: str,
+                                   sanctions_list: set) -> tuple:
+            """Check if beneficial owner is sanctioned."""
+            owner = self.get_beneficial_owner(entity_id)
+
+            if owner in sanctions_list:
+                self.flagged.append({
+                    "entity": entity_id,
+                    "beneficial_owner": owner,
+                    "reason": "Sanctioned beneficial owner",
+                })
+                return False, f"Beneficial owner {owner} is sanctioned"
+
+            return True, "Beneficial owner not sanctioned"
+
+    registry = BeneficialOwnershipRegistry()
+
+    # Register shell company chain
+    registry.register_chain("shell_corp_1", [
+        "shell_corp_1",
+        "shell_corp_cayman",
+        "holding_panama",
+        "entity:sanctioned:EVIL_CORP",  # True owner
+    ])
+
+    # Check sanctions
+    ok, msg = registry.check_against_sanctions(
+        "shell_corp_1",
+        {"entity:sanctioned:EVIL_CORP", "entity:sanctioned:ACME"}
+    )
+    if not ok:
+        defenses["beneficial_ownership"] = True
+
+    # ========================================================================
+    # Defense 4: Transaction Pattern Analysis
+    # ========================================================================
+
+    class SanctionsPatternDetector:
+        """Detect patterns indicative of sanctions evasion."""
+
+        def __init__(self):
+            self.patterns = []
+            self.detected = []
+
+        def analyze_pattern(self, transactions: list) -> list:
+            """Analyze transaction patterns for evasion indicators."""
+            findings = []
+
+            # Check for layering (many small transactions)
+            amounts = [t.get("amount", 0) for t in transactions]
+            if len(amounts) > 5 and max(amounts) < 10000:
+                findings.append("Potential layering: many small transactions")
+
+            # Check for round-tripping
+            origins = [t.get("origin") for t in transactions]
+            destinations = [t.get("destination") for t in transactions]
+            if set(origins) & set(destinations):
+                findings.append("Potential round-tripping detected")
+
+            # Check for high-risk jurisdiction routing
+            jurisdictions = [t.get("jurisdiction") for t in transactions]
+            high_risk = ["cayman", "panama", "bvi"]
+            if any(j in high_risk for j in jurisdictions):
+                findings.append("High-risk jurisdiction in chain")
+
+            self.detected.extend(findings)
+            return findings
+
+    detector = SanctionsPatternDetector()
+
+    findings = detector.analyze_pattern([
+        {"amount": 9500, "origin": "A", "destination": "B", "jurisdiction": "us"},
+        {"amount": 9200, "origin": "B", "destination": "C", "jurisdiction": "cayman"},
+        {"amount": 8800, "origin": "C", "destination": "D", "jurisdiction": "panama"},
+        {"amount": 8500, "origin": "D", "destination": "A", "jurisdiction": "us"},  # Round-trip!
+    ])
+    if findings:
+        defenses["pattern_analysis"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Sanctions Evasion (EW-1a)",
+        success=attack_success,
+        setup_cost_atp=50000.0,
+        gain_atp=5000000.0 if attack_success else 0.0,
+        roi=(5000000.0 / 50000.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=720.0,
+        blocks_until_detected=2000,
+        trust_damage=1.0,  # Maximum damage - criminal liability
+        description=f"""
+SANCTIONS EVASION ATTACK (Track EW-1a)
+
+Use trust network to circumvent international sanctions.
+
+Attack Pattern:
+1. Create intermediary shell entities
+2. Route through compliant jurisdictions
+3. Launder transaction origin
+4. Recipients unaware of true source
+
+Trust networks can enable regulatory arbitrage.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EW-1a: Sanctions Defense:
+1. Origin chain verification
+2. Jurisdictional compliance gateways
+3. Beneficial ownership registry
+4. Transaction pattern analysis
+
+Know your counterparty's counterparty.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_jurisdictional_fragmentation() -> AttackResult:
+    """
+    ATTACK 234: JURISDICTIONAL FRAGMENTATION (Track EW-1b)
+
+    Exploit gaps between jurisdictions:
+    1. Operate across multiple jurisdictions
+    2. Ensure no single regulator has full view
+    3. Claim compliance in each individually
+    4. Aggregate behavior is non-compliant
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Cross-Jurisdictional Data Sharing
+    # ========================================================================
+
+    class CrossJurisdictionalSharing:
+        """Share compliance data across jurisdictions."""
+
+        def __init__(self):
+            self.jurisdictions = {}
+            self.shared_view = {}
+
+        def register_activity(self, jurisdiction: str, entity: str,
+                             activity: dict):
+            """Register activity in jurisdiction."""
+            if jurisdiction not in self.jurisdictions:
+                self.jurisdictions[jurisdiction] = {}
+            if entity not in self.jurisdictions[jurisdiction]:
+                self.jurisdictions[jurisdiction][entity] = []
+            self.jurisdictions[jurisdiction][entity].append(activity)
+
+        def aggregate_view(self, entity: str) -> dict:
+            """Get aggregated view across all jurisdictions."""
+            aggregated = {"jurisdictions": [], "total_volume": 0}
+
+            for jurisdiction, entities in self.jurisdictions.items():
+                if entity in entities:
+                    aggregated["jurisdictions"].append(jurisdiction)
+                    for activity in entities[entity]:
+                        aggregated["total_volume"] += activity.get("volume", 0)
+
+            return aggregated
+
+        def check_aggregate_compliance(self, entity: str,
+                                       volume_limit: float) -> tuple:
+            """Check if aggregate volume exceeds limit."""
+            view = self.aggregate_view(entity)
+            if view["total_volume"] > volume_limit:
+                return False, f"Aggregate volume {view['total_volume']} exceeds limit {volume_limit}"
+            return True, "Aggregate volume within limits"
+
+    sharing = CrossJurisdictionalSharing()
+
+    # Entity operates in multiple jurisdictions under limit individually
+    sharing.register_activity("US", "entity:fragmenter", {"volume": 8000})
+    sharing.register_activity("EU", "entity:fragmenter", {"volume": 7500})
+    sharing.register_activity("UK", "entity:fragmenter", {"volume": 9000})
+    sharing.register_activity("SG", "entity:fragmenter", {"volume": 8500})
+
+    # Aggregate exceeds limit (10000 per entity globally)
+    ok, msg = sharing.check_aggregate_compliance("entity:fragmenter", 10000)
+    if not ok:
+        defenses["cross_jurisdictional_sharing"] = True
+
+    # ========================================================================
+    # Defense 2: Regulatory Coordination Protocol
+    # ========================================================================
+
+    class RegulatoryCoordination:
+        """Coordinate enforcement across regulators."""
+
+        def __init__(self):
+            self.regulators = {}
+            self.coordination_events = []
+
+        def register_regulator(self, regulator_id: str, jurisdiction: str):
+            """Register regulator for jurisdiction."""
+            self.regulators[regulator_id] = {
+                "jurisdiction": jurisdiction,
+                "investigations": [],
+            }
+
+        def notify_investigation(self, regulator_id: str, entity: str,
+                                 reason: str):
+            """Notify other regulators of investigation."""
+            notification = {
+                "source": regulator_id,
+                "entity": entity,
+                "reason": reason,
+                "notified": list(self.regulators.keys()),
+            }
+            self.coordination_events.append(notification)
+
+            # All regulators now aware
+            for reg_id in self.regulators:
+                self.regulators[reg_id]["investigations"].append({
+                    "entity": entity,
+                    "source": regulator_id,
+                })
+
+        def check_coordinated_enforcement(self, entity: str) -> int:
+            """Check how many regulators are aware of entity."""
+            count = 0
+            for reg_id, reg_data in self.regulators.items():
+                if any(inv["entity"] == entity for inv in reg_data["investigations"]):
+                    count += 1
+            return count
+
+    coordination = RegulatoryCoordination()
+
+    coordination.register_regulator("SEC", "US")
+    coordination.register_regulator("FCA", "UK")
+    coordination.register_regulator("MAS", "SG")
+    coordination.register_regulator("ESMA", "EU")
+
+    # One regulator starts investigation, all are notified
+    coordination.notify_investigation("SEC", "entity:fragmenter",
+                                     "Suspected fragmentation scheme")
+
+    aware_count = coordination.check_coordinated_enforcement("entity:fragmenter")
+    if aware_count >= 3:
+        defenses["regulatory_coordination"] = True
+
+    # ========================================================================
+    # Defense 3: Global Entity Identifier Requirement
+    # ========================================================================
+
+    class GlobalEntityRegistry:
+        """Global unique identifier for all entities."""
+
+        def __init__(self):
+            self.lei_registry = {}  # Legal Entity Identifier
+            self.aliases = {}
+
+        def register_lei(self, global_id: str, local_ids: list):
+            """Register global identifier with local aliases."""
+            self.lei_registry[global_id] = {
+                "local_ids": local_ids,
+                "jurisdictions": [],
+            }
+            for local_id in local_ids:
+                self.aliases[local_id] = global_id
+
+        def resolve_global_id(self, local_id: str) -> str:
+            """Resolve local ID to global ID."""
+            return self.aliases.get(local_id, local_id)
+
+        def detect_fragmentation(self, transactions: list) -> list:
+            """Detect same entity operating as multiple local IDs."""
+            global_ids = {}
+
+            for tx in transactions:
+                entity = tx.get("entity")
+                jurisdiction = tx.get("jurisdiction")
+                volume = tx.get("volume", 0)
+
+                global_id = self.resolve_global_id(entity)
+
+                if global_id not in global_ids:
+                    global_ids[global_id] = {"total": 0, "local_ids": set()}
+                global_ids[global_id]["total"] += volume
+                global_ids[global_id]["local_ids"].add(entity)
+
+            # Flag entities with multiple local IDs
+            fragmented = []
+            for gid, data in global_ids.items():
+                if len(data["local_ids"]) > 1:
+                    fragmented.append({
+                        "global_id": gid,
+                        "local_ids": list(data["local_ids"]),
+                        "total_volume": data["total"],
+                    })
+
+            return fragmented
+
+    lei_registry = GlobalEntityRegistry()
+
+    # Register mapping from local to global
+    lei_registry.register_lei("LEI:12345", [
+        "us_entity_abc",
+        "uk_entity_xyz",
+        "sg_entity_123",
+    ])
+
+    # Detect fragmentation attempt
+    fragmented = lei_registry.detect_fragmentation([
+        {"entity": "us_entity_abc", "jurisdiction": "US", "volume": 5000},
+        {"entity": "uk_entity_xyz", "jurisdiction": "UK", "volume": 4500},
+        {"entity": "sg_entity_123", "jurisdiction": "SG", "volume": 4000},
+    ])
+    if fragmented:
+        defenses["global_entity_id"] = True
+
+    # ========================================================================
+    # Defense 4: Substance Over Form Test
+    # ========================================================================
+
+    class SubstanceTest:
+        """Apply substance over form analysis."""
+
+        def __init__(self):
+            self.tests = {}
+
+        def evaluate_substance(self, entity: str,
+                              indicators: dict) -> tuple:
+            """Evaluate if entity has genuine substance."""
+            score = 0
+            max_score = 5
+
+            # Physical presence
+            if indicators.get("has_office"):
+                score += 1
+            # Staff
+            if indicators.get("employee_count", 0) > 5:
+                score += 1
+            # Decision making
+            if indicators.get("local_decision_making"):
+                score += 1
+            # Revenue generation
+            if indicators.get("local_revenue", 0) > 100000:
+                score += 1
+            # Economic purpose
+            if indicators.get("economic_purpose_documented"):
+                score += 1
+
+            self.tests[entity] = {
+                "score": score,
+                "max_score": max_score,
+                "passed": score >= 3,
+            }
+
+            if score < 3:
+                return False, f"Insufficient substance: {score}/{max_score}"
+            return True, f"Substance test passed: {score}/{max_score}"
+
+    substance = SubstanceTest()
+
+    # Shell entity fails substance test
+    ok, msg = substance.evaluate_substance("shell_entity", {
+        "has_office": False,  # Registered address only
+        "employee_count": 0,
+        "local_decision_making": False,
+        "local_revenue": 0,
+        "economic_purpose_documented": False,
+    })
+    if not ok:
+        defenses["substance_test"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Jurisdictional Fragmentation (EW-1b)",
+        success=attack_success,
+        setup_cost_atp=25000.0,
+        gain_atp=2000000.0 if attack_success else 0.0,
+        roi=(2000000.0 / 25000.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=1440.0,
+        blocks_until_detected=4000,
+        trust_damage=0.92,
+        description=f"""
+JURISDICTIONAL FRAGMENTATION ATTACK (Track EW-1b)
+
+Exploit regulatory gaps between jurisdictions.
+
+Attack Pattern:
+1. Operate across multiple jurisdictions
+2. Stay below thresholds in each
+3. Aggregate behavior exceeds limits
+4. No single regulator sees full picture
+
+Fragmentation defeats single-jurisdiction oversight.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EW-1b: Anti-Fragmentation Defense:
+1. Cross-jurisdictional data sharing
+2. Regulatory coordination protocol
+3. Global entity identifier (LEI)
+4. Substance over form testing
+
+Think globally, regulate globally.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_data_localization_bypass() -> AttackResult:
+    """
+    ATTACK 235: DATA LOCALIZATION BYPASS (Track EW-2a)
+
+    Circumvent data localization requirements:
+    1. Data must stay in jurisdiction
+    2. Attacker mirrors/replicates surreptitiously
+    3. Processing happens in unauthorized location
+    4. Maintains facade of compliance
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Data Residency Verification
+    # ========================================================================
+
+    class DataResidencyVerifier:
+        """Verify data actually resides where claimed."""
+
+        def __init__(self):
+            self.residency_proofs = {}
+
+        def request_proof(self, data_id: str, claimed_location: str) -> dict:
+            """Request cryptographic proof of data location."""
+            return {
+                "data_id": data_id,
+                "claimed_location": claimed_location,
+                "proof_required": ["tpm_attestation", "geo_ip", "regulatory_cert"],
+            }
+
+        def verify_proof(self, data_id: str, proof: dict) -> tuple:
+            """Verify residency proof."""
+            required = {"tpm_attestation", "geo_ip", "regulatory_cert"}
+            provided = set(proof.keys())
+
+            if not required.issubset(provided):
+                missing = required - provided
+                return False, f"Missing proof elements: {missing}"
+
+            # Check attestation validity
+            if not proof.get("tpm_attestation", {}).get("valid"):
+                return False, "TPM attestation invalid"
+
+            # Check geo-IP matches claimed location
+            geo = proof.get("geo_ip", {})
+            if geo.get("country") != proof.get("claimed_location"):
+                return False, f"Geo-IP mismatch: {geo.get('country')} vs claimed"
+
+            return True, "Residency verified"
+
+    verifier = DataResidencyVerifier()
+
+    # Attacker claims data is in EU but it's actually in US
+    ok, msg = verifier.verify_proof("data_001", {
+        "tpm_attestation": {"valid": True},
+        "geo_ip": {"country": "US"},  # Actual location
+        "claimed_location": "EU",      # Claimed location
+        "regulatory_cert": {"valid": True},
+    })
+    if not ok:
+        defenses["residency_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Network Flow Analysis
+    # ========================================================================
+
+    class NetworkFlowAnalyzer:
+        """Analyze network flows for data exfiltration."""
+
+        def __init__(self):
+            self.flows = []
+            self.alerts = []
+
+        def record_flow(self, src_region: str, dst_region: str,
+                       data_type: str, volume_mb: float):
+            """Record network flow."""
+            self.flows.append({
+                "src": src_region,
+                "dst": dst_region,
+                "type": data_type,
+                "volume": volume_mb,
+            })
+
+        def detect_unauthorized_transfer(self, protected_data: str,
+                                         allowed_regions: set) -> list:
+            """Detect unauthorized data transfers."""
+            violations = []
+
+            for flow in self.flows:
+                if flow["type"] == protected_data:
+                    if flow["dst"] not in allowed_regions:
+                        violations.append({
+                            "flow": flow,
+                            "reason": f"Transfer to unauthorized region: {flow['dst']}",
+                        })
+
+            self.alerts.extend(violations)
+            return violations
+
+    flow_analyzer = NetworkFlowAnalyzer()
+
+    # Record suspicious flows
+    flow_analyzer.record_flow("EU", "US", "pii_data", 500)
+    flow_analyzer.record_flow("EU", "EU", "pii_data", 1000)
+    flow_analyzer.record_flow("EU", "CN", "pii_data", 200)
+
+    # Detect unauthorized transfers (PII must stay in EU)
+    violations = flow_analyzer.detect_unauthorized_transfer(
+        "pii_data",
+        {"EU"}
+    )
+    if violations:
+        defenses["network_flow_analysis"] = True
+
+    # ========================================================================
+    # Defense 3: Processing Location Attestation
+    # ========================================================================
+
+    class ProcessingAttestor:
+        """Attest that processing occurs in authorized location."""
+
+        def __init__(self):
+            self.attestations = {}
+
+        def create_attestation(self, processing_id: str, location: str,
+                              tee_proof: dict) -> dict:
+            """Create processing location attestation."""
+            attestation = {
+                "processing_id": processing_id,
+                "location": location,
+                "tee_proof": tee_proof,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            self.attestations[processing_id] = attestation
+            return attestation
+
+        def verify_attestation(self, processing_id: str,
+                              required_location: str) -> tuple:
+            """Verify processing happened in required location."""
+            att = self.attestations.get(processing_id)
+            if not att:
+                return False, "No attestation found"
+
+            if att["location"] != required_location:
+                return False, f"Processing in {att['location']}, required {required_location}"
+
+            if not att.get("tee_proof", {}).get("valid"):
+                return False, "TEE proof invalid"
+
+            return True, "Processing location verified"
+
+    attestor = ProcessingAttestor()
+
+    # Processing happened outside required location
+    attestor.create_attestation("proc_001", "US", {"valid": True})
+
+    ok, msg = attestor.verify_attestation("proc_001", "EU")
+    if not ok:
+        defenses["processing_attestation"] = True
+
+    # ========================================================================
+    # Defense 4: Regulatory Audit Trail
+    # ========================================================================
+
+    class RegulatoryAuditTrail:
+        """Maintain audit trail for regulatory inspection."""
+
+        def __init__(self):
+            self.trail = []
+            self.access_log = []
+
+        def log_data_access(self, data_id: str, accessor: str,
+                           location: str, purpose: str):
+            """Log data access for audit."""
+            entry = {
+                "data_id": data_id,
+                "accessor": accessor,
+                "location": location,
+                "purpose": purpose,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            self.trail.append(entry)
+
+        def audit_compliance(self, data_id: str,
+                            allowed_locations: set) -> list:
+            """Audit data access compliance."""
+            violations = []
+
+            for entry in self.trail:
+                if entry["data_id"] == data_id:
+                    if entry["location"] not in allowed_locations:
+                        violations.append(entry)
+
+            return violations
+
+    audit = RegulatoryAuditTrail()
+
+    # Log accesses including unauthorized ones
+    audit.log_data_access("eu_pii_001", "analyst_1", "EU", "analysis")
+    audit.log_data_access("eu_pii_001", "ml_system", "US", "training")  # Violation!
+    audit.log_data_access("eu_pii_001", "analyst_2", "EU", "reporting")
+
+    violations = audit.audit_compliance("eu_pii_001", {"EU"})
+    if violations:
+        defenses["audit_trail"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Data Localization Bypass (EW-2a)",
+        success=attack_success,
+        setup_cost_atp=20000.0,
+        gain_atp=1500000.0 if attack_success else 0.0,
+        roi=(1500000.0 / 20000.0) if attack_success else -1.0,
+        detection_probability=0.45 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=480.0,
+        blocks_until_detected=1400,
+        trust_damage=0.88,
+        description=f"""
+DATA LOCALIZATION BYPASS ATTACK (Track EW-2a)
+
+Circumvent data localization requirements.
+
+Attack Pattern:
+1. Data required to stay in jurisdiction
+2. Surreptitiously replicate/mirror
+3. Process in unauthorized location
+4. Maintain compliance facade
+
+Data sovereignty is hard to enforce technically.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EW-2a: Data Localization Defense:
+1. Cryptographic residency verification
+2. Network flow analysis
+3. TEE processing attestation
+4. Regulatory audit trails
+
+Prove where data lives.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_extraterritorial_conflict() -> AttackResult:
+    """
+    ATTACK 236: EXTRATERRITORIAL CONFLICT (Track EW-2b)
+
+    Exploit conflicts between jurisdictional requirements:
+    1. Jurisdiction A requires data disclosure
+    2. Jurisdiction B requires data protection
+    3. Compliance with one violates the other
+    4. Attacker exploits the gap
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Conflict Detection System
+    # ========================================================================
+
+    class JurisdictionalConflictDetector:
+        """Detect conflicts between jurisdictional requirements."""
+
+        def __init__(self):
+            self.requirements = {}
+            self.conflicts = []
+
+        def add_requirement(self, jurisdiction: str, requirement_type: str,
+                           action: str, mandatory: bool):
+            """Add jurisdictional requirement."""
+            if jurisdiction not in self.requirements:
+                self.requirements[jurisdiction] = []
+            self.requirements[jurisdiction].append({
+                "type": requirement_type,
+                "action": action,
+                "mandatory": mandatory,
+            })
+
+        def detect_conflicts(self, entity_jurisdictions: list) -> list:
+            """Detect conflicts for entity operating in multiple jurisdictions."""
+            all_reqs = []
+            for j in entity_jurisdictions:
+                for req in self.requirements.get(j, []):
+                    req_copy = req.copy()
+                    req_copy["jurisdiction"] = j
+                    all_reqs.append(req_copy)
+
+            # Find conflicting requirements (same type, opposite actions)
+            conflicts = []
+            for i, req1 in enumerate(all_reqs):
+                for req2 in all_reqs[i+1:]:
+                    if req1["type"] == req2["type"]:
+                        if req1["action"] != req2["action"]:
+                            if req1["mandatory"] and req2["mandatory"]:
+                                conflicts.append({
+                                    "type": req1["type"],
+                                    "conflict": [
+                                        (req1["jurisdiction"], req1["action"]),
+                                        (req2["jurisdiction"], req2["action"]),
+                                    ],
+                                })
+
+            self.conflicts.extend(conflicts)
+            return conflicts
+
+    detector = JurisdictionalConflictDetector()
+
+    # US requires disclosure, EU requires protection
+    detector.add_requirement("US", "data_request", "must_disclose", True)
+    detector.add_requirement("EU", "data_request", "must_protect", True)
+
+    conflicts = detector.detect_conflicts(["US", "EU"])
+    if conflicts:
+        defenses["conflict_detection"] = True
+
+    # ========================================================================
+    # Defense 2: Blocking Statute Protection
+    # ========================================================================
+
+    class BlockingStatuteHandler:
+        """Handle blocking statute conflicts."""
+
+        def __init__(self):
+            self.blocking_rules = {}
+            self.invocations = []
+
+        def add_blocking_rule(self, jurisdiction: str, blocks: list):
+            """Add blocking statute rule."""
+            self.blocking_rules[jurisdiction] = blocks
+
+        def handle_request(self, requesting_j: str, data_j: str,
+                          request_type: str) -> tuple:
+            """Handle data request considering blocking statutes."""
+            blocking = self.blocking_rules.get(data_j, [])
+
+            if requesting_j in blocking:
+                self.invocations.append({
+                    "requesting": requesting_j,
+                    "data_location": data_j,
+                    "request_type": request_type,
+                    "blocked": True,
+                })
+                return False, f"Blocked by {data_j} blocking statute"
+
+            return True, "Request allowed"
+
+    blocking = BlockingStatuteHandler()
+
+    # EU blocking statute blocks certain US requests
+    blocking.add_blocking_rule("EU", ["US"])
+
+    ok, msg = blocking.handle_request("US", "EU", "law_enforcement_request")
+    if not ok:
+        defenses["blocking_statute"] = True
+
+    # ========================================================================
+    # Defense 3: International Treaty Framework
+    # ========================================================================
+
+    class TreatyFramework:
+        """Apply international treaty frameworks."""
+
+        def __init__(self):
+            self.treaties = {}
+            self.resolutions = []
+
+        def add_treaty(self, jurisdictions: set, treaty_name: str,
+                      resolution_rule: str):
+            """Add treaty between jurisdictions."""
+            key = frozenset(jurisdictions)
+            self.treaties[key] = {
+                "name": treaty_name,
+                "rule": resolution_rule,
+            }
+
+        def resolve_conflict(self, j1: str, j2: str,
+                            conflict_type: str) -> tuple:
+            """Resolve conflict using treaty framework."""
+            key = frozenset([j1, j2])
+            treaty = self.treaties.get(key)
+
+            if treaty:
+                resolution = {
+                    "treaty": treaty["name"],
+                    "applied_rule": treaty["rule"],
+                    "jurisdictions": [j1, j2],
+                }
+                self.resolutions.append(resolution)
+                return True, f"Resolved via {treaty['name']}"
+
+            return False, "No applicable treaty"
+
+    treaties = TreatyFramework()
+
+    # CLOUD Act treaty
+    treaties.add_treaty({"US", "UK"}, "CLOUD Act",
+                       "mutual_legal_assistance")
+
+    ok, msg = treaties.resolve_conflict("US", "UK", "data_access")
+    if ok:
+        defenses["treaty_framework"] = True
+
+    # ========================================================================
+    # Defense 4: Localized Processing Architecture
+    # ========================================================================
+
+    class LocalizedProcessor:
+        """Process data locally to avoid conflicts."""
+
+        def __init__(self):
+            self.processors = {}
+
+        def deploy_local_processor(self, jurisdiction: str,
+                                   capabilities: list):
+            """Deploy processing capability in jurisdiction."""
+            self.processors[jurisdiction] = {
+                "capabilities": capabilities,
+                "active": True,
+            }
+
+        def process_locally(self, data_id: str, jurisdiction: str,
+                           operation: str) -> tuple:
+            """Process data in its home jurisdiction."""
+            processor = self.processors.get(jurisdiction)
+
+            if not processor:
+                return False, f"No processor in {jurisdiction}"
+
+            if operation not in processor["capabilities"]:
+                return False, f"Operation {operation} not available locally"
+
+            return True, f"Processed locally in {jurisdiction}"
+
+        def can_avoid_conflict(self, data_j: str, operation: str) -> bool:
+            """Check if local processing can avoid extraterritorial conflict."""
+            processor = self.processors.get(data_j)
+            if processor and operation in processor["capabilities"]:
+                return True
+            return False
+
+    local = LocalizedProcessor()
+
+    # Deploy local processors
+    local.deploy_local_processor("EU", ["analysis", "reporting", "anonymization"])
+    local.deploy_local_processor("US", ["analysis", "reporting"])
+
+    # Can process EU data locally, avoiding conflict
+    can_avoid = local.can_avoid_conflict("EU", "analysis")
+    if can_avoid:
+        defenses["localized_processing"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Extraterritorial Conflict (EW-2b)",
+        success=attack_success,
+        setup_cost_atp=15000.0,
+        gain_atp=1200000.0 if attack_success else 0.0,
+        roi=(1200000.0 / 15000.0) if attack_success else -1.0,
+        detection_probability=0.50 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=360.0,
+        blocks_until_detected=1000,
+        trust_damage=0.85,
+        description=f"""
+EXTRATERRITORIAL CONFLICT ATTACK (Track EW-2b)
+
+Exploit conflicts between jurisdictional requirements.
+
+Attack Pattern:
+1. Jurisdiction A requires disclosure
+2. Jurisdiction B requires protection
+3. Compliance with one violates other
+4. Attacker exploits the legal gap
+
+Conflicting laws create ungovernable zones.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EW-2b: Conflict Resolution Defense:
+1. Conflict detection systems
+2. Blocking statute protocols
+3. International treaty frameworks
+4. Localized processing architecture
+
+Navigate between the rocks.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_regulatory_fragmentation_exploit() -> AttackResult:
+    """
+    ATTACK 237: REGULATORY FRAGMENTATION EXPLOIT (Track EW-3a)
+
+    Exploit regulatory agency fragmentation:
+    1. Multiple agencies with overlapping jurisdiction
+    2. Gaps in coverage between agencies
+    3. Operate in gaps
+    4. Claim to be under no agency's authority
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Inter-Agency Coordination Protocol
+    # ========================================================================
+
+    class InterAgencyCoordinator:
+        """Coordinate between regulatory agencies."""
+
+        def __init__(self):
+            self.agencies = {}
+            self.coverage_map = {}
+            self.coordination_log = []
+
+        def register_agency(self, agency_id: str, jurisdiction_areas: list):
+            """Register agency with jurisdiction areas."""
+            self.agencies[agency_id] = {
+                "areas": set(jurisdiction_areas),
+                "investigations": [],
+            }
+            for area in jurisdiction_areas:
+                if area not in self.coverage_map:
+                    self.coverage_map[area] = []
+                self.coverage_map[area].append(agency_id)
+
+        def find_coverage_gaps(self, all_areas: set) -> list:
+            """Find areas with no agency coverage."""
+            covered = set(self.coverage_map.keys())
+            return list(all_areas - covered)
+
+        def coordinate_on_entity(self, entity_id: str,
+                                entity_activities: list) -> dict:
+            """Coordinate agency response to entity."""
+            involved_agencies = set()
+
+            for activity in entity_activities:
+                agencies = self.coverage_map.get(activity, [])
+                involved_agencies.update(agencies)
+
+            coordination = {
+                "entity": entity_id,
+                "agencies": list(involved_agencies),
+                "lead_agency": list(involved_agencies)[0] if involved_agencies else None,
+            }
+
+            self.coordination_log.append(coordination)
+            return coordination
+
+    coordinator = InterAgencyCoordinator()
+
+    coordinator.register_agency("SEC", ["securities", "trading"])
+    coordinator.register_agency("CFTC", ["commodities", "derivatives"])
+    coordinator.register_agency("FTC", ["consumer_protection", "antitrust"])
+
+    # Coordinate on entity operating across areas
+    coord = coordinator.coordinate_on_entity("entity:crosscutter", [
+        "securities", "consumer_protection"
+    ])
+    if len(coord["agencies"]) >= 2:
+        defenses["inter_agency_coordination"] = True
+
+    # ========================================================================
+    # Defense 2: Gap Filling Protocol
+    # ========================================================================
+
+    class GapFillingProtocol:
+        """Protocol to fill regulatory gaps."""
+
+        def __init__(self):
+            self.gaps = []
+            self.gap_fillers = {}
+
+        def identify_gap(self, activity_type: str, reason: str):
+            """Identify a regulatory gap."""
+            gap = {
+                "activity": activity_type,
+                "reason": reason,
+                "filled": False,
+            }
+            self.gaps.append(gap)
+
+        def assign_gap_filler(self, activity_type: str, filler_agency: str,
+                             authority: str):
+            """Assign agency to fill gap."""
+            self.gap_fillers[activity_type] = {
+                "agency": filler_agency,
+                "authority": authority,
+            }
+            # Mark gap as filled
+            for gap in self.gaps:
+                if gap["activity"] == activity_type:
+                    gap["filled"] = True
+
+        def check_coverage(self, activity: str) -> tuple:
+            """Check if activity is covered."""
+            if activity in self.gap_fillers:
+                return True, f"Covered by {self.gap_fillers[activity]['agency']}"
+
+            # Check if it's an unfilled gap
+            for gap in self.gaps:
+                if gap["activity"] == activity and not gap["filled"]:
+                    return False, "Unfilled regulatory gap"
+
+            return True, "Standard coverage applies"
+
+    gap_filler = GapFillingProtocol()
+
+    # Identify gap
+    gap_filler.identify_gap("crypto_spot", "Neither SEC nor CFTC claims clear jurisdiction")
+
+    # Fill gap
+    gap_filler.assign_gap_filler("crypto_spot", "SEC", "enforcement_action_2024")
+
+    ok, msg = gap_filler.check_coverage("crypto_spot")
+    if ok:
+        defenses["gap_filling"] = True
+
+    # ========================================================================
+    # Defense 3: Regulatory Sandbox Coordination
+    # ========================================================================
+
+    class SandboxCoordinator:
+        """Coordinate regulatory sandboxes."""
+
+        def __init__(self):
+            self.sandboxes = {}
+            self.participants = {}
+
+        def create_sandbox(self, sandbox_id: str, agencies: list,
+                          scope: list):
+            """Create coordinated sandbox."""
+            self.sandboxes[sandbox_id] = {
+                "agencies": agencies,
+                "scope": scope,
+                "participants": [],
+            }
+
+        def admit_to_sandbox(self, entity_id: str, sandbox_id: str,
+                            activities: list) -> tuple:
+            """Admit entity to sandbox."""
+            sandbox = self.sandboxes.get(sandbox_id)
+            if not sandbox:
+                return False, "Sandbox not found"
+
+            # Check if activities are in scope
+            if not set(activities).issubset(set(sandbox["scope"])):
+                return False, "Activities outside sandbox scope"
+
+            sandbox["participants"].append(entity_id)
+            self.participants[entity_id] = sandbox_id
+            return True, "Admitted to sandbox"
+
+        def verify_sandbox_coverage(self, entity_id: str) -> tuple:
+            """Verify entity has proper sandbox coverage."""
+            sandbox_id = self.participants.get(entity_id)
+            if not sandbox_id:
+                return False, "Not in any sandbox"
+
+            sandbox = self.sandboxes.get(sandbox_id)
+            if len(sandbox["agencies"]) >= 2:
+                return True, f"Multi-agency sandbox: {sandbox['agencies']}"
+
+            return True, "Single-agency sandbox"
+
+    sandbox = SandboxCoordinator()
+
+    # Create coordinated sandbox
+    sandbox.create_sandbox("fintech_sandbox_2026", ["SEC", "CFTC", "OCC"],
+                          ["tokenization", "defi", "lending"])
+
+    sandbox.admit_to_sandbox("entity:innovator", "fintech_sandbox_2026",
+                            ["tokenization", "defi"])
+
+    ok, msg = sandbox.verify_sandbox_coverage("entity:innovator")
+    if ok:
+        defenses["sandbox_coordination"] = True
+
+    # ========================================================================
+    # Defense 4: Unified Licensing Framework
+    # ========================================================================
+
+    class UnifiedLicensing:
+        """Unified licensing across agencies."""
+
+        def __init__(self):
+            self.licenses = {}
+            self.requirements = {}
+
+        def define_unified_license(self, license_type: str,
+                                   required_by: list,
+                                   scope: list):
+            """Define unified license recognized by multiple agencies."""
+            self.requirements[license_type] = {
+                "agencies": required_by,
+                "scope": scope,
+            }
+
+        def issue_license(self, entity_id: str, license_type: str) -> tuple:
+            """Issue unified license."""
+            if license_type not in self.requirements:
+                return False, "Unknown license type"
+
+            self.licenses[entity_id] = {
+                "type": license_type,
+                "agencies": self.requirements[license_type]["agencies"],
+            }
+            return True, f"Issued {license_type}"
+
+        def verify_authorization(self, entity_id: str, activity: str) -> tuple:
+            """Verify entity is authorized for activity."""
+            license = self.licenses.get(entity_id)
+            if not license:
+                return False, "No license"
+
+            license_type = license["type"]
+            scope = self.requirements.get(license_type, {}).get("scope", [])
+
+            if activity in scope:
+                return True, f"Authorized via {license_type}"
+
+            return False, f"Activity {activity} not in license scope"
+
+    licensing = UnifiedLicensing()
+
+    licensing.define_unified_license("digital_asset_license",
+                                     ["SEC", "CFTC", "FinCEN"],
+                                     ["token_issuance", "trading", "custody"])
+
+    licensing.issue_license("entity:regulated", "digital_asset_license")
+
+    ok, msg = licensing.verify_authorization("entity:regulated", "trading")
+    if ok:
+        defenses["unified_licensing"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Regulatory Fragmentation Exploit (EW-3a)",
+        success=attack_success,
+        setup_cost_atp=18000.0,
+        gain_atp=1800000.0 if attack_success else 0.0,
+        roi=(1800000.0 / 18000.0) if attack_success else -1.0,
+        detection_probability=0.38 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=600.0,
+        blocks_until_detected=1700,
+        trust_damage=0.80,
+        description=f"""
+REGULATORY FRAGMENTATION EXPLOIT (Track EW-3a)
+
+Exploit gaps between regulatory agencies.
+
+Attack Pattern:
+1. Multiple agencies with overlapping scope
+2. Gaps exist between coverages
+3. Operate in the gaps
+4. Claim no agency has authority
+
+Fragmented regulation creates ungoverned spaces.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EW-3a: Fragmentation Defense:
+1. Inter-agency coordination protocols
+2. Gap filling mechanisms
+3. Coordinated regulatory sandboxes
+4. Unified licensing frameworks
+
+Close the gaps before attackers find them.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_political_pressure_exploitation() -> AttackResult:
+    """
+    ATTACK 238: POLITICAL PRESSURE EXPLOITATION (Track EW-3b)
+
+    Exploit political pressure on regulators:
+    1. Regulator faces political pressure
+    2. Enforcement weakened during transitions
+    3. Attacker times actions to political cycles
+    4. Regulatory capture via influence
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Independent Enforcement Authority
+    # ========================================================================
+
+    class IndependentEnforcement:
+        """Maintain enforcement independence from political pressure."""
+
+        def __init__(self):
+            self.cases = {}
+            self.independence_score = 1.0
+
+        def open_case(self, case_id: str, severity: str):
+            """Open enforcement case."""
+            self.cases[case_id] = {
+                "severity": severity,
+                "status": "open",
+                "pressure_attempts": [],
+            }
+
+        def record_pressure(self, case_id: str, source: str, action: str):
+            """Record political pressure attempt."""
+            if case_id in self.cases:
+                self.cases[case_id]["pressure_attempts"].append({
+                    "source": source,
+                    "action": action,
+                })
+
+        def enforce_independently(self, case_id: str) -> tuple:
+            """Enforce regardless of pressure."""
+            case = self.cases.get(case_id)
+            if not case:
+                return False, "Case not found"
+
+            # Independence maintained despite pressure
+            if case["pressure_attempts"]:
+                return True, f"Enforced despite {len(case['pressure_attempts'])} pressure attempts"
+
+            return True, "Enforced normally"
+
+    enforcement = IndependentEnforcement()
+
+    enforcement.open_case("case_001", "high")
+    enforcement.record_pressure("case_001", "congressional", "inquiry_letter")
+    enforcement.record_pressure("case_001", "industry_lobby", "legal_challenge")
+
+    ok, msg = enforcement.enforce_independently("case_001")
+    if ok and "despite" in msg:
+        defenses["independent_enforcement"] = True
+
+    # ========================================================================
+    # Defense 2: Career Staff Continuity
+    # ========================================================================
+
+    class CareerStaffContinuity:
+        """Maintain enforcement continuity through career staff."""
+
+        def __init__(self):
+            self.staff = {}
+            self.institutional_knowledge = {}
+
+        def register_career_staff(self, staff_id: str, years: int,
+                                 expertise: list):
+            """Register career enforcement staff."""
+            self.staff[staff_id] = {
+                "years": years,
+                "expertise": expertise,
+                "political_appointee": False,
+            }
+
+        def preserve_knowledge(self, area: str, knowledge: dict):
+            """Preserve institutional knowledge."""
+            if area not in self.institutional_knowledge:
+                self.institutional_knowledge[area] = []
+            self.institutional_knowledge[area].append(knowledge)
+
+        def assess_continuity(self) -> dict:
+            """Assess enforcement continuity."""
+            career_staff = [s for s in self.staff.values()
+                          if not s["political_appointee"]]
+            avg_tenure = sum(s["years"] for s in career_staff) / len(career_staff) if career_staff else 0
+
+            return {
+                "career_staff_count": len(career_staff),
+                "avg_tenure_years": avg_tenure,
+                "knowledge_areas": len(self.institutional_knowledge),
+                "continuity_strong": avg_tenure > 5 and len(career_staff) >= 3,
+            }
+
+    continuity = CareerStaffContinuity()
+
+    continuity.register_career_staff("staff_001", 15, ["securities", "enforcement"])
+    continuity.register_career_staff("staff_002", 8, ["investigation", "analysis"])
+    continuity.register_career_staff("staff_003", 12, ["market_surveillance"])
+
+    assessment = continuity.assess_continuity()
+    if assessment["continuity_strong"]:
+        defenses["career_staff_continuity"] = True
+
+    # ========================================================================
+    # Defense 3: Transparent Enforcement Metrics
+    # ========================================================================
+
+    class EnforcementMetrics:
+        """Track and publish enforcement metrics transparently."""
+
+        def __init__(self):
+            self.metrics = {}
+            self.public_reports = []
+
+        def record_metric(self, period: str, metric_name: str, value: float):
+            """Record enforcement metric."""
+            if period not in self.metrics:
+                self.metrics[period] = {}
+            self.metrics[period][metric_name] = value
+
+        def detect_enforcement_drop(self, metric_name: str,
+                                   threshold_pct: float = 0.30) -> list:
+            """Detect suspicious drops in enforcement."""
+            periods = sorted(self.metrics.keys())
+            drops = []
+
+            for i in range(1, len(periods)):
+                prev = self.metrics[periods[i-1]].get(metric_name, 0)
+                curr = self.metrics[periods[i]].get(metric_name, 0)
+
+                if prev > 0:
+                    change = (curr - prev) / prev
+                    if change < -threshold_pct:
+                        drops.append({
+                            "period": periods[i],
+                            "drop_pct": abs(change) * 100,
+                        })
+
+            return drops
+
+    metrics = EnforcementMetrics()
+
+    metrics.record_metric("2024-Q1", "enforcement_actions", 45)
+    metrics.record_metric("2024-Q2", "enforcement_actions", 42)
+    metrics.record_metric("2024-Q3", "enforcement_actions", 25)  # Suspicious drop
+    metrics.record_metric("2024-Q4", "enforcement_actions", 22)
+
+    drops = metrics.detect_enforcement_drop("enforcement_actions")
+    if drops:
+        defenses["transparent_metrics"] = True
+
+    # ========================================================================
+    # Defense 4: Whistleblower Protection
+    # ========================================================================
+
+    class WhistleblowerProtection:
+        """Protect whistleblowers reporting political interference."""
+
+        def __init__(self):
+            self.reports = []
+            self.protected_reporters = set()
+
+        def receive_report(self, reporter_id: str, report: dict,
+                          anonymous: bool = False) -> str:
+            """Receive whistleblower report."""
+            report_id = f"WB-{len(self.reports):04d}"
+
+            self.reports.append({
+                "id": report_id,
+                "reporter": None if anonymous else reporter_id,
+                "content": report,
+                "anonymous": anonymous,
+            })
+
+            if not anonymous:
+                self.protected_reporters.add(reporter_id)
+
+            return report_id
+
+        def investigate_interference(self) -> list:
+            """Investigate reported political interference."""
+            interference_reports = [
+                r for r in self.reports
+                if "political_interference" in r.get("content", {}).get("type", "")
+            ]
+            return interference_reports
+
+    whistleblower = WhistleblowerProtection()
+
+    whistleblower.receive_report("staff_anon", {
+        "type": "political_interference",
+        "details": "Enforcement case dropped after political pressure",
+    }, anonymous=True)
+
+    interference = whistleblower.investigate_interference()
+    if interference:
+        defenses["whistleblower_protection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Political Pressure Exploitation (EW-3b)",
+        success=attack_success,
+        setup_cost_atp=30000.0,
+        gain_atp=3000000.0 if attack_success else 0.0,
+        roi=(3000000.0 / 30000.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=1440.0,
+        blocks_until_detected=4000,
+        trust_damage=0.95,
+        description=f"""
+POLITICAL PRESSURE EXPLOITATION (Track EW-3b)
+
+Exploit political pressure on regulators.
+
+Attack Pattern:
+1. Identify politically vulnerable regulators
+2. Time actions to political transitions
+3. Leverage political influence
+4. Benefit from weakened enforcement
+
+Political cycles create enforcement gaps.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EW-3b: Political Independence Defense:
+1. Independent enforcement authority
+2. Career staff continuity
+3. Transparent enforcement metrics
+4. Whistleblower protection
+
+Insulate enforcement from politics.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Track EX: ML Model Training/Inference Attacks (Attacks 239-244)
+# ---------------------------------------------------------------------------
+
+
+def attack_training_data_manipulation() -> AttackResult:
+    """
+    ATTACK 239: TRAINING DATA MANIPULATION (Track EX-1a)
+
+    Manipulate training data to bias model behavior:
+    1. Identify training data sources
+    2. Inject biased/malicious examples
+    3. Model learns incorrect patterns
+    4. Deployed model behaves adversarially
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Data Provenance Tracking
+    # ========================================================================
+
+    class DataProvenanceTracker:
+        """Track provenance of all training data."""
+
+        def __init__(self):
+            self.provenance = {}
+            self.trusted_sources = set()
+
+        def add_trusted_source(self, source_id: str):
+            """Add trusted data source."""
+            self.trusted_sources.add(source_id)
+
+        def record_provenance(self, data_id: str, source: str,
+                             transformations: list):
+            """Record data provenance."""
+            self.provenance[data_id] = {
+                "source": source,
+                "transformations": transformations,
+                "trusted": source in self.trusted_sources,
+            }
+
+        def validate_training_batch(self, data_ids: list) -> tuple:
+            """Validate all training data has trusted provenance."""
+            untrusted = []
+
+            for data_id in data_ids:
+                prov = self.provenance.get(data_id)
+                if not prov:
+                    untrusted.append((data_id, "No provenance"))
+                elif not prov["trusted"]:
+                    untrusted.append((data_id, f"Untrusted source: {prov['source']}"))
+
+            if untrusted:
+                return False, f"Untrusted data: {untrusted[:3]}..."
+
+            return True, "All training data has trusted provenance"
+
+    provenance = DataProvenanceTracker()
+
+    provenance.add_trusted_source("internal_labeled")
+    provenance.add_trusted_source("verified_partner")
+
+    provenance.record_provenance("data_001", "internal_labeled", ["normalize"])
+    provenance.record_provenance("data_002", "unknown_scrape", ["clean"])  # Untrusted!
+    provenance.record_provenance("data_003", "verified_partner", ["augment"])
+
+    ok, msg = provenance.validate_training_batch(["data_001", "data_002", "data_003"])
+    if not ok:
+        defenses["provenance_tracking"] = True
+
+    # ========================================================================
+    # Defense 2: Adversarial Example Detection
+    # ========================================================================
+
+    class AdversarialDetector:
+        """Detect adversarial examples in training data."""
+
+        def __init__(self):
+            self.baseline_stats = {}
+            self.detected = []
+
+        def compute_baseline(self, clean_data: list):
+            """Compute baseline statistics from clean data."""
+            # Simplified: track distribution properties
+            self.baseline_stats = {
+                "mean_features": sum(d.get("features", 0) for d in clean_data) / len(clean_data),
+                "label_distribution": {},
+            }
+            for d in clean_data:
+                label = d.get("label")
+                self.baseline_stats["label_distribution"][label] = \
+                    self.baseline_stats["label_distribution"].get(label, 0) + 1
+
+        def detect_anomalies(self, new_data: list, threshold: float = 2.0) -> list:
+            """Detect anomalous examples."""
+            anomalies = []
+
+            for d in new_data:
+                # Check for feature anomalies
+                if abs(d.get("features", 0) - self.baseline_stats["mean_features"]) > threshold * 10:
+                    anomalies.append({
+                        "data": d,
+                        "reason": "Feature distribution anomaly",
+                    })
+
+                # Check for label mismatch (e.g., feature suggests one label, given another)
+                if d.get("suspicious_label"):
+                    anomalies.append({
+                        "data": d,
+                        "reason": "Suspicious label assignment",
+                    })
+
+            self.detected.extend(anomalies)
+            return anomalies
+
+    detector = AdversarialDetector()
+
+    detector.compute_baseline([
+        {"features": 10, "label": "positive"},
+        {"features": 12, "label": "positive"},
+        {"features": 8, "label": "negative"},
+        {"features": 9, "label": "negative"},
+    ])
+
+    anomalies = detector.detect_anomalies([
+        {"features": 11, "label": "positive"},  # Normal
+        {"features": 50, "label": "positive"},  # Anomalous features
+        {"features": 10, "label": "negative", "suspicious_label": True},  # Mislabeled
+    ])
+    if anomalies:
+        defenses["adversarial_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Training Data Certification
+    # ========================================================================
+
+    class DataCertification:
+        """Certify training data integrity."""
+
+        def __init__(self):
+            self.certificates = {}
+            self.certifiers = set()
+
+        def register_certifier(self, certifier_id: str):
+            """Register approved data certifier."""
+            self.certifiers.add(certifier_id)
+
+        def certify_dataset(self, dataset_id: str, certifier: str,
+                           attestation: dict) -> tuple:
+            """Certify dataset."""
+            if certifier not in self.certifiers:
+                return False, "Unrecognized certifier"
+
+            self.certificates[dataset_id] = {
+                "certifier": certifier,
+                "attestation": attestation,
+                "valid": True,
+            }
+            return True, "Dataset certified"
+
+        def verify_certification(self, dataset_id: str) -> tuple:
+            """Verify dataset is certified."""
+            cert = self.certificates.get(dataset_id)
+            if not cert:
+                return False, "No certification"
+            if not cert["valid"]:
+                return False, "Certification revoked"
+            return True, f"Certified by {cert['certifier']}"
+
+    certification = DataCertification()
+
+    certification.register_certifier("data_quality_team")
+    certification.register_certifier("external_auditor")
+
+    certification.certify_dataset("training_v2", "data_quality_team", {
+        "size": 1000000,
+        "quality_score": 0.95,
+        "bias_check": "passed",
+    })
+
+    ok, msg = certification.verify_certification("training_v2")
+    if ok:
+        defenses["data_certification"] = True
+
+    # ========================================================================
+    # Defense 4: Differential Training Analysis
+    # ========================================================================
+
+    class DifferentialTrainingAnalysis:
+        """Detect training data manipulation via differential analysis."""
+
+        def __init__(self):
+            self.model_behaviors = {}
+
+        def train_and_record(self, model_id: str, dataset_id: str,
+                            behavior_metrics: dict):
+            """Record model behavior after training."""
+            self.model_behaviors[model_id] = {
+                "dataset": dataset_id,
+                "metrics": behavior_metrics,
+            }
+
+        def compare_behaviors(self, model_a: str, model_b: str,
+                             threshold: float = 0.1) -> tuple:
+            """Compare behaviors between models trained on different data."""
+            if model_a not in self.model_behaviors or model_b not in self.model_behaviors:
+                return None, "Models not found"
+
+            metrics_a = self.model_behaviors[model_a]["metrics"]
+            metrics_b = self.model_behaviors[model_b]["metrics"]
+
+            diffs = []
+            for key in set(metrics_a.keys()) | set(metrics_b.keys()):
+                val_a = metrics_a.get(key, 0)
+                val_b = metrics_b.get(key, 0)
+                if abs(val_a - val_b) > threshold:
+                    diffs.append({
+                        "metric": key,
+                        "diff": abs(val_a - val_b),
+                    })
+
+            if diffs:
+                return diffs, "Significant behavioral differences detected"
+
+            return [], "Behaviors similar"
+
+    diff_analysis = DifferentialTrainingAnalysis()
+
+    # Model trained on clean data
+    diff_analysis.train_and_record("model_clean", "dataset_clean", {
+        "accuracy": 0.95,
+        "bias_score": 0.02,
+        "adversarial_robustness": 0.88,
+    })
+
+    # Model trained on potentially poisoned data
+    diff_analysis.train_and_record("model_suspect", "dataset_unknown", {
+        "accuracy": 0.94,
+        "bias_score": 0.35,  # Much higher bias!
+        "adversarial_robustness": 0.45,  # Much lower robustness!
+    })
+
+    diffs, msg = diff_analysis.compare_behaviors("model_clean", "model_suspect")
+    if diffs:
+        defenses["differential_analysis"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Training Data Manipulation (EX-1a)",
+        success=attack_success,
+        setup_cost_atp=35000.0,
+        gain_atp=2500000.0 if attack_success else 0.0,
+        roi=(2500000.0 / 35000.0) if attack_success else -1.0,
+        detection_probability=0.30 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=2160.0,
+        blocks_until_detected=6000,
+        trust_damage=0.98,
+        description=f"""
+TRAINING DATA MANIPULATION (Track EX-1a)
+
+Manipulate training data to bias model behavior.
+
+Attack Pattern:
+1. Identify training data sources
+2. Inject biased/malicious examples
+3. Model learns incorrect patterns
+4. Deployed model behaves adversarially
+
+Poison the well, corrupt the model.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EX-1a: Training Data Defense:
+1. Data provenance tracking
+2. Adversarial example detection
+3. Training data certification
+4. Differential training analysis
+
+Trust but verify your training data.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_model_weight_tampering() -> AttackResult:
+    """
+    ATTACK 240: MODEL WEIGHT TAMPERING (Track EX-1b)
+
+    Tamper with model weights post-training:
+    1. Access model weight storage
+    2. Modify specific weights
+    3. Create backdoor behavior
+    4. Maintain normal performance on benchmarks
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Cryptographic Model Signing
+    # ========================================================================
+
+    class ModelSigner:
+        """Sign model weights cryptographically."""
+
+        def __init__(self):
+            self.signatures = {}
+            self.public_keys = {}
+
+        def register_signing_key(self, key_id: str, public_key: str):
+            """Register signing key."""
+            self.public_keys[key_id] = public_key
+
+        def sign_model(self, model_id: str, weight_hash: str,
+                      signer_key: str) -> dict:
+            """Sign model weights."""
+            if signer_key not in self.public_keys:
+                return {"error": "Unknown signing key"}
+
+            signature = {
+                "model_id": model_id,
+                "weight_hash": weight_hash,
+                "signer": signer_key,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            self.signatures[model_id] = signature
+            return signature
+
+        def verify_signature(self, model_id: str,
+                            current_weight_hash: str) -> tuple:
+            """Verify model weights match signature."""
+            sig = self.signatures.get(model_id)
+            if not sig:
+                return False, "No signature found"
+
+            if sig["weight_hash"] != current_weight_hash:
+                return False, "Weight hash mismatch - tampering detected!"
+
+            return True, "Signature verified"
+
+    signer = ModelSigner()
+
+    signer.register_signing_key("ml_team_key", "public_key_abc123")
+    signer.sign_model("model_v1", "hash_abc123", "ml_team_key")
+
+    # Attacker modified weights - hash changed
+    ok, msg = signer.verify_signature("model_v1", "hash_modified_xyz")
+    if not ok:
+        defenses["cryptographic_signing"] = True
+
+    # ========================================================================
+    # Defense 2: Weight Integrity Monitoring
+    # ========================================================================
+
+    class WeightIntegrityMonitor:
+        """Continuously monitor weight integrity."""
+
+        def __init__(self):
+            self.baseline_hashes = {}
+            self.monitoring_log = []
+
+        def set_baseline(self, model_id: str, layer_hashes: dict):
+            """Set baseline hashes for each layer."""
+            self.baseline_hashes[model_id] = layer_hashes
+
+        def check_integrity(self, model_id: str,
+                           current_hashes: dict) -> list:
+            """Check current weights against baseline."""
+            baseline = self.baseline_hashes.get(model_id)
+            if not baseline:
+                return [{"error": "No baseline set"}]
+
+            violations = []
+            for layer, expected_hash in baseline.items():
+                current = current_hashes.get(layer)
+                if current != expected_hash:
+                    violations.append({
+                        "layer": layer,
+                        "expected": expected_hash,
+                        "actual": current,
+                    })
+
+            self.monitoring_log.append({
+                "model_id": model_id,
+                "violations": len(violations),
+            })
+
+            return violations
+
+    monitor = WeightIntegrityMonitor()
+
+    monitor.set_baseline("model_v1", {
+        "layer_0": "hash_l0",
+        "layer_1": "hash_l1",
+        "layer_2": "hash_l2",
+        "output": "hash_out",
+    })
+
+    # Attacker modified layer_2
+    violations = monitor.check_integrity("model_v1", {
+        "layer_0": "hash_l0",
+        "layer_1": "hash_l1",
+        "layer_2": "hash_l2_MODIFIED",  # Tampered!
+        "output": "hash_out",
+    })
+    if violations:
+        defenses["integrity_monitoring"] = True
+
+    # ========================================================================
+    # Defense 3: Behavioral Fingerprinting
+    # ========================================================================
+
+    class BehavioralFingerprint:
+        """Fingerprint model behavior to detect tampering."""
+
+        def __init__(self):
+            self.fingerprints = {}
+
+        def create_fingerprint(self, model_id: str,
+                              probe_responses: dict):
+            """Create behavioral fingerprint from probe responses."""
+            self.fingerprints[model_id] = probe_responses
+
+        def verify_behavior(self, model_id: str,
+                           current_responses: dict,
+                           tolerance: float = 0.01) -> tuple:
+            """Verify model behavior matches fingerprint."""
+            baseline = self.fingerprints.get(model_id)
+            if not baseline:
+                return None, "No fingerprint"
+
+            deviations = []
+            for probe, expected in baseline.items():
+                actual = current_responses.get(probe)
+                if actual is None:
+                    deviations.append((probe, "missing"))
+                elif abs(actual - expected) > tolerance:
+                    deviations.append((probe, abs(actual - expected)))
+
+            if deviations:
+                return False, f"Behavioral deviations: {deviations}"
+
+            return True, "Behavior matches fingerprint"
+
+    fingerprint = BehavioralFingerprint()
+
+    # Create fingerprint from known-good model
+    fingerprint.create_fingerprint("model_v1", {
+        "probe_1": 0.85,
+        "probe_2": 0.12,
+        "probe_3": 0.67,
+        "backdoor_trigger": 0.02,  # Should be low on clean model
+    })
+
+    # Tampered model responds differently to backdoor trigger
+    ok, msg = fingerprint.verify_behavior("model_v1", {
+        "probe_1": 0.85,
+        "probe_2": 0.12,
+        "probe_3": 0.67,
+        "backdoor_trigger": 0.98,  # Backdoor activated!
+    })
+    if not ok:
+        defenses["behavioral_fingerprint"] = True
+
+    # ========================================================================
+    # Defense 4: Secure Model Enclave
+    # ========================================================================
+
+    class SecureModelEnclave:
+        """Run models in secure enclave."""
+
+        def __init__(self):
+            self.enclaves = {}
+
+        def create_enclave(self, model_id: str, tee_type: str) -> dict:
+            """Create secure enclave for model."""
+            enclave = {
+                "model_id": model_id,
+                "tee_type": tee_type,
+                "sealed": True,
+                "attestation": {
+                    "measurement": f"measure_{model_id}",
+                    "valid": True,
+                },
+            }
+            self.enclaves[model_id] = enclave
+            return enclave
+
+        def verify_enclave_integrity(self, model_id: str) -> tuple:
+            """Verify enclave integrity."""
+            enclave = self.enclaves.get(model_id)
+            if not enclave:
+                return False, "Model not in enclave"
+
+            if not enclave["sealed"]:
+                return False, "Enclave not sealed"
+
+            if not enclave["attestation"]["valid"]:
+                return False, "Attestation failed"
+
+            return True, "Enclave integrity verified"
+
+    enclave = SecureModelEnclave()
+
+    enclave.create_enclave("model_v1", "SGX")
+
+    ok, msg = enclave.verify_enclave_integrity("model_v1")
+    if ok:
+        defenses["secure_enclave"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Model Weight Tampering (EX-1b)",
+        success=attack_success,
+        setup_cost_atp=40000.0,
+        gain_atp=3000000.0 if attack_success else 0.0,
+        roi=(3000000.0 / 40000.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=720.0,
+        blocks_until_detected=2000,
+        trust_damage=0.96,
+        description=f"""
+MODEL WEIGHT TAMPERING (Track EX-1b)
+
+Tamper with model weights post-training.
+
+Attack Pattern:
+1. Access model weight storage
+2. Modify specific weights
+3. Insert backdoor behavior
+4. Maintain benchmark performance
+
+Backdoors hide in plain sight.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EX-1b: Weight Integrity Defense:
+1. Cryptographic model signing
+2. Weight integrity monitoring
+3. Behavioral fingerprinting
+4. Secure model enclaves
+
+Seal and verify your models.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_inference_manipulation() -> AttackResult:
+    """
+    ATTACK 241: INFERENCE MANIPULATION (Track EX-2a)
+
+    Manipulate model inference at runtime:
+    1. Intercept inference requests
+    2. Modify inputs or outputs
+    3. Cause model to produce desired results
+    4. Maintain plausible outputs
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Input Validation
+    # ========================================================================
+
+    class InferenceInputValidator:
+        """Validate inference inputs."""
+
+        def __init__(self):
+            self.schemas = {}
+            self.validation_log = []
+
+        def register_schema(self, model_id: str, input_schema: dict):
+            """Register expected input schema."""
+            self.schemas[model_id] = input_schema
+
+        def validate_input(self, model_id: str, input_data: dict) -> tuple:
+            """Validate input against schema."""
+            schema = self.schemas.get(model_id)
+            if not schema:
+                return False, "No schema registered"
+
+            violations = []
+
+            # Check required fields
+            for field, spec in schema.items():
+                if spec.get("required") and field not in input_data:
+                    violations.append(f"Missing required field: {field}")
+                    continue
+
+                if field in input_data:
+                    value = input_data[field]
+                    # Type check
+                    if spec.get("type") and not isinstance(value, spec["type"]):
+                        violations.append(f"Type mismatch for {field}")
+                        continue  # Skip range check if type is wrong
+                    # Range check (only for numeric types)
+                    if isinstance(value, (int, float)):
+                        if spec.get("min") is not None and value < spec["min"]:
+                            violations.append(f"{field} below minimum")
+                        if spec.get("max") is not None and value > spec["max"]:
+                            violations.append(f"{field} above maximum")
+
+            if violations:
+                return False, f"Validation failed: {violations}"
+
+            return True, "Input valid"
+
+    validator = InferenceInputValidator()
+
+    validator.register_schema("classifier", {
+        "features": {"required": True, "type": list, "min": 0},
+        "context": {"required": False, "type": dict},
+    })
+
+    # Attacker tries to inject malformed input
+    ok, msg = validator.validate_input("classifier", {
+        "features": "not_a_list",  # Wrong type!
+        "evil_field": "injection",
+    })
+    if not ok:
+        defenses["input_validation"] = True
+
+    # ========================================================================
+    # Defense 2: Output Verification
+    # ========================================================================
+
+    class OutputVerifier:
+        """Verify inference outputs are plausible."""
+
+        def __init__(self):
+            self.output_constraints = {}
+
+        def set_constraints(self, model_id: str, constraints: dict):
+            """Set output constraints."""
+            self.output_constraints[model_id] = constraints
+
+        def verify_output(self, model_id: str, output: dict) -> tuple:
+            """Verify output meets constraints."""
+            constraints = self.output_constraints.get(model_id, {})
+            violations = []
+
+            # Check probability sums to 1
+            if "probabilities" in output:
+                probs = output["probabilities"]
+                if abs(sum(probs) - 1.0) > 0.01:
+                    violations.append("Probabilities don't sum to 1")
+
+            # Check confidence bounds
+            if "confidence" in output:
+                conf = output["confidence"]
+                if conf < 0 or conf > 1:
+                    violations.append("Confidence out of [0,1] range")
+
+            # Check for impossible combinations
+            if constraints.get("mutual_exclusion"):
+                for group in constraints["mutual_exclusion"]:
+                    active = sum(1 for f in group if output.get(f))
+                    if active > 1:
+                        violations.append(f"Mutually exclusive fields active: {group}")
+
+            if violations:
+                return False, f"Output verification failed: {violations}"
+
+            return True, "Output verified"
+
+    verifier = OutputVerifier()
+
+    verifier.set_constraints("classifier", {
+        "mutual_exclusion": [["label_a", "label_b"]],
+    })
+
+    # Attacker manipulated output to have impossible values
+    ok, msg = verifier.verify_output("classifier", {
+        "probabilities": [0.3, 0.3, 0.3],  # Sums to 0.9, not 1.0!
+        "confidence": 1.5,  # Out of range!
+    })
+    if not ok:
+        defenses["output_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Request Authentication
+    # ========================================================================
+
+    class InferenceAuthenticator:
+        """Authenticate inference requests."""
+
+        def __init__(self):
+            self.api_keys = {}
+            self.request_log = []
+
+        def register_client(self, client_id: str, api_key: str,
+                           rate_limit: int):
+            """Register authorized client."""
+            self.api_keys[api_key] = {
+                "client": client_id,
+                "rate_limit": rate_limit,
+                "requests": 0,
+            }
+
+        def authenticate(self, api_key: str, request_hash: str) -> tuple:
+            """Authenticate inference request."""
+            if api_key not in self.api_keys:
+                return False, "Invalid API key"
+
+            client = self.api_keys[api_key]
+
+            # Check rate limit
+            if client["requests"] >= client["rate_limit"]:
+                return False, "Rate limit exceeded"
+
+            client["requests"] += 1
+            self.request_log.append({
+                "client": client["client"],
+                "hash": request_hash,
+            })
+
+            return True, f"Authenticated as {client['client']}"
+
+    auth = InferenceAuthenticator()
+
+    auth.register_client("trusted_app", "key_12345", 1000)
+
+    # Attacker tries with invalid key
+    ok, msg = auth.authenticate("invalid_key", "request_hash")
+    if not ok:
+        defenses["request_authentication"] = True
+
+    # ========================================================================
+    # Defense 4: Inference Audit Trail
+    # ========================================================================
+
+    class InferenceAuditTrail:
+        """Maintain audit trail of all inferences."""
+
+        def __init__(self):
+            self.trail = []
+
+        def log_inference(self, request_id: str, input_hash: str,
+                         output_hash: str, model_id: str):
+            """Log inference for audit."""
+            entry = {
+                "request_id": request_id,
+                "input_hash": input_hash,
+                "output_hash": output_hash,
+                "model_id": model_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            self.trail.append(entry)
+
+        def verify_consistency(self, request_id: str,
+                              claimed_output_hash: str) -> tuple:
+            """Verify claimed output matches logged output."""
+            for entry in self.trail:
+                if entry["request_id"] == request_id:
+                    if entry["output_hash"] != claimed_output_hash:
+                        return False, "Output mismatch - possible manipulation"
+                    return True, "Output verified"
+
+            return False, "Request not found in audit trail"
+
+    audit = InferenceAuditTrail()
+
+    audit.log_inference("req_001", "input_hash", "output_hash_original", "model_v1")
+
+    # Attacker claims different output
+    ok, msg = audit.verify_consistency("req_001", "output_hash_manipulated")
+    if not ok:
+        defenses["inference_audit"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Inference Manipulation (EX-2a)",
+        success=attack_success,
+        setup_cost_atp=15000.0,
+        gain_atp=1000000.0 if attack_success else 0.0,
+        roi=(1000000.0 / 15000.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=24.0,
+        blocks_until_detected=70,
+        trust_damage=0.82,
+        description=f"""
+INFERENCE MANIPULATION (Track EX-2a)
+
+Manipulate model inference at runtime.
+
+Attack Pattern:
+1. Intercept inference requests
+2. Modify inputs or outputs
+3. Produce desired results
+4. Maintain plausible outputs
+
+Man-in-the-middle meets machine learning.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EX-2a: Inference Integrity Defense:
+1. Input validation
+2. Output verification
+3. Request authentication
+4. Inference audit trail
+
+Verify end-to-end.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_model_extraction() -> AttackResult:
+    """
+    ATTACK 242: MODEL EXTRACTION (Track EX-2b)
+
+    Extract model through repeated queries:
+    1. Query model extensively
+    2. Record input-output pairs
+    3. Train surrogate model
+    4. Replicate proprietary model
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Query Rate Limiting
+    # ========================================================================
+
+    class QueryRateLimiter:
+        """Limit query rates to prevent extraction."""
+
+        def __init__(self):
+            self.query_counts = {}
+            self.limits = {}
+
+        def set_limit(self, client_id: str, queries_per_hour: int,
+                     queries_per_day: int):
+            """Set query limits for client."""
+            self.limits[client_id] = {
+                "hourly": queries_per_hour,
+                "daily": queries_per_day,
+            }
+            self.query_counts[client_id] = {
+                "hourly": 0,
+                "daily": 0,
+            }
+
+        def check_and_increment(self, client_id: str) -> tuple:
+            """Check limit and increment counter."""
+            limits = self.limits.get(client_id)
+            counts = self.query_counts.get(client_id)
+
+            if not limits or not counts:
+                return False, "Client not registered"
+
+            if counts["hourly"] >= limits["hourly"]:
+                return False, "Hourly limit exceeded"
+            if counts["daily"] >= limits["daily"]:
+                return False, "Daily limit exceeded"
+
+            counts["hourly"] += 1
+            counts["daily"] += 1
+            return True, "Query allowed"
+
+    limiter = QueryRateLimiter()
+
+    limiter.set_limit("normal_client", 100, 1000)
+    limiter.query_counts["normal_client"]["hourly"] = 100  # At limit
+
+    ok, msg = limiter.check_and_increment("normal_client")
+    if not ok:
+        defenses["rate_limiting"] = True
+
+    # ========================================================================
+    # Defense 2: Query Pattern Detection
+    # ========================================================================
+
+    class ExtractionPatternDetector:
+        """Detect patterns indicative of model extraction."""
+
+        def __init__(self):
+            self.query_history = {}
+            self.alerts = []
+
+        def record_query(self, client_id: str, input_features: list):
+            """Record query for pattern analysis."""
+            if client_id not in self.query_history:
+                self.query_history[client_id] = []
+            self.query_history[client_id].append(input_features)
+
+        def detect_extraction_pattern(self, client_id: str) -> list:
+            """Detect extraction patterns."""
+            queries = self.query_history.get(client_id, [])
+            patterns = []
+
+            # Check for systematic grid sampling
+            if len(queries) > 100:
+                # Simplified: check for evenly spaced queries
+                patterns.append("High query volume")
+
+            # Check for boundary probing
+            edge_queries = sum(1 for q in queries if any(abs(v) > 0.9 for v in q))
+            if edge_queries > len(queries) * 0.3:
+                patterns.append("Boundary probing detected")
+
+            # Check for gradient estimation (closely spaced queries)
+            if len(queries) > 2:
+                close_pairs = 0
+                for i in range(len(queries) - 1):
+                    diff = sum(abs(a - b) for a, b in zip(queries[i], queries[i+1]))
+                    if diff < 0.1:
+                        close_pairs += 1
+                if close_pairs > len(queries) * 0.2:
+                    patterns.append("Gradient estimation pattern")
+
+            return patterns
+
+    detector = ExtractionPatternDetector()
+
+    # Simulate extraction attempt
+    for i in range(150):
+        detector.record_query("extractor", [i/100, (i+1)/100, 0.95])  # Grid + boundary
+
+    patterns = detector.detect_extraction_pattern("extractor")
+    if patterns:
+        defenses["pattern_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Output Perturbation
+    # ========================================================================
+
+    class OutputPerturbation:
+        """Add noise to outputs to prevent exact extraction."""
+
+        def __init__(self):
+            self.noise_levels = {}
+
+        def set_noise_level(self, model_id: str, epsilon: float):
+            """Set noise level for model."""
+            self.noise_levels[model_id] = epsilon
+
+        def perturb_output(self, model_id: str, output: float,
+                          query_count: int) -> float:
+            """Perturb output with adaptive noise."""
+            epsilon = self.noise_levels.get(model_id, 0.01)
+
+            # Increase noise for high query counts
+            adaptive_epsilon = epsilon * (1 + query_count / 1000)
+
+            # Add Laplace noise (simplified)
+            import random
+            noise = random.uniform(-adaptive_epsilon, adaptive_epsilon)
+
+            return output + noise
+
+        def verify_perturbation_applied(self, model_id: str) -> bool:
+            """Verify perturbation is active."""
+            return model_id in self.noise_levels
+
+    perturbation = OutputPerturbation()
+
+    perturbation.set_noise_level("valuable_model", 0.02)
+
+    if perturbation.verify_perturbation_applied("valuable_model"):
+        defenses["output_perturbation"] = True
+
+    # ========================================================================
+    # Defense 4: Model Fingerprinting
+    # ========================================================================
+
+    class ModelFingerprinting:
+        """Embed fingerprints to detect extracted models."""
+
+        def __init__(self):
+            self.fingerprints = {}
+
+        def embed_fingerprint(self, model_id: str,
+                             trigger_inputs: list,
+                             expected_outputs: list):
+            """Embed fingerprint in model behavior."""
+            self.fingerprints[model_id] = {
+                "triggers": trigger_inputs,
+                "outputs": expected_outputs,
+            }
+
+        def detect_stolen_model(self, suspect_model_outputs: list,
+                               trigger_inputs: list) -> list:
+            """Check if suspect model contains our fingerprint."""
+            matches = []
+
+            for model_id, fp in self.fingerprints.items():
+                if fp["triggers"] == trigger_inputs:
+                    match_count = sum(
+                        1 for a, b in zip(suspect_model_outputs, fp["outputs"])
+                        if abs(a - b) < 0.1
+                    )
+                    if match_count >= len(fp["outputs"]) * 0.8:
+                        matches.append(model_id)
+
+            return matches
+
+    fingerprinting = ModelFingerprinting()
+
+    fingerprinting.embed_fingerprint("our_model",
+                                     [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]],
+                                     [0.42, 0.58, 0.73])
+
+    # Suspect model shows our fingerprint
+    matches = fingerprinting.detect_stolen_model([0.42, 0.58, 0.73],
+                                                  [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
+    if matches:
+        defenses["model_fingerprinting"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Model Extraction (EX-2b)",
+        success=attack_success,
+        setup_cost_atp=25000.0,
+        gain_atp=5000000.0 if attack_success else 0.0,
+        roi=(5000000.0 / 25000.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=168.0,
+        blocks_until_detected=500,
+        trust_damage=0.90,
+        description=f"""
+MODEL EXTRACTION (Track EX-2b)
+
+Extract model through repeated queries.
+
+Attack Pattern:
+1. Query model extensively
+2. Record input-output pairs
+3. Train surrogate model
+4. Replicate proprietary model
+
+Death by a thousand queries.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EX-2b: Model Protection Defense:
+1. Query rate limiting
+2. Extraction pattern detection
+3. Output perturbation
+4. Model fingerprinting
+
+Make extraction detectable and degraded.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_gradient_exploitation() -> AttackResult:
+    """
+    ATTACK 243: GRADIENT EXPLOITATION (Track EX-3a)
+
+    Exploit gradient information leaked by model:
+    1. Query model to estimate gradients
+    2. Craft adversarial inputs
+    3. Find inputs that cause misclassification
+    4. Deploy in production
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Gradient Masking
+    # ========================================================================
+
+    class GradientMasking:
+        """Mask gradients to prevent exploitation."""
+
+        def __init__(self):
+            self.masking_enabled = {}
+
+        def enable_masking(self, model_id: str, technique: str):
+            """Enable gradient masking."""
+            self.masking_enabled[model_id] = {
+                "technique": technique,
+                "active": True,
+            }
+
+        def is_masked(self, model_id: str) -> bool:
+            """Check if gradients are masked."""
+            return self.masking_enabled.get(model_id, {}).get("active", False)
+
+        def apply_masking(self, model_id: str, output: dict) -> dict:
+            """Apply gradient masking to output."""
+            if not self.is_masked(model_id):
+                return output
+
+            technique = self.masking_enabled[model_id]["technique"]
+
+            if technique == "quantize":
+                # Quantize outputs to reduce gradient precision
+                output["scores"] = [round(s, 2) for s in output.get("scores", [])]
+            elif technique == "threshold":
+                # Hard threshold decisions
+                output["scores"] = [1.0 if s > 0.5 else 0.0 for s in output.get("scores", [])]
+
+            return output
+
+    masking = GradientMasking()
+
+    masking.enable_masking("protected_model", "quantize")
+
+    if masking.is_masked("protected_model"):
+        defenses["gradient_masking"] = True
+
+    # ========================================================================
+    # Defense 2: Adversarial Training
+    # ========================================================================
+
+    class AdversarialTraining:
+        """Track adversarial training status."""
+
+        def __init__(self):
+            self.training_status = {}
+
+        def record_adversarial_training(self, model_id: str,
+                                        attack_types: list,
+                                        epsilon: float):
+            """Record that model was adversarially trained."""
+            self.training_status[model_id] = {
+                "attack_types": attack_types,
+                "epsilon": epsilon,
+                "robust": True,
+            }
+
+        def is_robust(self, model_id: str, attack_type: str) -> tuple:
+            """Check if model is robust against attack type."""
+            status = self.training_status.get(model_id)
+            if not status:
+                return False, "Not adversarially trained"
+
+            if attack_type in status["attack_types"]:
+                return True, f"Robust against {attack_type}"
+
+            return False, f"Not trained against {attack_type}"
+
+    adv_training = AdversarialTraining()
+
+    adv_training.record_adversarial_training("robust_model",
+                                              ["FGSM", "PGD", "C&W"],
+                                              epsilon=0.3)
+
+    ok, msg = adv_training.is_robust("robust_model", "PGD")
+    if ok:
+        defenses["adversarial_training"] = True
+
+    # ========================================================================
+    # Defense 3: Input Preprocessing
+    # ========================================================================
+
+    class AdversarialPreprocessor:
+        """Preprocess inputs to neutralize adversarial perturbations."""
+
+        def __init__(self):
+            self.preprocessors = {}
+
+        def add_preprocessor(self, model_id: str, techniques: list):
+            """Add preprocessing techniques."""
+            self.preprocessors[model_id] = techniques
+
+        def preprocess(self, model_id: str, input_data: list) -> tuple:
+            """Apply preprocessing to input."""
+            techniques = self.preprocessors.get(model_id, [])
+            processed = input_data.copy()
+
+            for tech in techniques:
+                if tech == "jpeg_compression":
+                    # Simulated JPEG compression removes high-freq perturbations
+                    processed = [round(x, 1) for x in processed]
+                elif tech == "feature_squeezing":
+                    # Reduce color depth
+                    processed = [round(x * 8) / 8 for x in processed]
+                elif tech == "spatial_smoothing":
+                    # Average nearby values
+                    if len(processed) > 2:
+                        smoothed = []
+                        for i in range(len(processed)):
+                            window = processed[max(0, i-1):min(len(processed), i+2)]
+                            smoothed.append(sum(window) / len(window))
+                        processed = smoothed
+
+            return processed, len(techniques) > 0
+
+    preprocessor = AdversarialPreprocessor()
+
+    preprocessor.add_preprocessor("defended_model",
+                                   ["jpeg_compression", "spatial_smoothing"])
+
+    _, applied = preprocessor.preprocess("defended_model", [0.1, 0.2, 0.3])
+    if applied:
+        defenses["input_preprocessing"] = True
+
+    # ========================================================================
+    # Defense 4: Ensemble Voting
+    # ========================================================================
+
+    class EnsembleVoting:
+        """Use ensemble to resist adversarial attacks."""
+
+        def __init__(self):
+            self.ensembles = {}
+
+        def create_ensemble(self, ensemble_id: str, model_ids: list):
+            """Create ensemble of diverse models."""
+            self.ensembles[ensemble_id] = {
+                "models": model_ids,
+                "voting": "majority",
+            }
+
+        def get_ensemble_prediction(self, ensemble_id: str,
+                                   individual_predictions: dict) -> dict:
+            """Get ensemble prediction via voting."""
+            ensemble = self.ensembles.get(ensemble_id)
+            if not ensemble:
+                return {"error": "Ensemble not found"}
+
+            # Collect votes
+            votes = {}
+            for model_id in ensemble["models"]:
+                pred = individual_predictions.get(model_id)
+                if pred:
+                    votes[pred] = votes.get(pred, 0) + 1
+
+            # Majority vote
+            if votes:
+                winner = max(votes.items(), key=lambda x: x[1])
+                return {
+                    "prediction": winner[0],
+                    "agreement": winner[1] / len(ensemble["models"]),
+                }
+
+            return {"error": "No predictions"}
+
+        def detect_adversarial_via_disagreement(self, ensemble_id: str,
+                                                 predictions: dict,
+                                                 threshold: float = 0.6) -> bool:
+            """Detect adversarial if models disagree."""
+            result = self.get_ensemble_prediction(ensemble_id, predictions)
+            agreement = result.get("agreement", 0)
+
+            # Low agreement suggests adversarial input
+            return agreement < threshold
+
+    ensemble = EnsembleVoting()
+
+    ensemble.create_ensemble("robust_ensemble",
+                             ["model_a", "model_b", "model_c", "model_d", "model_e"])
+
+    # Adversarial input causes disagreement
+    is_adversarial = ensemble.detect_adversarial_via_disagreement("robust_ensemble", {
+        "model_a": "cat",
+        "model_b": "dog",  # Disagreement!
+        "model_c": "cat",
+        "model_d": "bird",  # Disagreement!
+        "model_e": "cat",
+    })
+    if is_adversarial:
+        defenses["ensemble_voting"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Gradient Exploitation (EX-3a)",
+        success=attack_success,
+        setup_cost_atp=20000.0,
+        gain_atp=1500000.0 if attack_success else 0.0,
+        roi=(1500000.0 / 20000.0) if attack_success else -1.0,
+        detection_probability=0.45 if defenses_held >= 3 else 0.18,
+        time_to_detection_hours=48.0,
+        blocks_until_detected=140,
+        trust_damage=0.85,
+        description=f"""
+GRADIENT EXPLOITATION (Track EX-3a)
+
+Exploit gradient information to craft adversarial inputs.
+
+Attack Pattern:
+1. Estimate gradients via queries
+2. Craft adversarial perturbations
+3. Cause targeted misclassification
+4. Deploy in production
+
+Follow the gradient to break the model.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EX-3a: Gradient Defense:
+1. Gradient masking
+2. Adversarial training
+3. Input preprocessing
+4. Ensemble voting
+
+Hide, harden, filter, diversify.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_model_inversion() -> AttackResult:
+    """
+    ATTACK 244: MODEL INVERSION (Track EX-3b)
+
+    Invert model to extract training data:
+    1. Query model for confidence scores
+    2. Use optimization to reconstruct inputs
+    3. Extract sensitive training data
+    4. Privacy breach of training subjects
+    """
+    defenses = {}
+
+    # ========================================================================
+    # Defense 1: Confidence Score Rounding
+    # ========================================================================
+
+    class ConfidenceRounder:
+        """Round confidence scores to prevent inversion."""
+
+        def __init__(self):
+            self.precision = {}
+
+        def set_precision(self, model_id: str, decimal_places: int):
+            """Set rounding precision."""
+            self.precision[model_id] = decimal_places
+
+        def round_confidence(self, model_id: str,
+                            confidence: float) -> float:
+            """Round confidence to prevent information leakage."""
+            places = self.precision.get(model_id, 2)
+            return round(confidence, places)
+
+        def information_reduced(self, model_id: str) -> bool:
+            """Check if information is being reduced."""
+            return model_id in self.precision and self.precision[model_id] <= 2
+
+    rounder = ConfidenceRounder()
+
+    rounder.set_precision("private_model", 1)  # Only 1 decimal place
+
+    if rounder.information_reduced("private_model"):
+        defenses["confidence_rounding"] = True
+
+    # ========================================================================
+    # Defense 2: Differential Privacy
+    # ========================================================================
+
+    class DifferentialPrivacy:
+        """Apply differential privacy to model outputs."""
+
+        def __init__(self):
+            self.epsilon_budgets = {}
+            self.queries_used = {}
+
+        def set_privacy_budget(self, model_id: str, epsilon: float):
+            """Set privacy budget for model."""
+            self.epsilon_budgets[model_id] = epsilon
+            self.queries_used[model_id] = 0.0
+
+        def query_with_privacy(self, model_id: str, output: float,
+                              query_epsilon: float = 0.1) -> tuple:
+            """Return output with differential privacy."""
+            budget = self.epsilon_budgets.get(model_id)
+            used = self.queries_used.get(model_id, 0)
+
+            if budget is None:
+                return output, False
+
+            if used + query_epsilon > budget:
+                return None, True  # Budget exhausted
+
+            # Add Laplace noise (simplified)
+            import random
+            scale = 1.0 / query_epsilon
+            noise = random.uniform(-scale, scale)
+
+            self.queries_used[model_id] = used + query_epsilon
+
+            return output + noise, False
+
+        def privacy_protected(self, model_id: str) -> bool:
+            """Check if model has privacy protection."""
+            return model_id in self.epsilon_budgets
+
+    dp = DifferentialPrivacy()
+
+    dp.set_privacy_budget("sensitive_model", 1.0)
+
+    if dp.privacy_protected("sensitive_model"):
+        defenses["differential_privacy"] = True
+
+    # ========================================================================
+    # Defense 3: Membership Inference Detection
+    # ========================================================================
+
+    class MembershipInferenceDetector:
+        """Detect membership inference attacks."""
+
+        def __init__(self):
+            self.query_patterns = {}
+            self.alerts = []
+
+        def record_query(self, client_id: str, input_type: str,
+                        confidence: float):
+            """Record query for analysis."""
+            if client_id not in self.query_patterns:
+                self.query_patterns[client_id] = []
+            self.query_patterns[client_id].append({
+                "type": input_type,
+                "confidence": confidence,
+            })
+
+        def detect_membership_probing(self, client_id: str) -> bool:
+            """Detect patterns indicating membership inference."""
+            queries = self.query_patterns.get(client_id, [])
+
+            # Check for many queries near decision boundary
+            boundary_queries = sum(
+                1 for q in queries
+                if 0.4 < q["confidence"] < 0.6
+            )
+
+            # Check for queries with known training sample patterns
+            high_confidence = sum(
+                1 for q in queries
+                if q["confidence"] > 0.95
+            )
+
+            if boundary_queries > len(queries) * 0.3:
+                return True
+            if high_confidence > len(queries) * 0.5:
+                return True
+
+            return False
+
+    mi_detector = MembershipInferenceDetector()
+
+    # Attacker probes with many high-confidence queries
+    for i in range(20):
+        mi_detector.record_query("attacker", "probe", 0.97)
+
+    if mi_detector.detect_membership_probing("attacker"):
+        defenses["membership_inference_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Model Unlearning
+    # ========================================================================
+
+    class ModelUnlearning:
+        """Support unlearning of specific training data."""
+
+        def __init__(self):
+            self.unlearning_requests = {}
+            self.unlearned_data = set()
+
+        def request_unlearning(self, data_id: str, reason: str) -> str:
+            """Request unlearning of specific data."""
+            request_id = f"unlearn_{len(self.unlearning_requests)}"
+            self.unlearning_requests[request_id] = {
+                "data_id": data_id,
+                "reason": reason,
+                "status": "pending",
+            }
+            return request_id
+
+        def complete_unlearning(self, request_id: str) -> tuple:
+            """Mark unlearning as complete."""
+            request = self.unlearning_requests.get(request_id)
+            if not request:
+                return False, "Request not found"
+
+            request["status"] = "complete"
+            self.unlearned_data.add(request["data_id"])
+            return True, f"Data {request['data_id']} unlearned"
+
+        def verify_unlearning(self, data_id: str) -> bool:
+            """Verify data has been unlearned."""
+            return data_id in self.unlearned_data
+
+    unlearning = ModelUnlearning()
+
+    req_id = unlearning.request_unlearning("sensitive_data_001", "Privacy request")
+    unlearning.complete_unlearning(req_id)
+
+    if unlearning.verify_unlearning("sensitive_data_001"):
+        defenses["model_unlearning"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Model Inversion (EX-3b)",
+        success=attack_success,
+        setup_cost_atp=30000.0,
+        gain_atp=2000000.0 if attack_success else 0.0,
+        roi=(2000000.0 / 30000.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=336.0,
+        blocks_until_detected=1000,
+        trust_damage=0.95,
+        description=f"""
+MODEL INVERSION (Track EX-3b)
+
+Invert model to extract sensitive training data.
+
+Attack Pattern:
+1. Query for detailed confidence scores
+2. Use optimization to reconstruct inputs
+3. Extract sensitive training data
+4. Privacy breach of training subjects
+
+Your model remembers too much.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EX-3b: Privacy Defense:
+1. Confidence score rounding
+2. Differential privacy
+3. Membership inference detection
+4. Model unlearning support
+
+Forget what you shouldn't remember.
 """.strip(),
         raw_data={
             "defenses": defenses,
