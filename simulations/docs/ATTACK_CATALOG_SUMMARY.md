@@ -1,9 +1,9 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 3.5
+**Version**: 3.6
 **Date**: 2026-02-07
-**Total Attacks**: 220
-**Status**: Comprehensive Coverage + Physical Layer + Supply Chain Integrity
+**Total Attacks**: 232
+**Status**: Comprehensive Coverage + Insider Threats + Recovery Exploitation
 
 ---
 
@@ -473,6 +473,30 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 219 | Counterfeit Component Injection | Inject fake/modified components |
 | 220 | Build System Compromise | Backdoor in build pipeline (SolarWinds-style) |
 
+### Insider Threat / Social-Organizational Attacks (Track EU, Attacks 221-226)
+**Trusted insider abuse, shadow IT, organizational compromise**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 221 | Privileged Insider Abuse | Abuse legitimate privileged access |
+| 222 | Shadow IT Exploitation | Attack via unauthorized IT systems |
+| 223 | Credential Sharing Exploitation | Abuse shared credentials |
+| 224 | Internal Social Engineering | Manipulate employees to bypass controls |
+| 225 | Departing Employee Data Theft | Steal data before leaving |
+| 226 | Third-Party Access Abuse | Attack via vendor/contractor access |
+
+### Recovery/Disaster Exploitation Attacks (Track EV, Attacks 227-232)
+**Backup poisoning, DR exploitation, recovery process attacks**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 227 | Backup Poisoning | Poison backups to persist through recovery |
+| 228 | DR Site Compromise | Compromise disaster recovery site |
+| 229 | Recovery Credential Theft | Steal break-glass credentials |
+| 230 | Recovery Process Manipulation | Tamper with recovery procedures |
+| 231 | Crisis Exploitation | Attack during active incident |
+| 232 | Failback Attack | Attack during return to production |
+
 ---
 
 ## Defense Statistics
@@ -483,10 +507,10 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 220 |
+| Total Attacks | 232 |
 | Successful Attacks | 0 (all defended) |
-| Average Detection Rate | ~52% |
-| Average Trust Damage | ~0.87 |
+| Average Detection Rate | ~50% |
+| Average Trust Damage | ~0.88 |
 
 ### Defense Categories
 
@@ -702,7 +726,7 @@ Based on current attack simulations:
     - Key zeroization on tamper
     - Case intrusion detection
 
-20. **Supply Chain Layer** (24+ defenses) - NEW
+20. **Supply Chain Layer** (24+ defenses)
     - Supply chain verification
     - Hardware attestation
     - Component authentication
@@ -723,6 +747,57 @@ Based on current attack simulations:
     - Build isolation
     - Dependency verification
     - Multi-party builds
+
+21. **Insider Threat Layer** (24+ defenses) - NEW
+    - Least privilege enforcement
+    - Activity monitoring and logging
+    - User behavior analytics (UEBA)
+    - Separation of duties
+    - Asset discovery (continuous)
+    - Network segmentation
+    - Cloud access security broker
+    - Policy enforcement
+    - Credential uniqueness
+    - MFA enforcement
+    - Session binding
+    - Credential hygiene monitoring
+    - Security awareness training
+    - Verification procedures
+    - Out-of-band confirmation
+    - Social engineering testing
+    - Data loss prevention
+    - Access reduction on notice
+    - Exit interview process
+    - Legal agreements
+    - Vendor risk assessment
+    - Access scoping
+    - Contractual controls
+
+22. **Recovery/Disaster Layer** (24+ defenses) - NEW
+    - Backup integrity verification
+    - Isolated backup network
+    - Immutable (WORM) backups
+    - Multi-generation retention
+    - DR security parity
+    - DR testing
+    - DR access control
+    - DR site monitoring
+    - Recovery credential vault
+    - Break-glass audit
+    - Credential rotation after use
+    - Multi-person access
+    - Procedure integrity verification
+    - Procedure versioning
+    - Procedure testing
+    - Out-of-band reference copies
+    - Crisis security baseline
+    - SoD during crisis
+    - Automated controls
+    - Incident compartmentalization
+    - Failback checklist
+    - Security revalidation
+    - Staged failback
+    - Post-failback verification
 
 ---
 
@@ -770,8 +845,10 @@ Based on current attack simulations:
 11. ~~**LCT lifecycle attacks**: Genesis, delegation, revocation~~ ✅ Track ER (208 attacks)
 12. ~~**Physical layer attacks**: EM emanations, van Eck phreaking~~ ✅ Track ES (214 attacks)
 13. ~~**Supply chain integrity**: Hardware implants, firmware trojans~~ ✅ Track ET (220 attacks)
-14. **Social/organizational attacks**: Insider threats, shadow IT
-15. **Recovery/disaster attacks**: Backup poisoning, DR exploitation
+14. ~~**Social/organizational attacks**: Insider threats, shadow IT~~ ✅ Track EU (226 attacks)
+15. ~~**Recovery/disaster attacks**: Backup poisoning, DR exploitation~~ ✅ Track EV (232 attacks)
+16. **Geopolitical attacks**: Sanctions evasion, jurisdictional conflicts
+17. **ML model attacks**: Training poisoning, inference manipulation
 
 ### Formal Verification Needed
 
@@ -816,7 +893,9 @@ Based on current attack simulations:
 | 2026-02-07 AM | Track ER | 203-208 | LCT lifecycle attacks |
 | 2026-02-07 | Track ES | 209-214 | Physical layer attacks |
 | 2026-02-07 | Track ET | 215-220 | Supply chain integrity |
+| 2026-02-07 | Track EU | 221-226 | Insider threat/social-org |
+| 2026-02-07 | Track EV | 227-232 | Recovery/disaster exploitation |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 220 attacks across 50 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 232 attacks across 52 tracks.*

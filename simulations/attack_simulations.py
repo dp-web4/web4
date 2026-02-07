@@ -55259,6 +55259,20 @@ def run_all_attacks() -> List[AttackResult]:
         ("Supply Chain Interdiction (ET-2b)", attack_interdiction),
         ("Counterfeit Component Injection (ET-3a)", attack_counterfeit_component),
         ("Build System Compromise (ET-3b)", attack_build_system_compromise),
+        # Track EU: Insider Threat / Social-Organizational Attacks
+        ("Privileged Insider Abuse (EU-1a)", attack_privileged_insider_abuse),
+        ("Shadow IT Exploitation (EU-1b)", attack_shadow_it),
+        ("Credential Sharing Exploitation (EU-2a)", attack_credential_sharing),
+        ("Internal Social Engineering (EU-2b)", attack_social_engineering_internal),
+        ("Departing Employee Data Theft (EU-3a)", attack_departing_employee),
+        ("Third-Party Access Abuse (EU-3b)", attack_third_party_access),
+        # Track EV: Recovery/Disaster Exploitation Attacks
+        ("Backup Poisoning (EV-1a)", attack_backup_poisoning),
+        ("DR Site Compromise (EV-1b)", attack_dr_site_compromise),
+        ("Recovery Credential Theft (EV-2a)", attack_recovery_credential_theft),
+        ("Recovery Process Manipulation (EV-2b)", attack_recovery_process_manipulation),
+        ("Crisis Exploitation (EV-3a)", attack_crisis_exploitation),
+        ("Failback Attack (EV-3b)", attack_failback_attack),
     ]
 
     results = []
@@ -65759,6 +65773,2851 @@ Track ET-3b: Build Compromise Defense:
 4. Multi-party builds
 
 Build from source, verify the binary.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# =============================================================================
+# TRACK EU: INSIDER THREAT / SOCIAL-ORGANIZATIONAL ATTACKS (Attacks 221-226)
+# Trusted insider abuse, shadow IT, organizational compromise
+# =============================================================================
+
+
+def attack_privileged_insider_abuse() -> AttackResult:
+    """
+    ATTACK 221: PRIVILEGED INSIDER ABUSE (Track EU-1a)
+
+    Abuse legitimate access for unauthorized purposes:
+    1. Insider with admin/privileged access
+    2. Uses access for personal gain or sabotage
+    3. Actions appear legitimate within role
+    4. Difficult to distinguish from normal behavior
+    """
+
+    defenses = {
+        "least_privilege": False,
+        "activity_monitoring": False,
+        "behavior_analytics": False,
+        "separation_of_duties": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Least Privilege Enforcement
+    # ========================================================================
+
+    class LeastPrivilegeEnforcer:
+        """Enforce minimum necessary permissions."""
+
+        def __init__(self):
+            self.role_permissions = {}
+            self.user_roles = {}
+            self.access_requests = []
+
+        def define_role(self, role: str, permissions: set):
+            """Define role with minimal permissions."""
+            self.role_permissions[role] = permissions
+
+        def assign_user_role(self, user_id: str, role: str):
+            """Assign user to role."""
+            self.user_roles[user_id] = role
+
+        def check_access(self, user_id: str, action: str, resource: str) -> tuple:
+            """Check if user has permission for action."""
+            role = self.user_roles.get(user_id)
+            if not role:
+                return False, "User has no role"
+
+            permissions = self.role_permissions.get(role, set())
+            required = f"{action}:{resource}"
+
+            if required not in permissions and f"{action}:*" not in permissions:
+                return False, f"Permission {required} not in role {role}"
+
+            self.access_requests.append((user_id, action, resource))
+            return True, "Access granted"
+
+        def detect_overreach(self, user_id: str) -> tuple:
+            """Detect if user is accessing outside normal patterns."""
+            user_requests = [(a, r) for u, a, r in self.access_requests if u == user_id]
+
+            # Check for unusual patterns
+            if len(set(r for a, r in user_requests)) > 5:
+                return True, "Accessing many different resources"
+
+            return False, "Access patterns normal"
+
+    enforcer = LeastPrivilegeEnforcer()
+
+    enforcer.define_role("developer", {"read:code", "write:code", "read:docs"})
+    enforcer.assign_user_role("insider", "developer")
+
+    # Insider tries to access something outside role
+    ok, msg = enforcer.check_access("insider", "read", "secrets")
+    if not ok:
+        defenses["least_privilege"] = True
+
+    # ========================================================================
+    # Defense 2: Activity Monitoring
+    # ========================================================================
+
+    class ActivityMonitor:
+        """Monitor and log all privileged activities."""
+
+        def __init__(self):
+            self.activity_log = []
+            self.alert_patterns = []
+
+        def add_alert_pattern(self, pattern: str, threshold: int):
+            """Add pattern that triggers alert."""
+            self.alert_patterns.append({"pattern": pattern, "threshold": threshold})
+
+        def log_activity(self, user_id: str, action: str, resource: str,
+                        timestamp: float):
+            """Log activity."""
+            self.activity_log.append({
+                "user": user_id,
+                "action": action,
+                "resource": resource,
+                "time": timestamp,
+            })
+
+        def check_alerts(self, user_id: str) -> tuple:
+            """Check if any alert patterns triggered."""
+            user_logs = [l for l in self.activity_log if l["user"] == user_id]
+
+            for pattern in self.alert_patterns:
+                matching = [l for l in user_logs if pattern["pattern"] in l["action"]]
+                if len(matching) >= pattern["threshold"]:
+                    return True, f"Alert: {pattern['pattern']} exceeded threshold"
+
+            return False, "No alerts triggered"
+
+    monitor = ActivityMonitor()
+
+    monitor.add_alert_pattern("export", threshold=3)
+
+    # Insider exports multiple resources
+    import time
+    for i in range(5):
+        monitor.log_activity("insider", "export", f"data_{i}", time.time())
+
+    alert, msg = monitor.check_alerts("insider")
+    if alert:
+        defenses["activity_monitoring"] = True
+
+    # ========================================================================
+    # Defense 3: Behavior Analytics (UEBA)
+    # ========================================================================
+
+    class BehaviorAnalytics:
+        """User and Entity Behavior Analytics."""
+
+        def __init__(self):
+            self.baselines = {}
+            self.current_behaviors = {}
+
+        def set_baseline(self, user_id: str, metrics: dict):
+            """Set behavioral baseline for user."""
+            self.baselines[user_id] = metrics
+
+        def record_behavior(self, user_id: str, metrics: dict):
+            """Record current behavior."""
+            self.current_behaviors[user_id] = metrics
+
+        def detect_anomaly(self, user_id: str) -> tuple:
+            """Detect behavioral anomalies."""
+            baseline = self.baselines.get(user_id, {})
+            current = self.current_behaviors.get(user_id, {})
+
+            anomalies = []
+            for metric, base_val in baseline.items():
+                curr_val = current.get(metric, 0)
+                deviation = abs(curr_val - base_val) / max(base_val, 1)
+
+                if deviation > 0.5:  # 50% deviation threshold
+                    anomalies.append(f"{metric}: {deviation:.0%} deviation")
+
+            if anomalies:
+                return True, f"Anomalies: {anomalies}"
+
+            return False, "Behavior within baseline"
+
+    ueba = BehaviorAnalytics()
+
+    ueba.set_baseline("insider", {
+        "avg_daily_access": 20,
+        "unique_resources": 5,
+        "after_hours_pct": 0.05,
+    })
+
+    # Anomalous behavior
+    ueba.record_behavior("insider", {
+        "avg_daily_access": 150,  # 7.5x normal
+        "unique_resources": 50,  # 10x normal
+        "after_hours_pct": 0.80,  # 16x normal
+    })
+
+    anomaly, msg = ueba.detect_anomaly("insider")
+    if anomaly:
+        defenses["behavior_analytics"] = True
+
+    # ========================================================================
+    # Defense 4: Separation of Duties
+    # ========================================================================
+
+    class SeparationOfDuties:
+        """Enforce separation of duties for critical operations."""
+
+        def __init__(self):
+            self.conflict_pairs = set()
+            self.user_actions = {}
+
+        def add_conflict(self, action1: str, action2: str):
+            """Define conflicting actions that can't be done by same person."""
+            self.conflict_pairs.add((action1, action2))
+            self.conflict_pairs.add((action2, action1))
+
+        def record_action(self, user_id: str, action: str):
+            """Record action by user."""
+            if user_id not in self.user_actions:
+                self.user_actions[user_id] = set()
+            self.user_actions[user_id].add(action)
+
+        def check_violation(self, user_id: str, proposed_action: str) -> tuple:
+            """Check if action would violate separation of duties."""
+            user_acts = self.user_actions.get(user_id, set())
+
+            for past_action in user_acts:
+                if (past_action, proposed_action) in self.conflict_pairs:
+                    return True, f"SoD violation: {past_action} and {proposed_action}"
+
+            return False, "No SoD violation"
+
+    sod = SeparationOfDuties()
+
+    sod.add_conflict("create_payment", "approve_payment")
+    sod.add_conflict("submit_code", "approve_merge")
+
+    # Insider already submitted code
+    sod.record_action("insider", "submit_code")
+
+    # Now tries to approve their own merge
+    violation, msg = sod.check_violation("insider", "approve_merge")
+    if violation:
+        defenses["separation_of_duties"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Privileged Insider Abuse (EU-1a)",
+        success=attack_success,
+        setup_cost_atp=0.0,  # Already has access
+        gain_atp=500000.0 if attack_success else 0.0,
+        roi=float('inf') if attack_success else 0.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=720.0,  # Weeks to months
+        blocks_until_detected=2000,
+        trust_damage=0.95,
+        description=f"""
+PRIVILEGED INSIDER ABUSE (Track EU-1a)
+
+Abuse legitimate access for unauthorized purposes.
+
+Attack Pattern:
+1. Insider has valid privileged access
+2. Uses access for personal gain/sabotage
+3. Actions appear legitimate
+4. Blends with normal behavior
+
+The enemy inside the walls.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EU-1a: Insider Abuse Defense:
+1. Least privilege enforcement
+2. Activity monitoring and logging
+3. User behavior analytics (UEBA)
+4. Separation of duties
+
+Trust but verify. Verify a lot.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_shadow_it() -> AttackResult:
+    """
+    ATTACK 222: SHADOW IT EXPLOITATION (Track EU-1b)
+
+    Exploit unauthorized IT systems/services:
+    1. Users deploy unapproved tools/services
+    2. Shadow IT lacks security controls
+    3. Attacker targets these weak points
+    4. Gains access through unmonitored channels
+    """
+
+    defenses = {
+        "asset_discovery": False,
+        "network_segmentation": False,
+        "cloud_access_broker": False,
+        "policy_enforcement": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Asset Discovery
+    # ========================================================================
+
+    class AssetDiscovery:
+        """Discover and inventory all assets."""
+
+        def __init__(self):
+            self.known_assets = set()
+            self.discovered_assets = set()
+
+        def register_asset(self, asset_id: str, asset_type: str):
+            """Register known/approved asset."""
+            self.known_assets.add(asset_id)
+
+        def scan_network(self, found_assets: list):
+            """Scan network and record findings."""
+            self.discovered_assets = set(found_assets)
+
+        def find_shadow_it(self) -> tuple:
+            """Find assets not in known inventory."""
+            shadow = self.discovered_assets - self.known_assets
+
+            if shadow:
+                return True, f"Shadow IT detected: {shadow}"
+
+            return False, "No shadow IT detected"
+
+    discovery = AssetDiscovery()
+
+    discovery.register_asset("server_01", "approved_server")
+    discovery.register_asset("laptop_02", "approved_endpoint")
+
+    # Scan finds unauthorized assets
+    discovery.scan_network(["server_01", "laptop_02", "rogue_nas", "personal_pi"])
+
+    shadow_found, msg = discovery.find_shadow_it()
+    if shadow_found:
+        defenses["asset_discovery"] = True
+
+    # ========================================================================
+    # Defense 2: Network Segmentation
+    # ========================================================================
+
+    class NetworkSegmentation:
+        """Enforce network segmentation."""
+
+        def __init__(self):
+            self.segments = {}
+            self.allowed_flows = set()
+
+        def define_segment(self, segment_id: str, assets: list):
+            """Define network segment."""
+            self.segments[segment_id] = set(assets)
+
+        def allow_flow(self, from_seg: str, to_seg: str, protocol: str):
+            """Allow traffic flow between segments."""
+            self.allowed_flows.add((from_seg, to_seg, protocol))
+
+        def check_flow(self, from_asset: str, to_asset: str,
+                      protocol: str) -> tuple:
+            """Check if traffic flow is allowed."""
+            from_seg = None
+            to_seg = None
+
+            for seg_id, assets in self.segments.items():
+                if from_asset in assets:
+                    from_seg = seg_id
+                if to_asset in assets:
+                    to_seg = seg_id
+
+            if from_seg is None:
+                return False, f"Source asset {from_asset} not in any segment"
+
+            if to_seg is None:
+                return False, f"Target asset {to_asset} not in any segment"
+
+            if (from_seg, to_seg, protocol) not in self.allowed_flows:
+                return False, f"Flow {from_seg}->{to_seg}:{protocol} not allowed"
+
+            return True, "Flow allowed"
+
+    segmentation = NetworkSegmentation()
+
+    segmentation.define_segment("workstations", ["ws_01", "ws_02"])
+    segmentation.define_segment("servers", ["srv_01", "srv_02"])
+    segmentation.allow_flow("workstations", "servers", "https")
+
+    # Shadow IT device tries to access servers
+    ok, msg = segmentation.check_flow("rogue_device", "srv_01", "ssh")
+    if not ok:
+        defenses["network_segmentation"] = True
+
+    # ========================================================================
+    # Defense 3: Cloud Access Security Broker (CASB)
+    # ========================================================================
+
+    class CloudAccessBroker:
+        """Monitor and control cloud service access."""
+
+        def __init__(self):
+            self.approved_services = set()
+            self.blocked_services = set()
+            self.access_log = []
+
+        def approve_service(self, service: str, security_level: str):
+            """Approve cloud service for use."""
+            self.approved_services.add(service)
+
+        def block_service(self, service: str, reason: str):
+            """Block cloud service."""
+            self.blocked_services.add(service)
+
+        def check_access(self, user: str, service: str) -> tuple:
+            """Check if user can access cloud service."""
+            if service in self.blocked_services:
+                return False, f"Service {service} is blocked"
+
+            if service not in self.approved_services:
+                return False, f"Service {service} not approved"
+
+            self.access_log.append((user, service))
+            return True, "Access allowed"
+
+    casb = CloudAccessBroker()
+
+    casb.approve_service("approved_cloud", "high")
+    casb.block_service("shadow_storage", "data_leak_risk")
+
+    # User tries to access shadow cloud storage
+    ok, msg = casb.check_access("user_01", "shadow_storage")
+    if not ok:
+        defenses["cloud_access_broker"] = True
+
+    # ========================================================================
+    # Defense 4: Policy Enforcement
+    # ========================================================================
+
+    class PolicyEnforcer:
+        """Enforce IT policies on all devices."""
+
+        def __init__(self):
+            self.policies = {}
+            self.compliant_devices = set()
+
+        def define_policy(self, policy_id: str, requirements: dict):
+            """Define IT policy."""
+            self.policies[policy_id] = requirements
+
+        def check_compliance(self, device_id: str, device_state: dict) -> tuple:
+            """Check if device complies with policies."""
+            violations = []
+
+            for policy_id, requirements in self.policies.items():
+                for req, expected in requirements.items():
+                    actual = device_state.get(req)
+                    if actual != expected:
+                        violations.append(f"{policy_id}:{req}")
+
+            if violations:
+                return False, f"Violations: {violations}"
+
+            self.compliant_devices.add(device_id)
+            return True, "Device compliant"
+
+    policy = PolicyEnforcer()
+
+    policy.define_policy("baseline", {
+        "antivirus": True,
+        "encryption": True,
+        "managed": True,
+    })
+
+    # Shadow IT device is non-compliant
+    ok, msg = policy.check_compliance("shadow_device", {
+        "antivirus": False,
+        "encryption": False,
+        "managed": False,
+    })
+    if not ok:
+        defenses["policy_enforcement"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Shadow IT Exploitation (EU-1b)",
+        success=attack_success,
+        setup_cost_atp=1000.0,
+        gain_atp=200000.0 if attack_success else 0.0,
+        roi=(200000.0 / 1000.0) if attack_success else -1.0,
+        detection_probability=0.30 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=480.0,
+        blocks_until_detected=1400,
+        trust_damage=0.75,
+        description=f"""
+SHADOW IT EXPLOITATION (Track EU-1b)
+
+Attack through unauthorized IT systems.
+
+Attack Pattern:
+1. Users deploy unapproved services
+2. Shadow IT lacks controls
+3. Attacker targets weak points
+4. Access via unmonitored channels
+
+The blind spot in security.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EU-1b: Shadow IT Defense:
+1. Asset discovery (continuous)
+2. Network segmentation
+3. Cloud access security broker
+4. Policy enforcement
+
+You can't protect what you don't know exists.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_credential_sharing() -> AttackResult:
+    """
+    ATTACK 223: CREDENTIAL SHARING EXPLOITATION (Track EU-2a)
+
+    Exploit shared or compromised credentials:
+    1. Users share credentials for convenience
+    2. Shared credentials lack individual accountability
+    3. Attacker obtains shared credentials
+    4. Actions can't be attributed to individual
+    """
+
+    defenses = {
+        "credential_uniqueness": False,
+        "mfa_enforcement": False,
+        "session_binding": False,
+        "credential_hygiene_monitoring": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Credential Uniqueness Enforcement
+    # ========================================================================
+
+    class CredentialUniqueness:
+        """Ensure credentials are unique per user."""
+
+        def __init__(self):
+            self.credential_hashes = {}
+            self.usage_locations = {}
+
+        def register_credential(self, user_id: str, cred_hash: str):
+            """Register credential for user."""
+            if cred_hash in self.credential_hashes:
+                existing_user = self.credential_hashes[cred_hash]
+                if existing_user != user_id:
+                    return False, f"Credential already used by {existing_user}"
+
+            self.credential_hashes[cred_hash] = user_id
+            return True, "Credential registered"
+
+        def detect_sharing(self, cred_hash: str, locations: list) -> tuple:
+            """Detect credential sharing from multiple locations."""
+            if cred_hash not in self.usage_locations:
+                self.usage_locations[cred_hash] = set()
+
+            self.usage_locations[cred_hash].update(locations)
+
+            if len(self.usage_locations[cred_hash]) > 2:
+                return True, "Credential used from multiple locations"
+
+            return False, "Single location usage"
+
+    uniqueness = CredentialUniqueness()
+
+    # Same credential registered by different users (sharing detected)
+    ok1, _ = uniqueness.register_credential("user_a", "shared_cred_hash")
+    ok2, msg = uniqueness.register_credential("user_b", "shared_cred_hash")
+    if not ok2:
+        defenses["credential_uniqueness"] = True
+
+    # ========================================================================
+    # Defense 2: MFA Enforcement
+    # ========================================================================
+
+    class MFAEnforcer:
+        """Enforce multi-factor authentication."""
+
+        def __init__(self):
+            self.mfa_required_resources = set()
+            self.user_mfa_status = {}
+
+        def require_mfa(self, resource: str):
+            """Mark resource as requiring MFA."""
+            self.mfa_required_resources.add(resource)
+
+        def verify_mfa(self, user_id: str, resource: str,
+                      mfa_verified: bool) -> tuple:
+            """Verify MFA for resource access."""
+            if resource in self.mfa_required_resources:
+                if not mfa_verified:
+                    return False, "MFA required but not verified"
+
+            return True, "MFA verified or not required"
+
+    mfa = MFAEnforcer()
+
+    mfa.require_mfa("admin_panel")
+
+    # Access without MFA
+    ok, msg = mfa.verify_mfa("attacker", "admin_panel", mfa_verified=False)
+    if not ok:
+        defenses["mfa_enforcement"] = True
+
+    # ========================================================================
+    # Defense 3: Session Binding
+    # ========================================================================
+
+    class SessionBinder:
+        """Bind sessions to specific attributes."""
+
+        def __init__(self):
+            self.session_bindings = {}
+
+        def create_session(self, session_id: str, user_id: str,
+                          ip: str, device_fingerprint: str):
+            """Create bound session."""
+            self.session_bindings[session_id] = {
+                "user": user_id,
+                "ip": ip,
+                "device": device_fingerprint,
+            }
+
+        def validate_session(self, session_id: str, current_ip: str,
+                            current_device: str) -> tuple:
+            """Validate session hasn't been hijacked."""
+            binding = self.session_bindings.get(session_id)
+
+            if not binding:
+                return False, "Session not found"
+
+            if binding["ip"] != current_ip:
+                return False, "IP mismatch - possible session hijack"
+
+            if binding["device"] != current_device:
+                return False, "Device mismatch - possible session hijack"
+
+            return True, "Session valid"
+
+    binder = SessionBinder()
+
+    binder.create_session("sess_001", "user_a", "1.2.3.4", "fp_abc")
+
+    # Attacker uses session from different location
+    ok, msg = binder.validate_session("sess_001", "5.6.7.8", "fp_xyz")
+    if not ok:
+        defenses["session_binding"] = True
+
+    # ========================================================================
+    # Defense 4: Credential Hygiene Monitoring
+    # ========================================================================
+
+    class CredentialHygieneMonitor:
+        """Monitor credential hygiene issues."""
+
+        def __init__(self):
+            self.password_ages = {}
+            self.login_patterns = {}
+
+        def record_password_age(self, user_id: str, age_days: int):
+            """Record password age."""
+            self.password_ages[user_id] = age_days
+
+        def record_login(self, user_id: str, location: str, time_hour: int):
+            """Record login pattern."""
+            if user_id not in self.login_patterns:
+                self.login_patterns[user_id] = []
+            self.login_patterns[user_id].append((location, time_hour))
+
+        def check_hygiene(self, user_id: str) -> tuple:
+            """Check credential hygiene."""
+            issues = []
+
+            age = self.password_ages.get(user_id, 0)
+            if age > 90:
+                issues.append(f"Password {age} days old")
+
+            patterns = self.login_patterns.get(user_id, [])
+            locations = set(p[0] for p in patterns)
+            if len(locations) > 5:
+                issues.append(f"Logged in from {len(locations)} locations")
+
+            if issues:
+                return True, f"Hygiene issues: {issues}"
+
+            return False, "Good hygiene"
+
+    hygiene = CredentialHygieneMonitor()
+
+    hygiene.record_password_age("shared_account", 365)
+    for i in range(10):
+        hygiene.record_login("shared_account", f"location_{i}", 12)
+
+    issue_found, msg = hygiene.check_hygiene("shared_account")
+    if issue_found:
+        defenses["credential_hygiene_monitoring"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Credential Sharing Exploitation (EU-2a)",
+        success=attack_success,
+        setup_cost_atp=500.0,
+        gain_atp=150000.0 if attack_success else 0.0,
+        roi=(150000.0 / 500.0) if attack_success else -1.0,
+        detection_probability=0.35 if defenses_held >= 3 else 0.12,
+        time_to_detection_hours=360.0,
+        blocks_until_detected=1000,
+        trust_damage=0.80,
+        description=f"""
+CREDENTIAL SHARING EXPLOITATION (Track EU-2a)
+
+Attack using shared credentials.
+
+Attack Pattern:
+1. Users share credentials
+2. No individual accountability
+3. Attacker obtains shared creds
+4. Attribution impossible
+
+Convenience over security.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EU-2a: Credential Sharing Defense:
+1. Credential uniqueness enforcement
+2. MFA on all resources
+3. Session binding (IP, device)
+4. Credential hygiene monitoring
+
+One person, one credential.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_social_engineering_internal() -> AttackResult:
+    """
+    ATTACK 224: INTERNAL SOCIAL ENGINEERING (Track EU-2b)
+
+    Manipulate employees to bypass controls:
+    1. Attacker poses as internal IT/authority
+    2. Convinces employee to grant access/info
+    3. Bypasses technical controls via human
+    4. Legitimate credentials used for attack
+    """
+
+    defenses = {
+        "security_awareness": False,
+        "verification_procedures": False,
+        "out_of_band_confirmation": False,
+        "social_engineering_testing": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Security Awareness Training
+    # ========================================================================
+
+    class SecurityAwareness:
+        """Track security awareness training."""
+
+        def __init__(self):
+            self.training_records = {}
+            self.required_modules = {"phishing", "social_eng", "insider_threat"}
+
+        def record_training(self, user_id: str, modules_completed: list):
+            """Record training completion."""
+            self.training_records[user_id] = set(modules_completed)
+
+        def check_awareness(self, user_id: str) -> tuple:
+            """Check if user has completed required training."""
+            completed = self.training_records.get(user_id, set())
+            missing = self.required_modules - completed
+
+            if missing:
+                return False, f"Missing training: {missing}"
+
+            return True, "All required training complete"
+
+    awareness = SecurityAwareness()
+
+    # User hasn't completed all training
+    awareness.record_training("target_user", ["phishing"])
+
+    ok, msg = awareness.check_awareness("target_user")
+    if not ok:
+        defenses["security_awareness"] = True
+
+    # ========================================================================
+    # Defense 2: Verification Procedures
+    # ========================================================================
+
+    class VerificationProcedures:
+        """Define and enforce verification procedures."""
+
+        def __init__(self):
+            self.procedures = {}
+
+        def define_procedure(self, request_type: str, steps: list):
+            """Define verification procedure for request type."""
+            self.procedures[request_type] = steps
+
+        def check_verification(self, request_type: str,
+                              completed_steps: list) -> tuple:
+            """Check if verification steps completed."""
+            required = self.procedures.get(request_type, [])
+
+            if not required:
+                return False, "No procedure defined"
+
+            missing = set(required) - set(completed_steps)
+
+            if missing:
+                return False, f"Missing steps: {missing}"
+
+            return True, "Verification complete"
+
+    verification = VerificationProcedures()
+
+    verification.define_procedure("password_reset", [
+        "verify_identity",
+        "confirm_manager",
+        "check_ticket",
+    ])
+
+    # Social engineering attempt skips steps
+    ok, msg = verification.check_verification("password_reset",
+                                               ["verify_identity"])
+    if not ok:
+        defenses["verification_procedures"] = True
+
+    # ========================================================================
+    # Defense 3: Out-of-Band Confirmation
+    # ========================================================================
+
+    class OutOfBandConfirmation:
+        """Require out-of-band confirmation for sensitive requests."""
+
+        def __init__(self):
+            self.confirmation_required = set()
+            self.confirmations = {}
+
+        def require_confirmation(self, request_type: str):
+            """Mark request type as requiring OOB confirmation."""
+            self.confirmation_required.add(request_type)
+
+        def send_confirmation(self, request_id: str, channel: str):
+            """Send OOB confirmation request."""
+            self.confirmations[request_id] = {
+                "channel": channel,
+                "confirmed": False,
+            }
+
+        def verify_confirmation(self, request_id: str,
+                               request_type: str) -> tuple:
+            """Verify OOB confirmation received."""
+            if request_type not in self.confirmation_required:
+                return True, "No confirmation required"
+
+            conf = self.confirmations.get(request_id)
+
+            if not conf:
+                return False, "No confirmation sent"
+
+            if not conf["confirmed"]:
+                return False, "Confirmation not received"
+
+            return True, "Confirmed via OOB channel"
+
+    oob = OutOfBandConfirmation()
+
+    oob.require_confirmation("access_grant")
+    oob.send_confirmation("req_001", "sms")  # Sent but not confirmed
+
+    ok, msg = oob.verify_confirmation("req_001", "access_grant")
+    if not ok:
+        defenses["out_of_band_confirmation"] = True
+
+    # ========================================================================
+    # Defense 4: Social Engineering Testing
+    # ========================================================================
+
+    class SocialEngineeringTesting:
+        """Track SE testing results."""
+
+        def __init__(self):
+            self.test_results = {}
+            self.fail_threshold = 0.15
+
+        def record_test(self, user_id: str, test_type: str, failed: bool):
+            """Record SE test result."""
+            if user_id not in self.test_results:
+                self.test_results[user_id] = []
+            self.test_results[user_id].append((test_type, failed))
+
+        def check_susceptibility(self, user_id: str) -> tuple:
+            """Check if user is susceptible to SE."""
+            results = self.test_results.get(user_id, [])
+
+            if not results:
+                return False, "No test data"
+
+            fail_rate = sum(1 for _, f in results if f) / len(results)
+
+            if fail_rate > self.fail_threshold:
+                return True, f"High susceptibility: {fail_rate:.0%} fail rate"
+
+            return False, f"Low susceptibility: {fail_rate:.0%}"
+
+    se_testing = SocialEngineeringTesting()
+
+    # User has failed multiple tests
+    se_testing.record_test("target_user", "vishing", True)
+    se_testing.record_test("target_user", "pretexting", True)
+    se_testing.record_test("target_user", "tailgating", False)
+
+    susceptible, msg = se_testing.check_susceptibility("target_user")
+    if susceptible:
+        defenses["social_engineering_testing"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Internal Social Engineering (EU-2b)",
+        success=attack_success,
+        setup_cost_atp=200.0,
+        gain_atp=300000.0 if attack_success else 0.0,
+        roi=(300000.0 / 200.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=168.0,
+        blocks_until_detected=500,
+        trust_damage=0.85,
+        description=f"""
+INTERNAL SOCIAL ENGINEERING (Track EU-2b)
+
+Manipulate employees to bypass controls.
+
+Attack Pattern:
+1. Attacker poses as IT/authority
+2. Convinces employee to help
+3. Bypasses technical controls
+4. Uses legitimate credentials
+
+People are the vulnerability.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EU-2b: Internal SE Defense:
+1. Security awareness training
+2. Verification procedures
+3. Out-of-band confirmation
+4. Regular SE testing
+
+Train the humans.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_departing_employee() -> AttackResult:
+    """
+    ATTACK 225: DEPARTING EMPLOYEE DATA THEFT (Track EU-3a)
+
+    Steal data before leaving organization:
+    1. Employee knows they're leaving
+    2. Downloads/exports sensitive data
+    3. Takes data to competitor or for personal use
+    4. Detection often comes too late
+    """
+
+    defenses = {
+        "dlp_monitoring": False,
+        "access_reduction": False,
+        "exit_interview": False,
+        "legal_agreements": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Data Loss Prevention
+    # ========================================================================
+
+    class DLPMonitor:
+        """Monitor for data exfiltration."""
+
+        def __init__(self):
+            self.sensitive_patterns = []
+            self.transfer_log = []
+            self.alerts = []
+
+        def add_sensitive_pattern(self, pattern: str, sensitivity: str):
+            """Add pattern to monitor."""
+            self.sensitive_patterns.append({
+                "pattern": pattern,
+                "sensitivity": sensitivity,
+            })
+
+        def check_transfer(self, user_id: str, destination: str,
+                          data_sample: str) -> tuple:
+            """Check transfer for sensitive data."""
+            for pattern in self.sensitive_patterns:
+                if pattern["pattern"] in data_sample:
+                    self.alerts.append({
+                        "user": user_id,
+                        "destination": destination,
+                        "pattern": pattern["pattern"],
+                    })
+                    return False, f"Blocked: Contains {pattern['pattern']}"
+
+            return True, "Transfer allowed"
+
+    dlp = DLPMonitor()
+
+    dlp.add_sensitive_pattern("CONFIDENTIAL", "high")
+    dlp.add_sensitive_pattern("customer_list", "high")
+
+    # Employee tries to transfer sensitive data
+    ok, msg = dlp.check_transfer("departing_user", "personal_email",
+                                  "customer_list_2026.csv")
+    if not ok:
+        defenses["dlp_monitoring"] = True
+
+    # ========================================================================
+    # Defense 2: Access Reduction
+    # ========================================================================
+
+    class AccessReduction:
+        """Reduce access for departing employees."""
+
+        def __init__(self):
+            self.departure_notices = {}
+            self.access_levels = {}
+
+        def notify_departure(self, user_id: str, notice_days: int):
+            """Record departure notice."""
+            self.departure_notices[user_id] = notice_days
+
+        def get_reduced_access(self, user_id: str, original_level: int) -> tuple:
+            """Get reduced access level for departing employee."""
+            notice = self.departure_notices.get(user_id)
+
+            if not notice:
+                return original_level, "No reduction"
+
+            # Reduce by 50% when notice given
+            reduced = original_level // 2
+
+            return reduced, f"Reduced to {reduced} (was {original_level})"
+
+    reduction = AccessReduction()
+
+    reduction.notify_departure("departing_user", notice_days=14)
+
+    new_level, msg = reduction.get_reduced_access("departing_user", original_level=100)
+    if new_level < 100:
+        defenses["access_reduction"] = True
+
+    # ========================================================================
+    # Defense 3: Exit Interview
+    # ========================================================================
+
+    class ExitInterviewProcess:
+        """Manage exit interview and offboarding."""
+
+        def __init__(self):
+            self.interview_completed = {}
+            self.assets_returned = {}
+
+        def complete_interview(self, user_id: str, topics_covered: list):
+            """Record exit interview completion."""
+            required = {"data_handling", "confidentiality", "asset_return"}
+
+            self.interview_completed[user_id] = set(topics_covered)
+
+            missing = required - set(topics_covered)
+            if missing:
+                return False, f"Missing topics: {missing}"
+
+            return True, "Exit interview complete"
+
+        def check_offboarding(self, user_id: str) -> tuple:
+            """Check offboarding status."""
+            if user_id not in self.interview_completed:
+                return False, "Exit interview not completed"
+
+            if user_id not in self.assets_returned:
+                return False, "Assets not verified returned"
+
+            return True, "Offboarding complete"
+
+    exit_proc = ExitInterviewProcess()
+
+    # Incomplete exit interview
+    ok, msg = exit_proc.complete_interview("departing_user",
+                                           ["data_handling"])
+    if not ok:
+        defenses["exit_interview"] = True
+
+    # ========================================================================
+    # Defense 4: Legal Agreements
+    # ========================================================================
+
+    class LegalAgreements:
+        """Track and enforce legal agreements."""
+
+        def __init__(self):
+            self.agreements = {}
+            self.required = {"nda", "ip_assignment", "non_compete"}
+
+        def record_agreement(self, user_id: str, agreement_type: str,
+                            signed: bool):
+            """Record agreement status."""
+            if user_id not in self.agreements:
+                self.agreements[user_id] = {}
+            self.agreements[user_id][agreement_type] = signed
+
+        def check_agreements(self, user_id: str) -> tuple:
+            """Check all required agreements signed."""
+            user_agreements = self.agreements.get(user_id, {})
+
+            missing = []
+            for req in self.required:
+                if not user_agreements.get(req, False):
+                    missing.append(req)
+
+            if missing:
+                return False, f"Missing agreements: {missing}"
+
+            return True, "All agreements signed"
+
+    legal = LegalAgreements()
+
+    legal.record_agreement("departing_user", "nda", True)
+    # Missing ip_assignment and non_compete
+
+    ok, msg = legal.check_agreements("departing_user")
+    if not ok:
+        defenses["legal_agreements"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Departing Employee Data Theft (EU-3a)",
+        success=attack_success,
+        setup_cost_atp=0.0,  # Already has access
+        gain_atp=1000000.0 if attack_success else 0.0,
+        roi=float('inf') if attack_success else 0.0,
+        detection_probability=0.45 if defenses_held >= 3 else 0.20,
+        time_to_detection_hours=2160.0,  # Often discovered much later
+        blocks_until_detected=6000,
+        trust_damage=0.92,
+        description=f"""
+DEPARTING EMPLOYEE DATA THEFT (Track EU-3a)
+
+Steal data before leaving organization.
+
+Attack Pattern:
+1. Employee knows they're leaving
+2. Downloads sensitive data
+3. Takes to competitor
+4. Detection comes too late
+
+The exit is the vulnerability.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EU-3a: Departing Employee Defense:
+1. Data loss prevention monitoring
+2. Access reduction on notice
+3. Comprehensive exit interview
+4. Enforceable legal agreements
+
+Manage the exit, protect the data.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_third_party_access() -> AttackResult:
+    """
+    ATTACK 226: THIRD-PARTY ACCESS ABUSE (Track EU-3b)
+
+    Abuse vendor/contractor access:
+    1. Third party has legitimate access
+    2. Third party is compromised or malicious
+    3. Uses access to attack primary organization
+    4. Difficult to monitor/control
+    """
+
+    defenses = {
+        "vendor_risk_assessment": False,
+        "access_scoping": False,
+        "activity_monitoring": False,
+        "contractual_controls": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Vendor Risk Assessment
+    # ========================================================================
+
+    class VendorRiskAssessment:
+        """Assess and track vendor security risks."""
+
+        def __init__(self):
+            self.assessments = {}
+            self.risk_threshold = 0.7
+
+        def assess_vendor(self, vendor_id: str, security_score: float,
+                         certifications: list, breach_history: int):
+            """Assess vendor risk."""
+            # Calculate risk score
+            base_score = security_score
+
+            cert_bonus = len(certifications) * 0.05
+            breach_penalty = breach_history * 0.15
+
+            final_score = min(1.0, base_score + cert_bonus - breach_penalty)
+
+            self.assessments[vendor_id] = final_score
+            return final_score
+
+        def check_vendor(self, vendor_id: str) -> tuple:
+            """Check if vendor meets risk threshold."""
+            score = self.assessments.get(vendor_id)
+
+            if score is None:
+                return False, "Vendor not assessed"
+
+            if score < self.risk_threshold:
+                return False, f"Risk score {score:.2f} below threshold {self.risk_threshold}"
+
+            return True, f"Vendor approved (score: {score:.2f})"
+
+    assessment = VendorRiskAssessment()
+
+    # Risky vendor with poor security and breach history
+    score = assessment.assess_vendor("risky_vendor",
+                                      security_score=0.5,
+                                      certifications=[],
+                                      breach_history=2)
+    ok, msg = assessment.check_vendor("risky_vendor")
+    if not ok:
+        defenses["vendor_risk_assessment"] = True
+
+    # ========================================================================
+    # Defense 2: Access Scoping
+    # ========================================================================
+
+    class AccessScoping:
+        """Scope vendor access to minimum necessary."""
+
+        def __init__(self):
+            self.vendor_scopes = {}
+
+        def define_scope(self, vendor_id: str, resources: list,
+                        time_window: tuple, ip_restrictions: list):
+            """Define vendor access scope."""
+            self.vendor_scopes[vendor_id] = {
+                "resources": set(resources),
+                "time": time_window,
+                "ips": set(ip_restrictions),
+            }
+
+        def check_access(self, vendor_id: str, resource: str,
+                        current_hour: int, source_ip: str) -> tuple:
+            """Check if vendor access is within scope."""
+            scope = self.vendor_scopes.get(vendor_id)
+
+            if not scope:
+                return False, "No scope defined for vendor"
+
+            if resource not in scope["resources"]:
+                return False, f"Resource {resource} not in scope"
+
+            start, end = scope["time"]
+            if not (start <= current_hour <= end):
+                return False, f"Access outside time window {start}-{end}"
+
+            if source_ip not in scope["ips"]:
+                return False, f"IP {source_ip} not in allowed list"
+
+            return True, "Access within scope"
+
+    scoping = AccessScoping()
+
+    scoping.define_scope("vendor_a",
+                         resources=["project_x"],
+                         time_window=(9, 17),
+                         ip_restrictions=["10.0.0.1"])
+
+    # Vendor tries to access outside scope
+    ok, msg = scoping.check_access("vendor_a", "production_db", 22, "unknown_ip")
+    if not ok:
+        defenses["access_scoping"] = True
+
+    # ========================================================================
+    # Defense 3: Third-Party Activity Monitoring
+    # ========================================================================
+
+    class ThirdPartyMonitor:
+        """Monitor third-party activities."""
+
+        def __init__(self):
+            self.activity_log = []
+            self.baseline_rates = {}
+
+        def set_baseline(self, vendor_id: str, daily_actions: int):
+            """Set baseline activity rate."""
+            self.baseline_rates[vendor_id] = daily_actions
+
+        def log_activity(self, vendor_id: str, action: str):
+            """Log vendor activity."""
+            self.activity_log.append({
+                "vendor": vendor_id,
+                "action": action,
+            })
+
+        def check_anomaly(self, vendor_id: str) -> tuple:
+            """Check for anomalous activity."""
+            vendor_logs = [l for l in self.activity_log if l["vendor"] == vendor_id]
+            baseline = self.baseline_rates.get(vendor_id, 10)
+
+            if len(vendor_logs) > baseline * 2:
+                return True, f"Activity {len(vendor_logs)} exceeds 2x baseline {baseline}"
+
+            return False, "Activity within normal range"
+
+    monitor = ThirdPartyMonitor()
+
+    monitor.set_baseline("vendor_a", daily_actions=10)
+
+    # Vendor shows anomalous activity
+    for i in range(50):
+        monitor.log_activity("vendor_a", f"action_{i}")
+
+    anomaly, msg = monitor.check_anomaly("vendor_a")
+    if anomaly:
+        defenses["activity_monitoring"] = True
+
+    # ========================================================================
+    # Defense 4: Contractual Controls
+    # ========================================================================
+
+    class ContractualControls:
+        """Track contractual security requirements."""
+
+        def __init__(self):
+            self.contracts = {}
+            self.required_clauses = {
+                "audit_rights",
+                "data_protection",
+                "incident_notification",
+                "termination_provisions",
+            }
+
+        def record_contract(self, vendor_id: str, clauses: list):
+            """Record contract clauses."""
+            self.contracts[vendor_id] = set(clauses)
+
+        def check_contract(self, vendor_id: str) -> tuple:
+            """Check contract completeness."""
+            clauses = self.contracts.get(vendor_id, set())
+            missing = self.required_clauses - clauses
+
+            if missing:
+                return False, f"Missing clauses: {missing}"
+
+            return True, "Contract complete"
+
+    contracts = ContractualControls()
+
+    # Incomplete contract
+    contracts.record_contract("vendor_a", ["data_protection"])
+
+    ok, msg = contracts.check_contract("vendor_a")
+    if not ok:
+        defenses["contractual_controls"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Third-Party Access Abuse (EU-3b)",
+        success=attack_success,
+        setup_cost_atp=5000.0,  # Compromise vendor first
+        gain_atp=800000.0 if attack_success else 0.0,
+        roi=(800000.0 / 5000.0) if attack_success else -1.0,
+        detection_probability=0.30 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=720.0,
+        blocks_until_detected=2100,
+        trust_damage=0.88,
+        description=f"""
+THIRD-PARTY ACCESS ABUSE (Track EU-3b)
+
+Attack via compromised vendor access.
+
+Attack Pattern:
+1. Third party has legitimate access
+2. Third party compromised
+3. Uses access to attack you
+4. Hard to monitor/control
+
+Your security is your vendors' security.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EU-3b: Third-Party Defense:
+1. Vendor risk assessment
+2. Access scoping (time/resource/IP)
+3. Activity monitoring
+4. Contractual security controls
+
+Trust the vendor, verify the actions.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# =============================================================================
+# TRACK EV: RECOVERY/DISASTER EXPLOITATION ATTACKS (Attacks 227-232)
+# Backup poisoning, DR exploitation, recovery process attacks
+# =============================================================================
+
+
+def attack_backup_poisoning() -> AttackResult:
+    """
+    ATTACK 227: BACKUP POISONING (Track EV-1a)
+
+    Poison backups to persist malware through recovery:
+    1. Attacker compromises system
+    2. Waits for compromise to be included in backups
+    3. Victim discovers and restores from backup
+    4. Malware restored along with data
+    """
+
+    defenses = {
+        "backup_integrity_verification": False,
+        "isolated_backup_network": False,
+        "immutable_backups": False,
+        "multi_generation_retention": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Backup Integrity Verification
+    # ========================================================================
+
+    class BackupIntegrityVerifier:
+        """Verify backup integrity before and after storage."""
+
+        def __init__(self):
+            self.backup_hashes = {}
+            self.verification_log = []
+
+        def hash_backup(self, backup_id: str, content_hash: str):
+            """Record backup hash at creation."""
+            self.backup_hashes[backup_id] = {
+                "original": content_hash,
+                "verified": None,
+            }
+
+        def verify_backup(self, backup_id: str, current_hash: str) -> tuple:
+            """Verify backup hasn't been modified."""
+            record = self.backup_hashes.get(backup_id)
+
+            if not record:
+                return False, "Backup not registered"
+
+            if record["original"] != current_hash:
+                return False, "Backup integrity compromised"
+
+            record["verified"] = current_hash
+            return True, "Backup integrity verified"
+
+    verifier = BackupIntegrityVerifier()
+
+    verifier.hash_backup("backup_001", "original_hash_abc")
+
+    # Poisoned backup has different hash
+    ok, msg = verifier.verify_backup("backup_001", "poisoned_hash_xyz")
+    if not ok:
+        defenses["backup_integrity_verification"] = True
+
+    # ========================================================================
+    # Defense 2: Isolated Backup Network
+    # ========================================================================
+
+    class BackupNetworkIsolation:
+        """Ensure backup systems are network isolated."""
+
+        def __init__(self):
+            self.backup_systems = {}
+
+        def register_backup_system(self, system_id: str, network_isolated: bool,
+                                   air_gapped: bool, separate_auth: bool):
+            """Register backup system configuration."""
+            self.backup_systems[system_id] = {
+                "isolated": network_isolated,
+                "airgapped": air_gapped,
+                "separate_auth": separate_auth,
+            }
+
+        def check_isolation(self, system_id: str) -> tuple:
+            """Check if backup system is properly isolated."""
+            config = self.backup_systems.get(system_id)
+
+            if not config:
+                return False, "System not registered"
+
+            if not config["isolated"]:
+                return False, "Backup network not isolated"
+
+            if not config["separate_auth"]:
+                return False, "Shares authentication with production"
+
+            return True, "Backup system properly isolated"
+
+    isolation = BackupNetworkIsolation()
+
+    # Poorly configured backup system
+    isolation.register_backup_system("backup_srv", network_isolated=False,
+                                      air_gapped=False, separate_auth=False)
+    ok, msg = isolation.check_isolation("backup_srv")
+    if not ok:
+        defenses["isolated_backup_network"] = True
+
+    # ========================================================================
+    # Defense 3: Immutable Backups
+    # ========================================================================
+
+    class ImmutableBackupPolicy:
+        """Enforce immutable backup storage."""
+
+        def __init__(self):
+            self.immutable_configs = {}
+
+        def configure_immutability(self, backup_id: str, worm_enabled: bool,
+                                   retention_lock_days: int):
+            """Configure immutability settings."""
+            self.immutable_configs[backup_id] = {
+                "worm": worm_enabled,
+                "retention_days": retention_lock_days,
+            }
+
+        def check_immutability(self, backup_id: str) -> tuple:
+            """Check if backup is immutable."""
+            config = self.immutable_configs.get(backup_id)
+
+            if not config:
+                return False, "No immutability config"
+
+            if not config["worm"]:
+                return False, "WORM not enabled"
+
+            if config["retention_days"] < 30:
+                return False, f"Retention {config['retention_days']} days too short"
+
+            return True, "Backup is immutable"
+
+    immutable = ImmutableBackupPolicy()
+
+    # Non-immutable backup
+    immutable.configure_immutability("backup_001", worm_enabled=False,
+                                      retention_lock_days=7)
+    ok, msg = immutable.check_immutability("backup_001")
+    if not ok:
+        defenses["immutable_backups"] = True
+
+    # ========================================================================
+    # Defense 4: Multi-Generation Retention
+    # ========================================================================
+
+    class MultiGenerationRetention:
+        """Maintain multiple backup generations."""
+
+        def __init__(self):
+            self.retention_policies = {}
+
+        def set_retention(self, policy_id: str, daily: int, weekly: int,
+                         monthly: int):
+            """Set retention policy."""
+            self.retention_policies[policy_id] = {
+                "daily": daily,
+                "weekly": weekly,
+                "monthly": monthly,
+            }
+
+        def check_retention(self, policy_id: str) -> tuple:
+            """Check if retention is adequate."""
+            policy = self.retention_policies.get(policy_id)
+
+            if not policy:
+                return False, "No retention policy"
+
+            total_days = (policy["daily"] +
+                         policy["weekly"] * 7 +
+                         policy["monthly"] * 30)
+
+            if total_days < 90:
+                return False, f"Total retention {total_days} days insufficient"
+
+            if policy["daily"] < 7:
+                return False, "Need at least 7 daily backups"
+
+            return True, "Retention policy adequate"
+
+    retention = MultiGenerationRetention()
+
+    # Insufficient retention
+    retention.set_retention("default", daily=3, weekly=1, monthly=0)
+    ok, msg = retention.check_retention("default")
+    if not ok:
+        defenses["multi_generation_retention"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Backup Poisoning (EV-1a)",
+        success=attack_success,
+        setup_cost_atp=10000.0,
+        gain_atp=2000000.0 if attack_success else 0.0,
+        roi=(2000000.0 / 10000.0) if attack_success else -1.0,
+        detection_probability=0.20 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=4320.0,  # May never be detected until restore
+        blocks_until_detected=12000,
+        trust_damage=0.96,
+        description=f"""
+BACKUP POISONING (Track EV-1a)
+
+Persist through backup and restore.
+
+Attack Pattern:
+1. Compromise system
+2. Wait for backup inclusion
+3. Victim restores from backup
+4. Malware restored too
+
+Your backup is their persistence.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EV-1a: Backup Poisoning Defense:
+1. Backup integrity verification
+2. Isolated backup network
+3. Immutable (WORM) backups
+4. Multi-generation retention
+
+Clean backups save the day.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_dr_site_compromise() -> AttackResult:
+    """
+    ATTACK 228: DR SITE COMPROMISE (Track EV-1b)
+
+    Compromise disaster recovery site:
+    1. DR site often has weaker security
+    2. Attacker targets DR infrastructure
+    3. During failover, victim moves to compromised site
+    4. Attacker has full control during crisis
+    """
+
+    defenses = {
+        "dr_security_parity": False,
+        "dr_testing": False,
+        "dr_access_control": False,
+        "dr_monitoring": False,
+    }
+
+    # ========================================================================
+    # Defense 1: DR Security Parity
+    # ========================================================================
+
+    class DRSecurityParity:
+        """Ensure DR site has same security as production."""
+
+        def __init__(self):
+            self.site_configs = {}
+
+        def register_site(self, site_id: str, security_controls: dict):
+            """Register site security configuration."""
+            self.site_configs[site_id] = security_controls
+
+        def check_parity(self, prod_site: str, dr_site: str) -> tuple:
+            """Check if DR has parity with production."""
+            prod = self.site_configs.get(prod_site, {})
+            dr = self.site_configs.get(dr_site, {})
+
+            missing = []
+            for control, enabled in prod.items():
+                if enabled and not dr.get(control, False):
+                    missing.append(control)
+
+            if missing:
+                return False, f"DR missing controls: {missing}"
+
+            return True, "DR has security parity"
+
+    parity = DRSecurityParity()
+
+    parity.register_site("production", {
+        "firewall": True,
+        "ids": True,
+        "mfa": True,
+        "encryption": True,
+    })
+    parity.register_site("dr_site", {
+        "firewall": True,
+        "ids": False,  # Not deployed!
+        "mfa": False,  # Not deployed!
+        "encryption": True,
+    })
+
+    ok, msg = parity.check_parity("production", "dr_site")
+    if not ok:
+        defenses["dr_security_parity"] = True
+
+    # ========================================================================
+    # Defense 2: DR Testing
+    # ========================================================================
+
+    class DRTestingPolicy:
+        """Ensure regular DR testing."""
+
+        def __init__(self):
+            self.test_records = {}
+            self.required_interval_days = 90
+
+        def record_test(self, site_id: str, test_date: float,
+                       test_type: str, passed: bool):
+            """Record DR test."""
+            if site_id not in self.test_records:
+                self.test_records[site_id] = []
+            self.test_records[site_id].append({
+                "date": test_date,
+                "type": test_type,
+                "passed": passed,
+            })
+
+        def check_testing_currency(self, site_id: str,
+                                   current_time: float) -> tuple:
+            """Check if DR testing is current."""
+            tests = self.test_records.get(site_id, [])
+
+            if not tests:
+                return False, "No DR tests recorded"
+
+            latest = max(t["date"] for t in tests)
+            days_since = (current_time - latest) / 86400
+
+            if days_since > self.required_interval_days:
+                return False, f"Last test {days_since:.0f} days ago (max {self.required_interval_days})"
+
+            return True, "DR testing current"
+
+    testing = DRTestingPolicy()
+
+    import time
+    # Last test was 180 days ago
+    testing.record_test("dr_site", time.time() - 180*86400, "full", True)
+
+    ok, msg = testing.check_testing_currency("dr_site", time.time())
+    if not ok:
+        defenses["dr_testing"] = True
+
+    # ========================================================================
+    # Defense 3: DR Access Control
+    # ========================================================================
+
+    class DRAccessControl:
+        """Control access to DR site."""
+
+        def __init__(self):
+            self.authorized_personnel = {}
+            self.access_log = []
+
+        def authorize_access(self, user_id: str, roles: list,
+                            requires_approval: bool):
+            """Authorize DR site access."""
+            self.authorized_personnel[user_id] = {
+                "roles": set(roles),
+                "approval_required": requires_approval,
+            }
+
+        def check_access(self, user_id: str, has_approval: bool) -> tuple:
+            """Check if user can access DR site."""
+            auth = self.authorized_personnel.get(user_id)
+
+            if not auth:
+                return False, "User not authorized for DR access"
+
+            if auth["approval_required"] and not has_approval:
+                return False, "Access requires approval"
+
+            return True, "Access granted"
+
+    dr_access = DRAccessControl()
+
+    dr_access.authorize_access("admin", ["dr_admin"], requires_approval=True)
+
+    # Access without approval
+    ok, msg = dr_access.check_access("admin", has_approval=False)
+    if not ok:
+        defenses["dr_access_control"] = True
+
+    # ========================================================================
+    # Defense 4: DR Site Monitoring
+    # ========================================================================
+
+    class DRSiteMonitoring:
+        """Monitor DR site for anomalies."""
+
+        def __init__(self):
+            self.expected_state = {}
+            self.current_state = {}
+
+        def set_expected_state(self, site_id: str, services: dict):
+            """Set expected DR site state."""
+            self.expected_state[site_id] = services
+
+        def update_current_state(self, site_id: str, services: dict):
+            """Update current DR site state."""
+            self.current_state[site_id] = services
+
+        def check_state(self, site_id: str) -> tuple:
+            """Check if DR site is in expected state."""
+            expected = self.expected_state.get(site_id, {})
+            current = self.current_state.get(site_id, {})
+
+            anomalies = []
+            for service, expected_status in expected.items():
+                actual = current.get(service)
+                if actual != expected_status:
+                    anomalies.append(f"{service}: expected {expected_status}, got {actual}")
+
+            if anomalies:
+                return False, f"State anomalies: {anomalies}"
+
+            return True, "DR site state normal"
+
+    monitoring = DRSiteMonitoring()
+
+    monitoring.set_expected_state("dr_site", {
+        "db": "standby",
+        "app": "standby",
+        "auth": "standby",
+    })
+    # Something is unexpectedly active
+    monitoring.update_current_state("dr_site", {
+        "db": "standby",
+        "app": "active",  # Anomaly!
+        "auth": "standby",
+    })
+
+    ok, msg = monitoring.check_state("dr_site")
+    if not ok:
+        defenses["dr_monitoring"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="DR Site Compromise (EV-1b)",
+        success=attack_success,
+        setup_cost_atp=25000.0,
+        gain_atp=5000000.0 if attack_success else 0.0,
+        roi=(5000000.0 / 25000.0) if attack_success else -1.0,
+        detection_probability=0.25 if defenses_held >= 3 else 0.08,
+        time_to_detection_hours=720.0,
+        blocks_until_detected=2000,
+        trust_damage=0.98,
+        description=f"""
+DR SITE COMPROMISE (Track EV-1b)
+
+Attack via disaster recovery site.
+
+Attack Pattern:
+1. DR site has weaker security
+2. Attacker compromises DR
+3. Victim fails over during crisis
+4. Attacker controls during chaos
+
+The backup plan is the attack vector.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EV-1b: DR Site Defense:
+1. Security parity with production
+2. Regular DR testing
+3. Strict access control
+4. Continuous monitoring
+
+Your DR site is production too.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_recovery_credential_theft() -> AttackResult:
+    """
+    ATTACK 229: RECOVERY CREDENTIAL THEFT (Track EV-2a)
+
+    Steal credentials used in recovery scenarios:
+    1. Recovery credentials often have elevated privileges
+    2. May be stored less securely (break-glass procedures)
+    3. Attacker obtains recovery credentials
+    4. Uses them during or outside of emergencies
+    """
+
+    defenses = {
+        "recovery_credential_vault": False,
+        "break_glass_audit": False,
+        "credential_rotation": False,
+        "multi_person_access": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Recovery Credential Vault
+    # ========================================================================
+
+    class RecoveryCredentialVault:
+        """Secure storage for recovery credentials."""
+
+        def __init__(self):
+            self.vault_config = {}
+
+        def configure_vault(self, vault_id: str, encrypted: bool,
+                           hardware_protected: bool, offline_copy: bool):
+            """Configure vault security."""
+            self.vault_config[vault_id] = {
+                "encrypted": encrypted,
+                "hardware": hardware_protected,
+                "offline": offline_copy,
+            }
+
+        def check_vault_security(self, vault_id: str) -> tuple:
+            """Check vault security configuration."""
+            config = self.vault_config.get(vault_id)
+
+            if not config:
+                return False, "Vault not configured"
+
+            if not config["encrypted"]:
+                return False, "Vault not encrypted"
+
+            if not config["hardware"]:
+                return False, "No hardware protection (HSM)"
+
+            return True, "Vault properly secured"
+
+    vault = RecoveryCredentialVault()
+
+    # Poorly configured vault
+    vault.configure_vault("recovery_vault", encrypted=True,
+                         hardware_protected=False, offline_copy=False)
+    ok, msg = vault.check_vault_security("recovery_vault")
+    if not ok:
+        defenses["recovery_credential_vault"] = True
+
+    # ========================================================================
+    # Defense 2: Break-Glass Audit
+    # ========================================================================
+
+    class BreakGlassAudit:
+        """Audit all break-glass credential access."""
+
+        def __init__(self):
+            self.access_events = []
+            self.required_justification = True
+
+        def log_access(self, user_id: str, credential_id: str,
+                      justification: str, approved_by: str):
+            """Log break-glass access."""
+            self.access_events.append({
+                "user": user_id,
+                "credential": credential_id,
+                "justification": justification,
+                "approver": approved_by,
+            })
+
+        def check_access(self, user_id: str, credential_id: str,
+                        justification: str, approved_by: str) -> tuple:
+            """Check if break-glass access is valid."""
+            if self.required_justification and not justification:
+                return False, "Justification required"
+
+            if not approved_by:
+                return False, "Approval required"
+
+            return True, "Break-glass access valid"
+
+    audit = BreakGlassAudit()
+
+    # Access without proper justification/approval
+    ok, msg = audit.check_access("user", "root_cred", "", "")
+    if not ok:
+        defenses["break_glass_audit"] = True
+
+    # ========================================================================
+    # Defense 3: Credential Rotation
+    # ========================================================================
+
+    class RecoveryCredentialRotation:
+        """Rotate recovery credentials after use."""
+
+        def __init__(self):
+            self.credential_status = {}
+            self.rotation_required_after_use = True
+
+        def use_credential(self, cred_id: str):
+            """Mark credential as used."""
+            self.credential_status[cred_id] = "used"
+
+        def rotate_credential(self, cred_id: str):
+            """Rotate credential after use."""
+            self.credential_status[cred_id] = "rotated"
+
+        def check_credential_status(self, cred_id: str) -> tuple:
+            """Check if credential needs rotation."""
+            status = self.credential_status.get(cred_id)
+
+            if status == "used":
+                return False, "Credential used but not rotated"
+
+            return True, "Credential status OK"
+
+    rotation = RecoveryCredentialRotation()
+
+    rotation.use_credential("break_glass_001")
+    # Not rotated after use
+
+    ok, msg = rotation.check_credential_status("break_glass_001")
+    if not ok:
+        defenses["credential_rotation"] = True
+
+    # ========================================================================
+    # Defense 4: Multi-Person Access
+    # ========================================================================
+
+    class MultiPersonAccess:
+        """Require multiple people for recovery credential access."""
+
+        def __init__(self):
+            self.access_requirements = {}
+
+        def set_requirement(self, cred_type: str, required_people: int):
+            """Set multi-person requirement."""
+            self.access_requirements[cred_type] = required_people
+
+        def check_access(self, cred_type: str, present_people: list) -> tuple:
+            """Check if enough people present."""
+            required = self.access_requirements.get(cred_type, 1)
+
+            if len(present_people) < required:
+                return False, f"Need {required} people, only {len(present_people)} present"
+
+            return True, f"{len(present_people)} people verified"
+
+    multi_person = MultiPersonAccess()
+
+    multi_person.set_requirement("root_recovery", required_people=2)
+
+    # Single person trying to access
+    ok, msg = multi_person.check_access("root_recovery", ["user_a"])
+    if not ok:
+        defenses["multi_person_access"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Recovery Credential Theft (EV-2a)",
+        success=attack_success,
+        setup_cost_atp=8000.0,
+        gain_atp=3000000.0 if attack_success else 0.0,
+        roi=(3000000.0 / 8000.0) if attack_success else -1.0,
+        detection_probability=0.40 if defenses_held >= 3 else 0.15,
+        time_to_detection_hours=168.0,
+        blocks_until_detected=500,
+        trust_damage=0.97,
+        description=f"""
+RECOVERY CREDENTIAL THEFT (Track EV-2a)
+
+Steal break-glass credentials.
+
+Attack Pattern:
+1. Recovery creds have elevated access
+2. Often stored less securely
+3. Attacker obtains them
+4. Uses during or outside emergency
+
+The keys to the kingdom.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EV-2a: Recovery Credential Defense:
+1. Secure vault (HSM-protected)
+2. Break-glass audit trail
+3. Credential rotation after use
+4. Multi-person access requirement
+
+Guard the guards.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_recovery_process_manipulation() -> AttackResult:
+    """
+    ATTACK 230: RECOVERY PROCESS MANIPULATION (Track EV-2b)
+
+    Manipulate recovery procedures:
+    1. Attacker studies recovery procedures
+    2. Modifies procedures or playbooks
+    3. During incident, responders follow tampered procedures
+    4. Leads to further compromise or failed recovery
+    """
+
+    defenses = {
+        "procedure_integrity": False,
+        "procedure_versioning": False,
+        "procedure_testing": False,
+        "out_of_band_reference": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Procedure Integrity
+    # ========================================================================
+
+    class ProcedureIntegrity:
+        """Verify recovery procedure integrity."""
+
+        def __init__(self):
+            self.procedure_hashes = {}
+
+        def register_procedure(self, proc_id: str, content_hash: str,
+                              signed_by: str):
+            """Register procedure with integrity hash."""
+            self.procedure_hashes[proc_id] = {
+                "hash": content_hash,
+                "signer": signed_by,
+            }
+
+        def verify_procedure(self, proc_id: str, current_hash: str) -> tuple:
+            """Verify procedure hasn't been modified."""
+            record = self.procedure_hashes.get(proc_id)
+
+            if not record:
+                return False, "Procedure not registered"
+
+            if record["hash"] != current_hash:
+                return False, "Procedure has been modified"
+
+            return True, "Procedure integrity verified"
+
+    integrity = ProcedureIntegrity()
+
+    integrity.register_procedure("incident_response", "original_hash",
+                                 "security_team")
+
+    # Modified procedure
+    ok, msg = integrity.verify_procedure("incident_response", "tampered_hash")
+    if not ok:
+        defenses["procedure_integrity"] = True
+
+    # ========================================================================
+    # Defense 2: Procedure Versioning
+    # ========================================================================
+
+    class ProcedureVersioning:
+        """Track procedure versions and changes."""
+
+        def __init__(self):
+            self.versions = {}
+            self.change_log = []
+
+        def add_version(self, proc_id: str, version: int, changes: str,
+                       approved_by: str):
+            """Add new version of procedure."""
+            if proc_id not in self.versions:
+                self.versions[proc_id] = []
+
+            self.versions[proc_id].append({
+                "version": version,
+                "changes": changes,
+                "approver": approved_by,
+            })
+
+        def check_version_control(self, proc_id: str) -> tuple:
+            """Check version control is maintained."""
+            versions = self.versions.get(proc_id, [])
+
+            if not versions:
+                return False, "No version history"
+
+            # Check all versions have approvers
+            unapproved = [v for v in versions if not v["approver"]]
+            if unapproved:
+                return False, f"{len(unapproved)} versions without approval"
+
+            return True, f"{len(versions)} versions tracked"
+
+    versioning = ProcedureVersioning()
+
+    # Version without approval
+    versioning.add_version("incident_response", 1, "Initial", "security_team")
+    versioning.add_version("incident_response", 2, "Modified", "")  # No approver
+
+    ok, msg = versioning.check_version_control("incident_response")
+    if not ok:
+        defenses["procedure_versioning"] = True
+
+    # ========================================================================
+    # Defense 3: Procedure Testing
+    # ========================================================================
+
+    class ProcedureTesting:
+        """Test recovery procedures regularly."""
+
+        def __init__(self):
+            self.test_results = {}
+
+        def record_test(self, proc_id: str, test_date: float,
+                       issues_found: list, corrected: bool):
+            """Record procedure test."""
+            if proc_id not in self.test_results:
+                self.test_results[proc_id] = []
+
+            self.test_results[proc_id].append({
+                "date": test_date,
+                "issues": issues_found,
+                "corrected": corrected,
+            })
+
+        def check_testing(self, proc_id: str, current_time: float) -> tuple:
+            """Check if procedure testing is current."""
+            tests = self.test_results.get(proc_id, [])
+
+            if not tests:
+                return False, "Procedure never tested"
+
+            latest = max(t["date"] for t in tests)
+            days_since = (current_time - latest) / 86400
+
+            if days_since > 180:
+                return False, f"Last test {days_since:.0f} days ago"
+
+            return True, "Testing current"
+
+    testing = ProcedureTesting()
+
+    import time
+    # Not tested recently
+    testing.record_test("incident_response", time.time() - 365*86400, [], True)
+
+    ok, msg = testing.check_testing("incident_response", time.time())
+    if not ok:
+        defenses["procedure_testing"] = True
+
+    # ========================================================================
+    # Defense 4: Out-of-Band Reference
+    # ========================================================================
+
+    class OutOfBandReference:
+        """Maintain out-of-band procedure reference."""
+
+        def __init__(self):
+            self.oob_copies = {}
+
+        def register_oob_copy(self, proc_id: str, location: str,
+                             verified_date: float):
+            """Register out-of-band copy."""
+            self.oob_copies[proc_id] = {
+                "location": location,
+                "verified": verified_date,
+            }
+
+        def check_oob_availability(self, proc_id: str,
+                                   current_time: float) -> tuple:
+            """Check if OOB copy is available and current."""
+            copy = self.oob_copies.get(proc_id)
+
+            if not copy:
+                return False, "No OOB copy registered"
+
+            days_since = (current_time - copy["verified"]) / 86400
+            if days_since > 90:
+                return False, f"OOB copy not verified in {days_since:.0f} days"
+
+            return True, f"OOB copy at {copy['location']}"
+
+    oob = OutOfBandReference()
+
+    import time
+    # OOB copy not maintained
+    oob.register_oob_copy("incident_response", "safe_deposit",
+                          time.time() - 180*86400)
+
+    ok, msg = oob.check_oob_availability("incident_response", time.time())
+    if not ok:
+        defenses["out_of_band_reference"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Recovery Process Manipulation (EV-2b)",
+        success=attack_success,
+        setup_cost_atp=3000.0,
+        gain_atp=1500000.0 if attack_success else 0.0,
+        roi=(1500000.0 / 3000.0) if attack_success else -1.0,
+        detection_probability=0.15 if defenses_held >= 3 else 0.03,
+        time_to_detection_hours=1440.0,  # May never detect
+        blocks_until_detected=4000,
+        trust_damage=0.90,
+        description=f"""
+RECOVERY PROCESS MANIPULATION (Track EV-2b)
+
+Tamper with recovery procedures.
+
+Attack Pattern:
+1. Study recovery procedures
+2. Modify procedures/playbooks
+3. During incident, team follows bad procedures
+4. Recovery fails or enables further attack
+
+Trust the process? Check the process.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EV-2b: Procedure Defense:
+1. Procedure integrity verification
+2. Version control with approval
+3. Regular procedure testing
+4. Out-of-band reference copies
+
+Verify before you trust.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_crisis_exploitation() -> AttackResult:
+    """
+    ATTACK 231: CRISIS EXPLOITATION (Track EV-3a)
+
+    Attack during active incident/crisis:
+    1. Wait for or trigger crisis
+    2. Attack during response chaos
+    3. Security team distracted
+    4. Controls relaxed for recovery
+    """
+
+    defenses = {
+        "crisis_security_baseline": False,
+        "separation_of_duties_crisis": False,
+        "automated_controls": False,
+        "incident_compartmentalization": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Crisis Security Baseline
+    # ========================================================================
+
+    class CrisisSecurityBaseline:
+        """Maintain security baseline during crisis."""
+
+        def __init__(self):
+            self.baseline_controls = set()
+            self.relaxed_controls = set()
+
+        def define_baseline(self, controls: list):
+            """Define controls that can't be relaxed."""
+            self.baseline_controls = set(controls)
+
+        def attempt_relax(self, control: str, justification: str) -> tuple:
+            """Attempt to relax a control during crisis."""
+            if control in self.baseline_controls:
+                return False, f"Control {control} cannot be relaxed during crisis"
+
+            self.relaxed_controls.add(control)
+            return True, "Control relaxed"
+
+    baseline = CrisisSecurityBaseline()
+
+    baseline.define_baseline(["mfa", "audit_logging", "encryption"])
+
+    # Attempt to disable MFA during crisis
+    ok, msg = baseline.attempt_relax("mfa", "need faster access")
+    if not ok:
+        defenses["crisis_security_baseline"] = True
+
+    # ========================================================================
+    # Defense 2: Separation of Duties During Crisis
+    # ========================================================================
+
+    class CrisisSoD:
+        """Maintain separation of duties during crisis."""
+
+        def __init__(self):
+            self.conflict_roles = set()
+
+        def define_conflict(self, role1: str, role2: str):
+            """Define conflicting roles."""
+            self.conflict_roles.add((role1, role2))
+            self.conflict_roles.add((role2, role1))
+
+        def check_assignment(self, person: str, roles: list) -> tuple:
+            """Check if role assignment violates SoD."""
+            for i, r1 in enumerate(roles):
+                for r2 in roles[i+1:]:
+                    if (r1, r2) in self.conflict_roles:
+                        return False, f"SoD violation: {r1} and {r2}"
+
+            return True, "Role assignment OK"
+
+    sod = CrisisSoD()
+
+    sod.define_conflict("incident_responder", "incident_investigator")
+
+    # Same person assigned conflicting roles during crisis
+    ok, msg = sod.check_assignment("rushed_admin",
+                                   ["incident_responder", "incident_investigator"])
+    if not ok:
+        defenses["separation_of_duties_crisis"] = True
+
+    # ========================================================================
+    # Defense 3: Automated Controls
+    # ========================================================================
+
+    class AutomatedControls:
+        """Maintain automated controls during crisis."""
+
+        def __init__(self):
+            self.automated_controls = {}
+
+        def configure_control(self, control_id: str, automated: bool,
+                             bypass_possible: bool):
+            """Configure control automation."""
+            self.automated_controls[control_id] = {
+                "automated": automated,
+                "bypassable": bypass_possible,
+            }
+
+        def check_automation(self) -> tuple:
+            """Check if critical controls are automated."""
+            non_automated = []
+            bypassable = []
+
+            for control, config in self.automated_controls.items():
+                if not config["automated"]:
+                    non_automated.append(control)
+                if config["bypassable"]:
+                    bypassable.append(control)
+
+            if non_automated or bypassable:
+                return False, f"Non-automated: {non_automated}, Bypassable: {bypassable}"
+
+            return True, "All controls automated and non-bypassable"
+
+    automation = AutomatedControls()
+
+    automation.configure_control("access_control", automated=True, bypass_possible=True)
+    automation.configure_control("logging", automated=False, bypass_possible=True)
+
+    ok, msg = automation.check_automation()
+    if not ok:
+        defenses["automated_controls"] = True
+
+    # ========================================================================
+    # Defense 4: Incident Compartmentalization
+    # ========================================================================
+
+    class IncidentCompartmentalization:
+        """Compartmentalize incident response."""
+
+        def __init__(self):
+            self.compartments = {}
+
+        def define_compartment(self, incident_type: str, scope: list,
+                              escalation_required: list):
+            """Define incident compartment."""
+            self.compartments[incident_type] = {
+                "scope": set(scope),
+                "escalation": set(escalation_required),
+            }
+
+        def check_scope(self, incident_type: str,
+                       requested_access: list) -> tuple:
+            """Check if access request is within scope."""
+            comp = self.compartments.get(incident_type)
+
+            if not comp:
+                return False, "Incident type not defined"
+
+            out_of_scope = set(requested_access) - comp["scope"]
+
+            if out_of_scope:
+                if out_of_scope & comp["escalation"]:
+                    return False, f"Requires escalation: {out_of_scope}"
+                else:
+                    return False, f"Out of scope: {out_of_scope}"
+
+            return True, "Access within compartment scope"
+
+    compartment = IncidentCompartmentalization()
+
+    compartment.define_compartment("malware",
+                                   scope=["endpoint", "network_logs"],
+                                   escalation_required=["production_db", "backups"])
+
+    # Request access outside scope
+    ok, msg = compartment.check_scope("malware",
+                                       ["endpoint", "production_db"])
+    if not ok:
+        defenses["incident_compartmentalization"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Crisis Exploitation (EV-3a)",
+        success=attack_success,
+        setup_cost_atp=1000.0,
+        gain_atp=2500000.0 if attack_success else 0.0,
+        roi=(2500000.0 / 1000.0) if attack_success else -1.0,
+        detection_probability=0.20 if defenses_held >= 3 else 0.05,
+        time_to_detection_hours=336.0,
+        blocks_until_detected=1000,
+        trust_damage=0.93,
+        description=f"""
+CRISIS EXPLOITATION (Track EV-3a)
+
+Attack during active crisis.
+
+Attack Pattern:
+1. Wait for or trigger crisis
+2. Attack during response chaos
+3. Security team distracted
+4. Controls relaxed for speed
+
+Never let a crisis go to waste.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EV-3a: Crisis Defense:
+1. Maintain security baseline during crisis
+2. SoD enforcement even under pressure
+3. Automated, non-bypassable controls
+4. Incident compartmentalization
+
+Crisis doesn't excuse poor security.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_failback_attack() -> AttackResult:
+    """
+    ATTACK 232: FAILBACK ATTACK (Track EV-3b)
+
+    Attack during failback from DR:
+    1. Production restored after incident
+    2. Failback process has gaps
+    3. Attacker exploits transition chaos
+    4. Re-compromises during return to normal
+    """
+
+    defenses = {
+        "failback_checklist": False,
+        "security_revalidation": False,
+        "staged_failback": False,
+        "post_failback_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Failback Checklist
+    # ========================================================================
+
+    class FailbackChecklist:
+        """Comprehensive failback checklist."""
+
+        def __init__(self):
+            self.checklists = {}
+            self.required_items = [
+                "verify_backup_integrity",
+                "scan_for_persistence",
+                "rotate_credentials",
+                "verify_patches_applied",
+                "restore_security_controls",
+            ]
+
+        def complete_item(self, checklist_id: str, item: str):
+            """Complete checklist item."""
+            if checklist_id not in self.checklists:
+                self.checklists[checklist_id] = set()
+            self.checklists[checklist_id].add(item)
+
+        def check_completion(self, checklist_id: str) -> tuple:
+            """Check if checklist is complete."""
+            completed = self.checklists.get(checklist_id, set())
+            missing = set(self.required_items) - completed
+
+            if missing:
+                return False, f"Incomplete: {missing}"
+
+            return True, "Failback checklist complete"
+
+    checklist = FailbackChecklist()
+
+    # Incomplete checklist
+    checklist.complete_item("failback_001", "verify_backup_integrity")
+    checklist.complete_item("failback_001", "scan_for_persistence")
+    # Missing: rotate_credentials, verify_patches_applied, restore_security_controls
+
+    ok, msg = checklist.check_completion("failback_001")
+    if not ok:
+        defenses["failback_checklist"] = True
+
+    # ========================================================================
+    # Defense 2: Security Revalidation
+    # ========================================================================
+
+    class SecurityRevalidation:
+        """Revalidate security posture after failback."""
+
+        def __init__(self):
+            self.validation_results = {}
+
+        def validate_system(self, system_id: str, checks: dict) -> tuple:
+            """Validate system security."""
+            failures = []
+
+            for check, passed in checks.items():
+                if not passed:
+                    failures.append(check)
+
+            self.validation_results[system_id] = {
+                "passed": len(failures) == 0,
+                "failures": failures,
+            }
+
+            if failures:
+                return False, f"Validation failed: {failures}"
+
+            return True, "Security validated"
+
+    revalidation = SecurityRevalidation()
+
+    # System fails some checks
+    ok, msg = revalidation.validate_system("production", {
+        "firewall_rules": True,
+        "patch_level": False,  # Not up to date
+        "mfa_enabled": True,
+        "audit_logging": False,  # Not enabled
+    })
+    if not ok:
+        defenses["security_revalidation"] = True
+
+    # ========================================================================
+    # Defense 3: Staged Failback
+    # ========================================================================
+
+    class StagedFailback:
+        """Implement staged failback process."""
+
+        def __init__(self):
+            self.stages = {}
+            self.current_stage = {}
+
+        def define_stages(self, failback_id: str, stages: list):
+            """Define failback stages."""
+            self.stages[failback_id] = stages
+            self.current_stage[failback_id] = 0
+
+        def advance_stage(self, failback_id: str,
+                         stage_validation_passed: bool) -> tuple:
+            """Advance to next stage if validation passes."""
+            stages = self.stages.get(failback_id, [])
+            current = self.current_stage.get(failback_id, 0)
+
+            if current >= len(stages):
+                return False, "Already at final stage"
+
+            if not stage_validation_passed:
+                return False, f"Stage {current} validation failed"
+
+            self.current_stage[failback_id] = current + 1
+            return True, f"Advanced to stage {current + 1}"
+
+    staged = StagedFailback()
+
+    staged.define_stages("failback_001", [
+        "restore_network",
+        "restore_services",
+        "enable_traffic",
+        "full_production",
+    ])
+
+    # Stage validation fails
+    ok, msg = staged.advance_stage("failback_001", stage_validation_passed=False)
+    if not ok:
+        defenses["staged_failback"] = True
+
+    # ========================================================================
+    # Defense 4: Post-Failback Verification
+    # ========================================================================
+
+    class PostFailbackVerification:
+        """Verify system state after failback."""
+
+        def __init__(self):
+            self.verifications = {}
+
+        def run_verification(self, failback_id: str, tests: dict) -> tuple:
+            """Run post-failback verification tests."""
+            failed_tests = []
+
+            for test_name, result in tests.items():
+                if not result:
+                    failed_tests.append(test_name)
+
+            self.verifications[failback_id] = {
+                "passed": len(failed_tests) == 0,
+                "failed_tests": failed_tests,
+            }
+
+            if failed_tests:
+                return False, f"Verification failed: {failed_tests}"
+
+            return True, "All verification tests passed"
+
+    verification = PostFailbackVerification()
+
+    # Some verification tests fail
+    ok, msg = verification.run_verification("failback_001", {
+        "services_healthy": True,
+        "no_persistence_detected": False,  # Concern!
+        "metrics_normal": True,
+        "no_unusual_processes": False,  # Concern!
+    })
+    if not ok:
+        defenses["post_failback_verification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 3
+
+    return AttackResult(
+        attack_name="Failback Attack (EV-3b)",
+        success=attack_success,
+        setup_cost_atp=5000.0,
+        gain_atp=1800000.0 if attack_success else 0.0,
+        roi=(1800000.0 / 5000.0) if attack_success else -1.0,
+        detection_probability=0.30 if defenses_held >= 3 else 0.10,
+        time_to_detection_hours=240.0,
+        blocks_until_detected=700,
+        trust_damage=0.88,
+        description=f"""
+FAILBACK ATTACK (Track EV-3b)
+
+Attack during return to production.
+
+Attack Pattern:
+1. Production being restored
+2. Failback has gaps
+3. Attacker exploits transition
+4. Re-compromises during return
+
+The journey home is dangerous.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EV-3b: Failback Defense:
+1. Comprehensive failback checklist
+2. Security revalidation
+3. Staged failback process
+4. Post-failback verification
+
+Verify before you return.
 """.strip(),
         raw_data={
             "defenses": defenses,
