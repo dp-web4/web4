@@ -22,7 +22,7 @@ Web4 is trust infrastructure for AI agent coordination. Provides identity (LCT),
 | Term | What It Is | Why It Matters |
 |------|-----------|----------------|
 | **LCT** | Linked Context Token | Hardware-bound identity for agents |
-| **T3** | Trust Tensor (6 dimensions) | Reputation scoring: competence, reliability, integrity |
+| **T3** | Trust Tensor (6 dimensions) | T3: talent, training, temperament / V3: valuation, veracity, validity |
 | **ATP** | Allocation Transfer Packet | Resource/energy accounting |
 | **MRH** | Markov Relevancy Horizon | Context boundaries for entities |
 | **R6** | Request lifecycle | Rules → Role → Request → Reference → Resource → Result |
@@ -64,7 +64,7 @@ Web4 is trust infrastructure for AI agent coordination. Provides identity (LCT),
 | `ACT` | Cosmos SDK blockchain for ATP/LCT (81K lines Go) |
 | `Hardbound` | Enterprise product layer |
 | `HRM` | Edge AI kernel with MoE |
-| `synchronism` | Theoretical physics foundation |
+| `Synchronism` | Theoretical physics foundation |
 | `4-life` | Interactive explainer |
 
 ## Machine-Readable Metadata

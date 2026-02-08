@@ -124,8 +124,8 @@ related_repos:
     url: "https://github.com/dp-web4/HRM"
     relationship: "Edge AI kernel"
     language: python
-  - name: synchronism
-    url: "https://github.com/dp-web4/synchronism"
+  - name: Synchronism
+    url: "https://github.com/dp-web4/Synchronism"
     relationship: "Theoretical physics foundation"
     language: python
   - name: 4-life
@@ -149,7 +149,7 @@ token_budget:
   full:
     files: ["web4-standard/core-spec/"]
     tokens: 50000
-    purpose: "Implementation"
+    purpose: "Full specification set"
 
 contact:
   maintainer: "dp@metalinxx.io"
