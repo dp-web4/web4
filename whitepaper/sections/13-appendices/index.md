@@ -342,7 +342,7 @@ message Acknowledgment {
 | Blockchain consensus | ❌ Not started | Zero consensus backend |
 | VCM recipient attestation | ❌ Not started | Vision only |
 | ATP/ADP settlement | ❌ Not started | No energy accounting |
-| **Hardware binding** | 🚨 **P0 BLOCKER** | Keys stored in filesystem |
+| **Hardware binding** | ⚠️ Partial | TPM 2.0 via `tss-esapi` in hardbound-core (x86_64) |
 
 ### Completed Features
 - [x] LCT data structure implementation
@@ -359,8 +359,8 @@ message Acknowledgment {
 - [x] Nonce-based replay protection
 - [x] Witness reputation tracking
 
-### Roadmap (Pending Hardware Binding)
-- [ ] TPM 2.0 integration (hardware-sealed keys)
+### Roadmap (Hardware Binding In Progress)
+- [x] TPM 2.0 integration via `tss-esapi` (x86_64)
 - [ ] TrustZone/OP-TEE for ARM platforms
 - [ ] Hardware attestation protocols
 - [ ] PCR sealing for boot-time verification

@@ -94,7 +94,7 @@ with open('build/WEB4_Whitepaper_Reordered.md', 'w') as f:
     # Start with title and Executive Summary on same page
     f.write('# WEB4: A Comprehensive Architecture for Trust-Native Distributed Intelligence\n\n')
     f.write('*Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus*\n\n')
-    f.write('*August 2025*\n\n')
+    f.write('*February 2026*\n\n')
     f.write('---\n\n')
     
     # Executive Summary (without its own title since we have main title)
