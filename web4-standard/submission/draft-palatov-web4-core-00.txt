@@ -202,9 +202,9 @@ Internet-Draft                   Web4                    September 2025
    R6: Action framework where Rules + Role + Request + Reference +
        Resource leads to Result.
 
-   ATP: Alignment Transfer Protocol token in charged state.
+   ATP: Allocation Transfer Packet token in charged state.
 
-   ADP: Alignment Discharge Protocol token in discharged state.
+   ADP: Allocation Discharge Packet token in discharged state.
 
    Society: A delegative entity that can issue citizenship and
             establish laws.

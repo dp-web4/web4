@@ -2267,8 +2267,8 @@ message Acknowledgment {
 | Acronym | Full Form | Description |
 |---------|-----------|-------------|
 | **LCT** | Linked Context Token | Non-transferable identity token |
-| **ATP** | Alignment Transfer Protocol | Energy/value tracking system |
-| **ADP** | Alignment Discharged Potential | Spent ATP awaiting certification |
+| **ATP** | Allocation Transfer Packet | Energy/value tracking system |
+| **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
 | **T3** | Trust Tensor (Talent, Training, Temperament) | Capability assessment metric |
 | **V3** | Value Tensor (Valuation, Veracity, Validity) | Value creation metric |
 | **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
