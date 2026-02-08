@@ -401,7 +401,7 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
 
 ## Next Steps (Honest)
 
-### Completed (Dec 2025)
+### Completed (Dec 2025 - Feb 2026)
 
 1. ✅ Create honest `SECURITY.md` (this addresses Perplexity critique)
 2. ✅ Create honest `STATUS.md` (you're reading it)
@@ -410,18 +410,24 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
 5. ✅ LCT Unified Identity Specification (v1.0.0 draft)
 6. ✅ 76% prediction validation (13 of 17 confirmed)
 7. ✅ Update README with Track 4 coordination framework
+8. ✅ Promote `/game/` renamed to `/simulations/` (Feb 2026)
+9. ✅ **Ledgers consolidation** (Feb 2026)
+   - Created `ledgers/` directory with fractal chain specs
+   - Terminology reframing: blockchain → ledger
+   - ACT Chain referenced as operational implementation (81,000+ lines Go)
+   - Python/TypeScript reference implementations documented
+10. ✅ **Claude Code plugin** linked to [PR #20448](https://github.com/anthropics/claude-code/pull/20448)
 
-### Immediate (Dec 2025 - Feb 2026)
+### Immediate (Feb 2026)
 
-8. 🔄 Implement LCT parsing libraries in Go (ACT) and TypeScript
+11. 🔄 Implement LCT parsing libraries in Go (ACT) and TypeScript
    - **TypeScript Status**: WASM bindings exist in `web4-trust-core/pkg/`
    - Exposes T3Tensor, V3Tensor, EntityTrust, WasmTrustStore
    - Basic entity ID parsing (`type:name`) implemented
    - **Gap**: Full LCT URL parsing (`lct://{component}:{instance}:{role}@{network}`)
-9. 🔄 Calibrate satisfaction threshold for combined filtering
-10. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-11. ✅ Promote `/game/` renamed to `/simulations/` (Feb 2026)
-12. 🔄 Write formal threat model
+12. 🔄 Calibrate satisfaction threshold for combined filtering
+13. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+14. 🔄 Write formal threat model
 
 ### Near-Term (Q1 2026)
 
@@ -505,12 +511,14 @@ Both projects use **same honest posture**:
 
 Web4 has done **substantial research work** (~47k lines code, 45+ research sessions, comprehensive documentation) exploring trust-native coordination for distributed AI.
 
-**December 2025 Progress**:
+**December 2025 - February 2026 Progress**:
 - Phase 2 coordination framework validated (4 variants)
 - 76% prediction validation rate
 - +386% efficiency improvement demonstrated
 - LCT Unified Identity Specification (cross-system standard)
 - SAGE ↔ Web4 pattern exchange operational
+- Ledgers consolidation with terminology reframing
+- Claude Code governance plugin (PR #20448)
 
 The work is **valuable as research**: novel approach, systematic thinking, working prototypes, validated predictions.
 
@@ -522,7 +530,7 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 ---
 
-**Last Updated**: February 7, 2026
+**Last Updated**: February 8, 2026
 **Next Review**: March 2026 (after ACT integration + threat model)
 **Status**: Research prototype - 262 attack vectors across 57 tracks, all defended
 
