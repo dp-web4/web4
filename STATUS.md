@@ -19,7 +19,7 @@ Web4 is **exploratory research** into trust-native distributed intelligence. The
 | Component | What Exists | What Works | What's Missing |
 |-----------|-------------|------------|----------------|
 | **Conceptual Foundation** | 100+ page whitepaper | Clear architecture | - |
-| **Security Research** | 262 attacks in `/simulations/` | All defended, ~52% detection | Formal threat model, adversarial testing |
+| **Security Research** | 268 attacks in `/simulations/` | All defended, ~52% detection | Formal threat model, adversarial testing |
 | **ATP Framework** | ~4,200 lines | Basic metering & pricing | Economic validation, real markets |
 | **Reputation Engine** | ~3,500 lines | Gossip & challenges | Formal Sybil-resistance proofs |
 | **Federation** | ~2,800 lines | Architecture designed | Real multi-platform deployment |
@@ -532,5 +532,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 8, 2026
 **Next Review**: March 2026 (after ACT integration + threat model)
-**Status**: Research prototype - 262 attack vectors across 57 tracks, all defended
+**Status**: Research prototype - 268 attack vectors across 58 tracks, all defended
 
