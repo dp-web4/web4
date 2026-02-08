@@ -1,0 +1,136 @@
+openapi: 3.1.0
+info:
+  title: Web4 Immutable Record (Ledger) API
+  version: 1.0.0
+  description: >
+    Minimal append-only ledger API for SAL-critical events (birth, role bind, law update, auditor adjustment).
+servers:
+  - url: https://ledger.web4.example
+paths:
+  /append:
+    post:
+      summary: Append an object to the ledger
+      requestBody:
+        required: true
+        content:
+          application/cbor:
+            schema:
+              $ref: '#/components/schemas/LedgerAppendRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LedgerAppendRequestJSON'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAppendResponse'
+  /get/{hash}:
+    get:
+      summary: Fetch object by content hash
+      parameters:
+        - in: path
+          name: hash
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object
+          content:
+            application/cbor:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: object
+  /prove:
+    post:
+      summary: Get inclusion proof for a hash
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProofRequest'
+      responses:
+        '200':
+          description: Proof
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofResponse'
+  /events:
+    get:
+      summary: Stream events
+      parameters:
+        - in: query
+          name: topic
+          schema: {"type":"string","default":"sal.*"}
+        - in: query
+          name: from
+          schema: {"type":"string","description":"block:height or ISO timestamp"}
+      responses:
+        '200':
+          description: NDJSON event stream
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+components:
+  schemas:
+    LedgerAppendRequest:
+      type: object
+      required: [object, topic, parent, signatures]
+      properties:
+        object:
+          description: CBOR-encoded bytes (base64url when JSON-serialized)
+          type: string
+          format: byte
+        topic:
+          type: string
+          enum: [sal.birth, sal.role.bind, sal.law.update, sal.audit.adjust]
+        parent:
+          type: string
+          nullable: true
+          description: Parent object hash (for hash-linked history)
+        signatures:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Signature'
+    LedgerAppendRequestJSON:
+      allOf:
+        - $ref: '#/components/schemas/LedgerAppendRequest'
+      properties:
+        object:
+          description: JSON object (canonicalized per RFC 8785 before hashing)
+          type: object
+    LedgerAppendResponse:
+      type: object
+      required: [hash, block, index]
+      properties:
+        hash:  {"type":"string"}
+        block: {"type":"string"}
+        index: {"type":"integer"}
+    ProofRequest:
+      type: object
+      required: [hash]
+      properties:
+        hash: {"type":"string"}
+    ProofResponse:
+      type: object
+      required: [hash, block, merkleProof]
+      properties:
+        hash:        {"type":"string"}
+        block:       {"type":"string"}
+        merkleProof: {"type":"array","items":{"type":"string"}}
+    Signature:
+      type: object
+      required: [alg, kid, sig]
+      properties:
+        alg: {"type":"string","enum":["Ed25519","ES256","ES256K"]}
+        kid: {"type":"string"}
+        sig: {"type":"string","format":"byte"}
