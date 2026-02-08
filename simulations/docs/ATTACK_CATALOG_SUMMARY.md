@@ -1,9 +1,9 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 3.9
-**Date**: 2026-02-07
-**Total Attacks**: 262
-**Status**: Comprehensive Coverage + Identity Fragmentation Attacks
+**Version**: 4.0
+**Date**: 2026-02-08
+**Total Attacks**: 270
+**Status**: Comprehensive Coverage + Policy Model Attacks (Track FB)
 
 ---
 
@@ -557,6 +557,22 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 261 | Cross-Platform Identity Arbitrage | Exploit differing trust standards |
 | 262 | Identity Squatting | Register look-alike identities for confusion |
 
+### Policy Model Attacks (Track FB, Attacks 263-270) - NEW
+**Attacks against local policy models used for AI agent governance**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 263 | Policy Model Prompt Injection | Override policy via injected instructions |
+| 264 | Policy Model Context Exhaustion | Push out policy embeddings from context |
+| 265 | Policy Embedding Poisoning | Corrupt policy category mappings |
+| 266 | Model Weight Substitution | Replace with trojaned policy model |
+| 267 | Inference Timing Manipulation | Force timeout to trigger permissive fallback |
+| 268 | Policy Model Output Hijacking | Exploit output parsing ambiguities |
+| 269 | Coherence Threshold Manipulation | Fake coherence to bypass identity gates |
+| 270 | Policy Decision Replay | Replay cached approvals for new actions |
+
+See: `ATTACK_TRACK_FB_POLICY_MODEL.md` for full details.
+
 ---
 
 ## Defense Statistics
@@ -567,7 +583,7 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 262 |
+| Total Attacks | 270 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~52% |
 | Average Trust Damage | ~0.82 |
@@ -987,7 +1003,7 @@ Based on current attack simulations:
     - Stabilization reserves
     - Controlled unwinding
 
-27. **Identity Fragmentation Layer** (36+ defenses) - NEW
+27. **Identity Fragmentation Layer** (36+ defenses)
     - Compartment linkage detection
     - Cross-compartment limits
     - Behavioral fingerprinting
@@ -1024,6 +1040,40 @@ Based on current attack simulations:
     - Warning on similar
     - Trademark protection
     - Dispute resolution
+
+28. **Policy Model Layer** (32+ defenses) - NEW
+    - Input sanitization for policy model
+    - Prompt format isolation (user/system separation)
+    - Parameter schema validation
+    - Multi-model voting for high-stakes
+    - Protected context region for embeddings
+    - Input truncation with priority scoring
+    - Context summarization
+    - Request size limits
+    - Cryptographic embedding signing
+    - Multi-party embedding ceremony
+    - Hardware attestation for embedding store
+    - Embedding integrity hash chains
+    - Model weight attestation
+    - TPM-sealed model storage
+    - Behavioral fingerprinting
+    - Golden dataset validation
+    - WASM sandboxing
+    - Deny-by-default on timeout
+    - Input complexity limits
+    - Resource quotas per inference
+    - Rate limiting per actor
+    - Strict output schema validation
+    - Canonical JSON parsing
+    - Output hash in audit bundle
+    - Parse result verification
+    - External coherence verification
+    - Hardware-attested coherence
+    - Immutable thresholds
+    - Independent coherence witnesses
+    - Comprehensive cache key hashing
+    - Short cache TTL (seconds)
+    - Action-specific nonces
 
 ---
 
@@ -1078,6 +1128,7 @@ Based on current attack simulations:
 18. ~~**Temporal coordination attacks**: Time skew, heartbeat desync~~ ✅ Track EY (250 attacks)
 19. ~~**Economic cascade attacks**: Liquidity, trust-collateral spirals~~ ✅ Track EZ (256 attacks)
 20. ~~**Identity fragmentation attacks**: Compartment abuse, pseudonym chains~~ ✅ Track FA (262 attacks)
+21. ~~**Policy model attacks**: Local LLM governance exploitation~~ ✅ Track FB (270 attacks)
 
 ### Formal Verification Needed
 
@@ -1129,7 +1180,8 @@ Based on current attack simulations:
 | 2026-02-07 EVE | Track EY | 245-250 | Temporal coordination |
 | 2026-02-07 EVE | Track EZ | 251-256 | Economic cascade |
 | 2026-02-07 EVE | Track FA | 257-262 | Identity fragmentation |
+| 2026-02-08 | Track FB | 263-270 | Policy model attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 262 attacks across 57 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 270 attacks across 58 tracks.*
