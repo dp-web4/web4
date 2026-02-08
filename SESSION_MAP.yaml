@@ -4,13 +4,13 @@
 
 metadata:
   project: web4
-  last_updated: "2026-02-05T04:30:00Z"
+  last_updated: "2026-02-08T12:00:00Z"
   archivist_version: "1.2"
   total_sessions: 210
   focus: "Distributed Trust Infrastructure"
   date_range: "2025-08 to 2026-02"
   existing_manifest: "ARCHIVE_MANIFEST.md"
-  milestone: "208 attack vectors across 48 tracks! Tracks EO-ER added (AI Emergence, Hardware Enclave, Interoperability, LCT Lifecycle). Merge conflict RESOLVED. attack_simulations.py at 62,863 lines."
+  milestone: "262 attack vectors across 57+ tracks! Tracks EW-FA added (Identity Fragmentation Layer). TypeScript MCP servers added (web4-identity, web4-trust, web4-economy). ATP/ADP terminology drift corrected in whitepaper."
 
 # =============================================================================
 # RESEARCH ARCS
@@ -218,15 +218,15 @@ game_theory:
     - "Detection threshold: honesty dominant as long as detection >29% (currently 70%)"
     - "Stake 75,000 ATP provides 3.5× safety margin"
     - "Long-con NPV-negative (-32,500 ATP) vs honest (+176,000 ATP/12mo)"
-  attack_vectors_total: 208
+  attack_vectors_total: 262
   recent_tracks:
+    - {id: "FA", name: "Identity Fragmentation Layer", attacks: 6, date: "2026-02-07"}
+    - {id: "EY-EZ", name: "Various Tracks", attacks: 12, date: "2026-02-07"}
+    - {id: "EW-EX", name: "Various Tracks", attacks: 12, date: "2026-02-07"}
     - {id: "EO", name: "Advanced AI Emergence Attacks", attacks: 6, date: "2026-02-07"}
     - {id: "EP", name: "Hardware Enclave Attacks", attacks: 6, date: "2026-02-07"}
     - {id: "EQ", name: "Interoperability Standards Attacks", attacks: 6, date: "2026-02-07"}
     - {id: "ER", name: "LCT Lifecycle Attacks", attacks: 6, date: "2026-02-07"}
-    - {id: "EK-EN", name: "Various Tracks", attacks: 24, date: "2026-02-06"}
-    - {id: "DU", name: "Governance Interface", attacks: 5, date: "2026-02-05"}
-    - {id: "DW", name: "Cross-System Attack Chains", attacks: 4, date: "2026-02-05"}
 
 # =============================================================================
 # STATISTICS
@@ -236,7 +236,8 @@ statistics:
   arcs: 6
   test_sessions: 17
   implementation_files: 50
-  attack_vectors: 208
-  latest_session_date: "2026-02-07"
+  attack_vectors: 262
+  latest_session_date: "2026-02-08"
+  infrastructure_update: "TypeScript MCP servers (3 servers, 22 tools) added 2026-02-08"
   quality_rating: "EXCELLENT"
   deployment_status: "Legion validated, Thor ready, Sprout pending"
