@@ -276,8 +276,9 @@ game_theory:
     - "Detection threshold: honesty dominant as long as detection >29% (currently 70%)"
     - "Stake 75,000 ATP provides 3.5× safety margin"
     - "Long-con NPV-negative (-32,500 ATP) vs honest (+176,000 ATP/12mo)"
-  attack_vectors_total: 268
+  attack_vectors_total: 274
   recent_tracks:
+    - {id: "FC", name: "Coherence-Trust Integration Attacks", attacks: 6, date: "2026-02-08"}
     - {id: "FB", name: "Multi-Federation Cascade Attacks", attacks: 6, date: "2026-02-08"}
     - {id: "FA", name: "Identity Fragmentation Layer", attacks: 6, date: "2026-02-07"}
     - {id: "EY-EZ", name: "Various Tracks", attacks: 12, date: "2026-02-07"}
@@ -294,9 +295,9 @@ statistics:
   arcs: 7
   test_sessions: 17
   implementation_files: 50
-  attack_vectors: 268
+  attack_vectors: 274
   latest_session_date: "2026-02-08"
-  infrastructure_update: "Track FB (Multi-Federation Cascade) added; TypeScript LCT parser in ledgers/reference/"
+  infrastructure_update: "Tracks FB+FC added (12 attacks); TypeScript LCT parser in ledgers/reference/"
   quality_rating: "EXCELLENT"
   deployment_status: "Legion validated, Thor ready, Sprout pending"
 
