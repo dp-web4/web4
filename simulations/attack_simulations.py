@@ -55301,6 +55301,13 @@ def run_all_attacks() -> List[AttackResult]:
         ("Reputation Contagion (EZ-2b)", attack_reputation_contagion),
         ("Systemic Risk Concentration (EZ-3a)", attack_systemic_risk_concentration),
         ("Feedback Loop Weaponization (EZ-3b)", attack_feedback_loop_weaponization),
+        # Track FA: Identity Fragmentation Attacks
+        ("Identity Compartment Abuse (FA-1a)", attack_identity_compartment_abuse),
+        ("Pseudonym Chain Attack (FA-1b)", attack_pseudonym_chain),
+        ("Identity Merge Exploitation (FA-2a)", attack_identity_merge_exploitation),
+        ("Identity Recovery Hijack (FA-2b)", attack_identity_recovery_hijack),
+        ("Cross-Platform Identity Arbitrage (FA-3a)", attack_cross_platform_identity_arbitrage),
+        ("Identity Squatting (FA-3b)", attack_identity_squatting),
     ]
 
     results = []
@@ -75073,6 +75080,1724 @@ Track EZ-3b: Feedback Defense:
 6. Controlled unwinding procedures
 
 Friction is stability.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ===========================================================================
+# Track FA: Identity Fragmentation Attacks (Attacks 257-262)
+# ===========================================================================
+# Attacks exploiting multi-identity management and cross-identity coordination
+
+
+def attack_identity_compartment_abuse() -> AttackResult:
+    """
+    ATTACK: Identity Compartment Abuse (FA-1a)
+
+    Exploit legitimate identity compartmentalization to hide
+    malicious activity across fragmented personas.
+
+    Strategy:
+    1. Create multiple legitimate identity compartments
+    2. Build reputation in each compartment independently
+    3. Use high-trust compartments to vouch for low-trust actions
+    4. Abuse cross-compartment trust transfer
+    """
+    defenses = {
+        "compartment_linkage_detection": False,
+        "cross_compartment_limits": False,
+        "behavioral_fingerprinting": False,
+        "unified_risk_scoring": False,
+        "compartment_attestation": False,
+        "trust_transfer_caps": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Compartment Linkage Detection
+    # ========================================================================
+
+    class CompartmentLinkageDetector:
+        """Detect links between identity compartments."""
+
+        def __init__(self):
+            self.compartments = {}
+            self.behavioral_patterns = defaultdict(list)
+
+        def register_compartment(self, comp_id: str, metadata: dict):
+            self.compartments[comp_id] = metadata
+
+        def record_behavior(self, comp_id: str, behavior: str, timestamp: int):
+            self.behavioral_patterns[comp_id].append((behavior, timestamp))
+
+        def detect_linkage(self, comp_a: str, comp_b: str) -> float:
+            """Score likelihood of common ownership."""
+            patterns_a = set(b for b, _ in self.behavioral_patterns.get(comp_a, []))
+            patterns_b = set(b for b, _ in self.behavioral_patterns.get(comp_b, []))
+
+            if not patterns_a or not patterns_b:
+                return 0.0
+
+            overlap = len(patterns_a.intersection(patterns_b))
+            total = len(patterns_a.union(patterns_b))
+            return overlap / total if total > 0 else 0.0
+
+    detector = CompartmentLinkageDetector()
+    detector.record_behavior("alice_work", "code_review", 100)
+    detector.record_behavior("alice_work", "bug_fix", 200)
+    detector.record_behavior("mystery_user", "code_review", 150)
+    detector.record_behavior("mystery_user", "bug_fix", 250)
+
+    if detector.detect_linkage("alice_work", "mystery_user") > 0.5:
+        defenses["compartment_linkage_detection"] = True
+
+    # ========================================================================
+    # Defense 2: Cross-Compartment Limits
+    # ========================================================================
+
+    class CrossCompartmentLimiter:
+        """Limit trust transfer between compartments."""
+
+        def __init__(self, max_transfer_ratio: float = 0.3):
+            self.max_transfer = max_transfer_ratio
+
+        def calculate_allowed_transfer(
+            self, source_trust: float, amount: float
+        ) -> float:
+            max_allowed = source_trust * self.max_transfer
+            return min(amount, max_allowed)
+
+        def validate_transfer(
+            self, source_trust: float, target_trust: float, amount: float
+        ) -> bool:
+            """Check if transfer would create suspicious jump."""
+            max_allowed = self.calculate_allowed_transfer(source_trust, amount)
+            if amount > max_allowed:
+                return False
+            # Target trust shouldn't suddenly exceed source
+            if target_trust + amount > source_trust * 1.2:
+                return False
+            return True
+
+    limiter = CrossCompartmentLimiter(max_transfer_ratio=0.3)
+    allowed = limiter.calculate_allowed_transfer(source_trust=0.8, amount=0.5)
+
+    if allowed <= 0.24:  # 30% of 0.8
+        defenses["cross_compartment_limits"] = True
+
+    # ========================================================================
+    # Defense 3: Behavioral Fingerprinting
+    # ========================================================================
+
+    class BehavioralFingerprinter:
+        """Create behavioral fingerprints for identities."""
+
+        def __init__(self):
+            self.fingerprints = {}
+
+        def build_fingerprint(self, identity: str, behaviors: list) -> dict:
+            """Build behavioral fingerprint."""
+            fp = {
+                "timing_pattern": self._extract_timing(behaviors),
+                "action_mix": self._extract_actions(behaviors),
+                "sequence_patterns": self._extract_sequences(behaviors),
+            }
+            self.fingerprints[identity] = fp
+            return fp
+
+        def _extract_timing(self, behaviors: list) -> dict:
+            if len(behaviors) < 2:
+                return {}
+            intervals = []
+            for i in range(1, len(behaviors)):
+                intervals.append(behaviors[i][1] - behaviors[i-1][1])
+            return {"avg_interval": sum(intervals) / len(intervals) if intervals else 0}
+
+        def _extract_actions(self, behaviors: list) -> dict:
+            action_counts = defaultdict(int)
+            for action, _ in behaviors:
+                action_counts[action] += 1
+            return dict(action_counts)
+
+        def _extract_sequences(self, behaviors: list) -> list:
+            if len(behaviors) < 2:
+                return []
+            return [(behaviors[i][0], behaviors[i+1][0]) for i in range(len(behaviors)-1)]
+
+        def compare_fingerprints(self, id_a: str, id_b: str) -> float:
+            """Compare fingerprints for similarity."""
+            fp_a = self.fingerprints.get(id_a, {})
+            fp_b = self.fingerprints.get(id_b, {})
+
+            if not fp_a or not fp_b:
+                return 0.0
+
+            # Compare action mixes
+            actions_a = set(fp_a.get("action_mix", {}).keys())
+            actions_b = set(fp_b.get("action_mix", {}).keys())
+            overlap = len(actions_a.intersection(actions_b))
+            total = len(actions_a.union(actions_b))
+            return overlap / total if total > 0 else 0.0
+
+    fingerprinter = BehavioralFingerprinter()
+    fingerprinter.build_fingerprint("user_1", [("commit", 100), ("review", 150)])
+    fingerprinter.build_fingerprint("user_2", [("commit", 110), ("review", 160)])
+
+    if fingerprinter.compare_fingerprints("user_1", "user_2") > 0.5:
+        defenses["behavioral_fingerprinting"] = True
+
+    # ========================================================================
+    # Defense 4: Unified Risk Scoring
+    # ========================================================================
+
+    class UnifiedRiskScorer:
+        """Score risk across all compartments of an entity."""
+
+        def __init__(self):
+            self.compartment_risks = {}
+            self.linked_compartments = defaultdict(set)
+
+        def set_risk(self, comp_id: str, risk: float):
+            self.compartment_risks[comp_id] = risk
+
+        def link_compartments(self, comp_a: str, comp_b: str):
+            self.linked_compartments[comp_a].add(comp_b)
+            self.linked_compartments[comp_b].add(comp_a)
+
+        def get_unified_risk(self, comp_id: str) -> float:
+            """Get risk considering all linked compartments."""
+            related = self.linked_compartments.get(comp_id, set())
+            related.add(comp_id)
+
+            risks = [self.compartment_risks.get(c, 0.5) for c in related]
+            return max(risks) if risks else 0.5  # Conservative: use max risk
+
+    scorer = UnifiedRiskScorer()
+    scorer.set_risk("comp_a", 0.2)  # Low risk
+    scorer.set_risk("comp_b", 0.9)  # High risk
+    scorer.link_compartments("comp_a", "comp_b")
+
+    if scorer.get_unified_risk("comp_a") >= 0.9:  # Linked to high-risk
+        defenses["unified_risk_scoring"] = True
+
+    # ========================================================================
+    # Defense 5: Compartment Attestation
+    # ========================================================================
+
+    class CompartmentAttestor:
+        """Require attestation for compartment actions."""
+
+        def __init__(self):
+            self.attestations = {}
+
+        def attest(self, comp_id: str, action: str, proof: str) -> bool:
+            if not proof:
+                return False
+            self.attestations[(comp_id, action)] = {
+                "proof": proof,
+                "timestamp": time.time(),
+            }
+            return True
+
+        def verify_attestation(self, comp_id: str, action: str) -> bool:
+            return (comp_id, action) in self.attestations
+
+    attestor = CompartmentAttestor()
+    attestor.attest("work_id", "high_value_transfer", "sig_xyz")
+
+    if attestor.verify_attestation("work_id", "high_value_transfer"):
+        defenses["compartment_attestation"] = True
+
+    # ========================================================================
+    # Defense 6: Trust Transfer Caps
+    # ========================================================================
+
+    class TrustTransferCap:
+        """Cap trust transfer rates between compartments."""
+
+        def __init__(self, max_per_period: float = 0.1, period_blocks: int = 100):
+            self.max_per_period = max_per_period
+            self.period_blocks = period_blocks
+            self.transfers = defaultdict(list)
+
+        def record_transfer(self, comp_id: str, amount: float, block: int):
+            self.transfers[comp_id].append((amount, block))
+
+        def can_transfer(self, comp_id: str, amount: float, current_block: int) -> bool:
+            """Check if transfer would exceed cap."""
+            cutoff = current_block - self.period_blocks
+            recent = [a for a, b in self.transfers[comp_id] if b > cutoff]
+            total_recent = sum(recent)
+            return total_recent + amount <= self.max_per_period
+
+    cap = TrustTransferCap(max_per_period=0.1, period_blocks=100)
+    cap.record_transfer("comp_1", 0.05, block=50)
+
+    if cap.can_transfer("comp_1", 0.03, current_block=100):  # 0.05 + 0.03 < 0.1
+        defenses["trust_transfer_caps"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Identity Compartment Abuse (FA-1a)",
+        success=attack_success,
+        setup_cost_atp=15000.0,
+        gain_atp=300000.0 if attack_success else 0.0,
+        roi=(300000.0 / 15000.0) if attack_success else -1.0,
+        detection_probability=0.50 if defenses_held >= 4 else 0.20,
+        time_to_detection_hours=48.0,
+        blocks_until_detected=200,
+        trust_damage=0.85,
+        description=f"""
+IDENTITY COMPARTMENT ABUSE (Track FA-1a)
+
+Hide behind legitimate compartmentalization.
+
+Attack Pattern:
+1. Create multiple legitimate identity compartments
+2. Build independent reputation in each
+3. Use high-trust compartments to vouch for others
+4. Abuse trust transfer between compartments
+
+One identity, many faces.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track FA-1a: Compartment Defense:
+1. Linkage detection across compartments
+2. Cross-compartment transfer limits
+3. Behavioral fingerprinting
+4. Unified risk scoring
+5. Compartment action attestation
+6. Trust transfer caps
+
+All faces visible, all linked.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_pseudonym_chain() -> AttackResult:
+    """
+    ATTACK: Pseudonym Chain Attack (FA-1b)
+
+    Create chains of pseudonymous identities where each
+    vouches for the next, obscuring the original attacker.
+
+    Strategy:
+    1. Create initial pseudonym with minimal trust
+    2. Chain to next pseudonym through minimal vouching
+    3. Repeat to create long chain
+    4. Final pseudonym appears clean, original untraceable
+    """
+    defenses = {
+        "chain_depth_tracking": False,
+        "vouch_lineage_verification": False,
+        "minimum_direct_trust": False,
+        "chain_decay": False,
+        "root_attestation": False,
+        "circular_reference_detection": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Chain Depth Tracking
+    # ========================================================================
+
+    class ChainDepthTracker:
+        """Track depth of vouching chains."""
+
+        def __init__(self, max_depth: int = 3):
+            self.max_depth = max_depth
+            self.vouch_sources = {}  # identity -> who vouched for them
+
+        def record_vouch(self, voucher: str, vouchee: str):
+            self.vouch_sources[vouchee] = voucher
+
+        def get_chain_depth(self, identity: str) -> int:
+            """Get depth of vouching chain."""
+            depth = 0
+            current = identity
+            visited = set()
+
+            while current in self.vouch_sources:
+                if current in visited:
+                    return -1  # Circular
+                visited.add(current)
+                current = self.vouch_sources[current]
+                depth += 1
+
+            return depth
+
+        def is_chain_too_deep(self, identity: str) -> bool:
+            depth = self.get_chain_depth(identity)
+            return depth > self.max_depth or depth == -1
+
+    tracker = ChainDepthTracker(max_depth=3)
+    tracker.record_vouch("A", "B")
+    tracker.record_vouch("B", "C")
+    tracker.record_vouch("C", "D")
+    tracker.record_vouch("D", "E")
+
+    if tracker.is_chain_too_deep("E"):  # Depth 4 > max 3
+        defenses["chain_depth_tracking"] = True
+
+    # ========================================================================
+    # Defense 2: Vouch Lineage Verification
+    # ========================================================================
+
+    class VouchLineageVerifier:
+        """Verify complete lineage of vouching."""
+
+        def __init__(self):
+            self.lineages = {}
+
+        def record_lineage(self, identity: str, lineage: list):
+            self.lineages[identity] = lineage
+
+        def verify_lineage(self, identity: str, claimed_lineage: list) -> bool:
+            """Verify claimed lineage matches records."""
+            recorded = self.lineages.get(identity, [])
+            return recorded == claimed_lineage
+
+        def get_root_voucher(self, identity: str) -> str:
+            """Get the original root voucher."""
+            lineage = self.lineages.get(identity, [identity])
+            return lineage[0] if lineage else identity
+
+    verifier = VouchLineageVerifier()
+    verifier.record_lineage("D", ["A", "B", "C", "D"])
+
+    if verifier.get_root_voucher("D") == "A":
+        defenses["vouch_lineage_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Minimum Direct Trust
+    # ========================================================================
+
+    class MinimumDirectTrust:
+        """Require minimum direct trust for high-value actions."""
+
+        def __init__(self, min_direct_ratio: float = 0.5):
+            self.min_direct = min_direct_ratio
+
+        def calculate_direct_ratio(
+            self, direct_trust: float, total_trust: float
+        ) -> float:
+            if total_trust == 0:
+                return 0
+            return direct_trust / total_trust
+
+        def allow_action(
+            self, direct_trust: float, total_trust: float, action_type: str
+        ) -> bool:
+            if action_type in ["low_value", "read_only"]:
+                return True  # No restriction
+
+            ratio = self.calculate_direct_ratio(direct_trust, total_trust)
+            return ratio >= self.min_direct
+
+    min_direct = MinimumDirectTrust(min_direct_ratio=0.5)
+
+    # Mostly derived trust - should be blocked for high-value
+    if not min_direct.allow_action(direct_trust=0.2, total_trust=0.8, action_type="transfer"):
+        defenses["minimum_direct_trust"] = True
+
+    # ========================================================================
+    # Defense 4: Chain Decay
+    # ========================================================================
+
+    class ChainDecay:
+        """Apply decay to trust through chains."""
+
+        def __init__(self, decay_per_hop: float = 0.5):
+            self.decay_per_hop = decay_per_hop
+
+        def calculate_derived_trust(
+            self, source_trust: float, hops: int
+        ) -> float:
+            """Trust decays exponentially with hops."""
+            return source_trust * (self.decay_per_hop ** hops)
+
+        def effective_trust(self, source_trust: float, chain: list) -> float:
+            """Calculate effective trust through chain."""
+            hops = len(chain) - 1  # -1 because chain includes target
+            return self.calculate_derived_trust(source_trust, hops)
+
+    decay = ChainDecay(decay_per_hop=0.5)
+    effective = decay.effective_trust(source_trust=1.0, chain=["A", "B", "C", "D"])
+
+    if effective == 0.125:  # 1.0 * 0.5^3
+        defenses["chain_decay"] = True
+
+    # ========================================================================
+    # Defense 5: Root Attestation
+    # ========================================================================
+
+    class RootAttestation:
+        """Require attestation from chain root for certain actions."""
+
+        def __init__(self):
+            self.roots = {}
+            self.attestations = {}
+
+        def set_root(self, identity: str, root: str):
+            self.roots[identity] = root
+
+        def attest_from_root(self, identity: str, action: str, signature: str) -> bool:
+            """Record attestation from root."""
+            root = self.roots.get(identity)
+            if not root:
+                return False
+            self.attestations[(identity, action)] = {
+                "root": root,
+                "signature": signature,
+            }
+            return True
+
+        def verify_root_attestation(self, identity: str, action: str) -> bool:
+            return (identity, action) in self.attestations
+
+    root_attest = RootAttestation()
+    root_attest.set_root("D", "A")
+    root_attest.attest_from_root("D", "high_value_op", "root_sig_123")
+
+    if root_attest.verify_root_attestation("D", "high_value_op"):
+        defenses["root_attestation"] = True
+
+    # ========================================================================
+    # Defense 6: Circular Reference Detection
+    # ========================================================================
+
+    class CircularReferenceDetector:
+        """Detect circular vouching references."""
+
+        def __init__(self):
+            self.vouch_graph = defaultdict(set)
+
+        def add_vouch(self, voucher: str, vouchee: str):
+            self.vouch_graph[voucher].add(vouchee)
+
+        def has_circular_reference(self, identity: str) -> bool:
+            """Check if identity is part of circular vouching."""
+            visited = set()
+            stack = [identity]
+
+            while stack:
+                current = stack.pop()
+                if current in visited:
+                    return True
+                visited.add(current)
+
+                for vouchee in self.vouch_graph.get(current, []):
+                    if vouchee == identity:
+                        return True
+                    stack.append(vouchee)
+
+            return False
+
+    circular = CircularReferenceDetector()
+    circular.add_vouch("A", "B")
+    circular.add_vouch("B", "C")
+    circular.add_vouch("C", "A")  # Creates cycle
+
+    if circular.has_circular_reference("A"):
+        defenses["circular_reference_detection"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Pseudonym Chain Attack (FA-1b)",
+        success=attack_success,
+        setup_cost_atp=10000.0,
+        gain_atp=250000.0 if attack_success else 0.0,
+        roi=(250000.0 / 10000.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 4 else 0.25,
+        time_to_detection_hours=72.0,
+        blocks_until_detected=300,
+        trust_damage=0.80,
+        description=f"""
+PSEUDONYM CHAIN ATTACK (Track FA-1b)
+
+Obscure origins through chains of pseudonyms.
+
+Attack Pattern:
+1. Create initial pseudonym with minimal trust
+2. Vouch for next pseudonym in chain
+3. Repeat to create long chain
+4. Final pseudonym appears clean
+
+Who vouched for the voucher who vouched for the voucher?
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track FA-1b: Chain Defense:
+1. Chain depth tracking and limits
+2. Complete lineage verification
+3. Minimum direct trust requirements
+4. Exponential chain decay
+5. Root attestation for high-value
+6. Circular reference detection
+
+Every chain leads somewhere.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_identity_merge_exploitation() -> AttackResult:
+    """
+    ATTACK: Identity Merge Exploitation (FA-2a)
+
+    Exploit identity merge/linking features to inherit
+    undeserved trust from legitimate identities.
+
+    Strategy:
+    1. Create malicious identity with low trust
+    2. Convince/trick legitimate identity to merge/link
+    3. Inherit trust from legitimate identity
+    4. Exploit merged trust for malicious purposes
+    """
+    defenses = {
+        "merge_cooling_period": False,
+        "bidirectional_consent": False,
+        "trust_escrow": False,
+        "merge_audit_trail": False,
+        "post_merge_monitoring": False,
+        "merge_reversal_window": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Merge Cooling Period
+    # ========================================================================
+
+    class MergeCoolingPeriod:
+        """Enforce cooling period before merge takes effect."""
+
+        def __init__(self, cooling_blocks: int = 500):
+            self.cooling_blocks = cooling_blocks
+            self.pending_merges = {}
+
+        def initiate_merge(self, id_a: str, id_b: str, block: int) -> str:
+            merge_id = f"merge_{id_a}_{id_b}"
+            self.pending_merges[merge_id] = {
+                "id_a": id_a,
+                "id_b": id_b,
+                "initiated_block": block,
+                "effective_block": block + self.cooling_blocks,
+            }
+            return merge_id
+
+        def is_merge_effective(self, merge_id: str, current_block: int) -> bool:
+            merge = self.pending_merges.get(merge_id)
+            if not merge:
+                return False
+            return current_block >= merge["effective_block"]
+
+    cooling = MergeCoolingPeriod(cooling_blocks=500)
+    merge_id = cooling.initiate_merge("alice", "bob", block=100)
+
+    if not cooling.is_merge_effective(merge_id, current_block=400):  # Still cooling
+        defenses["merge_cooling_period"] = True
+
+    # ========================================================================
+    # Defense 2: Bidirectional Consent
+    # ========================================================================
+
+    class BidirectionalConsent:
+        """Require consent from both identities for merge."""
+
+        def __init__(self):
+            self.consents = {}
+
+        def record_consent(self, identity: str, merge_id: str, signature: str):
+            key = (identity, merge_id)
+            self.consents[key] = {"signature": signature, "timestamp": time.time()}
+
+        def has_bidirectional_consent(self, id_a: str, id_b: str, merge_id: str) -> bool:
+            return (id_a, merge_id) in self.consents and (id_b, merge_id) in self.consents
+
+    consent = BidirectionalConsent()
+    consent.record_consent("alice", "merge_1", "sig_alice")
+    consent.record_consent("bob", "merge_1", "sig_bob")
+
+    if consent.has_bidirectional_consent("alice", "bob", "merge_1"):
+        defenses["bidirectional_consent"] = True
+
+    # ========================================================================
+    # Defense 3: Trust Escrow
+    # ========================================================================
+
+    class TrustEscrow:
+        """Escrow trust during merge evaluation period."""
+
+        def __init__(self):
+            self.escrowed = {}
+
+        def escrow_trust(self, identity: str, trust_amount: float) -> str:
+            escrow_id = f"escrow_{identity}_{int(time.time())}"
+            self.escrowed[escrow_id] = {
+                "identity": identity,
+                "amount": trust_amount,
+                "locked": True,
+            }
+            return escrow_id
+
+        def release_escrow(self, escrow_id: str) -> float:
+            if escrow_id not in self.escrowed:
+                return 0.0
+            escrow = self.escrowed[escrow_id]
+            if escrow["locked"]:
+                escrow["locked"] = False
+                return escrow["amount"]
+            return 0.0
+
+        def is_in_escrow(self, escrow_id: str) -> bool:
+            return self.escrowed.get(escrow_id, {}).get("locked", False)
+
+    escrow = TrustEscrow()
+    escrow_id = escrow.escrow_trust("alice", 0.8)
+
+    if escrow.is_in_escrow(escrow_id):
+        defenses["trust_escrow"] = True
+
+    # ========================================================================
+    # Defense 4: Merge Audit Trail
+    # ========================================================================
+
+    class MergeAuditTrail:
+        """Maintain complete audit trail for merges."""
+
+        def __init__(self):
+            self.audit_log = []
+
+        def log_event(self, event_type: str, details: dict):
+            self.audit_log.append({
+                "type": event_type,
+                "details": details,
+                "timestamp": time.time(),
+            })
+
+        def get_merge_history(self, identity: str) -> list:
+            return [
+                e for e in self.audit_log
+                if identity in str(e.get("details", {}))
+            ]
+
+        def has_suspicious_pattern(self, identity: str) -> bool:
+            """Check for rapid merge/unmerge patterns."""
+            history = self.get_merge_history(identity)
+            if len(history) < 3:
+                return False
+            # Multiple merges in short period is suspicious
+            return len(history) > 5
+
+    audit = MergeAuditTrail()
+    audit.log_event("merge_initiated", {"from": "alice", "to": "bob"})
+    audit.log_event("merge_completed", {"from": "alice", "to": "bob"})
+
+    if len(audit.get_merge_history("alice")) >= 2:
+        defenses["merge_audit_trail"] = True
+
+    # ========================================================================
+    # Defense 5: Post-Merge Monitoring
+    # ========================================================================
+
+    class PostMergeMonitor:
+        """Monitor merged identities for anomalies."""
+
+        def __init__(self, monitoring_period_blocks: int = 1000):
+            self.monitoring_period = monitoring_period_blocks
+            self.merged_identities = {}
+            self.anomalies = defaultdict(list)
+
+        def register_merge(self, merged_id: str, block: int):
+            self.merged_identities[merged_id] = {
+                "merged_block": block,
+                "monitoring_until": block + self.monitoring_period,
+            }
+
+        def record_activity(self, merged_id: str, activity: str, block: int):
+            if merged_id not in self.merged_identities:
+                return
+
+            info = self.merged_identities[merged_id]
+            if block <= info["monitoring_until"]:
+                # Still in monitoring period
+                if activity in ["high_value_transfer", "delegation", "admin_action"]:
+                    self.anomalies[merged_id].append((activity, block))
+
+        def get_anomaly_count(self, merged_id: str) -> int:
+            return len(self.anomalies.get(merged_id, []))
+
+    monitor = PostMergeMonitor(monitoring_period_blocks=1000)
+    monitor.register_merge("alice_bob", block=100)
+    monitor.record_activity("alice_bob", "high_value_transfer", block=150)
+
+    if monitor.get_anomaly_count("alice_bob") > 0:
+        defenses["post_merge_monitoring"] = True
+
+    # ========================================================================
+    # Defense 6: Merge Reversal Window
+    # ========================================================================
+
+    class MergeReversalWindow:
+        """Allow merge reversal within window."""
+
+        def __init__(self, reversal_window_blocks: int = 200):
+            self.reversal_window = reversal_window_blocks
+            self.merges = {}
+
+        def complete_merge(self, merge_id: str, block: int):
+            self.merges[merge_id] = {
+                "completed_block": block,
+                "reversal_deadline": block + self.reversal_window,
+            }
+
+        def can_reverse(self, merge_id: str, current_block: int) -> bool:
+            if merge_id not in self.merges:
+                return False
+            return current_block <= self.merges[merge_id]["reversal_deadline"]
+
+        def reverse_merge(self, merge_id: str, current_block: int) -> bool:
+            if self.can_reverse(merge_id, current_block):
+                del self.merges[merge_id]
+                return True
+            return False
+
+    reversal = MergeReversalWindow(reversal_window_blocks=200)
+    reversal.complete_merge("merge_1", block=100)
+
+    if reversal.can_reverse("merge_1", current_block=250):
+        defenses["merge_reversal_window"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Identity Merge Exploitation (FA-2a)",
+        success=attack_success,
+        setup_cost_atp=20000.0,
+        gain_atp=400000.0 if attack_success else 0.0,
+        roi=(400000.0 / 20000.0) if attack_success else -1.0,
+        detection_probability=0.60 if defenses_held >= 4 else 0.25,
+        time_to_detection_hours=24.0,
+        blocks_until_detected=100,
+        trust_damage=0.90,
+        description=f"""
+IDENTITY MERGE EXPLOITATION (Track FA-2a)
+
+Inherit trust through fraudulent merging.
+
+Attack Pattern:
+1. Create low-trust malicious identity
+2. Trick/convince legitimate identity to merge
+3. Inherit trust from legitimate identity
+4. Exploit merged trust
+
+Merge with the trusted, become trusted.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track FA-2a: Merge Defense:
+1. Cooling period before merge effective
+2. Bidirectional consent required
+3. Trust escrow during evaluation
+4. Complete merge audit trail
+5. Post-merge anomaly monitoring
+6. Merge reversal window
+
+Trust transfer is not automatic.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_identity_recovery_hijack() -> AttackResult:
+    """
+    ATTACK: Identity Recovery Hijack (FA-2b)
+
+    Exploit identity recovery mechanisms to take over
+    legitimate identities.
+
+    Strategy:
+    1. Gather information about recovery requirements
+    2. Social engineer or compromise recovery factors
+    3. Initiate recovery claiming to be legitimate owner
+    4. Take over identity and its trust
+    """
+    defenses = {
+        "multi_factor_recovery": False,
+        "recovery_delay": False,
+        "notification_to_all_factors": False,
+        "recovery_challenge": False,
+        "historical_verification": False,
+        "recovery_audit": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Multi-Factor Recovery
+    # ========================================================================
+
+    class MultiFactorRecovery:
+        """Require multiple independent factors for recovery."""
+
+        def __init__(self, min_factors: int = 3):
+            self.min_factors = min_factors
+            self.identity_factors = {}
+
+        def register_factors(self, identity: str, factors: list):
+            self.identity_factors[identity] = set(factors)
+
+        def attempt_recovery(self, identity: str, provided_factors: list) -> tuple:
+            required = self.identity_factors.get(identity, set())
+            if len(required) == 0:
+                return False, "No factors registered"
+
+            provided_set = set(provided_factors)
+            matched = len(provided_set.intersection(required))
+            needed = max(self.min_factors, len(required) // 2 + 1)
+
+            if matched >= needed:
+                return True, f"Recovery authorized ({matched} factors)"
+            return False, f"Insufficient factors ({matched}/{needed})"
+
+    mfa = MultiFactorRecovery(min_factors=3)
+    mfa.register_factors("alice", ["email", "phone", "security_key", "trusted_contact"])
+
+    success, _ = mfa.attempt_recovery("alice", ["email", "phone", "security_key"])
+    if success:
+        defenses["multi_factor_recovery"] = True
+
+    # ========================================================================
+    # Defense 2: Recovery Delay
+    # ========================================================================
+
+    class RecoveryDelay:
+        """Enforce delay before recovery completes."""
+
+        def __init__(self, delay_blocks: int = 500):
+            self.delay_blocks = delay_blocks
+            self.pending_recoveries = {}
+
+        def initiate_recovery(self, identity: str, block: int) -> dict:
+            recovery_id = f"recovery_{identity}_{block}"
+            self.pending_recoveries[recovery_id] = {
+                "identity": identity,
+                "initiated": block,
+                "completes": block + self.delay_blocks,
+            }
+            return self.pending_recoveries[recovery_id]
+
+        def can_complete(self, recovery_id: str, current_block: int) -> bool:
+            recovery = self.pending_recoveries.get(recovery_id)
+            if not recovery:
+                return False
+            return current_block >= recovery["completes"]
+
+    delay = RecoveryDelay(delay_blocks=500)
+    recovery_info = delay.initiate_recovery("alice", block=100)
+
+    if not delay.can_complete("recovery_alice_100", current_block=400):
+        defenses["recovery_delay"] = True
+
+    # ========================================================================
+    # Defense 3: Notification to All Factors
+    # ========================================================================
+
+    class RecoveryNotification:
+        """Notify all recovery factors when recovery initiated."""
+
+        def __init__(self):
+            self.notifications_sent = defaultdict(list)
+
+        def notify_all_factors(
+            self, identity: str, factors: list, recovery_id: str
+        ) -> int:
+            """Notify all factors, return count sent."""
+            for factor in factors:
+                self.notifications_sent[identity].append({
+                    "factor": factor,
+                    "recovery_id": recovery_id,
+                    "timestamp": time.time(),
+                })
+            return len(factors)
+
+        def get_notification_count(self, identity: str) -> int:
+            return len(self.notifications_sent.get(identity, []))
+
+    notification = RecoveryNotification()
+    count = notification.notify_all_factors(
+        "alice", ["email", "phone", "trusted_contact"], "recovery_123"
+    )
+
+    if count >= 3:
+        defenses["notification_to_all_factors"] = True
+
+    # ========================================================================
+    # Defense 4: Recovery Challenge
+    # ========================================================================
+
+    class RecoveryChallenge:
+        """Challenge with historical knowledge only owner would know."""
+
+        def __init__(self):
+            self.challenges = {}
+            self.responses = {}
+
+        def generate_challenge(self, identity: str) -> dict:
+            """Generate challenge based on account history."""
+            # In real impl, would query historical data
+            challenge = {
+                "id": f"challenge_{identity}",
+                "questions": [
+                    "What was your first transaction?",
+                    "Who was your first witness?",
+                    "When did you join the federation?",
+                ],
+            }
+            self.challenges[identity] = challenge
+            return challenge
+
+        def verify_response(
+            self, identity: str, responses: dict, correct_answers: dict
+        ) -> bool:
+            """Verify challenge responses."""
+            correct_count = 0
+            for q, a in responses.items():
+                if correct_answers.get(q) == a:
+                    correct_count += 1
+            return correct_count >= 2  # At least 2 correct
+
+    challenge = RecoveryChallenge()
+    challenge.generate_challenge("alice")
+
+    if challenge.verify_response(
+        "alice",
+        {"q1": "tx_abc", "q2": "bob"},
+        {"q1": "tx_abc", "q2": "bob", "q3": "2025-01-01"}
+    ):
+        defenses["recovery_challenge"] = True
+
+    # ========================================================================
+    # Defense 5: Historical Verification
+    # ========================================================================
+
+    class HistoricalVerification:
+        """Verify recovery request against historical patterns."""
+
+        def __init__(self):
+            self.identity_patterns = {}
+
+        def record_pattern(self, identity: str, pattern: dict):
+            self.identity_patterns[identity] = pattern
+
+        def verify_consistency(
+            self, identity: str, recovery_request: dict
+        ) -> tuple:
+            """Check if recovery request matches historical patterns."""
+            pattern = self.identity_patterns.get(identity, {})
+            if not pattern:
+                return False, "No historical pattern"
+
+            # Check IP region, timezone, device type, etc.
+            matches = 0
+            checks = 0
+
+            if "region" in pattern and "region" in recovery_request:
+                checks += 1
+                if pattern["region"] == recovery_request["region"]:
+                    matches += 1
+
+            if "timezone" in pattern and "timezone" in recovery_request:
+                checks += 1
+                if pattern["timezone"] == recovery_request["timezone"]:
+                    matches += 1
+
+            if checks == 0:
+                return False, "No verifiable data"
+
+            ratio = matches / checks
+            return ratio >= 0.5, f"Match ratio: {ratio:.0%}"
+
+    historical = HistoricalVerification()
+    historical.record_pattern("alice", {"region": "US-West", "timezone": "PST"})
+
+    success, _ = historical.verify_consistency(
+        "alice", {"region": "US-West", "timezone": "PST"}
+    )
+    if success:
+        defenses["historical_verification"] = True
+
+    # ========================================================================
+    # Defense 6: Recovery Audit
+    # ========================================================================
+
+    class RecoveryAudit:
+        """Complete audit trail for recovery attempts."""
+
+        def __init__(self):
+            self.audit_log = []
+
+        def log_attempt(self, identity: str, outcome: str, details: dict):
+            self.audit_log.append({
+                "identity": identity,
+                "outcome": outcome,
+                "details": details,
+                "timestamp": time.time(),
+            })
+
+        def get_attempt_count(self, identity: str, outcome: str = None) -> int:
+            attempts = [a for a in self.audit_log if a["identity"] == identity]
+            if outcome:
+                attempts = [a for a in attempts if a["outcome"] == outcome]
+            return len(attempts)
+
+        def has_suspicious_pattern(self, identity: str) -> bool:
+            """Detect suspicious recovery patterns."""
+            failed = self.get_attempt_count(identity, "failed")
+            return failed >= 3
+
+    audit = RecoveryAudit()
+    audit.log_attempt("alice", "initiated", {"source": "web"})
+
+    if audit.get_attempt_count("alice") > 0:
+        defenses["recovery_audit"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Identity Recovery Hijack (FA-2b)",
+        success=attack_success,
+        setup_cost_atp=25000.0,
+        gain_atp=500000.0 if attack_success else 0.0,
+        roi=(500000.0 / 25000.0) if attack_success else -1.0,
+        detection_probability=0.65 if defenses_held >= 4 else 0.30,
+        time_to_detection_hours=12.0,
+        blocks_until_detected=50,
+        trust_damage=0.95,
+        description=f"""
+IDENTITY RECOVERY HIJACK (Track FA-2b)
+
+Steal identity through recovery process.
+
+Attack Pattern:
+1. Research recovery requirements
+2. Social engineer or compromise recovery factors
+3. Initiate fraudulent recovery
+4. Take over identity and its trust
+
+Recovery is the weakest link.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track FA-2b: Recovery Defense:
+1. Multi-factor recovery (3+ factors)
+2. Recovery delay period
+3. Notification to all factors
+4. Historical knowledge challenges
+5. Pattern verification
+6. Complete recovery audit
+
+Recovery should be harder than normal access.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_cross_platform_identity_arbitrage() -> AttackResult:
+    """
+    ATTACK: Cross-Platform Identity Arbitrage (FA-3a)
+
+    Exploit different trust standards across platforms
+    to import inflated trust credentials.
+
+    Strategy:
+    1. Build inflated trust on low-standard platform
+    2. Export credentials from that platform
+    3. Import into higher-standard platform
+    4. Trust arbitrage between standards
+    """
+    defenses = {
+        "platform_trust_mapping": False,
+        "import_verification": False,
+        "trust_cap_on_import": False,
+        "source_platform_scoring": False,
+        "gradual_trust_accrual": False,
+        "cross_platform_audit": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Platform Trust Mapping
+    # ========================================================================
+
+    class PlatformTrustMapping:
+        """Map trust between platforms with different standards."""
+
+        def __init__(self):
+            self.platform_multipliers = {}
+
+        def set_platform_multiplier(self, platform: str, multiplier: float):
+            """Lower multiplier = stricter platform."""
+            self.platform_multipliers[platform] = multiplier
+
+        def translate_trust(
+            self, source_trust: float, source_platform: str, target_platform: str
+        ) -> float:
+            source_mult = self.platform_multipliers.get(source_platform, 1.0)
+            target_mult = self.platform_multipliers.get(target_platform, 1.0)
+
+            # Adjust for platform strictness differences
+            adjustment = source_mult / target_mult if target_mult else 1.0
+            return min(source_trust * adjustment, 0.5)  # Cap at 0.5 for imports
+
+    mapping = PlatformTrustMapping()
+    mapping.set_platform_multiplier("lax_platform", 0.5)  # Low standards
+    mapping.set_platform_multiplier("strict_platform", 1.0)  # High standards
+
+    translated = mapping.translate_trust(0.9, "lax_platform", "strict_platform")
+    if translated <= 0.5:  # Capped and reduced
+        defenses["platform_trust_mapping"] = True
+
+    # ========================================================================
+    # Defense 2: Import Verification
+    # ========================================================================
+
+    class ImportVerification:
+        """Verify imported trust credentials."""
+
+        def __init__(self):
+            self.verified_imports = set()
+
+        def verify_import(
+            self, credential: dict, source_platform: str
+        ) -> tuple:
+            """Verify credential authenticity."""
+            # Check required fields
+            required = ["identity", "trust_score", "signature", "platform"]
+            for field in required:
+                if field not in credential:
+                    return False, f"Missing {field}"
+
+            # Verify platform matches
+            if credential["platform"] != source_platform:
+                return False, "Platform mismatch"
+
+            # Would verify signature in real impl
+            self.verified_imports.add(credential["identity"])
+            return True, "Verified"
+
+    verifier = ImportVerification()
+    success, _ = verifier.verify_import(
+        {"identity": "alice", "trust_score": 0.8, "signature": "sig", "platform": "ext"},
+        "ext"
+    )
+
+    if success:
+        defenses["import_verification"] = True
+
+    # ========================================================================
+    # Defense 3: Trust Cap on Import
+    # ========================================================================
+
+    class ImportTrustCap:
+        """Cap trust that can be imported from external platforms."""
+
+        def __init__(self, max_import: float = 0.3):
+            self.max_import = max_import
+
+        def cap_import(self, claimed_trust: float) -> float:
+            return min(claimed_trust, self.max_import)
+
+        def calculate_effective_trust(
+            self, imported_trust: float, local_trust: float
+        ) -> float:
+            """Combine imported and local trust."""
+            capped_import = self.cap_import(imported_trust)
+            # Local trust is weighted more heavily
+            return 0.3 * capped_import + 0.7 * local_trust
+
+    cap = ImportTrustCap(max_import=0.3)
+
+    # High external trust gets capped
+    capped = cap.cap_import(0.9)
+    if capped == 0.3:
+        defenses["trust_cap_on_import"] = True
+
+    # ========================================================================
+    # Defense 4: Source Platform Scoring
+    # ========================================================================
+
+    class SourcePlatformScoring:
+        """Score source platforms by their trust standards."""
+
+        def __init__(self):
+            self.platform_scores = {}
+
+        def set_platform_score(self, platform: str, score: float):
+            """Score from 0 (untrustworthy) to 1 (high standards)."""
+            self.platform_scores[platform] = min(1.0, max(0.0, score))
+
+        def get_import_discount(self, platform: str) -> float:
+            """Lower-scored platforms get bigger discounts."""
+            score = self.platform_scores.get(platform, 0.5)
+            return score  # Direct mapping
+
+        def should_allow_import(self, platform: str, min_score: float = 0.3) -> bool:
+            return self.platform_scores.get(platform, 0) >= min_score
+
+    scoring = SourcePlatformScoring()
+    scoring.set_platform_score("known_good", 0.9)
+    scoring.set_platform_score("unknown", 0.3)
+
+    if scoring.should_allow_import("known_good") and not scoring.should_allow_import("very_unknown"):
+        defenses["source_platform_scoring"] = True
+
+    # ========================================================================
+    # Defense 5: Gradual Trust Accrual
+    # ========================================================================
+
+    class GradualTrustAccrual:
+        """Imported trust accrues gradually over time."""
+
+        def __init__(self, accrual_rate: float = 0.05, max_blocks: int = 100):
+            self.accrual_rate = accrual_rate
+            self.max_blocks = max_blocks
+            self.imports = {}
+
+        def register_import(self, identity: str, trust: float, block: int):
+            self.imports[identity] = {
+                "total_trust": trust,
+                "start_block": block,
+            }
+
+        def get_accrued_trust(self, identity: str, current_block: int) -> float:
+            import_info = self.imports.get(identity)
+            if not import_info:
+                return 0.0
+
+            blocks_elapsed = current_block - import_info["start_block"]
+            accrual_fraction = min(
+                blocks_elapsed * self.accrual_rate,
+                1.0
+            )
+            return import_info["total_trust"] * accrual_fraction
+
+    accrual = GradualTrustAccrual(accrual_rate=0.05, max_blocks=100)
+    accrual.register_import("alice", trust=0.8, block=0)
+
+    # After 10 blocks, only 50% accrued
+    accrued = accrual.get_accrued_trust("alice", current_block=10)
+    if accrued == 0.4:  # 0.8 * 0.5
+        defenses["gradual_trust_accrual"] = True
+
+    # ========================================================================
+    # Defense 6: Cross-Platform Audit
+    # ========================================================================
+
+    class CrossPlatformAudit:
+        """Audit cross-platform trust transfers."""
+
+        def __init__(self):
+            self.audit_log = []
+
+        def log_import(
+            self, identity: str, source: str, trust: float, applied: float
+        ):
+            self.audit_log.append({
+                "identity": identity,
+                "source_platform": source,
+                "claimed_trust": trust,
+                "applied_trust": applied,
+                "timestamp": time.time(),
+            })
+
+        def get_import_history(self, identity: str) -> list:
+            return [a for a in self.audit_log if a["identity"] == identity]
+
+        def detect_arbitrage(self, identity: str) -> bool:
+            """Detect import from multiple low-standard platforms."""
+            history = self.get_import_history(identity)
+            if len(history) < 3:
+                return False
+            # Multiple imports in short time is suspicious
+            return len(history) >= 5
+
+    audit = CrossPlatformAudit()
+    audit.log_import("alice", "external", 0.9, 0.3)
+
+    if len(audit.get_import_history("alice")) > 0:
+        defenses["cross_platform_audit"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Cross-Platform Identity Arbitrage (FA-3a)",
+        success=attack_success,
+        setup_cost_atp=30000.0,
+        gain_atp=600000.0 if attack_success else 0.0,
+        roi=(600000.0 / 30000.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 4 else 0.20,
+        time_to_detection_hours=96.0,
+        blocks_until_detected=400,
+        trust_damage=0.85,
+        description=f"""
+CROSS-PLATFORM IDENTITY ARBITRAGE (Track FA-3a)
+
+Exploit differing trust standards across platforms.
+
+Attack Pattern:
+1. Build inflated trust on lax platform
+2. Export trust credentials
+3. Import to stricter platform
+4. Arbitrage the difference
+
+Not all trust is created equal.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track FA-3a: Import Defense:
+1. Platform trust mapping/translation
+2. Import credential verification
+3. Trust cap on imports
+4. Source platform scoring
+5. Gradual trust accrual
+6. Cross-platform audit trail
+
+Trust must be earned locally.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_identity_squatting() -> AttackResult:
+    """
+    ATTACK: Identity Squatting (FA-3b)
+
+    Register identities similar to legitimate ones to
+    intercept trust or impersonate.
+
+    Strategy:
+    1. Identify high-trust identities
+    2. Register similar identities (typos, homoglyphs)
+    3. Intercept trust intended for legitimate identity
+    4. Impersonate for social engineering
+    """
+    defenses = {
+        "similarity_checking": False,
+        "homoglyph_detection": False,
+        "registration_verification": False,
+        "warning_on_similar": False,
+        "trademark_protection": False,
+        "dispute_resolution": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Similarity Checking
+    # ========================================================================
+
+    class SimilarityChecker:
+        """Check identity name similarity."""
+
+        def __init__(self, threshold: float = 0.7):
+            self.threshold = threshold
+            self.registered = set()
+
+        def register_identity(self, name: str):
+            self.registered.add(name.lower())
+
+        def calculate_similarity(self, name_a: str, name_b: str) -> float:
+            """Simple similarity score."""
+            a, b = name_a.lower(), name_b.lower()
+            if a == b:
+                return 1.0
+
+            # Levenshtein-like calculation (simplified)
+            longer = max(len(a), len(b))
+            if longer == 0:
+                return 1.0
+
+            matches = sum(1 for i in range(min(len(a), len(b))) if a[i] == b[i])
+            return matches / longer
+
+        def find_similar(self, name: str) -> list:
+            """Find registered names similar to proposed name."""
+            similar = []
+            for existing in self.registered:
+                sim = self.calculate_similarity(name, existing)
+                if sim >= self.threshold:
+                    similar.append((existing, sim))
+            return similar
+
+    checker = SimilarityChecker(threshold=0.7)
+    checker.register_identity("alice_official")
+
+    similar = checker.find_similar("alice_officia1")  # Typo
+    if len(similar) > 0:
+        defenses["similarity_checking"] = True
+
+    # ========================================================================
+    # Defense 2: Homoglyph Detection
+    # ========================================================================
+
+    class HomoglyphDetector:
+        """Detect homoglyph attacks (look-alike characters)."""
+
+        def __init__(self):
+            self.homoglyphs = {
+                'a': ['а', '@', '4'],  # Cyrillic a, at, four
+                'e': ['е', '3'],        # Cyrillic e
+                'o': ['о', '0'],        # Cyrillic o, zero
+                'i': ['і', '1', 'l'],   # Cyrillic i, one, ell
+                's': ['ѕ', '5'],        # Cyrillic s
+            }
+
+        def normalize(self, text: str) -> str:
+            """Normalize to detect homoglyphs."""
+            result = text.lower()
+            for char, homoglyphs in self.homoglyphs.items():
+                for h in homoglyphs:
+                    result = result.replace(h, char)
+            return result
+
+        def is_homoglyph_attack(self, proposed: str, existing: str) -> bool:
+            """Check if proposed is homoglyph of existing."""
+            return (
+                proposed != existing and
+                self.normalize(proposed) == self.normalize(existing)
+            )
+
+    homoglyph = HomoglyphDetector()
+
+    if homoglyph.is_homoglyph_attack("al1ce", "alice"):  # 1 for i
+        defenses["homoglyph_detection"] = True
+
+    # ========================================================================
+    # Defense 3: Registration Verification
+    # ========================================================================
+
+    class RegistrationVerification:
+        """Verify legitimacy of identity registration."""
+
+        def __init__(self):
+            self.verified_registrations = set()
+            self.pending = {}
+
+        def initiate_registration(self, name: str, proof: dict) -> str:
+            """Start registration with proof of legitimacy."""
+            reg_id = f"reg_{name}"
+            self.pending[reg_id] = {
+                "name": name,
+                "proof": proof,
+                "status": "pending",
+            }
+            return reg_id
+
+        def verify_registration(self, reg_id: str) -> bool:
+            """Verify registration proof."""
+            if reg_id not in self.pending:
+                return False
+
+            reg = self.pending[reg_id]
+            proof = reg["proof"]
+
+            # Check required proof elements
+            if not proof.get("identity_document"):
+                return False
+            if not proof.get("signature"):
+                return False
+
+            reg["status"] = "verified"
+            self.verified_registrations.add(reg["name"])
+            return True
+
+    verify = RegistrationVerification()
+    reg_id = verify.initiate_registration(
+        "alice_corp", {"identity_document": "doc_123", "signature": "sig_456"}
+    )
+
+    if verify.verify_registration(reg_id):
+        defenses["registration_verification"] = True
+
+    # ========================================================================
+    # Defense 4: Warning on Similar
+    # ========================================================================
+
+    class SimilarityWarning:
+        """Warn users when interacting with similar identities."""
+
+        def __init__(self):
+            self.warnings_issued = []
+
+        def check_and_warn(
+            self, target: str, known_legitimate: list
+        ) -> tuple:
+            """Check if target is similar to known legitimate identities."""
+            for legit in known_legitimate:
+                if self._is_similar(target, legit) and target != legit:
+                    warning = f"Warning: '{target}' is similar to '{legit}'"
+                    self.warnings_issued.append(warning)
+                    return True, warning
+            return False, None
+
+        def _is_similar(self, a: str, b: str) -> bool:
+            # Simple check - differs by at most 2 chars
+            if abs(len(a) - len(b)) > 2:
+                return False
+            diff = sum(1 for x, y in zip(a, b) if x != y)
+            return diff <= 2
+
+    warning = SimilarityWarning()
+    warned, msg = warning.check_and_warn("alice_0fficial", ["alice_official"])
+
+    if warned:
+        defenses["warning_on_similar"] = True
+
+    # ========================================================================
+    # Defense 5: Trademark Protection
+    # ========================================================================
+
+    class TrademarkProtection:
+        """Protect trademarked/verified identity names."""
+
+        def __init__(self):
+            self.protected_names = {}
+
+        def protect_name(self, name: str, owner: str, proof: str):
+            self.protected_names[name.lower()] = {
+                "owner": owner,
+                "proof": proof,
+                "protected_since": time.time(),
+            }
+
+        def is_protected(self, name: str) -> bool:
+            return name.lower() in self.protected_names
+
+        def check_infringement(self, proposed: str) -> tuple:
+            """Check if proposed name infringes protected names."""
+            proposed_lower = proposed.lower()
+            for protected in self.protected_names:
+                if protected in proposed_lower or proposed_lower in protected:
+                    return True, protected
+            return False, None
+
+    trademark = TrademarkProtection()
+    trademark.protect_name("alice_corp", "Alice Corp Inc", "trademark_cert")
+
+    if trademark.is_protected("alice_corp"):
+        defenses["trademark_protection"] = True
+
+    # ========================================================================
+    # Defense 6: Dispute Resolution
+    # ========================================================================
+
+    class DisputeResolution:
+        """Resolve identity name disputes."""
+
+        def __init__(self):
+            self.disputes = {}
+
+        def file_dispute(
+            self, disputed_name: str, claimant: str, evidence: dict
+        ) -> str:
+            dispute_id = f"dispute_{disputed_name}"
+            self.disputes[dispute_id] = {
+                "name": disputed_name,
+                "claimant": claimant,
+                "evidence": evidence,
+                "status": "pending",
+            }
+            return dispute_id
+
+        def resolve_dispute(self, dispute_id: str, decision: str) -> bool:
+            if dispute_id not in self.disputes:
+                return False
+            self.disputes[dispute_id]["status"] = decision
+            return True
+
+        def get_pending_disputes(self) -> list:
+            return [d for d in self.disputes.values() if d["status"] == "pending"]
+
+    dispute = DisputeResolution()
+    dispute_id = dispute.file_dispute(
+        "alice_0fficial",
+        "alice_official",
+        {"prior_registration": True, "trademark": True}
+    )
+
+    if len(dispute.get_pending_disputes()) > 0:
+        defenses["dispute_resolution"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Identity Squatting (FA-3b)",
+        success=attack_success,
+        setup_cost_atp=5000.0,
+        gain_atp=200000.0 if attack_success else 0.0,
+        roi=(200000.0 / 5000.0) if attack_success else -1.0,
+        detection_probability=0.60 if defenses_held >= 4 else 0.25,
+        time_to_detection_hours=24.0,
+        blocks_until_detected=100,
+        trust_damage=0.75,
+        description=f"""
+IDENTITY SQUATTING (Track FA-3b)
+
+Register look-alike identities for confusion.
+
+Attack Pattern:
+1. Identify high-trust target identities
+2. Register similar names (typos, homoglyphs)
+3. Intercept trust meant for legitimate identity
+4. Impersonate for social engineering
+
+alice_0fficial vs alice_official
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track FA-3b: Squatting Defense:
+1. Similarity checking on registration
+2. Homoglyph detection
+3. Registration verification
+4. Warnings on similar identities
+5. Trademark/verified name protection
+6. Dispute resolution process
+
+Names are not just strings.
 """.strip(),
         raw_data={
             "defenses": defenses,

@@ -140,7 +140,10 @@ class TestAttackSimulations:
         # EZ: Economic Cascade Attacks (6 attacks) - added 2026-02-07
         #     Liquidity Cascade, Trust-Collateral Spiral, ATP Starvation Cascade,
         #     Reputation Contagion, Systemic Risk Concentration, Feedback Loop Weaponization
-        assert len(results) == 256  # 244 + 12 new (EY: 6, EZ: 6)
+        # FA: Identity Fragmentation Attacks (6 attacks) - added 2026-02-07
+        #     Identity Compartment Abuse, Pseudonym Chain, Identity Merge Exploitation,
+        #     Identity Recovery Hijack, Cross-Platform Identity Arbitrage, Identity Squatting
+        assert len(results) == 262  # 256 + 6 new (FA: 6)
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
