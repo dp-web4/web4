@@ -1,0 +1,156 @@
+# Web4 Repository Index
+# Machine-readable metadata for AI agent discovery
+# Schema version: 1.0
+
+metadata:
+  name: web4
+  full_name: "Web4: Trust-Native Distributed Intelligence Architecture"
+  description: "Trust infrastructure for AI agent coordination - identity, reputation, resource allocation, federation"
+  type: specification  # specification | library | tool | research | product
+  domain:
+    - trust
+    - identity
+    - distributed-systems
+    - ai-governance
+    - federation
+  license: AGPL-3.0
+  last_updated: "2026-02-08"
+
+status:
+  phase: research-prototype
+  maturity: 0.6  # 0-1 scale
+  production_ready: false
+  active_development: true
+
+metrics:
+  lines_of_code: 47000
+  attack_vectors_tested: 262
+  research_sessions: 212
+  test_coverage: partial
+
+core_concepts:
+  LCT:
+    name: "Linked Context Token"
+    purpose: "Hardware-bound identity for agents"
+    spec: "web4-standard/core-spec/LCT-linked-context-token.md"
+  T3:
+    name: "Trust Tensor"
+    purpose: "6-dimensional reputation scoring"
+    dimensions: [talent, training, temperament, valuation, veracity, validity]
+    spec: "web4-standard/core-spec/t3-v3-tensors.md"
+  ATP:
+    name: "Allocation Transfer Packet"
+    purpose: "Resource/energy accounting"
+    spec: "web4-standard/core-spec/atp-adp-cycle.md"
+  MRH:
+    name: "Markov Relevancy Horizon"
+    purpose: "Context boundaries for entities"
+    spec: "web4-standard/core-spec/mrh-tensors.md"
+  R6:
+    name: "Request Lifecycle"
+    purpose: "Action framework"
+    stages: [rules, role, request, reference, resource, result]
+    spec: "web4-standard/core-spec/r6-framework.md"
+
+entry_points:
+  discovery: "AGENTS.md"
+  status: "STATUS.md"
+  concepts: "docs/reference/GLOSSARY.md"
+  quick_start: "README.md#quick-start"
+  specifications: "web4-standard/core-spec/"
+  implementation: "simulations/"
+  security: "SECURITY.md"
+  integration: "docs/how/AGENT_INTEGRATION.md"
+
+components:
+  simulations:
+    path: "simulations/"
+    language: python
+    purpose: "Trust dynamics simulation engine"
+    status: working
+    lines: 15000
+  web4_standard:
+    path: "web4-standard/"
+    language: [python, markdown]
+    purpose: "Core specifications and reference implementations"
+    status: working
+    lines: 25000
+  web4_trust_core:
+    path: "web4-trust-core/"
+    language: rust
+    purpose: "High-performance trust tensor calculations"
+    status: working
+    wasm_bindings: true
+  ledgers:
+    path: "ledgers/"
+    language: [python, markdown]
+    purpose: "Immutable record systems"
+    status: documented
+  whitepaper:
+    path: "whitepaper/"
+    language: markdown
+    purpose: "Conceptual foundation"
+    pages: 100
+
+implementation_status:
+  lct_identity: complete
+  trust_tensors: complete
+  atp_economics: complete
+  federation_consensus: complete
+  authorization_layer: complete
+  hardware_binding: spec_only
+  formal_threat_model: partial
+  adversarial_testing: partial
+  production_crypto: stub_only
+
+gaps:
+  - "Production cryptography (current: stubs)"
+  - "Hardware binding implementation"
+  - "Adversarial red-team testing"
+  - "Economic model validation"
+  - "Formal security proofs"
+
+related_repos:
+  - name: ACT
+    url: "https://github.com/dp-web4/ACT"
+    relationship: "Root chain implementation"
+    language: go
+    lines: 81000
+  - name: Hardbound
+    url: "https://github.com/dp-web4/hardbound"
+    relationship: "Enterprise product layer"
+    language: typescript
+  - name: HRM
+    url: "https://github.com/dp-web4/HRM"
+    relationship: "Edge AI kernel"
+    language: python
+  - name: synchronism
+    url: "https://github.com/dp-web4/synchronism"
+    relationship: "Theoretical physics foundation"
+    language: python
+  - name: 4-life
+    url: "https://github.com/dp-web4/4-life"
+    relationship: "Interactive explainer"
+    language: typescript
+
+token_budget:
+  minimal:
+    files: ["AGENTS.md"]
+    tokens: 500
+    purpose: "Relevance assessment"
+  standard:
+    files: ["AGENTS.md", "STATUS.md", "README.md"]
+    tokens: 3000
+    purpose: "Usage decision"
+  concepts:
+    files: ["AGENTS.md", "STATUS.md", "docs/reference/GLOSSARY.md"]
+    tokens: 5000
+    purpose: "Concept understanding"
+  full:
+    files: ["web4-standard/core-spec/"]
+    tokens: 50000
+    purpose: "Implementation"
+
+contact:
+  maintainer: "dp@metalinxx.io"
+  issues: "https://github.com/dp-web4/web4/issues"
