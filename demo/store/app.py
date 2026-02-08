@@ -729,7 +729,7 @@ async def dashboard():
         <div class="card">
             <h2>⚡ ATP Budget</h2>
             <div class="stat">{atp_remaining} ATP</div>
-            <p style="color: #666;">Adaptive Trust Points remaining</p>
+            <p style="color: #666;">Allocation Transfer Packets remaining</p>
         </div>
 
         <div class="card">

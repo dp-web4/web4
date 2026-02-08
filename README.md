@@ -237,7 +237,7 @@ Web4 is a **research architecture** exploring how to safely coordinate AI agents
 - **Linked Context Tokens (LCTs)** - Unforgeable identity anchored to hardware
 - **Trust Tensors (T3)** - Multi-dimensional trust scoring
 - **Markov Relevancy Horizons (MRH)** - Context boundaries for entities
-- **ATP (Adaptive Trust Points)** - Energy-based resource allocation
+- **ATP (Allocation Transfer Packet)** - Energy-based resource allocation
 - **Federation** - Multi-society coordination with signed gossip
 
 ### The Research Questions

@@ -70,7 +70,7 @@ Web4's Lightweight Cryptographic Token (LCT) framework provides hardware-rooted 
 |----------|-----------|
 | **Identity** | LCT cryptographic token, hardware-anchored |
 | **Authorization** | Permission token with explicit scope |
-| **Resource limits** | ATP (Adaptive Trust Points) budget |
+| **Resource limits** | ATP (Allocation Transfer Packet) budget |
 | **Accountability** | Signature chain traceable to bound entity |
 | **Trust** | Emergent from behavioral history |
 

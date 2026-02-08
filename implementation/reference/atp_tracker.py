@@ -1,5 +1,5 @@
 """
-ATP (Adaptive Trust Points) Budget Tracker
+ATP (Allocation Transfer Packet) Budget Tracker
 
 Implements budget tracking and enforcement for Web4 authorization system.
 

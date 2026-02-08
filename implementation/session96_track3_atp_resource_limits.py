@@ -2,7 +2,7 @@
 SESSION 96 TRACK 3: ATP RESOURCE LIMITS FOR DELEGATED AGENTS
 
 From AI Agent Accountability doc:
-> "Resource limits: ATP (Adaptive Trust Points) budget"
+> "Resource limits: ATP (Allocation Transfer Packet) budget"
 
 This implements ATP budget enforcement for delegated agents, integrating:
 - Track 2: DelegationToken with permission scopes
@@ -691,7 +691,7 @@ def run_all_tests():
     print("SESSION 96 TRACK 3: ATP RESOURCE LIMITS")
     print("="*80)
     print("\nFrom AI Agent Accountability doc:")
-    print("  Resource limits: ATP (Adaptive Trust Points) budget")
+    print("  Resource limits: ATP (Allocation Transfer Packet) budget")
     print()
 
     results = []

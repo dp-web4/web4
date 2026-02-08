@@ -26,7 +26,7 @@ This document provides technical reference for the 7 critical security fixes imp
 **Lines**: 390 code + 360 tests
 
 ### Purpose
-Prevents resource exhaustion attacks by enforcing daily and per-action ATP (Adaptive Trust Points) budget limits.
+Prevents resource exhaustion attacks by enforcing daily and per-action ATP (Allocation Transfer Packet) budget limits.
 
 ### Key Features
 - Daily ATP budget allocation

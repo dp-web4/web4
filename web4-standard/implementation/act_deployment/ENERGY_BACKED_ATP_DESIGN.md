@@ -39,7 +39,7 @@ ATP must be reimagined as:
 ### What ATP Actually Is
 
 ```
-ATP = Adaptive Trust Points
+ATP = Allocation Transfer Packet
 BUT fundamentally: Energy allocation tracker
 
 ATP is NOT:
