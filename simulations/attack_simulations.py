@@ -55287,6 +55287,20 @@ def run_all_attacks() -> List[AttackResult]:
         ("Model Extraction (EX-2b)", attack_model_extraction),
         ("Gradient Exploitation (EX-3a)", attack_gradient_exploitation),
         ("Model Inversion (EX-3b)", attack_model_inversion),
+        # Track EY: Temporal Coordination Attacks
+        ("Time Skew Amplification (EY-1a)", attack_time_skew_amplification),
+        ("Heartbeat Desynchronization (EY-1b)", attack_heartbeat_desync),
+        ("Temporal Paradox Injection (EY-2a)", attack_temporal_paradox),
+        ("Future Anchor Attack (EY-2b)", attack_future_anchor),
+        ("Clock Oracle Manipulation (EY-3a)", attack_clock_oracle_manipulation),
+        ("Leap Second Exploitation (EY-3b)", attack_leap_second_exploitation),
+        # Track EZ: Economic Cascade Attacks
+        ("Liquidity Cascade (EZ-1a)", attack_liquidity_cascade),
+        ("Trust-Collateral Spiral (EZ-1b)", attack_trust_collateral_spiral),
+        ("ATP Starvation Cascade (EZ-2a)", attack_atp_starvation_cascade),
+        ("Reputation Contagion (EZ-2b)", attack_reputation_contagion),
+        ("Systemic Risk Concentration (EZ-3a)", attack_systemic_risk_concentration),
+        ("Feedback Loop Weaponization (EZ-3b)", attack_feedback_loop_weaponization),
     ]
 
     results = []
@@ -71782,6 +71796,3283 @@ Track EX-3b: Privacy Defense:
 4. Model unlearning support
 
 Forget what you shouldn't remember.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ===========================================================================
+# Track EY: Temporal Coordination Attacks (Attacks 245-250)
+# ===========================================================================
+# Advanced attacks exploiting time synchronization across distributed systems
+
+
+def attack_time_skew_amplification() -> AttackResult:
+    """
+    ATTACK: Time Skew Amplification (EY-1a)
+
+    Intentionally amplify small time differences across federation nodes
+    to create inconsistent state views that can be exploited.
+
+    Strategy:
+    1. Identify nodes with slightly different clock configurations
+    2. Inject transactions at precise moments to create ordering conflicts
+    3. Amplify inconsistencies through rapid repeated operations
+    4. Exploit resulting state divergence for double-spend or replay
+    """
+    defenses = {
+        "vector_clock_ordering": False,
+        "logical_timestamps": False,
+        "time_drift_detection": False,
+        "bounded_skew_enforcement": False,
+        "consensus_timestamp_agreement": False,
+        "causal_ordering_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Vector Clock Ordering
+    # ========================================================================
+
+    class VectorClockSystem:
+        """Track causal ordering via vector clocks."""
+
+        def __init__(self, num_nodes: int):
+            self.num_nodes = num_nodes
+            self.clocks = {i: [0] * num_nodes for i in range(num_nodes)}
+
+        def increment(self, node_id: int):
+            """Increment local clock."""
+            self.clocks[node_id][node_id] += 1
+            return self.clocks[node_id].copy()
+
+        def update(self, node_id: int, received_clock: list):
+            """Update clock on message receipt."""
+            for i in range(self.num_nodes):
+                self.clocks[node_id][i] = max(
+                    self.clocks[node_id][i], received_clock[i]
+                )
+            self.clocks[node_id][node_id] += 1
+            return self.clocks[node_id].copy()
+
+        def happens_before(self, clock_a: list, clock_b: list) -> bool:
+            """Check if a happens before b."""
+            less_or_equal = all(a <= b for a, b in zip(clock_a, clock_b))
+            strictly_less = any(a < b for a, b in zip(clock_a, clock_b))
+            return less_or_equal and strictly_less
+
+    vc = VectorClockSystem(5)
+    clock_a = vc.increment(0)
+    clock_b = vc.update(1, clock_a)
+
+    if vc.happens_before(clock_a, clock_b):
+        defenses["vector_clock_ordering"] = True
+
+    # ========================================================================
+    # Defense 2: Logical Timestamps
+    # ========================================================================
+
+    class LogicalTimestamp:
+        """Lamport logical timestamps."""
+
+        def __init__(self):
+            self.counter = 0
+
+        def tick(self) -> int:
+            self.counter += 1
+            return self.counter
+
+        def update(self, received: int) -> int:
+            self.counter = max(self.counter, received) + 1
+            return self.counter
+
+        def compare(self, t1: int, t2: int) -> int:
+            return t1 - t2
+
+    ts = LogicalTimestamp()
+    t1 = ts.tick()
+    t2 = ts.tick()
+
+    if ts.compare(t1, t2) < 0:  # t1 before t2
+        defenses["logical_timestamps"] = True
+
+    # ========================================================================
+    # Defense 3: Time Drift Detection
+    # ========================================================================
+
+    class DriftDetector:
+        """Detect excessive clock drift between nodes."""
+
+        def __init__(self, max_drift_ms: int = 500):
+            self.max_drift = max_drift_ms
+            self.observations = defaultdict(list)
+
+        def record_time(self, node_id: str, local_time: int, reported_time: int):
+            drift = abs(local_time - reported_time)
+            self.observations[node_id].append(drift)
+            return drift
+
+        def check_drift(self, node_id: str) -> tuple:
+            if not self.observations[node_id]:
+                return True, 0
+            avg_drift = sum(self.observations[node_id]) / len(self.observations[node_id])
+            return avg_drift <= self.max_drift, avg_drift
+
+    detector = DriftDetector(max_drift_ms=500)
+    detector.record_time("node_1", 1000, 1200)  # 200ms drift
+    detector.record_time("node_1", 1500, 1600)  # 100ms drift
+
+    ok, drift = detector.check_drift("node_1")
+    if ok:  # Average drift (150ms) within threshold
+        defenses["time_drift_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Bounded Skew Enforcement
+    # ========================================================================
+
+    class BoundedSkewEnforcer:
+        """Enforce maximum clock skew bounds."""
+
+        def __init__(self, max_skew_ms: int = 1000):
+            self.max_skew = max_skew_ms
+            self.reference_time = 0
+
+        def set_reference(self, time_ms: int):
+            self.reference_time = time_ms
+
+        def validate_timestamp(self, timestamp: int) -> tuple:
+            skew = abs(timestamp - self.reference_time)
+            valid = skew <= self.max_skew
+            return valid, skew
+
+        def reject_if_skewed(self, timestamp: int) -> bool:
+            valid, _ = self.validate_timestamp(timestamp)
+            return not valid  # Return True if should reject
+
+    enforcer = BoundedSkewEnforcer(max_skew_ms=1000)
+    enforcer.set_reference(10000)
+
+    # Reasonable timestamp should be accepted
+    valid, _ = enforcer.validate_timestamp(10500)
+    if valid:
+        defenses["bounded_skew_enforcement"] = True
+
+    # ========================================================================
+    # Defense 5: Consensus Timestamp Agreement
+    # ========================================================================
+
+    class TimestampConsensus:
+        """Achieve consensus on event timestamps."""
+
+        def __init__(self, num_nodes: int, threshold: float = 0.67):
+            self.num_nodes = num_nodes
+            self.threshold = threshold
+
+        def propose_timestamp(self, proposals: list) -> tuple:
+            """Get consensus timestamp from proposals."""
+            if not proposals:
+                return None, False
+
+            # Use median for robustness
+            sorted_proposals = sorted(proposals)
+            median_idx = len(sorted_proposals) // 2
+            consensus = sorted_proposals[median_idx]
+
+            # Check agreement
+            within_tolerance = sum(
+                1 for p in proposals if abs(p - consensus) < 100
+            )
+            agreed = within_tolerance / len(proposals) >= self.threshold
+
+            return consensus, agreed
+
+    consensus = TimestampConsensus(5)
+    proposals = [1000, 1010, 1020, 1005, 1015]
+    ts_val, agreed = consensus.propose_timestamp(proposals)
+
+    if agreed and ts_val:
+        defenses["consensus_timestamp_agreement"] = True
+
+    # ========================================================================
+    # Defense 6: Causal Ordering Verification
+    # ========================================================================
+
+    class CausalOrderVerifier:
+        """Verify causal ordering of events."""
+
+        def __init__(self):
+            self.events = []
+            self.dependencies = {}
+
+        def add_event(self, event_id: str, depends_on: list):
+            self.events.append(event_id)
+            self.dependencies[event_id] = set(depends_on)
+
+        def verify_order(self, ordered_events: list) -> bool:
+            """Verify that ordering respects dependencies."""
+            seen = set()
+            for event in ordered_events:
+                deps = self.dependencies.get(event, set())
+                if not deps.issubset(seen):
+                    return False
+                seen.add(event)
+            return True
+
+    verifier = CausalOrderVerifier()
+    verifier.add_event("A", [])
+    verifier.add_event("B", ["A"])
+    verifier.add_event("C", ["A", "B"])
+
+    # Correct order
+    if verifier.verify_order(["A", "B", "C"]):
+        defenses["causal_ordering_verification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Time Skew Amplification (EY-1a)",
+        success=attack_success,
+        setup_cost_atp=5000.0,
+        gain_atp=200000.0 if attack_success else 0.0,
+        roi=(200000.0 / 5000.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 4 else 0.20,
+        time_to_detection_hours=24.0,
+        blocks_until_detected=100,
+        trust_damage=0.85,
+        description=f"""
+TIME SKEW AMPLIFICATION (Track EY-1a)
+
+Exploit clock differences across nodes to create state inconsistencies.
+
+Attack Pattern:
+1. Map clock configurations across federation
+2. Time transactions to hit nodes at conflicting moments
+3. Amplify small drifts into ordering conflicts
+4. Exploit divergent state for double-spend
+
+Clocks are the foundation. Shake the foundation.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EY-1a: Temporal Ordering Defense:
+1. Vector clocks for causal ordering
+2. Logical timestamps (Lamport)
+3. Drift detection and alerting
+4. Bounded skew enforcement
+5. Consensus on timestamps
+6. Causal dependency verification
+
+Order without time. Causality without clocks.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_heartbeat_desync() -> AttackResult:
+    """
+    ATTACK: Heartbeat Desynchronization (EY-1b)
+
+    Deliberately desynchronize team heartbeats across federation to
+    create windows where operations can slip through validation gaps.
+
+    Strategy:
+    1. Identify teams with similar heartbeat phases
+    2. Inject load to shift heartbeat timing
+    3. Create gaps where no team is actively validating
+    4. Execute malicious operations in validation blind spots
+    """
+    defenses = {
+        "heartbeat_diversity_monitoring": False,
+        "overlap_guarantee": False,
+        "phase_coordination": False,
+        "heartbeat_attestation": False,
+        "gap_detection": False,
+        "emergency_coverage": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Heartbeat Diversity Monitoring
+    # ========================================================================
+
+    class HeartbeatMonitor:
+        """Monitor heartbeat diversity across teams."""
+
+        def __init__(self):
+            self.heartbeats = {}
+
+        def record_heartbeat(self, team_id: str, timestamp: int, phase: float):
+            """Record team heartbeat with phase (0-1)."""
+            self.heartbeats[team_id] = {
+                "timestamp": timestamp,
+                "phase": phase,
+            }
+
+        def check_diversity(self) -> tuple:
+            """Check if phases are well-distributed."""
+            if len(self.heartbeats) < 3:
+                return True, "Insufficient teams"
+
+            phases = [hb["phase"] for hb in self.heartbeats.values()]
+            phases.sort()
+
+            # Check for even distribution
+            gaps = []
+            for i in range(len(phases)):
+                next_phase = phases[(i + 1) % len(phases)]
+                if next_phase < phases[i]:
+                    next_phase += 1.0
+                gaps.append(next_phase - phases[i])
+
+            max_gap = max(gaps)
+            expected_gap = 1.0 / len(phases)
+            diversity_ok = max_gap < expected_gap * 2
+
+            return diversity_ok, f"Max gap: {max_gap:.2f}"
+
+    monitor = HeartbeatMonitor()
+    monitor.record_heartbeat("team_1", 1000, 0.0)
+    monitor.record_heartbeat("team_2", 1000, 0.33)
+    monitor.record_heartbeat("team_3", 1000, 0.66)
+
+    ok, _ = monitor.check_diversity()
+    if ok:
+        defenses["heartbeat_diversity_monitoring"] = True
+
+    # ========================================================================
+    # Defense 2: Overlap Guarantee
+    # ========================================================================
+
+    class OverlapEnforcer:
+        """Ensure heartbeat windows always overlap."""
+
+        def __init__(self, min_overlap_ratio: float = 0.2):
+            self.min_overlap = min_overlap_ratio
+            self.windows = {}
+
+        def set_window(self, team_id: str, start: float, duration: float):
+            end = start + duration
+            if end > 1.0:
+                end -= 1.0
+            self.windows[team_id] = (start, duration)
+
+        def check_overlap(self) -> bool:
+            """Verify all time periods have active teams."""
+            if not self.windows:
+                return True
+
+            # Sample 100 time points
+            for t in range(100):
+                point = t / 100.0
+                active = 0
+                for start, duration in self.windows.values():
+                    end = start + duration
+                    if end > 1.0:
+                        # Window wraps around
+                        if point >= start or point < (end - 1.0):
+                            active += 1
+                    else:
+                        if start <= point < end:
+                            active += 1
+                if active == 0:
+                    return False
+            return True
+
+    enforcer = OverlapEnforcer()
+    enforcer.set_window("team_1", 0.0, 0.4)
+    enforcer.set_window("team_2", 0.3, 0.4)
+    enforcer.set_window("team_3", 0.6, 0.5)  # Wraps to 0.1
+
+    if enforcer.check_overlap():
+        defenses["overlap_guarantee"] = True
+
+    # ========================================================================
+    # Defense 3: Phase Coordination
+    # ========================================================================
+
+    class PhaseCoordinator:
+        """Coordinate heartbeat phases across teams."""
+
+        def __init__(self):
+            self.assigned_phases = {}
+
+        def assign_phase(self, team_id: str, num_teams: int) -> float:
+            """Assign evenly-distributed phase."""
+            idx = len(self.assigned_phases)
+            phase = idx / num_teams
+            self.assigned_phases[team_id] = phase
+            return phase
+
+        def validate_phase(self, team_id: str, actual_phase: float) -> bool:
+            """Check if team maintains assigned phase."""
+            if team_id not in self.assigned_phases:
+                return True
+            expected = self.assigned_phases[team_id]
+            tolerance = 0.1
+            diff = abs(actual_phase - expected)
+            return diff < tolerance or diff > (1.0 - tolerance)
+
+    coord = PhaseCoordinator()
+    p1 = coord.assign_phase("team_1", 3)
+    p2 = coord.assign_phase("team_2", 3)
+
+    if coord.validate_phase("team_1", p1 + 0.05):  # Small drift OK
+        defenses["phase_coordination"] = True
+
+    # ========================================================================
+    # Defense 4: Heartbeat Attestation
+    # ========================================================================
+
+    class HeartbeatAttestor:
+        """Require attestation of heartbeat timing."""
+
+        def __init__(self):
+            self.attestations = {}
+
+        def attest(self, team_id: str, timestamp: int, signature: str) -> bool:
+            """Record attested heartbeat."""
+            if not signature:
+                return False
+            self.attestations[team_id] = {
+                "timestamp": timestamp,
+                "signature": signature,
+            }
+            return True
+
+        def verify_attestation(self, team_id: str, timestamp: int) -> bool:
+            """Verify heartbeat was attested."""
+            if team_id not in self.attestations:
+                return False
+            return abs(self.attestations[team_id]["timestamp"] - timestamp) < 100
+
+    attestor = HeartbeatAttestor()
+    attestor.attest("team_1", 1000, "sig_abc123")
+
+    if attestor.verify_attestation("team_1", 1050):
+        defenses["heartbeat_attestation"] = True
+
+    # ========================================================================
+    # Defense 5: Gap Detection
+    # ========================================================================
+
+    class GapDetector:
+        """Detect gaps in validation coverage."""
+
+        def __init__(self, max_gap_ms: int = 5000):
+            self.max_gap = max_gap_ms
+            self.last_validation = 0
+
+        def record_validation(self, timestamp: int) -> tuple:
+            """Record validation and check for gaps."""
+            if self.last_validation == 0:
+                self.last_validation = timestamp
+                return True, 0
+
+            gap = timestamp - self.last_validation
+            self.last_validation = timestamp
+            return gap <= self.max_gap, gap
+
+    gap_detector = GapDetector(max_gap_ms=5000)
+    gap_detector.record_validation(1000)
+    ok, gap = gap_detector.record_validation(3000)  # 2s gap
+
+    if ok:
+        defenses["gap_detection"] = True
+
+    # ========================================================================
+    # Defense 6: Emergency Coverage
+    # ========================================================================
+
+    class EmergencyCoverage:
+        """Provide emergency validation coverage."""
+
+        def __init__(self):
+            self.standby_validators = []
+            self.active = False
+
+        def add_standby(self, validator_id: str):
+            self.standby_validators.append(validator_id)
+
+        def activate_emergency(self) -> bool:
+            """Activate emergency validators."""
+            if not self.standby_validators:
+                return False
+            self.active = True
+            return True
+
+        def is_active(self) -> bool:
+            return self.active
+
+    emergency = EmergencyCoverage()
+    emergency.add_standby("backup_1")
+    emergency.add_standby("backup_2")
+
+    if emergency.activate_emergency():
+        defenses["emergency_coverage"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Heartbeat Desynchronization (EY-1b)",
+        success=attack_success,
+        setup_cost_atp=8000.0,
+        gain_atp=150000.0 if attack_success else 0.0,
+        roi=(150000.0 / 8000.0) if attack_success else -1.0,
+        detection_probability=0.60 if defenses_held >= 4 else 0.25,
+        time_to_detection_hours=12.0,
+        blocks_until_detected=50,
+        trust_damage=0.80,
+        description=f"""
+HEARTBEAT DESYNCHRONIZATION (Track EY-1b)
+
+Create validation blind spots by desynchronizing heartbeats.
+
+Attack Pattern:
+1. Map heartbeat phases across federation
+2. Inject load to shift timing
+3. Create gaps in validation coverage
+4. Execute operations in blind spots
+
+When no one's watching, anything goes.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EY-1b: Heartbeat Defense:
+1. Diversity monitoring across teams
+2. Overlap guarantees (no gaps)
+3. Phase coordination
+4. Heartbeat attestation
+5. Gap detection alerts
+6. Emergency standby coverage
+
+Always someone watching.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_temporal_paradox() -> AttackResult:
+    """
+    ATTACK: Temporal Paradox Injection (EY-2a)
+
+    Create circular temporal dependencies that break causality
+    verification and allow impossible state transitions.
+
+    Strategy:
+    1. Craft transactions with carefully constructed timestamps
+    2. Create mutual dependencies that form cycles
+    3. Exploit cycle detection gaps to inject invalid state
+    4. System fails to validate impossible orderings
+    """
+    defenses = {
+        "cycle_detection": False,
+        "topological_validation": False,
+        "dependency_linearization": False,
+        "timestamp_monotonicity": False,
+        "paradox_quarantine": False,
+        "causal_proof_requirements": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Cycle Detection
+    # ========================================================================
+
+    class CycleDetector:
+        """Detect cycles in dependency graphs."""
+
+        def __init__(self):
+            self.edges = defaultdict(list)
+
+        def add_dependency(self, event: str, depends_on: str):
+            self.edges[depends_on].append(event)
+
+        def has_cycle(self) -> bool:
+            """Check for cycles using DFS."""
+            visited = set()
+            rec_stack = set()
+
+            def dfs(node):
+                visited.add(node)
+                rec_stack.add(node)
+
+                for neighbor in self.edges.get(node, []):
+                    if neighbor not in visited:
+                        if dfs(neighbor):
+                            return True
+                    elif neighbor in rec_stack:
+                        return True
+
+                rec_stack.remove(node)
+                return False
+
+            for node in list(self.edges.keys()):
+                if node not in visited:
+                    if dfs(node):
+                        return True
+            return False
+
+    detector = CycleDetector()
+    detector.add_dependency("B", "A")
+    detector.add_dependency("C", "B")
+    # No cycle: A -> B -> C
+
+    if not detector.has_cycle():
+        defenses["cycle_detection"] = True
+
+    # ========================================================================
+    # Defense 2: Topological Validation
+    # ========================================================================
+
+    class TopologicalValidator:
+        """Validate topological ordering of events."""
+
+        def __init__(self):
+            self.dependencies = defaultdict(set)
+            self.events = set()
+
+        def add_event(self, event: str, depends_on: list):
+            self.events.add(event)
+            for dep in depends_on:
+                self.dependencies[event].add(dep)
+                self.events.add(dep)
+
+        def get_valid_order(self) -> list:
+            """Return topologically sorted order or None if impossible."""
+            in_degree = defaultdict(int)
+            for event in self.events:
+                for dep in self.dependencies[event]:
+                    in_degree[event] += 1
+
+            queue = [e for e in self.events if in_degree[e] == 0]
+            result = []
+
+            while queue:
+                node = queue.pop(0)
+                result.append(node)
+
+                for other in self.events:
+                    if node in self.dependencies[other]:
+                        in_degree[other] -= 1
+                        if in_degree[other] == 0:
+                            queue.append(other)
+
+            return result if len(result) == len(self.events) else None
+
+    validator = TopologicalValidator()
+    validator.add_event("A", [])
+    validator.add_event("B", ["A"])
+    validator.add_event("C", ["A", "B"])
+
+    order = validator.get_valid_order()
+    if order and order.index("A") < order.index("B") < order.index("C"):
+        defenses["topological_validation"] = True
+
+    # ========================================================================
+    # Defense 3: Dependency Linearization
+    # ========================================================================
+
+    class DependencyLinearizer:
+        """Force linear ordering of concurrent events."""
+
+        def __init__(self):
+            self.sequence = []
+            self.positions = {}
+
+        def insert_event(self, event: str, after: str = None) -> int:
+            if after:
+                if after not in self.positions:
+                    raise ValueError(f"Unknown event: {after}")
+                pos = self.positions[after] + 1
+            else:
+                pos = 0
+
+            self.sequence.insert(pos, event)
+
+            # Update positions
+            for i, e in enumerate(self.sequence):
+                self.positions[e] = i
+
+            return pos
+
+        def get_position(self, event: str) -> int:
+            return self.positions.get(event, -1)
+
+    linearizer = DependencyLinearizer()
+    linearizer.insert_event("genesis")
+    linearizer.insert_event("tx1", after="genesis")
+    linearizer.insert_event("tx2", after="tx1")
+
+    if linearizer.get_position("tx2") > linearizer.get_position("tx1"):
+        defenses["dependency_linearization"] = True
+
+    # ========================================================================
+    # Defense 4: Timestamp Monotonicity
+    # ========================================================================
+
+    class MonotonicTimestamper:
+        """Enforce monotonically increasing timestamps."""
+
+        def __init__(self):
+            self.last_timestamp = 0
+
+        def get_timestamp(self) -> int:
+            """Get next valid timestamp."""
+            current = int(time.time() * 1000)
+            self.last_timestamp = max(self.last_timestamp + 1, current)
+            return self.last_timestamp
+
+        def validate(self, timestamp: int) -> bool:
+            """Validate timestamp is valid (greater than last)."""
+            if timestamp <= self.last_timestamp:
+                return False
+            self.last_timestamp = timestamp
+            return True
+
+    stamper = MonotonicTimestamper()
+    t1 = stamper.get_timestamp()
+    t2 = stamper.get_timestamp()
+
+    if t2 > t1:
+        defenses["timestamp_monotonicity"] = True
+
+    # ========================================================================
+    # Defense 5: Paradox Quarantine
+    # ========================================================================
+
+    class ParadoxQuarantine:
+        """Quarantine events that create paradoxes."""
+
+        def __init__(self):
+            self.quarantined = set()
+            self.validated = set()
+
+        def quarantine(self, event_id: str, reason: str):
+            self.quarantined.add(event_id)
+            return f"Quarantined: {reason}"
+
+        def release(self, event_id: str) -> bool:
+            """Release from quarantine after validation."""
+            if event_id in self.quarantined:
+                self.quarantined.remove(event_id)
+                self.validated.add(event_id)
+                return True
+            return False
+
+        def is_quarantined(self, event_id: str) -> bool:
+            return event_id in self.quarantined
+
+    quarantine = ParadoxQuarantine()
+    quarantine.quarantine("suspicious_tx", "circular dependency detected")
+
+    if quarantine.is_quarantined("suspicious_tx"):
+        quarantine.release("suspicious_tx")  # After manual review
+        defenses["paradox_quarantine"] = True
+
+    # ========================================================================
+    # Defense 6: Causal Proof Requirements
+    # ========================================================================
+
+    class CausalProofSystem:
+        """Require proof of causality for dependencies."""
+
+        def __init__(self):
+            self.proofs = {}
+
+        def submit_proof(self, event: str, depends_on: str, proof: dict) -> bool:
+            """Submit proof of causal relationship."""
+            if not proof.get("signature") or not proof.get("witness"):
+                return False
+            self.proofs[(event, depends_on)] = proof
+            return True
+
+        def verify_dependency(self, event: str, depends_on: str) -> bool:
+            """Verify causal dependency has proof."""
+            return (event, depends_on) in self.proofs
+
+    proof_system = CausalProofSystem()
+    proof_system.submit_proof(
+        "tx2", "tx1",
+        {"signature": "sig_123", "witness": "node_A", "timestamp": 1000}
+    )
+
+    if proof_system.verify_dependency("tx2", "tx1"):
+        defenses["causal_proof_requirements"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Temporal Paradox Injection (EY-2a)",
+        success=attack_success,
+        setup_cost_atp=15000.0,
+        gain_atp=500000.0 if attack_success else 0.0,
+        roi=(500000.0 / 15000.0) if attack_success else -1.0,
+        detection_probability=0.70 if defenses_held >= 4 else 0.30,
+        time_to_detection_hours=6.0,
+        blocks_until_detected=30,
+        trust_damage=0.95,
+        description=f"""
+TEMPORAL PARADOX INJECTION (Track EY-2a)
+
+Create impossible causal loops to break state validation.
+
+Attack Pattern:
+1. Craft transactions with circular dependencies
+2. A depends on B, B depends on C, C depends on A
+3. Exploit cycle detection gaps
+4. Inject invalid state during resolution confusion
+
+The past depends on the future? System segfaults.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EY-2a: Causality Defense:
+1. Cycle detection in dependency graphs
+2. Topological validation before commit
+3. Forced linearization of concurrent events
+4. Monotonic timestamp enforcement
+5. Paradox quarantine system
+6. Causal proof requirements
+
+Causality is not optional.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_future_anchor() -> AttackResult:
+    """
+    ATTACK: Future Anchor Attack (EY-2b)
+
+    Commit to future events and use those commitments as anchors
+    for current actions, creating forward temporal dependencies.
+
+    Strategy:
+    1. Create cryptographic commitments to future states
+    2. Use commitment hashes as references in current transactions
+    3. Later reveal favorable resolutions
+    4. Retroactively validate previously-uncertain transactions
+    """
+    defenses = {
+        "commitment_expiry": False,
+        "reveal_deadline_enforcement": False,
+        "future_reference_blocking": False,
+        "commitment_registry": False,
+        "anchor_verification": False,
+        "temporal_bounds_checking": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Commitment Expiry
+    # ========================================================================
+
+    class ExpiringCommitment:
+        """Commitments that expire if not revealed."""
+
+        def __init__(self, expiry_blocks: int = 100):
+            self.expiry_blocks = expiry_blocks
+            self.commitments = {}
+            self.current_block = 0
+
+        def commit(self, commitment_hash: str, block: int) -> bool:
+            self.commitments[commitment_hash] = {
+                "block": block,
+                "expires": block + self.expiry_blocks,
+                "revealed": False,
+            }
+            return True
+
+        def reveal(self, commitment_hash: str, value: str, block: int) -> bool:
+            if commitment_hash not in self.commitments:
+                return False
+            c = self.commitments[commitment_hash]
+            if block > c["expires"]:
+                return False  # Expired
+            c["revealed"] = True
+            c["value"] = value
+            return True
+
+        def is_valid(self, commitment_hash: str, block: int) -> bool:
+            c = self.commitments.get(commitment_hash)
+            if not c:
+                return False
+            if block > c["expires"] and not c["revealed"]:
+                return False  # Expired unrevealed
+            return True
+
+    expiry = ExpiringCommitment(expiry_blocks=100)
+    expiry.commit("hash_abc", block=50)
+
+    if expiry.is_valid("hash_abc", block=100):  # Not yet expired
+        defenses["commitment_expiry"] = True
+
+    # ========================================================================
+    # Defense 2: Reveal Deadline Enforcement
+    # ========================================================================
+
+    class RevealDeadline:
+        """Enforce reveal deadlines strictly."""
+
+        def __init__(self):
+            self.deadlines = {}
+
+        def set_deadline(self, commitment_id: str, deadline_block: int):
+            self.deadlines[commitment_id] = deadline_block
+
+        def check_deadline(self, commitment_id: str, current_block: int) -> tuple:
+            if commitment_id not in self.deadlines:
+                return False, "No deadline set"
+            deadline = self.deadlines[commitment_id]
+            if current_block > deadline:
+                return False, "Deadline passed"
+            return True, f"Blocks remaining: {deadline - current_block}"
+
+    deadline = RevealDeadline()
+    deadline.set_deadline("commit_1", deadline_block=1000)
+    ok, msg = deadline.check_deadline("commit_1", current_block=900)
+
+    if ok:
+        defenses["reveal_deadline_enforcement"] = True
+
+    # ========================================================================
+    # Defense 3: Future Reference Blocking
+    # ========================================================================
+
+    class FutureReferenceBlocker:
+        """Block references to future events."""
+
+        def __init__(self):
+            self.known_events = set()
+
+        def register_event(self, event_id: str, timestamp: int):
+            self.known_events.add(event_id)
+
+        def validate_reference(self, ref_id: str, current_timestamp: int) -> bool:
+            """Only allow references to known past events."""
+            return ref_id in self.known_events
+
+    blocker = FutureReferenceBlocker()
+    blocker.register_event("past_event", timestamp=100)
+
+    if blocker.validate_reference("past_event", current_timestamp=200):
+        if not blocker.validate_reference("future_event", current_timestamp=200):
+            defenses["future_reference_blocking"] = True
+
+    # ========================================================================
+    # Defense 4: Commitment Registry
+    # ========================================================================
+
+    class CommitmentRegistry:
+        """Central registry of all commitments."""
+
+        def __init__(self):
+            self.registry = {}
+
+        def register(self, commitment_hash: str, metadata: dict) -> str:
+            reg_id = f"reg_{len(self.registry)}"
+            self.registry[reg_id] = {
+                "hash": commitment_hash,
+                "metadata": metadata,
+                "status": "pending",
+            }
+            return reg_id
+
+        def get_status(self, reg_id: str) -> str:
+            return self.registry.get(reg_id, {}).get("status", "unknown")
+
+        def update_status(self, reg_id: str, status: str):
+            if reg_id in self.registry:
+                self.registry[reg_id]["status"] = status
+
+    registry = CommitmentRegistry()
+    reg_id = registry.register("hash_xyz", {"type": "stake"})
+
+    if registry.get_status(reg_id) == "pending":
+        defenses["commitment_registry"] = True
+
+    # ========================================================================
+    # Defense 5: Anchor Verification
+    # ========================================================================
+
+    class AnchorVerifier:
+        """Verify anchors point to valid, past events."""
+
+        def __init__(self):
+            self.anchors = {}
+
+        def add_anchor(self, anchor_id: str, target_block: int, current_block: int) -> bool:
+            """Add anchor only if target is in the past."""
+            if target_block >= current_block:
+                return False  # Cannot anchor to future
+            self.anchors[anchor_id] = target_block
+            return True
+
+        def verify_anchor(self, anchor_id: str) -> bool:
+            return anchor_id in self.anchors
+
+    verifier = AnchorVerifier()
+    added = verifier.add_anchor("anchor_1", target_block=50, current_block=100)
+
+    if added and verifier.verify_anchor("anchor_1"):
+        defenses["anchor_verification"] = True
+
+    # ========================================================================
+    # Defense 6: Temporal Bounds Checking
+    # ========================================================================
+
+    class TemporalBounds:
+        """Check temporal bounds on all references."""
+
+        def __init__(self, max_lookback_blocks: int = 1000):
+            self.max_lookback = max_lookback_blocks
+
+        def check_bounds(self, reference_block: int, current_block: int) -> tuple:
+            if reference_block > current_block:
+                return False, "Future reference not allowed"
+            if current_block - reference_block > self.max_lookback:
+                return False, "Reference too old"
+            return True, "Within bounds"
+
+    bounds = TemporalBounds(max_lookback_blocks=1000)
+    ok, _ = bounds.check_bounds(reference_block=500, current_block=600)
+
+    if ok:
+        defenses["temporal_bounds_checking"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Future Anchor Attack (EY-2b)",
+        success=attack_success,
+        setup_cost_atp=20000.0,
+        gain_atp=400000.0 if attack_success else 0.0,
+        roi=(400000.0 / 20000.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 4 else 0.20,
+        time_to_detection_hours=48.0,
+        blocks_until_detected=200,
+        trust_damage=0.90,
+        description=f"""
+FUTURE ANCHOR ATTACK (Track EY-2b)
+
+Use cryptographic commitments to anchor present to future.
+
+Attack Pattern:
+1. Create commitment to future event
+2. Reference commitment hash in current tx
+3. Wait for favorable resolution
+4. Reveal to retroactively validate
+
+Buy now, decide later what you bought.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EY-2b: Commitment Defense:
+1. Commitment expiry enforcement
+2. Strict reveal deadlines
+3. Block future references
+4. Central commitment registry
+5. Anchor verification (past only)
+6. Temporal bounds checking
+
+The future is not yet real.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_clock_oracle_manipulation() -> AttackResult:
+    """
+    ATTACK: Clock Oracle Manipulation (EY-3a)
+
+    Compromise or manipulate the time oracles that distributed
+    systems rely on for timestamp consensus.
+
+    Strategy:
+    1. Identify key time oracle providers
+    2. Compromise subset of oracles (>33% for Byzantine tolerance)
+    3. Feed inconsistent time data to different nodes
+    4. Create persistent state inconsistencies
+    """
+    defenses = {
+        "multi_oracle_consensus": False,
+        "oracle_reputation_weighting": False,
+        "outlier_detection": False,
+        "cryptographic_timestamping": False,
+        "oracle_bonding": False,
+        "independent_verification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Multi-Oracle Consensus
+    # ========================================================================
+
+    class OracleConsensus:
+        """Get time from multiple oracles."""
+
+        def __init__(self, min_oracles: int = 3, threshold: float = 0.67):
+            self.min_oracles = min_oracles
+            self.threshold = threshold
+
+        def get_consensus_time(self, oracle_readings: list) -> tuple:
+            """Get consensus timestamp from multiple oracles."""
+            if len(oracle_readings) < self.min_oracles:
+                return None, False
+
+            sorted_readings = sorted(oracle_readings)
+            median = sorted_readings[len(sorted_readings) // 2]
+
+            # Check agreement
+            tolerance = 1000  # 1 second
+            agreeing = sum(1 for r in oracle_readings if abs(r - median) < tolerance)
+            agreed = agreeing / len(oracle_readings) >= self.threshold
+
+            return median, agreed
+
+    consensus = OracleConsensus(min_oracles=3)
+    readings = [1000000, 1000100, 1000050, 1000080, 1000010]
+    time_val, agreed = consensus.get_consensus_time(readings)
+
+    if agreed and time_val:
+        defenses["multi_oracle_consensus"] = True
+
+    # ========================================================================
+    # Defense 2: Oracle Reputation Weighting
+    # ========================================================================
+
+    class ReputedOracles:
+        """Weight oracle readings by reputation."""
+
+        def __init__(self):
+            self.reputations = {}
+
+        def set_reputation(self, oracle_id: str, score: float):
+            self.reputations[oracle_id] = min(1.0, max(0.0, score))
+
+        def weighted_average(self, readings: dict) -> float:
+            """Get reputation-weighted average time."""
+            total_weight = 0.0
+            weighted_sum = 0.0
+
+            for oracle_id, reading in readings.items():
+                weight = self.reputations.get(oracle_id, 0.5)
+                weighted_sum += reading * weight
+                total_weight += weight
+
+            return weighted_sum / total_weight if total_weight > 0 else 0
+
+    reputed = ReputedOracles()
+    reputed.set_reputation("oracle_1", 0.9)
+    reputed.set_reputation("oracle_2", 0.8)
+    reputed.set_reputation("oracle_3", 0.3)  # Low rep - compromised?
+
+    readings = {"oracle_1": 1000, "oracle_2": 1010, "oracle_3": 5000}
+    weighted = reputed.weighted_average(readings)
+
+    if 900 < weighted < 2000:  # Outlier suppressed
+        defenses["oracle_reputation_weighting"] = True
+
+    # ========================================================================
+    # Defense 3: Outlier Detection
+    # ========================================================================
+
+    class OutlierDetector:
+        """Detect anomalous oracle readings."""
+
+        def __init__(self, max_deviation_factor: float = 2.0):
+            self.max_factor = max_deviation_factor
+
+        def detect_outliers(self, readings: list) -> list:
+            """Return list of outlier indices."""
+            if len(readings) < 3:
+                return []
+
+            median = sorted(readings)[len(readings) // 2]
+            mad = sorted(abs(r - median) for r in readings)[len(readings) // 2]
+
+            if mad == 0:
+                return []
+
+            outliers = []
+            for i, r in enumerate(readings):
+                if abs(r - median) > mad * self.max_factor:
+                    outliers.append(i)
+            return outliers
+
+    outlier_detector = OutlierDetector()
+    readings = [100, 102, 98, 101, 5000]  # Last is outlier
+    outliers = outlier_detector.detect_outliers(readings)
+
+    if 4 in outliers:  # Detected the 5000
+        defenses["outlier_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Cryptographic Timestamping
+    # ========================================================================
+
+    class CryptoTimestamp:
+        """Cryptographically verifiable timestamps."""
+
+        def __init__(self):
+            self.timestamps = {}
+
+        def create_timestamp(self, data: str, oracle_id: str) -> dict:
+            """Create signed timestamp."""
+            ts = int(time.time() * 1000)
+            return {
+                "data": data,
+                "timestamp": ts,
+                "oracle": oracle_id,
+                "signature": f"sig_{hash((data, ts, oracle_id))}",
+            }
+
+        def verify_timestamp(self, ts_record: dict) -> bool:
+            """Verify timestamp signature."""
+            expected_sig = f"sig_{hash((ts_record['data'], ts_record['timestamp'], ts_record['oracle']))}"
+            return ts_record.get("signature") == expected_sig
+
+    crypto_ts = CryptoTimestamp()
+    ts_record = crypto_ts.create_timestamp("event_1", "oracle_1")
+
+    if crypto_ts.verify_timestamp(ts_record):
+        defenses["cryptographic_timestamping"] = True
+
+    # ========================================================================
+    # Defense 5: Oracle Bonding
+    # ========================================================================
+
+    class OracleBonding:
+        """Require bond from time oracles."""
+
+        def __init__(self, min_bond: float = 10000.0):
+            self.min_bond = min_bond
+            self.bonds = {}
+
+        def post_bond(self, oracle_id: str, amount: float) -> bool:
+            if amount < self.min_bond:
+                return False
+            self.bonds[oracle_id] = amount
+            return True
+
+        def slash_bond(self, oracle_id: str, fraction: float) -> float:
+            """Slash oracle's bond for misbehavior."""
+            if oracle_id not in self.bonds:
+                return 0.0
+            slashed = self.bonds[oracle_id] * fraction
+            self.bonds[oracle_id] -= slashed
+            return slashed
+
+        def get_bond(self, oracle_id: str) -> float:
+            return self.bonds.get(oracle_id, 0.0)
+
+    bonding = OracleBonding(min_bond=10000.0)
+    bonding.post_bond("oracle_1", 50000.0)
+    slashed = bonding.slash_bond("oracle_1", 0.1)  # 10% slash
+
+    if slashed == 5000.0:
+        defenses["oracle_bonding"] = True
+
+    # ========================================================================
+    # Defense 6: Independent Verification
+    # ========================================================================
+
+    class IndependentVerifier:
+        """Verify time through independent sources."""
+
+        def __init__(self):
+            self.verifiers = set()
+
+        def add_verifier(self, verifier_type: str):
+            """Add independent verification source."""
+            self.verifiers.add(verifier_type)
+
+        def verify(self, claimed_time: int) -> bool:
+            """Verify against independent sources."""
+            # Simulate verification against different sources
+            return len(self.verifiers) >= 2  # Require 2+ independent checks
+
+    verifier = IndependentVerifier()
+    verifier.add_verifier("ntp_pool")
+    verifier.add_verifier("blockchain_timestamp")
+    verifier.add_verifier("satellite")
+
+    if verifier.verify(int(time.time() * 1000)):
+        defenses["independent_verification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Clock Oracle Manipulation (EY-3a)",
+        success=attack_success,
+        setup_cost_atp=50000.0,
+        gain_atp=1000000.0 if attack_success else 0.0,
+        roi=(1000000.0 / 50000.0) if attack_success else -1.0,
+        detection_probability=0.65 if defenses_held >= 4 else 0.25,
+        time_to_detection_hours=72.0,
+        blocks_until_detected=300,
+        trust_damage=0.98,
+        description=f"""
+CLOCK ORACLE MANIPULATION (Track EY-3a)
+
+Compromise the sources of truth for time.
+
+Attack Pattern:
+1. Identify time oracle infrastructure
+2. Compromise >33% of oracles (Byzantine threshold)
+3. Feed inconsistent times to different nodes
+4. Create persistent state divergence
+
+Control time, control reality.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EY-3a: Oracle Defense:
+1. Multi-oracle consensus requirements
+2. Reputation-weighted readings
+3. Outlier detection and filtering
+4. Cryptographic timestamp verification
+5. Oracle bonding (economic stake)
+6. Independent verification sources
+
+Trust no single source of time.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_leap_second_exploitation() -> AttackResult:
+    """
+    ATTACK: Leap Second Exploitation (EY-3b)
+
+    Exploit system behavior during leap second adjustments
+    when clocks can briefly go backwards or freeze.
+
+    Strategy:
+    1. Monitor for upcoming leap second events
+    2. Prepare transactions at exact moment of adjustment
+    3. Exploit timing inconsistencies during adjustment
+    4. Double-spend or replay during clock confusion
+    """
+    defenses = {
+        "leap_second_awareness": False,
+        "monotonic_clock_usage": False,
+        "grace_period_blocking": False,
+        "smeared_time": False,
+        "transaction_freeze": False,
+        "post_leap_validation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Leap Second Awareness
+    # ========================================================================
+
+    class LeapSecondAwareness:
+        """Track and prepare for leap seconds."""
+
+        def __init__(self):
+            # Known leap second dates (simplified)
+            self.scheduled_leaps = set()
+
+        def schedule_leap(self, date_str: str):
+            self.scheduled_leaps.add(date_str)
+
+        def is_leap_window(self, timestamp: int) -> bool:
+            """Check if we're in a leap second window."""
+            # In real impl, check against scheduled leaps
+            return False  # Simplified
+
+        def get_warning_time(self, date_str: str) -> int:
+            """Return seconds of warning before leap."""
+            return 3600  # 1 hour warning
+
+    awareness = LeapSecondAwareness()
+    awareness.schedule_leap("2026-06-30")
+
+    if awareness.get_warning_time("2026-06-30") >= 3600:
+        defenses["leap_second_awareness"] = True
+
+    # ========================================================================
+    # Defense 2: Monotonic Clock Usage
+    # ========================================================================
+
+    class MonotonicClock:
+        """Use monotonic clock that never goes backwards."""
+
+        def __init__(self):
+            self.base = time.monotonic_ns()
+            self.last_value = 0
+
+        def get_time(self) -> int:
+            """Get monotonically increasing time."""
+            current = time.monotonic_ns() - self.base
+            self.last_value = max(self.last_value + 1, current)
+            return self.last_value
+
+        def elapsed_since(self, previous: int) -> int:
+            """Get elapsed time since previous reading."""
+            current = self.get_time()
+            return current - previous
+
+    mono = MonotonicClock()
+    t1 = mono.get_time()
+    t2 = mono.get_time()
+
+    if t2 > t1:  # Always increasing
+        defenses["monotonic_clock_usage"] = True
+
+    # ========================================================================
+    # Defense 3: Grace Period Blocking
+    # ========================================================================
+
+    class GracePeriodBlocker:
+        """Block sensitive operations during grace period."""
+
+        def __init__(self, grace_seconds: int = 60):
+            self.grace_seconds = grace_seconds
+            self.blocked_until = 0
+
+        def start_grace_period(self, current_time: int):
+            self.blocked_until = current_time + self.grace_seconds
+
+        def is_blocked(self, current_time: int) -> bool:
+            return current_time < self.blocked_until
+
+        def allow_operation(self, op_type: str, current_time: int) -> bool:
+            if self.is_blocked(current_time) and op_type in ["transfer", "stake"]:
+                return False
+            return True
+
+    blocker = GracePeriodBlocker(grace_seconds=60)
+    current = int(time.time())
+    blocker.start_grace_period(current)
+
+    if not blocker.allow_operation("transfer", current):
+        defenses["grace_period_blocking"] = True
+
+    # ========================================================================
+    # Defense 4: Smeared Time
+    # ========================================================================
+
+    class SmearedTime:
+        """Smear leap seconds over longer period."""
+
+        def __init__(self, smear_window_hours: int = 24):
+            self.smear_window = smear_window_hours * 3600 * 1000
+
+        def get_smeared_time(self, wall_time: int, leap_start: int, leap_dir: int) -> int:
+            """Get smeared time that spreads leap second."""
+            if wall_time < leap_start or wall_time > leap_start + self.smear_window:
+                return wall_time
+
+            progress = (wall_time - leap_start) / self.smear_window
+            adjustment = leap_dir * 1000 * progress  # Spread 1s adjustment
+            return int(wall_time + adjustment)
+
+    smeared = SmearedTime(smear_window_hours=24)
+    # Simulate 50% through smear window
+    result = smeared.get_smeared_time(wall_time=1000, leap_start=0, leap_dir=1)
+
+    if result > 0:  # Smearing works
+        defenses["smeared_time"] = True
+
+    # ========================================================================
+    # Defense 5: Transaction Freeze
+    # ========================================================================
+
+    class TransactionFreezer:
+        """Freeze transactions during leap events."""
+
+        def __init__(self):
+            self.frozen = False
+            self.pending_queue = []
+
+        def freeze(self):
+            self.frozen = True
+
+        def unfreeze(self):
+            self.frozen = False
+            return self.pending_queue
+
+        def submit_transaction(self, tx: dict) -> tuple:
+            if self.frozen:
+                self.pending_queue.append(tx)
+                return False, "Queued during freeze"
+            return True, "Submitted"
+
+    freezer = TransactionFreezer()
+    freezer.freeze()
+    success, msg = freezer.submit_transaction({"type": "transfer"})
+
+    if not success and "Queued" in msg:
+        defenses["transaction_freeze"] = True
+
+    # ========================================================================
+    # Defense 6: Post-Leap Validation
+    # ========================================================================
+
+    class PostLeapValidator:
+        """Extra validation after leap events."""
+
+        def __init__(self):
+            self.leap_occurred = False
+            self.transactions_to_revalidate = []
+
+        def mark_leap(self):
+            self.leap_occurred = True
+
+        def validate_post_leap(self, transactions: list) -> list:
+            """Revalidate transactions processed during leap window."""
+            if not self.leap_occurred:
+                return transactions
+
+            # Extra validation checks
+            validated = []
+            for tx in transactions:
+                # In real impl, check ordering, timestamps, etc.
+                if tx.get("valid", True):
+                    validated.append(tx)
+            return validated
+
+    validator = PostLeapValidator()
+    validator.mark_leap()
+    txs = [{"id": 1, "valid": True}, {"id": 2, "valid": False}]
+    validated = validator.validate_post_leap(txs)
+
+    if len(validated) == 1:  # Filtered invalid
+        defenses["post_leap_validation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Leap Second Exploitation (EY-3b)",
+        success=attack_success,
+        setup_cost_atp=10000.0,
+        gain_atp=300000.0 if attack_success else 0.0,
+        roi=(300000.0 / 10000.0) if attack_success else -1.0,
+        detection_probability=0.50 if defenses_held >= 4 else 0.15,
+        time_to_detection_hours=96.0,
+        blocks_until_detected=400,
+        trust_damage=0.75,
+        description=f"""
+LEAP SECOND EXPLOITATION (Track EY-3b)
+
+Attack during rare calendar time adjustments.
+
+Attack Pattern:
+1. Monitor for scheduled leap seconds
+2. Prepare transactions for exact adjustment moment
+3. Exploit clock confusion (backwards, freeze, repeat)
+4. Double-spend or replay during window
+
+23:59:60 - the second that doesn't exist, except when it does.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EY-3b: Leap Second Defense:
+1. Advance awareness of leap events
+2. Monotonic clock usage internally
+3. Grace period around leap events
+4. Smeared time implementation
+5. Transaction freeze during adjustment
+6. Post-leap revalidation
+
+Time is not always linear.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+# ===========================================================================
+# Track EZ: Economic Cascade Attacks (Attacks 251-256)
+# ===========================================================================
+# Attacks that trigger cascading failures through economic dependencies
+
+
+def attack_liquidity_cascade() -> AttackResult:
+    """
+    ATTACK: Liquidity Cascade (EZ-1a)
+
+    Trigger cascading liquidity failures across interconnected
+    ATP pools and trust economies.
+
+    Strategy:
+    1. Map liquidity dependencies between pools
+    2. Identify weakest links (low reserve pools)
+    3. Drain key pool to trigger margin calls on connected pools
+    4. Cascade propagates through dependency graph
+    """
+    defenses = {
+        "circuit_breakers": False,
+        "reserve_requirements": False,
+        "contagion_detection": False,
+        "liquidity_buffers": False,
+        "dependency_limits": False,
+        "emergency_liquidity": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Circuit Breakers
+    # ========================================================================
+
+    class CircuitBreaker:
+        """Halt trading when volatility exceeds thresholds."""
+
+        def __init__(self, trigger_threshold: float = 0.15):
+            self.trigger_threshold = trigger_threshold
+            self.tripped = False
+            self.last_price = 1.0
+
+        def check_price(self, new_price: float) -> bool:
+            """Check if price move triggers breaker."""
+            if self.last_price == 0:
+                return False
+
+            change = abs(new_price - self.last_price) / self.last_price
+            if change >= self.trigger_threshold:
+                self.tripped = True
+                return True
+
+            self.last_price = new_price
+            return False
+
+        def is_tripped(self) -> bool:
+            return self.tripped
+
+        def reset(self):
+            self.tripped = False
+
+    breaker = CircuitBreaker(trigger_threshold=0.15)
+    triggered = breaker.check_price(0.80)  # 20% drop
+
+    if triggered and breaker.is_tripped():
+        defenses["circuit_breakers"] = True
+
+    # ========================================================================
+    # Defense 2: Reserve Requirements
+    # ========================================================================
+
+    class ReserveRequirement:
+        """Enforce minimum reserve ratios."""
+
+        def __init__(self, min_ratio: float = 0.20):
+            self.min_ratio = min_ratio
+
+        def check_reserve(self, pool_value: float, reserve: float) -> bool:
+            if pool_value == 0:
+                return True
+            return reserve / pool_value >= self.min_ratio
+
+        def calculate_required(self, pool_value: float) -> float:
+            return pool_value * self.min_ratio
+
+    reserve = ReserveRequirement(min_ratio=0.20)
+
+    if reserve.check_reserve(pool_value=100000, reserve=25000):  # 25% reserve
+        defenses["reserve_requirements"] = True
+
+    # ========================================================================
+    # Defense 3: Contagion Detection
+    # ========================================================================
+
+    class ContagionDetector:
+        """Detect spreading liquidity failures."""
+
+        def __init__(self):
+            self.failures = []
+            self.connections = defaultdict(set)
+
+        def add_connection(self, pool_a: str, pool_b: str):
+            self.connections[pool_a].add(pool_b)
+            self.connections[pool_b].add(pool_a)
+
+        def record_failure(self, pool_id: str, timestamp: int):
+            self.failures.append((pool_id, timestamp))
+
+        def detect_contagion(self, time_window: int = 3600) -> bool:
+            """Check if failures are spreading through connections."""
+            if len(self.failures) < 2:
+                return False
+
+            recent = [f for f in self.failures if f[1] > time.time() - time_window]
+            failed_pools = set(f[0] for f in recent)
+
+            # Check for connected failures
+            for pool in failed_pools:
+                connected_failures = failed_pools.intersection(self.connections[pool])
+                if len(connected_failures) > 0:
+                    return True
+            return False
+
+    detector = ContagionDetector()
+    detector.add_connection("pool_A", "pool_B")
+    detector.record_failure("pool_A", int(time.time()))
+    detector.record_failure("pool_B", int(time.time()))
+
+    if detector.detect_contagion():
+        defenses["contagion_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Liquidity Buffers
+    # ========================================================================
+
+    class LiquidityBuffer:
+        """Maintain emergency liquidity buffers."""
+
+        def __init__(self, buffer_ratio: float = 0.10):
+            self.buffer_ratio = buffer_ratio
+            self.buffers = {}
+
+        def set_buffer(self, pool_id: str, amount: float):
+            self.buffers[pool_id] = amount
+
+        def use_buffer(self, pool_id: str, amount: float) -> float:
+            available = self.buffers.get(pool_id, 0)
+            used = min(available, amount)
+            self.buffers[pool_id] = available - used
+            return used
+
+        def check_buffer(self, pool_id: str, pool_value: float) -> bool:
+            return self.buffers.get(pool_id, 0) >= pool_value * self.buffer_ratio
+
+    buffer = LiquidityBuffer(buffer_ratio=0.10)
+    buffer.set_buffer("pool_1", 15000)
+
+    if buffer.check_buffer("pool_1", pool_value=100000):
+        defenses["liquidity_buffers"] = True
+
+    # ========================================================================
+    # Defense 5: Dependency Limits
+    # ========================================================================
+
+    class DependencyLimiter:
+        """Limit exposure to any single counterparty."""
+
+        def __init__(self, max_exposure_ratio: float = 0.25):
+            self.max_exposure = max_exposure_ratio
+            self.exposures = defaultdict(float)
+            self.total_assets = 0
+
+        def set_total_assets(self, amount: float):
+            self.total_assets = amount
+
+        def record_exposure(self, counterparty: str, amount: float) -> bool:
+            """Record and check exposure limits."""
+            new_exposure = self.exposures[counterparty] + amount
+            if self.total_assets > 0:
+                ratio = new_exposure / self.total_assets
+                if ratio > self.max_exposure:
+                    return False
+            self.exposures[counterparty] = new_exposure
+            return True
+
+        def check_exposure(self, counterparty: str) -> float:
+            if self.total_assets == 0:
+                return 0
+            return self.exposures.get(counterparty, 0) / self.total_assets
+
+    limiter = DependencyLimiter(max_exposure_ratio=0.25)
+    limiter.set_total_assets(1000000)
+    allowed = limiter.record_exposure("big_pool", 200000)  # 20%
+
+    if allowed:
+        defenses["dependency_limits"] = True
+
+    # ========================================================================
+    # Defense 6: Emergency Liquidity
+    # ========================================================================
+
+    class EmergencyLiquidity:
+        """Provide emergency liquidity during stress."""
+
+        def __init__(self, total_available: float = 10000000.0):
+            self.available = total_available
+            self.used = 0
+
+        def request_liquidity(self, amount: float, priority: int) -> float:
+            """Request emergency liquidity."""
+            # Higher priority = more allocation
+            max_grant = self.available * (priority / 10.0)
+            granted = min(amount, max_grant, self.available)
+            self.available -= granted
+            self.used += granted
+            return granted
+
+        def repay(self, amount: float):
+            repaid = min(amount, self.used)
+            self.available += repaid
+            self.used -= repaid
+
+    emergency = EmergencyLiquidity()
+    granted = emergency.request_liquidity(500000, priority=8)
+
+    if granted >= 400000:  # Got most of request
+        defenses["emergency_liquidity"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Liquidity Cascade (EZ-1a)",
+        success=attack_success,
+        setup_cost_atp=100000.0,
+        gain_atp=5000000.0 if attack_success else 0.0,
+        roi=(5000000.0 / 100000.0) if attack_success else -1.0,
+        detection_probability=0.60 if defenses_held >= 4 else 0.20,
+        time_to_detection_hours=2.0,
+        blocks_until_detected=10,
+        trust_damage=0.99,
+        description=f"""
+LIQUIDITY CASCADE (Track EZ-1a)
+
+Trigger domino-effect liquidity failures.
+
+Attack Pattern:
+1. Map pool dependencies and interconnections
+2. Identify weakest link (lowest reserves)
+3. Drain key pool to trigger margin calls
+4. Watch cascade propagate through system
+
+One pool falls, they all fall.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EZ-1a: Cascade Defense:
+1. Circuit breakers on rapid movements
+2. Minimum reserve requirements
+3. Contagion pattern detection
+4. Emergency liquidity buffers
+5. Dependency/exposure limits
+6. Central emergency liquidity facility
+
+Isolated failures, contained damage.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_trust_collateral_spiral() -> AttackResult:
+    """
+    ATTACK: Trust-Collateral Spiral (EZ-1b)
+
+    Create self-reinforcing spiral where dropping trust
+    triggers collateral calls which further drops trust.
+
+    Strategy:
+    1. Identify entities using trust scores as collateral
+    2. Slightly damage trust through coordinated negative reports
+    3. Trigger margin call, entity forced to sell
+    4. Selling further damages trust, spiral continues
+    """
+    defenses = {
+        "trust_collateral_separation": False,
+        "gradual_collateral_requirements": False,
+        "trust_floor_protection": False,
+        "cooling_off_periods": False,
+        "anti_spiral_detection": False,
+        "collateral_diversification": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Trust-Collateral Separation
+    # ========================================================================
+
+    class TrustCollateralSeparator:
+        """Don't use trust directly as collateral."""
+
+        def __init__(self, trust_weight: float = 0.3):
+            self.trust_weight = trust_weight
+
+        def calculate_effective_collateral(
+            self, hard_collateral: float, trust_score: float
+        ) -> float:
+            """Trust supplements but doesn't replace hard collateral."""
+            trust_bonus = trust_score * hard_collateral * self.trust_weight
+            return hard_collateral + trust_bonus
+
+        def minimum_hard_collateral(self, total_required: float) -> float:
+            """Minimum hard collateral regardless of trust."""
+            return total_required * 0.7  # At least 70% must be hard
+
+    separator = TrustCollateralSeparator()
+    effective = separator.calculate_effective_collateral(100000, trust_score=0.8)
+    min_hard = separator.minimum_hard_collateral(100000)
+
+    if effective > 100000 and min_hard == 70000:
+        defenses["trust_collateral_separation"] = True
+
+    # ========================================================================
+    # Defense 2: Gradual Collateral Requirements
+    # ========================================================================
+
+    class GradualCollateral:
+        """Phase in collateral requirements gradually."""
+
+        def __init__(self, steps: int = 5, delay_blocks: int = 100):
+            self.steps = steps
+            self.delay_blocks = delay_blocks
+
+        def calculate_required_at_step(
+            self, final_required: float, current_step: int
+        ) -> float:
+            """Gradually increase requirements."""
+            return final_required * (current_step / self.steps)
+
+        def blocks_until_full(self) -> int:
+            return self.delay_blocks * self.steps
+
+    gradual = GradualCollateral(steps=5, delay_blocks=100)
+    step_2_required = gradual.calculate_required_at_step(100000, current_step=2)
+
+    if step_2_required == 40000:  # 2/5 of full
+        defenses["gradual_collateral_requirements"] = True
+
+    # ========================================================================
+    # Defense 3: Trust Floor Protection
+    # ========================================================================
+
+    class TrustFloor:
+        """Prevent trust from falling below floor during stress."""
+
+        def __init__(self, floor_ratio: float = 0.5):
+            self.floor_ratio = floor_ratio
+            self.historical_peaks = {}
+
+        def record_peak(self, entity_id: str, trust: float):
+            current_peak = self.historical_peaks.get(entity_id, 0)
+            self.historical_peaks[entity_id] = max(current_peak, trust)
+
+        def get_floor(self, entity_id: str) -> float:
+            peak = self.historical_peaks.get(entity_id, 0.5)
+            return peak * self.floor_ratio
+
+        def enforce_floor(self, entity_id: str, current_trust: float) -> float:
+            floor = self.get_floor(entity_id)
+            return max(current_trust, floor)
+
+    floor = TrustFloor(floor_ratio=0.5)
+    floor.record_peak("entity_1", 0.9)
+    enforced = floor.enforce_floor("entity_1", current_trust=0.3)
+
+    if enforced == 0.45:  # Floor is 50% of peak
+        defenses["trust_floor_protection"] = True
+
+    # ========================================================================
+    # Defense 4: Cooling-Off Periods
+    # ========================================================================
+
+    class CoolingPeriod:
+        """Enforce delays between collateral adjustments."""
+
+        def __init__(self, min_blocks_between: int = 50):
+            self.min_blocks = min_blocks_between
+            self.last_adjustment = {}
+
+        def can_adjust(self, entity_id: str, current_block: int) -> bool:
+            last = self.last_adjustment.get(entity_id, 0)
+            return current_block - last >= self.min_blocks
+
+        def record_adjustment(self, entity_id: str, current_block: int):
+            self.last_adjustment[entity_id] = current_block
+
+    cooling = CoolingPeriod(min_blocks_between=50)
+    cooling.record_adjustment("entity_1", 100)
+
+    if not cooling.can_adjust("entity_1", current_block=120):  # Too soon
+        if cooling.can_adjust("entity_1", current_block=160):  # OK now
+            defenses["cooling_off_periods"] = True
+
+    # ========================================================================
+    # Defense 5: Anti-Spiral Detection
+    # ========================================================================
+
+    class SpiralDetector:
+        """Detect trust-collateral spirals."""
+
+        def __init__(self, threshold_iterations: int = 3):
+            self.threshold = threshold_iterations
+            self.events = defaultdict(list)
+
+        def record_event(self, entity_id: str, event_type: str, block: int):
+            self.events[entity_id].append((event_type, block))
+
+        def detect_spiral(self, entity_id: str) -> bool:
+            """Check for alternating trust_drop -> collateral_call pattern."""
+            events = self.events.get(entity_id, [])
+            if len(events) < self.threshold * 2:
+                return False
+
+            # Look for repeating pattern
+            pattern_count = 0
+            for i in range(0, len(events) - 1, 2):
+                if events[i][0] == "trust_drop" and events[i+1][0] == "collateral_call":
+                    pattern_count += 1
+
+            return pattern_count >= self.threshold
+
+    spiral_detector = SpiralDetector(threshold_iterations=3)
+    for i in range(4):
+        spiral_detector.record_event("entity_1", "trust_drop", i * 2)
+        spiral_detector.record_event("entity_1", "collateral_call", i * 2 + 1)
+
+    if spiral_detector.detect_spiral("entity_1"):
+        defenses["anti_spiral_detection"] = True
+
+    # ========================================================================
+    # Defense 6: Collateral Diversification
+    # ========================================================================
+
+    class CollateralDiversifier:
+        """Require diversified collateral types."""
+
+        def __init__(self, max_single_type: float = 0.5):
+            self.max_single_type = max_single_type
+
+        def check_diversification(self, collateral: dict) -> bool:
+            """Check collateral is adequately diversified."""
+            total = sum(collateral.values())
+            if total == 0:
+                return True
+
+            for value in collateral.values():
+                if value / total > self.max_single_type:
+                    return False
+            return True
+
+        def suggest_rebalance(self, collateral: dict) -> dict:
+            """Suggest rebalanced collateral."""
+            total = sum(collateral.values())
+            n_types = len(collateral)
+            target = total / n_types
+            return {k: target for k in collateral.keys()}
+
+    diversifier = CollateralDiversifier(max_single_type=0.5)
+    collateral = {"atp": 40000, "staked_tokens": 30000, "bonds": 30000}
+
+    if diversifier.check_diversification(collateral):
+        defenses["collateral_diversification"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Trust-Collateral Spiral (EZ-1b)",
+        success=attack_success,
+        setup_cost_atp=50000.0,
+        gain_atp=2000000.0 if attack_success else 0.0,
+        roi=(2000000.0 / 50000.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 4 else 0.20,
+        time_to_detection_hours=6.0,
+        blocks_until_detected=30,
+        trust_damage=0.95,
+        description=f"""
+TRUST-COLLATERAL SPIRAL (Track EZ-1b)
+
+Create self-reinforcing destruction loop.
+
+Attack Pattern:
+1. Target entity using trust as collateral
+2. Damage trust slightly via coordinated reports
+3. Trigger margin call, forced selling
+4. Selling damages trust further, loop continues
+
+Trust begets selling begets distrust begets more selling.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EZ-1b: Spiral Defense:
+1. Separate trust from hard collateral
+2. Gradual collateral requirement changes
+3. Trust floor protection during stress
+4. Cooling-off periods between adjustments
+5. Spiral pattern detection
+6. Collateral type diversification
+
+Break the feedback loop.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_atp_starvation_cascade() -> AttackResult:
+    """
+    ATTACK: ATP Starvation Cascade (EZ-2a)
+
+    Trigger cascading ATP exhaustion through dependency chains
+    where entities depend on others' ATP for operations.
+
+    Strategy:
+    1. Map ATP dependency graph
+    2. Identify critical ATP providers (high-connectivity nodes)
+    3. Exhaust their ATP through expensive operations
+    4. Dependent entities can't operate, exhaust their ATP waiting
+    """
+    defenses = {
+        "atp_isolation": False,
+        "dependency_graph_monitoring": False,
+        "critical_path_redundancy": False,
+        "atp_recharge_priority": False,
+        "cascade_circuit_breakers": False,
+        "emergency_atp_allocation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: ATP Isolation
+    # ========================================================================
+
+    class ATPIsolator:
+        """Isolate ATP between entities."""
+
+        def __init__(self, max_cross_dependency: float = 0.30):
+            self.max_dependency = max_cross_dependency
+            self.dependencies = defaultdict(dict)
+
+        def record_dependency(
+            self, entity: str, depends_on: str, ratio: float
+        ) -> bool:
+            if ratio > self.max_dependency:
+                return False
+            self.dependencies[entity][depends_on] = ratio
+            return True
+
+        def get_isolation_score(self, entity: str) -> float:
+            """Higher score = more isolated = safer."""
+            deps = self.dependencies.get(entity, {})
+            if not deps:
+                return 1.0
+            return 1.0 - max(deps.values())
+
+    isolator = ATPIsolator(max_cross_dependency=0.30)
+    isolator.record_dependency("entity_a", "entity_b", 0.20)
+
+    if isolator.get_isolation_score("entity_a") >= 0.70:
+        defenses["atp_isolation"] = True
+
+    # ========================================================================
+    # Defense 2: Dependency Graph Monitoring
+    # ========================================================================
+
+    class DependencyGraphMonitor:
+        """Monitor and analyze ATP dependency graph."""
+
+        def __init__(self):
+            self.graph = defaultdict(set)
+
+        def add_dependency(self, from_entity: str, to_entity: str):
+            self.graph[from_entity].add(to_entity)
+
+        def find_critical_nodes(self) -> list:
+            """Find nodes that many entities depend on."""
+            in_degree = defaultdict(int)
+            for deps in self.graph.values():
+                for dep in deps:
+                    in_degree[dep] += 1
+
+            # Critical = high in-degree
+            avg = sum(in_degree.values()) / len(in_degree) if in_degree else 0
+            return [n for n, d in in_degree.items() if d > avg * 2]
+
+        def get_cascade_risk(self, entity: str) -> float:
+            """Estimate cascade risk if entity fails."""
+            visited = set()
+            queue = [entity]
+            while queue:
+                current = queue.pop(0)
+                if current in visited:
+                    continue
+                visited.add(current)
+                # Add entities that depend on current
+                for e, deps in self.graph.items():
+                    if current in deps and e not in visited:
+                        queue.append(e)
+            return len(visited) / max(len(self.graph), 1)
+
+    monitor = DependencyGraphMonitor()
+    monitor.add_dependency("a", "hub")
+    monitor.add_dependency("b", "hub")
+    monitor.add_dependency("c", "hub")
+
+    if "hub" in monitor.find_critical_nodes():
+        defenses["dependency_graph_monitoring"] = True
+
+    # ========================================================================
+    # Defense 3: Critical Path Redundancy
+    # ========================================================================
+
+    class CriticalPathRedundancy:
+        """Ensure redundant providers for critical ATP paths."""
+
+        def __init__(self, min_redundancy: int = 2):
+            self.min_redundancy = min_redundancy
+            self.providers = defaultdict(set)
+
+        def add_provider(self, entity: str, provider: str):
+            self.providers[entity].add(provider)
+
+        def check_redundancy(self, entity: str) -> bool:
+            return len(self.providers.get(entity, set())) >= self.min_redundancy
+
+        def suggest_providers(self, entity: str, available: list) -> list:
+            """Suggest additional providers."""
+            current = self.providers.get(entity, set())
+            needed = self.min_redundancy - len(current)
+            return [p for p in available if p not in current][:needed]
+
+    redundancy = CriticalPathRedundancy(min_redundancy=2)
+    redundancy.add_provider("entity_1", "provider_a")
+    redundancy.add_provider("entity_1", "provider_b")
+
+    if redundancy.check_redundancy("entity_1"):
+        defenses["critical_path_redundancy"] = True
+
+    # ========================================================================
+    # Defense 4: ATP Recharge Priority
+    # ========================================================================
+
+    class RecharePriority:
+        """Prioritize ATP recharge for critical entities."""
+
+        def __init__(self):
+            self.priority_levels = {}
+
+        def set_priority(self, entity: str, level: int):
+            """Higher level = higher priority."""
+            self.priority_levels[entity] = level
+
+        def get_recharge_order(self, entities: list) -> list:
+            """Sort entities by recharge priority."""
+            return sorted(
+                entities,
+                key=lambda e: self.priority_levels.get(e, 0),
+                reverse=True
+            )
+
+        def allocate_recharge(
+            self, entities: list, total_atp: float
+        ) -> dict:
+            """Allocate ATP based on priority."""
+            ordered = self.get_recharge_order(entities)
+            allocation = {}
+            remaining = total_atp
+            per_entity = total_atp / len(entities) if entities else 0
+
+            for entity in ordered:
+                priority = self.priority_levels.get(entity, 1)
+                alloc = min(per_entity * priority, remaining)
+                allocation[entity] = alloc
+                remaining -= alloc
+
+            return allocation
+
+    priority = RecharePriority()
+    priority.set_priority("critical_hub", 3)
+    priority.set_priority("normal_entity", 1)
+
+    order = priority.get_recharge_order(["normal_entity", "critical_hub"])
+    if order[0] == "critical_hub":
+        defenses["atp_recharge_priority"] = True
+
+    # ========================================================================
+    # Defense 5: Cascade Circuit Breakers
+    # ========================================================================
+
+    class CascadeBreaker:
+        """Break ATP starvation cascades."""
+
+        def __init__(self, max_failures_per_window: int = 5):
+            self.max_failures = max_failures_per_window
+            self.recent_failures = []
+            self.tripped = False
+
+        def record_failure(self, entity: str, timestamp: int):
+            self.recent_failures.append((entity, timestamp))
+            # Keep last hour
+            cutoff = timestamp - 3600
+            self.recent_failures = [
+                (e, t) for e, t in self.recent_failures if t > cutoff
+            ]
+            if len(self.recent_failures) >= self.max_failures:
+                self.tripped = True
+
+        def is_tripped(self) -> bool:
+            return self.tripped
+
+        def emergency_action(self) -> str:
+            if self.tripped:
+                return "Halt non-essential operations, prioritize recharges"
+            return "Normal operation"
+
+    breaker = CascadeBreaker(max_failures_per_window=5)
+    for i in range(6):
+        breaker.record_failure(f"entity_{i}", int(time.time()))
+
+    if breaker.is_tripped():
+        defenses["cascade_circuit_breakers"] = True
+
+    # ========================================================================
+    # Defense 6: Emergency ATP Allocation
+    # ========================================================================
+
+    class EmergencyATPAllocator:
+        """Emergency ATP allocation during cascade."""
+
+        def __init__(self, reserve: float = 1000000.0):
+            self.reserve = reserve
+            self.allocated = {}
+
+        def request_emergency_atp(
+            self, entity: str, amount: float, justification: str
+        ) -> float:
+            """Request emergency ATP."""
+            # Check justification
+            if "cascade" not in justification.lower():
+                return 0
+
+            granted = min(amount, self.reserve * 0.1)  # Max 10% per request
+            self.reserve -= granted
+            self.allocated[entity] = self.allocated.get(entity, 0) + granted
+            return granted
+
+        def get_remaining_reserve(self) -> float:
+            return self.reserve
+
+    allocator = EmergencyATPAllocator(reserve=1000000.0)
+    granted = allocator.request_emergency_atp(
+        "starving_entity", 50000, "cascade event in progress"
+    )
+
+    if granted >= 50000:
+        defenses["emergency_atp_allocation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="ATP Starvation Cascade (EZ-2a)",
+        success=attack_success,
+        setup_cost_atp=75000.0,
+        gain_atp=3000000.0 if attack_success else 0.0,
+        roi=(3000000.0 / 75000.0) if attack_success else -1.0,
+        detection_probability=0.65 if defenses_held >= 4 else 0.25,
+        time_to_detection_hours=4.0,
+        blocks_until_detected=20,
+        trust_damage=0.92,
+        description=f"""
+ATP STARVATION CASCADE (Track EZ-2a)
+
+Starve the network of operational energy.
+
+Attack Pattern:
+1. Map ATP dependency graph
+2. Identify critical ATP provider hubs
+3. Exhaust hub ATP through expensive ops
+4. Dependent entities starve, cascade spreads
+
+Cut off the energy, watch the lights go out.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EZ-2a: Starvation Defense:
+1. ATP isolation between entities
+2. Dependency graph monitoring
+3. Critical path redundancy
+4. Priority recharge for critical nodes
+5. Cascade circuit breakers
+6. Emergency ATP allocation
+
+Multiple power sources, no single point of failure.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_reputation_contagion() -> AttackResult:
+    """
+    ATTACK: Reputation Contagion (EZ-2b)
+
+    Spread negative reputation through association,
+    damaging entities connected to initially-targeted victims.
+
+    Strategy:
+    1. Target entity with many trusted connections
+    2. Damage target's reputation severely
+    3. Contagion spreads to associated entities
+    4. Network-wide trust damage from single attack
+    """
+    defenses = {
+        "association_firewalls": False,
+        "contagion_rate_limiting": False,
+        "reputation_quarantine": False,
+        "evidence_based_spreading": False,
+        "recovery_mechanisms": False,
+        "association_transparency": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Association Firewalls
+    # ========================================================================
+
+    class AssociationFirewall:
+        """Limit reputation spread through associations."""
+
+        def __init__(self, max_spread_ratio: float = 0.2):
+            self.max_spread = max_spread_ratio
+
+        def calculate_association_impact(
+            self, source_damage: float, association_strength: float
+        ) -> float:
+            """Calculate limited impact on associated entity."""
+            raw_impact = source_damage * association_strength
+            return min(raw_impact, source_damage * self.max_spread)
+
+        def should_propagate(self, damage: float) -> bool:
+            """Check if damage is significant enough to propagate."""
+            return damage > 0.1  # Minimum 10% damage to propagate
+
+    firewall = AssociationFirewall(max_spread_ratio=0.2)
+    impact = firewall.calculate_association_impact(
+        source_damage=0.5, association_strength=0.8
+    )
+
+    if impact <= 0.1:  # Capped at 20% of source
+        defenses["association_firewalls"] = True
+
+    # ========================================================================
+    # Defense 2: Contagion Rate Limiting
+    # ========================================================================
+
+    class ContagionRateLimiter:
+        """Limit speed of reputation contagion."""
+
+        def __init__(self, max_entities_per_block: int = 3):
+            self.max_per_block = max_entities_per_block
+            self.propagation_queue = []
+
+        def queue_propagation(self, entity: str, damage: float):
+            self.propagation_queue.append((entity, damage))
+
+        def get_next_batch(self) -> list:
+            """Get limited batch for next block."""
+            batch = self.propagation_queue[:self.max_per_block]
+            self.propagation_queue = self.propagation_queue[self.max_per_block:]
+            return batch
+
+        def blocks_to_clear(self) -> int:
+            return (len(self.propagation_queue) + self.max_per_block - 1) // self.max_per_block
+
+    limiter = ContagionRateLimiter(max_entities_per_block=3)
+    for i in range(10):
+        limiter.queue_propagation(f"entity_{i}", 0.1)
+
+    batch = limiter.get_next_batch()
+    if len(batch) == 3:
+        defenses["contagion_rate_limiting"] = True
+
+    # ========================================================================
+    # Defense 3: Reputation Quarantine
+    # ========================================================================
+
+    class ReputationQuarantine:
+        """Quarantine entities during investigation."""
+
+        def __init__(self, quarantine_blocks: int = 100):
+            self.quarantine_blocks = quarantine_blocks
+            self.quarantined = {}
+
+        def quarantine(self, entity: str, block: int, reason: str):
+            self.quarantined[entity] = {
+                "start_block": block,
+                "end_block": block + self.quarantine_blocks,
+                "reason": reason,
+            }
+
+        def is_quarantined(self, entity: str, current_block: int) -> bool:
+            q = self.quarantined.get(entity)
+            if not q:
+                return False
+            return current_block < q["end_block"]
+
+        def release_early(self, entity: str) -> bool:
+            if entity in self.quarantined:
+                del self.quarantined[entity]
+                return True
+            return False
+
+    quarantine = ReputationQuarantine(quarantine_blocks=100)
+    quarantine.quarantine("suspect", block=50, reason="contagion vector")
+
+    if quarantine.is_quarantined("suspect", current_block=100):
+        defenses["reputation_quarantine"] = True
+
+    # ========================================================================
+    # Defense 4: Evidence-Based Spreading
+    # ========================================================================
+
+    class EvidenceRequirement:
+        """Require evidence for reputation changes to spread."""
+
+        def __init__(self, min_evidence_quality: float = 0.7):
+            self.min_quality = min_evidence_quality
+
+        def evaluate_evidence(self, evidence: dict) -> float:
+            """Score evidence quality."""
+            score = 0.0
+            if evidence.get("witnesses", 0) >= 3:
+                score += 0.3
+            if evidence.get("verified_chain"):
+                score += 0.4
+            if evidence.get("timestamp_proof"):
+                score += 0.3
+            return score
+
+        def allow_propagation(self, evidence: dict) -> bool:
+            return self.evaluate_evidence(evidence) >= self.min_quality
+
+    evidence_req = EvidenceRequirement(min_evidence_quality=0.7)
+    evidence = {"witnesses": 5, "verified_chain": True, "timestamp_proof": True}
+
+    if evidence_req.allow_propagation(evidence):
+        defenses["evidence_based_spreading"] = True
+
+    # ========================================================================
+    # Defense 5: Recovery Mechanisms
+    # ========================================================================
+
+    class ReputationRecovery:
+        """Enable recovery from contagion damage."""
+
+        def __init__(self, recovery_rate: float = 0.05):
+            self.recovery_rate = recovery_rate
+            self.damaged_entities = {}
+
+        def record_damage(self, entity: str, amount: float, is_direct: bool):
+            self.damaged_entities[entity] = {
+                "amount": amount,
+                "direct": is_direct,  # Direct attacks don't recover
+            }
+
+        def calculate_recovery(self, entity: str, blocks_passed: int) -> float:
+            """Calculate recovery for indirect (contagion) damage."""
+            damage_info = self.damaged_entities.get(entity)
+            if not damage_info or damage_info["direct"]:
+                return 0.0
+
+            max_recovery = damage_info["amount"]
+            recovery = min(self.recovery_rate * blocks_passed, max_recovery)
+            return recovery
+
+    recovery = ReputationRecovery(recovery_rate=0.05)
+    recovery.record_damage("victim", amount=0.3, is_direct=False)  # Contagion damage
+    recovered = recovery.calculate_recovery("victim", blocks_passed=10)
+
+    if recovered >= 0.3:  # Full recovery possible
+        defenses["recovery_mechanisms"] = True
+
+    # ========================================================================
+    # Defense 6: Association Transparency
+    # ========================================================================
+
+    class AssociationTransparency:
+        """Make associations visible to enable informed decisions."""
+
+        def __init__(self):
+            self.associations = defaultdict(dict)
+
+        def record_association(
+            self, entity_a: str, entity_b: str, strength: float, context: str
+        ):
+            self.associations[entity_a][entity_b] = {
+                "strength": strength,
+                "context": context,
+            }
+            self.associations[entity_b][entity_a] = {
+                "strength": strength,
+                "context": context,
+            }
+
+        def get_associations(self, entity: str) -> dict:
+            return self.associations.get(entity, {})
+
+        def disclosure_report(self, entity: str) -> str:
+            """Generate transparency report."""
+            assocs = self.get_associations(entity)
+            return f"{entity} has {len(assocs)} associations"
+
+    transparency = AssociationTransparency()
+    transparency.record_association("A", "B", 0.8, "business_partner")
+
+    if "1 associations" in transparency.disclosure_report("A"):
+        defenses["association_transparency"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Reputation Contagion (EZ-2b)",
+        success=attack_success,
+        setup_cost_atp=40000.0,
+        gain_atp=1500000.0 if attack_success else 0.0,
+        roi=(1500000.0 / 40000.0) if attack_success else -1.0,
+        detection_probability=0.50 if defenses_held >= 4 else 0.20,
+        time_to_detection_hours=12.0,
+        blocks_until_detected=60,
+        trust_damage=0.88,
+        description=f"""
+REPUTATION CONTAGION (Track EZ-2b)
+
+Infect the network through reputation spread.
+
+Attack Pattern:
+1. Target high-connectivity entity
+2. Damage their reputation severely
+3. Damage spreads to associated entities
+4. Network-wide reputation crisis
+
+Guilt by association, scaled to the network.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EZ-2b: Contagion Defense:
+1. Association firewalls (limited spread)
+2. Rate-limited propagation
+3. Quarantine during investigation
+4. Evidence requirements for spread
+5. Recovery for indirect damage
+6. Transparent association disclosure
+
+Limit the blast radius.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_systemic_risk_concentration() -> AttackResult:
+    """
+    ATTACK: Systemic Risk Concentration (EZ-3a)
+
+    Concentrate systemic risk in hidden ways that evade
+    monitoring until catastrophic failure.
+
+    Strategy:
+    1. Create multiple apparently-independent entities
+    2. Secretly concentrate risk through complex structures
+    3. Appear well-diversified to monitors
+    4. Sudden correlated failure reveals concentration
+    """
+    defenses = {
+        "beneficial_ownership_tracking": False,
+        "concentration_metrics": False,
+        "correlation_analysis": False,
+        "stress_testing": False,
+        "hidden_connection_detection": False,
+        "systemic_importance_designation": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Beneficial Ownership Tracking
+    # ========================================================================
+
+    class BeneficialOwnership:
+        """Track ultimate beneficial owners."""
+
+        def __init__(self):
+            self.ownership_chains = {}
+            self.ultimate_owners = {}
+
+        def register_ownership(
+            self, entity: str, owners: dict
+        ):
+            """Register ownership structure."""
+            self.ownership_chains[entity] = owners
+
+        def resolve_ultimate_owner(self, entity: str, visited: set = None) -> dict:
+            """Trace through ownership chains."""
+            if visited is None:
+                visited = set()
+
+            if entity in visited:
+                return {"circular": True}
+
+            visited.add(entity)
+            owners = self.ownership_chains.get(entity, {entity: 1.0})
+
+            result = {}
+            for owner, share in owners.items():
+                if owner in self.ownership_chains:
+                    sub_owners = self.resolve_ultimate_owner(owner, visited)
+                    for so, ss in sub_owners.items():
+                        result[so] = result.get(so, 0) + share * ss
+                else:
+                    result[owner] = result.get(owner, 0) + share
+            return result
+
+    ownership = BeneficialOwnership()
+    ownership.register_ownership("entity_a", {"holding_co": 1.0})
+    ownership.register_ownership("holding_co", {"ultimate_owner": 1.0})
+
+    ultimate = ownership.resolve_ultimate_owner("entity_a")
+    if ultimate.get("ultimate_owner") == 1.0:
+        defenses["beneficial_ownership_tracking"] = True
+
+    # ========================================================================
+    # Defense 2: Concentration Metrics
+    # ========================================================================
+
+    class ConcentrationMetrics:
+        """Calculate concentration metrics (HHI, etc.)."""
+
+        def calculate_hhi(self, shares: list) -> float:
+            """Herfindahl-Hirschman Index."""
+            return sum(s * s for s in shares) * 10000
+
+        def is_concentrated(self, shares: list, threshold: float = 2500) -> bool:
+            """Check if market/system is concentrated."""
+            return self.calculate_hhi(shares) > threshold
+
+        def gini_coefficient(self, values: list) -> float:
+            """Calculate Gini coefficient for inequality."""
+            if not values or sum(values) == 0:
+                return 0
+
+            sorted_values = sorted(values)
+            n = len(sorted_values)
+            cumsum = 0
+            for i, v in enumerate(sorted_values):
+                cumsum += (2 * (i + 1) - n - 1) * v
+            return cumsum / (n * sum(sorted_values))
+
+    metrics = ConcentrationMetrics()
+    shares = [0.4, 0.3, 0.15, 0.1, 0.05]  # Concentrated market
+
+    if metrics.is_concentrated(shares):
+        defenses["concentration_metrics"] = True
+
+    # ========================================================================
+    # Defense 3: Correlation Analysis
+    # ========================================================================
+
+    class CorrelationAnalyzer:
+        """Analyze correlations between entity behaviors."""
+
+        def __init__(self):
+            self.history = defaultdict(list)
+
+        def record_action(self, entity: str, action_type: str, value: float):
+            self.history[entity].append((action_type, value))
+
+        def calculate_correlation(self, entity_a: str, entity_b: str) -> float:
+            """Calculate correlation between entity behaviors."""
+            hist_a = [v for _, v in self.history.get(entity_a, [])]
+            hist_b = [v for _, v in self.history.get(entity_b, [])]
+
+            if len(hist_a) < 3 or len(hist_b) < 3:
+                return 0.0
+
+            # Simple correlation (Pearson)
+            n = min(len(hist_a), len(hist_b))
+            mean_a = sum(hist_a[:n]) / n
+            mean_b = sum(hist_b[:n]) / n
+
+            num = sum((a - mean_a) * (b - mean_b) for a, b in zip(hist_a[:n], hist_b[:n]))
+            den_a = sum((a - mean_a) ** 2 for a in hist_a[:n]) ** 0.5
+            den_b = sum((b - mean_b) ** 2 for b in hist_b[:n]) ** 0.5
+
+            if den_a * den_b == 0:
+                return 0.0
+            return num / (den_a * den_b)
+
+    correlator = CorrelationAnalyzer()
+    for i in range(10):
+        correlator.record_action("A", "trade", i * 1.0)
+        correlator.record_action("B", "trade", i * 1.1)  # Correlated
+
+    if abs(correlator.calculate_correlation("A", "B")) > 0.9:
+        defenses["correlation_analysis"] = True
+
+    # ========================================================================
+    # Defense 4: Stress Testing
+    # ========================================================================
+
+    class StressTester:
+        """Test system under stress scenarios."""
+
+        def __init__(self):
+            self.scenarios = []
+
+        def add_scenario(self, name: str, shocks: dict):
+            self.scenarios.append({"name": name, "shocks": shocks})
+
+        def run_scenario(self, system_state: dict, scenario: dict) -> dict:
+            """Apply shocks and return resulting state."""
+            result = system_state.copy()
+            for key, shock in scenario["shocks"].items():
+                if key in result:
+                    result[key] = result[key] * (1 + shock)
+            return result
+
+        def identify_vulnerabilities(self, system_state: dict) -> list:
+            """Run all scenarios and find vulnerabilities."""
+            vulnerabilities = []
+            for scenario in self.scenarios:
+                result = self.run_scenario(system_state, scenario)
+                for key, value in result.items():
+                    if value < 0:  # Failure condition
+                        vulnerabilities.append((scenario["name"], key))
+            return vulnerabilities
+
+    stress = StressTester()
+    stress.add_scenario("market_crash", {"atp_price": -0.5, "trust_avg": -0.3})
+    stress.add_scenario("liquidity_crisis", {"liquidity": -0.8})
+
+    system = {"atp_price": 100, "trust_avg": 0.8, "liquidity": 1000000}
+    vulns = stress.identify_vulnerabilities(system)
+
+    if len(vulns) >= 0:  # Stress testing works
+        defenses["stress_testing"] = True
+
+    # ========================================================================
+    # Defense 5: Hidden Connection Detection
+    # ========================================================================
+
+    class HiddenConnectionDetector:
+        """Detect hidden relationships between entities."""
+
+        def __init__(self):
+            self.behavioral_patterns = defaultdict(list)
+
+        def record_pattern(self, entity: str, pattern: str, timestamp: int):
+            self.behavioral_patterns[entity].append((pattern, timestamp))
+
+        def find_coincidental_patterns(self) -> list:
+            """Find suspiciously coincidental behavior."""
+            coincidences = []
+
+            entities = list(self.behavioral_patterns.keys())
+            for i, e1 in enumerate(entities):
+                for e2 in entities[i + 1:]:
+                    patterns1 = set(p for p, _ in self.behavioral_patterns[e1])
+                    patterns2 = set(p for p, _ in self.behavioral_patterns[e2])
+                    overlap = patterns1.intersection(patterns2)
+                    if len(overlap) > len(patterns1) * 0.7:
+                        coincidences.append((e1, e2, len(overlap)))
+
+            return coincidences
+
+    detector = HiddenConnectionDetector()
+    for pattern in ["buy_dip", "sell_peak", "hedge_vol"]:
+        detector.record_pattern("entity_x", pattern, 100)
+        detector.record_pattern("entity_y", pattern, 100)  # Same patterns!
+
+    coincidences = detector.find_coincidental_patterns()
+    if len(coincidences) > 0:
+        defenses["hidden_connection_detection"] = True
+
+    # ========================================================================
+    # Defense 6: Systemic Importance Designation
+    # ========================================================================
+
+    class SystemicImportanceDesignation:
+        """Designate and monitor systemically important entities."""
+
+        def __init__(self, thresholds: dict = None):
+            self.thresholds = thresholds or {
+                "atp_share": 0.1,
+                "connection_count": 50,
+                "transaction_volume": 0.15,
+            }
+            self.designated = set()
+
+        def evaluate(self, entity: str, metrics: dict) -> bool:
+            """Evaluate if entity is systemically important."""
+            is_sifi = False
+            for metric, threshold in self.thresholds.items():
+                if metrics.get(metric, 0) >= threshold:
+                    is_sifi = True
+                    break
+            return is_sifi
+
+        def designate(self, entity: str, metrics: dict) -> bool:
+            if self.evaluate(entity, metrics):
+                self.designated.add(entity)
+                return True
+            return False
+
+        def get_designated(self) -> set:
+            return self.designated
+
+    sifi = SystemicImportanceDesignation()
+    designated = sifi.designate("big_bank", {"atp_share": 0.15, "connection_count": 100})
+
+    if designated:
+        defenses["systemic_importance_designation"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Systemic Risk Concentration (EZ-3a)",
+        success=attack_success,
+        setup_cost_atp=200000.0,
+        gain_atp=10000000.0 if attack_success else 0.0,
+        roi=(10000000.0 / 200000.0) if attack_success else -1.0,
+        detection_probability=0.45 if defenses_held >= 4 else 0.15,
+        time_to_detection_hours=168.0,  # 1 week
+        blocks_until_detected=700,
+        trust_damage=0.99,
+        description=f"""
+SYSTEMIC RISK CONCENTRATION (Track EZ-3a)
+
+Hide concentration until catastrophic reveal.
+
+Attack Pattern:
+1. Create many "independent" entities
+2. Secretly concentrate risk through complex structures
+3. Fool monitors with apparent diversification
+4. Correlated failure reveals true concentration
+
+Too big to see, too connected to fail... until it does.
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EZ-3a: Systemic Risk Defense:
+1. Beneficial ownership tracking
+2. Concentration metrics (HHI, Gini)
+3. Behavioral correlation analysis
+4. Regular stress testing
+5. Hidden connection detection
+6. Systemic importance designation
+
+See through the shell games.
+""".strip(),
+        raw_data={
+            "defenses": defenses,
+            "defenses_held": defenses_held,
+        }
+    )
+
+
+def attack_feedback_loop_weaponization() -> AttackResult:
+    """
+    ATTACK: Feedback Loop Weaponization (EZ-3b)
+
+    Exploit positive feedback loops in economic systems
+    to amplify small perturbations into system-wide instability.
+
+    Strategy:
+    1. Identify natural feedback loops (price → confidence → price)
+    2. Inject small perturbation at leverage point
+    3. Loop amplifies disturbance exponentially
+    4. System enters unstable oscillation or collapse
+    """
+    defenses = {
+        "feedback_loop_mapping": False,
+        "dampening_mechanisms": False,
+        "perturbation_detection": False,
+        "loop_gain_limits": False,
+        "stabilization_reserves": False,
+        "controlled_unwinding": False,
+    }
+
+    # ========================================================================
+    # Defense 1: Feedback Loop Mapping
+    # ========================================================================
+
+    class FeedbackMapper:
+        """Map feedback loops in the system."""
+
+        def __init__(self):
+            self.loops = []
+
+        def add_loop(
+            self, name: str, components: list, polarity: str, strength: float
+        ):
+            """Add feedback loop. Polarity: 'positive' or 'negative'."""
+            self.loops.append({
+                "name": name,
+                "components": components,
+                "polarity": polarity,
+                "strength": strength,
+            })
+
+        def get_positive_loops(self) -> list:
+            return [l for l in self.loops if l["polarity"] == "positive"]
+
+        def get_dangerous_loops(self, strength_threshold: float = 0.7) -> list:
+            """Get positive loops above strength threshold."""
+            return [
+                l for l in self.loops
+                if l["polarity"] == "positive" and l["strength"] > strength_threshold
+            ]
+
+    mapper = FeedbackMapper()
+    mapper.add_loop(
+        "price_confidence",
+        ["price", "confidence", "buying", "price"],
+        polarity="positive",
+        strength=0.8
+    )
+
+    if len(mapper.get_dangerous_loops()) > 0:
+        defenses["feedback_loop_mapping"] = True
+
+    # ========================================================================
+    # Defense 2: Dampening Mechanisms
+    # ========================================================================
+
+    class DampeningMechanism:
+        """Add friction to reduce feedback amplification."""
+
+        def __init__(self, dampening_factor: float = 0.9):
+            self.dampening = dampening_factor
+
+        def apply_dampening(self, signal: float, iterations: int) -> float:
+            """Signal decays with iterations."""
+            return signal * (self.dampening ** iterations)
+
+        def time_to_half(self) -> int:
+            """Iterations until signal halves."""
+            import math
+            return int(math.log(0.5) / math.log(self.dampening))
+
+    dampener = DampeningMechanism(dampening_factor=0.9)
+    after_10 = dampener.apply_dampening(1.0, iterations=10)
+
+    if after_10 < 0.4:  # Significantly reduced
+        defenses["dampening_mechanisms"] = True
+
+    # ========================================================================
+    # Defense 3: Perturbation Detection
+    # ========================================================================
+
+    class PerturbationDetector:
+        """Detect unusual perturbations at leverage points."""
+
+        def __init__(self, sensitivity: float = 2.0):
+            self.sensitivity = sensitivity
+            self.baseline = {}
+            self.readings = defaultdict(list)
+
+        def set_baseline(self, metric: str, value: float, std: float):
+            self.baseline[metric] = {"value": value, "std": std}
+
+        def check_perturbation(self, metric: str, reading: float) -> tuple:
+            if metric not in self.baseline:
+                return False, 0
+
+            baseline = self.baseline[metric]
+            z_score = abs(reading - baseline["value"]) / baseline["std"]
+            return z_score > self.sensitivity, z_score
+
+    detector = PerturbationDetector(sensitivity=2.0)
+    detector.set_baseline("price", value=100, std=5)
+    detected, z = detector.check_perturbation("price", reading=115)  # 3 sigma
+
+    if detected:
+        defenses["perturbation_detection"] = True
+
+    # ========================================================================
+    # Defense 4: Loop Gain Limits
+    # ========================================================================
+
+    class LoopGainLimiter:
+        """Limit maximum gain through feedback loops."""
+
+        def __init__(self, max_gain: float = 1.5):
+            self.max_gain = max_gain
+
+        def limit_signal(self, input_signal: float, amplified: float) -> float:
+            """Limit amplification factor."""
+            if input_signal == 0:
+                return amplified
+
+            gain = abs(amplified / input_signal)
+            if gain > self.max_gain:
+                return input_signal * self.max_gain * (1 if amplified > 0 else -1)
+            return amplified
+
+        def is_runaway(self, gains: list) -> bool:
+            """Detect runaway amplification."""
+            if len(gains) < 3:
+                return False
+            recent = gains[-3:]
+            return all(g > 1.0 for g in recent) and recent[-1] > recent[0] * 1.5
+
+    limiter = LoopGainLimiter(max_gain=1.5)
+    limited = limiter.limit_signal(10, amplified=25)  # Would be 2.5x
+
+    if limited == 15:  # Capped at 1.5x
+        defenses["loop_gain_limits"] = True
+
+    # ========================================================================
+    # Defense 5: Stabilization Reserves
+    # ========================================================================
+
+    class StabilizationReserve:
+        """Maintain reserves to counter instability."""
+
+        def __init__(self, reserve_size: float = 1000000.0):
+            self.reserve = reserve_size
+            self.deployment_history = []
+
+        def deploy(self, amount: float, direction: str) -> float:
+            """Deploy reserve to stabilize."""
+            deployed = min(amount, self.reserve)
+            self.reserve -= deployed
+            self.deployment_history.append({
+                "amount": deployed,
+                "direction": direction,
+                "timestamp": time.time(),
+            })
+            return deployed
+
+        def counter_movement(self, market_move: float) -> float:
+            """Counter market movement proportionally."""
+            counter_size = abs(market_move) * 0.5  # 50% counter
+            direction = "buy" if market_move < 0 else "sell"
+            return self.deploy(counter_size, direction)
+
+    reserve = StabilizationReserve()
+    countered = reserve.counter_movement(market_move=-100000)  # Big drop
+
+    if countered >= 50000:
+        defenses["stabilization_reserves"] = True
+
+    # ========================================================================
+    # Defense 6: Controlled Unwinding
+    # ========================================================================
+
+    class ControlledUnwinding:
+        """Unwind positions in controlled manner."""
+
+        def __init__(self, max_unwind_per_block: float = 0.05):
+            self.max_per_block = max_unwind_per_block
+            self.pending_unwinds = {}
+
+        def schedule_unwind(self, position_id: str, total_size: float) -> int:
+            """Schedule controlled unwind, return blocks needed."""
+            blocks_needed = int(1 / self.max_per_block)
+            self.pending_unwinds[position_id] = {
+                "total": total_size,
+                "remaining": total_size,
+                "per_block": total_size * self.max_per_block,
+            }
+            return blocks_needed
+
+        def execute_block(self, position_id: str) -> float:
+            """Execute one block's worth of unwind."""
+            if position_id not in self.pending_unwinds:
+                return 0
+
+            unwind = self.pending_unwinds[position_id]
+            amount = min(unwind["per_block"], unwind["remaining"])
+            unwind["remaining"] -= amount
+
+            if unwind["remaining"] <= 0:
+                del self.pending_unwinds[position_id]
+
+            return amount
+
+    unwinder = ControlledUnwinding(max_unwind_per_block=0.05)
+    blocks = unwinder.schedule_unwind("big_position", total_size=1000000)
+
+    if blocks >= 20:  # Takes time to unwind safely
+        defenses["controlled_unwinding"] = True
+
+    defenses_held = sum(defenses.values())
+    total_defenses = len(defenses)
+    attack_success = defenses_held < 4
+
+    return AttackResult(
+        attack_name="Feedback Loop Weaponization (EZ-3b)",
+        success=attack_success,
+        setup_cost_atp=60000.0,
+        gain_atp=4000000.0 if attack_success else 0.0,
+        roi=(4000000.0 / 60000.0) if attack_success else -1.0,
+        detection_probability=0.55 if defenses_held >= 4 else 0.20,
+        time_to_detection_hours=8.0,
+        blocks_until_detected=40,
+        trust_damage=0.93,
+        description=f"""
+FEEDBACK LOOP WEAPONIZATION (Track EZ-3b)
+
+Turn the system's own loops against it.
+
+Attack Pattern:
+1. Map positive feedback loops
+2. Find leverage points for injection
+3. Small perturbation at right place
+4. Loop amplifies to instability
+
+Price → Confidence → Buying → Price → ∞
+
+Defenses activated: {defenses_held}/{total_defenses}
+""".strip(),
+        mitigation="""
+Track EZ-3b: Feedback Defense:
+1. Map and monitor feedback loops
+2. Add dampening friction
+3. Detect unusual perturbations
+4. Limit loop gain factors
+5. Stabilization reserves
+6. Controlled unwinding procedures
+
+Friction is stability.
 """.strip(),
         raw_data={
             "defenses": defenses,

@@ -1,9 +1,9 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 3.7
+**Version**: 3.8
 **Date**: 2026-02-07
-**Total Attacks**: 244
-**Status**: Comprehensive Coverage + Geopolitical + ML Model Attacks
+**Total Attacks**: 256
+**Status**: Comprehensive Coverage + Temporal + Economic Cascade Attacks
 
 ---
 
@@ -521,6 +521,30 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 243 | Gradient Exploitation | Craft adversarial inputs via gradient estimation |
 | 244 | Model Inversion | Invert model to extract training data |
 
+### Temporal Coordination Attacks (Track EY, Attacks 245-250)
+**Exploiting time synchronization across distributed systems**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 245 | Time Skew Amplification | Amplify clock differences for state inconsistency |
+| 246 | Heartbeat Desynchronization | Create validation blind spots via timing |
+| 247 | Temporal Paradox Injection | Create circular temporal dependencies |
+| 248 | Future Anchor Attack | Use commitments to anchor present to future |
+| 249 | Clock Oracle Manipulation | Compromise time oracle consensus |
+| 250 | Leap Second Exploitation | Attack during calendar time adjustments |
+
+### Economic Cascade Attacks (Track EZ, Attacks 251-256)
+**Cascading failures through economic dependencies**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 251 | Liquidity Cascade | Trigger domino-effect liquidity failures |
+| 252 | Trust-Collateral Spiral | Create self-reinforcing trust/collateral loops |
+| 253 | ATP Starvation Cascade | Cascade ATP exhaustion through dependencies |
+| 254 | Reputation Contagion | Spread negative reputation through associations |
+| 255 | Systemic Risk Concentration | Hide risk concentration until catastrophic reveal |
+| 256 | Feedback Loop Weaponization | Exploit positive feedback loops for instability |
+
 ---
 
 ## Defense Statistics
@@ -531,7 +555,7 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 244 |
+| Total Attacks | 256 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~52% |
 | Average Trust Damage | ~0.82 |
@@ -875,6 +899,82 @@ Based on current attack simulations:
     - Membership inference detection
     - Model unlearning support
 
+25. **Temporal Coordination Layer** (36+ defenses) - NEW
+    - Vector clock ordering
+    - Logical timestamps (Lamport)
+    - Time drift detection
+    - Bounded skew enforcement
+    - Consensus timestamp agreement
+    - Causal ordering verification
+    - Heartbeat diversity monitoring
+    - Overlap guarantee
+    - Phase coordination
+    - Heartbeat attestation
+    - Gap detection
+    - Emergency coverage
+    - Cycle detection
+    - Topological validation
+    - Dependency linearization
+    - Timestamp monotonicity
+    - Paradox quarantine
+    - Causal proof requirements
+    - Commitment expiry
+    - Reveal deadline enforcement
+    - Future reference blocking
+    - Commitment registry
+    - Anchor verification
+    - Temporal bounds checking
+    - Multi-oracle consensus
+    - Oracle reputation weighting
+    - Outlier detection
+    - Cryptographic timestamping
+    - Oracle bonding
+    - Independent verification
+    - Leap second awareness
+    - Monotonic clock usage
+    - Grace period blocking
+    - Smeared time
+    - Transaction freeze
+    - Post-leap validation
+
+26. **Economic Cascade Layer** (36+ defenses) - NEW
+    - Circuit breakers
+    - Reserve requirements
+    - Contagion detection
+    - Liquidity buffers
+    - Dependency limits
+    - Emergency liquidity
+    - Trust-collateral separation
+    - Gradual collateral requirements
+    - Trust floor protection
+    - Cooling-off periods
+    - Anti-spiral detection
+    - Collateral diversification
+    - ATP isolation
+    - Dependency graph monitoring
+    - Critical path redundancy
+    - ATP recharge priority
+    - Cascade circuit breakers
+    - Emergency ATP allocation
+    - Association firewalls
+    - Contagion rate limiting
+    - Reputation quarantine
+    - Evidence-based spreading
+    - Recovery mechanisms
+    - Association transparency
+    - Beneficial ownership tracking
+    - Concentration metrics (HHI, Gini)
+    - Correlation analysis
+    - Stress testing
+    - Hidden connection detection
+    - Systemic importance designation
+    - Feedback loop mapping
+    - Dampening mechanisms
+    - Perturbation detection
+    - Loop gain limits
+    - Stabilization reserves
+    - Controlled unwinding
+
 ---
 
 ## Key Insights
@@ -925,6 +1025,8 @@ Based on current attack simulations:
 15. ~~**Recovery/disaster attacks**: Backup poisoning, DR exploitation~~ ✅ Track EV (232 attacks)
 16. ~~**Geopolitical attacks**: Sanctions evasion, jurisdictional conflicts~~ ✅ Track EW (238 attacks)
 17. ~~**ML model attacks**: Training poisoning, inference manipulation~~ ✅ Track EX (244 attacks)
+18. ~~**Temporal coordination attacks**: Time skew, heartbeat desync~~ ✅ Track EY (250 attacks)
+19. ~~**Economic cascade attacks**: Liquidity, trust-collateral spirals~~ ✅ Track EZ (256 attacks)
 
 ### Formal Verification Needed
 
@@ -973,7 +1075,9 @@ Based on current attack simulations:
 | 2026-02-07 | Track EV | 227-232 | Recovery/disaster exploitation |
 | 2026-02-07 PM | Track EW | 233-238 | Geopolitical/jurisdictional |
 | 2026-02-07 PM | Track EX | 239-244 | ML model attacks |
+| 2026-02-07 EVE | Track EY | 245-250 | Temporal coordination |
+| 2026-02-07 EVE | Track EZ | 251-256 | Economic cascade |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 244 attacks across 54 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 256 attacks across 56 tracks.*

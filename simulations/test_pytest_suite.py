@@ -134,7 +134,13 @@ class TestAttackSimulations:
         # EX: ML Model Attacks (6 attacks) - added 2026-02-07
         #     Training Data Manipulation, Model Weight Tampering, Inference Manipulation,
         #     Model Extraction, Gradient Exploitation, Model Inversion
-        assert len(results) == 244  # 232 + 12 new (EW: 6, EX: 6)
+        # EY: Temporal Coordination Attacks (6 attacks) - added 2026-02-07
+        #     Time Skew Amplification, Heartbeat Desynchronization, Temporal Paradox,
+        #     Future Anchor Attack, Clock Oracle Manipulation, Leap Second Exploitation
+        # EZ: Economic Cascade Attacks (6 attacks) - added 2026-02-07
+        #     Liquidity Cascade, Trust-Collateral Spiral, ATP Starvation Cascade,
+        #     Reputation Contagion, Systemic Risk Concentration, Feedback Loop Weaponization
+        assert len(results) == 256  # 244 + 12 new (EY: 6, EZ: 6)
 
         # Track CO+CQ-CU: Document known vulnerabilities requiring mitigation
         # These are REAL vulnerabilities discovered by attack testing:
