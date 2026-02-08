@@ -5,6 +5,8 @@
 **ATP Cost**: 100+ units
 **Verification**: Global consensus
 
+> **Implementation**: The [ACT Chain](../../act-chain/) provides a fully operational root chain implementation built on Cosmos SDK (81,000+ lines of Go). See [github.com/dp-web4/ACT](https://github.com/dp-web4/ACT).
+
 ## Overview
 
 Root chains are the permanent record layer - the immutable foundation of the Web4 trust hierarchy. Like tree roots that anchor and sustain the entire organism, these chains hold identity anchors, constitutional rules, and critical agreements that must never be forgotten.

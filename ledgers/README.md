@@ -2,6 +2,8 @@
 
 Immutable record systems for trust infrastructure. This module provides append-only data structures that enable verifiable action provenance, audit trails, and distributed agreement without centralized authority.
 
+> **Not Just Theory**: Web4 ledgers have fully operational implementations. The [ACT Chain](act-chain/) provides a production-ready distributed ledger (81,000+ lines of Go, 8 Cosmos SDK modules) that has been tested in multi-node federation scenarios. See [github.com/dp-web4/ACT](https://github.com/dp-web4/ACT).
+
 ## Overview
 
 Web4 ledgers serve several critical functions:
@@ -70,15 +72,27 @@ ledgers/
 │   └── api/                 # REST/OpenAPI specs
 │
 ├── reference/               # Reference implementations
-│   ├── python/              # Enterprise, heartbeat, governance
+│   ├── python/              # Enterprise, heartbeat, governance (~3,000 lines)
 │   └── typescript/          # Team ledger, trace
 │
-├── act-chain/               # ACT distributed ledger (Cosmos SDK)
-│   ├── spec/                # Module specifications
-│   └── bridge/              # Python integration layer
+├── act-chain/               # ACT distributed ledger (Root chain)
+│   ├── ARCHITECTURE.md      # 8 Cosmos SDK modules documented
+│   └── bridge/              # Python integration (~1,400 lines)
+│   (Full Go source: github.com/dp-web4/ACT - 81,000+ lines)
 │
 └── archive/                 # Historical implementations
 ```
+
+## Implementation Status
+
+| Component | Language | Lines | Status |
+|-----------|----------|-------|--------|
+| ACT Chain (Root) | Go | 81,000+ | Production-ready |
+| Enterprise Ledger | Python | 730 | Production-ready |
+| Heartbeat Ledger | Python | 980 | Production-ready |
+| Governance Audit | Python | 450 | Production-ready |
+| Witness System | Python | 600 | Production-ready |
+| Team Ledger | TypeScript | 900 | Production-ready |
 
 ## Quick Start
 
@@ -129,8 +143,10 @@ Ledgers integrate with other Web4 components:
 
 ## See Also
 
+- [act-chain/](act-chain/) - **Full distributed ledger implementation** (Cosmos SDK)
 - [TERMINOLOGY.md](TERMINOLOGY.md) - Translation guide for industry terms
 - [spec/fractal-chains/](spec/fractal-chains/) - Detailed chain specifications
 - [spec/witness-protocol/](spec/witness-protocol/) - Witnessing protocol
 - [ARCHIVIST.md](ARCHIVIST.md) - Long-term storage guide
 - [PUBLISHER.md](PUBLISHER.md) - API integration guide
+- [ACT Repository](https://github.com/dp-web4/ACT) - Full Go source code
