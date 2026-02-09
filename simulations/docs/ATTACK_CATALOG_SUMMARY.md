@@ -751,6 +751,18 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 357 | Inverse Correlation Gaming | Correlation constraint violation |
 | 358 | Aggregation Gaming | Weight-based score optimization |
 
+### Heartbeat and Metabolic State Attacks (Track FR, Attacks 359-364)
+**Attacks on adaptive timing and metabolic states**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 359 | Heartbeat Timing Manipulation | Interval and phase exploitation |
+| 360 | Metabolic State Spoofing | State declaration fraud |
+| 361 | Block Rate Flooding | Excessive block creation |
+| 362 | Hibernation Abuse | Accountability avoidance |
+| 363 | Stress Cascade Induction | Systemic stress propagation |
+| 364 | Recovery Process Exploitation | Recovery timing manipulation |
+
 ---
 
 ## Defense Statistics
@@ -761,8 +773,8 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 358 |
-| Total Tracks | 73 |
+| Total Attacks | 364 |
+| Total Tracks | 74 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~68% |
 | Average Trust Damage | ~0.76 |
@@ -1499,7 +1511,8 @@ All major Web4 core components now have attack coverage:
 | 2026-02-09 PM | Track FO | 341-346 | Composite framework attacks |
 | 2026-02-09 PM | Track FP | 347-352 | ATP/ADP full cycle attacks |
 | 2026-02-09 PM | Track FQ | 353-358 | T3-V3 cross-tensor attacks |
+| 2026-02-09 PM | Track FR | 359-364 | Heartbeat/Metabolic state attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 358 attacks across 73 tracks. Core framework coverage complete with cross-component interaction analysis.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 364 attacks across 74 tracks. Cross-component and timing mechanism analysis complete.*
