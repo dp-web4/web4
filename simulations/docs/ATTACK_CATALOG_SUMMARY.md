@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 7.2
+**Version**: 7.3
 **Date**: 2026-02-09
-**Total Attacks**: 334
-**Status**: Comprehensive Coverage through Track FM (R6 Action Framework Attacks)
+**Total Attacks**: 340
+**Status**: Comprehensive Coverage through Track FN (V3 Value Tensor Attacks)
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 334 comprehensive attack vectors across 69 tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 340 comprehensive attack vectors across 70 tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -703,6 +703,18 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 333 | Composition Explosion Attack | Nested action chains to bypass checks |
 | 334 | Resource Timing Attack | Double-spend ATP through timing exploits |
 
+### V3 Value Tensor Attacks (Track FN, Attacks 335-340)
+**Attacks on Valuation/Veracity/Validity tensor system**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 335 | Valuation Inflation Attack | Artificially inflate subjective worth |
+| 336 | Veracity Collusion Attack | Coordinate witnesses for false verification |
+| 337 | Validity Fraud Attack | Claim delivery without actual transfer |
+| 338 | Cross-Role Value Leakage | Transfer value between role contexts |
+| 339 | T3-V3 Feedback Loop Manipulation | Exploit tensor feedback for rapid growth |
+| 340 | ATP Price Manipulation Attack | Game V3-based ATP pricing |
+
 ---
 
 ## Defense Statistics
@@ -713,8 +725,8 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 334 |
-| Total Tracks | 69 |
+| Total Attacks | 340 |
+| Total Tracks | 70 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~68% |
 | Average Trust Damage | ~0.76 |
@@ -1232,7 +1244,7 @@ Based on current attack simulations:
     - Short cache TTL (seconds)
     - Action-specific nonces
 
-30. **R6 Action Framework Layer** (36+ defenses) - NEW
+30. **R6 Action Framework Layer** (36+ defenses)
     - Permission escalation detection
     - Wildcard permission detection
     - Permission inflation detection
@@ -1269,6 +1281,44 @@ Based on current attack simulations:
     - R6 audit trail integrity
     - Cross-component consistency checks
     - Request-result chain validation
+
+31. **V3 Value Tensor Layer** (36+ defenses) - NEW
+    - Valuation inflation anomaly detection
+    - ATP earnings ratio verification
+    - Recipient diversity requirements
+    - Self-dealing detection
+    - Satisfaction score verification
+    - Witness reuse pattern detection
+    - Perfect verification pattern flagging
+    - Exclusive witness relationship detection
+    - Trust-attestation correlation
+    - Claims verification integrity
+    - Recipient existence verification
+    - Validity rate monitoring
+    - Recipient acknowledgment requirements
+    - ATP transfer verification
+    - Delivery proof requirements
+    - Role-specific tensor isolation
+    - Valuation-history correlation
+    - Role-task alignment verification
+    - Role switching velocity monitoring
+    - Value inheritance blocking
+    - Growth velocity caps
+    - Correlated tensor growth detection
+    - Transaction rate limiting
+    - Exponential growth pattern detection
+    - Peer comparison analysis
+    - Price change velocity limits
+    - Dispute pattern analysis
+    - Market distortion detection
+    - Coordinated action pattern detection
+    - Evidence verification for disputes
+    - Multi-factor pricing resistance
+    - V3-ATP pricing circuit breakers
+    - Feedback loop dampening
+    - Cross-validation with peer entities
+    - Context-specific tensor enforcement
+    - Historical baseline comparisons
 
 ---
 
@@ -1335,10 +1385,17 @@ Based on current attack simulations:
 30. ~~**Cryptographic primitives**: Implementation-level crypto attacks~~ ✅ Track FK (322 attacks)
 31. ~~**MRH context boundaries**: Markov Relevancy Horizon attacks~~ ✅ Track FL (328 attacks)
 32. ~~**R6 Action Framework attacks**: Rules/Role/Request/Reference/Resource/Result exploitation~~ ✅ Track FM (334 attacks)
+33. ~~**V3 Value Tensor manipulation**: Value tensor dimension attacks~~ ✅ Track FN (340 attacks)
 
-### Still Unexplored
+### Core Framework Complete
 
-33. **V3 Value Tensor manipulation**: Value tensor dimension attacks
+All major Web4 core components now have attack coverage:
+- ✅ LCT (Linked Context Token) - Multiple tracks
+- ✅ T3 (Trust Tensor) - Multiple tracks
+- ✅ V3 (Value Tensor) - Track FN
+- ✅ MRH (Markov Relevancy Horizon) - Track FL
+- ✅ R6 (Action Framework) - Track FM
+- ✅ ATP/ADP (Economic System) - Multiple tracks
 
 ### Formal Verification Needed
 
@@ -1402,7 +1459,8 @@ Based on current attack simulations:
 | 2026-02-09 AM | Track FK | 317-322 | Cryptographic primitive attacks |
 | 2026-02-09 AM | Track FL | 323-328 | MRH context boundary attacks |
 | 2026-02-09 AM | Track FM | 329-334 | R6 action framework attacks |
+| 2026-02-09 AM | Track FN | 335-340 | V3 value tensor attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 334 attacks across 69 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 340 attacks across 70 tracks. Core framework coverage complete.*
