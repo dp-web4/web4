@@ -1,9 +1,9 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 5.0
+**Version**: 6.0
 **Date**: 2026-02-08
-**Total Attacks**: 280
-**Status**: Comprehensive Coverage + Multi-Coherence Consensus (Track FD)
+**Total Attacks**: 292
+**Status**: Comprehensive Coverage + Witness Network Formation (Track FF)
 
 ---
 
@@ -595,6 +595,18 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 279 | Coherence Metric Arbitrage | Exploit calibration differences |
 | 280 | Consensus Rollback | Undo coherence decisions via reorg |
 
+### Witness Network Formation Attacks (Track FF, Attacks 287-292) - NEW
+**Attacks on witness networks during their formation phase**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 287 | Early Entry Positioning | Infiltrate during formation phase |
+| 288 | Hub Capture | Become critical network hub |
+| 289 | Witness Clique Injection | Inject coordinated clique |
+| 290 | Witness Path Manipulation | Block/hijack trust paths |
+| 291 | Genesis Ceremony Subversion | Attack network bootstrap |
+| 292 | Witness Migration Exploitation | Exploit network merges |
+
 ---
 
 ## Defense Statistics
@@ -605,7 +617,7 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 280 |
+| Total Attacks | 292 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~52% |
 | Average Trust Damage | ~0.82 |
@@ -1153,6 +1165,7 @@ Based on current attack simulations:
 21. ~~**Multi-federation cascades**: Second-order cascade effects~~ ✅ Track FB (268 attacks)
 22. ~~**Coherence-trust integration**: Coherence-based identity gates~~ ✅ Track FC (274 attacks)
 23. ~~**Multi-coherence consensus**: Multiple metric agreement attacks~~ ✅ Track FD (280 attacks)
+24. ~~**Witness network formation**: Formation phase attacks~~ ✅ Track FF (292 attacks)
 
 ### Formal Verification Needed
 
@@ -1207,7 +1220,8 @@ Based on current attack simulations:
 | 2026-02-08 AM | Track FB | 263-268 | Multi-federation cascades |
 | 2026-02-08 PM | Track FC | 269-274 | Coherence-trust integration |
 | 2026-02-08 EVE | Track FD | 275-280 | Multi-coherence consensus |
+| 2026-02-08 EVE | Track FF | 287-292 | Witness network formation |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 280 attacks across 60 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 292 attacks across 62 tracks.*
