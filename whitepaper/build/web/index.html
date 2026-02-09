@@ -63,7 +63,7 @@
             <header>
                 <h1>WEB4: A Comprehensive Architecture for Trust-Native Distributed Intelligence</h1>
                 <p style="color: var(--secondary-color); margin-bottom: 2rem;">
-                    <em>Updated: August 18, 2025</em><br>
+                    <em>Updated: February 9, 2026</em><br>
                     <em>Authors: Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus</em>
                 </p>
             </header>
@@ -1482,7 +1482,7 @@ To contribute to Web4 development or request access to additional technical docu
 | Blockchain consensus | ❌ Not started | Zero consensus backend |
 | VCM recipient attestation | ❌ Not started | Vision only |
 | ATP/ADP settlement | ❌ Not started | No energy accounting |
-| <strong>Hardware binding</strong> | 🚨 <strong>P0 BLOCKER</strong> | Keys stored in filesystem |</p><p><h3>Completed Features</h3>
+| <strong>Hardware binding</strong> | ⚠️ Partial | TPM 2.0 via <code>tss-esapi</code> in hardbound-core (x86_64) |</p><p><h3>Completed Features</h3>
 <li>[x] LCT data structure implementation</li>
 <li>[x] Basic cryptographic functions (Ed25519)</li>
 <li>[x] File-based storage backend</li>
@@ -1495,8 +1495,8 @@ To contribute to Web4 development or request access to additional technical docu
 <li>[x] Soft bounds preventing lock-out</li>
 <li>[x] 8 witness types (TIME, AUDIT, ORACLE, EXISTENCE, ACTION, STATE, QUALITY, AUDIT_MINIMAL)</li>
 <li>[x] Nonce-based replay protection</li>
-<li>[x] Witness reputation tracking</li></p><p><h3>Roadmap (Pending Hardware Binding)</h3>
-<li>[ ] TPM 2.0 integration (hardware-sealed keys)</li>
+<li>[x] Witness reputation tracking</li></p><p><h3>Roadmap (Hardware Binding In Progress)</h3>
+<li>[x] TPM 2.0 integration via <code>tss-esapi</code> (x86_64)</li>
 <li>[ ] TrustZone/OP-TEE for ARM platforms</li>
 <li>[ ] Hardware attestation protocols</li>
 <li>[ ] PCR sealing for boot-time verification</li>

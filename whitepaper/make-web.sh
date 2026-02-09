@@ -805,7 +805,7 @@ cat > "$OUTPUT_DIR/index.html" << 'HTML'
             <header>
                 <h1>WEB4: A Comprehensive Architecture for Trust-Native Distributed Intelligence</h1>
                 <p style="color: var(--secondary-color); margin-bottom: 2rem;">
-                    <em>Updated: August 18, 2025</em><br>
+                    <em>Updated: February 9, 2026</em><br>
                     <em>Authors: Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus</em>
                 </p>
             </header>

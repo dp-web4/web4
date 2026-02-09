@@ -3,7 +3,7 @@
 ## Proposer
 - LCT: human-dennis
 - Date: 2025-08-19
-- Status: Under Review
+- Status: Accepted (integrated at section 2.4)
 
 ## Summary
 Add a new section 2.5 "The R6 Action Framework" that formalizes how all actions in Web4 emerge from the composition of Rules, Role, Request, Reference, Resource → Result.
