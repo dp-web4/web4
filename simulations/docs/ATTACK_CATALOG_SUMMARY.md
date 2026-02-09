@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 6.0
-**Date**: 2026-02-08
-**Total Attacks**: 292
-**Status**: Comprehensive Coverage + Witness Network Formation (Track FF)
+**Version**: 7.0
+**Date**: 2026-02-09
+**Total Attacks**: 310
+**Status**: Comprehensive Coverage through Track FI (Emergent Behavior Exploits)
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 262 comprehensive attack vectors across 57 tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 310 comprehensive attack vectors across 65 tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -583,7 +583,7 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 273 | Coherence Drop Exploitation | Attack during coherence drop periods |
 | 274 | Training Data Poisoning | Corrupt coherence training datasets |
 
-### Multi-Coherence Consensus Attacks (Track FD, Attacks 275-280) - NEW
+### Multi-Coherence Consensus Attacks (Track FD, Attacks 275-280)
 **Attacks on systems requiring multiple coherence metrics to agree**
 
 | Attack | Name | Target |
@@ -595,7 +595,19 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 279 | Coherence Metric Arbitrage | Exploit calibration differences |
 | 280 | Consensus Rollback | Undo coherence decisions via reorg |
 
-### Witness Network Formation Attacks (Track FF, Attacks 287-292) - NEW
+### LCT-Dictionary Binding Attacks (Track FE, Attacks 281-286)
+**Attacks on meaning translation and dictionary entity bindings**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 281 | Dictionary Impersonation | Impersonate legitimate dictionary entities |
+| 282 | Meaning Injection | Inject malicious meaning definitions |
+| 283 | Translation Trust Laundering | Launder trust through dictionary translations |
+| 284 | Binding Hijack | Hijack LCT-dictionary bindings |
+| 285 | Compression Exploitation | Exploit compression-trust relationship |
+| 286 | Dictionary Governance Capture | Capture dictionary governance processes |
+
+### Witness Network Formation Attacks (Track FF, Attacks 287-292)
 **Attacks on witness networks during their formation phase**
 
 | Attack | Name | Target |
@@ -607,6 +619,66 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 291 | Genesis Ceremony Subversion | Attack network bootstrap |
 | 292 | Witness Migration Exploitation | Exploit network merges |
 
+### Temporal Coherence Attacks (Track FG, Attacks 293-298)
+**Attacks on time-based coherence and trust history**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 293 | Timestamp Manipulation | Forge or manipulate coherence timestamps |
+| 294 | Trust History Fabrication | Create false trust history records |
+| 295 | Presence Oscillation | Rapid presence state toggling for gaming |
+| 296 | Witness Ordering | Manipulate witness event ordering |
+| 297 | Temporal Trust Arbitrage | Exploit time-based trust differences |
+| 298 | Coherence Horizon Manipulation | Manipulate MRH temporal boundaries |
+
+### Resource Starvation Attacks (Track FH, Attacks 299-304)
+**Attacks that exhaust system resources and economic capacity**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 299 | Resource Exhaustion | Exhaust compute/memory/network resources |
+| 300 | ATP Drainage | Drain ATP balances through forced operations |
+| 301 | Market Manipulation | Manipulate ATP/resource markets |
+| 302 | Economic Incentive Corruption | Corrupt reward/penalty incentives |
+| 303 | Verification Starvation | Starve verification resources |
+| 304 | Economic Griefing | Grief through economically wasteful actions |
+
+### Emergent Behavior Exploits (Track FI, Attacks 305-310)
+**Attacks exploiting multi-agent emergent behaviors**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 305 | Coordination Hijacking | Hijack multi-agent coordination sessions |
+| 306 | Swarm Manipulation | Manipulate swarm decision-making |
+| 307 | Emergent Behavior Induction | Induce harmful emergent behaviors |
+| 308 | Collective Intelligence Poisoning | Poison collective decision inputs |
+| 309 | Coordination Deadlock | Create multi-agent coordination deadlocks |
+| 310 | Cooperation Subversion | Subvert cooperative behaviors |
+
+### Protocol State Machine Attacks (Track FJ, Attacks 311-316)
+**Attacks on protocol state transitions and message handling**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 311 | State Confusion | Send out-of-order messages to bypass state gates |
+| 312 | Message Replay | Replay intercepted messages for unauthorized actions |
+| 313 | Sequence Manipulation | Manipulate sequence numbers to skip/reorder messages |
+| 314 | Timeout Exploitation | Abuse timeout mechanisms for resource exhaustion |
+| 315 | R6 Workflow Manipulation | Manipulate request-response lifecycle |
+| 316 | Error Handling Exploitation | Exploit error paths for information leakage |
+
+### Cryptographic Primitive Attacks (Track FK, Attacks 317-322)
+**Attacks on cryptographic implementation and parameters**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 317 | Nonce Reuse | Exploit repeated nonces to extract signing keys |
+| 318 | Timing Side Channel | Measure timing variations to extract secrets |
+| 319 | Key Derivation Weakness | Brute force weak KDF parameters |
+| 320 | Signature Malleability | Create alternative valid signatures |
+| 321 | Hash Collision | Exploit weak hash functions for collisions |
+| 322 | Randomness Weakness | Predict outputs of weak RNG |
+
 ---
 
 ## Defense Statistics
@@ -617,10 +689,11 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 292 |
+| Total Attacks | 322 |
+| Total Tracks | 67 |
 | Successful Attacks | 0 (all defended) |
-| Average Detection Rate | ~52% |
-| Average Trust Damage | ~0.82 |
+| Average Detection Rate | ~68% |
+| Average Trust Damage | ~0.76 |
 
 ### Defense Categories
 
@@ -1165,7 +1238,13 @@ Based on current attack simulations:
 21. ~~**Multi-federation cascades**: Second-order cascade effects~~ ✅ Track FB (268 attacks)
 22. ~~**Coherence-trust integration**: Coherence-based identity gates~~ ✅ Track FC (274 attacks)
 23. ~~**Multi-coherence consensus**: Multiple metric agreement attacks~~ ✅ Track FD (280 attacks)
-24. ~~**Witness network formation**: Formation phase attacks~~ ✅ Track FF (292 attacks)
+24. ~~**LCT-Dictionary binding**: Meaning and translation attacks~~ ✅ Track FE (286 attacks)
+25. ~~**Witness network formation**: Formation phase attacks~~ ✅ Track FF (292 attacks)
+26. ~~**Temporal coherence**: Time-based trust attacks~~ ✅ Track FG (298 attacks)
+27. ~~**Resource starvation**: Economic exhaustion attacks~~ ✅ Track FH (304 attacks)
+28. ~~**Emergent behavior exploits**: Multi-agent coordination attacks~~ ✅ Track FI (310 attacks)
+29. ~~**Protocol state machine**: State transition and message handling attacks~~ ✅ Track FJ (316 attacks)
+30. ~~**Cryptographic primitives**: Implementation-level crypto attacks~~ ✅ Track FK (322 attacks)
 
 ### Formal Verification Needed
 
@@ -1220,8 +1299,14 @@ Based on current attack simulations:
 | 2026-02-08 AM | Track FB | 263-268 | Multi-federation cascades |
 | 2026-02-08 PM | Track FC | 269-274 | Coherence-trust integration |
 | 2026-02-08 EVE | Track FD | 275-280 | Multi-coherence consensus |
+| 2026-02-08 EVE | Track FE | 281-286 | LCT-Dictionary binding |
 | 2026-02-08 EVE | Track FF | 287-292 | Witness network formation |
+| 2026-02-09 AM | Track FG | 293-298 | Temporal coherence attacks |
+| 2026-02-09 AM | Track FH | 299-304 | Resource starvation attacks |
+| 2026-02-09 AM | Track FI | 305-310 | Emergent behavior exploits |
+| 2026-02-09 AM | Track FJ | 311-316 | Protocol state machine attacks |
+| 2026-02-09 AM | Track FK | 317-322 | Cryptographic primitive attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 292 attacks across 62 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 322 attacks across 67 tracks.*
