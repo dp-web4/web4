@@ -3,7 +3,7 @@
 **Version**: 7.0
 **Date**: 2026-02-09
 **Total Attacks**: 310
-**Status**: Comprehensive Coverage through Track FI (Emergent Behavior Exploits)
+**Status**: Comprehensive Coverage through Track FJ (Binding Revocation Cascade Attacks)
 
 ---
 
@@ -655,17 +655,17 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 309 | Coordination Deadlock | Create multi-agent coordination deadlocks |
 | 310 | Cooperation Subversion | Subvert cooperative behaviors |
 
-### Protocol State Machine Attacks (Track FJ, Attacks 311-316)
-**Attacks on protocol state transitions and message handling**
+### Binding Revocation Cascade Attacks (Track FJ, Attacks 311-316)
+**Attacks on LCT binding revocation and cascade propagation**
 
 | Attack | Name | Target |
 |--------|------|--------|
-| 311 | State Confusion | Send out-of-order messages to bypass state gates |
-| 312 | Message Replay | Replay intercepted messages for unauthorized actions |
-| 313 | Sequence Manipulation | Manipulate sequence numbers to skip/reorder messages |
-| 314 | Timeout Exploitation | Abuse timeout mechanisms for resource exhaustion |
-| 315 | R6 Workflow Manipulation | Manipulate request-response lifecycle |
-| 316 | Error Handling Exploitation | Exploit error paths for information leakage |
+| 311 | Selective Cascade Manipulation | Manipulate cascades to protect some identities |
+| 312 | Cascade Rate Flooding | Overwhelm system with revocation cascades |
+| 313 | Competing Recovery Claims | Submit competing claims to hijack identities |
+| 314 | Trust History Laundering | Use revocation/recovery to escape penalties |
+| 315 | Cross-Federation Cascade Amplification | Amplify cascades across federation boundaries |
+| 316 | Orphaned Subtree Exploitation | Exploit orphaned identity subtrees |
 
 ### Cryptographic Primitive Attacks (Track FK, Attacks 317-322)
 **Attacks on cryptographic implementation and parameters**
@@ -1243,7 +1243,7 @@ Based on current attack simulations:
 26. ~~**Temporal coherence**: Time-based trust attacks~~ ✅ Track FG (298 attacks)
 27. ~~**Resource starvation**: Economic exhaustion attacks~~ ✅ Track FH (304 attacks)
 28. ~~**Emergent behavior exploits**: Multi-agent coordination attacks~~ ✅ Track FI (310 attacks)
-29. ~~**Protocol state machine**: State transition and message handling attacks~~ ✅ Track FJ (316 attacks)
+29. ~~**Binding revocation cascades**: Cascade manipulation and orphan exploitation~~ ✅ Track FJ (316 attacks)
 30. ~~**Cryptographic primitives**: Implementation-level crypto attacks~~ ✅ Track FK (322 attacks)
 
 ### Formal Verification Needed
@@ -1304,9 +1304,9 @@ Based on current attack simulations:
 | 2026-02-09 AM | Track FG | 293-298 | Temporal coherence attacks |
 | 2026-02-09 AM | Track FH | 299-304 | Resource starvation attacks |
 | 2026-02-09 AM | Track FI | 305-310 | Emergent behavior exploits |
-| 2026-02-09 AM | Track FJ | 311-316 | Protocol state machine attacks |
+| 2026-02-09 AM | Track FJ | 311-316 | Binding revocation cascade attacks |
 | 2026-02-09 AM | Track FK | 317-322 | Cryptographic primitive attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 322 attacks across 67 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 316 attacks across 66 tracks.*
