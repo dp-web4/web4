@@ -1,9 +1,9 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 4.0
+**Version**: 5.0
 **Date**: 2026-02-08
-**Total Attacks**: 270
-**Status**: Comprehensive Coverage + Policy Model Attacks (Track FB)
+**Total Attacks**: 280
+**Status**: Comprehensive Coverage + Multi-Coherence Consensus (Track FD)
 
 ---
 
@@ -557,21 +557,43 @@ This document summarizes the Web4 Hardbound attack simulation catalog, which has
 | 261 | Cross-Platform Identity Arbitrage | Exploit differing trust standards |
 | 262 | Identity Squatting | Register look-alike identities for confusion |
 
-### Policy Model Attacks (Track FB, Attacks 263-270) - NEW
-**Attacks against local policy models used for AI agent governance**
+### Multi-Federation Cascade Attacks (Track FB, Attacks 263-268)
+**Second-order cascade effects in multi-federation networks**
 
 | Attack | Name | Target |
 |--------|------|--------|
-| 263 | Policy Model Prompt Injection | Override policy via injected instructions |
-| 264 | Policy Model Context Exhaustion | Push out policy embeddings from context |
-| 265 | Policy Embedding Poisoning | Corrupt policy category mappings |
-| 266 | Model Weight Substitution | Replace with trojaned policy model |
-| 267 | Inference Timing Manipulation | Force timeout to trigger permissive fallback |
-| 268 | Policy Model Output Hijacking | Exploit output parsing ambiguities |
-| 269 | Coherence Threshold Manipulation | Fake coherence to bypass identity gates |
-| 270 | Policy Decision Replay | Replay cached approvals for new actions |
+| 263 | Cascade Amplification | Exploit N federations for N² effects |
+| 264 | Topology Exploitation | Target critical path federations |
+| 265 | Synchronized Multi-Partition | Coordinated partitions across federations |
+| 266 | Recovery Oscillation | Trigger oscillating recovery attempts |
+| 267 | Trust Cascade Weaponization | Propagate trust penalties via delegation |
+| 268 | Economic-Trust Cascade Spiral | ATP-trust feedback loop exploitation |
 
-See: `ATTACK_TRACK_FB_POLICY_MODEL.md` for full details.
+See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
+
+### Coherence-Trust Integration Attacks (Track FC, Attacks 269-274) - NEW
+**Attacks on coherence-based identity gating access permissions**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 269 | Self-Reference Inflation | Mechanically inflate coherence scores |
+| 270 | Semantic Depth Spoofing | Generic vocabulary without grounding |
+| 271 | Threshold Hovering | Maintain scores just above thresholds |
+| 272 | Identity Mimicry | Clone coherence patterns from others |
+| 273 | Coherence Drop Exploitation | Attack during coherence drop periods |
+| 274 | Training Data Poisoning | Corrupt coherence training datasets |
+
+### Multi-Coherence Consensus Attacks (Track FD, Attacks 275-280) - NEW
+**Attacks on systems requiring multiple coherence metrics to agree**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 275 | Oracle Majority Capture | Compromise M/2+1 coherence oracles |
+| 276 | Oracle Timing Desync | Exploit measurement timing windows |
+| 277 | Coherence Type Confusion | Game specific metrics, ignore others |
+| 278 | Consensus Split-Brain | Create conflicting consensus views |
+| 279 | Coherence Metric Arbitrage | Exploit calibration differences |
+| 280 | Consensus Rollback | Undo coherence decisions via reorg |
 
 ---
 
@@ -583,7 +605,7 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 270 |
+| Total Attacks | 280 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~52% |
 | Average Trust Damage | ~0.82 |
@@ -1128,7 +1150,9 @@ Based on current attack simulations:
 18. ~~**Temporal coordination attacks**: Time skew, heartbeat desync~~ ✅ Track EY (250 attacks)
 19. ~~**Economic cascade attacks**: Liquidity, trust-collateral spirals~~ ✅ Track EZ (256 attacks)
 20. ~~**Identity fragmentation attacks**: Compartment abuse, pseudonym chains~~ ✅ Track FA (262 attacks)
-21. ~~**Policy model attacks**: Local LLM governance exploitation~~ ✅ Track FB (270 attacks)
+21. ~~**Multi-federation cascades**: Second-order cascade effects~~ ✅ Track FB (268 attacks)
+22. ~~**Coherence-trust integration**: Coherence-based identity gates~~ ✅ Track FC (274 attacks)
+23. ~~**Multi-coherence consensus**: Multiple metric agreement attacks~~ ✅ Track FD (280 attacks)
 
 ### Formal Verification Needed
 
@@ -1180,8 +1204,10 @@ Based on current attack simulations:
 | 2026-02-07 EVE | Track EY | 245-250 | Temporal coordination |
 | 2026-02-07 EVE | Track EZ | 251-256 | Economic cascade |
 | 2026-02-07 EVE | Track FA | 257-262 | Identity fragmentation |
-| 2026-02-08 | Track FB | 263-270 | Policy model attacks |
+| 2026-02-08 AM | Track FB | 263-268 | Multi-federation cascades |
+| 2026-02-08 PM | Track FC | 269-274 | Coherence-trust integration |
+| 2026-02-08 EVE | Track FD | 275-280 | Multi-coherence consensus |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 270 attacks across 58 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 280 attacks across 60 tracks.*
