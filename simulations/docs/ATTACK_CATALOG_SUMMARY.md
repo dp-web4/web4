@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 7.0
+**Version**: 7.1
 **Date**: 2026-02-09
-**Total Attacks**: 310
-**Status**: Comprehensive Coverage through Track FJ (Binding Revocation Cascade Attacks)
+**Total Attacks**: 328
+**Status**: Comprehensive Coverage through Track FL (MRH Context Boundary Attacks)
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 310 comprehensive attack vectors across 65 tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 328 comprehensive attack vectors across 68 tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -679,6 +679,18 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 321 | Hash Collision | Exploit weak hash functions for collisions |
 | 322 | Randomness Weakness | Predict outputs of weak RNG |
 
+### MRH Context Boundary Attacks (Track FL, Attacks 323-328)
+**Attacks on Markov Relevancy Horizon context boundaries**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 323 | MRH Boundary Violation | Access entities outside MRH horizon |
+| 324 | Horizon Manipulation | Dynamically expand context boundaries |
+| 325 | Context Poisoning | Inject malicious entities into context |
+| 326 | Context Amplification | Cascade trust through context bridges |
+| 327 | Cross-Network MRH Conflict | Exploit inconsistent boundaries across federations |
+| 328 | Stale Context Exploitation | Use outdated context for unauthorized access |
+
 ---
 
 ## Defense Statistics
@@ -689,8 +701,8 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 322 |
-| Total Tracks | 67 |
+| Total Attacks | 328 |
+| Total Tracks | 68 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~68% |
 | Average Trust Damage | ~0.76 |
@@ -1148,7 +1160,33 @@ Based on current attack simulations:
     - Trademark protection
     - Dispute resolution
 
-28. **Policy Model Layer** (32+ defenses) - NEW
+28. **Policy Model Layer** (32+ defenses)
+
+29. **MRH Context Boundary Layer** (24+ defenses) - NEW
+    - Horizon depth enforcement (max depth=3)
+    - Path-based context verification
+    - Boundary violation detection
+    - Horizon manipulation detection (rapid changes)
+    - Edge weight anomaly detection
+    - Context drift monitoring
+    - Context origin verification
+    - Injection pattern detection
+    - Entity trust correlation
+    - Bridge node monitoring
+    - Amplification limits
+    - Trust accumulation caps
+    - Mutual horizon verification
+    - Cross-federation boundary sync
+    - Conflict detection and resolution
+    - Hierarchy-aware boundaries
+    - Context timestamp freshness
+    - Staleness detection
+    - TTL enforcement
+    - Proactive context refresh
+    - Graph structure validation
+    - Adjacency list integrity
+    - Cross-reference verification
+    - Audit trail for context changes
     - Input sanitization for policy model
     - Prompt format isolation (user/system separation)
     - Parameter schema validation
@@ -1245,6 +1283,12 @@ Based on current attack simulations:
 28. ~~**Emergent behavior exploits**: Multi-agent coordination attacks~~ ✅ Track FI (310 attacks)
 29. ~~**Binding revocation cascades**: Cascade manipulation and orphan exploitation~~ ✅ Track FJ (316 attacks)
 30. ~~**Cryptographic primitives**: Implementation-level crypto attacks~~ ✅ Track FK (322 attacks)
+31. ~~**MRH context boundaries**: Markov Relevancy Horizon attacks~~ ✅ Track FL (328 attacks)
+
+### Still Unexplored
+
+32. **R6 Action Framework attacks**: Rules/Role/Request/Reference/Resource/Result exploitation
+33. **V3 Value Tensor manipulation**: Value tensor dimension attacks
 
 ### Formal Verification Needed
 
@@ -1306,7 +1350,8 @@ Based on current attack simulations:
 | 2026-02-09 AM | Track FI | 305-310 | Emergent behavior exploits |
 | 2026-02-09 AM | Track FJ | 311-316 | Binding revocation cascade attacks |
 | 2026-02-09 AM | Track FK | 317-322 | Cryptographic primitive attacks |
+| 2026-02-09 AM | Track FL | 323-328 | MRH context boundary attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 316 attacks across 66 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 328 attacks across 68 tracks.*
