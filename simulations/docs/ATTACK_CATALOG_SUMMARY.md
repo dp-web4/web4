@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 7.1
+**Version**: 7.2
 **Date**: 2026-02-09
-**Total Attacks**: 328
-**Status**: Comprehensive Coverage through Track FL (MRH Context Boundary Attacks)
+**Total Attacks**: 334
+**Status**: Comprehensive Coverage through Track FM (R6 Action Framework Attacks)
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 328 comprehensive attack vectors across 68 tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 334 comprehensive attack vectors across 69 tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -691,6 +691,18 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 327 | Cross-Network MRH Conflict | Exploit inconsistent boundaries across federations |
 | 328 | Stale Context Exploitation | Use outdated context for unauthorized access |
 
+### R6 Action Framework Attacks (Track FM, Attacks 329-334)
+**Attacks on Rules/Role/Request/Reference/Resource→Result framework**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 329 | Rule Shadow Attack | Create shadow rules that override policy |
+| 330 | Role Drift Exploitation | Gradual permission escalation through drift |
+| 331 | Request-Result Alignment Manipulation | Game trust feedback loop with vague requests |
+| 332 | Reference Scope Inflation | Expand MRH scope for unauthorized access |
+| 333 | Composition Explosion Attack | Nested action chains to bypass checks |
+| 334 | Resource Timing Attack | Double-spend ATP through timing exploits |
+
 ---
 
 ## Defense Statistics
@@ -701,8 +713,8 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 328 |
-| Total Tracks | 68 |
+| Total Attacks | 334 |
+| Total Tracks | 69 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~68% |
 | Average Trust Damage | ~0.76 |
@@ -1162,7 +1174,7 @@ Based on current attack simulations:
 
 28. **Policy Model Layer** (32+ defenses)
 
-29. **MRH Context Boundary Layer** (24+ defenses) - NEW
+29. **MRH Context Boundary Layer** (24+ defenses)
     - Horizon depth enforcement (max depth=3)
     - Path-based context verification
     - Boundary violation detection
@@ -1219,6 +1231,44 @@ Based on current attack simulations:
     - Comprehensive cache key hashing
     - Short cache TTL (seconds)
     - Action-specific nonces
+
+30. **R6 Action Framework Layer** (36+ defenses) - NEW
+    - Permission escalation detection
+    - Wildcard permission detection
+    - Permission inflation detection
+    - Rule conflict analysis
+    - Shadow rule detection
+    - Policy consistency verification
+    - Permission drift rate monitoring
+    - Trust growth anomaly detection
+    - Level-permission mismatch detection
+    - Rapid permission change alerts
+    - Baseline role comparison
+    - Inheritance chain analysis
+    - Expectation specificity requirements
+    - Alignment rate monitoring
+    - Trust growth pattern analysis
+    - Action entropy analysis
+    - Weighted alignment scoring
+    - Reference count limits
+    - Unauthorized entity detection
+    - High-value entity access control
+    - Scope-action ratio validation
+    - MRH boundary enforcement in references
+    - Nesting depth limits
+    - Circular reference detection
+    - Chain hash continuity verification
+    - Resource accumulation limits
+    - Permission escalation through composition detection
+    - Allocation reuse detection
+    - Balance verification for requests
+    - Lock state verification
+    - Timing correlation detection
+    - Atomic operation enforcement
+    - Burst submission pattern detection
+    - R6 audit trail integrity
+    - Cross-component consistency checks
+    - Request-result chain validation
 
 ---
 
@@ -1284,10 +1334,10 @@ Based on current attack simulations:
 29. ~~**Binding revocation cascades**: Cascade manipulation and orphan exploitation~~ ✅ Track FJ (316 attacks)
 30. ~~**Cryptographic primitives**: Implementation-level crypto attacks~~ ✅ Track FK (322 attacks)
 31. ~~**MRH context boundaries**: Markov Relevancy Horizon attacks~~ ✅ Track FL (328 attacks)
+32. ~~**R6 Action Framework attacks**: Rules/Role/Request/Reference/Resource/Result exploitation~~ ✅ Track FM (334 attacks)
 
 ### Still Unexplored
 
-32. **R6 Action Framework attacks**: Rules/Role/Request/Reference/Resource/Result exploitation
 33. **V3 Value Tensor manipulation**: Value tensor dimension attacks
 
 ### Formal Verification Needed
@@ -1351,7 +1401,8 @@ Based on current attack simulations:
 | 2026-02-09 AM | Track FJ | 311-316 | Binding revocation cascade attacks |
 | 2026-02-09 AM | Track FK | 317-322 | Cryptographic primitive attacks |
 | 2026-02-09 AM | Track FL | 323-328 | MRH context boundary attacks |
+| 2026-02-09 AM | Track FM | 329-334 | R6 action framework attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 328 attacks across 68 tracks.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 334 attacks across 69 tracks.*
