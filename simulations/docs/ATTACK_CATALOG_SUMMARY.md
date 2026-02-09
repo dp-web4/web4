@@ -715,6 +715,42 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 339 | T3-V3 Feedback Loop Manipulation | Exploit tensor feedback for rapid growth |
 | 340 | ATP Price Manipulation Attack | Game V3-based ATP pricing |
 
+### Composite Framework Attacks (Track FO, Attacks 341-346)
+**Attacks exploiting interactions between multiple Web4 components**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 341 | TOCTOU Race Condition | Component synchronization timing |
+| 342 | Component State Desynchronization | Cross-component consistency |
+| 343 | Cross-Layer Trust Laundering | Trust provenance integrity |
+| 344 | Semantic Layer Confusion | Cross-component semantic integrity |
+| 345 | Component Ordering Exploitation | Evaluation order assumptions |
+| 346 | Multi-Component Rollback Exploit | Transaction atomicity |
+
+### ATP/ADP Full Cycle Attacks (Track FP, Attacks 347-352)
+**Attacks on the complete economic cycle**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 347 | ATP Double-Allocation Attack | Allocation race conditions |
+| 348 | ADP Forgery Attack | Work proof forgery |
+| 349 | Recycling Amplification Attack | Recycling efficiency gaming |
+| 350 | ATP Expiry Gaming Attack | Expiry timing exploitation |
+| 351 | Verification Collusion Attack | Verifier cartel formation |
+| 352 | Cross-Phase Desynchronization | Phase state inconsistency |
+
+### T3-V3 Cross-Tensor Attacks (Track FQ, Attacks 353-358)
+**Attacks on Trust-Value tensor interactions**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 353 | Feedback Loop Amplification | Bidirectional feedback exploitation |
+| 354 | Dimension Transfer Exploitation | Cross-dimension value transfer |
+| 355 | Context Boundary Violation | Context isolation bypass |
+| 356 | Tensor Desynchronization | Temporal state inconsistency |
+| 357 | Inverse Correlation Gaming | Correlation constraint violation |
+| 358 | Aggregation Gaming | Weight-based score optimization |
+
 ---
 
 ## Defense Statistics
@@ -725,8 +761,8 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 340 |
-| Total Tracks | 70 |
+| Total Attacks | 358 |
+| Total Tracks | 73 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~68% |
 | Average Trust Damage | ~0.76 |
@@ -1460,7 +1496,10 @@ All major Web4 core components now have attack coverage:
 | 2026-02-09 AM | Track FL | 323-328 | MRH context boundary attacks |
 | 2026-02-09 AM | Track FM | 329-334 | R6 action framework attacks |
 | 2026-02-09 AM | Track FN | 335-340 | V3 value tensor attacks |
+| 2026-02-09 PM | Track FO | 341-346 | Composite framework attacks |
+| 2026-02-09 PM | Track FP | 347-352 | ATP/ADP full cycle attacks |
+| 2026-02-09 PM | Track FQ | 353-358 | T3-V3 cross-tensor attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 340 attacks across 70 tracks. Core framework coverage complete.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 358 attacks across 73 tracks. Core framework coverage complete with cross-component interaction analysis.*
