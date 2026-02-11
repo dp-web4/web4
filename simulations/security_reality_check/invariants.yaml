@@ -1,0 +1,17 @@
+version: 1
+invariants:
+  - id: INV-ID-01
+    name: Identity Integrity
+    description: Identity state transitions require valid, non-replayed proofs.
+  - id: INV-TRUST-01
+    name: Trust Integrity
+    description: Trust cannot increase from invalid or insufficient witness evidence.
+  - id: INV-ATP-01
+    name: ATP Conservation
+    description: ATP cannot be minted or drained beyond policy constraints during attack traffic.
+  - id: INV-AUTH-01
+    name: Authorization Correctness
+    description: Privileged actions require a valid delegation and authorization path.
+  - id: INV-FED-01
+    name: Federation Consistency
+    description: Replay and stale ordering must not create divergent accepted federation state.

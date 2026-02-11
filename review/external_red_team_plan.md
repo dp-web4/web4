@@ -5,6 +5,8 @@
 **Status**: Draft for execution planning  
 **Date**: 2026-02-11
 
+> Companion implementation proposal: `review/security_reality_check_v1.md`
+
 ---
 
 ## 1) Purpose
