@@ -16,8 +16,8 @@ The strongest qualities are:
 - Honest self-positioning as research/prototype rather than production software.
 
 The main risks are:
-- Documentation drift and path churn (notably `/game/` vs `/simulations/`).
-- Canonical-definition inconsistency across docs (e.g., what “T3” includes, R6 vs R7 framing, attack count mismatches).
+- Documentation drift and path churn around legacy `/game/` references after migration to permanent `/simulations/` in this repo (with game lineage now associated with 4-life).
+- Canonical-definition inconsistency across docs (e.g., what “T3” includes and attack count mismatches).
 - Mixed maturity messaging (some docs claim “beta-ready,” others “research prototype”).
 - Missing formalization artifacts needed for third-party trust (threat model rigor, cryptoeconomic calibration, protocol hardening).
 
@@ -46,7 +46,7 @@ The high-level architecture is conceptually layered and comprehensive:
 - Identity (LCT)
 - Trust/value scoring (T3/V3)
 - Context boundarying (MRH)
-- Action grammar (R6/R7 family)
+- Action grammar (R6 canonical)
 - Resource economy (ATP/ADP)
 - Society/federation governance
 
@@ -58,8 +58,7 @@ The high-level architecture is conceptually layered and comprehensive:
 
 ### Foundational risks
 1. **Terminology volatility**: foundational terms shift between docs (e.g., T3 dimensional semantics and naming).
-2. **Framework transition ambiguity**: R6 and R7 coexist but are not always cleanly partitioned as “legacy vs current” in all user-facing docs.
-3. **Canonical-source ambiguity**: multiple “entry point” documents provide overlapping authority with conflicting status claims.
+2. **Canonical-source ambiguity**: multiple “entry point” documents provide overlapping authority with conflicting status claims.
 
 ---
 
@@ -97,7 +96,7 @@ The high-level architecture is conceptually layered and comprehensive:
 ### Recommended future work sequence
 1. Establish one canonical “source of truth” index for status + terminology.
 2. Complete docs migration from `/game/` references to `/simulations/` (or reintroduce compatibility aliases).
-3. Publish a versioned terminology baseline (LCT/T3/V3/R6/R7) with strict deprecation notices.
+3. Publish a versioned terminology baseline (LCT/T3/V3/R6) with strict canonical notes.
 4. Add reproducible adversarial benchmark packs with fixed seeds and expected outcomes.
 5. Split “research claims” vs “validated claims” tables in every top-level status doc.
 
@@ -117,7 +116,7 @@ The high-level architecture is conceptually layered and comprehensive:
 4. **Cross-document definition drift** for canonical concepts.
 
 ### Concrete observed issues
-- Root docs still refer to `/game/` even though repository currently uses `/simulations/`.
+- Root docs still contain stale `/game/` links even though this repository’s permanent implementation path is `/simulations/`.
 - Some glossary links use incorrect relative paths.
 - Security and status documents disagree on attack-vector counts.
 
@@ -129,8 +128,8 @@ The high-level architecture is conceptually layered and comprehensive:
 1. **T3/V3 semantics differ across docs**
    - In some places T3 is treated as trust-only 3D.
    - Elsewhere T3 is treated as part of a combined 6D framing with V3 dimensions blended into a “6-dimensional reputation scoring” statement.
-2. **R6 vs R7 transition not uniformly surfaced**
-   - Some docs still present R6 as primary lifecycle framing while standard docs position R7 as the upgraded framework.
+2. **R6 canonicality not consistently enforced in all docs**
+   - Some docs still mention R7 even though R6 is the canonical lifecycle framework.
 3. **Implementation/attack metrics mismatch**
    - Different top-level docs report different totals for attack vectors, without clearly labeling whether counts are per date, per track, or per subset.
 

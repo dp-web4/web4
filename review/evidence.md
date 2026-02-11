@@ -1,6 +1,8 @@
 # Review Evidence Log
 
 ## Directory existence check
+
+Context note: `/simulations/` is the permanent in-repo replacement, while legacy `/game/` references point to historical docs/code lineage now moved outside this repository.
 - game: missing
 - simulations: present
 

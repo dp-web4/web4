@@ -2,11 +2,11 @@
 
 ## Canonicality and Governance
 1. Which document is authoritative when definitions conflict (`README.md`, `STATUS.md`, `repo-index.yaml`, or `web4-standard/README.md`)?
-2. Is there a formal versioning policy for canonical concepts (LCT, T3/V3, MRH, R6/R7)?
-3. What is the intended deprecation policy for legacy concepts like R6 once R7 is primary?
+2. Is there a formal versioning policy for canonical concepts (LCT, T3/V3, MRH, R6)?
+3. How will canonical R6 guidance be enforced and stale R7 mentions removed from public docs?
 
 ## Architecture and Scope
-4. Is `/simulations/` the permanent replacement for `/game/`, or should both coexist (with redirects/aliases)?
+4. What migration plan and compatibility policy should be used to clean stale `/game/` links now that `/simulations/` is permanent in this repo?
 5. Which implementation track is considered the strategic production path: `web4-standard/implementation/`, `web4-core`, or `web4-trust-core`?
 6. What minimum subset of Web4 is considered an MVP for external pilot integration?
 
@@ -31,6 +31,6 @@
 
 ## Interoperability and Externalization
 18. What criteria define “standards-ready” for IETF/ISO submission claims?
-19. Which external repos (ACT, HRM, Hardbound) are dependencies vs optional integrations at this stage?
+19. Which external repos (ACT, HRM) are dependencies vs optional integrations at this stage?
 20. Is there a publicly documented interoperability test matrix with reproducible fixtures?
 
