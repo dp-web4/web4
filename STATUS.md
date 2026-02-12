@@ -532,5 +532,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 9, 2026
 **Next Review**: March 2026 (after ACT integration + threat model)
-**Status**: Research prototype - 358 attack vectors across 73 tracks. Cross-component interaction attacks (FO-FQ) analyzed with 88% average detection rate.
+**Status**: Research prototype - 370 attack vectors across 75 tracks. Attestation and proof system attacks (FS) complete with 100% detection rate.
 
