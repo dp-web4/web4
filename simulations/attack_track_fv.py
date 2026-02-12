@@ -357,7 +357,7 @@ class GovernanceCaptureAttack:
                 proposer=self.captured_governors[0],
                 proposal_type=ptype,
                 target_rule=target,
-                proposed_change=change
+                change=change
             )
 
             # Compromised governors vote for

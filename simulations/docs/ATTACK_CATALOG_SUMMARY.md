@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 7.4
-**Date**: 2026-02-09
-**Total Attacks**: 370
-**Status**: Comprehensive Coverage through Track FS (Attestation & Proof System Attacks)
+**Version**: 7.5
+**Date**: 2026-02-12
+**Total Attacks**: 394
+**Status**: Comprehensive Coverage through Track FW (Governance & Policy Attacks)
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 370 comprehensive attack vectors across 75 tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 394 comprehensive attack vectors across 79 tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -775,6 +775,54 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 369 | Revocation Bypass Attack | Use revoked attestations |
 | 370 | ZK Proof Parameter Attack | Exploit weak ZK parameters |
 
+### Network Topology Exploitation Attacks (Track FT, Attacks 371-376)
+**Attacks on graph structure of trust networks**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 371 | Hub Capture Attack | Take control of high-degree nodes |
+| 372 | Bridge Monopolization | Control inter-community paths |
+| 373 | Clustering Manipulation | Create isolated trust cliques |
+| 374 | Path Length Inflation | Artificially extend trust paths |
+| 375 | Degree Distribution Gaming | Manipulate network statistics |
+| 376 | Community Detection Evasion | Hide within legitimate structures |
+
+### Incentive Mechanism Design Attacks (Track FU, Attacks 377-382)
+**Game-theoretic exploits of economic incentives**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 377 | Nash Divergence Attack | Exploit equilibrium-optimum gaps |
+| 378 | Dominant Strategy Exploitation | Use harmful dominant strategies |
+| 379 | Coalition Formation Attack | Change payoffs through collusion |
+| 380 | Information Asymmetry Exploitation | Leverage private information |
+| 381 | Temporal Gaming Attack | Exploit timing in incentive windows |
+| 382 | Free Rider Coordination | Coordinate free-riding behavior |
+
+### Meta-Governance Attacks (Track FV, Attacks 383-388)
+**Attacks on attack detection and governance oversight**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 383 | Detection Rule Suppression | Disable security alerting |
+| 384 | Alert Fatigue Induction | Flood with false positives |
+| 385 | Guardian Compromise | Corrupt oversight entities |
+| 386 | Policy Evolution Hijacking | Subvert rule change processes |
+| 387 | Self-Referential Paradox | Create logical contradictions |
+| 388 | Watcher Capture | Control those who watch watchers |
+
+### Governance & Policy Attacks (Track FW, Attacks 389-394)
+**Attacks on governance mechanisms and policy enforcement**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 389 | Quorum Manipulation Attack | Game voting thresholds |
+| 390 | Policy Ambiguity Exploitation | Exploit unclear policy language |
+| 391 | Execution Delay Gaming | Exploit time between vote and action |
+| 392 | Emergency Powers Abuse | Misuse crisis governance mechanisms |
+| 393 | Proposal Flooding Attack | Overwhelm decision-making capacity |
+| 394 | Governance Token Concentration | Accumulate disproportionate voting power |
+
 ---
 
 ## Defense Statistics
@@ -785,8 +833,8 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 370 |
-| Total Tracks | 75 |
+| Total Attacks | 394 |
+| Total Tracks | 79 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~70% |
 | Average Trust Damage | ~0.75 |
@@ -1477,17 +1525,21 @@ Based on current attack simulations:
 36. ~~**T3-V3 cross-tensor**: Trust-value tensor interaction attacks~~ ✅ Track FQ (358 attacks)
 37. ~~**Heartbeat/Metabolic state**: Adaptive timing attacks~~ ✅ Track FR (364 attacks)
 38. ~~**Attestation & proof systems**: Cryptographic proof attacks~~ ✅ Track FS (370 attacks)
+39. ~~**Network topology exploitation**: Graph-based trust path attacks~~ ✅ Track FT (376 attacks)
+40. ~~**Incentive mechanism design**: Game-theoretic equilibrium failures~~ ✅ Track FU (382 attacks)
+41. ~~**Meta-governance attacks**: Attacks on attack detection systems~~ ✅ Track FV (388 attacks)
+42. ~~**Governance & policy attacks**: Policy enforcement exploitation~~ ✅ Track FW (394 attacks)
 
-### Future Research Candidates (Track FT+)
+### Future Research Candidates (Track FX+)
 
 Potential areas for continued exploration:
-1. **Network topology exploitation**: Advanced graph-based trust path attacks
-2. **Incentive mechanism design flaws**: Game-theoretic equilibrium failures
-3. **Cross-protocol bridge attacks**: Multi-standard integration vulnerabilities
-4. **Automated attack synthesis**: ML-generated attack discovery
-5. **Long-horizon strategic attacks**: Multi-year coordinated adversary campaigns
-6. **Ecosystem-level systemic risk**: Emergent cross-team cascade patterns
-7. **Meta-governance attacks**: Attacks on attack detection systems themselves
+1. **Cross-protocol bridge attacks**: Multi-standard integration vulnerabilities
+2. **Automated attack synthesis**: ML-generated attack discovery
+3. **Long-horizon strategic attacks**: Multi-year coordinated adversary campaigns
+4. **Ecosystem-level systemic risk**: Emergent cross-team cascade patterns
+5. **Model extraction from trust patterns**: Privacy leakage through network analysis
+6. **Adaptive adversary learning**: Adversaries that learn from defense responses
+7. **Protocol ossification attacks**: Preventing beneficial system evolution
 
 ### Core Framework Complete
 
@@ -1569,7 +1621,11 @@ All major Web4 core components now have attack coverage:
 | 2026-02-09 PM | Track FQ | 353-358 | T3-V3 cross-tensor attacks |
 | 2026-02-09 PM | Track FR | 359-364 | Heartbeat/Metabolic state attacks |
 | 2026-02-09 PM | Track FS | 365-370 | Attestation & proof system attacks |
+| 2026-02-09 EVE | Track FT | 371-376 | Network topology exploitation |
+| 2026-02-09 EVE | Track FU | 377-382 | Incentive mechanism design |
+| 2026-02-09 EVE | Track FV | 383-388 | Meta-governance attacks |
+| 2026-02-09 EVE | Track FW | 389-394 | Governance & policy attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 370 attacks across 75 tracks. Attestation and proof system analysis complete.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 394 attacks across 79 tracks. Governance and meta-governance attack analysis complete.*
