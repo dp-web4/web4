@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 7.5
+**Version**: 7.6
 **Date**: 2026-02-12
-**Total Attacks**: 394
-**Status**: Comprehensive Coverage through Track FW (Governance & Policy Attacks)
+**Total Attacks**: 412
+**Status**: Comprehensive Coverage through Track FZ (Protocol Ossification Attacks)
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 394 comprehensive attack vectors across 79 tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 412 comprehensive attack vectors across 82 tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -823,6 +823,42 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 393 | Proposal Flooding Attack | Overwhelm decision-making capacity |
 | 394 | Governance Token Concentration | Accumulate disproportionate voting power |
 
+### Cross-Protocol Bridge Attacks (Track FX, Attacks 395-400)
+**Attacks on protocol translation and integration points**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 395 | Protocol Semantic Confusion | Trust model translation |
+| 396 | Trust Model Impedance | Cross-protocol trust mapping |
+| 397 | Bridge State Desynchronization | State consistency across protocols |
+| 398 | Cross-Protocol Replay | Replay operations across protocols |
+| 399 | Permission Mapping Escalation | Privilege escalation via mapping |
+| 400 | Bridge Identity Confusion | Identity collision across protocols |
+
+### Adaptive Adversary Learning Attacks (Track FY, Attacks 401-406)
+**Attacks where adversaries learn from defense responses**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 401 | Threshold Probing | Map defense decision boundaries |
+| 402 | Defense Response Learning | Learn from error messages/timing |
+| 403 | Evolutionary Evasion | Evolve attacks to evade detection |
+| 404 | Transfer Learning | Apply learned strategies across contexts |
+| 405 | Feedback Poisoning | Poison defensive ML models |
+| 406 | Coordinated Multi-Adversary Learning | Share learning across adversaries |
+
+### Protocol Ossification Attacks (Track FZ, Attacks 407-412)
+**Attacks preventing beneficial protocol evolution**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 407 | Strategic Dependency Creation | Create lock-in dependencies |
+| 408 | Standards Capture | Control standards-setting process |
+| 409 | Backwards Compatibility Weaponization | Block fixes via compatibility |
+| 410 | Complexity Accumulation | Prevent changes through complexity |
+| 411 | Fork Prevention | Create barriers to forking |
+| 412 | Governance Deadlock | Block protocol governance |
+
 ---
 
 ## Defense Statistics
@@ -833,8 +869,8 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 394 |
-| Total Tracks | 79 |
+| Total Attacks | 412 |
+| Total Tracks | 82 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~70% |
 | Average Trust Damage | ~0.75 |
@@ -1529,17 +1565,20 @@ Based on current attack simulations:
 40. ~~**Incentive mechanism design**: Game-theoretic equilibrium failures~~ ✅ Track FU (382 attacks)
 41. ~~**Meta-governance attacks**: Attacks on attack detection systems~~ ✅ Track FV (388 attacks)
 42. ~~**Governance & policy attacks**: Policy enforcement exploitation~~ ✅ Track FW (394 attacks)
+43. ~~**Cross-protocol bridge attacks**: Multi-standard integration~~ ✅ Track FX (400 attacks)
+44. ~~**Adaptive adversary learning**: Learning from defense responses~~ ✅ Track FY (406 attacks)
+45. ~~**Protocol ossification attacks**: Preventing system evolution~~ ✅ Track FZ (412 attacks)
 
-### Future Research Candidates (Track FX+)
+### Future Research Candidates (Track GA+)
 
 Potential areas for continued exploration:
-1. **Cross-protocol bridge attacks**: Multi-standard integration vulnerabilities
-2. **Automated attack synthesis**: ML-generated attack discovery
-3. **Long-horizon strategic attacks**: Multi-year coordinated adversary campaigns
-4. **Ecosystem-level systemic risk**: Emergent cross-team cascade patterns
-5. **Model extraction from trust patterns**: Privacy leakage through network analysis
-6. **Adaptive adversary learning**: Adversaries that learn from defense responses
-7. **Protocol ossification attacks**: Preventing beneficial system evolution
+1. **Automated attack synthesis**: ML-generated attack discovery
+2. **Long-horizon strategic attacks**: Multi-year coordinated adversary campaigns
+3. **Ecosystem-level systemic risk**: Emergent cross-team cascade patterns
+4. **Model extraction from trust patterns**: Privacy leakage through network analysis
+5. **Quantum adversary simulation**: Post-quantum attack modeling
+6. **Cross-chain MEV attacks**: Maximal extractable value across chains
+7. **AI agent collusion detection**: Detecting coordinated AI misbehavior
 
 ### Core Framework Complete
 
@@ -1625,7 +1664,10 @@ All major Web4 core components now have attack coverage:
 | 2026-02-09 EVE | Track FU | 377-382 | Incentive mechanism design |
 | 2026-02-09 EVE | Track FV | 383-388 | Meta-governance attacks |
 | 2026-02-09 EVE | Track FW | 389-394 | Governance & policy attacks |
+| 2026-02-12 AM | Track FX | 395-400 | Cross-protocol bridge attacks |
+| 2026-02-12 AM | Track FY | 401-406 | Adaptive adversary learning |
+| 2026-02-12 AM | Track FZ | 407-412 | Protocol ossification attacks |
 
 ---
 
-*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 394 attacks across 79 tracks. Governance and meta-governance attack analysis complete.*
+*This catalog represents 8+ months of autonomous research sessions identifying and mitigating attack vectors against Web4 trust systems. Total: 412 attacks across 82 tracks. Protocol ossification and adaptive adversary learning analysis complete.*
