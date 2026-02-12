@@ -1,15 +1,15 @@
 # Web4 Hardbound Attack Catalog Summary
 
-**Version**: 7.6
+**Version**: 7.7
 **Date**: 2026-02-12
-**Total Attacks**: 412
-**Status**: Comprehensive Coverage through Track FZ (Protocol Ossification Attacks)
+**Total Attacks**: 424
+**Status**: Comprehensive Coverage through Track GB (Cross-Chain MEV Attacks)
 
 ---
 
 ## Overview
 
-This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 412 comprehensive attack vectors across 82 tracks. Each attack includes:
+This document summarizes the Web4 Hardbound attack simulation catalog, which has grown from the initial 6 attacks to 424 comprehensive attack vectors across 84 tracks. Each attack includes:
 - Attack mechanism and exploitation strategy
 - Defense implementations with multiple layers
 - Detection probability and damage assessment
@@ -859,6 +859,30 @@ See: `ATTACK_TRACK_FB_MULTI_FEDERATION_CASCADE.md` for full details.
 | 411 | Fork Prevention | Create barriers to forking |
 | 412 | Governance Deadlock | Block protocol governance |
 
+### AI Agent Collusion Attacks (Track GA, Attacks 413-418)
+**Attacks where AI agents coordinate maliciously**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 413 | Shared Training Exploitation | Implicit coordination via model |
+| 414 | Steganographic Coordination | Hidden channels in outputs |
+| 415 | Temporal Coordination | Time-based synchronization |
+| 416 | Behavioral Fingerprint Matching | Recognition patterns |
+| 417 | Implicit Goal Alignment | Convergent optimization |
+| 418 | Model Monoculture Exploitation | Shared vulnerabilities |
+
+### Cross-Chain MEV Attacks (Track GB, Attacks 419-424)
+**Maximal Extractable Value across chains**
+
+| Attack | Name | Target |
+|--------|------|--------|
+| 419 | Cross-Chain Arbitrage Frontrunning | Bridge price differences |
+| 420 | Bridge Timing Exploitation | Settlement latency |
+| 421 | Sandwich Attack on Bridge Swaps | Bridge liquidity |
+| 422 | Multi-Chain Oracle Manipulation | Oracle staleness |
+| 423 | Federation Settlement Exploitation | Cross-federation timing |
+| 424 | Cross-Chain Liquidation Sniping | Position health |
+
 ---
 
 ## Defense Statistics
@@ -869,8 +893,8 @@ Based on current attack simulations:
 
 | Metric | Value |
 |--------|-------|
-| Total Attacks | 412 |
-| Total Tracks | 82 |
+| Total Attacks | 424 |
+| Total Tracks | 84 |
 | Successful Attacks | 0 (all defended) |
 | Average Detection Rate | ~70% |
 | Average Trust Damage | ~0.75 |
@@ -1569,7 +1593,7 @@ Based on current attack simulations:
 44. ~~**Adaptive adversary learning**: Learning from defense responses~~ ✅ Track FY (406 attacks)
 45. ~~**Protocol ossification attacks**: Preventing system evolution~~ ✅ Track FZ (412 attacks)
 
-### Future Research Candidates (Track GA+)
+### Future Research Candidates (Track GC+)
 
 Potential areas for continued exploration:
 1. **Automated attack synthesis**: ML-generated attack discovery
@@ -1577,8 +1601,8 @@ Potential areas for continued exploration:
 3. **Ecosystem-level systemic risk**: Emergent cross-team cascade patterns
 4. **Model extraction from trust patterns**: Privacy leakage through network analysis
 5. **Quantum adversary simulation**: Post-quantum attack modeling
-6. **Cross-chain MEV attacks**: Maximal extractable value across chains
-7. **AI agent collusion detection**: Detecting coordinated AI misbehavior
+6. ~~**Cross-chain MEV attacks**: Maximal extractable value~~ ✅ Track GB (424 attacks)
+7. ~~**AI agent collusion detection**: Detecting coordinated AI~~ ✅ Track GA (418 attacks)
 
 ### Core Framework Complete
 
@@ -1667,6 +1691,8 @@ All major Web4 core components now have attack coverage:
 | 2026-02-12 AM | Track FX | 395-400 | Cross-protocol bridge attacks |
 | 2026-02-12 AM | Track FY | 401-406 | Adaptive adversary learning |
 | 2026-02-12 AM | Track FZ | 407-412 | Protocol ossification attacks |
+| 2026-02-12 PM | Track GA | 413-418 | AI agent collusion attacks |
+| 2026-02-12 PM | Track GB | 419-424 | Cross-chain MEV attacks |
 
 ---
 
