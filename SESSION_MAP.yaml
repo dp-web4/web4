@@ -110,6 +110,12 @@ arcs:
       - "review/external_red_team_plan.md - Formal red team procedures"
       - "review/security_attack_vector_matrix.md - 12 core vectors with severity"
       - "simulations/security_reality_check/ - 17 invariants, P0 test cases"
+      - "docs/reference/CANONICAL_TERMS_v1.md - Authoritative term definitions (LCT, T3, V3, ATP, ADP, R6)"
+      - "docs/reference/SOURCE_OF_TRUTH.md - 4-tier document authority hierarchy"
+    nova_fixes_2026_02_12:
+      - "30 broken links fixed (README 17, SECURITY 6, GLOSSARY 7)"
+      - "T3/V3 inconsistency corrected (was 4 wrong dimensions, now Talent/Training/Temperament)"
+      - "CLAUDE.md: '6 dimensions' corrected to '3 dimensions' per tensor"
     crosslinks:
       - {to: attack_catalog, concept: "424 simulation-ready attack vectors"}
 
