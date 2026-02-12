@@ -79,8 +79,8 @@ Web4 is a trust-native distributed intelligence architecture that implements:
 |------|---------|---------------|
 | **LCT** | Linked Context Token | `web4-standard/core-spec/LCT-linked-context-token.md` |
 | **MRH** | Markov Relevancy Horizon | `web4-standard/core-spec/mrh-tensors.md` |
-| **T3** | Trust Tensor (6 dimensions) | `web4-standard/core-spec/t3-v3-tensors.md` |
-| **V3** | Value Tensor (6 dimensions) | `web4-standard/core-spec/t3-v3-tensors.md` |
+| **T3** | Trust Tensor (3 dimensions: Talent/Training/Temperament) | `web4-standard/core-spec/t3-v3-tensors.md` |
+| **V3** | Value Tensor (3 dimensions: Valuation/Veracity/Validity) | `web4-standard/core-spec/t3-v3-tensors.md` |
 | **ATP/ADP** | Allocation Transfer Packet / Allocation Discharge Packet | `web4-standard/core-spec/atp-adp-cycle.md` |
 | **R6** | Rules/Role/Request/Reference/Resource/Result | `web4-standard/core-spec/r6-framework.md` |
 

@@ -1,6 +1,6 @@
 # Web4 Glossary
 
-**Last Updated**: December 17, 2025
+**Last Updated**: February 12, 2026
 
 Quick reference for Web4 terminology. For detailed specifications, see the linked documents.
 
@@ -13,23 +13,31 @@ An unforgeable digital identity anchored to hardware or cryptographic proof. Unl
 
 **Format**: `lct://{component}:{instance}:{role}@{network}`
 
-**See**: [`web4-standard/core-spec/LCT-linked-context-token.md`](../web4-standard/core-spec/LCT-linked-context-token.md)
+**See**: [`web4-standard/core-spec/LCT-linked-context-token.md`](../../web4-standard/core-spec/LCT-linked-context-token.md)
 
 ### Trust Tensor (T3)
-A multi-dimensional trust score capturing different aspects of trustworthiness:
-- **Competence**: Can this entity do what it claims?
-- **Reliability**: Does it follow through on commitments?
-- **Integrity**: Does it behave honestly?
-- **Benevolence**: Does it act in good faith?
+A 3-dimensional trust score capturing different aspects of trustworthiness:
+- **Talent**: Can this entity perform the task? (capability)
+- **Training**: Has it learned how? (knowledge/experience)
+- **Temperament**: Will it behave appropriately? (disposition)
 
 Trust is contextual—an entity may be highly trusted for one task type but not another.
 
-**See**: [`web4-standard/core-spec/t3-v3-tensors.md`](../web4-standard/core-spec/t3-v3-tensors.md)
+**Canonical definition**: [`CANONICAL_TERMS_v1.md`](./CANONICAL_TERMS_v1.md)
+
+**Specification**: [`web4-standard/core-spec/t3-v3-tensors.md`](../../web4-standard/core-spec/t3-v3-tensors.md)
 
 ### Value Tensor (V3)
-Companion to T3 that tracks value creation and contribution. While T3 measures trustworthiness, V3 measures productive output.
+A 3-dimensional value score tracking contribution:
+- **Valuation**: How is value assessed?
+- **Veracity**: How truthful are claims?
+- **Validity**: How sound is the reasoning?
 
-**See**: [`web4-standard/core-spec/t3-v3-tensors.md`](../web4-standard/core-spec/t3-v3-tensors.md)
+Together with T3, forms a 6-dimensional reputation space.
+
+**Canonical definition**: [`CANONICAL_TERMS_v1.md`](./CANONICAL_TERMS_v1.md)
+
+**Specification**: [`web4-standard/core-spec/t3-v3-tensors.md`](../../web4-standard/core-spec/t3-v3-tensors.md)
 
 ### MRH (Markov Relevancy Horizon)
 The boundary of what an entity can know or affect given its position and history. Context scope that determines:
@@ -37,12 +45,12 @@ The boundary of what an entity can know or affect given its position and history
 - What actions are permissible in a context
 - How far trust relationships extend
 
-**See**: [`web4-standard/core-spec/mrh-tensors.md`](../web4-standard/core-spec/mrh-tensors.md)
+**See**: [`web4-standard/core-spec/mrh-tensors.md`](../../web4-standard/core-spec/mrh-tensors.md)
 
 ### ATP (Allocation Transfer Packet)
 Energy-based resource allocation modeled after biological ATP. Consumed when performing actions, regenerated through rest or contribution. Creates economic incentives for good behavior and makes attacks expensive.
 
-**See**: [`web4-standard/core-spec/atp-adp-cycle.md`](../web4-standard/core-spec/atp-adp-cycle.md)
+**See**: [`web4-standard/core-spec/atp-adp-cycle.md`](../../web4-standard/core-spec/atp-adp-cycle.md)
 
 ### ADP (Allocation Discharge Packet)
 The "spent" form of ATP after work is done. Can be recycled back to ATP through validation and witnessing. Models the biological ATP/ADP cycle.
@@ -76,7 +84,7 @@ A self-governing group of entities with:
 
 Societies can join other societies (fractal structure).
 
-**See**: [`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`](../web4-standard/core-spec/SOCIETY_SPECIFICATION.md)
+**See**: [`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`](../../web4-standard/core-spec/SOCIETY_SPECIFICATION.md)
 
 ### Federation
 Coordination between multiple societies through:
@@ -117,7 +125,7 @@ Neural MoE (Mixture of Experts) system that integrates with Web4 for trust-based
 Cosmos SDK blockchain for ATP tokens and LCT identity registry. Lives in the [ACT repository](https://github.com/dp-web4/act).
 
 ### 4-Life Game
-Society simulation engine in `/game/` for testing Web4 primitives under emergent behavior.
+Society simulation engine for testing Web4 primitives under emergent behavior. Now a [standalone project](https://github.com/dp-web4/4-life); historical prototype in `archive/game-prototype/`.
 
 ---
 
@@ -154,4 +162,4 @@ Bidirectional learning transfer between systems (e.g., SAGE ↔ Web4). Patterns 
 
 ---
 
-**See also**: [README.md](../README.md) for project overview, [STATUS.md](../STATUS.md) for current state.
+**See also**: [README.md](../../README.md) for project overview, [STATUS.md](../../STATUS.md) for current state.

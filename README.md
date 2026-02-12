@@ -115,40 +115,20 @@ Web4 is investigating trust-native architectures for AI coordination. We have in
 
 Web4 contains **four development tracks** at different maturity levels:
 
-### Track 1: `/game/` - 4-Life Society Simulation (Research Stage)
+### Track 1: 4-Life Society Simulation (Now Standalone)
 
 **What it is**: A fractal sandbox for simulating Web4 societies - agents form societies, societies join societies, trust emerges through interaction. Named "4-Life" for the emergent, self-organizing nature of the simulation (like Conway's Game of Life, but with trust dynamics).
 
-**Goal**: Validate Web4 primitives under complex emergent behavior, reveal gaps in specs, and provide interactive demonstration for humans and AI agents.
+**Status**: **Evolved to standalone project** → [github.com/dp-web4/4-life](https://github.com/dp-web4/4-life)
 
-**Status**: Active research prototype (~60 engine modules, ~45 demo scripts)
-- In-memory simulation (no persistence yet)
-- Stub cryptography (not production crypto)
-- LCT identity system (4 phases complete: identity, registry, permissions, ATP integration)
-- Federation with PBFT consensus and view changes
-- MRH-aware trust policies (v0 heuristics)
-- Tested at research scale (100 societies, 1000 agents)
-
-**What Works**:
-- Agents with LCTs, trust tensors (T3/V3), capabilities, and ATP budgets
-- Societies with treasuries, membership, policies, and roles
-- Federation between societies with signed gossip and consensus
-- Insurance pools and cross-society reputation
-- SAGE edge device integration patterns
-
-**What's Missing**:
-- Persistence layer (all in-memory)
-- Real cryptographic verification
-- Production-grade security hardening
-- Web UI (planned, not built)
+The original prototype (`/game/`) has been archived to `archive/game-prototype/` with documentation of its evolution. Active simulation research continues in `/simulations/` (attack simulations, trust dynamics) and the standalone 4-life repo.
 
 **Documentation**:
-- [`game/README.md`](game/README.md) - Full game overview and design
-- [`game/THREAT_MODEL_GAME.md`](game/THREAT_MODEL_GAME.md) - What's modeled, what's not
-- [`game/WEB4_HRM_ALIGNMENT.md`](game/WEB4_HRM_ALIGNMENT.md) - Integration with SAGE federation
+- [`archive/game-prototype/ARCHIVED.md`](archive/game-prototype/ARCHIVED.md) - Evolution history
 - [`SECURITY.md`](SECURITY.md) - Security research status
+- [4-life repo](https://github.com/dp-web4/4-life) - Active development
 
-**Use for**: Exploring trust dynamics, testing federation patterns, developing intuition about emergent behavior
+**Use for**: Historical reference; for active game development see 4-life repo
 
 ### Track 2: `web4-standard/implementation/authorization/` - PostgreSQL Authorization Layer
 
@@ -222,8 +202,8 @@ Web4 contains **four development tracks** at different maturity levels:
 |----------|----------------|
 | **[STATUS.md](STATUS.md)** | Honest assessment - what exists, what works, what's missing |
 | **[SECURITY.md](SECURITY.md)** | Security research status and gaps |
-| **[THREAT_MODEL.md](docs/security/THREAT_MODEL.md)** | Formal threat model for the overall system |
-| **[game/THREAT_MODEL_GAME.md](game/THREAT_MODEL_GAME.md)** | Threat model specific to `/game/` engine |
+| **[docs/reference/security/THREAT_MODEL.md](docs/reference/security/THREAT_MODEL.md)** | Formal threat model for the overall system |
+| **[docs/reference/GLOSSARY.md](docs/reference/GLOSSARY.md)** | Canonical terminology definitions |
 | **[Whitepaper](whitepaper/)** | Conceptual foundation (LCTs, trust, MRH) |
 
 **Start here**: [STATUS.md](STATUS.md) for fair evaluation criteria
@@ -262,17 +242,17 @@ Example: Agent purchasing with constraints
 
 ### Concept → Implementation Map
 
-| Concept | Specification | Implementation | Demo |
-|---------|--------------|----------------|------|
-| **LCT (Identity)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`game/engine/lct.py`](game/engine/lct.py), [`lct_identity.py`](game/engine/lct_identity.py) | `run_lct_e2e_integration_test.py` |
-| **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | (spec only - implementation pending) | - |
-| **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`game/engine/society_trust.py`](game/engine/society_trust.py) | `run_two_societies_demo.py` |
-| **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`game/engine/mrh_aware_trust.py`](game/engine/mrh_aware_trust.py) | - |
-| **ATP (Economics)** | [`web4-standard/core-spec/atp-adp-cycle.md`](web4-standard/core-spec/atp-adp-cycle.md) | [`game/engine/atp_metering.py`](game/engine/atp_metering.py), [`unified_atp_pricing.py`](game/engine/unified_atp_pricing.py) | `run_atp_integration_test.py` |
-| **Federation** | [`docs/SAGE_WEB4_INTEGRATION_DESIGN.md`](docs/SAGE_WEB4_INTEGRATION_DESIGN.md) | [`game/engine/signed_epidemic_gossip.py`](game/engine/signed_epidemic_gossip.py) | `run_federation_consensus_integration_test.py` |
-| **Societies** | [`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`](web4-standard/core-spec/SOCIETY_SPECIFICATION.md) | [`game/engine/membership.py`](game/engine/membership.py), [`treasury.py`](game/engine/treasury.py) | `run_greedy_treasurer_demo.py` |
-| **Authorization** | [`web4-standard/core-spec/security-framework.md`](web4-standard/core-spec/security-framework.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | `demo/` |
-| **Coordination** | [`docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) | [`web4-standard/implementation/reference/web4_phase2b_integrated_coordinator.py`](web4-standard/implementation/reference/web4_phase2b_integrated_coordinator.py) | - |
+| Concept | Specification | Implementation | Notes |
+|---------|--------------|----------------|-------|
+| **LCT (Identity)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | Also in 4-life repo |
+| **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | (spec only - implementation pending) | P0 blocker |
+| **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`simulations/`](simulations/) | Trust dynamics simulations |
+| **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`simulations/`](simulations/) | Context boundary research |
+| **ATP (Economics)** | [`web4-standard/core-spec/atp-adp-cycle.md`](web4-standard/core-spec/atp-adp-cycle.md) | [`simulations/`](simulations/) | Economic attack simulations |
+| **Federation** | [`docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md`](docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md) | [`simulations/`](simulations/) | Federation patterns |
+| **Societies** | [`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`](web4-standard/core-spec/SOCIETY_SPECIFICATION.md) | 4-life repo | Society simulation |
+| **Authorization** | [`web4-standard/core-spec/security-framework.md`](web4-standard/core-spec/security-framework.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | PostgreSQL schemas |
+| **Coordination** | [`docs/what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](docs/what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | Phase 2 coordinators |
 
 ---
 
@@ -296,22 +276,17 @@ python app.py
 
 See [`demo/DEMO_SCRIPT.md`](demo/DEMO_SCRIPT.md) for walkthrough.
 
-### Run the 4-Life Game Engine
+### Run Simulations
 
 ```bash
-cd game
+cd simulations
 
-# Core demos
-python run_two_societies_demo.py           # Basic federation demo
-python run_greedy_treasurer_demo.py        # Policy enforcement demo
-python run_lct_e2e_integration_test.py     # Full LCT identity system
+# Attack simulations
+python attack_simulations.py               # Core attack simulation framework
+python attack_track_fb.py                  # Trust manipulation attacks
+python attack_track_fc.py                  # Economic attacks
 
-# Federation & consensus
-python run_federation_consensus_integration_test.py  # PBFT consensus
-python run_multi_society_federation_demo.py          # Multi-society gossip
-
-# SAGE integration
-python run_sage_lct_integration_test.py    # Edge device patterns
+# For full 4-Life game demos, see: https://github.com/dp-web4/4-life
 ```
 
 ---
@@ -320,36 +295,33 @@ python run_sage_lct_integration_test.py    # Edge device patterns
 
 ```
 web4/
-├── game/                              # Track 1: 4-Life Society Simulation
-│   ├── engine/                        # ~60 modules (LCT, federation, consensus, ATP, etc.)
-│   ├── run_*.py                       # ~45 demo/test scripts
-│   ├── README.md                      # Game overview and design
-│   ├── THREAT_MODEL_GAME.md          # Security assumptions
-│   └── WEB4_HRM_ALIGNMENT.md         # SAGE integration spec
+├── simulations/                       # Attack simulations and trust dynamics research
+│   ├── attack_track_*.py             # Attack scenario simulations
+│   └── *.py                          # Trust/federation simulations
 │
-├── web4-standard/implementation/      # Tracks 2 & 4
-│   ├── authorization/                 # Track 2: PostgreSQL schemas & tests
-│   │   ├── schema*.sql               # Security mitigations
-│   │   ├── *_engine.py               # Authorization logic
-│   │   └── test_*.py                 # Attack resistance tests
-│   └── reference/                     # Track 4: Coordination framework (~25k lines)
-│       ├── web4_phase2*_coordinator.py  # Phase 2a-2d coordinators
-│       ├── pattern_exchange_protocol.py # Cross-system learning
-│       ├── universal_pattern_schema.py  # Pattern format standard
-│       ├── temporal_pattern_exchange.py # Phase-tagged transfer
-│       └── test_*.py                    # Validation tests
+├── web4-standard/                     # Core specifications and implementations
+│   ├── core-spec/                    # Canonical specifications (LCT, T3, MRH, ATP, R6)
+│   └── implementation/
+│       ├── authorization/            # PostgreSQL schemas & security mitigations
+│       └── reference/                # Coordination framework (~25k lines)
 │
-├── demo/                              # Track 3: Commerce demo
-│   ├── store/                        # Demo e-commerce
-│   └── delegation-ui/                # User management UI
+├── demo/                              # Commerce demo (delegation UI + store)
 │
-├── docs/                              # Specifications
-│   └── LCT_UNIFIED_IDENTITY_SPECIFICATION.md  # Cross-system identity
+├── docs/                              # Documentation (why/what/how/history/reference)
+│   ├── why/                          # Vision and motivation
+│   ├── what/specifications/          # Technical specifications
+│   ├── how/                          # Implementation guides
+│   ├── history/                      # Research and decisions
+│   └── reference/                    # Glossary, indexes, security
 │
+├── archive/game-prototype/            # Historical: original 4-Life prototype
+├── sessions/                          # Research session scripts and outputs
 ├── whitepaper/                        # Conceptual foundation
+├── review/                            # External review artifacts
+│
 ├── STATUS.md                          # Honest project status
 ├── SECURITY.md                        # Security research status
-└── docs/security/THREAT_MODEL.md      # System threat model
+└── CONTRIBUTING.md                    # How to contribute
 ```
 
 ---

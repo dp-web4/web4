@@ -1,16 +1,19 @@
-# Web4 Security Research - Game Engine Exploration
+# Web4 Security Research
 
-**Last Updated**: December 17, 2025
+**Last Updated**: February 12, 2026
 **Status**: Research Prototype - Exploring Trust-Native Security Patterns
-**Scope**: `/game/` subdirectory and `web4-standard/implementation/reference/` coordination framework
+**Scope**: `/simulations/`, `archive/game-prototype/`, and `web4-standard/implementation/reference/`
 
 ---
 
 ## What This Is
 
-This document describes **exploratory security research** in the `/game/` subdirectory, where we're prototyping trust-based security mechanisms for distributed AI systems. This is **not production-grade infrastructure** - it's a research sandbox for evolving security ideas around reputation, economic incentives, and witness-based verification.
+This document describes **exploratory security research** across Web4's simulation and coordination components. This is **not production-grade infrastructure** - it's a research sandbox for evolving security ideas around reputation, economic incentives, and witness-based verification.
 
 **Honest Assessment**: We have interesting ideas, some working prototypes, and real testing at research scale. We also have significant gaps in formal threat modeling, cryptographic foundations, and adversarial validation. This is early-stage research, not a finished security framework.
+
+> **Note**: The original `/game/` prototype has evolved into the [4-life project](https://github.com/dp-web4/4-life).
+> Historical code is preserved in `archive/game-prototype/`. Active security research continues in `/simulations/`.
 
 ---
 
@@ -18,7 +21,7 @@ This document describes **exploratory security research** in the `/game/` subdir
 
 ### What We're Exploring
 
-The `/game/` directory implements a **game-theoretic security model** where:
+Web4's security model implements **game-theoretic security** where:
 - AI agents, MCP servers, and services are entities with reputations
 - Trust is earned through observed behavior, not declared
 - Economic costs (ATP) make attacks expensive
@@ -47,7 +50,7 @@ Over 5 autonomous research sessions, we explored several security patterns. Here
 
 **What It Is**: Cryptographic signatures on reputation propagation messages
 
-**Implementation**: [`game/engine/signed_epidemic_gossip.py`](game/engine/signed_epidemic_gossip.py) (~628 lines)
+**Implementation**: [`archive/game-prototype/engine/signed_epidemic_gossip.py`](archive/game-prototype/engine/signed_epidemic_gossip.py) (~628 lines)
 
 **What Works**:
 - Ed25519 signatures on all gossip messages
@@ -70,7 +73,7 @@ Over 5 autonomous research sessions, we explored several security patterns. Here
 
 **What It Is**: Economic cost to create identities (anti-Sybil)
 
-**Implementation**: [`game/engine/identity_stake_system.py`](game/engine/identity_stake_system.py)
+**Implementation**: [`archive/game-prototype/engine/identity_stake_system.py`](archive/game-prototype/engine/identity_stake_system.py)
 
 **What Works**:
 - ATP bonding for LCT creation (1,200-75,000 ATP based on capabilities)
@@ -92,7 +95,7 @@ Over 5 autonomous research sessions, we explored several security patterns. Here
 
 **What It Is**: Require attestations from multiple independent societies
 
-**Implementation**: [`game/engine/witness_diversity_system.py`](game/engine/witness_diversity_system.py) (~860 lines)
+**Implementation**: [`archive/game-prototype/engine/witness_diversity_system.py`](archive/game-prototype/engine/witness_diversity_system.py) (~860 lines)
 
 **What Works**:
 - ≥3 society diversity requirement
@@ -114,7 +117,7 @@ Over 5 autonomous research sessions, we explored several security patterns. Here
 
 **What It Is**: Verify claimed outcomes through challenges
 
-**Implementation**: [`game/engine/reputation_challenge_protocol.py`](game/engine/reputation_challenge_protocol.py) (~561 lines)
+**Implementation**: [`archive/game-prototype/engine/reputation_challenge_protocol.py`](archive/game-prototype/engine/reputation_challenge_protocol.py) (~561 lines)
 
 **What Works**:
 - 24-hour response windows
@@ -429,11 +432,11 @@ Web4's security research is:
 
 ## Related Security Documentation
 
-- **[docs/HETEROGENEOUS_REVIEW.md](docs/HETEROGENEOUS_REVIEW.md)** - Multi-model review protocol for high-risk actions. Requires verification by independently-trained AI models before execution, providing defense-in-depth through assumption diversity and behavioral independence.
+- **[docs/why/HETEROGENEOUS_REVIEW.md](docs/why/HETEROGENEOUS_REVIEW.md)** - Multi-model review protocol for high-risk actions. Requires verification by independently-trained AI models before execution, providing defense-in-depth through assumption diversity and behavioral independence.
 
 - **[adversarials/TAXONOMY.md](adversarials/TAXONOMY.md)** - Attack vector taxonomy including governance interface attacks, trust manipulation, and destruction scenarios.
 
-- **[docs/ADVERSARIAL_TESTING_STATUS.md](docs/ADVERSARIAL_TESTING_STATUS.md)** - Current status of adversarial testing and defense maturity assessment.
+- **[docs/history/research/ADVERSARIAL_TESTING_STATUS.md](docs/history/research/ADVERSARIAL_TESTING_STATUS.md)** - Current status of adversarial testing and defense maturity assessment.
 
 ---
 
@@ -447,7 +450,7 @@ Not claiming this is finished. Claiming it's interesting and worth continuing.
 
 ---
 
-**Last Updated**: December 17, 2025
+**Last Updated**: February 12, 2026
 **Next Review**: March 2026 (after threat model formalization)
 **Status**: Research prototype - substantial progress on coordination, security research ongoing
 
