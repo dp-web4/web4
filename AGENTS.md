@@ -61,7 +61,7 @@ Web4 is trust infrastructure for AI agent coordination. Provides identity (LCT),
 
 | Repo | Relationship |
 |------|--------------|
-| `ACT` | Cosmos SDK blockchain for ATP/LCT (81K lines Go) |
+| `ACT` | Distributed ledger for ATP/LCT (Cosmos SDK, 81K lines Go) |
 | `Hardbound` | Enterprise product layer |
 | `HRM` | Edge AI kernel with MoE |
 | `Synchronism` | Theoretical physics foundation |

@@ -149,7 +149,7 @@ The Web4 whitepaper is actively evolving with:
   - Foundational concepts (LCTs, Entities, Roles, R6, MRH, Dictionaries, Trust as Gravity)
   - Value and trust mechanics (ATP/ADP tokens, T3 tensors)
   - Implementation details and examples
-  - Governance and blockchain integration
+  - Governance and ledger integration
 
 ## Recent Developments
 
@@ -211,7 +211,7 @@ cd whitepaper
 ### LCT Unforgeability Through Witnessed Presence
 - **Presence exists only through witnessing** - An entity's presence is real to the extent it is observed and recorded
 - **Hierarchical witness chains** - LCTs link to other LCTs, creating trees of contextual witnessing
-- **Cross-domain validation** - LCT trees span blockchains, domains, and fractal boundaries
+- **Cross-domain validation** - LCT trees span ledgers, domains, and fractal boundaries
 - **Presence accumulation** - The more an entity is witnessed, the more present it becomes
 - **Historical immutability** - Accumulated witnessing makes falsifying presence history exponentially harder
 - **Reification through observation** - LCTs transform abstract presence into concrete, verifiable reality
@@ -232,7 +232,7 @@ cd whitepaper
 ### Modbatt-CAN
 - Concrete implementation of Web4 entity binding hierarchy
 - Demonstrates binding, pairing, witnessing, and broadcast in real hardware
-- CAN bus protocol integration with blockchain identity
+- CAN bus protocol integration with ledger-backed identity
 - Reference implementation for IoT Web4 adoption
 
 ### Portal

@@ -30,7 +30,7 @@
 ### Next
 - Hardware binding implementation (iOS/Android/WebAuthn)
 - Economic attack modeling with real parameters
-- ACT blockchain integration
+- ACT ledger integration
 
 ---
 
@@ -331,15 +331,15 @@ web4/
 ## 🤝 Related Projects
 
 - **[HRM/SAGE](https://github.com/dp-web4/HRM)** - Edge AI kernel with MoE expert selection and trust-based routing
-- **[ACT](https://github.com/dp-web4/act)** - Cosmos SDK blockchain for ATP tokens and LCT identity registry
+- **[ACT](https://github.com/dp-web4/act)** - Distributed ledger for ATP tokens and LCT identity registry (Cosmos SDK)
 - **[Synchronism](https://github.com/dp-web4/Synchronism)** - Theoretical physics framework (MRH, coherence)
 - **[Memory](https://github.com/dp-web4/memory)** - Distributed memory and witnessing
 
 ### Cross-Project Integration
 
-Web4 integrates with SAGE (neural MoE) and ACT (blockchain) via:
+Web4 integrates with SAGE (neural MoE) and ACT (distributed ledger) via:
 - **Unified LCT Identity**: `lct://{component}:{instance}:{role}@{network}`
-- **ATP Resource Allocation**: Synchronized between blockchain and edge systems
+- **ATP Resource Allocation**: Synchronized between ledger and edge systems
 - **Bidirectional Pattern Exchange**: Coordination patterns transfer between domains
 - **Trust Tensor Synchronization**: Trust scores flow across system boundaries
 

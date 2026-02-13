@@ -3,7 +3,7 @@
 ## Primary Topics
 - web4
 - trust-native
-- blockchain
+- distributed-ledger
 - internet-protocol
 - distributed-intelligence
 
