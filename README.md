@@ -1,34 +1,36 @@
 # Web4: Trust-Native Distributed Intelligence Architecture
 
 <!-- SUMMARIZER BLOCK: Consistent headers for AI-to-human relay -->
-## Status Snapshot (2026-01-13)
+## Status Snapshot (2026-02-12)
 
 ### Highlights
-- **Sessions 176-180**: Causality verification, information theory, consciousness-aware attestation integrated
-- **Multi-device LCT binding spec**: Hardware anchor protocol for phone SE, FIDO2, TPM (Session 181)
-- **Existence threshold detection**: Session 180 adds C > 0 checks for entity presence
-- **ATP economics coherence**: Phase transition detector for trust dynamics
-- **Federation reputation DB**: Per-node reputation tracking (Legion, Thor, Peer1, Peer2)
+- **Attack simulations**: 424 vectors across 84 tracks (~85% detection rate)
+- **Formal threat model**: [THREAT_MODEL.md v2.0](docs/reference/security/THREAT_MODEL.md) - adversary model, trust boundaries, attack taxonomy
+- **Coordination framework**: ~25,000 lines, Phase 2a-2d validated (76% prediction accuracy)
+- **Cross-system integration**: SAGE ↔ Web4 pattern exchange operational
+- **Nova external review**: Comprehensive responses documented
 
 ### Validations
-- EP closed-loop simulation: 3+ lives with carry-forward state working
-- Federation patterns: 1000+ patterns in corpus, validated on edge (Jetson)
-- Trust tensor calculations: T3 composite scores stable across simulation runs
+- Attack simulation suite: 372 attack functions, all defended
+- EP closed-loop simulation: 3+ lives with carry-forward state
+- Federation patterns: 1000+ patterns validated on edge (Jetson)
+- Trust tensor calculations: T3 composite scores stable
 
 ### Risks / Gaps
-- **P0 Blocker (spec complete)**: Hardware binding spec complete - [`multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) - implementation pending
-- No formal threat model or adversarial testing
-- Consciousness-aware attestation is theoretical (no empirical grounding yet)
+- **P0 Blocker**: Hardware binding spec complete - implementation pending
+- Economic validation: No real-world market testing
+- Formal Sybil proofs: Empirical defenses, not mathematical proofs
+- Production deployment: All testing is synthetic
 
 ### Open Questions
-- How to implement hardware-bound keys without TPM on all platforms?
-- Can trust dynamics predict cascade failures before they occur?
+- Are stake amounts actually deterrent? (no economic modeling)
+- Does witness diversity resist sophisticated cartels?
 - What's the minimal viable Web4 for production pilot?
 
 ### Next
-- Multi-device binding implementation (iOS/Android/WebAuthn reference)
-- Integration with HRM nine-domain coherence framework
-- Pattern corpus browser from 4-life for EP visualization
+- Hardware binding implementation (iOS/Android/WebAuthn)
+- Economic attack modeling with real parameters
+- ACT blockchain integration
 
 ---
 
