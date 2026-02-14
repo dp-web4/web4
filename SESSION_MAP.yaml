@@ -4,13 +4,13 @@
 
 metadata:
   project: web4
-  last_updated: "2026-02-13T12:00:00Z"
+  last_updated: "2026-02-14T06:00:00Z"
   archivist_version: "1.3"
   total_sessions: 210
   focus: "Distributed Trust Infrastructure"
   date_range: "2025-08 to 2026-02"
   existing_manifest: "ARCHIVE_MANIFEST.md"
-  milestone: "424 attack vectors across 84+ tracks. Terminology reframing: blockchain→ledger for enterprise perception. TERMINOLOGY.md created. ATP/LCT definitions verified correct. Stable documentation phase."
+  milestone: "424 attack vectors stable. Synthon framing cross-reference added. Hardware binding implementation in progress (private). Stable documentation phase."
 
 # =============================================================================
 # RESEARCH ARCS
