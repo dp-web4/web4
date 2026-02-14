@@ -13,6 +13,18 @@ This project inherits epistemic principles from the dp-web4 collective:
 These principles are validated across 500+ research sessions.
 See: github.com/dp-web4/HRM/docs/what/HRM_RESEARCH_FRAMEWORK_COMPLETE.md
 
+## Synthon Framing (Cross-Project)
+
+A **synthon** is an emergent coherence entity formed by recursive interaction between components. Web4 operates at the synthon boundary layer — building the membrane infrastructure that lets synthons interact without losing themselves. LCTs function as membrane proteins mediating what crosses boundaries. Trust tensors are synthon-level observables, not just component diagnostics. Dictionary governance and federation consensus enable inter-synthon coherence arbitration. Attack simulations are deliberate inter-synthon conflict generation to map real boundary conditions.
+
+Key principles:
+- Engineer substrate conditions, not emergence itself
+- Instrument trust metrics as synthon-level health indicators
+- Treat inter-synthon conflict as signal — map it, don't suppress it
+- Monitor for decay signatures (trust entropy increase, boundary permeability spikes) with the same seriousness as formation signatures
+
+Canonical document: `github.com/dp-web4/HRM/forum/insights/synthon-framing.md`
+
 ---
 
 ## Machine Information
