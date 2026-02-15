@@ -25,6 +25,19 @@ Key principles:
 
 Canonical document: `github.com/dp-web4/HRM/forum/insights/synthon-framing.md`
 
+## Cross-Model Strategic Review (February 2026)
+
+Three independent AI models (Grok, Nova, Claude) reviewed Web4 and converged on the same assessment. Key takeaways:
+
+- **EU AI Act mapping**: Web4's stack maps article-by-article onto EU AI Act compliance requirements (Art. 9, 10, 13, 14, 15). The high-risk system deadline is **Aug 2, 2026**. Web4 positions as native compliance infrastructure.
+- **"Anti-Ponzi" framing**: ATP/ADP = thermodynamic accountability, not imagined scarcity. Lead with this in all positioning.
+- **Hardware binding is the #1 credibility priority.** Everything else is strengthened by it.
+- **Agreed gaps**: Bootstrapping inequality (open question), formal proofs (empirical-only so far), real-world market testing (synthetic-only so far).
+- **Agreed strengths**: 424+ attack vectors, commit velocity (~100/week), synthon framework as theoretical bridge.
+- **Demo-ability matters**: When building features, consider "can this be shown in 5 minutes?"
+
+Full document: `docs/strategy/cross-model-strategic-review-2026-02.md`
+
 ---
 
 ## Machine Information
