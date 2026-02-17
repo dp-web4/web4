@@ -277,7 +277,6 @@ impl EntityTrust {
 
         // Update T3 tensor
         self.t3.update_from_outcome(success, magnitude);
-        self.t3.update_training(self.success_count, self.action_count);
 
         // Update V3 valuation (effort spent)
         self.v3.add_valuation(0.01);
