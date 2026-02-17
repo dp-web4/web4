@@ -2,35 +2,29 @@
 """
 T3 Trust Tensor and V3 Value Tensor Implementation
 
-Implements the canonical 6-dimension trust and value tensors as defined in
-WEB4_CANONICAL_TERMINOLOGY.md. These tensors provide multi-dimensional
-assessment of entity trustworthiness and value creation.
+Implements the canonical T3/V3 tensors as defined in the Web4 ontology
+(web4-standard/ontology/t3v3-ontology.ttl) and CANONICAL_TERMS_v1.md.
 
-NOTE: The current t3-v3-tensors.md spec uses 3 dimensions (Talent/Training/Temperament).
-This implementation follows the canonical 6 dimensions. A reconciliation is needed
-in the spec documentation.
+T3 Trust Tensor — 3 root dimensions, fractally extensible:
+  1. talent      — Natural aptitude / capability for a specific role
+  2. training    — Learned skills, certifications, experience
+  3. temperament — Behavioral consistency, reliability, ethical disposition
 
-T3 Trust Tensor (6 dimensions):
-1. competence  - Technical capability to perform role
-2. reliability - Consistent delivery on commitments
-3. consistency - Predictable behavior patterns
-4. witnesses   - Corroboration from trusted third parties
-5. lineage     - Historical track record
-6. alignment   - Goal/value alignment with relying party
+V3 Value Tensor — 3 root dimensions, fractally extensible:
+  1. valuation   — Subjective worth as perceived by recipients
+  2. veracity    — Truthfulness, accuracy of claims
+  3. validity    — Soundness of reasoning, confirmed value delivery
 
-V3 Value Tensor (6 dimensions):
-1. energy      - Resources invested/mobilized
-2. contribution - Tangible output delivered
-3. stewardship - Responsible resource management
-4. network     - Relationship capital created
-5. reputation  - External recognition earned
-6. temporal    - Value persistence over time
+Each root dimension is a node in an open-ended RDF sub-graph. Domain-specific
+sub-dimensions refine roots via web4:subDimensionOf. The root score is the
+aggregate of its sub-graph. See t3v3-ontology.ttl for the formal ontology.
 
 Key Concepts:
 - Tensors are ROLE-CONTEXTUAL (trust as surgeon ≠ trust as mechanic)
 - Updates occur through R6 action outcomes
 - Coherence Index (CI) modulates trust application
 - Economic incentives (ATP costs) derive from tensor values
+- Sub-dimensions allow domain-specific refinement without modifying core
 """
 
 import math
@@ -49,94 +43,133 @@ import hashlib
 @dataclass
 class T3Tensor:
     """
-    6-dimension Trust Tensor
+    Trust Tensor with 3 canonical root dimensions.
 
-    All values are [0.0, 1.0] representing trust level.
+    Each root is an aggregate of an open-ended sub-dimension graph.
+    All root values are [0.0, 1.0] representing trust level.
     """
-    # Core capability dimensions
-    competence: float = 0.5    # Technical capability to perform role
-    reliability: float = 0.5   # Consistent delivery on commitments
-    consistency: float = 0.5   # Predictable behavior patterns
+    talent: float = 0.5       # Natural capability for role
+    training: float = 0.5     # Learned skills and experience
+    temperament: float = 0.5  # Behavioral consistency and reliability
 
-    # Social/verification dimensions
-    witnesses: float = 0.5     # Corroboration from trusted third parties
-    lineage: float = 0.5       # Historical track record
-    alignment: float = 0.5     # Goal/value alignment with relying party
+    # Open-ended sub-dimensions grouped by root
+    # e.g. {"talent": {"statistical_modeling": 0.9, "data_viz": 0.7}}
+    sub_dimensions: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Validate all dimensions in [0, 1]"""
-        for dim in self.dimensions():
+        """Validate root dimensions in [0, 1]"""
+        for dim in self.root_dimensions():
             value = getattr(self, dim)
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{dim} must be in [0.0, 1.0], got {value}")
 
     @staticmethod
-    def dimensions() -> List[str]:
-        """Get list of dimension names"""
-        return ['competence', 'reliability', 'consistency',
-                'witnesses', 'lineage', 'alignment']
+    def root_dimensions() -> List[str]:
+        """Get list of root dimension names"""
+        return ['talent', 'training', 'temperament']
 
     def as_vector(self) -> List[float]:
-        """Convert to 6D vector"""
-        return [getattr(self, dim) for dim in self.dimensions()]
+        """Convert root dimensions to 3D vector"""
+        return [getattr(self, dim) for dim in self.root_dimensions()]
 
     @classmethod
     def from_vector(cls, vec: List[float]) -> 'T3Tensor':
-        """Create from 6D vector"""
-        if len(vec) != 6:
-            raise ValueError(f"Expected 6 dimensions, got {len(vec)}")
-        return cls(**dict(zip(cls.dimensions(), vec)))
+        """Create from 3D vector"""
+        if len(vec) != 3:
+            raise ValueError(f"Expected 3 dimensions, got {len(vec)}")
+        return cls(**dict(zip(cls.root_dimensions(), vec)))
 
     def magnitude(self) -> float:
         """Euclidean magnitude (overall trust level)"""
-        return math.sqrt(sum(v**2 for v in self.as_vector())) / math.sqrt(6)
+        return math.sqrt(sum(v**2 for v in self.as_vector())) / math.sqrt(3)
 
     def weighted_score(self, weights: Optional[Dict[str, float]] = None) -> float:
         """
-        Compute weighted trust score
+        Compute weighted trust score from root dimensions.
 
-        Default weights emphasize core capability (competence, reliability)
-        with secondary emphasis on verification (witnesses, lineage).
+        Default weights from t3-v3-tensors.md spec.
         """
         if weights is None:
             weights = {
-                'competence': 0.25,
-                'reliability': 0.20,
-                'consistency': 0.15,
-                'witnesses': 0.15,
-                'lineage': 0.15,
-                'alignment': 0.10
+                'talent': 0.40,
+                'training': 0.30,
+                'temperament': 0.30,
             }
 
         total = sum(getattr(self, dim) * weights.get(dim, 0)
-                   for dim in self.dimensions())
+                   for dim in self.root_dimensions())
         return total
 
     def distance(self, other: 'T3Tensor') -> float:
-        """Euclidean distance to another tensor"""
+        """Euclidean distance to another tensor (root dimensions only)"""
         v1 = self.as_vector()
         v2 = other.as_vector()
         return math.sqrt(sum((a - b)**2 for a, b in zip(v1, v2)))
 
     def meets_threshold(self, threshold: 'T3Tensor') -> Tuple[bool, List[str]]:
         """
-        Check if this tensor meets minimum threshold requirements
+        Check if this tensor meets minimum threshold requirements.
 
-        Returns:
-            (meets_all, list_of_failing_dimensions)
+        Returns: (meets_all, list_of_failing_dimensions)
         """
         failing = []
-        for dim in self.dimensions():
+        for dim in self.root_dimensions():
             if getattr(self, dim) < getattr(threshold, dim):
                 failing.append(dim)
         return (len(failing) == 0, failing)
 
+    def aggregate_from_sub_dimensions(self, root_dim: str) -> Optional[float]:
+        """Recompute root score as mean of its sub-dimension scores."""
+        subs = self.sub_dimensions.get(root_dim, {})
+        if not subs:
+            return None
+        return sum(subs.values()) / len(subs)
+
+    def recompute_roots(self):
+        """Recompute all root scores from sub-dimensions (where available)."""
+        for dim in self.root_dimensions():
+            agg = self.aggregate_from_sub_dimensions(dim)
+            if agg is not None:
+                setattr(self, dim, max(0.0, min(1.0, agg)))
+
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = {dim: getattr(self, dim) for dim in self.root_dimensions()}
+        if self.sub_dimensions:
+            d['sub_dimensions'] = self.sub_dimensions
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> 'T3Tensor':
-        return cls(**{k: v for k, v in data.items() if k in cls.dimensions()})
+        roots = {k: v for k, v in data.items() if k in cls.root_dimensions()}
+        sub = data.get('sub_dimensions', {})
+        return cls(**roots, sub_dimensions=sub)
+
+    # Backward compatibility: map old 6D names to canonical structure
+    @classmethod
+    def from_legacy_6d(cls, competence=0.5, reliability=0.5, consistency=0.5,
+                       witnesses=0.5, lineage=0.5, alignment=0.5) -> 'T3Tensor':
+        """
+        Create from legacy 6D dimension names.
+
+        Mapping:
+          talent     ← competence (capability)
+          training   ← average(lineage) (track record → experience proxy)
+          temperament ← average(reliability, consistency, alignment)
+
+        witnesses is metadata, not a trust dimension — ignored in root scores.
+        """
+        return cls(
+            talent=competence,
+            training=lineage,
+            temperament=(reliability + consistency + alignment) / 3.0,
+            sub_dimensions={
+                'temperament': {
+                    'reliability': reliability,
+                    'consistency': consistency,
+                    'alignment': alignment,
+                }
+            }
+        )
 
 
 # ============================================================================
@@ -146,59 +179,85 @@ class T3Tensor:
 @dataclass
 class V3Tensor:
     """
-    6-dimension Value Tensor
+    Value Tensor with 3 canonical root dimensions.
 
-    Values are typically [0.0, 1.0] but some may exceed 1.0 for
-    exceptional value creation.
+    Valuation may exceed 1.0 for exceptional value creation.
+    Veracity and validity are [0.0, 1.0].
     """
-    # Resource dimensions
-    energy: float = 0.5        # Resources invested/mobilized
-    contribution: float = 0.5  # Tangible output delivered
-    stewardship: float = 0.5   # Responsible resource management
+    valuation: float = 0.5    # Subjective worth as perceived by recipients
+    veracity: float = 0.5     # Truthfulness and accuracy of claims
+    validity: float = 0.5     # Soundness of reasoning, confirmed delivery
 
-    # Social dimensions
-    network: float = 0.5       # Relationship capital created
-    reputation: float = 0.5    # External recognition earned
-    temporal: float = 0.5      # Value persistence over time
+    # Open-ended sub-dimensions
+    sub_dimensions: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
     @staticmethod
-    def dimensions() -> List[str]:
-        return ['energy', 'contribution', 'stewardship',
-                'network', 'reputation', 'temporal']
+    def root_dimensions() -> List[str]:
+        return ['valuation', 'veracity', 'validity']
 
     def as_vector(self) -> List[float]:
-        return [getattr(self, dim) for dim in self.dimensions()]
+        return [getattr(self, dim) for dim in self.root_dimensions()]
 
     @classmethod
     def from_vector(cls, vec: List[float]) -> 'V3Tensor':
-        if len(vec) != 6:
-            raise ValueError(f"Expected 6 dimensions, got {len(vec)}")
-        return cls(**dict(zip(cls.dimensions(), vec)))
+        if len(vec) != 3:
+            raise ValueError(f"Expected 3 dimensions, got {len(vec)}")
+        return cls(**dict(zip(cls.root_dimensions(), vec)))
 
     def total_value(self) -> float:
-        """Sum of all value dimensions"""
+        """Sum of root value dimensions"""
         return sum(self.as_vector())
 
     def weighted_value(self, weights: Optional[Dict[str, float]] = None) -> float:
         """Compute weighted value score"""
         if weights is None:
             weights = {
-                'contribution': 0.30,
-                'stewardship': 0.20,
-                'energy': 0.15,
-                'network': 0.15,
-                'reputation': 0.10,
-                'temporal': 0.10
+                'valuation': 0.40,
+                'veracity': 0.35,
+                'validity': 0.25,
             }
         return sum(getattr(self, dim) * weights.get(dim, 0)
-                  for dim in self.dimensions())
+                  for dim in self.root_dimensions())
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = {dim: getattr(self, dim) for dim in self.root_dimensions()}
+        if self.sub_dimensions:
+            d['sub_dimensions'] = self.sub_dimensions
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> 'V3Tensor':
-        return cls(**{k: v for k, v in data.items() if k in cls.dimensions()})
+        roots = {k: v for k, v in data.items() if k in cls.root_dimensions()}
+        sub = data.get('sub_dimensions', {})
+        return cls(**roots, sub_dimensions=sub)
+
+    @classmethod
+    def from_legacy_6d(cls, energy=0.5, contribution=0.5, stewardship=0.5,
+                       network=0.5, reputation=0.5, temporal=0.5) -> 'V3Tensor':
+        """
+        Create from legacy 6D dimension names.
+
+        Mapping:
+          valuation ← contribution (tangible output = perceived value)
+          veracity  ← reputation (external recognition → validation proxy)
+          validity  ← stewardship (responsible delivery → confirmed value)
+
+        energy is ATP metadata; network and temporal become sub-dimensions.
+        """
+        return cls(
+            valuation=contribution,
+            veracity=reputation,
+            validity=stewardship,
+            sub_dimensions={
+                'valuation': {
+                    'network_effects': network,
+                    'energy_invested': energy,
+                },
+                'validity': {
+                    'temporal_persistence': temporal,
+                }
+            }
+        )
 
 
 # ============================================================================
@@ -207,65 +266,48 @@ class V3Tensor:
 
 class ActionOutcome(Enum):
     """Outcome categories for R6 actions"""
-    NOVEL_SUCCESS = "novel_success"        # Innovative solution worked
-    STANDARD_SUCCESS = "standard_success"  # Expected outcome achieved
-    EXPECTED_FAILURE = "expected_failure"  # Reasonable attempt failed
-    UNEXPECTED_FAILURE = "unexpected_failure"  # Should have worked, didn't
-    ETHICS_VIOLATION = "ethics_violation"  # Violated behavioral norms
+    NOVEL_SUCCESS = "novel_success"
+    STANDARD_SUCCESS = "standard_success"
+    EXPECTED_FAILURE = "expected_failure"
+    UNEXPECTED_FAILURE = "unexpected_failure"
+    ETHICS_VIOLATION = "ethics_violation"
 
 
 @dataclass
 class T3UpdateDelta:
     """Delta values for T3 updates based on action outcomes"""
-    competence: float = 0.0
-    reliability: float = 0.0
-    consistency: float = 0.0
-    witnesses: float = 0.0
-    lineage: float = 0.0
-    alignment: float = 0.0
+    talent: float = 0.0
+    training: float = 0.0
+    temperament: float = 0.0
 
 
 # Standard update deltas per outcome type
+# Aligned with t3-v3-tensors.md Section 2.3
 T3_UPDATE_TABLE: Dict[ActionOutcome, T3UpdateDelta] = {
     ActionOutcome.NOVEL_SUCCESS: T3UpdateDelta(
-        competence=0.03,
-        reliability=0.02,
-        consistency=0.01,
-        witnesses=0.0,
-        lineage=0.02,
-        alignment=0.01
+        talent=0.03,       # Novel solutions demonstrate aptitude
+        training=0.02,     # Experience gained
+        temperament=0.01,  # Consistent positive behavior
     ),
     ActionOutcome.STANDARD_SUCCESS: T3UpdateDelta(
-        competence=0.005,
-        reliability=0.01,
-        consistency=0.01,
-        witnesses=0.0,
-        lineage=0.005,
-        alignment=0.005
+        talent=0.0,        # Expected performance, no talent signal
+        training=0.01,     # Practice builds skill
+        temperament=0.005, # Reliable execution
     ),
     ActionOutcome.EXPECTED_FAILURE: T3UpdateDelta(
-        competence=-0.01,
-        reliability=0.0,
-        consistency=0.0,
-        witnesses=0.0,
-        lineage=-0.005,
-        alignment=0.0
+        talent=-0.01,      # Slight capability concern
+        training=0.0,      # Reasonable attempt, no skill loss
+        temperament=0.0,   # Expected failures don't affect temperament
     ),
     ActionOutcome.UNEXPECTED_FAILURE: T3UpdateDelta(
-        competence=-0.02,
-        reliability=-0.02,
-        consistency=-0.01,
-        witnesses=0.0,
-        lineage=-0.01,
-        alignment=-0.01
+        talent=-0.02,      # Capability shortfall
+        training=-0.01,    # Knowledge gap revealed
+        temperament=-0.02, # Reliability concern
     ),
     ActionOutcome.ETHICS_VIOLATION: T3UpdateDelta(
-        competence=-0.05,
-        reliability=-0.05,
-        consistency=-0.10,
-        witnesses=0.0,
-        lineage=-0.05,
-        alignment=-0.10
+        talent=-0.05,      # Misapplied capability
+        training=0.0,      # Knowledge intact
+        temperament=-0.10, # Severe behavioral concern
     )
 }
 
@@ -277,7 +319,7 @@ def update_t3(
     ci_multiplier: float = 1.0
 ) -> T3Tensor:
     """
-    Update T3 tensor based on action outcome
+    Update T3 tensor based on action outcome.
 
     Args:
         current: Current T3 tensor
@@ -286,7 +328,7 @@ def update_t3(
         ci_multiplier: Coherence Index to modulate update magnitude
 
     Returns:
-        Updated T3 tensor
+        Updated T3 tensor (sub_dimensions preserved unchanged)
     """
     delta = T3_UPDATE_TABLE[outcome]
 
@@ -295,26 +337,24 @@ def update_t3(
         if base >= 0:
             return base * ci_multiplier
         else:
-            return base * (2.0 - ci_multiplier)  # Negative amplified when CI < 1
+            return base * (2.0 - ci_multiplier)
 
-    # Witness bonus
+    # Witness attestations boost temperament (reliable entities get witnessed more)
     witness_bonus = min(witness_attestations * 0.01, 0.05)
 
     new_values = {}
-    for dim in T3Tensor.dimensions():
+    for dim in T3Tensor.root_dimensions():
         current_val = getattr(current, dim)
         delta_val = getattr(delta, dim)
         adjusted_delta = apply_ci(delta_val)
 
-        # Add witness bonus to witnesses dimension
-        if dim == 'witnesses':
+        if dim == 'temperament':
             adjusted_delta += witness_bonus
 
-        # Clamp to [0, 1]
         new_val = max(0.0, min(1.0, current_val + adjusted_delta))
         new_values[dim] = round(new_val, 4)
 
-    return T3Tensor(**new_values)
+    return T3Tensor(sub_dimensions=current.sub_dimensions, **new_values)
 
 
 def update_v3(
@@ -325,7 +365,7 @@ def update_v3(
     witness_count: int = 0
 ) -> V3Tensor:
     """
-    Update V3 tensor based on value creation
+    Update V3 tensor based on value creation.
 
     Args:
         current: Current V3 tensor
@@ -334,45 +374,34 @@ def update_v3(
         contribution_quality: Quality score [0, 1] from recipients
         witness_count: Number of witnesses to the value transfer
     """
-    # Energy: based on resources mobilized
-    energy_delta = min(atp_spent / 100, 0.05)
-
-    # Contribution: based on value generated and quality
+    # Valuation: based on perceived value generated
     if atp_spent > 0:
         value_ratio = atp_earned / atp_spent
-        contribution_delta = (value_ratio - 1.0) * 0.02 * contribution_quality
+        valuation_delta = (value_ratio - 1.0) * 0.02 * contribution_quality
     else:
-        contribution_delta = 0.0
+        valuation_delta = 0.0
 
-    # Stewardship: efficiency of resource use
+    # Veracity: quality and witness attestation drive accuracy perception
+    veracity_delta = (contribution_quality - 0.5) * 0.02
+    veracity_delta += min(witness_count * 0.005, 0.02)
+
+    # Validity: efficiency of actual value delivery
     if atp_spent > 0:
         efficiency = min(atp_earned / atp_spent, 2.0) / 2.0
-        stewardship_delta = (efficiency - 0.5) * 0.02
+        validity_delta = (efficiency - 0.5) * 0.02
     else:
-        stewardship_delta = 0.0
-
-    # Network: witnesses create relationships
-    network_delta = min(witness_count * 0.005, 0.02)
-
-    # Reputation: quality drives reputation
-    reputation_delta = (contribution_quality - 0.5) * 0.02
-
-    # Temporal: positive outcomes increase persistence
-    if atp_earned > atp_spent:
-        temporal_delta = 0.01
-    else:
-        temporal_delta = -0.005
+        validity_delta = 0.0
 
     new_values = {
-        'energy': max(0, min(1.5, current.energy + energy_delta)),
-        'contribution': max(0, min(1.5, current.contribution + contribution_delta)),
-        'stewardship': max(0, min(1, current.stewardship + stewardship_delta)),
-        'network': max(0, min(1.5, current.network + network_delta)),
-        'reputation': max(0, min(1.5, current.reputation + reputation_delta)),
-        'temporal': max(0, min(1, current.temporal + temporal_delta))
+        'valuation': max(0, min(1.5, current.valuation + valuation_delta)),
+        'veracity': max(0, min(1.0, current.veracity + veracity_delta)),
+        'validity': max(0, min(1.0, current.validity + validity_delta)),
     }
 
-    return V3Tensor(**{k: round(v, 4) for k, v in new_values.items()})
+    return V3Tensor(
+        sub_dimensions=current.sub_dimensions,
+        **{k: round(v, 4) for k, v in new_values.items()}
+    )
 
 
 # ============================================================================
@@ -392,7 +421,7 @@ class RoleTensorPair:
 
 class EntityTensorStore:
     """
-    Manages role-contextual T3/V3 tensors for an entity
+    Manages role-contextual T3/V3 tensors for an entity.
 
     Key principle: Trust is NEVER global. Each role has separate tensors.
     """
@@ -405,25 +434,10 @@ class EntityTensorStore:
     def get_or_create(self, role: str) -> RoleTensorPair:
         """Get tensors for role, creating if needed"""
         if role not in self.role_tensors:
-            # New roles start with minimal trust
             self.role_tensors[role] = RoleTensorPair(
                 role=role,
-                t3=T3Tensor(
-                    competence=0.3,
-                    reliability=0.3,
-                    consistency=0.5,
-                    witnesses=0.1,
-                    lineage=0.1,
-                    alignment=0.5
-                ),
-                v3=V3Tensor(
-                    energy=0.3,
-                    contribution=0.3,
-                    stewardship=0.5,
-                    network=0.1,
-                    reputation=0.1,
-                    temporal=0.5
-                )
+                t3=T3Tensor(talent=0.3, training=0.3, temperament=0.5),
+                v3=V3Tensor(valuation=0.3, veracity=0.3, validity=0.5),
             )
         return self.role_tensors[role]
 
@@ -437,19 +451,13 @@ class EntityTensorStore:
         witness_count: int = 0,
         ci_multiplier: float = 1.0
     ) -> RoleTensorPair:
-        """
-        Update tensors for a role based on R6 action outcome
-        """
+        """Update tensors for a role based on R6 action outcome"""
         pair = self.get_or_create(role)
 
-        # Update T3
         new_t3 = update_t3(pair.t3, outcome, witness_count, ci_multiplier)
-
-        # Update V3
         new_v3 = update_v3(pair.v3, atp_spent, atp_earned,
                           contribution_quality, witness_count)
 
-        # Record history
         self.history.append({
             'timestamp': datetime.now().isoformat(),
             'role': role,
@@ -460,7 +468,6 @@ class EntityTensorStore:
             'v3_after': new_v3.to_dict()
         })
 
-        # Update pair
         pair.t3 = new_t3
         pair.v3 = new_v3
         pair.last_updated = datetime.now().isoformat()
@@ -475,20 +482,18 @@ class EntityTensorStore:
         ci: float = 1.0
     ) -> float:
         """
-        Compute ATP cost for an action based on trust tensors
+        Compute ATP cost for an action based on trust tensors.
 
-        Lower trust = higher cost (risk premium)
-        Lower CI = higher cost (coherence penalty)
+        Lower trust = higher cost (risk premium).
+        Lower CI = higher cost (coherence penalty).
         """
         pair = self.get_or_create(role)
 
-        # Trust discount: high trust reduces cost
         trust_score = pair.t3.weighted_score()
-        trust_multiplier = 2.0 - trust_score  # 1.0 at trust=1.0, 2.0 at trust=0.0
+        trust_multiplier = 2.0 - trust_score
 
-        # CI penalty: low coherence increases cost
-        ci_multiplier = 1.0 / (ci ** 2)  # 1x at CI=1.0, 4x at CI=0.5
-        ci_multiplier = min(ci_multiplier, 10.0)  # Cap at 10x
+        ci_multiplier = 1.0 / (ci ** 2)
+        ci_multiplier = min(ci_multiplier, 10.0)
 
         return base_cost * trust_multiplier * ci_multiplier
 
@@ -514,32 +519,28 @@ class EntityTensorStore:
 
 def apply_decay(tensor_store: EntityTensorStore, days_elapsed: int = 30) -> None:
     """
-    Apply time-based decay to tensors
+    Apply time-based decay to T3 tensors.
 
-    - competence: Stable (represents inherent capability)
-    - reliability/consistency: Slow decay without reinforcement
-    - witnesses: Moderate decay (testimony fades)
-    - lineage: Very slow decay (history persists)
-    - alignment: Context-dependent, moderate decay
+    Per t3-v3-tensors.md Section 2.3:
+    - talent: No decay (represents inherent capability)
+    - training: -0.001 per month without practice
+    - temperament: +0.01 per month recovery toward baseline
     """
     decay_rates = {
-        'competence': 0.0,      # No decay
-        'reliability': 0.005,   # 0.5% per month
-        'consistency': 0.005,
-        'witnesses': 0.01,      # 1% per month
-        'lineage': 0.002,       # 0.2% per month
-        'alignment': 0.005
+        'talent': 0.0,        # Stable
+        'training': 0.001,    # Slow skill decay
+        'temperament': -0.01, # Negative = recovery toward baseline
     }
 
     for role, pair in tensor_store.role_tensors.items():
         new_values = {}
-        for dim in T3Tensor.dimensions():
+        for dim in T3Tensor.root_dimensions():
             current = getattr(pair.t3, dim)
-            decay = decay_rates[dim] * (days_elapsed / 30)
-            new_val = max(0.1, current - decay)  # Floor at 0.1
+            rate = decay_rates[dim] * (days_elapsed / 30)
+            new_val = max(0.1, min(1.0, current - rate))
             new_values[dim] = round(new_val, 4)
 
-        pair.t3 = T3Tensor(**new_values)
+        pair.t3 = T3Tensor(sub_dimensions=pair.t3.sub_dimensions, **new_values)
 
 
 # ============================================================================
@@ -550,7 +551,7 @@ def demo_trust_tensors():
     """Demonstrate trust tensor functionality"""
 
     print("=" * 60)
-    print("T3/V3 TRUST TENSOR DEMO")
+    print("T3/V3 TRUST TENSOR DEMO (Canonical 3D + Sub-Dimensions)")
     print("=" * 60)
 
     # Create entity tensor store
@@ -614,19 +615,42 @@ def demo_trust_tensors():
 
     print("\n6. Threshold Checking")
     print("-" * 40)
-    threshold = T3Tensor(
-        competence=0.4,
-        reliability=0.4,
-        consistency=0.4,
-        witnesses=0.2,
-        lineage=0.2,
-        alignment=0.4
-    )
+    threshold = T3Tensor(talent=0.4, training=0.4, temperament=0.4)
     meets, failing = pair.t3.meets_threshold(threshold)
     print(f"  Threshold: {threshold.to_dict()}")
     print(f"  Meets threshold: {meets}")
     if failing:
         print(f"  Failing dimensions: {failing}")
+
+    print("\n7. Sub-Dimensions")
+    print("-" * 40)
+    t3_with_subs = T3Tensor(
+        talent=0.85,
+        training=0.90,
+        temperament=0.78,
+        sub_dimensions={
+            'talent': {
+                'statistical_modeling': 0.92,
+                'data_visualization': 0.78,
+            },
+            'training': {
+                'python_proficiency': 0.95,
+                'sql_expertise': 0.85,
+            }
+        }
+    )
+    print(f"  T3 with sub-dims: {t3_with_subs.to_dict()}")
+    print(f"  Talent aggregate from subs: {t3_with_subs.aggregate_from_sub_dimensions('talent'):.3f}")
+    print(f"  Training aggregate from subs: {t3_with_subs.aggregate_from_sub_dimensions('training'):.3f}")
+
+    print("\n8. Legacy 6D Migration")
+    print("-" * 40)
+    legacy = T3Tensor.from_legacy_6d(
+        competence=0.8, reliability=0.7, consistency=0.9,
+        witnesses=0.6, lineage=0.5, alignment=0.85
+    )
+    print(f"  Legacy 6D → Canonical: {legacy.to_dict()}")
+    print(f"  (witnesses=0.6 absorbed as metadata, not a dimension)")
 
     print("\n" + "=" * 60)
     print("Trust Tensor Demo Complete!")

@@ -65,7 +65,11 @@ class RelationType(Enum):
     # Trust/Reputation relationships
     HAS_T3_TENSOR = "web4:hasT3Tensor"
     HAS_V3_TENSOR = "web4:hasV3Tensor"
+    HAS_DIMENSION_SCORE = "web4:hasDimensionScore"
     AUTHORIZED_ACTION = "web4:authorizedAction"
+
+    # Ontological relationships
+    SUB_DIMENSION_OF = "web4:subDimensionOf"
 
 
 @dataclass
@@ -140,27 +144,57 @@ class MRHEdge:
 
 
 @dataclass
+class DimensionScore:
+    """
+    A scored observation linking a tensor to a specific dimension.
+    Mirrors web4:DimensionScore from t3v3-ontology.ttl.
+    """
+    dimension: str           # e.g. "web4:Talent" or "analytics:StatisticalModeling"
+    score: float
+    observed_at: float = field(default_factory=time.time)
+    witnessed_by: Optional[str] = None  # LCT of witness
+
+
+@dataclass
 class T3Tensor:
     """
-    Role-contextual Trust tensor
+    Role-contextual Trust tensor with fractal sub-dimensions.
 
     CRITICAL: T3 is always bound to (entity, role) pair!
+
+    The 3 root dimensions (talent/training/temperament) are aggregate scores.
+    Each can be refined by open-ended sub-dimensions linked via
+    web4:subDimensionOf in the RDF graph. See t3v3-ontology.ttl.
     """
     entity_lct: str
     role_lct: str
-    talent: float = 0.5      # Natural capability
-    training: float = 0.5    # Acquired skill
-    temperament: float = 0.5 # Reliability/consistency
+    talent: float = 0.5      # Natural capability (root aggregate)
+    training: float = 0.5    # Acquired skill (root aggregate)
+    temperament: float = 0.5 # Reliability/consistency (root aggregate)
+    sub_dimensions: Dict[str, List[DimensionScore]] = field(default_factory=dict)
 
     def average(self) -> float:
-        """Simple average trust score"""
+        """Simple average of root trust scores"""
         return (self.talent + self.training + self.temperament) / 3.0
 
     def weighted(self, talent_w=0.4, training_w=0.3, temperament_w=0.3) -> float:
-        """Weighted trust score"""
+        """Weighted trust score from root dimensions"""
         return (self.talent * talent_w +
                 self.training * training_w +
                 self.temperament * temperament_w)
+
+    def add_sub_dimension_score(self, parent_dim: str, score: DimensionScore):
+        """Add a sub-dimension score under a root dimension."""
+        if parent_dim not in self.sub_dimensions:
+            self.sub_dimensions[parent_dim] = []
+        self.sub_dimensions[parent_dim].append(score)
+
+    def aggregate_root(self, root_dim: str) -> Optional[float]:
+        """Recompute root dimension as average of sub-dimension scores."""
+        scores = self.sub_dimensions.get(root_dim, [])
+        if not scores:
+            return None
+        return sum(s.score for s in scores) / len(scores)
 
 
 class MRHGraph:
@@ -366,22 +400,72 @@ class MRHGraph:
         dfs(start, end, [start], 0)
         return paths
 
+    def register_sub_dimension(self, child_dim: str, parent_dim: str):
+        """
+        Register a sub-dimension relationship in the graph.
+
+        Example: register_sub_dimension("analytics:StatisticalModeling", "web4:Talent")
+        This adds: analytics:StatisticalModeling web4:subDimensionOf web4:Talent .
+        """
+        self.add_triple(child_dim, RelationType.SUB_DIMENSION_OF.value, parent_dim)
+
+    def get_sub_dimensions(self, parent_dim: str, recursive: bool = True) -> List[str]:
+        """
+        Get all sub-dimensions of a parent dimension.
+
+        If recursive=True, traverses the full sub-graph (equivalent to
+        SPARQL: ?dim web4:subDimensionOf* parent_dim).
+        """
+        direct = [t.subject for t in
+                  self.query_triples(predicate=RelationType.SUB_DIMENSION_OF.value,
+                                     object_=parent_dim)]
+        if not recursive:
+            return direct
+
+        all_dims = list(direct)
+        frontier = list(direct)
+        while frontier:
+            next_frontier = []
+            for dim in frontier:
+                children = [t.subject for t in
+                           self.query_triples(predicate=RelationType.SUB_DIMENSION_OF.value,
+                                              object_=dim)]
+                for child in children:
+                    if child not in all_dims:
+                        all_dims.append(child)
+                        next_frontier.append(child)
+            frontier = next_frontier
+        return all_dims
+
     def set_t3_tensor(self, entity_lct: str, role_lct: str, t3: T3Tensor):
         """
         Set T3 trust tensor for (entity, role) pair.
 
         CRITICAL: Trust is role-contextual!
+
+        Emits both shorthand triples (web4:talent 0.95) and full-form
+        triples (web4:hasDimensionScore) for sub-dimensions.
         """
         key = (entity_lct, role_lct)
         self.t3_tensors[key] = t3
 
-        # Also add as RDF triple
+        # Shorthand triples (backward-compatible)
         tensor_id = f"tensor:t3:{entity_lct}:{role_lct}"
         self.add_triple(entity_lct, RelationType.HAS_T3_TENSOR.value, tensor_id)
         self.add_triple(tensor_id, "web4:role", role_lct)
         self.add_triple(tensor_id, "web4:talent", str(t3.talent))
         self.add_triple(tensor_id, "web4:training", str(t3.training))
         self.add_triple(tensor_id, "web4:temperament", str(t3.temperament))
+
+        # Full-form triples for sub-dimension scores
+        for parent_dim, scores in t3.sub_dimensions.items():
+            for ds in scores:
+                score_id = f"score:{tensor_id}:{ds.dimension}:{ds.observed_at}"
+                self.add_triple(tensor_id, RelationType.HAS_DIMENSION_SCORE.value, score_id)
+                self.add_triple(score_id, "web4:dimension", ds.dimension)
+                self.add_triple(score_id, "web4:score", str(ds.score))
+                if ds.witnessed_by:
+                    self.add_triple(score_id, "web4:witnessedBy", ds.witnessed_by)
 
     def get_t3_tensor(self, entity_lct: str, role_lct: str) -> Optional[T3Tensor]:
         """Get T3 trust tensor for (entity, role) pair"""
@@ -563,18 +647,33 @@ if __name__ == "__main__":
     # Set T3 tensors
     print("\n📊 Setting Trust Tensors:")
 
+    # Register domain sub-dimensions
+    graph.register_sub_dimension("research:LiteratureReview", "web4:Talent")
+    graph.register_sub_dimension("research:ExperimentalDesign", "web4:Talent")
+    graph.register_sub_dimension("research:StatisticalAnalysis", "web4:Training")
+    print("   ✅ Registered research domain sub-dimensions")
+
+    # Create T3 with sub-dimension scores
+    t3 = T3Tensor(
+        entity_lct="lct:ai_agent",
+        role_lct="role:researcher",
+        talent=0.8,
+        training=0.7,
+        temperament=0.9
+    )
+    t3.add_sub_dimension_score("web4:Talent", DimensionScore(
+        dimension="research:LiteratureReview", score=0.85, witnessed_by="lct:alice"))
+    t3.add_sub_dimension_score("web4:Talent", DimensionScore(
+        dimension="research:ExperimentalDesign", score=0.75, witnessed_by="lct:alice"))
+    t3.add_sub_dimension_score("web4:Training", DimensionScore(
+        dimension="research:StatisticalAnalysis", score=0.72, witnessed_by="lct:alice"))
+
     event_integration.on_reputation_update(
         entity_lct="lct:ai_agent",
         role_lct="role:researcher",
-        t3=T3Tensor(
-            entity_lct="lct:ai_agent",
-            role_lct="role:researcher",
-            talent=0.8,
-            training=0.7,
-            temperament=0.9
-        )
+        t3=t3
     )
-    print("   ✅ T3 tensor set for ai_agent as researcher")
+    print("   ✅ T3 tensor set for ai_agent as researcher (with sub-dimensions)")
 
     # Query graph
     print("\n🔍 Querying Graph:")
@@ -611,6 +710,18 @@ if __name__ == "__main__":
     paths = graph.find_paths("lct:alice", "lct:ai_agent", max_depth=3)
     for i, path in enumerate(paths):
         print(f"   Path {i+1}: {' → '.join(path)}")
+
+    # Sub-dimension queries
+    print("\n🌿 Sub-Dimension Queries:")
+
+    talent_subs = graph.get_sub_dimensions("web4:Talent")
+    print(f"   Talent sub-dimensions: {talent_subs}")
+
+    t3_retrieved = graph.get_t3_tensor("lct:ai_agent", "role:researcher")
+    if t3_retrieved:
+        agg = t3_retrieved.aggregate_root("web4:Talent")
+        print(f"   Talent aggregate from sub-dims: {agg:.3f}" if agg else "   No sub-dim scores")
+        print(f"   Talent root score: {t3_retrieved.talent}")
 
     # Trust propagation
     print("\n🔐 Trust Propagation:")

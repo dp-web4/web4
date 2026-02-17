@@ -1,106 +1,213 @@
 # Roamer Candidate: T3/V3 Fractal RDF Code Alignment
 
 **Created**: 2026-02-13
-**Priority**: High
+**Updated**: 2026-02-17
+**Priority**: High (Rust consolidation remains)
 **Depends on**: Ontology and spec alignment (completed 2026-02-13)
 
-## Context
+## Status
 
-The T3/V3 ontology (`web4-standard/ontology/t3v3-ontology.ttl`) and all specification documents have been updated to make the fractal RDF sub-dimension model normative. The specs now declare:
+### COMPLETED: Specs + Python (Phase 1-3)
 
-- 3 root dimensions per tensor (T3: Talent/Training/Temperament, V3: Valuation/Veracity/Validity)
-- Each root is a node in an open-ended RDF sub-graph via `web4:subDimensionOf`
-- Both shorthand (`web4:talent 0.95`) and full (`web4:hasDimensionScore`) forms are valid
-- JSON schemas allow `sub_dimensions` objects
+All specification documents, schemas, and documentation updated and pushed (2026-02-13):
+- `web4-standard/ontology/t3v3-ontology.ttl` — NEW, formal fractal ontology
+- `web4-standard/ontology/t3v3.jsonld` — NEW, JSON-LD context
+- All core specs (t3-v3-tensors.md, mrh-tensors.md, LCT spec) — canonical 3D + `subDimensionOf`
+- JSON schemas (t3v3.schema.json, lct.schema.json) — `sub_dimensions` property added
+- Docs (CANONICAL_TERMS, SOURCE_OF_TRUTH, EXECUTIVE_SUMMARY, QUICK_REFERENCE, CLAUDE.md)
 
-**The code implementations still use hardcoded 6D flat arrays with non-canonical dimension names.**
+### COMPLETED: Python Reference Implementations (Phase 4a)
 
-## Scope
+- **`mrh_graph.py`** — Added `DimensionScore` dataclass, `SUB_DIMENSION_OF`/`HAS_DIMENSION_SCORE` relation types, `register_sub_dimension()`, `get_sub_dimensions(recursive=True)`, aggregation via `aggregate_root()`. Tested successfully.
+- **`trust_tensor.py`** — Full rewrite. 6D flat → canonical 3D (talent/training/temperament, valuation/veracity/validity) + `sub_dimensions` dict. Added `aggregate_from_sub_dimensions()`, `recompute_roots()`, `from_legacy_6d()` classmethods for backward compat. Tested successfully.
+- **Other Python files** — Background agent scanning remaining files (web4_full_stack_demo.py, lct_capability_levels.py, law_oracle.py, attack_demonstrations.py, etc.) for old 6D names.
 
-### Rust Crates (2 competing, incompatible)
+### REMAINING: Rust Consolidation (Phase 4b)
 
-#### `web4-trust-core/src/tensor/t3.rs` (311 lines)
-- 6D: competence, reliability, consistency, witnesses, lineage, alignment
-- `pub struct T3Tensor` with 6 `pub f64` fields
-- PyO3 bindings in `t3.rs` with hardcoded field names
-- WASM bindings in `wasm.rs` with hardcoded field names
-- Consumers: `tensor/mod.rs`, `tensor/v3.rs`, `lib.rs`
+This is the open work item. See detailed analysis below.
 
-#### `web4-core/src/t3.rs` (285 lines)
-- 6D: Competence, Integrity, Benevolence, Predictability, Transparency, Accountability
-- `pub const T3_DIMENSIONS: usize = 6;` with `[f64; T3_DIMENSIONS]`
-- More sophisticated: observation model with EMA, weighted geometric mean
-- Has `TrustRelation` struct (from_id, to_id, T3) — closest to RDF edge
-- Consumers: `lib.rs`, `v3.rs`, `reputation.rs`
+---
 
-### Python Reference Implementation
+## Rust Crate Deep Analysis (February 2026)
 
-#### `web4-standard/implementation/reference/trust_tensor.py` (638 lines)
-- Uses web4-trust-core's 6D names
-- Line 9-10 already notes: "A reconciliation is needed in the spec documentation"
-- `EntityTensorStore` with role-contextual nesting (closest to target model)
+### Crate 1: `web4-trust-core` (Jan 24, 2026)
 
-#### `web4-standard/implementation/reference/mrh_graph.py`
-- Already uses 3D: talent/training/temperament stored as RDF triples
-- **Closest to target** — mostly just needs `subDimensionOf` edge support
+**Location**: `web4-trust-core/`
+**License**: MIT
+**Files**: 20 `.rs` files
 
-### Other Python Files Using Old 6D Names
+```
+src/lib.rs
+src/tensor/mod.rs, t3.rs, v3.rs
+src/entity/mod.rs, trust.rs, types.rs
+src/witnessing/mod.rs, event.rs, chain.rs
+src/decay/mod.rs, temporal.rs
+src/storage/mod.rs, traits.rs, memory.rs, file.rs
+src/bindings/mod.rs, python.rs, wasm.rs
+benches/trust_benchmarks.rs
+```
 
-Found via `grep -rl "technical_competence\|social_reliability"`:
-- `web4_full_stack_demo.py`
-- `web4_ep_performance_benchmark.py`
-- `test_relationship_coherence_ep.py`
-- `relationship_coherence_ep.py`
-- `lct_capability_levels.py`
-- `law_oracle.py`
-- `attack_demonstrations.py`
-- `ATTACK_VECTOR_ANALYSIS.md`
-- `schema_action_sequences.sql`
+**T3 Dimensions**: competence, reliability, consistency, witnesses, lineage, alignment
+**V3 Dimensions**: energy, contribution, stewardship, network, reputation, temporal
 
-## Recommended Approach
+**Math**: Simple arithmetic mean (`sum / 6.0`). Asymmetric deltas with fixed multipliers. Exponential decay toward floor 0.3.
 
-### Phase 1: Python (lower risk, highest payoff)
+**Unique features**: WitnessEvent/WitnessingChain (transitive trust), EntityTrust composite, DecayConfig (grace period/floor/rate), TrustStore trait + InMemoryStore + FileStore (JSON on disk), PyO3 0.20 bindings, WASM bindings, criterion benchmarks, Python compat tests.
 
-1. **`mrh_graph.py`** — Already nearly correct. Add `subDimensionOf` edge support and aggregation method.
+**Persistence**: JSON files at `~/.web4/governance/entities/{sha256_hash[0:16]}.json`. Flattened T3/V3 fields as siblings via `#[serde(flatten)]`.
 
-2. **`trust_tensor.py`** — Map existing 6D to root + sub-dimension hierarchy. The `EntityTensorStore` with role-contextual nesting is already close. Change field names, add `sub_dimensions` dict.
+### Crate 2: `web4-core` (Jan 22, 2026)
 
-3. **Other Python files** — Search-and-replace dimension names, update test data.
+**Location**: `web4-core/`
+**License**: AGPL-3.0 (MetaLINXX Inc., patent-protected)
+**Files**: 8 `.rs` files
 
-### Phase 2: Rust Consolidation (higher risk)
+```
+src/lib.rs, t3.rs, v3.rs, coherence.rs, crypto.rs, error.rs, lct.rs
+python/src/lib.rs
+```
 
-**Critical decision first**: Which crate survives?
+**T3 Dimensions**: Competence, Integrity, Benevolence, Predictability, Transparency, Accountability
+**V3 Dimensions**: Utility, Novelty, Quality, Timeliness, Relevance, Leverage
 
-| Aspect | web4-trust-core | web4-core |
-|--------|----------------|-----------|
-| Sophistication | Basic (simple average) | Advanced (EMA, geometric mean) |
-| Bindings | PyO3 + WASM | None |
-| Edge model | No relation struct | `TrustRelation` (closest to RDF) |
-| Consumers | Less | More |
+**Math**: Weighted **geometric mean** for T3 (zero in any dimension zeros total), weighted **arithmetic mean** for V3 (allows specialization). **EMA** with decaying alpha (`0.5 / (1 + count/10)`). Per-dimension confidence weights via log growth. Per-dimension observation counts. Tensor merge weighted by observations. Euclidean distance. Specialized V3 aggregate for subsets.
 
-**Recommended**: Keep `web4-core` math, add `web4-trust-core` bindings. But this needs careful analysis of all consumers.
+**Unique features**: TrustDimension/ValueDimension enums (type-safe), LCT (full Ed25519, status, hardware binding, parent chain), Coherence (C*S*Phi*R), TrustRelation, TrustObservation. PyO3 0.22 (separate subcrate).
 
-Refactor approach:
-1. Define canonical `T3Tensor` with 3 root `f64` + `HashMap<String, f64>` for sub-dimensions
-2. Implement `From<[f64; 6]>` for backward compatibility during migration
-3. Update PyO3/WASM bindings
-4. Migrate consumers one at a time with tests
+**No persistence layer.**
 
-### Phase 3: Serialized Data
+### Test Coverage
 
-Check for any persisted data on disk using old field names. Will need migration script.
+- **web4-trust-core**: ~50 tests across 9 modules (tensor, entity, witnessing, storage, decay)
+- **web4-core**: ~30 tests across 6 modules (lib, t3, v3, coherence, lct, crypto)
+
+### Dependency Differences
+
+| | web4-trust-core | web4-core |
+|--|-----------------|-----------|
+| PyO3 | 0.20 | 0.22 |
+| Crypto | None | ed25519-dalek 2.1, sha2 |
+| Storage | sled (optional), serde_json | serde_json only |
+| WASM | wasm-bindgen, js-sys | None |
+
+---
+
+## Consolidation Recommendation
+
+### Math: web4-core wins
+
+1. Weighted geometric mean for T3 prevents "all-but-one" attack
+2. Per-dimension confidence weights prevent gaming
+3. EMA with decaying alpha is the correct update model
+4. Observation counting provides audit trail
+5. Merge capability enables federation
+6. T3=geometric, V3=arithmetic is philosophically sound (trust requires all dimensions, value allows specialization)
+
+### Infrastructure: web4-trust-core wins
+
+1. Only working WASM bindings
+2. More complete Python surface (TrustStore, witnessing, dict export)
+3. WitnessEvent/WitnessingChain (only implementation)
+4. DecayConfig (more configurable)
+5. Storage trait + FileStore (only implementation)
+6. Criterion benchmarks (only implementation)
+7. Python compat tests (only implementation)
+
+### Recommended Architecture
+
+| Component | Source | Rationale |
+|-----------|--------|-----------|
+| T3/V3 tensor math | web4-core | Superior EMA, weights, geometric mean |
+| TrustDimension/ValueDimension enums | web4-core | Type-safe dimension access |
+| LCT | web4-core | Only implementation |
+| Coherence (C*S*Phi*R) | web4-core | Only implementation |
+| Crypto (Ed25519) | web4-core | Only implementation |
+| EntityTrust composite | web4-trust-core | Richer witnessing, action counts |
+| WitnessEvent/WitnessingChain | web4-trust-core | Only implementation |
+| DecayConfig | web4-trust-core | More configurable |
+| TrustStore + InMemoryStore | web4-trust-core | Only implementation |
+| FileStore (JSON) | web4-trust-core | Only implementation |
+| PyO3 bindings | web4-trust-core (rewired) | More complete surface |
+| WASM bindings | web4-trust-core (rewired) | Only implementation |
+| Benchmarks | web4-trust-core | Only implementation |
+
+### Dimension Name Mapping (6D → 3D roots)
+
+The old 6D dimensions are flattened instantiations of the canonical 3-root ontology:
+
+```
+Talent → { Competence } (web4-core) or { competence } (web4-trust-core)
+Training → { Transparency, Accountability } or { witnesses, lineage }
+Temperament → { Integrity, Benevolence, Predictability } or { reliability, consistency, alignment }
+
+Valuation → { Utility, Leverage } or { energy, network }
+Veracity → { Quality, Relevance } or { contribution, reputation }
+Validity → { Novelty, Timeliness } or { stewardship, temporal }
+```
+
+This mapping should be documented. The refactored crate uses 3 root `f64` + `HashMap<String, f64>` for sub-dimensions, matching the Python implementations.
+
+---
+
+## Migration Path
+
+### Phase 1: Make web4-trust-core depend on web4-core
+- Add `web4-core = { path = "../web4-core" }` to Cargo.toml
+- Replace `T3Tensor` (6 named fields) with wrapper around `web4_core::T3`
+- Replace `V3Tensor` with wrapper around `web4_core::V3`
+- Adapt EntityTrust to use `T3::observe()` instead of `T3Tensor::update_from_outcome()`
+
+### Phase 2: Serialization migration
+Current persisted format (flattened named fields):
+```json
+{
+  "entity_id": "mcp:filesystem",
+  "competence": 0.5,
+  "reliability": 0.5
+}
+```
+web4-core serializes as:
+```json
+{
+  "dimensions": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+  "weights": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+  "observation_counts": [0, 0, 0, 0, 0, 0]
+}
+```
+Write custom serde layer that reads old flat format AND new array format. Always write new format.
+
+### Phase 3: Update bindings
+- PyO3: Expose TrustDimension/ValueDimension enums, upgrade to 0.22
+- WASM: Same adaptation
+- `to_dict()`/`toJSON()` output dimension names from enums
+
+### Phase 4: Update consumers
+- `simulations/trust_integration.py` — updated field names
+- Claude-code-plugin bridge module — updated imports
+- Python compat test — rewrite for new API
+
+## What Breaks
+
+1. **JSON persistence**: Files in `~/.web4/governance/entities/` become incompatible. Needs migration script or backward-compat serde.
+2. **Python API surface**: `trust.competence` → `trust.score(TrustDimension.Competence)`. `update_from_outcome(success, magnitude)` → `observe(dimension, score)`.
+3. **WASM API surface**: Same field name changes.
+4. **trust_integration.py**: Hardbound metric mappings need updating.
+5. **Dimension semantics**: "witnesses" and "lineage" from web4-trust-core are metadata, not tensor dimensions. Semantic loss unless mapping designed carefully.
+6. **PyO3 version**: 0.20 → 0.22 is a breaking API change (`&PyModule` → `&Bound<'_, PyModule>`).
+7. **License**: web4-trust-core=MIT, web4-core=AGPL-3.0. Combined work = AGPL-3.0. **Needs explicit decision.**
 
 ## Risk Assessment
 
-- **Python**: Low risk. Mostly renames and restructuring. Good test coverage exists.
-- **Rust**: Medium-high risk. Two incompatible crates, binding layers, and no test suite visible.
-- **Data migration**: Unknown risk. Need to check if any JSON/CBOR data is persisted.
+- **Python**: COMPLETED. Low risk, mostly renames.
+- **Rust consolidation**: Medium-high. Two incompatible crates, 80+ tests, binding layers.
+- **Data migration**: Medium. Known JSON persistence on disk with old field names.
+- **License conflict**: **Decision required** — MIT vs AGPL-3.0 affects all downstream.
 
 ## Acceptance Criteria
 
-1. All Python implementations use canonical 3D root + sub_dimensions pattern
-2. `mrh_graph.py` supports `web4:subDimensionOf` edges
+1. ~~All Python implementations use canonical 3D root + sub_dimensions pattern~~ DONE
+2. ~~`mrh_graph.py` supports `web4:subDimensionOf` edges~~ DONE
 3. Rust crates consolidated or clearly separated with shared types
 4. All dimension names match canonical: talent/training/temperament, valuation/veracity/validity
-5. No references to old 6D names (competence, reliability, consistency, etc.) in active code
-6. `grep "technical_competence\|social_reliability" web4-standard/implementation/` returns 0
+5. No references to old 6D names in active code
+6. ~~`grep "technical_competence\|social_reliability" web4-standard/implementation/` returns 0~~ DONE

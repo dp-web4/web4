@@ -121,28 +121,28 @@ ENTITY_LEVEL_RANGES: Dict[EntityType, Tuple[CapabilityLevel, CapabilityLevel]] =
 
 
 # =============================================================================
-# T3 Tensor (6 dimensions)
+# T3 Tensor (3 canonical root dimensions)
 # =============================================================================
 
 @dataclass
 class T3Tensor:
     """
-    Trust Tensor with 6 dimensions.
+    Trust Tensor with 3 canonical root dimensions.
 
     Dimensions (all 0.0-1.0):
-    - technical_competence: Can entity perform claimed capabilities?
-    - social_reliability: Does entity honor commitments?
-    - temporal_consistency: Is behavior consistent over time?
-    - witness_count: How many entities witness this entity? (normalized)
-    - lineage_depth: How deep is trust lineage? (normalized)
-    - context_alignment: How well aligned with current context?
+    - talent: Natural aptitude / capability for a specific role
+    - training: Learned skills, certifications, experience
+    - temperament: Behavioral consistency, reliability, ethical disposition
+
+    Each root dimension is a node in an open-ended RDF sub-graph.
+    Domain-specific sub-dimensions refine roots via web4:subDimensionOf.
     """
-    technical_competence: Optional[float] = None
-    social_reliability: Optional[float] = None
-    temporal_consistency: Optional[float] = None
-    witness_count: Optional[float] = None
-    lineage_depth: Optional[float] = None
-    context_alignment: Optional[float] = None
+    talent: Optional[float] = None
+    training: Optional[float] = None
+    temperament: Optional[float] = None
+
+    # Metadata (not T3 dimensions, but useful context)
+    witness_count: Optional[int] = None  # How many entities witness this entity
 
     composite_score: Optional[float] = None
     last_computed: Optional[str] = None
@@ -153,12 +153,9 @@ class T3Tensor:
     def recompute_composite(self) -> float:
         """Recompute composite score from dimensions."""
         dims = [
-            self.technical_competence,
-            self.social_reliability,
-            self.temporal_consistency,
-            self.witness_count,
-            self.lineage_depth,
-            self.context_alignment
+            self.talent,
+            self.training,
+            self.temperament
         ]
         valid = [d for d in dims if d is not None]
         if not valid:
@@ -172,9 +169,7 @@ class T3Tensor:
     def is_stub(self) -> bool:
         """Check if this is a stub tensor."""
         return self.stub or all(d is None for d in [
-            self.technical_competence, self.social_reliability,
-            self.temporal_consistency, self.witness_count,
-            self.lineage_depth, self.context_alignment
+            self.talent, self.training, self.temperament
         ])
 
     @classmethod
@@ -186,12 +181,9 @@ class T3Tensor:
     def create_minimal(cls) -> 'T3Tensor':
         """Create minimal T3 tensor for Level 1."""
         t3 = cls(
-            technical_competence=0.1,
-            social_reliability=0.1,
-            temporal_consistency=0.1,
-            witness_count=0.0,
-            lineage_depth=0.0,
-            context_alignment=0.1,
+            talent=0.1,
+            training=0.1,
+            temperament=0.1,
             stub=False
         )
         t3.recompute_composite()
@@ -199,14 +191,11 @@ class T3Tensor:
 
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
-        return {
+        d = {
             "dimensions": {
-                "technical_competence": self.technical_competence,
-                "social_reliability": self.social_reliability,
-                "temporal_consistency": self.temporal_consistency,
-                "witness_count": self.witness_count,
-                "lineage_depth": self.lineage_depth,
-                "context_alignment": self.context_alignment
+                "talent": self.talent,
+                "training": self.training,
+                "temperament": self.temperament
             },
             "composite_score": self.composite_score,
             "last_computed": self.last_computed,
@@ -214,31 +203,34 @@ class T3Tensor:
             "stub": self.stub if self.stub else None,
             "reason": self.reason
         }
+        if self.witness_count is not None:
+            d["metadata"] = {"witness_count": self.witness_count}
+        return d
 
 
 # =============================================================================
-# V3 Tensor (6 dimensions)
+# V3 Tensor (3 canonical root dimensions)
 # =============================================================================
 
 @dataclass
 class V3Tensor:
     """
-    Value Tensor with 6 dimensions.
+    Value Tensor with 3 canonical root dimensions.
 
     Dimensions:
-    - energy_balance: ATP/ADP balance (integer, can be negative)
-    - contribution_history: Historical value contributions (0.0-1.0)
-    - resource_stewardship: How well entity manages resources (0.0-1.0)
-    - network_effects: Value created for others (0.0-1.0)
-    - reputation_capital: Accumulated social capital (0.0-1.0)
-    - temporal_value: Value persistence over time (0.0-1.0)
+    - valuation: Subjective worth as perceived by recipients (0.0-1.0+)
+    - veracity: Truthfulness, accuracy of claims (0.0-1.0)
+    - validity: Soundness of reasoning, confirmed value delivery (0.0-1.0)
+
+    Each root dimension is a node in an open-ended RDF sub-graph.
+    Domain-specific sub-dimensions refine roots via web4:subDimensionOf.
     """
-    energy_balance: Optional[int] = None
-    contribution_history: Optional[float] = None
-    resource_stewardship: Optional[float] = None
-    network_effects: Optional[float] = None
-    reputation_capital: Optional[float] = None
-    temporal_value: Optional[float] = None
+    valuation: Optional[float] = None
+    veracity: Optional[float] = None
+    validity: Optional[float] = None
+
+    # ATP metadata (not a V3 dimension, but tracked alongside)
+    energy_balance: Optional[int] = None  # ATP/ADP balance
 
     composite_score: Optional[float] = None
     last_computed: Optional[str] = None
@@ -247,13 +239,11 @@ class V3Tensor:
     reason: Optional[str] = None
 
     def recompute_composite(self) -> float:
-        """Recompute composite score from dimensions (excluding energy_balance)."""
+        """Recompute composite score from dimensions."""
         dims = [
-            self.contribution_history,
-            self.resource_stewardship,
-            self.network_effects,
-            self.reputation_capital,
-            self.temporal_value
+            self.valuation,
+            self.veracity,
+            self.validity
         ]
         valid = [d for d in dims if d is not None]
         if not valid:
@@ -278,11 +268,9 @@ class V3Tensor:
         """Create zero V3 tensor for Level 1."""
         v3 = cls(
             energy_balance=0,
-            contribution_history=0.0,
-            resource_stewardship=0.0,
-            network_effects=0.0,
-            reputation_capital=0.0,
-            temporal_value=0.0,
+            valuation=0.0,
+            veracity=0.0,
+            validity=0.0,
             stub=False
         )
         v3.recompute_composite()
@@ -290,14 +278,11 @@ class V3Tensor:
 
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
-        return {
+        d = {
             "dimensions": {
-                "energy_balance": self.energy_balance,
-                "contribution_history": self.contribution_history,
-                "resource_stewardship": self.resource_stewardship,
-                "network_effects": self.network_effects,
-                "reputation_capital": self.reputation_capital,
-                "temporal_value": self.temporal_value
+                "valuation": self.valuation,
+                "veracity": self.veracity,
+                "validity": self.validity
             },
             "composite_score": self.composite_score,
             "last_computed": self.last_computed,
@@ -305,6 +290,9 @@ class V3Tensor:
             "stub": self.stub if self.stub else None,
             "reason": self.reason
         }
+        if self.energy_balance is not None:
+            d["atp_metadata"] = {"energy_balance": self.energy_balance}
+        return d
 
 
 # =============================================================================
@@ -703,9 +691,8 @@ def query_capabilities(lct: LCT) -> CapabilityQueryResponse:
     if lct.t3_tensor and not lct.t3_tensor.is_stub():
         response.t3_implemented = True
         # Count non-None dimensions
-        dims = [lct.t3_tensor.technical_competence, lct.t3_tensor.social_reliability,
-                lct.t3_tensor.temporal_consistency, lct.t3_tensor.witness_count,
-                lct.t3_tensor.lineage_depth, lct.t3_tensor.context_alignment]
+        dims = [lct.t3_tensor.talent, lct.t3_tensor.training,
+                lct.t3_tensor.temperament]
         response.t3_dimensions = sum(1 for d in dims if d is not None)
         response.t3_oracle_computed = bool(lct.t3_tensor.computation_witnesses)
         response.composite_t3 = lct.t3_tensor.composite_score
@@ -713,12 +700,9 @@ def query_capabilities(lct: LCT) -> CapabilityQueryResponse:
     # V3 Tensor
     if lct.v3_tensor and not lct.v3_tensor.is_stub():
         response.v3_implemented = True
-        dims = [lct.v3_tensor.contribution_history, lct.v3_tensor.resource_stewardship,
-                lct.v3_tensor.network_effects, lct.v3_tensor.reputation_capital,
-                lct.v3_tensor.temporal_value]
-        response.v3_dimensions = sum(1 for d in dims if d is not None) + (
-            1 if lct.v3_tensor.energy_balance is not None else 0
-        )
+        dims = [lct.v3_tensor.valuation, lct.v3_tensor.veracity,
+                lct.v3_tensor.validity]
+        response.v3_dimensions = sum(1 for d in dims if d is not None)
         response.v3_oracle_computed = bool(lct.v3_tensor.computation_witnesses)
         response.composite_v3 = lct.v3_tensor.composite_score
 
@@ -933,7 +917,7 @@ def validate_lct_level(lct: LCT) -> ValidationResult:
 
         if lct.v3_tensor and (lct.v3_tensor.energy_balance is None or
                               lct.v3_tensor.energy_balance == 0):
-            result.warnings.append("Level 3+ should have non-zero ATP balance")
+            result.warnings.append("Level 3+ should have non-zero ATP energy balance")
 
         if not lct.attestations:
             result.warnings.append("Level 3+ should have at least one attestation")
