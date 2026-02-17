@@ -24,7 +24,7 @@ WEB4 addresses these limitations not through incremental improvement but through
 
 ## The Path Forward
 
-WEB4 emerges from the philosophical framework of Synchronism—the recognition that coherence, resonance, and shared intent form the basis of all sustainable systems. But it manifests as practical architecture: protocols you can implement, structures you can build upon, networks you can join.
+WEB4 emerges from the philosophical framework of [Synchronism](https://dp-web4.github.io/Synchronism/)—the recognition that coherence, resonance, and shared intent form the basis of all sustainable systems. But it manifests as practical architecture: protocols you can implement, structures you can build upon, networks you can join.
 
 This whitepaper presents both vision and blueprint. The conceptual sections explore what becomes possible when trust becomes native to the internet itself. The implementation sections describe proposed architectures for those exploring the design space. Like a fractal, each level contains the whole—you can engage at the depth that serves your purpose.
 
