@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-01-23
+**Last Updated**: 2026-02-17
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,15 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-02-17: Publisher Maintenance
+- Rebuilt all artifacts (md, pdf, web) to reflect Feb 16 terminology reframe
+- "Trust infrastructure" language now consistent across build artifacts
+
+### 2026-02-16: Trust Infrastructure Reframe
+- Systematic reframe from "governance" to "trust infrastructure" across 17 files
+- Executive summary: "WEB4 is not an upgrade" → "WEB4 adds what was always missing"
+- SAL: "Governance Framework" → "Trust Accountability Layer"
 
 ### 2026-01-23: R6 Framework Expansion
 - Added R6 implementation guide
