@@ -247,6 +247,22 @@ These dimensions create a unique relevance fingerprint for each entity, optimizi
 
 The MRH is not static. As entities evolve, their relevance horizons shift. A new AI agent starts with narrow scope, expanding as it demonstrates capability. A human expert's MRH in their domain far exceeds a novice's. This dynamic adjustment ensures the system remains adaptive and efficient.
 
+### 2.5.4. The Ontological Backbone: RDF
+
+So far, we have described relationships—binding, pairing, witnessing, relevance. But how are they actually expressed? In Web4, every relationship is a typed triple: "Alice is-bound-to Hardware1," "Bob is-paired-with Surgeon-Role," "Charlie witnessed DataAnalysis with Talent 0.92." This is RDF—the Resource Description Framework, a W3C standard that gives structure to relationships.
+
+RDF turns Web4 from a protocol into an ontology. The difference matters: a protocol defines message formats; an ontology defines what things *mean* and how they relate. When Web4 says "trust," it does not mean a number in a database—it means a typed relationship in a graph that can be queried, extended, and reasoned about by any system that speaks RDF.
+
+This is captured in the canonical equation:
+
+```
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+```
+
+Where `+` means "augmented with," `*` means "contextualized by," and `/` means "verified by." MCP provides the I/O membrane. RDF provides the ontological backbone. LCTs carry identity. T3/V3 tensors measure trust and value, contextualized by MRH. ATP/ADP cycles energy through work.
+
+Because MRH is an RDF graph, you can ask questions like "find all entities within 3 hops that have been witnessed by a time oracle" and get precise, machine-readable answers. Because trust tensors are RDF sub-graphs, each dimension of trust is not a flat number but a node that can be refined with domain-specific sub-dimensions—a fractal pattern we explore fully in Part 3.
+
 ## Synthesis: The Living Substrate
 
 Together, these foundational concepts create something unprecedented: a living substrate for digital interaction where:
@@ -256,6 +272,7 @@ Together, these foundational concepts create something unprecedented: a living s
 - **Roles themselves** become intelligent actors
 - **Intent drives action** through R6 framework
 - **Context determines** relevant interaction through MRH
+- **Relationships are typed** through RDF triples, creating a queryable semantic graph
 - **Meaning is preserved** through dictionary entities
 
 This is not just infrastructure—it's the nervous system for a new kind of internet where trust emerges from the interplay of presence, capability, intent, and context.

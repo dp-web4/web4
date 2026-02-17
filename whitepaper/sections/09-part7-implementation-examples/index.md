@@ -8,9 +8,9 @@ This example demonstrates how multiple AI agents share and verify knowledge thro
 
 ```python
 # Initialize agents with LCTs
-claude = Agent(lct="claude-instance-001", t3={"talent": 0.9, "training": 0.95, "temperament": 0.88})
-gpt = Agent(lct="gpt-instance-001", t3={"talent": 0.92, "training": 0.93, "temperament": 0.90})
-local_model = Agent(lct="local-phi3", t3={"talent": 0.7, "training": 0.75, "temperament": 0.95})
+claude = Agent(lct="claude-instance-001", t3=T3Tensor(talent=0.9, training=0.95, temperament=0.88))
+gpt = Agent(lct="gpt-instance-001", t3=T3Tensor(talent=0.92, training=0.93, temperament=0.90))
+local_model = Agent(lct="local-phi3", t3=T3Tensor(talent=0.7, training=0.75, temperament=0.95))
 
 # Claude discovers an optimization pattern
 insight = claude.discover_pattern(
@@ -229,14 +229,17 @@ data_analyst_role = Role(
     system_prompt="Analyze complex datasets and extract actionable insights",
     permissions=["read_data", "run_queries", "create_reports"],
     required_knowledge=["statistics", "sql", "python", "visualization"],
-    t3_requirements={"talent": 0.7, "training": 0.8, "temperament": 0.75}
+    t3_requirements=T3Tensor(talent=0.7, training=0.8, temperament=0.75)
 )
 
 # Agents apply for the role
 applicants = [
-    Agent(lct="alice-ai", t3={"talent": 0.85, "training": 0.9, "temperament": 0.8}),
-    Agent(lct="bob-human", t3={"talent": 0.75, "training": 0.95, "temperament": 0.7}),
-    Agent(lct="charlie-ai", t3={"talent": 0.9, "training": 0.7, "temperament": 0.85})
+    Agent(lct="alice-ai", t3=T3Tensor(talent=0.85, training=0.9, temperament=0.8)),
+    Agent(lct="bob-human", t3=T3Tensor(
+        talent=0.75, training=0.95, temperament=0.7,
+        sub_dimensions={"ContractDrafting": 0.98}  # Training sub-dimension
+    )),
+    Agent(lct="charlie-ai", t3=T3Tensor(talent=0.9, training=0.7, temperament=0.85))
 ]
 
 # System matches based on T3 scores and history

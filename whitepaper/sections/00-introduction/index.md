@@ -10,11 +10,13 @@ WEB4 introduces and interconnects several foundational components:
 
 - **Linked Context Tokens (LCTs)**: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity an unforgeable identity in the digital realm.
 
-- **T3 and V3 Tensors**: Multidimensional trust and value representations that capture capability (Talent, Training, Temperament) and contribution (Valuation, Veracity, Validity).
+- **T3 and V3 Tensors**: Multidimensional trust and value representations whose three root dimensions—Talent, Training, Temperament (T3) and Valuation, Veracity, Validity (V3)—serve as root nodes in open-ended RDF sub-graphs of contextualized sub-dimensions, bound to entity-role pairs.
 
 - **Allocation Transfer Packet (ATP)**: A semi-fungible energy-value exchange modeled on biological ATP/ADP cycles, where work creates value and value generates energy.
 
-- **Markov Relevancy Horizon (MRH)**: A contextual boundary governing what is knowable, actionable, and relevant within each entity's scope.
+- **Markov Relevancy Horizon (MRH)**: A contextual boundary governing what is knowable, actionable, and relevant within each entity's scope, implemented as a typed RDF graph.
+
+- **RDF Ontological Backbone**: All Web4 relationships—trust tensors, MRH edges, role bindings—are expressed as typed RDF triples, enabling semantic interoperability with existing web standards and open-ended extensibility without modifying the core protocol.
 
 - **Memory as Temporal Sensor**: A reconception of memory not as storage but as active perception of temporal patterns, building trust through witnessed experience.
 

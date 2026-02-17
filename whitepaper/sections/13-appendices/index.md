@@ -36,7 +36,12 @@ ATP Budget Available?
   "cryptographic_root": {
     "public_key": "ed25519_public_key",
     "signature_algorithm": "ed25519|secp256k1",
-    "key_derivation": "hierarchical_deterministic"
+    "key_derivation": "hierarchical_deterministic",
+    "hardware_binding_strength": 0.0  // 0.0 to 1.0
+  },
+  "identity": {
+    "coherence": 0.0,              // 0.0 to 1.0 (C × S × Φ × R)
+    "accumulation": 0.0            // 0.0 to 1.0 (multi-session stability)
   },
   "temporal_role": {
     "primary_domain": "spatial|past|future",
@@ -44,19 +49,16 @@ ATP Budget Available?
     "trust_horizon": "local|regional|global"
   },
   "t3_tensor": {
-    "talent": 0.0,      // 0.0 to 1.0
-    "training": 0.0,    // 0.0 to 1.0
-    "temperament": 0.0, // 0.0 to 1.0
-    "identity_coherence": 0.0,     // 0.0 to 1.0 (C × S × Φ × R)
-    "identity_accumulation": 0.0,  // 0.0 to 1.0 (multi-session stability)
-    "witness_count": 0,            // integer
-    "lineage_depth": 0,            // integer
-    "hardware_binding_strength": 0.0  // 0.0 to 1.0
+    "talent": 0.0,           // Root aggregate [0.0-1.0]
+    "training": 0.0,         // Root aggregate [0.0-1.0]
+    "temperament": 0.0,      // Root aggregate [0.0-1.0]
+    "sub_dimensions": {}     // Domain-specific refinements via web4:subDimensionOf
   },
   "v3_tensor": {
-    "valuation": [],    // Array of historical valuations
-    "veracity": 0.0,    // 0.0 to 1.0
-    "validity": 0.0     // 0.0 to 1.0
+    "valuation": 0.0,        // Root aggregate (can exceed 1.0)
+    "veracity": 0.0,         // Root aggregate [0.0-1.0]
+    "validity": 0.0,         // Root aggregate [0.0-1.0]
+    "sub_dimensions": {}     // Domain-specific refinements via web4:subDimensionOf
   },
   "mrh_tensor": {
     "fractal_scale": ["quantum", "molecular", "cellular", "organism", "ecosystem"],
@@ -74,18 +76,22 @@ ATP Budget Available?
       "last_interaction": "ISO-8601"
     }
   ],
-  "witness_chain": [
-    {
-      "level": 0,
-      "witness_lct": "self",
-      "timestamp": "ISO-8601"
-    },
-    {
-      "level": 1,
-      "witness_lct": "parent_lct_id",
-      "timestamp": "ISO-8601"
-    }
-  ],
+  "witness_chain": {
+    "witness_count": 0,            // integer — total independent witnesses
+    "lineage_depth": 0,            // integer — depth in witness tree
+    "witnesses": [
+      {
+        "level": 0,
+        "witness_lct": "self",
+        "timestamp": "ISO-8601"
+      },
+      {
+        "level": 1,
+        "witness_lct": "parent_lct_id",
+        "timestamp": "ISO-8601"
+      }
+    ]
+  },
   "memory_bindings": [
     {
       "memory_type": "entity|sidecar",
@@ -217,11 +223,13 @@ This mathematical framework unifies trust computation across all Web4 interactio
 
 ### T3-Weighted Trust
 ```
-T3_Trust = (α × Talent + β × Training + γ × Temperament) × context_relevance
+T3_Trust = (α × Talent_agg + β × Training_agg + γ × Temperament_agg) × context_relevance
 
 Where:
 - α, β, γ are context-specific weights (sum to 1.0)
 - context_relevance ∈ [0, 1] based on MRH overlap
+- Talent_agg = mean(sub-dimensions) when sub-dimensions present, or root score directly
+- Training_agg and Temperament_agg follow the same aggregation rule
 ```
 
 ### V3 Value Certification
@@ -370,6 +378,67 @@ message Acknowledgment {
 - [ ] Cross-chain value transfer
 - [ ] Production deployment
 
+## Appendix I: Web4 RDF Ontology Reference
+
+### The Canonical Equation
+
+```
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+```
+
+| Operator | Meaning |
+|----------|---------|
+| `+` | augmented with |
+| `*` | contextualized by |
+| `/` | verified by |
+
+| Symbol | Component | Role |
+|--------|-----------|------|
+| **MCP** | Model Context Protocol | I/O membrane for AI model communication |
+| **RDF** | Resource Description Framework | Ontological backbone — all relationships are typed triples |
+| **LCT** | Linked Context Token | Identity substrate (presence reification) |
+| **T3/V3** | Trust/Value Tensors | Capability and value assessment, bound to entity-role pairs via RDF |
+| **MRH** | Markov Relevancy Horizon | Fractal context scoping — implemented as RDF graphs |
+| **ATP/ADP** | Allocation Transfer/Discharge Packets | Bio-inspired energy metabolism |
+
+### JSON-LD Context
+
+The JSON-LD context enables Web4 RDF data to be expressed in standard JSON. The canonical context is defined in `web4-standard/ontology/t3v3.jsonld`:
+
+```json
+{
+  "@context": {
+    "web4": "https://web4.io/ontology#",
+    "lct": "https://web4.io/lct/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "Dimension": "web4:Dimension",
+    "T3Tensor": "web4:T3Tensor",
+    "V3Tensor": "web4:V3Tensor",
+    "DimensionScore": "web4:DimensionScore",
+
+    "entity": { "@id": "web4:entity", "@type": "@id" },
+    "role": { "@id": "web4:role", "@type": "@id" },
+    "dimension": { "@id": "web4:dimension", "@type": "@id" },
+    "subDimensionOf": { "@id": "web4:subDimensionOf", "@type": "@id" },
+
+    "score": { "@id": "web4:score", "@type": "xsd:decimal" },
+    "observedAt": { "@id": "web4:observedAt", "@type": "xsd:dateTime" },
+
+    "talent": { "@id": "web4:talent", "@type": "xsd:decimal" },
+    "training": { "@id": "web4:training", "@type": "xsd:decimal" },
+    "temperament": { "@id": "web4:temperament", "@type": "xsd:decimal" },
+    "valuation": { "@id": "web4:valuation", "@type": "xsd:decimal" },
+    "veracity": { "@id": "web4:veracity", "@type": "xsd:decimal" },
+    "validity": { "@id": "web4:validity", "@type": "xsd:decimal" }
+  }
+}
+```
+
+### Formal Ontology
+
+The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology/t3v3-ontology.ttl`. It declares the six root dimensions, the `subDimensionOf` property for fractal extension, and the `DimensionScore` class for binding scores to entity-role pairs.
+
 ## Appendix H: Glossary of Acronyms
 
 | Acronym | Full Form | Description |
@@ -377,7 +446,7 @@ message Acknowledgment {
 | **LCT** | Linked Context Token | Non-transferable identity token |
 | **ATP** | Allocation Transfer Packet | Energy/value tracking system |
 | **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
-| **T3** | Trust Tensor | Capability assessment (Talent, Training, Temperament + extended dims) |
+| **T3** | Trust Tensor | 3 root dimensions (Talent/Training/Temperament), each a root node in open-ended RDF sub-graph |
 | **V3** | Value Tensor | Value creation (Valuation, Veracity, Validity) |
 | **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
 | **SNARC** | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |
@@ -387,6 +456,9 @@ message Acknowledgment {
 | **MCP** | Model Context Protocol | AI model communication standard |
 | **D9** | Dimension 9 | Self-reference frequency metric |
 | **C_STABLE** | Coherence Stable Threshold | 0.7 minimum for trust accumulation |
+| **RDF** | Resource Description Framework | W3C standard for typed subject-predicate-object triples (ontological backbone) |
+| **JSON-LD** | JSON for Linked Data | JSON-based RDF serialization for interoperability |
+| **SPARQL** | SPARQL Protocol and RDF Query Language | Query language for RDF graphs |
 | **TPM** | Trusted Platform Module | Hardware security for key binding |
 | **SE** | Secure Enclave | Hardware-isolated key storage |
 

@@ -6,7 +6,7 @@ WEB4 adds what was always missing. Where Web2 centralized control and Web3 token
 
 ## The Core Innovation
 
-At the heart of WEB4 lies a simple yet profound shift: **presence creates identity, interaction builds trust, and contribution generates value**. 
+At the heart of WEB4 lies a simple yet profound shift: **presence creates identity, interaction builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable. 
 
 Through **Linked Context Tokens (LCTs)**, every entity—human, AI, or hybrid—gains an unforgeable footprint in the digital realm. This is not merely an identifier but a reification of presence itself. Your LCT is born with you, lives through your actions, and bears witness to your contributions. It cannot be stolen, sold, or transferred. It is you, crystallized in cryptographic reality.
 
@@ -38,7 +38,7 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 **Vision Components** (described in this document but not yet implemented):
 - Full LCT identity system with trust webs and lifecycle management
 - Complete ATP/ADP energy-value metabolic cycles
-- T3/V3 tensor-based trust and value assessment
+- T3/V3 tensor-based trust and value assessment, built on a formal RDF ontology with fractal sub-dimensions
 - Memory as temporal sensing architecture
 - Blockchain typology (Compost/Leaf/Stem/Root chains)
 - Witness acknowledgment protocols

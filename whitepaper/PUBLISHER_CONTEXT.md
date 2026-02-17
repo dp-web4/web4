@@ -20,8 +20,8 @@ Web4 is a **trust-native distributed intelligence architecture** built on Synchr
 | Concept | Definition |
 |---------|------------|
 | **LCT** | Linked Context Token - unforgeable digital presence |
-| **T3** | Trust Tensor - 6-dimensional trust calculation |
-| **V3** | Value Tensor - 6-dimensional value calculation |
+| **T3** | Trust Tensor - 3 root dimensions (Talent/Training/Temperament) with fractal RDF sub-dimensions |
+| **V3** | Value Tensor - 3 root dimensions (Valuation/Veracity/Validity) with fractal RDF sub-dimensions |
 | **R6** | Rules + Role + Request + Reference + Resource → Result |
 | **MRH** | Markov Relevancy Horizon - context boundaries |
 | **ATP/ADP** | Allocation Transfer/Discharge Packets - value flow |
@@ -142,8 +142,8 @@ These terms are foundational. NEVER redefine:
 |------|-------------------|------------------|
 | **LCT** | Linked Context Token | "Lifecycle-Continuous Trust" ❌ |
 | **MRH** | Markov Relevancy Horizon | (none documented) |
-| **T3** | Trust Tensor (6 dimensions) | "Triple Trust" ❌ |
-| **V3** | Value Tensor (6 dimensions) | "Triple Value" ❌ |
+| **T3** | Trust Tensor (3 root dims + fractal RDF sub-dimensions) | "Triple Trust" ❌ |
+| **V3** | Value Tensor (3 root dims + fractal RDF sub-dimensions) | "Triple Value" ❌ |
 | **R6** | Rules/Role/Request/Reference/Resource/Result | "R6 Protocol" (ok as shorthand) |
 | **ATP** | Allocation Transfer Packet | "Audit Trail Point" ❌, "Attention Transfer Packet" ❌ |
 | **ADP** | Allocation Discharge Packet | "Alignment Discharge Protocol" ❌ |

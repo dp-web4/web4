@@ -88,11 +88,45 @@ A brilliant researcher might score:
 - Research context: T3(0.9, 0.95, 0.85)
 - Sales context: T3(0.4, 0.3, 0.6)
 
-The same entity, different contexts, different trust profiles. This isn't limitation—it's honesty. Web4 recognizes that trust is always contextual.
+The same entity, different contexts, different trust profiles. (These shorthand scores are aggregates—the wide-angle view. The full picture reveals sub-dimensions beneath each number, as we will see.) This isn't limitation—it's honesty. Web4 recognizes that trust is always contextual.
 
 ### 3.2.3. Trust in Motion
 
 T3 scores live and breathe. Every interaction updates them. Every success strengthens them. Every failure teaches them. This isn't a report card—it's a living portrait of capability evolving through time.
+
+### 3.2.4. Fractal Depth: From Scores to Sub-Graphs
+
+> *"Trust has resolution. Zoom in, and every number becomes a landscape."*
+
+When we write T3(0.9, 0.95, 0.85), we are looking through a wide-angle lens. But trust has depth. Consider a surgeon with Talent = 0.95. Zoom in, and Talent decomposes into Surgical Precision (0.97), Diagnostic Intuition (0.91), Patient Communication (0.88). Zoom further into Surgical Precision and you find Laparoscopic Skill (0.99) and Open-Heart Technique (0.94). Each level adds resolution without changing what came before.
+
+There is no fixed depth. The three root dimensions—Talent, Training, Temperament—are root nodes in an open-ended RDF sub-graph. Anyone can add sub-dimensions for their domain without modifying the core ontology. A medical institution defines SurgicalPrecision as a sub-dimension of Talent. A law firm defines ContractDrafting as a sub-dimension of Training. A research lab defines ExperimentalReproducibility as a sub-dimension of Temperament. None of these extensions require permission from or modification to Web4 itself.
+
+The mechanism is a single RDF property: `web4:subDimensionOf`. In Turtle—a human-readable format for RDF—declaring these sub-dimensions looks like this:
+
+```turtle
+med:SurgicalPrecision   a web4:Dimension ;
+    web4:subDimensionOf   web4:Talent .
+
+med:DiagnosticIntuition a web4:Dimension ;
+    web4:subDimensionOf   web4:Talent .
+
+med:BoardCertification  a web4:Dimension ;
+    web4:subDimensionOf   web4:Training .
+
+med:StressResponse      a web4:Dimension ;
+    web4:subDimensionOf   web4:Temperament .
+```
+
+Each statement declares a typed relationship: SurgicalPrecision *is a kind of* Talent. That is all it takes. The sub-dimension inherits the parent's semantics, carries its own score, and feeds upward into the parent's aggregate.
+
+The shorthand `T3(0.9, 0.95, 0.85)` and the equivalent RDF form `web4:talent 0.95` remain valid. They carry the aggregate score of the sub-graph rooted at that dimension. Implementations that only need the wide-angle view can ignore sub-dimensions entirely. Both representations coexist—the shorthand for efficiency, the sub-graph for precision.
+
+Sub-dimensions are bound to entity-role pairs, not to entities globally. Alice's Talent sub-graph as a surgeon is completely separate from her Talent sub-graph as a researcher. This is the same role-contextual principle from Section 3.2.2, applied fractally—trust is specific not just to the role, but to the dimension *within* the role, and to the sub-dimension within that dimension.
+
+Fractal sub-dimensions transform T3 from a static metric into a living knowledge graph. A hiring system can query "find all entities whose LaparoscopicSkill exceeds 0.9 and whose StressResponse exceeds 0.8"—a query that flat tensors cannot express. A credentialing body can define its own sub-dimension tree without asking anyone's permission. A regulatory framework can require specific sub-dimensions for compliance. The ontology grows from the edges, not the center.
+
+This is what makes Web4 an ontology rather than a protocol. Protocols define fixed message formats. Ontologies define extensible meaning. The `subDimensionOf` property is the single edge that turns a three-number trust score into an infinitely refinable knowledge graph.
 
 ## 3.3. V3 Tensor: The Measurement of Worth
 
@@ -123,6 +157,12 @@ This creates a meritocracy of demonstrated worth, not claimed credentials.
 
 V3 scores determine the ADP→ATP exchange rate. High V3 means your work created exceptional value, earning bonus ATP. Low V3 means minimal return. The economy becomes a mirror of actual contribution.
 
+### 3.3.4. V3 Sub-Dimensions
+
+V3 follows the same fractal RDF pattern as T3. Each root dimension—Valuation, Veracity, Validity—can be refined with domain-specific sub-dimensions via `web4:subDimensionOf`.
+
+For a scientific publication, Veracity might decompose into ClaimAccuracy (0.95) and Reproducibility (0.88). For a financial audit, Validity might decompose into DocumentCompleteness (0.92) and RegulatoryCompliance (0.97). The root score is the aggregate; the sub-dimensions carry the detail. As with T3, extensions are open-ended—any domain can refine what value means in its context.
+
 ## Synthesis: The Living Economy
 
 Together, ATP, T3, and V3 create something unprecedented—an economy that breathes:
@@ -130,6 +170,7 @@ Together, ATP, T3, and V3 create something unprecedented—an economy that breat
 - **ATP** provides the energy that fuels creation
 - **T3** establishes the trust that enables collaboration
 - **V3** measures the value that justifies reward
+- **RDF** provides the ontological backbone—new domains bring new sub-dimensions without central coordination
 
 This isn't just a system—it's an organism. It learns. It adapts. It evolves toward greater coherence and value creation.
 

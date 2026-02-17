@@ -22,36 +22,49 @@ A biological metaphor made digital. ATP packets exist in "charged" (resources al
 ### T3 Tensor (Trust Tensor)
 > *"Trust emerges from capability demonstrated over time—but only when identity is stable."*
 
-A multi-dimensional metric capturing an entity's trustworthiness. The "T3" name reflects three primary categories, but the full tensor includes additional dimensions:
+A multi-dimensional metric capturing an entity's trustworthiness. The "T3" name reflects three root dimensions, each serving as a **root node in an open-ended RDF sub-graph** of contextualized sub-dimensions linked via `web4:subDimensionOf`:
 
-**Primary Dimensions:**
 - **Talent**: Inherent aptitude or originality
 - **Training**: Acquired knowledge and skills
 - **Temperament**: Behavioral characteristics and reliability
 
-**Extended Dimensions:**
-- **Identity Coherence**: Stability of self-referential patterns (C × S × Φ × R score). **Prerequisite dimension**—without C ≥ 0.7, other dimensions are unreliable
-- **Identity Accumulation**: Multi-session stability of coherence over time
-- **Witness Count**: Number of independent observers who have verified behavior
-- **Lineage Depth**: Trust inheritance from parent/creator entities
-- **Hardware Binding Strength**: For embodied agents, strength of physical identity anchor (0-1.0)
+Any domain can define sub-dimensions without modifying the core ontology. A medical institution defines SurgicalPrecision as a sub-dimension of Talent. A law firm defines ContractDrafting as a sub-dimension of Training. There is no fixed depth—the sub-graph is open-ended.
 
-Context-dependent and dynamically updated through actual performance. Identity coherence acts as a **gate**—trust scores from low-coherence states are discounted or invalidated.
+The root scores are aggregates of their sub-graphs. The shorthand `T3(0.9, 0.95, 0.85)` remains valid as the wide-angle view.
+
+Context-dependent, role-specific, and dynamically updated through actual performance. Trust exists only within entity-role pairs—an entity trusted as a surgeon has no inherent trust as a mechanic. Identity Coherence (see below) acts as a prerequisite **gate**—trust scores from low-coherence states are discounted or invalidated.
+
+**Note**: Identity Coherence, Witness Count, Lineage Depth, and Hardware Binding Strength are tracked as LCT-level properties, not T3 sub-dimensions.
 
 ### V3 Tensor (Value Tensor)
 > *"Value is not declared but demonstrated, not claimed but confirmed."*
 
-A three-dimensional metric quantifying created value:
+A three-dimensional metric quantifying created value, following the same fractal RDF pattern as T3:
 - **Valuation**: Subjective worth to the recipient
 - **Veracity**: Objective accuracy and reproducibility
 - **Validity**: Confirmation of actual value transfer
 
-Together with T3, enables nuanced assessment beyond simple ratings.
+Each root can be refined with domain-specific sub-dimensions via `web4:subDimensionOf`—for example, Veracity might decompose into ClaimAccuracy and Reproducibility. Together with T3, enables nuanced assessment beyond simple ratings.
 
 ### Markov Relevancy Horizon (MRH)
 > *"The MRH is how an entity knows where it belongs in the universe of relevance."*
 
-Each entity's contextual lens defining what is knowable, actionable, and relevant within their scope. Not a wall but a gradient—a fuzzy boundary ensuring entities engage where they're most effective. Dimensions include fractal scale, informational scope, geographic scope, action scope, and temporal scope.
+Each entity's contextual lens defining what is knowable, actionable, and relevant within their scope. Not a wall but a gradient—a fuzzy boundary ensuring entities engage where they're most effective. Implemented as an RDF graph with typed edges (binding, pairing, witnessing), enabling SPARQL queries and graph-based trust propagation. Dimensions include fractal scale, informational scope, geographic scope, action scope, and temporal scope.
+
+### Ontology (Web4)
+> *"Web4 is not infrastructure—it's an ontology."*
+
+A formal structure of typed relationships (RDF triples) through which trust, identity, and value are expressed. Where a protocol defines message formats, an ontology defines what things *mean* and how they relate. The T3/V3 ontology is formally defined in `t3v3-ontology.ttl` (Turtle/RDF) with a companion JSON-LD context (`t3v3.jsonld`) for interoperability.
+
+### RDF (Resource Description Framework)
+> *"The backbone that makes relationships machine-readable."*
+
+The W3C standard for expressing relationships as typed subject-predicate-object triples. Web4 uses RDF as its ontological backbone: trust tensors, MRH edges, role bindings, and sub-dimension hierarchies are all expressed as RDF triples. This enables SPARQL queries, semantic interoperability with existing web standards, and open-ended extensibility without modifying the core protocol.
+
+### `web4:subDimensionOf`
+> *"The single property that makes trust infinitely extensible."*
+
+The RDF property that creates the fractal sub-dimension graph in T3 and V3 tensors. Links a child dimension to its parent (analogous to `skos:broader`). Anyone can extend the dimension tree by declaring new dimensions with this property—a medical institution defining SurgicalPrecision, a law firm defining ContractDrafting—without modifying the core ontology. See also: T3 Tensor, V3 Tensor.
 
 ### Entity
 > *"Anything with presence can be an entity—anything that can leave a footprint."*

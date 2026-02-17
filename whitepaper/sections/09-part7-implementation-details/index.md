@@ -207,30 +207,30 @@ class DictionaryEntity:
         self.lct = lct
         self.source_domain = source_domain
         self.target_domain = target_domain
-        self.t3_scores = {"talent": 0.0, "training": 0.0, "temperament": 0.0}
+        self.t3 = T3Tensor(talent=0.0, training=0.0, temperament=0.0)
         self.translation_history = []
-    
+
     def translate(self, content, source_trust):
         """Translate with trust propagation"""
         translation = self.perform_translation(content)
-        
+
         # Trust degrades based on translator's T3 scores
         output_trust = source_trust * self.get_trust_multiplier()
-        
+
         # Record for reputation updates
         self.translation_history.append({
             "content": content,
             "translation": translation,
             "trust_preserved": output_trust / source_trust
         })
-        
+
         return translation, output_trust
-    
+
     def get_trust_multiplier(self):
         """Calculate how much trust is preserved in translation"""
-        return (self.t3_scores["talent"] * 0.3 + 
-                self.t3_scores["training"] * 0.5 + 
-                self.t3_scores["temperament"] * 0.2)
+        return self.t3.weighted_score(
+            talent_weight=0.3, training_weight=0.5, temperament_weight=0.2
+        )
 ```
 
 ## 7.2. Integration Examples
