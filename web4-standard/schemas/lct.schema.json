@@ -146,6 +146,52 @@
         }
       }
     },
+    "t3_tensor": {
+      "type": "object",
+      "description": "Trust tensor with 3 canonical root dimensions (Talent/Training/Temperament). Each is an aggregate of an open-ended RDF sub-dimension graph.",
+      "required": ["talent", "training", "temperament"],
+      "properties": {
+        "talent": {"type": "number", "minimum": 0, "maximum": 1},
+        "training": {"type": "number", "minimum": 0, "maximum": 1},
+        "temperament": {"type": "number", "minimum": 0, "maximum": 1},
+        "sub_dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {"type": "number"}
+          }
+        },
+        "composite_score": {"type": "number", "minimum": 0, "maximum": 1},
+        "last_computed": {"type": "string", "format": "date-time"},
+        "computation_witnesses": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "v3_tensor": {
+      "type": "object",
+      "description": "Value tensor with 3 canonical root dimensions (Valuation/Veracity/Validity). Follows same fractal sub-dimension pattern as T3.",
+      "required": ["valuation", "veracity", "validity"],
+      "properties": {
+        "valuation": {"type": "number", "minimum": 0},
+        "veracity": {"type": "number", "minimum": 0, "maximum": 1},
+        "validity": {"type": "number", "minimum": 0, "maximum": 1},
+        "sub_dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {"type": "number"}
+          }
+        },
+        "composite_score": {"type": "number", "minimum": 0, "maximum": 1},
+        "last_computed": {"type": "string", "format": "date-time"},
+        "computation_witnesses": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
     "attestations": {
       "type": "array",
       "items": {

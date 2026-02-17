@@ -106,6 +106,8 @@ Every interaction follows: **Rules + Role + Request + Reference + Resource → R
 
 ## T3/V3 Tensors
 
+Each dimension below is a **root node** in an open-ended RDF sub-graph. Domains extend the tree via `web4:subDimensionOf` without modifying core ontology. See [`ontology/t3v3-ontology.ttl`](ontology/t3v3-ontology.ttl).
+
 ### T3 (Trust) Dimensions
 | Dimension | Range | Measures | Updates |
 |-----------|-------|----------|---------|

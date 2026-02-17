@@ -39,7 +39,7 @@ Created by Dennis Palatov, MRH extends the concept of Markov blankets to explici
 ### 3. Trust Tensors (T3/V3)
 **Multidimensional Reputation**
 
-Trust is not binary but multidimensional and role-contextual. T3 measures capability (Talent, Training, Temperament) while V3 measures outcomes (Veracity, Validity, Value).
+Trust is not binary but multidimensional and role-contextual. T3 measures capability (Talent, Training, Temperament) while V3 measures value (Valuation, Veracity, Validity). Each dimension is a root node in an open-ended RDF sub-graph of contextualized sub-dimensions — anyone can extend the dimension tree without modifying the core ontology.
 
 - Role-contextual scores (trust as surgeon ≠ trust as mechanic)
 - ATP-staked queries prevent reputation farming

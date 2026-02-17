@@ -39,8 +39,8 @@ Every LCT MUST contain:
 2. **Binding** (cryptographic anchor to entity)
 3. **MRH** (Markov Relevancy Horizon with relationships)
 4. **Policy** (capabilities and constraints)
-5. **Trust Tensor (T3)** (multi-dimensional trust scores)
-6. **Value Tensor (V3)** (multi-dimensional value scores)
+5. **Trust Tensor (T3)** (3 root dimensions, fractally extensible via RDF sub-dimensions)
+6. **Value Tensor (V3)** (3 root dimensions, fractally extensible via RDF sub-dimensions)
 
 ### 2.2 Optional Components
 
@@ -123,13 +123,14 @@ LCTs MAY contain:
   },
 
   "t3_tensor": {
-    "dimensions": {
-      "technical_competence": 0.85,
-      "social_reliability": 0.92,
-      "temporal_consistency": 0.78,
-      "witness_count": 0.95,
-      "lineage_depth": 0.67,
-      "context_alignment": 0.88
+    "talent": 0.85,
+    "training": 0.92,
+    "temperament": 0.78,
+    "sub_dimensions": {
+      "talent": {
+        "analytical_reasoning": 0.90,
+        "creative_problem_solving": 0.80
+      }
     },
     "composite_score": 0.84,
     "last_computed": "2025-10-01T00:00:00Z",
@@ -137,13 +138,14 @@ LCTs MAY contain:
   },
 
   "v3_tensor": {
-    "dimensions": {
-      "energy_balance": 140,
-      "contribution_history": 0.89,
-      "resource_stewardship": 0.76,
-      "network_effects": 0.91,
-      "reputation_capital": 0.82,
-      "temporal_value": 0.73
+    "valuation": 0.89,
+    "veracity": 0.91,
+    "validity": 0.76,
+    "sub_dimensions": {
+      "veracity": {
+        "claim_accuracy": 0.93,
+        "reproducibility": 0.88
+      }
     },
     "composite_score": 0.81,
     "last_computed": "2025-10-01T00:00:00Z",
@@ -350,25 +352,26 @@ The `horizon_depth` parameter controls how many relationship hops to track:
 
 ### 6.1 Trust Tensor (T3) - REQUIRED
 
-Every LCT MUST contain a `t3_tensor` with at least these dimensions:
+Every LCT MUST contain a `t3_tensor` with the three canonical root dimensions. Each root dimension is an aggregate score of an open-ended RDF sub-graph of contextualized sub-dimensions linked via `web4:subDimensionOf`. See the [T3/V3 Ontology](../ontology/t3v3-ontology.ttl) for formal definitions.
 
 ```json
 {
   "t3_tensor": {
-    "dimensions": {
-      "technical_competence": 0.0-1.0,    // Can entity perform claimed capabilities?
-      "social_reliability": 0.0-1.0,       // Does entity honor commitments?
-      "temporal_consistency": 0.0-1.0,     // Is entity's behavior consistent over time?
-      "witness_count": 0.0-1.0,            // How many entities witness this entity?
-      "lineage_depth": 0.0-1.0,            // How deep is trust lineage?
-      "context_alignment": 0.0-1.0         // How well aligned with current context?
-    },
-    "composite_score": 0.0-1.0,            // Weighted average
+    "talent": 0.0-1.0,                    // Role-specific capability (root aggregate)
+    "training": 0.0-1.0,                  // Role-specific expertise (root aggregate)
+    "temperament": 0.0-1.0,               // Role-specific reliability (root aggregate)
+    "sub_dimensions": {},                  // OPTIONAL: domain-specific refinements
+    "composite_score": 0.0-1.0,           // Weighted average of roots
     "last_computed": "ISO 8601",
-    "computation_witnesses": ["lct:..."]   // Who computed these scores?
+    "computation_witnesses": ["lct:..."]  // Who computed these scores?
   }
 }
 ```
+
+**Root dimensions**:
+- **Talent**: Can this entity perform the task? (capability/aptitude)
+- **Training**: Has it learned how? (knowledge/experience)
+- **Temperament**: Will it behave appropriately? (disposition/reliability)
 
 **Computation**: Societies or trust oracles compute T3 tensors based on:
 - Historical behavior
@@ -378,25 +381,26 @@ Every LCT MUST contain a `t3_tensor` with at least these dimensions:
 
 ### 6.2 Value Tensor (V3) - REQUIRED
 
-Every LCT MUST contain a `v3_tensor` with at least these dimensions:
+Every LCT MUST contain a `v3_tensor` with the three canonical root dimensions, following the same fractal sub-dimension pattern as T3:
 
 ```json
 {
   "v3_tensor": {
-    "dimensions": {
-      "energy_balance": integer,           // ATP/ADP balance
-      "contribution_history": 0.0-1.0,     // Historical value contributions
-      "resource_stewardship": 0.0-1.0,     // How well entity manages resources
-      "network_effects": 0.0-1.0,          // Value created for others
-      "reputation_capital": 0.0-1.0,       // Accumulated social capital
-      "temporal_value": 0.0-1.0            // Value persistence over time
-    },
+    "valuation": 0.0+,                    // Subjective worth (can exceed 1.0)
+    "veracity": 0.0-1.0,                  // Truthfulness/accuracy (root aggregate)
+    "validity": 0.0-1.0,                  // Soundness of reasoning (root aggregate)
+    "sub_dimensions": {},                  // OPTIONAL: domain-specific refinements
     "composite_score": 0.0-1.0,
     "last_computed": "ISO 8601",
     "computation_witnesses": ["lct:..."]
   }
 }
 ```
+
+**Root dimensions**:
+- **Valuation**: How is value assessed? (subjective worth)
+- **Veracity**: How truthful are claims? (accuracy/reproducibility)
+- **Validity**: How sound is the reasoning? (confirmed value delivery)
 
 **Computation**: Societies or value oracles compute V3 tensors based on:
 - Energy economics (ATP/ADP)

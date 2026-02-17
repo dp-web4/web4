@@ -103,6 +103,8 @@ web4:auditWitness rdfs:subPropertyOf web4:witnessedBy .
 web4:oracleWitness rdfs:subPropertyOf web4:witnessedBy .
 ```
 
+> **Cross-reference**: T3/V3 dimensions follow an analogous extensibility pattern via `web4:subDimensionOf` — see the [T3/V3 Ontology](../ontology/t3v3-ontology.ttl). Both mechanisms use the same principle: open-ended RDF sub-graphs that anyone can extend without modifying the core ontology.
+
 ## 3. How MRH Creates Context
 
 ### 2.1 Relationship Types Define Context
@@ -230,9 +232,11 @@ lct:alice web4:hasRole web4:Researcher .
 _:trust1 a web4:T3Tensor ;
     web4:entity lct:alice ;
     web4:role web4:Surgeon ;
-    web4:talent 0.95 ;       # High surgical skill
-    web4:training 0.90 ;     # Extensive medical training
-    web4:temperament 0.88 .  # Consistent surgical performance
+    web4:talent 0.95 ;       # High surgical skill (aggregate — shorthand)
+    web4:training 0.90 ;     # Extensive medical training (aggregate — shorthand)
+    web4:temperament 0.88 .  # Consistent surgical performance (aggregate — shorthand)
+# These shorthand properties are equivalent to the full web4:hasDimensionScore
+# pattern defined in the T3/V3 ontology (web4-standard/ontology/t3v3-ontology.ttl).
 
 _:trust2 a web4:T3Tensor ;
     web4:entity lct:alice ;

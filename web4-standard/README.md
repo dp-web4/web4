@@ -70,6 +70,10 @@ Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
 - [**MCP_ENTITY_SPECIFICATION.md**](MCP_ENTITY_SPECIFICATION.md) - MCP servers as Web4 entities
 - [**WEB4_WITNESSING_SPECIFICATION.md**](WEB4_WITNESSING_SPECIFICATION.md) - Canonical witness formats
 
+#### Ontology
+- [**ontology/t3v3-ontology.ttl**](ontology/t3v3-ontology.ttl) - T3/V3 fractal trust ontology (Turtle/RDF)
+- [**ontology/t3v3.jsonld**](ontology/t3v3.jsonld) - T3/V3 JSON-LD context
+
 #### Trust & Tensors
 - [**core-spec/mrh-tensors.md**](core-spec/mrh-tensors.md) - MRH tensor specification
 - [**core-spec/t3-v3-tensors.md**](core-spec/t3-v3-tensors.md) - Trust and value tensors

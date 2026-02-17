@@ -1,0 +1,167 @@
+@prefix web4: <https://web4.io/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ===========================================================================
+# Web4 T3/V3 Fractal Trust Ontology
+#
+# T3 and V3 tensors are NOT fixed-dimensionality arrays. Each has 3 BASE
+# dimensions that serve as root nodes in an open-ended RDF sub-graph of
+# contextualized sub-dimensions. The graph has no built-in bound.
+#
+# This is what makes Web4 an ontology, not infrastructure: everything is
+# graph nodes and edges, rooted in the 3 base dimensions for each LCT.
+#
+# Canonical equation: Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+# The * ("contextualized by") means T3/V3 graphs are scoped through MRH.
+# ===========================================================================
+
+### Classes
+
+web4:Dimension a rdfs:Class ;
+  rdfs:comment "A measurable facet of trust or value. Root dimensions are the T3/V3 bases; sub-dimensions refine them fractally via web4:subDimensionOf. The graph is open-ended." .
+
+web4:T3Tensor a rdfs:Class ;
+  rdfs:comment "Trust tensor bound to an entity-role pair. Contains scores for 3 root dimensions (Talent/Training/Temperament) and any number of sub-dimensions." .
+
+web4:V3Tensor a rdfs:Class ;
+  rdfs:comment "Value tensor bound to an entity-role pair. Contains scores for 3 root dimensions (Valuation/Veracity/Validity) and any number of sub-dimensions." .
+
+web4:DimensionScore a rdfs:Class ;
+  rdfs:comment "A scored observation linking a tensor to a specific dimension. Reifies the measurement with timestamp and provenance." .
+
+### T3 Root Dimensions (instances of Dimension, not classes)
+
+web4:Talent a web4:Dimension ;
+  rdfs:comment "T3 root: capability and natural aptitude for a specific role." .
+
+web4:Training a web4:Dimension ;
+  rdfs:comment "T3 root: learned skills, certifications, and experience for a role." .
+
+web4:Temperament a web4:Dimension ;
+  rdfs:comment "T3 root: behavioral consistency, reliability, and ethical disposition in a role." .
+
+### V3 Root Dimensions (instances of Dimension, not classes)
+
+web4:Valuation a web4:Dimension ;
+  rdfs:comment "V3 root: subjective worth as perceived by recipients." .
+
+web4:Veracity a web4:Dimension ;
+  rdfs:comment "V3 root: truthfulness and accuracy of claims." .
+
+web4:Validity a web4:Dimension ;
+  rdfs:comment "V3 root: soundness of reasoning and confirmed value delivery." .
+
+### The Fractal Edge
+
+web4:subDimensionOf a rdf:Property ;
+  rdfs:domain web4:Dimension ;
+  rdfs:range web4:Dimension ;
+  rdfs:comment "Links a sub-dimension to its parent. Creates the open-ended fractal sub-graph. Anyone can extend the dimension tree without modifying this ontology. Analogous to skos:broader." .
+
+### Tensor Binding Properties
+
+web4:entity a rdf:Property ;
+  rdfs:domain web4:T3Tensor ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "The LCT entity this tensor measures." .
+
+web4:role a rdf:Property ;
+  rdfs:domain web4:T3Tensor ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "The role context. Trust is always role-specific." .
+
+web4:hasDimensionScore a rdf:Property ;
+  rdfs:domain web4:T3Tensor ;
+  rdfs:range web4:DimensionScore ;
+  rdfs:comment "Links a tensor to a scored dimension observation." .
+
+### DimensionScore Properties
+
+web4:dimension a rdf:Property ;
+  rdfs:domain web4:DimensionScore ;
+  rdfs:range web4:Dimension ;
+  rdfs:comment "Which dimension is being scored." .
+
+web4:score a rdf:Property ;
+  rdfs:domain web4:DimensionScore ;
+  rdfs:range xsd:decimal ;
+  rdfs:comment "Numeric score (typically 0.0-1.0 for trust, may exceed for value)." .
+
+web4:observedAt a rdf:Property ;
+  rdfs:domain web4:DimensionScore ;
+  rdfs:range xsd:dateTime ;
+  rdfs:comment "When this score was observed." .
+
+web4:witnessedBy a rdf:Property ;
+  rdfs:domain web4:DimensionScore ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "LCT that witnessed this score." .
+
+### Backward-Compatible Shorthand Properties
+#
+# These literal-valued properties preserve the flat representation:
+#   _:tensor1 web4:talent 0.95 .
+# This is syntactic sugar for the full form:
+#   _:tensor1 web4:hasDimensionScore [ web4:dimension web4:Talent ; web4:score 0.95 ] .
+# Both forms are valid. The shorthand carries the aggregate score of the sub-graph.
+
+web4:talent a rdf:Property ;
+  rdfs:domain web4:T3Tensor ;
+  rdfs:range xsd:decimal ;
+  rdfs:comment "Shorthand: aggregate Talent score." .
+
+web4:training a rdf:Property ;
+  rdfs:domain web4:T3Tensor ;
+  rdfs:range xsd:decimal ;
+  rdfs:comment "Shorthand: aggregate Training score." .
+
+web4:temperament a rdf:Property ;
+  rdfs:domain web4:T3Tensor ;
+  rdfs:range xsd:decimal ;
+  rdfs:comment "Shorthand: aggregate Temperament score." .
+
+web4:valuation a rdf:Property ;
+  rdfs:domain web4:V3Tensor ;
+  rdfs:range xsd:decimal ;
+  rdfs:comment "Shorthand: aggregate Valuation score." .
+
+web4:veracity a rdf:Property ;
+  rdfs:domain web4:V3Tensor ;
+  rdfs:range xsd:decimal ;
+  rdfs:comment "Shorthand: aggregate Veracity score." .
+
+web4:validity a rdf:Property ;
+  rdfs:domain web4:V3Tensor ;
+  rdfs:range xsd:decimal ;
+  rdfs:comment "Shorthand: aggregate Validity score." .
+
+# ===========================================================================
+# Domain Extension Example (commented — not part of core ontology)
+#
+# Any domain can define sub-dimensions without modifying this file:
+#
+# @prefix med: <https://web4.io/ontology/medical#> .
+#
+# med:SurgicalPrecision a web4:Dimension ;
+#     web4:subDimensionOf web4:Talent ;
+#     rdfs:comment "Fine motor skill under pressure." .
+#
+# med:DiagnosticIntuition a web4:Dimension ;
+#     web4:subDimensionOf web4:Talent ;
+#     rdfs:comment "Pattern recognition in symptoms." .
+#
+# med:BoardCertification a web4:Dimension ;
+#     web4:subDimensionOf web4:Training .
+#
+# med:StressResponse a web4:Dimension ;
+#     web4:subDimensionOf web4:Temperament .
+#
+# # Sub-sub-dimensions (fractal):
+# med:LaparoscopicSkill a web4:Dimension ;
+#     web4:subDimensionOf med:SurgicalPrecision .
+#
+# # SPARQL to find all Talent sub-dimensions (any depth):
+# # SELECT ?dim WHERE { ?dim web4:subDimensionOf* web4:Talent }
+# ===========================================================================

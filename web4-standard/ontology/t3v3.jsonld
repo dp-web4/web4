@@ -1,0 +1,38 @@
+{
+  "@context": {
+    "web4": "https://web4.io/ontology#",
+    "lct": "https://web4.io/lct/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "type": "@type",
+    "id": "@id",
+
+    "Dimension": "web4:Dimension",
+    "T3Tensor": "web4:T3Tensor",
+    "V3Tensor": "web4:V3Tensor",
+    "DimensionScore": "web4:DimensionScore",
+
+    "Talent": "web4:Talent",
+    "Training": "web4:Training",
+    "Temperament": "web4:Temperament",
+    "Valuation": "web4:Valuation",
+    "Veracity": "web4:Veracity",
+    "Validity": "web4:Validity",
+
+    "entity": { "@id": "web4:entity", "@type": "@id" },
+    "role": { "@id": "web4:role", "@type": "@id" },
+    "dimension": { "@id": "web4:dimension", "@type": "@id" },
+    "hasDimensionScore": { "@id": "web4:hasDimensionScore", "@type": "@id" },
+    "subDimensionOf": { "@id": "web4:subDimensionOf", "@type": "@id" },
+    "witnessedBy": { "@id": "web4:witnessedBy", "@type": "@id" },
+
+    "score": { "@id": "web4:score", "@type": "xsd:decimal" },
+    "observedAt": { "@id": "web4:observedAt", "@type": "xsd:dateTime" },
+
+    "talent": { "@id": "web4:talent", "@type": "xsd:decimal" },
+    "training": { "@id": "web4:training", "@type": "xsd:decimal" },
+    "temperament": { "@id": "web4:temperament", "@type": "xsd:decimal" },
+    "valuation": { "@id": "web4:valuation", "@type": "xsd:decimal" },
+    "veracity": { "@id": "web4:veracity", "@type": "xsd:decimal" },
+    "validity": { "@id": "web4:validity", "@type": "xsd:decimal" }
+  }
+}

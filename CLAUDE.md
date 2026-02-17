@@ -118,8 +118,8 @@ Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
 |------|---------|---------------|
 | **LCT** | Linked Context Token | `web4-standard/core-spec/LCT-linked-context-token.md` |
 | **MRH** | Markov Relevancy Horizon | `web4-standard/core-spec/mrh-tensors.md` |
-| **T3** | Trust Tensor (3 dimensions: Talent/Training/Temperament) | `web4-standard/core-spec/t3-v3-tensors.md` |
-| **V3** | Value Tensor (3 dimensions: Valuation/Veracity/Validity) | `web4-standard/core-spec/t3-v3-tensors.md` |
+| **T3** | Trust Tensor (3 root dimensions: Talent/Training/Temperament — each a root node in open-ended RDF sub-graph via `web4:subDimensionOf`) | `web4-standard/ontology/t3v3-ontology.ttl` |
+| **V3** | Value Tensor (3 root dimensions: Valuation/Veracity/Validity — same fractal RDF pattern as T3) | `web4-standard/ontology/t3v3-ontology.ttl` |
 | **ATP/ADP** | Allocation Transfer Packet / Allocation Discharge Packet | `web4-standard/core-spec/atp-adp-cycle.md` |
 | **R6** | Rules/Role/Request/Reference/Resource/Result | `web4-standard/core-spec/r6-framework.md` |
 

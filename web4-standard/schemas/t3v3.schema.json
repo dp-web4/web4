@@ -28,19 +28,29 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "description": "Role-specific capability"
+          "description": "Role-specific capability (root aggregate)"
         },
         "training": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "description": "Role-specific expertise"
+          "description": "Role-specific expertise (root aggregate)"
         },
         "temperament": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "description": "Role-specific reliability"
+          "description": "Role-specific reliability (root aggregate)"
+        },
+        "sub_dimensions": {
+          "type": "object",
+          "description": "Domain-specific sub-dimension scores grouped by root dimension. Open-ended — mirrors the web4:subDimensionOf RDF graph.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          }
         }
       },
       "required": ["talent", "training", "temperament"],
@@ -65,6 +75,16 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Successful value transfers"
+        },
+        "sub_dimensions": {
+          "type": "object",
+          "description": "Domain-specific sub-dimension scores grouped by root dimension",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          }
         }
       },
       "required": ["valuation", "veracity", "validity"],

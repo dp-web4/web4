@@ -16,6 +16,7 @@ These documents define the canonical behavior and are the final word on "what so
 |----------|---------|
 | `docs/reference/CANONICAL_TERMS_v1.md` | Term definitions, acronym expansions |
 | `web4-standard/core-spec/*.md` | Protocol specifications (LCT, T3, V3, ATP, etc.) |
+| `web4-standard/ontology/*.ttl` | Formal RDF ontology definitions (T3/V3 fractal dimensions, SAL) |
 | `web4-standard/README.md` | Standard versioning and compatibility |
 
 ### Tier 2: Implementation Status
@@ -66,6 +67,7 @@ When documents conflict:
 | README.md says T3 is 6-dimensional | CANONICAL_TERMS says 3D. **3D is correct.** T3+V3 together form 6D space. |
 | GLOSSARY.md uses different T3 components | CANONICAL_TERMS governs. **Talent/Training/Temperament** is canonical. |
 | Old docs reference `/game/` directory | `/game/` moved to standalone 4-life repo. Update links to external repo or `archive/game-prototype/`. |
+| Old docs/code use 6D flat T3/V3 arrays | Ontology governs. **3 root dimensions, extensible via `web4:subDimensionOf`**. The 6D implementations are flattened sub-dimension projections. See `web4-standard/ontology/t3v3-ontology.ttl`. |
 | STATUS.md and README.md disagree on completion | STATUS.md governs implementation state. |
 
 ---

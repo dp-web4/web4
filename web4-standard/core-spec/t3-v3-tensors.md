@@ -1,5 +1,8 @@
 # Web4 T3/V3 Tensor Specification
 
+**Formal Ontology**: [`web4-standard/ontology/t3v3-ontology.ttl`](../ontology/t3v3-ontology.ttl)
+**JSON-LD Context**: [`web4-standard/ontology/t3v3.jsonld`](../ontology/t3v3.jsonld)
+
 This document defines the Trust (T3) and Value (V3) tensor systems that provide nuanced, multi-dimensional assessment of entity capabilities and value creation in Web4.
 
 ## 1. Overview
@@ -105,6 +108,63 @@ T3 scores evolve based on R6 action outcomes:
 - **Training Decay**: -0.001 per month without practice
 - **Temperament Recovery**: +0.01 per month of good behavior
 - **Talent Stability**: No decay, represents inherent capability
+
+### 2.4 Fractal Sub-Dimensions
+
+T3 dimensions are **root nodes in an open-ended RDF sub-graph**, not fixed scalars. Each root dimension (Talent, Training, Temperament) can be refined with contextualized sub-dimensions linked via `web4:subDimensionOf`. The graph has no built-in dimensional bound — this is what makes T3 part of an ontology, not a fixed data structure.
+
+**Extension mechanism**: Any domain can define sub-dimensions without modifying the core ontology:
+
+```turtle
+@prefix web4: <https://web4.io/ontology#> .
+@prefix analytics: <https://web4.io/ontology/analytics#> .
+
+# Domain-specific sub-dimensions of Talent
+analytics:StatisticalModeling a web4:Dimension ;
+    web4:subDimensionOf web4:Talent ;
+    rdfs:comment "Ability to build and validate statistical models." .
+
+analytics:DataVisualization a web4:Dimension ;
+    web4:subDimensionOf web4:Talent ;
+    rdfs:comment "Ability to communicate data insights visually." .
+
+# Sub-sub-dimensions (fractal depth)
+analytics:BayesianInference a web4:Dimension ;
+    web4:subDimensionOf analytics:StatisticalModeling .
+
+# T3 tensor with sub-dimension scores (full form)
+_:tensor1 a web4:T3Tensor ;
+    web4:entity lct:alice ;
+    web4:role web4:DataAnalyst ;
+    web4:talent 0.85 ;  # Aggregate (shorthand)
+    web4:hasDimensionScore [
+        web4:dimension analytics:StatisticalModeling ;
+        web4:score 0.92 ;
+        web4:observedAt "2026-02-01T10:00:00Z"^^xsd:dateTime ;
+        web4:witnessedBy lct:oracle-trust
+    ] ;
+    web4:hasDimensionScore [
+        web4:dimension analytics:DataVisualization ;
+        web4:score 0.78 ;
+        web4:observedAt "2026-02-01T10:00:00Z"^^xsd:dateTime ;
+        web4:witnessedBy lct:oracle-trust
+    ] .
+```
+
+**SPARQL traversal** — find all sub-dimensions of Talent at any depth:
+
+```sparql
+SELECT ?dim ?score WHERE {
+    ?dim web4:subDimensionOf* web4:Talent .
+    ?tensor web4:entity lct:alice ;
+            web4:role web4:DataAnalyst ;
+            web4:hasDimensionScore ?ds .
+    ?ds web4:dimension ?dim ;
+        web4:score ?score .
+}
+```
+
+The shorthand properties (`web4:talent 0.85`) and the full `web4:hasDimensionScore` form are both valid. The shorthand carries the aggregate score of the sub-graph rooted at that dimension.
 
 ## 3. V3 Tensor: Value Through Verification
 
@@ -247,7 +307,17 @@ _:tensor2 a web4:T3Tensor ;
     web4:talent 0.80 ;
     web4:training 0.85 ;
     web4:temperament 0.90 .
+
+# Full form with sub-dimension scores (equivalent to shorthand above)
+_:tensor1 web4:hasDimensionScore [
+    web4:dimension web4:Talent ;
+    web4:score 0.95 ;
+    web4:observedAt "2026-01-15T10:00:00Z"^^xsd:dateTime ;
+    web4:witnessedBy lct:hospital-oracle
+] .
 ```
+
+Both the shorthand (`web4:talent 0.95`) and full (`web4:hasDimensionScore`) forms are valid. See [Section 2.4](#24-fractal-sub-dimensions) for how sub-dimensions extend these root scores.
 
 ### 5.3 Role-Aware Value Pricing
 
@@ -370,3 +440,33 @@ LIMIT 1
 ```
 
 This creates a continuous learning loop where every action refines role-specific capabilities, preventing trust leakage across unrelated domains.
+
+### 9.3 Sub-Dimension Traversal in SPARQL
+
+Queries can traverse the fractal sub-dimension graph using `web4:subDimensionOf*` property paths:
+
+```sparql
+# Find all Talent sub-dimensions and their scores for an entity-role pair
+PREFIX web4: <https://web4.io/ontology#>
+
+SELECT ?dim ?dimLabel ?score WHERE {
+    ?dim web4:subDimensionOf* web4:Talent .
+    ?tensor web4:entity ?entity ;
+            web4:role ?role ;
+            web4:hasDimensionScore ?ds .
+    ?ds web4:dimension ?dim ;
+        web4:score ?score .
+    OPTIONAL { ?dim rdfs:comment ?dimLabel }
+}
+ORDER BY DESC(?score)
+
+# Compare sub-dimension profiles across two entities for the same role
+SELECT ?dim ?scoreA ?scoreB WHERE {
+    ?dim web4:subDimensionOf* web4:Training .
+
+    ?tensorA web4:entity lct:alice ; web4:role web4:Surgeon ;
+             web4:hasDimensionScore [ web4:dimension ?dim ; web4:score ?scoreA ] .
+    ?tensorB web4:entity lct:bob ; web4:role web4:Surgeon ;
+             web4:hasDimensionScore [ web4:dimension ?dim ; web4:score ?scoreB ] .
+}
+```

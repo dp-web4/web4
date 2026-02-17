@@ -33,6 +33,8 @@ This document defines the **canonical meanings** of all Web4 terminology. When c
 - **Training**: Has it learned how? (knowledge/experience)
 - **Temperament**: Will it behave appropriately? (disposition)
 
+Each dimension is a **root node in an open-ended RDF sub-graph**, not a scalar. Implementations MUST support the three base dimensions and MAY define contextualized sub-dimensions linked via `web4:subDimensionOf`. The scalar value at each root is the aggregate of its sub-graph. The graph has no built-in dimensional bound — that is what makes T3 part of an ontology, not a fixed data structure.
+
 **NOT**: A 6-dimensional tensor (that's T3+V3 combined).
 
 **NOT**: Trust-Tracing-Tensor, Trust-Transfer-Token, or similar.
@@ -46,7 +48,11 @@ This document defines the **canonical meanings** of all Web4 terminology. When c
 - **Veracity**: How truthful are claims?
 - **Validity**: How sound is the reasoning?
 
-**Relationship to T3**: Complementary, not combined. T3 measures trust, V3 measures value. Together they form a 6-dimensional reputation space.
+Each dimension is a **root node in an open-ended RDF sub-graph**, following the same fractal pattern as T3. Sub-dimensions are linked via `web4:subDimensionOf`.
+
+**Relationship to T3**: Complementary, not combined. T3 measures trust, V3 measures value. Together they form a 6-dimensional reputation space at the root level, with unbounded fractal depth.
+
+**Ontology**: [`web4-standard/ontology/t3v3-ontology.ttl`](../../web4-standard/ontology/t3v3-ontology.ttl)
 
 **Specification**: [`web4-standard/core-spec/t3-v3-tensors.md`](../../web4-standard/core-spec/t3-v3-tensors.md)
 
@@ -56,7 +62,7 @@ This document defines the **canonical meanings** of all Web4 terminology. When c
 
 ### MRH (Markov Relevancy Horizon)
 
-**Definition**: The boundary of what an entity can know or affect given its position, history, and context. Determines scope of relevance for decisions.
+**Definition**: The boundary of what an entity can know or affect given its position, history, and context. Determines scope of relevance for decisions. Implemented as an **open-ended RDF graph** of typed associations, fractally composable across scales.
 
 **NOT**: Minimum Response Horizon, Memory Retention Heuristic, or similar.
 
