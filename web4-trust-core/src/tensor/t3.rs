@@ -1,33 +1,28 @@
 //! T3 Trust Tensor
 //!
-//! The T3 tensor captures trust across 6 dimensions:
+//! The T3 tensor captures trust across 3 root dimensions, each a root node
+//! in an open-ended RDF sub-graph extensible via `web4:subDimensionOf`:
 //!
-//! 1. **Competence**: Can they do it? (skill/ability)
-//! 2. **Reliability**: Will they do it consistently?
-//! 3. **Consistency**: Same quality over time?
-//! 4. **Witnesses**: Corroborated by others?
-//! 5. **Lineage**: Track record / history length?
-//! 6. **Alignment**: Values match context?
+//! 1. **Talent**: Natural/demonstrated ability (can they do it?)
+//! 2. **Training**: Learned skills, track record, reliability
+//! 3. **Temperament**: Character, consistency, alignment with context
 
 use serde::{Deserialize, Serialize};
 use super::TrustLevel;
 
-/// T3 Trust Tensor - 6 dimensions measuring trustworthiness
+/// T3 Trust Tensor - 3 root dimensions measuring trustworthiness
+///
+/// Each root dimension is a node in an open-ended RDF sub-graph.
+/// See `web4-standard/ontology/t3v3-ontology.ttl` for the formal ontology.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "python", pyo3::pyclass(get_all, set_all))]
 pub struct T3Tensor {
-    /// Can they do it? (skill/ability)
-    pub competence: f64,
-    /// Will they do it consistently?
-    pub reliability: f64,
-    /// Same quality over time?
-    pub consistency: f64,
-    /// Corroborated by others?
-    pub witnesses: f64,
-    /// Track record / history length?
-    pub lineage: f64,
-    /// Values match context?
-    pub alignment: f64,
+    /// Natural/demonstrated ability (can they do it?)
+    pub talent: f64,
+    /// Learned skills, track record, reliability
+    pub training: f64,
+    /// Character, consistency, alignment with context
+    pub temperament: f64,
 }
 
 impl Default for T3Tensor {
@@ -38,69 +33,44 @@ impl Default for T3Tensor {
 
 impl T3Tensor {
     /// Create a new T3 tensor with specified values
-    pub fn new(
-        competence: f64,
-        reliability: f64,
-        consistency: f64,
-        witnesses: f64,
-        lineage: f64,
-        alignment: f64,
-    ) -> Self {
+    pub fn new(talent: f64, training: f64, temperament: f64) -> Self {
         Self {
-            competence: competence.clamp(0.0, 1.0),
-            reliability: reliability.clamp(0.0, 1.0),
-            consistency: consistency.clamp(0.0, 1.0),
-            witnesses: witnesses.clamp(0.0, 1.0),
-            lineage: lineage.clamp(0.0, 1.0),
-            alignment: alignment.clamp(0.0, 1.0),
+            talent: talent.clamp(0.0, 1.0),
+            training: training.clamp(0.0, 1.0),
+            temperament: temperament.clamp(0.0, 1.0),
         }
     }
 
     /// Create a neutral T3 tensor (all values at 0.5)
     pub fn neutral() -> Self {
         Self {
-            competence: 0.5,
-            reliability: 0.5,
-            consistency: 0.5,
-            witnesses: 0.5,
-            lineage: 0.5,
-            alignment: 0.5,
+            talent: 0.5,
+            training: 0.5,
+            temperament: 0.5,
         }
     }
 
     /// Create a zero T3 tensor (minimum trust)
     pub fn zero() -> Self {
         Self {
-            competence: 0.0,
-            reliability: 0.0,
-            consistency: 0.0,
-            witnesses: 0.0,
-            lineage: 0.0,
-            alignment: 0.0,
+            talent: 0.0,
+            training: 0.0,
+            temperament: 0.0,
         }
     }
 
     /// Create a maximum T3 tensor (maximum trust)
     pub fn max() -> Self {
         Self {
-            competence: 1.0,
-            reliability: 1.0,
-            consistency: 1.0,
-            witnesses: 1.0,
-            lineage: 1.0,
-            alignment: 1.0,
+            talent: 1.0,
+            training: 1.0,
+            temperament: 1.0,
         }
     }
 
     /// Calculate the average trust score (0.0 - 1.0)
     pub fn average(&self) -> f64 {
-        (self.competence
-            + self.reliability
-            + self.consistency
-            + self.witnesses
-            + self.lineage
-            + self.alignment)
-            / 6.0
+        (self.talent + self.training + self.temperament) / 3.0
     }
 
     /// Get the categorical trust level
@@ -121,27 +91,27 @@ impl T3Tensor {
 
         // Calculate delta (asymmetric: failures hit harder)
         let delta = if success {
-            // Diminishing returns as reliability approaches 1.0
-            magnitude * 0.05 * (1.0 - self.reliability)
+            // Diminishing returns as training approaches 1.0
+            magnitude * 0.05 * (1.0 - self.training)
         } else {
             // Bigger fall from height
-            -magnitude * 0.10 * self.reliability
+            -magnitude * 0.10 * self.training
         };
 
-        // Update dimensions
-        self.reliability = (self.reliability + delta).clamp(0.0, 1.0);
-        self.consistency = (self.consistency + delta * 0.5).clamp(0.0, 1.0);
-        self.competence = (self.competence + delta * 0.3).clamp(0.0, 1.0);
+        // Update dimensions: training most affected, then temperament, then talent
+        self.training = (self.training + delta).clamp(0.0, 1.0);
+        self.temperament = (self.temperament + delta * 0.5).clamp(0.0, 1.0);
+        self.talent = (self.talent + delta * 0.3).clamp(0.0, 1.0);
     }
 
-    /// Update lineage based on action history
+    /// Update training based on action history (track record)
     ///
-    /// Lineage builds slowly with consistent success over many actions.
+    /// Training builds slowly with consistent success over many actions.
     ///
     /// # Arguments
     /// * `success_count` - Total number of successful actions
     /// * `action_count` - Total number of actions
-    pub fn update_lineage(&mut self, success_count: u64, action_count: u64) {
+    pub fn update_training(&mut self, success_count: u64, action_count: u64) {
         if action_count == 0 {
             return;
         }
@@ -149,8 +119,8 @@ impl T3Tensor {
         let success_rate = success_count as f64 / action_count as f64;
         let history_factor = (action_count as f64 / 100.0).min(1.0);
 
-        // Lineage = base + (success_rate factor) * (history factor)
-        self.lineage = 0.2 + 0.8 * success_rate.sqrt() * history_factor;
+        // Training = base + (success_rate factor) * (history factor)
+        self.training = 0.2 + 0.8 * success_rate.sqrt() * history_factor;
     }
 
     /// Apply temporal decay based on inactivity
@@ -177,68 +147,73 @@ impl T3Tensor {
             decayed.max(floor)
         };
 
-        let old_reliability = self.reliability;
+        let old_training = self.training;
 
-        // Reliability decays most (will they still do it?)
-        self.reliability = decay_value(self.reliability, 1.0);
-        // Consistency decays slightly less
-        self.consistency = decay_value(self.consistency, 0.98);
-        // Competence decays slowest (skills don't fade as fast)
-        self.competence = decay_value(self.competence, 0.995);
+        // Training decays most (will they still do it?)
+        self.training = decay_value(self.training, 1.0);
+        // Temperament decays slightly less (character is more stable)
+        self.temperament = decay_value(self.temperament, 0.98);
+        // Talent decays slowest (innate ability doesn't fade as fast)
+        self.talent = decay_value(self.talent, 0.995);
 
         // Return whether meaningful decay occurred
-        (old_reliability - self.reliability).abs() > 0.001
+        (old_training - self.training).abs() > 0.001
     }
 
-    /// Update witnesses dimension from being observed
+    /// Update temperament from being witnessed by others
     ///
     /// # Arguments
     /// * `success` - Whether the witnessed action succeeded
     /// * `magnitude` - Update magnitude
-    pub fn update_witnesses(&mut self, success: bool, magnitude: f64) {
+    pub fn update_temperament_from_witness(&mut self, success: bool, magnitude: f64) {
         let delta = if success {
-            magnitude * 0.03 * (1.0 - self.witnesses)
+            magnitude * 0.03 * (1.0 - self.temperament)
         } else {
-            -magnitude * 0.05 * self.witnesses
+            -magnitude * 0.05 * self.temperament
         };
-        self.witnesses = (self.witnesses + delta).clamp(0.0, 1.0);
+        self.temperament = (self.temperament + delta).clamp(0.0, 1.0);
     }
 
-    /// Update alignment dimension
+    /// Update temperament from alignment observation
     ///
     /// # Arguments
     /// * `success` - Whether the aligned action succeeded
     /// * `magnitude` - Update magnitude
-    pub fn update_alignment(&mut self, success: bool, magnitude: f64) {
+    pub fn update_temperament_from_alignment(&mut self, success: bool, magnitude: f64) {
         let delta = if success {
-            magnitude * 0.02 * (1.0 - self.alignment)
+            magnitude * 0.02 * (1.0 - self.temperament)
         } else {
-            magnitude * 0.01 * (1.0 - self.alignment) // Witnessing failures doesn't hurt much
+            magnitude * 0.01 * (1.0 - self.temperament)
         };
-        self.alignment = (self.alignment + delta).clamp(0.0, 1.0);
+        self.temperament = (self.temperament + delta).clamp(0.0, 1.0);
     }
 
-    /// Get tensor as an array of values
-    pub fn as_array(&self) -> [f64; 6] {
-        [
-            self.competence,
-            self.reliability,
-            self.consistency,
-            self.witnesses,
-            self.lineage,
-            self.alignment,
-        ]
+    /// Get tensor as an array of values [talent, training, temperament]
+    pub fn as_array(&self) -> [f64; 3] {
+        [self.talent, self.training, self.temperament]
     }
 
-    /// Create tensor from an array of values
-    pub fn from_array(values: [f64; 6]) -> Self {
+    /// Create tensor from an array of values [talent, training, temperament]
+    pub fn from_array(values: [f64; 3]) -> Self {
+        Self::new(values[0], values[1], values[2])
+    }
+
+    /// Migrate from old 6D format to canonical 3D
+    ///
+    /// Maps: talent=competence, training=avg(reliability,consistency,lineage),
+    /// temperament=avg(witnesses,alignment)
+    pub fn from_legacy_6d(
+        competence: f64,
+        reliability: f64,
+        consistency: f64,
+        witnesses: f64,
+        lineage: f64,
+        alignment: f64,
+    ) -> Self {
         Self::new(
-            values[0],
-            values[1],
-            values[2],
-            values[3],
-            values[4],
-            values[5],
+            competence,
+            (reliability + consistency + lineage) / 3.0,
+            (witnesses + alignment) / 2.0,
         )
     }
 }
@@ -257,17 +232,17 @@ mod tests {
     #[test]
     fn test_update_from_success() {
         let mut t3 = T3Tensor::neutral();
-        let initial = t3.reliability;
+        let initial = t3.training;
         t3.update_from_outcome(true, 0.1);
-        assert!(t3.reliability > initial);
+        assert!(t3.training > initial);
     }
 
     #[test]
     fn test_update_from_failure() {
         let mut t3 = T3Tensor::neutral();
-        let initial = t3.reliability;
+        let initial = t3.training;
         t3.update_from_outcome(false, 0.1);
-        assert!(t3.reliability < initial);
+        assert!(t3.training < initial);
     }
 
     #[test]
@@ -278,8 +253,8 @@ mod tests {
         t3_success.update_from_outcome(true, 0.1);
         t3_failure.update_from_outcome(false, 0.1);
 
-        let success_delta = (t3_success.reliability - 0.5).abs();
-        let failure_delta = (t3_failure.reliability - 0.5).abs();
+        let success_delta = (t3_success.training - 0.5).abs();
+        let failure_delta = (t3_failure.training - 0.5).abs();
 
         // Failure should have bigger impact
         assert!(failure_delta > success_delta);
@@ -287,24 +262,34 @@ mod tests {
 
     #[test]
     fn test_decay() {
-        let mut t3 = T3Tensor::new(0.9, 0.9, 0.9, 0.5, 0.5, 0.5);
+        let mut t3 = T3Tensor::new(0.9, 0.9, 0.9);
         let decayed = t3.apply_decay(30.0, 0.01);
         assert!(decayed);
-        assert!(t3.reliability < 0.9);
-        assert!(t3.reliability >= 0.3); // Floor
+        assert!(t3.training < 0.9);
+        assert!(t3.training >= 0.3); // Floor
     }
 
     #[test]
-    fn test_lineage_update() {
+    fn test_training_update() {
         let mut t3 = T3Tensor::neutral();
-        t3.update_lineage(90, 100);
-        assert!(t3.lineage > 0.5);
+        t3.update_training(90, 100);
+        assert!(t3.training > 0.5);
     }
 
     #[test]
     fn test_clamping() {
-        let t3 = T3Tensor::new(1.5, -0.5, 0.5, 0.5, 0.5, 0.5);
-        assert_eq!(t3.competence, 1.0);
-        assert_eq!(t3.reliability, 0.0);
+        let t3 = T3Tensor::new(1.5, -0.5, 0.5);
+        assert_eq!(t3.talent, 1.0);
+        assert_eq!(t3.training, 0.0);
+    }
+
+    #[test]
+    fn test_legacy_migration() {
+        let t3 = T3Tensor::from_legacy_6d(0.8, 0.7, 0.6, 0.5, 0.9, 0.4);
+        assert!((t3.talent - 0.8).abs() < 0.001);
+        // training = avg(0.7, 0.6, 0.9) = 0.7333
+        assert!((t3.training - 0.7333).abs() < 0.01);
+        // temperament = avg(0.5, 0.4) = 0.45
+        assert!((t3.temperament - 0.45).abs() < 0.001);
     }
 }

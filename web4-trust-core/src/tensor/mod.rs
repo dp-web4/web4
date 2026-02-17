@@ -1,9 +1,12 @@
 //! Trust and Value tensors
 //!
-//! Web4 uses two 6-dimensional tensors to capture trust and value:
+//! Web4 uses two 3-dimensional tensors to capture trust and value,
+//! each a root node in an open-ended RDF sub-graph:
 //!
-//! - **T3 (Trust Tensor)**: Measures trustworthiness across 6 dimensions
-//! - **V3 (Value Tensor)**: Measures value contribution across 6 dimensions
+//! - **T3 (Trust Tensor)**: Talent / Training / Temperament
+//! - **V3 (Value Tensor)**: Valuation / Veracity / Validity
+//!
+//! See `web4-standard/ontology/t3v3-ontology.ttl` for the formal ontology.
 
 mod t3;
 mod v3;

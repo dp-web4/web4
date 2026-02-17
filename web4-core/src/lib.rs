@@ -1,11 +1,8 @@
 // Copyright (c) 2026 MetaLINXX Inc.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 //
 // This software is covered by US Patents 11,477,027 and 12,278,913,
-// and pending application 19/178,619. A royalty-free license is granted
-// under AGPL-3.0 terms for non-commercial and research use.
-// For commercial licensing: dp@metalinxx.io
-// See PATENTS.md for details.
+// and pending application 19/178,619. See PATENTS.md for details.
 
 //! # Web4 Core Library
 //!
@@ -14,9 +11,11 @@
 //! This crate provides the foundational primitives for Web4:
 //!
 //! - **LCT (Linked Context Token)**: Non-transferable identity tokens
-//! - **T3 (Trust Tensor)**: 6-dimensional trust measurement
-//! - **V3 (Value Tensor)**: 6-dimensional value measurement
-//! - **Coherence**: Identity coherence scoring (C × S × Φ × R)
+//! - **T3 (Trust Tensor)**: 3 root dimensions (Talent/Training/Temperament),
+//!   fractally extensible via RDF sub-dimensions
+//! - **V3 (Value Tensor)**: 3 root dimensions (Valuation/Veracity/Validity),
+//!   same fractal RDF pattern as T3
+//! - **Coherence**: Identity coherence scoring (C * S * Phi * R)
 //! - **Crypto**: Ed25519 cryptographic operations
 //!
 //! ## Quick Start
@@ -36,8 +35,8 @@
 //!
 //! // Create a trust tensor and record observations
 //! let mut trust = T3::new();
-//! trust.observe(TrustDimension::Competence, 0.9).unwrap();
-//! trust.observe(TrustDimension::Integrity, 0.85).unwrap();
+//! trust.observe(TrustDimension::Talent, 0.9).unwrap();
+//! trust.observe(TrustDimension::Training, 0.85).unwrap();
 //!
 //! // Get aggregate trust score
 //! let score = trust.aggregate();
@@ -51,7 +50,7 @@
 //!
 //! Key principles:
 //! - **Non-transferable identity**: LCTs cannot be sold, stolen, or faked
-//! - **Multi-dimensional trust**: Trust is not a single number but a tensor
+//! - **Fractal trust**: 3 root dimensions extensible via `web4:subDimensionOf`
 //! - **Coherence requirements**: Entities must maintain identity coherence
 //! - **Hardware binding**: Production deployments bind keys to secure hardware
 
@@ -109,13 +108,12 @@ mod tests {
         // 4. Build trust over time
         let mut trust = T3::new();
         for _ in 0..10 {
-            trust.observe(TrustDimension::Competence, 0.9).unwrap();
-            trust.observe(TrustDimension::Integrity, 0.85).unwrap();
+            trust.observe(TrustDimension::Talent, 0.9).unwrap();
+            trust.observe(TrustDimension::Training, 0.85).unwrap();
         }
         assert!(trust.aggregate() > 0.7);
 
         // 5. Calculate coherence
-        // Need values where C × S × Φ × R >= 0.7 (AiSoftware threshold)
         let coherence = Coherence::with_values(0.92, 0.92, 0.92, 0.92).unwrap();
         assert!(coherence.meets_threshold(ai_lct.coherence_threshold()));
     }
@@ -126,12 +124,12 @@ mod tests {
         let mut tv = TrustValueScore::new(uuid::Uuid::new_v4());
 
         // Build trust through observations
-        tv.trust.observe(TrustDimension::Competence, 0.9).unwrap();
-        tv.trust.observe(TrustDimension::Integrity, 0.9).unwrap();
+        tv.trust.observe(TrustDimension::Talent, 0.9).unwrap();
+        tv.trust.observe(TrustDimension::Training, 0.9).unwrap();
 
         // Build value through contributions
-        tv.value.observe(ValueDimension::Utility, 0.8).unwrap();
-        tv.value.observe(ValueDimension::Quality, 0.85).unwrap();
+        tv.value.observe(ValueDimension::Valuation, 0.8).unwrap();
+        tv.value.observe(ValueDimension::Validity, 0.85).unwrap();
 
         // Combined score should reflect both
         let combined = tv.combined();

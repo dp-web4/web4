@@ -1,88 +1,90 @@
 // Copyright (c) 2026 MetaLINXX Inc.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 //
 // This software is covered by US Patents 11,477,027 and 12,278,913,
-// and pending application 19/178,619. A royalty-free license is granted
-// under AGPL-3.0 terms for non-commercial and research use.
-// For commercial licensing: dp@metalinxx.io
-// See PATENTS.md for details.
+// and pending application 19/178,619. See PATENTS.md for details.
 
 //! Value Tensor (V3) Implementation
 //!
-//! V3 is a 6-dimensional value tensor that captures the multi-faceted nature
-//! of value exchange in Web4. It complements T3 by measuring what an entity
-//! contributes rather than how trustworthy they are.
+//! V3 is a 3-dimensional value tensor whose root dimensions are nodes in an
+//! open-ended RDF sub-graph. Each root can have any number of sub-dimensions
+//! linked via `web4:subDimensionOf`.
 //!
-//! Dimensions:
-//! 1. Utility - practical usefulness of contributions
-//! 2. Novelty - originality and uniqueness of contributions
-//! 3. Quality - craftsmanship and attention to detail
-//! 4. Timeliness - delivery within appropriate timeframes
-//! 5. Relevance - alignment with current needs and context
-//! 6. Leverage - multiplicative effect on others' capabilities
+//! Root Dimensions:
+//! 1. Valuation - subjective worth as perceived by recipients
+//! 2. Veracity - truthfulness and accuracy of claims
+//! 3. Validity - soundness of reasoning and confirmed value delivery
+//!
+//! Formal ontology: `web4-standard/ontology/t3v3-ontology.ttl`
 
 use crate::error::{Result, Web4Error};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
-/// Number of dimensions in the value tensor
-pub const V3_DIMENSIONS: usize = 6;
+/// Number of root dimensions in the value tensor
+pub const V3_DIMENSIONS: usize = 3;
 
-/// The six dimensions of value
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// The three root dimensions of value
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(usize)]
 pub enum ValueDimension {
-    /// Practical usefulness of contributions
-    Utility = 0,
-    /// Originality and uniqueness of contributions
-    Novelty = 1,
-    /// Craftsmanship and attention to detail
-    Quality = 2,
-    /// Delivery within appropriate timeframes
-    Timeliness = 3,
-    /// Alignment with current needs and context
-    Relevance = 4,
-    /// Multiplicative effect on others' capabilities
-    Leverage = 5,
+    /// Subjective worth as perceived by recipients
+    Valuation = 0,
+    /// Truthfulness and accuracy of claims
+    Veracity = 1,
+    /// Soundness of reasoning and confirmed value delivery
+    Validity = 2,
 }
 
 impl ValueDimension {
-    /// Get all dimensions in order
+    /// Get all root dimensions in order
     pub fn all() -> [ValueDimension; V3_DIMENSIONS] {
         [
-            ValueDimension::Utility,
-            ValueDimension::Novelty,
-            ValueDimension::Quality,
-            ValueDimension::Timeliness,
-            ValueDimension::Relevance,
-            ValueDimension::Leverage,
+            ValueDimension::Valuation,
+            ValueDimension::Veracity,
+            ValueDimension::Validity,
         ]
     }
 
     /// Get the dimension name
     pub fn name(&self) -> &'static str {
         match self {
-            ValueDimension::Utility => "utility",
-            ValueDimension::Novelty => "novelty",
-            ValueDimension::Quality => "quality",
-            ValueDimension::Timeliness => "timeliness",
-            ValueDimension::Relevance => "relevance",
-            ValueDimension::Leverage => "leverage",
+            ValueDimension::Valuation => "valuation",
+            ValueDimension::Veracity => "veracity",
+            ValueDimension::Validity => "validity",
         }
     }
 }
 
-/// A 6-dimensional value tensor
+/// Score data for a sub-dimension
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SubDimensionScore {
+    /// Current score (0.0 to 1.0)
+    pub score: f64,
+    /// Confidence weight
+    pub weight: f64,
+    /// Number of observations
+    pub observation_count: u64,
+    /// Which root dimension this is under
+    pub parent: ValueDimension,
+}
+
+/// A 3-dimensional value tensor with fractal sub-dimension support
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct V3 {
-    /// Value scores for each dimension (0.0 to 1.0)
+    /// Value scores for each root dimension (0.0 to 1.0)
     dimensions: [f64; V3_DIMENSIONS],
 
-    /// Confidence weights for each dimension (0.0 to 1.0)
+    /// Confidence weights for each root dimension (0.0 to 1.0)
     weights: [f64; V3_DIMENSIONS],
 
-    /// Number of observations contributing to each dimension
+    /// Number of observations contributing to each root dimension
     observation_counts: [u64; V3_DIMENSIONS],
+
+    /// Sub-dimensions keyed by name, linked to root via parent field.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    sub_dimensions: HashMap<String, SubDimensionScore>,
 }
 
 impl Default for V3 {
@@ -98,10 +100,11 @@ impl V3 {
             dimensions: [0.5; V3_DIMENSIONS],
             weights: [0.0; V3_DIMENSIONS],
             observation_counts: [0; V3_DIMENSIONS],
+            sub_dimensions: HashMap::new(),
         }
     }
 
-    /// Create a V3 with specific initial scores
+    /// Create a V3 with specific initial root scores
     pub fn with_scores(scores: [f64; V3_DIMENSIONS]) -> Result<Self> {
         for score in scores {
             if !(0.0..=1.0).contains(&score) {
@@ -114,20 +117,21 @@ impl V3 {
             dimensions: scores,
             weights: [0.0; V3_DIMENSIONS],
             observation_counts: [0; V3_DIMENSIONS],
+            sub_dimensions: HashMap::new(),
         })
     }
 
-    /// Get the score for a specific dimension
+    /// Get the score for a root dimension
     pub fn score(&self, dimension: ValueDimension) -> f64 {
         self.dimensions[dimension as usize]
     }
 
-    /// Get the weight (confidence) for a specific dimension
+    /// Get the weight (confidence) for a root dimension
     pub fn weight(&self, dimension: ValueDimension) -> f64 {
         self.weights[dimension as usize]
     }
 
-    /// Get all dimension scores
+    /// Get all root dimension scores
     pub fn scores(&self) -> &[f64; V3_DIMENSIONS] {
         &self.dimensions
     }
@@ -137,7 +141,12 @@ impl V3 {
         &self.weights
     }
 
-    /// Record an observation for a dimension
+    /// Get sub-dimensions map
+    pub fn sub_dimensions(&self) -> &HashMap<String, SubDimensionScore> {
+        &self.sub_dimensions
+    }
+
+    /// Record an observation for a root dimension
     pub fn observe(&mut self, dimension: ValueDimension, observed_score: f64) -> Result<()> {
         if !(0.0..=1.0).contains(&observed_score) {
             return Err(Web4Error::InvalidInput(
@@ -156,6 +165,37 @@ impl V3 {
         self.observation_counts[idx] += 1;
         self.weights[idx] = (1.0 + self.observation_counts[idx] as f64).ln() / 10.0_f64.ln();
         self.weights[idx] = self.weights[idx].min(1.0);
+
+        Ok(())
+    }
+
+    /// Record an observation for a sub-dimension
+    pub fn observe_sub_dimension(
+        &mut self,
+        name: &str,
+        parent: ValueDimension,
+        observed_score: f64,
+    ) -> Result<()> {
+        if !(0.0..=1.0).contains(&observed_score) {
+            return Err(Web4Error::InvalidInput(
+                "Observed score must be in range [0.0, 1.0]".into(),
+            ));
+        }
+
+        let entry = self.sub_dimensions.entry(name.to_string()).or_insert(
+            SubDimensionScore {
+                score: 0.5,
+                weight: 0.0,
+                observation_count: 0,
+                parent,
+            },
+        );
+
+        let alpha = 0.5 / (1.0 + (entry.observation_count as f64 / 10.0));
+        entry.score = alpha * observed_score + (1.0 - alpha) * entry.score;
+        entry.observation_count += 1;
+        entry.weight = (1.0 + entry.observation_count as f64).ln() / 10.0_f64.ln();
+        entry.weight = entry.weight.min(1.0);
 
         Ok(())
     }
@@ -221,6 +261,26 @@ impl V3 {
             result.weights[i] = result.weights[i].min(1.0);
         }
 
+        // Merge sub-dimensions
+        for (name, sub) in &self.sub_dimensions {
+            result.sub_dimensions.insert(name.clone(), sub.clone());
+        }
+        for (name, other_sub) in &other.sub_dimensions {
+            if let Some(existing) = result.sub_dimensions.get_mut(name) {
+                let total = existing.observation_count + other_sub.observation_count;
+                if total > 0 {
+                    let w1 = existing.observation_count as f64 / total as f64;
+                    let w2 = other_sub.observation_count as f64 / total as f64;
+                    existing.score = w1 * existing.score + w2 * other_sub.score;
+                    existing.observation_count = total;
+                    existing.weight = (1.0 + total as f64).ln() / 10.0_f64.ln();
+                    existing.weight = existing.weight.min(1.0);
+                }
+            } else {
+                result.sub_dimensions.insert(name.clone(), other_sub.clone());
+            }
+        }
+
         result
     }
 
@@ -230,6 +290,12 @@ impl V3 {
             let distance_from_neutral = self.dimensions[i] - 0.5;
             self.dimensions[i] = 0.5 + distance_from_neutral * decay_factor;
             self.weights[i] *= decay_factor;
+        }
+
+        for sub in self.sub_dimensions.values_mut() {
+            let distance = sub.score - 0.5;
+            sub.score = 0.5 + distance * decay_factor;
+            sub.weight *= decay_factor;
         }
     }
 }
@@ -347,32 +413,33 @@ mod tests {
     #[test]
     fn test_observation_updates_score() {
         let mut v3 = V3::new();
-        v3.observe(ValueDimension::Utility, 1.0).unwrap();
+        v3.observe(ValueDimension::Valuation, 1.0).unwrap();
 
-        assert!(v3.score(ValueDimension::Utility) > 0.5);
-        assert!(v3.weight(ValueDimension::Utility) > 0.0);
+        assert!(v3.score(ValueDimension::Valuation) > 0.5);
+        assert!(v3.weight(ValueDimension::Valuation) > 0.0);
     }
 
     #[test]
     fn test_specialized_aggregate() {
         let mut v3 = V3::new();
 
-        // High scores in utility and quality
+        // High scores in valuation and validity
         for _ in 0..10 {
-            v3.observe(ValueDimension::Utility, 0.9).unwrap();
-            v3.observe(ValueDimension::Quality, 0.9).unwrap();
+            v3.observe(ValueDimension::Valuation, 0.9).unwrap();
+            v3.observe(ValueDimension::Validity, 0.9).unwrap();
         }
 
-        // Low scores in novelty
+        // Low scores in veracity
         for _ in 0..10 {
-            v3.observe(ValueDimension::Novelty, 0.2).unwrap();
+            v3.observe(ValueDimension::Veracity, 0.2).unwrap();
         }
 
-        // Specialized in utility+quality should be high
-        let specialized = v3.specialized_aggregate(&[ValueDimension::Utility, ValueDimension::Quality]);
+        // Specialized in valuation+validity should be high
+        let specialized =
+            v3.specialized_aggregate(&[ValueDimension::Valuation, ValueDimension::Validity]);
         assert!(specialized > 0.8);
 
-        // Overall aggregate includes novelty, so lower
+        // Overall aggregate includes veracity, so lower
         assert!(v3.aggregate() < specialized);
     }
 
@@ -382,8 +449,10 @@ mod tests {
 
         // Build up good trust and value
         for _ in 0..10 {
-            tv.trust.observe(crate::t3::TrustDimension::Competence, 0.9).unwrap();
-            tv.value.observe(ValueDimension::Utility, 0.9).unwrap();
+            tv.trust
+                .observe(crate::t3::TrustDimension::Talent, 0.9)
+                .unwrap();
+            tv.value.observe(ValueDimension::Valuation, 0.9).unwrap();
         }
 
         assert!(tv.combined() > 0.5);
@@ -396,5 +465,18 @@ mod tests {
         // No observations = neutral = 0.5
         assert!(tv.meets_requirements(0.5, 0.5, 0.5));
         assert!(!tv.meets_requirements(0.6, 0.5, 0.5));
+    }
+
+    #[test]
+    fn test_sub_dimension_observation() {
+        let mut v3 = V3::new();
+
+        v3.observe_sub_dimension("market_demand", ValueDimension::Valuation, 0.85)
+            .unwrap();
+
+        let subs = v3.sub_dimensions();
+        assert_eq!(subs.len(), 1);
+        assert!(subs["market_demand"].score > 0.5);
+        assert_eq!(subs["market_demand"].parent, ValueDimension::Valuation);
     }
 }

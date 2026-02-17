@@ -3,11 +3,14 @@
 //! Core trust primitives for the Web4 ecosystem.
 //!
 //! This crate provides:
-//! - T3 Trust Tensor (6-dimensional trust measurement)
-//! - V3 Value Tensor (6-dimensional value measurement)
+//! - T3 Trust Tensor (3 root dimensions: Talent/Training/Temperament)
+//! - V3 Value Tensor (3 root dimensions: Valuation/Veracity/Validity)
 //! - Entity trust with witnessing relationships
 //! - Temporal decay functions
 //! - Storage backends for persistence
+//!
+//! Each tensor dimension is a root node in an open-ended RDF sub-graph,
+//! extensible via `web4:subDimensionOf`. See `web4-standard/ontology/t3v3-ontology.ttl`.
 //!
 //! ## Example
 //!

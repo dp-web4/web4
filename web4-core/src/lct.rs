@@ -1,11 +1,8 @@
 // Copyright (c) 2026 MetaLINXX Inc.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 //
 // This software is covered by US Patents 11,477,027 and 12,278,913,
-// and pending application 19/178,619. A royalty-free license is granted
-// under AGPL-3.0 terms for non-commercial and research use.
-// For commercial licensing: dp@metalinxx.io
-// See PATENTS.md for details.
+// and pending application 19/178,619. See PATENTS.md for details.
 
 //! Linked Context Token (LCT) Implementation
 //!

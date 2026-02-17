@@ -1,6 +1,7 @@
 //! Python bindings via PyO3
 //!
 //! Exposes the Rust trust primitives to Python for use in hooks.
+//! T3: Talent/Training/Temperament, V3: Valuation/Veracity/Validity
 
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
@@ -16,7 +17,7 @@ use crate::storage::FileStore;
 use std::sync::Arc;
 use parking_lot::RwLock;
 
-/// Python-exposed T3 Trust Tensor
+/// Python-exposed T3 Trust Tensor (Talent/Training/Temperament)
 #[pyclass(name = "T3Tensor")]
 #[derive(Clone)]
 pub struct PyT3Tensor {
@@ -26,17 +27,10 @@ pub struct PyT3Tensor {
 #[pymethods]
 impl PyT3Tensor {
     #[new]
-    #[pyo3(signature = (competence=0.5, reliability=0.5, consistency=0.5, witnesses=0.5, lineage=0.5, alignment=0.5))]
-    fn new(
-        competence: f64,
-        reliability: f64,
-        consistency: f64,
-        witnesses: f64,
-        lineage: f64,
-        alignment: f64,
-    ) -> Self {
+    #[pyo3(signature = (talent=0.5, training=0.5, temperament=0.5))]
+    fn new(talent: f64, training: f64, temperament: f64) -> Self {
         Self {
-            inner: RustT3::new(competence, reliability, consistency, witnesses, lineage, alignment),
+            inner: RustT3::new(talent, training, temperament),
         }
     }
 
@@ -47,40 +41,22 @@ impl PyT3Tensor {
     }
 
     #[getter]
-    fn competence(&self) -> f64 { self.inner.competence }
+    fn talent(&self) -> f64 { self.inner.talent }
 
     #[setter]
-    fn set_competence(&mut self, value: f64) { self.inner.competence = value.clamp(0.0, 1.0); }
+    fn set_talent(&mut self, value: f64) { self.inner.talent = value.clamp(0.0, 1.0); }
 
     #[getter]
-    fn reliability(&self) -> f64 { self.inner.reliability }
+    fn training(&self) -> f64 { self.inner.training }
 
     #[setter]
-    fn set_reliability(&mut self, value: f64) { self.inner.reliability = value.clamp(0.0, 1.0); }
+    fn set_training(&mut self, value: f64) { self.inner.training = value.clamp(0.0, 1.0); }
 
     #[getter]
-    fn consistency(&self) -> f64 { self.inner.consistency }
+    fn temperament(&self) -> f64 { self.inner.temperament }
 
     #[setter]
-    fn set_consistency(&mut self, value: f64) { self.inner.consistency = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn witnesses(&self) -> f64 { self.inner.witnesses }
-
-    #[setter]
-    fn set_witnesses(&mut self, value: f64) { self.inner.witnesses = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn lineage(&self) -> f64 { self.inner.lineage }
-
-    #[setter]
-    fn set_lineage(&mut self, value: f64) { self.inner.lineage = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn alignment(&self) -> f64 { self.inner.alignment }
-
-    #[setter]
-    fn set_alignment(&mut self, value: f64) { self.inner.alignment = value.clamp(0.0, 1.0); }
+    fn set_temperament(&mut self, value: f64) { self.inner.temperament = value.clamp(0.0, 1.0); }
 
     /// Calculate average trust score
     fn average(&self) -> f64 {
@@ -104,14 +80,13 @@ impl PyT3Tensor {
 
     fn __repr__(&self) -> String {
         format!(
-            "T3Tensor(competence={:.3}, reliability={:.3}, consistency={:.3}, witnesses={:.3}, lineage={:.3}, alignment={:.3})",
-            self.inner.competence, self.inner.reliability, self.inner.consistency,
-            self.inner.witnesses, self.inner.lineage, self.inner.alignment
+            "T3Tensor(talent={:.3}, training={:.3}, temperament={:.3})",
+            self.inner.talent, self.inner.training, self.inner.temperament
         )
     }
 }
 
-/// Python-exposed V3 Value Tensor
+/// Python-exposed V3 Value Tensor (Valuation/Veracity/Validity)
 #[pyclass(name = "V3Tensor")]
 #[derive(Clone)]
 pub struct PyV3Tensor {
@@ -121,17 +96,10 @@ pub struct PyV3Tensor {
 #[pymethods]
 impl PyV3Tensor {
     #[new]
-    #[pyo3(signature = (energy=0.5, contribution=0.5, stewardship=0.5, network=0.5, reputation=0.5, temporal=0.5))]
-    fn new(
-        energy: f64,
-        contribution: f64,
-        stewardship: f64,
-        network: f64,
-        reputation: f64,
-        temporal: f64,
-    ) -> Self {
+    #[pyo3(signature = (valuation=0.5, veracity=0.5, validity=0.5))]
+    fn new(valuation: f64, veracity: f64, validity: f64) -> Self {
         Self {
-            inner: RustV3::new(energy, contribution, stewardship, network, reputation, temporal),
+            inner: RustV3::new(valuation, veracity, validity),
         }
     }
 
@@ -141,40 +109,22 @@ impl PyV3Tensor {
     }
 
     #[getter]
-    fn energy(&self) -> f64 { self.inner.energy }
+    fn valuation(&self) -> f64 { self.inner.valuation }
 
     #[setter]
-    fn set_energy(&mut self, value: f64) { self.inner.energy = value.clamp(0.0, 1.0); }
+    fn set_valuation(&mut self, value: f64) { self.inner.valuation = value.clamp(0.0, 1.0); }
 
     #[getter]
-    fn contribution(&self) -> f64 { self.inner.contribution }
+    fn veracity(&self) -> f64 { self.inner.veracity }
 
     #[setter]
-    fn set_contribution(&mut self, value: f64) { self.inner.contribution = value.clamp(0.0, 1.0); }
+    fn set_veracity(&mut self, value: f64) { self.inner.veracity = value.clamp(0.0, 1.0); }
 
     #[getter]
-    fn stewardship(&self) -> f64 { self.inner.stewardship }
+    fn validity(&self) -> f64 { self.inner.validity }
 
     #[setter]
-    fn set_stewardship(&mut self, value: f64) { self.inner.stewardship = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn network(&self) -> f64 { self.inner.network }
-
-    #[setter]
-    fn set_network(&mut self, value: f64) { self.inner.network = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn reputation(&self) -> f64 { self.inner.reputation }
-
-    #[setter]
-    fn set_reputation(&mut self, value: f64) { self.inner.reputation = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn temporal(&self) -> f64 { self.inner.temporal }
-
-    #[setter]
-    fn set_temporal(&mut self, value: f64) { self.inner.temporal = value.clamp(0.0, 1.0); }
+    fn set_validity(&mut self, value: f64) { self.inner.validity = value.clamp(0.0, 1.0); }
 
     fn average(&self) -> f64 {
         self.inner.average()
@@ -182,9 +132,8 @@ impl PyV3Tensor {
 
     fn __repr__(&self) -> String {
         format!(
-            "V3Tensor(energy={:.3}, contribution={:.3}, stewardship={:.3}, network={:.3}, reputation={:.3}, temporal={:.3})",
-            self.inner.energy, self.inner.contribution, self.inner.stewardship,
-            self.inner.network, self.inner.reputation, self.inner.temporal
+            "V3Tensor(valuation={:.3}, veracity={:.3}, validity={:.3})",
+            self.inner.valuation, self.inner.veracity, self.inner.validity
         )
     }
 }
@@ -245,79 +194,43 @@ impl PyEntityTrust {
         self.inner.has_witnessed.clone()
     }
 
-    // T3 accessors
+    // T3 accessors (canonical 3D)
     #[getter]
-    fn competence(&self) -> f64 { self.inner.t3.competence }
+    fn talent(&self) -> f64 { self.inner.t3.talent }
 
     #[setter]
-    fn set_competence(&mut self, value: f64) { self.inner.t3.competence = value.clamp(0.0, 1.0); }
+    fn set_talent(&mut self, value: f64) { self.inner.t3.talent = value.clamp(0.0, 1.0); }
 
     #[getter]
-    fn reliability(&self) -> f64 { self.inner.t3.reliability }
+    fn training(&self) -> f64 { self.inner.t3.training }
 
     #[setter]
-    fn set_reliability(&mut self, value: f64) { self.inner.t3.reliability = value.clamp(0.0, 1.0); }
+    fn set_training(&mut self, value: f64) { self.inner.t3.training = value.clamp(0.0, 1.0); }
 
     #[getter]
-    fn consistency(&self) -> f64 { self.inner.t3.consistency }
+    fn temperament(&self) -> f64 { self.inner.t3.temperament }
 
     #[setter]
-    fn set_consistency(&mut self, value: f64) { self.inner.t3.consistency = value.clamp(0.0, 1.0); }
+    fn set_temperament(&mut self, value: f64) { self.inner.t3.temperament = value.clamp(0.0, 1.0); }
+
+    // V3 accessors (canonical 3D)
+    #[getter]
+    fn valuation(&self) -> f64 { self.inner.v3.valuation }
+
+    #[setter]
+    fn set_valuation(&mut self, value: f64) { self.inner.v3.valuation = value.clamp(0.0, 1.0); }
 
     #[getter]
-    fn witnesses(&self) -> f64 { self.inner.t3.witnesses }
+    fn veracity(&self) -> f64 { self.inner.v3.veracity }
 
     #[setter]
-    fn set_witnesses(&mut self, value: f64) { self.inner.t3.witnesses = value.clamp(0.0, 1.0); }
+    fn set_veracity(&mut self, value: f64) { self.inner.v3.veracity = value.clamp(0.0, 1.0); }
 
     #[getter]
-    fn lineage(&self) -> f64 { self.inner.t3.lineage }
+    fn validity(&self) -> f64 { self.inner.v3.validity }
 
     #[setter]
-    fn set_lineage(&mut self, value: f64) { self.inner.t3.lineage = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn alignment(&self) -> f64 { self.inner.t3.alignment }
-
-    #[setter]
-    fn set_alignment(&mut self, value: f64) { self.inner.t3.alignment = value.clamp(0.0, 1.0); }
-
-    // V3 accessors
-    #[getter]
-    fn energy(&self) -> f64 { self.inner.v3.energy }
-
-    #[setter]
-    fn set_energy(&mut self, value: f64) { self.inner.v3.energy = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn contribution(&self) -> f64 { self.inner.v3.contribution }
-
-    #[setter]
-    fn set_contribution(&mut self, value: f64) { self.inner.v3.contribution = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn stewardship(&self) -> f64 { self.inner.v3.stewardship }
-
-    #[setter]
-    fn set_stewardship(&mut self, value: f64) { self.inner.v3.stewardship = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn network(&self) -> f64 { self.inner.v3.network }
-
-    #[setter]
-    fn set_network(&mut self, value: f64) { self.inner.v3.network = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn reputation(&self) -> f64 { self.inner.v3.reputation }
-
-    #[setter]
-    fn set_reputation(&mut self, value: f64) { self.inner.v3.reputation = value.clamp(0.0, 1.0); }
-
-    #[getter]
-    fn temporal(&self) -> f64 { self.inner.v3.temporal }
-
-    #[setter]
-    fn set_temporal(&mut self, value: f64) { self.inner.v3.temporal = value.clamp(0.0, 1.0); }
+    fn set_validity(&mut self, value: f64) { self.inner.v3.validity = value.clamp(0.0, 1.0); }
 
     /// Get T3 average
     fn t3_average(&self) -> f64 {
@@ -372,21 +285,15 @@ impl PyEntityTrust {
         dict.set_item("entity_type", &self.inner.entity_type)?;
         dict.set_item("entity_name", &self.inner.entity_name)?;
 
-        // T3 fields
-        dict.set_item("competence", self.inner.t3.competence)?;
-        dict.set_item("reliability", self.inner.t3.reliability)?;
-        dict.set_item("consistency", self.inner.t3.consistency)?;
-        dict.set_item("witnesses", self.inner.t3.witnesses)?;
-        dict.set_item("lineage", self.inner.t3.lineage)?;
-        dict.set_item("alignment", self.inner.t3.alignment)?;
+        // T3 fields (canonical 3D)
+        dict.set_item("talent", self.inner.t3.talent)?;
+        dict.set_item("training", self.inner.t3.training)?;
+        dict.set_item("temperament", self.inner.t3.temperament)?;
 
-        // V3 fields
-        dict.set_item("energy", self.inner.v3.energy)?;
-        dict.set_item("contribution", self.inner.v3.contribution)?;
-        dict.set_item("stewardship", self.inner.v3.stewardship)?;
-        dict.set_item("network", self.inner.v3.network)?;
-        dict.set_item("reputation", self.inner.v3.reputation)?;
-        dict.set_item("temporal", self.inner.v3.temporal)?;
+        // V3 fields (canonical 3D)
+        dict.set_item("valuation", self.inner.v3.valuation)?;
+        dict.set_item("veracity", self.inner.v3.veracity)?;
+        dict.set_item("validity", self.inner.v3.validity)?;
 
         // Witnessing
         dict.set_item("witnessed_by", self.inner.witnessed_by.clone())?;
@@ -543,8 +450,6 @@ impl PyTrustStore {
 /// Create in-memory store (for testing)
 #[pyfunction]
 fn create_memory_store() -> PyResult<PyTrustStore> {
-    // This is a workaround - ideally we'd have separate types
-    // For now, just return a new store
     PyTrustStore::new(None)
 }
 

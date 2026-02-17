@@ -227,11 +227,11 @@ mod tests {
         let file_path = store.entity_file("mcp:filesystem");
         let content = fs::read_to_string(&file_path).unwrap();
 
-        // Should have flattened fields (compatible with Python)
+        // Should have flattened canonical 3D fields
         assert!(content.contains("\"entity_id\""));
-        assert!(content.contains("\"competence\""));
-        assert!(content.contains("\"reliability\""));
-        assert!(content.contains("\"energy\""));
+        assert!(content.contains("\"talent\""));
+        assert!(content.contains("\"training\""));
+        assert!(content.contains("\"valuation\""));
         assert!(content.contains("\"witnessed_by\""));
     }
 }

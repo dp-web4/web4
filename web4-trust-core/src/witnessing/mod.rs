@@ -2,8 +2,8 @@
 //!
 //! Witnessing is how trust flows between entities in Web4:
 //! - When entity A witnesses entity B succeed, both accumulate trust
-//! - B gains reliability (it worked)
-//! - A gains alignment (its judgment was validated)
+//! - B gains training (demonstrated skill) and temperament (validated character)
+//! - A gains temperament (its judgment was validated)
 
 mod event;
 mod chain;

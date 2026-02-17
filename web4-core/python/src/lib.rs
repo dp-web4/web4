@@ -1,11 +1,8 @@
 // Copyright (c) 2026 MetaLINXX Inc.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 //
 // This software is covered by US Patents 11,477,027 and 12,278,913,
-// and pending application 19/178,619. A royalty-free license is granted
-// under AGPL-3.0 terms for non-commercial and research use.
-// For commercial licensing: dp@metalinxx.io
-// See PATENTS.md for details.
+// and pending application 19/178,619. See PATENTS.md for details.
 
 //! Python bindings for web4-core
 //!
@@ -64,52 +61,40 @@ impl From<core::EntityType> for PyEntityType {
     }
 }
 
-/// Trust dimension for T3 tensor
+/// Trust dimension for T3 tensor (canonical 3D roots)
 #[pyclass]
 #[derive(Clone)]
 pub enum PyTrustDimension {
-    Competence,
-    Integrity,
-    Benevolence,
-    Predictability,
-    Transparency,
-    Accountability,
+    Talent,
+    Training,
+    Temperament,
 }
 
 impl From<PyTrustDimension> for core::TrustDimension {
     fn from(d: PyTrustDimension) -> Self {
         match d {
-            PyTrustDimension::Competence => core::TrustDimension::Competence,
-            PyTrustDimension::Integrity => core::TrustDimension::Integrity,
-            PyTrustDimension::Benevolence => core::TrustDimension::Benevolence,
-            PyTrustDimension::Predictability => core::TrustDimension::Predictability,
-            PyTrustDimension::Transparency => core::TrustDimension::Transparency,
-            PyTrustDimension::Accountability => core::TrustDimension::Accountability,
+            PyTrustDimension::Talent => core::TrustDimension::Talent,
+            PyTrustDimension::Training => core::TrustDimension::Training,
+            PyTrustDimension::Temperament => core::TrustDimension::Temperament,
         }
     }
 }
 
-/// Value dimension for V3 tensor
+/// Value dimension for V3 tensor (canonical 3D roots)
 #[pyclass]
 #[derive(Clone)]
 pub enum PyValueDimension {
-    Utility,
-    Novelty,
-    Quality,
-    Timeliness,
-    Relevance,
-    Leverage,
+    Valuation,
+    Veracity,
+    Validity,
 }
 
 impl From<PyValueDimension> for core::ValueDimension {
     fn from(d: PyValueDimension) -> Self {
         match d {
-            PyValueDimension::Utility => core::ValueDimension::Utility,
-            PyValueDimension::Novelty => core::ValueDimension::Novelty,
-            PyValueDimension::Quality => core::ValueDimension::Quality,
-            PyValueDimension::Timeliness => core::ValueDimension::Timeliness,
-            PyValueDimension::Relevance => core::ValueDimension::Relevance,
-            PyValueDimension::Leverage => core::ValueDimension::Leverage,
+            PyValueDimension::Valuation => core::ValueDimension::Valuation,
+            PyValueDimension::Veracity => core::ValueDimension::Veracity,
+            PyValueDimension::Validity => core::ValueDimension::Validity,
         }
     }
 }
@@ -247,7 +232,7 @@ impl PyLct {
     }
 }
 
-/// Trust Tensor (T3) - 6-dimensional trust measurement
+/// Trust Tensor (T3) - 3 root dimensions, fractally extensible
 #[pyclass]
 pub struct PyT3 {
     inner: core::T3,
@@ -263,32 +248,44 @@ impl PyT3 {
         }
     }
 
-    /// Create T3 with specific scores
+    /// Create T3 with specific root scores [talent, training, temperament]
     #[staticmethod]
-    pub fn with_scores(scores: [f64; 6]) -> PyResult<Self> {
+    pub fn with_scores(scores: [f64; 3]) -> PyResult<Self> {
         Ok(Self {
             inner: core::T3::with_scores(scores).map_err(to_py_err)?,
         })
     }
 
-    /// Get score for a dimension
+    /// Get score for a root dimension
     pub fn score(&self, dimension: PyTrustDimension) -> f64 {
         self.inner.score(dimension.into())
     }
 
-    /// Get weight for a dimension
+    /// Get weight for a root dimension
     pub fn weight(&self, dimension: PyTrustDimension) -> f64 {
         self.inner.weight(dimension.into())
     }
 
-    /// Get all dimension scores
+    /// Get all root dimension scores
     pub fn scores(&self) -> Vec<f64> {
         self.inner.scores().to_vec()
     }
 
-    /// Record an observation
+    /// Record an observation for a root dimension
     pub fn observe(&mut self, dimension: PyTrustDimension, score: f64) -> PyResult<()> {
         self.inner.observe(dimension.into(), score).map_err(to_py_err)
+    }
+
+    /// Record an observation for a sub-dimension
+    pub fn observe_sub_dimension(
+        &mut self,
+        name: &str,
+        parent: PyTrustDimension,
+        score: f64,
+    ) -> PyResult<()> {
+        self.inner
+            .observe_sub_dimension(name, parent.into(), score)
+            .map_err(to_py_err)
     }
 
     /// Compute aggregate trust score
@@ -301,13 +298,13 @@ impl PyT3 {
         self.inner.decay(decay_factor);
     }
 
-    /// Check if trust meets thresholds
-    pub fn meets_thresholds(&self, min_scores: [f64; 6]) -> bool {
+    /// Check if trust meets thresholds [talent, training, temperament]
+    pub fn meets_thresholds(&self, min_scores: [f64; 3]) -> bool {
         self.inner.meets_thresholds(&min_scores)
     }
 }
 
-/// Value Tensor (V3) - 6-dimensional value measurement
+/// Value Tensor (V3) - 3 root dimensions, fractally extensible
 #[pyclass]
 pub struct PyV3 {
     inner: core::V3,
@@ -323,19 +320,31 @@ impl PyV3 {
         }
     }
 
-    /// Get score for a dimension
+    /// Get score for a root dimension
     pub fn score(&self, dimension: PyValueDimension) -> f64 {
         self.inner.score(dimension.into())
     }
 
-    /// Get all dimension scores
+    /// Get all root dimension scores
     pub fn scores(&self) -> Vec<f64> {
         self.inner.scores().to_vec()
     }
 
-    /// Record an observation
+    /// Record an observation for a root dimension
     pub fn observe(&mut self, dimension: PyValueDimension, score: f64) -> PyResult<()> {
         self.inner.observe(dimension.into(), score).map_err(to_py_err)
+    }
+
+    /// Record an observation for a sub-dimension
+    pub fn observe_sub_dimension(
+        &mut self,
+        name: &str,
+        parent: PyValueDimension,
+        score: f64,
+    ) -> PyResult<()> {
+        self.inner
+            .observe_sub_dimension(name, parent.into(), score)
+            .map_err(to_py_err)
     }
 
     /// Compute aggregate value score
@@ -349,7 +358,7 @@ impl PyV3 {
     }
 }
 
-/// Identity Coherence score (C × S × Φ × R)
+/// Identity Coherence score (C * S * Phi * R)
 #[pyclass]
 pub struct PyCoherence {
     inner: core::Coherence,
@@ -403,7 +412,7 @@ impl PyCoherence {
         self.inner.reachability
     }
 
-    /// Compute total coherence (C × S × Φ × R)
+    /// Compute total coherence (C * S * Phi * R)
     pub fn total(&self) -> f64 {
         self.inner.total()
     }

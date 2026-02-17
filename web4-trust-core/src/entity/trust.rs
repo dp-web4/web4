@@ -20,11 +20,11 @@ pub struct EntityTrust {
     #[serde(default)]
     pub entity_name: String,
 
-    /// T3 Trust Tensor
+    /// T3 Trust Tensor (Talent/Training/Temperament)
     #[serde(flatten, with = "t3_fields")]
     pub t3: T3Tensor,
 
-    /// V3 Value Tensor
+    /// V3 Value Tensor (Valuation/Veracity/Validity)
     #[serde(flatten, with = "v3_fields")]
     pub v3: V3Tensor,
 
@@ -57,32 +57,52 @@ pub struct EntityTrust {
     pub created_at: DateTime<Utc>,
 }
 
-// Custom serialization to flatten T3 fields
+// Custom serialization for T3 — writes canonical 3D names,
+// reads both canonical and legacy 6D formats
 mod t3_fields {
     use super::*;
     use serde::{Deserializer, Serializer};
 
-    #[derive(Serialize, Deserialize)]
-    struct T3Flat {
-        competence: f64,
-        reliability: f64,
-        consistency: f64,
-        witnesses: f64,
-        lineage: f64,
-        alignment: f64,
+    #[derive(Serialize)]
+    struct T3Canonical {
+        talent: f64,
+        training: f64,
+        temperament: f64,
+    }
+
+    // Deserialize supports both new 3D and legacy 6D formats
+    #[derive(Deserialize)]
+    struct T3Compat {
+        // New canonical names
+        #[serde(default)]
+        talent: Option<f64>,
+        #[serde(default)]
+        training: Option<f64>,
+        #[serde(default)]
+        temperament: Option<f64>,
+        // Legacy 6D names (for backward compat with persisted JSON)
+        #[serde(default)]
+        competence: Option<f64>,
+        #[serde(default)]
+        reliability: Option<f64>,
+        #[serde(default)]
+        consistency: Option<f64>,
+        #[serde(default)]
+        witnesses: Option<f64>,
+        #[serde(default)]
+        lineage: Option<f64>,
+        #[serde(default)]
+        alignment: Option<f64>,
     }
 
     pub fn serialize<S>(t3: &T3Tensor, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        T3Flat {
-            competence: t3.competence,
-            reliability: t3.reliability,
-            consistency: t3.consistency,
-            witnesses: t3.witnesses,
-            lineage: t3.lineage,
-            alignment: t3.alignment,
+        T3Canonical {
+            talent: t3.talent,
+            training: t3.training,
+            temperament: t3.temperament,
         }
         .serialize(serializer)
     }
@@ -91,44 +111,77 @@ mod t3_fields {
     where
         D: Deserializer<'de>,
     {
-        let flat = T3Flat::deserialize(deserializer)?;
-        Ok(T3Tensor::new(
-            flat.competence,
-            flat.reliability,
-            flat.consistency,
-            flat.witnesses,
-            flat.lineage,
-            flat.alignment,
-        ))
+        let compat = T3Compat::deserialize(deserializer)?;
+
+        // If canonical names present, use them
+        if let (Some(talent), Some(training), Some(temperament)) =
+            (compat.talent, compat.training, compat.temperament)
+        {
+            return Ok(T3Tensor::new(talent, training, temperament));
+        }
+
+        // Otherwise try legacy 6D → 3D migration
+        if let (Some(comp), Some(rel), Some(con), Some(wit), Some(lin), Some(ali)) = (
+            compat.competence,
+            compat.reliability,
+            compat.consistency,
+            compat.witnesses,
+            compat.lineage,
+            compat.alignment,
+        ) {
+            return Ok(T3Tensor::from_legacy_6d(comp, rel, con, wit, lin, ali));
+        }
+
+        // Fallback to neutral
+        Ok(T3Tensor::neutral())
     }
 }
 
-// Custom serialization to flatten V3 fields
+// Custom serialization for V3 — writes canonical 3D names,
+// reads both canonical and legacy 6D formats
 mod v3_fields {
     use super::*;
     use serde::{Deserializer, Serializer};
 
-    #[derive(Serialize, Deserialize)]
-    struct V3Flat {
-        energy: f64,
-        contribution: f64,
-        stewardship: f64,
-        network: f64,
-        reputation: f64,
-        temporal: f64,
+    #[derive(Serialize)]
+    struct V3Canonical {
+        valuation: f64,
+        veracity: f64,
+        validity: f64,
+    }
+
+    #[derive(Deserialize)]
+    struct V3Compat {
+        // New canonical names
+        #[serde(default)]
+        valuation: Option<f64>,
+        #[serde(default)]
+        veracity: Option<f64>,
+        #[serde(default)]
+        validity: Option<f64>,
+        // Legacy 6D names
+        #[serde(default)]
+        energy: Option<f64>,
+        #[serde(default)]
+        contribution: Option<f64>,
+        #[serde(default)]
+        stewardship: Option<f64>,
+        #[serde(default)]
+        network: Option<f64>,
+        #[serde(default)]
+        reputation: Option<f64>,
+        #[serde(default)]
+        temporal: Option<f64>,
     }
 
     pub fn serialize<S>(v3: &V3Tensor, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        V3Flat {
-            energy: v3.energy,
-            contribution: v3.contribution,
-            stewardship: v3.stewardship,
-            network: v3.network,
-            reputation: v3.reputation,
-            temporal: v3.temporal,
+        V3Canonical {
+            valuation: v3.valuation,
+            veracity: v3.veracity,
+            validity: v3.validity,
         }
         .serialize(serializer)
     }
@@ -137,15 +190,29 @@ mod v3_fields {
     where
         D: Deserializer<'de>,
     {
-        let flat = V3Flat::deserialize(deserializer)?;
-        Ok(V3Tensor::new(
-            flat.energy,
-            flat.contribution,
-            flat.stewardship,
-            flat.network,
-            flat.reputation,
-            flat.temporal,
-        ))
+        let compat = V3Compat::deserialize(deserializer)?;
+
+        // If canonical names present, use them
+        if let (Some(valuation), Some(veracity), Some(validity)) =
+            (compat.valuation, compat.veracity, compat.validity)
+        {
+            return Ok(V3Tensor::new(valuation, veracity, validity));
+        }
+
+        // Otherwise try legacy 6D → 3D migration
+        if let (Some(eng), Some(con), Some(stew), Some(net), Some(rep), Some(temp)) = (
+            compat.energy,
+            compat.contribution,
+            compat.stewardship,
+            compat.network,
+            compat.reputation,
+            compat.temporal,
+        ) {
+            return Ok(V3Tensor::from_legacy_6d(eng, con, stew, net, rep, temp));
+        }
+
+        // Fallback to neutral
+        Ok(V3Tensor::neutral())
     }
 }
 
@@ -210,10 +277,10 @@ impl EntityTrust {
 
         // Update T3 tensor
         self.t3.update_from_outcome(success, magnitude);
-        self.t3.update_lineage(self.success_count, self.action_count);
+        self.t3.update_training(self.success_count, self.action_count);
 
-        // Update V3 energy (effort spent)
-        self.v3.add_energy(0.01);
+        // Update V3 valuation (effort spent)
+        self.v3.add_valuation(0.01);
 
         self.last_action = Some(Utc::now());
     }
@@ -221,9 +288,9 @@ impl EntityTrust {
     /// Receive a witness event (another entity observed this one)
     ///
     /// Being witnessed builds:
-    /// - witnesses score (T3) - more observers = more validated
-    /// - reputation (V3) - external perception
-    /// - network (V3) - connection to other entities
+    /// - temperament (T3) - more observers = more validated character
+    /// - veracity (V3) - external perception of truthfulness
+    /// - validity (V3) - connection to other entities
     pub fn receive_witness(&mut self, witness_id: &str, success: bool, magnitude: f64) {
         self.witness_count += 1;
 
@@ -232,29 +299,29 @@ impl EntityTrust {
             self.witnessed_by.push(witness_id.to_string());
         }
 
-        // Update T3 witnesses dimension
-        self.t3.update_witnesses(success, magnitude);
+        // Update T3 temperament (witness validation)
+        self.t3.update_temperament_from_witness(success, magnitude);
 
-        // Update V3 reputation and network
-        self.v3.update_reputation(success, magnitude);
-        self.v3.grow_network(0.01);
+        // Update V3 veracity and validity
+        self.v3.update_veracity(success, magnitude);
+        self.v3.grow_validity(0.01);
     }
 
     /// Give a witness event (this entity observed another)
     ///
     /// Being a witness builds:
-    /// - alignment (T3) - if judgment was correct, entity is aligned with reality
-    /// - contribution (V3) - value added through validation
+    /// - temperament (T3) - if judgment was correct, entity shows good character
+    /// - valuation (V3) - value added through validation
     pub fn give_witness(&mut self, target_id: &str, success: bool, magnitude: f64) {
         // Track who we witnessed
         if !self.has_witnessed.contains(&target_id.to_string()) {
             self.has_witnessed.push(target_id.to_string());
         }
 
-        // Update T3 alignment
-        self.t3.update_alignment(success, magnitude);
+        // Update T3 temperament (alignment)
+        self.t3.update_temperament_from_alignment(success, magnitude);
 
-        // Update V3 contribution
+        // Update V3 valuation (contribution through validation)
         self.v3.add_contribution(0.005);
     }
 
@@ -305,7 +372,7 @@ mod tests {
 
         assert_eq!(trust.action_count, 1);
         assert_eq!(trust.success_count, 1);
-        assert!(trust.t3.reliability > 0.5);
+        assert!(trust.t3.training > 0.5);
         assert!(trust.last_action.is_some());
     }
 
@@ -316,7 +383,7 @@ mod tests {
 
         assert_eq!(trust.witness_count, 1);
         assert!(trust.witnessed_by.contains(&"session:abc".to_string()));
-        assert!(trust.t3.witnesses > 0.5);
+        assert!(trust.t3.temperament > 0.5);
     }
 
     #[test]
@@ -325,7 +392,7 @@ mod tests {
         trust.give_witness("mcp:test", true, 0.1);
 
         assert!(trust.has_witnessed.contains(&"mcp:test".to_string()));
-        assert!(trust.t3.alignment > 0.5);
+        assert!(trust.t3.temperament > 0.5);
     }
 
     #[test]
@@ -334,15 +401,53 @@ mod tests {
         let trust = EntityTrust::new("mcp:filesystem");
         let json = serde_json::to_string_pretty(&trust).unwrap();
 
-        // Verify it contains flattened fields
-        assert!(json.contains("\"competence\""));
-        assert!(json.contains("\"reliability\""));
-        assert!(json.contains("\"energy\""));
+        // Verify it contains canonical field names
+        assert!(json.contains("\"talent\""));
+        assert!(json.contains("\"training\""));
+        assert!(json.contains("\"temperament\""));
+        assert!(json.contains("\"valuation\""));
+        assert!(json.contains("\"veracity\""));
+        assert!(json.contains("\"validity\""));
 
         // Verify we can deserialize
         let parsed: EntityTrust = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.entity_id, trust.entity_id);
         assert_eq!(parsed.t3_average(), trust.t3_average());
+    }
+
+    #[test]
+    #[cfg(feature = "file-store")]
+    fn test_legacy_deserialization() {
+        // Simulate old 6D JSON format
+        let legacy_json = r#"{
+            "entity_id": "mcp:legacy",
+            "competence": 0.8,
+            "reliability": 0.7,
+            "consistency": 0.6,
+            "witnesses": 0.5,
+            "lineage": 0.9,
+            "alignment": 0.4,
+            "energy": 0.8,
+            "contribution": 0.6,
+            "stewardship": 0.5,
+            "network": 0.7,
+            "reputation": 0.9,
+            "temporal": 0.3,
+            "action_count": 50,
+            "success_count": 45,
+            "witness_count": 10,
+            "witnessed_by": [],
+            "has_witnessed": []
+        }"#;
+
+        let parsed: EntityTrust = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(parsed.entity_id, "mcp:legacy");
+        // talent = competence = 0.8
+        assert!((parsed.t3.talent - 0.8).abs() < 0.01);
+        // training = avg(0.7, 0.6, 0.9) ≈ 0.733
+        assert!((parsed.t3.training - 0.733).abs() < 0.01);
+        // veracity = reputation = 0.9
+        assert!((parsed.v3.veracity - 0.9).abs() < 0.01);
     }
 
     #[test]
