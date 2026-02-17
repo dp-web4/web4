@@ -1,6 +1,6 @@
 # Web4 Implementation Status
 
-**Last Updated**: February 12, 2026
+**Last Updated**: February 13, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
 **Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete.
 
@@ -19,7 +19,7 @@ Web4 is **exploratory research** into trust-native distributed intelligence. The
 | Component | What Exists | What Works | What's Missing |
 |-----------|-------------|------------|----------------|
 | **Conceptual Foundation** | 100+ page whitepaper | Clear architecture | - |
-| **Security Research** | 424 attacks in `/simulations/` | All defended, ~85% detection (FO-GB) | Formal threat model, adversarial testing |
+| **Security Research** | 424 attacks in `/simulations/` | All defended, ~85% detection (FO-GB) | Adversarial testing, formal security proofs |
 | **ATP Framework** | ~4,200 lines | Basic metering & pricing | Economic validation, real markets |
 | **Reputation Engine** | ~3,500 lines | Gossip & challenges | Formal Sybil-resistance proofs |
 | **Federation** | ~2,800 lines | Architecture designed | Real multi-platform deployment |
@@ -154,7 +154,7 @@ From their `/game/` security evaluation:
 - ✅ Early integration with real concerns (MCP attacks, prompt injection)
 
 **Gaps**:
-- ❌ No explicit formal threat model
+- ✅ Formal threat model (v2.0, Feb 2026) — see `docs/reference/security/THREAT_MODEL.md`
 - ❌ Limited formalization of game mechanics
 - ❌ Sybil and collusion resistance not systematically designed
 - ❌ Lack of cryptographic and protocol-level detail
@@ -177,10 +177,10 @@ Perplexity's recommendation is spot-on:
    - Document data structures and invariants
    - Pull ad-hoc rules into formal mechanics
 
-2. **Create formal threat model**
-   - What adversaries can do
-   - What assets must be protected
-   - What constitutes success/failure
+2. ~~Create formal threat model~~ ✅ **Done** — `docs/reference/security/THREAT_MODEL.md` (v2.0)
+   - Adversary capability matrix with 4 tiers
+   - 5-layer architecture threat analysis
+   - Trust boundary diagrams and attack surface mapping
 
 3. **Document security mechanics**
    - How cheating, Sybil behavior, collusion are handled
@@ -208,7 +208,7 @@ Perplexity's recommendation is spot-on:
 **Do we continue this research or archive it?**
 
 If continuing:
-- Need formal rigor (threat models, proofs, validation)
+- Need formal rigor (security proofs, game-theoretic validation)
 - Need adversarial testing (red team, real attacks)
 - Need economic modeling (are stakes actually deterrent?)
 
@@ -250,7 +250,6 @@ If archiving:
 - Integration tested at research scale (100 societies)
 
 **What's Missing**:
-- Formal threat model
 - Cryptographic protocol specs
 - Economic validation
 - Adversarial testing
@@ -361,7 +360,7 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
 ### As Production Infrastructure
 
 ❌ **Not Ready**
-- No formal threat model or security proofs
+- Formal threat model exists (v2.0) but no formal security proofs
 - No adversarial testing (all synthetic)
 - Economic parameters not validated
 - Cryptographic protocols incomplete
@@ -427,7 +426,7 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - **Gap**: Full LCT URL parsing (`lct://{component}:{instance}:{role}@{network}`)
 12. 🔄 Calibrate satisfaction threshold for combined filtering
 13. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-14. 🔄 Write formal threat model
+14. ✅ Formal threat model (v2.0) — `docs/reference/security/THREAT_MODEL.md`
 
 ### Near-Term (Q1 2026)
 
@@ -456,7 +455,6 @@ If research pauses:
 - Session docs (research methodology example)
 
 **Add**:
-- Formal threat models
 - Game-theoretic analysis
 - Economic modeling
 - Real adversaries
@@ -522,7 +520,7 @@ Web4 has done **substantial research work** (~47k lines code, 45+ research sessi
 
 The work is **valuable as research**: novel approach, systematic thinking, working prototypes, validated predictions.
 
-The work is **not production infrastructure**: missing formal models, adversarial testing, economic validation, ACT blockchain integration.
+The work is **not production infrastructure**: needs adversarial testing, economic validation, formal security proofs, ACT blockchain integration.
 
 **This is what it is**: A substantial research prototype with validated coordination mechanisms and cross-system integration patterns, while honestly acknowledging gaps that remain before production deployment.
 
@@ -530,7 +528,7 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 ---
 
-**Last Updated**: February 9, 2026
-**Next Review**: March 2026 (after ACT integration + threat model)
-**Status**: Research prototype - 370 attack vectors across 75 tracks. Attestation and proof system attacks (FS) complete with 100% detection rate.
+**Last Updated**: February 13, 2026
+**Next Review**: March 2026 (after ACT integration)
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Attestation and proof system attacks (FS) complete with 100% detection rate.
 
