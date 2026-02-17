@@ -4,7 +4,7 @@
 
 ## TL;DR (50 words)
 
-Web4 is trust infrastructure for AI agent coordination. Provides identity (LCT), reputation (T3 tensors), resource allocation (ATP), and federation protocols. Research prototype with working simulations. Use if you need: agent identity, trust scoring, cross-agent coordination, or governance frameworks. Not production-ready.
+Web4 is trust infrastructure for AI agent coordination. Provides identity (LCT), reputation (T3 tensors), resource allocation (ATP), and federation protocols. Research prototype with working simulations. Use if you need: agent identity, trust scoring, cross-agent coordination, or accountability frameworks. Not production-ready.
 
 ## Quick Assessment
 

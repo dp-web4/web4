@@ -36,7 +36,7 @@ Each state maps to biological precedents:
 - All witnesses actively monitoring
 - Real-time ATP/ADP flows
 - Immediate trust tensor updates
-- Full law enforcement
+- Full rule compliance verification
 - Open for new citizens
 
 **Energy Cost**: 100% of baseline

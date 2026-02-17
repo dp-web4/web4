@@ -19,7 +19,7 @@ Web4 = Societies + LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionari
 - **MRH** (Markov Relevancy Horizon): Maintain relevance across fractal scales
 - **Trust**: Enable decentralized coordination without central authority
 - **MCP** (Model Context Protocol): Bridge AI models to external resources
-- **SAL** (Society-Authority-Law): Governance framework with birth certificates, law oracles, and authority delegation
+- **SAL** (Society-Authority-Law): Trust accountability layer with entity birth certificates, transparent rule publication, and scoped authority delegation
 - **AGY** (Agency Delegation): Formal mechanism for Client entities to delegate authority to Agent entities
 - **ACP** (Agentic Context Protocol): Enables autonomous agent operation with planning, decision-making, and execution
 - **ATP** (Allocation Transfer Packet): Resource-based economy where value flows through work, not accumulation
@@ -36,7 +36,7 @@ Web4 = Societies + LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionari
 - [**INTEGRATION_STATUS.md**](INTEGRATION_STATUS.md) - Development phases and current status
 - [**NOVA_REVIEW_SUMMARY.md**](NOVA_REVIEW_SUMMARY.md) - Technical review and assessment
 - [**SOCIETY_INTEGRATION_SUMMARY.md**](SOCIETY_INTEGRATION_SUMMARY.md) - **NEW**: Foundational society concept
-- [**SAL_INTEGRATION_SUMMARY.md**](SAL_INTEGRATION_SUMMARY.md) - Society-Authority-Law governance layer
+- [**SAL_INTEGRATION_SUMMARY.md**](SAL_INTEGRATION_SUMMARY.md) - Society-Authority-Law accountability layer
 - [**AGY_INTEGRATION_SUMMARY.md**](AGY_INTEGRATION_SUMMARY.md) - Agency Delegation framework
 - [**ACP_INTEGRATION_SUMMARY.md**](ACP_INTEGRATION_SUMMARY.md) - Agentic Context Protocol framework
 - [**ATP_INTEGRATION_SUMMARY.md**](ATP_INTEGRATION_SUMMARY.md) - ATP/ADP value cycle and economy
@@ -44,10 +44,10 @@ Web4 = Societies + LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionari
 
 ### 🔧 Core Specifications
 
-#### Society & Governance
+#### Society & Trust Accountability
 - [**core-spec/SOCIETY_SPECIFICATION.md**](core-spec/SOCIETY_SPECIFICATION.md) - **NEW**: Foundational society concept with laws, ledgers, and citizenship
 - [**core-spec/SOCIETY_METABOLIC_STATES.md**](core-spec/SOCIETY_METABOLIC_STATES.md) - **NEW**: Living societies with sleep, hibernation, and renewal cycles
-- [**core-spec/web4-society-authority-law.md**](core-spec/web4-society-authority-law.md) - SAL governance framework
+- [**core-spec/web4-society-authority-law.md**](core-spec/web4-society-authority-law.md) - SAL trust accountability specification
 
 #### Identity & Context
 - [**protocols/web4-lct.md**](protocols/web4-lct.md) - Linked Context Token specification
@@ -135,8 +135,8 @@ Every transaction follows the R7 pattern: Rules + Role + Request + Reference + R
 ### 5. Autonomous Yet Accountable (ACP)
 Agents can plan and execute autonomously while maintaining human oversight, witness requirements, and full audit trails.
 
-### 6. Society-Based Governance (SAL)
-Every entity is born into a society with laws, creating fractal governance that scales from individuals to ecosystems.
+### 6. Society-Based Trust Accountability (SAL)
+Every entity is born into a society with transparent rules, creating fractal accountability that scales from individuals to ecosystems.
 
 ### 7. Formal Delegation (AGY)
 Precise authority transfer with scope, caps, and temporal bounds, enabling safe automation.
@@ -163,7 +163,7 @@ Web4 integrates with emerging semantic protocols (HSML, HSTP, Active Inference) 
 - **Trust**: T3/V3 tensors with role-contextual scoring
 - **Relationships**: Binding, pairing, witnessing, broadcast mechanisms
 
-#### Governance Layer
+#### Accountability Layer
 - **SAL**: Society-Authority-Law framework with birth certificates
 - **Law Oracle**: Machine-readable law publication and compliance
 - **Witness**: Canonical formats and test vectors

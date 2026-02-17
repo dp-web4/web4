@@ -174,7 +174,7 @@ The Web4 whitepaper is actively evolving with:
   - Foundational concepts (LCTs, Entities, Roles, R6, MRH, Dictionaries, Trust as Gravity)
   - Value and trust mechanics (ATP/ADP tokens, T3 tensors)
   - Implementation details and examples
-  - Governance and ledger integration
+  - Accountability and ledger integration
 
 ## Recent Developments
 
@@ -188,7 +188,7 @@ The Web4 whitepaper is actively evolving with:
 ### Web4 Internet Standard Development (January 2025)
 - Created comprehensive instructions for formal standard development
 - 21-day structured plan for IETF RFC and W3C specification
-- Includes reference implementations, conformance tests, and governance framework
+- Includes reference implementations, conformance tests, and standard maintenance process
 - Target: Transform Web4 from concept to legitimate internet standard
 
 ### Entity Binding Hierarchy Implementation (January 2025)

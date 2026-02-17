@@ -1,6 +1,6 @@
-# Web4 Governance Framework
+# Web4 Standard Maintenance Process
 
-This document outlines the governance structure for the Web4 standard, including the roles and responsibilities of the various community members, the decision-making process, and the process for proposing and ratifying changes to the standard.
+This document outlines the maintenance structure for the Web4 standard, including the roles and responsibilities of the various community members, the decision-making process, and the process for proposing and ratifying changes to the standard.
 
 
 

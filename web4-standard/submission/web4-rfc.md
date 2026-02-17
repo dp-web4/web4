@@ -621,7 +621,7 @@ Implementing Web4 requires careful attention to security, protocol compliance, a
 
 For the latest updates and additional resources, visit the official Web4 specification repository and community forums.
 
-# Web4 Governance Framework
+# Web4 Standard Maintenance and Evolution Process
 
 This document outlines the governance structure for the Web4 standard, including the roles and responsibilities of the various community members, the decision-making process, and the process for proposing and ratifying changes to the standard.
 

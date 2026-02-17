@@ -74,5 +74,5 @@ AGPL-3.0 - See LICENSE in repository root.
 
 ## Related
 
-- [Hardbound](https://github.com/dp-web4/hardbound) - Enterprise governance layer (proprietary MCP servers)
+- [Hardbound](https://github.com/dp-web4/hardbound) - Enterprise trust accountability layer (proprietary MCP servers)
 - [Web4 Standard](../web4-standard/) - Core specifications

@@ -77,7 +77,7 @@ Organization creates Role:
 #### Authorized Pairing (Mediated)
 - Authority handles entire process
 - Authority generates and distributes keys
-- Enables policy enforcement
+- Enables transparent policy compliance
 - Best for: High-risk, enterprise, role assignments
 
 **Key Characteristics:**

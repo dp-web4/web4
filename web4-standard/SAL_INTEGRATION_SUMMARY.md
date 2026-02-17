@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Society-Authority-Law (SAL) layer has been integrated into the Web4 standard, providing a complete governance framework for entity lifecycle, authority delegation, and law enforcement.
+The Society-Authority-Law (SAL) layer has been integrated into the Web4 standard, providing a complete trust accountability layer for entity lifecycle, authority delegation, and transparent rule compliance.
 
 ## Key Concepts Added
 

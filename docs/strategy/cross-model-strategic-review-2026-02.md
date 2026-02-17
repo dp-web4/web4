@@ -74,7 +74,7 @@ All three models independently identified the same gaps. Convergence across arch
 ## 4. Cross-Model Convergence: Identified Strengths
 
 ### 4a. Empirical Attack Testing
-All three models flagged the 424+ attack vector corpus as a genuine differentiator. Most governance frameworks are theoretical; this one has been adversarially stress-tested in simulation.
+All three models flagged the 424+ attack vector corpus as a genuine differentiator. Most accountability frameworks are theoretical; this one has been adversarially stress-tested in simulation.
 
 ### 4b. Commit Velocity and Active Development
 975+ commits, ~100/week, multiple machines running autonomous sessions. The research is not stale — it's actively advancing. Grok noted: "commits literally hours ago (Feb 14, 2026)."
@@ -83,7 +83,7 @@ All three models flagged the 424+ attack vector corpus as a genuine differentiat
 All three agree: hardware binding (TPM/Secure Enclave for unforgeable LCTs) is the single biggest credibility unlock. Once it flips from "claimable" to "provably bound to real hardware," it cranks sybil/cartel resistance from empirical/simulated toward game-at-scale.
 
 ### 4d. The Synthon Framework
-The emergent coherence entity concept (synthon) provides the theoretical bridge between component-level governance (Web4) and system-level emergence (what actually happens when agents interact). The lifecycle detection triangle (formation → health → decay) provides observable signatures for each phase.
+The emergent coherence entity concept (synthon) provides the theoretical bridge between component-level coordination (Web4) and system-level emergence (what actually happens when agents interact). The lifecycle detection triangle (formation → health → decay) provides observable signatures for each phase.
 
 ---
 

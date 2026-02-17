@@ -82,7 +82,7 @@ Web4 supports three distinct pairing modes to accommodate different trust and op
 - Authority generates complete key set
 - Authority delivers key halves to respective entities
 - Authority maintains pairing record
-- Highest trust, enables policy enforcement
+- Highest trust, enables transparent policy compliance
 
 ### Special Case: Role-Agent Pairing
 
@@ -217,7 +217,7 @@ For Role-Agent pairings (any mode):
 #### When to Use Authorized Pairing
 - High-risk or high-value interactions
 - Regulatory compliance mandatory
-- Policy enforcement required
+- Transparent policy compliance required
 - Complex authorization rules
 - Enterprise or institutional contexts
 - Role assignments with significant permissions

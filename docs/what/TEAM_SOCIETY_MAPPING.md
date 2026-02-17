@@ -1,4 +1,4 @@
-# Team-Society Mapping: Enterprise Terminology for Web4 Governance
+# Team-Society Mapping: Enterprise Terminology for Web4 Trust Accountability
 
 **Created**: 2026-02-06
 **Status**: Reference Architecture
@@ -11,7 +11,7 @@ This document maps Web4's distributed society concepts to enterprise-friendly te
 
 | Web4 Society Concept | Enterprise (Hardbound) Term | Description |
 |---------------------|---------------------------|-------------|
-| **Society** | **Team** | A governed organization of entities |
+| **Society** | **Team** | A trust-accountable organization of entities |
 | **Blockchain** | **Ledger** | Immutable record store |
 | **Citizen** | **Member** | Entity participating in the team |
 | **Law Oracle** | **Admin** | Hardware-bound governance authority |
@@ -34,7 +34,7 @@ Society (root LCT)              →  Team (root LCT: web4:team:XXXX)
 │   └── Consensus               →  │   └── Verification (signatures)
 ├── Law Oracle                  →  ├── Admin (TPM2/software bound)
 │   ├── Key management          →  │   ├── admin_bindings
-│   └── Judgment                →  │   └── Policy enforcement
+│   └── Judgment                →  │   └── Policy compliance verification
 ├── Citizens                    →  ├── Members
 │   ├── Identity (LCT)          →  │   ├── Identity (LCT)
 │   ├── Reputation              →  │   ├── Trust tensor (6D)
@@ -243,4 +243,4 @@ team.policy_store.add_policy(admin.sign(policy))
 
 ---
 
-*"A team is a society with enterprise vocabulary. The governance is identical; only the names have been changed to protect the innocent."*
+*"A team is a society with enterprise vocabulary. The trust accountability is identical; only the names have been changed to protect the innocent."*

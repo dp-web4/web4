@@ -50,9 +50,9 @@ Current Spatial Web proposals have:
 - **Missing Proof-of-presence**: No unforgeable digital presence
 - **Revocation Gaps**: No clear mechanism for identity revocation
 
-### 3. Governance Layer
+### 3. Trust Accountability Layer
 Completely absent from Spatial Web:
-- **Society-Authority-Law (SAL)**: No governance framework
+- **Society-Authority-Law (SAL)**: No trust accountability framework
 - **Law Oracle**: No automated rule enforcement
 - **Democratic Consensus**: No collective decision-making
 - **Dispute Resolution**: No mechanism for conflict resolution
@@ -71,7 +71,7 @@ Can enhance Web4's:
 - Dictionary Entity compression algorithms
 - Predictive trust scoring models
 - Context-aware value calculations
-- Adaptive governance rules
+- Adaptive coordination rules
 
 ### 2. Active Inference Framework
 Strengthens Web4's:
@@ -131,7 +131,7 @@ Semantic Enhancement Layer (Hybrid):
     - + Universal Domain Graph patterns (Spatial Web)
     - All verified through LCT signatures
 
-Governance Layer (Web4 Exclusive):
+Trust Accountability Layer (Web4 Exclusive):
   Society:
     - Membership and citizenship
     - Birth certificate issuance
@@ -187,7 +187,7 @@ Application Layer:
 ### For Organizations
 - Semantic interoperability between systems
 - Cryptographic proof of all interactions
-- Governance and compliance built-in
+- Accountability and compliance built-in
 
 ## Risks and Mitigations
 

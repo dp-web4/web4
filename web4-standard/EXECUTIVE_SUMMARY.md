@@ -55,9 +55,9 @@ MCP serves as the nervous system of Web4, enabling trust-aware communication bet
 - Session management with context preservation
 
 ### 5. Society-Authority-Law (SAL)
-**Governance Framework**
+**Trust Accountability Layer**
 
-Every entity is born into a society with laws, authorities, and responsibilities. SAL provides the governance structure that keeps Web4 safe and aligned.
+Every entity is born into a society with transparent rules, authorities, and responsibilities. SAL provides the accountability structure that keeps Web4 auditable and aligned.
 
 - Birth certificates linking entities to societies
 - Law Oracles publishing machine-readable rules
@@ -167,7 +167,7 @@ Resources are gated by trust levels. Higher trust means:
 - MRH as RDF implementation
 - Trust propagation algorithms
 - Witness specification and test vectors
-- SAL governance framework
+- SAL trust accountability layer
 - R6 Action Framework
 - AGY delegation mechanism
 - ACP autonomous operation
@@ -189,7 +189,7 @@ Resources are gated by trust levels. Higher trust means:
 - Automated compliance reporting
 - Dynamic resource allocation
 
-### Decentralized AI Governance
+### Accountable AI Agent Coordination
 - Verifiable AI agent delegation
 - Transparent decision-making trails
 - Human oversight of critical choices
@@ -225,13 +225,13 @@ Resources are gated by trust levels. Higher trust means:
 - Portable identity and reputation
 - Transparent agent actions
 - Human oversight when needed
-- Society-based governance
+- Society-based accountability
 
 ### For Society
 - Aligned incentives through trust
 - Decentralized coordination
 - Evidence-based accountability
-- Fractal governance models
+- Fractal accountability models
 
 ## Semantic Web Integration
 
@@ -241,7 +241,7 @@ Web4 is designed to integrate seamlessly with emerging Spatial Web and semantic 
 
 1. **Phase 1**: Deploy LCTs and basic MRH
 2. **Phase 2**: Add trust tensors and witnessing
-3. **Phase 3**: Implement SAL governance
+3. **Phase 3**: Implement SAL accountability
 4. **Phase 4**: Enable agency delegation
 5. **Phase 5**: Activate autonomous agents
 
@@ -254,12 +254,12 @@ This shift from ownership to relationship, from transaction to interaction, from
 - **Identity is unforgeable** but privacy-preserving
 - **Trust is measurable** but context-specific
 - **Agents are autonomous** but accountable
-- **Governance is decentralized** but effective
+- **Accountability is decentralized** but effective
 - **Intelligence is distributed** but coordinated
 
 ## Summary
 
-Web4 isn't just an upgrade—it's a fundamental reimagining of how digital entities interact. By making trust explicit, measurable, and contextual, Web4 creates the foundation for a new kind of internet where humans and AIs collaborate safely, organizations coordinate efficiently, and societies govern effectively.
+Web4 isn't just an upgrade—it's a fundamental reimagining of how digital entities interact. By making trust explicit, measurable, and contextual, Web4 creates the foundation for a new kind of internet where humans and AIs collaborate safely, organizations coordinate efficiently, and societies coordinate effectively.
 
 The standard is now feature-complete and ready for implementation. Early adopters can begin with basic components and gradually add advanced features as their needs evolve.
 

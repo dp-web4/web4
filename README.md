@@ -40,7 +40,7 @@
 
 ## 🎯 Vision
 
-**Web4 formalizes trust as a first-class primitive for distributed AI collaboration and governance—not merely data exchange.**
+**Web4 formalizes trust as a first-class primitive for distributed AI collaboration and coordination—not merely data exchange.**
 
 The internet evolved from documents (Web1) to applications (Web2) to ownership (Web3). Web4 proposes the next layer: **verifiable trust relationships** between humans, AI agents, and services that enable meaningful coordination without central control.
 
@@ -69,7 +69,7 @@ Neither addresses the core question: **How do I know this agent will behave appr
 | **Trust basis** | Cryptographic proof of ownership | Behavioral reputation over time |
 | **Identity** | Wallet addresses | Linked Context Tokens (LCTs) with witnessed history |
 | **Authorization** | Token-gated access | Context-dependent trust tensors |
-| **Coordination** | Smart contracts | Federated societies with emergent governance |
+| **Coordination** | Smart contracts | Federated societies with emergent trust structures |
 | **Focus** | Asset ownership | Agent behavior and intent |
 
 ### What Problems This Could Address
@@ -77,7 +77,7 @@ Neither addresses the core question: **How do I know this agent will behave appr
 - **AI Agent Accountability**: Every action traceable to an identity with reputation at stake
 - **Cross-Platform Coordination**: Agents from different systems interoperating through shared trust protocols
 - **Graduated Authorization**: Not just "allowed/denied" but nuanced trust based on context, history, and stakes
-- **Emergent Governance**: Societies that self-organize rules rather than requiring top-down control
+- **Self-Organizing Trust**: Societies that establish norms through interaction rather than requiring top-down rule enforcement
 
 ---
 
