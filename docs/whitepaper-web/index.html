@@ -938,7 +938,7 @@ ai_researcher.receive_atp(exchange_rate * ai_researcher.spent_atp.amount)
 <li>Verification: Optional but recommended for critical paths</li>
 <li>Caching: Supported for repeated translations</li></p><p>These implementation details provide the technical foundation for Web4's trust-native architecture while maintaining efficiency and scalability.</p>            </section>
             <section id="implementation-examples" class="section">
-<p><h1>Part 7: Future Implementation Examples</h1></p><p>> <strong>Note</strong>: The following examples illustrate how Web4 vision components could work together once fully implemented. Currently, these examples represent future possibilities rather than working code. For a working implementation demonstrating core Web4 principles (trust delegation, resource constraints, revocation), see the agent authorization demo in <code>/demo</code>.</p><p><h2>7.1. Multi-Agent Collaborative Learning</h2></p><p>This example demonstrates how multiple AI agents share and verify knowledge through the Web4 framework:</p><p><pre><code class="python"><h1>Initialize agents with LCTs</h1>
+<p><h1>Part 7 (continued): Future Implementation Examples</h1></p><p>> <strong>Note</strong>: The following examples illustrate how Web4 vision components could work together once fully implemented. Currently, these examples represent future possibilities rather than working code. For a working implementation demonstrating core Web4 principles (trust delegation, resource constraints, revocation), see the agent authorization demo in <code>/demo</code>.</p><p><h2>7.4. Multi-Agent Collaborative Learning</h2></p><p>This example demonstrates how multiple AI agents share and verify knowledge through the Web4 framework:</p><p><pre><code class="python"><h1>Initialize agents with LCTs</h1>
 claude = Agent(lct="claude-instance-001", t3=T3Tensor(talent=0.9, training=0.95, temperament=0.88))
 gpt = Agent(lct="gpt-instance-001", t3=T3Tensor(talent=0.92, training=0.93, temperament=0.90))
 local_model = Agent(lct="local-phi3", t3=T3Tensor(talent=0.7, training=0.75, temperament=0.95))</p><p><h1>Claude discovers an optimization pattern</h1>
@@ -971,7 +971,7 @@ combined_insight = local_model.synthesize([
     gpt.memory.recall("optimization")
 ])</p><p><h1>All three agents now share verified knowledge</h1>
 <h1>with cryptographic proof and trust adjustments</h1>
-</code></pre></p><p><h2>7.2. Autonomous Vehicle Fleet Learning</h2></p><p>This example shows how a fleet of autonomous vehicles shares safety-critical information:</p><p><pre><code class="python">class AutonomousVehicle:
+</code></pre></p><p><h2>7.5. Autonomous Vehicle Fleet Learning</h2></p><p>This example shows how a fleet of autonomous vehicles shares safety-critical information:</p><p><pre><code class="python">class AutonomousVehicle:
     def __init__(self, vehicle_id):
         self.lct = LCT(f"vehicle-{vehicle_id}")
         self.sensors = {
@@ -1025,7 +1025,7 @@ if regional_pattern.severity > 0.8:
 for vehicle in fleet.active_vehicles:
     vehicle.sensors["memory"].integrate_wisdom(wisdom)
     vehicle.adjust_driving_parameters(wisdom.recommendations)
-</code></pre></p><p><h2>7.3. SAGE Coherence Engine</h2></p><p>This example demonstrates the SAGE architecture integrating three sensor types:</p><p><pre><code class="python">class SAGEEngine:
+</code></pre></p><p><h2>7.6. SAGE Coherence Engine</h2></p><p>This example demonstrates the SAGE architecture integrating three sensor types:</p><p><pre><code class="python">class SAGEEngine:
     def __init__(self, lct_id):
         self.lct = LCT(lct_id)
         self.hrm = HierarchicalReasoningModel()
@@ -1089,7 +1089,7 @@ sage.memory_sensors.store(
     outcome=measure_outcome(action),
     blockchain_type="stem" if successful else "leaf"
 )
-</code></pre></p><p><h2>7.4. Role-Based Task Allocation</h2></p><p>This example shows dynamic role assignment with reputation tracking:</p><p><pre><code class="python"><h1>Define a Role as first-class entity</h1>
+</code></pre></p><p><h2>7.7. Role-Based Task Allocation</h2></p><p>This example shows dynamic role assignment with reputation tracking:</p><p><pre><code class="python"><h1>Define a Role as first-class entity</h1>
 data_analyst_role = Role(
     lct="role-data-analyst-senior",
     system_prompt="Analyze complex datasets and extract actionable insights",
@@ -1145,7 +1145,7 @@ selected.update_reputation(task, performance_v3)
 data_analyst_role.add_performance_history(selected.lct, performance_v3)</p><p><h1>ATP/ADP settlement</h1>
 atp_earned = task.atp_budget </em> performance_v3["valuation"]
 selected.receive_atp(atp_earned)
-</code></pre></p><p><h2>7.5. Cross-Chain Value Transfer</h2></p><p>This example demonstrates value and trust transfer across blockchain levels:</p><p><pre><code class="python"><h1>Start with ephemeral idea in Compost chain</h1>
+</code></pre></p><p><h2>7.8. Cross-Chain Value Transfer</h2></p><p>This example demonstrates value and trust transfer across blockchain levels:</p><p><pre><code class="python"><h1>Start with ephemeral idea in Compost chain</h1>
 idea = Thought(
     content="Novel approach to consensus without global coordination",
     creator_lct="researcher-001",

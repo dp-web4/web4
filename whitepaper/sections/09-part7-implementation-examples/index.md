@@ -1,8 +1,8 @@
-# Part 7: Future Implementation Examples
+# Part 7 (continued): Future Implementation Examples
 
 > **Note**: The following examples illustrate how Web4 vision components could work together once fully implemented. Currently, these examples represent future possibilities rather than working code. For a working implementation demonstrating core Web4 principles (trust delegation, resource constraints, revocation), see the agent authorization demo in `/demo`.
 
-## 7.1. Multi-Agent Collaborative Learning
+## 7.4. Multi-Agent Collaborative Learning
 
 This example demonstrates how multiple AI agents share and verify knowledge through the Web4 framework:
 
@@ -54,7 +54,7 @@ combined_insight = local_model.synthesize([
 # with cryptographic proof and trust adjustments
 ```
 
-## 7.2. Autonomous Vehicle Fleet Learning
+## 7.5. Autonomous Vehicle Fleet Learning
 
 This example shows how a fleet of autonomous vehicles shares safety-critical information:
 
@@ -131,7 +131,7 @@ for vehicle in fleet.active_vehicles:
     vehicle.adjust_driving_parameters(wisdom.recommendations)
 ```
 
-## 7.3. SAGE Coherence Engine
+## 7.6. SAGE Coherence Engine
 
 This example demonstrates the SAGE architecture integrating three sensor types:
 
@@ -218,7 +218,7 @@ sage.memory_sensors.store(
 )
 ```
 
-## 7.4. Role-Based Task Allocation
+## 7.7. Role-Based Task Allocation
 
 This example shows dynamic role assignment with reputation tracking:
 
@@ -299,7 +299,7 @@ atp_earned = task.atp_budget * performance_v3["valuation"]
 selected.receive_atp(atp_earned)
 ```
 
-## 7.5. Cross-Chain Value Transfer
+## 7.8. Cross-Chain Value Transfer
 
 This example demonstrates value and trust transfer across blockchain levels:
 
