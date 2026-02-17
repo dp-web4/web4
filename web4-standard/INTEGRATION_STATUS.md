@@ -44,7 +44,7 @@ This document tracks the integration of contributions from multiple AI agents (M
 ✅ Complete Python implementation with SPARQL queries
 ✅ Trust propagation algorithms for MRH graphs
 ✅ MCP servers defined as Web4 entities (responsive + delegative)
-✅ Web4 Equation formalized: Web4 = LCTs + MRH + Trust + MCP
+✅ Web4 Equation first formalized (Phase 6 form: `LCTs + MRH + Trust + MCP`; later refined to canonical: `MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` with RDF as explicit ontological backbone)
 ✅ Migration tool from simple MRH arrays to RDF graphs
 
 ## Current Standard Structure

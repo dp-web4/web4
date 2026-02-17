@@ -5,13 +5,15 @@
 ### Web4 Foundation
 
 #### The Web4 Equation
-- **Formula**: Web4 = LCTs + MRH + Trust + MCP
-- **Meaning**: The complete Web4 framework requires all four components
-- **LCTs**: Provide identity and context preservation
-- **MRH**: Maintain relevance horizons across fractal scales
-- **Trust**: Enable decentralized coordination without central authority
-- **MCP**: Bridge AI models to external resources and tools
-- **Result**: Distributed intelligence with verifiable context and trust
+- **Formula**: `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP`
+- **Operators**: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
+- **Nature**: Web4 is an **ontology** — a formal structure of typed relationships, not a flat component list
+- **MCP**: I/O membrane — bridges AI models to external resources
+- **RDF**: Ontological backbone — all trust relationships are typed RDF triples, all MRH graphs are RDF
+- **LCT**: Identity substrate — unforgeable presence reification
+- **T3/V3\*MRH**: Trust/Value tensors *contextualized by* Markov Relevancy Horizon — trust only exists within role-scoped fractal context
+- **ATP/ADP**: Bio-inspired energy metabolism — value flows through work
+- **Built on this foundation**: Societies, SAL, AGY, ACP, Dictionaries, R6/R7
 
 ### Core Web4 Components
 
@@ -30,8 +32,10 @@
 
 #### RDF - Resource Description Framework
 - **Definition**: W3C standard for data interchange using subject-predicate-object triples
-- **Usage**: MRH graphs are expressed as RDF in JSON-LD format
-- **Purpose**: Enables semantic relationships and SPARQL queries
+- **Role in Web4**: First-class component of the canonical equation — the ontological backbone through which all trust, identity, and semantic relationships are expressed
+- **Why RDF**: Trust is a typed relationship (entity-role-tensor), not a property. RDF's triple structure maps precisely to this. MRH fractal graphs, T3/V3 role bindings, SAL governance chains, and Dictionary bridges are all RDF
+- **Formats**: JSON-LD, Turtle, queryable via SPARQL
+- **Ontologies**: `sal-ontology.ttl`, `agy-ontology.ttl`, `acp-ontology.ttl`
 
 ### SAGE Architecture
 

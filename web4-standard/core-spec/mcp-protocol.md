@@ -6,21 +6,24 @@ The Model Context Protocol (MCP) serves as the inter-entity communication layer 
 
 ## 1. MCP in the Web4 Equation
 
-MCP completes the Web4 equation by providing the communication substrate:
+MCP is the **I/O membrane** in the canonical Web4 equation:
 
 ```
-Web4 = LCTs + MRH + Trust + MCP + SAL + AGY
-        ↑      ↑      ↑      ↑     ↑     ↑
-        └──────┴──────┴──────┴─────┴─────┘
-                    Connected via MCP
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+        ↑      ↑     ↑       ↑          ↑
+        │      │     │       │          └── Energy metabolism
+        │      │     │       └── Trust contextualized by horizon
+        │      │     └── Identity substrate
+        │      └── Ontological backbone (semantic structure)
+        └── I/O membrane (this spec)
 ```
 
-Every component communicates through MCP:
-- **LCTs** exchange identity proofs and context
-- **MRH** graphs are queried and updated
-- **Trust** tensors are calculated and propagated
-- **SAL** laws and policies are enforced
-- **AGY** delegations are validated and executed
+Every component communicates through MCP, but the semantic structure of what flows through MCP is defined by RDF:
+- **LCTs** exchange identity proofs and context as RDF-typed entities
+- **MRH** graphs are queried and updated via SPARQL over RDF
+- **T3/V3** tensors are role-bound via RDF triples and propagated through typed edges
+- **SAL** laws and policies are enforced as RDF governance structures
+- **AGY** delegations are validated and executed with RDF-typed authority chains
 
 ## 2. Core Concepts
 

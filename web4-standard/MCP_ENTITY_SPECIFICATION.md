@@ -100,19 +100,15 @@ Each MCP server has an LCT with specific fields:
 
 ## 3. MCP in the Web4 Equation
 
-### 3.1 Completing the Equation
+### 3.1 MCP's Role in the Equation
 
-The Web4 equation can be expressed as:
+The canonical Web4 equation:
 
 ```
-Web4 = LCTs + MRH + Trust + MCP
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-Where:
-- **LCTs** provide identity and context
-- **MRH** maintains relevance horizons
-- **Trust** enables decentralized coordination
-- **MCP** bridges AI to external resources
+MCP is the **I/O membrane** — the sensory interface through which entities interact. RDF provides the ontological backbone, LCTs provide identity, T3/V3*MRH provides role-contextualized trust, and ATP/ADP provides energy metabolism. MCP servers are entities in the RDF graph, and their relationships are typed triples.
 
 ### 3.2 Why MCP Completes Web4
 

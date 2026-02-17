@@ -89,12 +89,26 @@ git status  # Must show "working tree clean"
 
 ## Project Overview
 
-Web4 is a trust-native distributed intelligence architecture that implements:
-- **Linked Context Tokens (LCTs)**: Unforgeable digital presence
-- **Trust Tensors (T3)**: Multi-dimensional trust calculations
-- **Dictionary Entities**: Living keepers of meaning across domains
-- **Markov Relevancy Horizons (MRH)**: Context boundaries for entities
-- **R6 Action Framework**: Intent to reality transformation
+Web4 is an **ontology** — a formal structure of typed relationships through which trust, identity, and value are expressed. RDF is the backbone that contextualizes trust through semantic relationships.
+
+### The Canonical Equation
+
+```
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+```
+
+Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
+
+| Symbol | Component | Role |
+|--------|-----------|------|
+| **MCP** | Model Context Protocol | I/O membrane |
+| **RDF** | Resource Description Framework | Ontological backbone — all trust relationships are typed RDF triples |
+| **LCT** | Linked Context Token | Identity substrate (presence reification) |
+| **T3/V3** | Trust/Value Tensors | Trust (Talent/Training/Temperament) and Value (Valuation/Veracity/Validity) bound to entity-role pairs via RDF |
+| **MRH** | Markov Relevancy Horizon | Fractal context scoping — implemented as RDF graphs |
+| **ATP/ADP** | Allocation Transfer/Discharge Packets | Bio-inspired energy metabolism |
+
+**Built on this ontological foundation**: Societies, SAL (Society-Authority-Law), AGY (Agency Delegation), ACP (Agentic Context Protocol), Dictionaries, R6/R7 Action Framework
 
 ## 🚨 TERMINOLOGY PROTECTION
 
@@ -277,7 +291,7 @@ cd whitepaper
 
 ## Development Philosophy
 
-Web4 isn't just infrastructure—it's the nervous system for a new kind of internet where trust emerges from the interplay of presence, capability, intent, and context.
+Web4 isn't infrastructure — it's an ontology. RDF is its nervous system; trust propagates through typed semantic edges in a new kind of internet where presence, capability, intent, and context are all formally related.
 
 ---
 

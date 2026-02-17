@@ -2,17 +2,19 @@
 
 ## Vision
 
-Web4 is the trust-native evolution of the internet—a distributed intelligence architecture where every entity has verifiable presence, relationships build measurable trust, and autonomous agents operate safely within societal boundaries.
+Web4 is the trust-native evolution of the internet—an **ontology** where every entity has verifiable presence, relationships build measurable trust, and autonomous agents operate safely within societal boundaries. Trust is not scored but semantically contextualized through typed relationships.
 
 ## The Web4 Equation
 
 ```
-Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-Nine foundational components that work together to create a complete trust-native infrastructure:
+Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
 
-## Core Components
+The equation encodes structural relationships, not a parts list. T3/V3 tensors are *contextualized by* MRH — trust only exists within role-scoped fractal horizons. All relationships are expressed as typed RDF triples.
+
+## Architectural Layers (the equation)
 
 ### 1. Linked Context Tokens (LCTs)
 **Unforgeable Digital Presence**
@@ -45,16 +47,30 @@ Trust is not binary but multidimensional and role-contextual. T3 measures capabi
 - Evidence-based adjustments via auditors
 
 ### 4. Model Context Protocol (MCP)
-**Inter-Entity Communication Layer**
+**I/O Membrane**
 
-MCP serves as the nervous system of Web4, enabling trust-aware communication between all entities. Every MCP interaction builds or erodes trust based on outcomes.
+MCP is the sensory interface of Web4, enabling trust-aware communication between all entities. Every MCP interaction builds or erodes trust based on outcomes.
 
 - MCP servers and clients as first-class Web4 entities
 - Trust-based resource access
 - ATP metering and dynamic pricing
 - Session management with context preservation
 
-### 5. Society-Authority-Law (SAL)
+### 5. RDF (Resource Description Framework)
+**Ontological Backbone**
+
+RDF is the semantic structure through which all Web4 relationships are typed and traversable. It is not a data format choice — it is the substrate that makes Web4 an ontology rather than infrastructure.
+
+- All MRH graphs are RDF graphs (JSON-LD, Turtle, SPARQL-queryable)
+- T3/V3 tensors bind to entity-role pairs via RDF triples — trust is a relationship, not a property
+- Truth is horizon-relative: triples carry (ΔR, ΔT, ΔC) scope metadata
+- Trust propagates through typed semantic edges with probabilistic decay
+- SAL governance, Dictionaries, and R7 reputation all build on RDF
+- Formal ontologies: `sal-ontology.ttl`, `agy-ontology.ttl`, `acp-ontology.ttl`
+
+## Systems Built on the Ontological Foundation
+
+### 6. Society-Authority-Law (SAL)
 **Trust Accountability Layer**
 
 Every entity is born into a society with transparent rules, authorities, and responsibilities. SAL provides the accountability structure that keeps Web4 auditable and aligned.

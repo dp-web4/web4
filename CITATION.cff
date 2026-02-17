@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "If you use this protocol, please cite it as below."
 type: software
-title: "Web4: Trust-Native Internet Architecture"
-abstract: "Revolutionary internet protocol making trust the fundamental force of digital interaction. Implements Linked Context Tokens (LCTs) for unforgeable identity, Trust/Value tensors (T3/V3), Markov Relevancy Horizons (MRH), ATP/ADP energy economy, and complete governance framework. Transforms the internet from platform-controlled to trust-native with distributed intelligence."
+title: "Web4: Trust-Native Ontology for Distributed Intelligence"
+abstract: "Trust-native ontology where identity, trust, and value are expressed as typed RDF relationships. Canonical equation: Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP. RDF serves as the ontological backbone through which Linked Context Tokens (LCTs), Trust/Value tensors (T3/V3), and Markov Relevancy Horizons (MRH) are semantically connected. Transforms the internet from platform-controlled to trust-native with distributed intelligence."
 authors:
   - family-names: "Palatov"
     given-names: "Dennis"
@@ -12,6 +12,8 @@ repository-code: "https://github.com/dp-web4/web4"
 url: "https://github.com/dp-web4/web4"
 keywords:
   - web4
+  - ontology
+  - rdf
   - trust-native
   - linked-context-tokens
   - lct

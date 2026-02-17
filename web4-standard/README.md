@@ -8,22 +8,33 @@ The Web4 standard defines a trust-native distributed intelligence architecture t
 **Version**: 1.0.0-beta  
 **Lead Author**: Dennis Palatov
 
-## The Complete Web4 Equation
+## The Web4 Equation
+
+Web4 is an **ontology** — a formal structure of typed relationships through which trust, identity, and value are expressed.
 
 ```
-Web4 = Societies + LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dictionaries
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
+
+Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
+
+### Core Equation Components
+
+- **MCP** (Model Context Protocol): I/O membrane — bridges AI models to external resources
+- **RDF** (Resource Description Framework): Ontological backbone — all MRH graphs, trust tensor bindings, and semantic relationships are expressed as typed RDF triples queryable via SPARQL
+- **LCT** (Linked Context Token): Identity substrate — unforgeable presence reification with cryptographic binding
+- **T3/V3** (Trust/Value Tensors): Trust (Talent/Training/Temperament) and Value (Valuation/Veracity/Validity), bound to entity-role pairs via RDF — trust is a relationship, not a property
+- **MRH** (Markov Relevancy Horizon): Fractal context scoping — implemented as RDF graphs that compose fractally (graph of graphs)
+- **ATP/ADP** (Allocation Transfer/Discharge Packets): Bio-inspired energy metabolism where value flows through work
+
+### Components Built on the Ontological Foundation
 
 - **Societies**: Self-governing collectives with laws, ledgers, and shared economies
-- **LCTs** (Linked Context Tokens): Provide unforgeable identity and context preservation
-- **MRH** (Markov Relevancy Horizon): Maintain relevance across fractal scales
-- **Trust**: Enable decentralized coordination without central authority
-- **MCP** (Model Context Protocol): Bridge AI models to external resources
-- **SAL** (Society-Authority-Law): Trust accountability layer with entity birth certificates, transparent rule publication, and scoped authority delegation
+- **SAL** (Society-Authority-Law): Governance layer — citizenship, authority delegation, and law publication via RDF
 - **AGY** (Agency Delegation): Formal mechanism for Client entities to delegate authority to Agent entities
-- **ACP** (Agentic Context Protocol): Enables autonomous agent operation with planning, decision-making, and execution
-- **ATP** (Allocation Transfer Packet): Resource-based economy where value flows through work, not accumulation
-- **Dictionaries**: Living semantic bridges managing compression-trust relationships across domains
+- **ACP** (Agentic Context Protocol): Autonomous agent operation with planning, decision-making, and execution
+- **Dictionaries**: Living semantic bridges (RDF entities) managing compression-trust relationships across domains
+- **R6/R7** (Action Framework): Intent-to-reality grammar where every action produces auditable reputation deltas
 
 ## Quick Navigation
 

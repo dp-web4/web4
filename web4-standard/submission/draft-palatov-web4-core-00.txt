@@ -12,15 +12,15 @@ Expires: March 15, 2026
 
 Abstract
 
-   This document specifies Web4, a trust-native distributed
-   intelligence architecture that enables verifiable context
-   preservation, decentralized coordination, and semantic
-   interoperability across AI systems and traditional computing
-   infrastructure. Web4 introduces nine foundational components:
-   Linked Context Tokens (LCTs) for unforgeable identity, Markov
-   Relevancy Horizon (MRH) for fractal context, multidimensional
-   Trust tensors, Model Context Protocol (MCP) for communication,
-   Society-Authority-Law (SAL) governance, Agency Delegation (AGY),
+   This document specifies Web4, a trust-native ontology that
+   enables verifiable context preservation, decentralized
+   coordination, and semantic interoperability across AI systems
+   and traditional computing infrastructure. Web4 is defined by
+   the canonical equation: MCP + RDF + LCT + T3/V3*MRH + ATP/ADP,
+   where RDF serves as the ontological backbone through which all
+   trust relationships are typed and traversable. Components built
+   on this foundation include Society-Authority-Law (SAL) governance,
+   Agency Delegation (AGY),
    Agentic Context Protocol (ACP), Alignment Transfer Protocol
    (ATP/ADP) value cycle, and Dictionary entities for semantic
    bridging. Together, these create an architecture where trust
@@ -141,20 +141,25 @@ Internet-Draft                   Web4                    September 2025
 
 1.2.  The Web4 Equation
 
-   Web4 is defined by nine foundational components:
+   Web4 is an ontology defined by the canonical equation:
 
-   Web4 = LCTs + MRH + Trust + MCP + SAL + AGY + ACP + ATP + Dict
+   Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 
-   Where:
-   o  LCTs: Linked Context Tokens (unforgeable identity)
-   o  MRH: Markov Relevancy Horizon (fractal context)
-   o  Trust: T3/V3 tensors (multidimensional reputation)
-   o  MCP: Model Context Protocol (inter-entity communication)
-   o  SAL: Society-Authority-Law (governance framework)
+   Where / = "verified by", * = "contextualized by",
+   + = "augmented with":
+
+   o  MCP: Model Context Protocol (I/O membrane)
+   o  RDF: Resource Description Framework (ontological backbone)
+   o  LCT: Linked Context Token (identity substrate)
+   o  T3/V3: Trust/Value Tensors (role-bound via RDF triples)
+   o  MRH: Markov Relevancy Horizon (fractal RDF graphs)
+   o  ATP/ADP: Allocation Transfer/Discharge (energy metabolism)
+
+   Built on this ontological foundation:
+   o  SAL: Society-Authority-Law (governance via RDF)
    o  AGY: Agency Delegation (authority transfer)
    o  ACP: Agentic Context Protocol (autonomous operation)
-   o  ATP: Alignment Transfer Protocol (value cycle)
-   o  Dict: Dictionary Entities (semantic bridges)
+   o  Dict: Dictionary Entities (semantic RDF bridges)
 
 
 

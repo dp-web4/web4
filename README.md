@@ -1,4 +1,4 @@
-# Web4: Trust-Native Distributed Intelligence Architecture
+# Web4: Trust-Native Ontology for Distributed Intelligence
 
 <!-- SUMMARIZER BLOCK: Consistent headers for AI-to-human relay -->
 ## Status Snapshot (2026-02-12)
@@ -214,13 +214,23 @@ The original prototype (`/game/`) has been archived to `archive/game-prototype/`
 
 ## What Is Web4?
 
-Web4 is a **research architecture** exploring how to safely coordinate AI agents with:
+Web4 is a **research ontology** — a formal structure of typed relationships through which trust, identity, and value are expressed.
 
-- **Linked Context Tokens (LCTs)** - Unforgeable identity anchored to hardware
-- **Trust Tensors (T3)** - Multi-dimensional trust scoring
-- **Markov Relevancy Horizons (MRH)** - Context boundaries for entities
-- **ATP (Allocation Transfer Packet)** - Energy-based resource allocation
-- **Federation** - Multi-society coordination with signed gossip
+```
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+```
+
+Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
+
+**Core equation components:**
+- **MCP** (Model Context Protocol) — I/O membrane for inter-entity communication
+- **RDF** (Resource Description Framework) — Ontological backbone; all trust relationships are typed triples, all MRH graphs are RDF, all semantic queries use SPARQL
+- **LCT** (Linked Context Token) — Unforgeable identity anchored to hardware
+- **T3/V3** (Trust/Value Tensors) — Multi-dimensional trust (Talent/Training/Temperament) and value (Valuation/Veracity/Validity), bound to entity-role pairs via RDF
+- **MRH** (Markov Relevancy Horizon) — Fractal context scoping, implemented as RDF graphs
+- **ATP/ADP** (Allocation Transfer/Discharge Packets) — Bio-inspired energy metabolism
+
+**Built on this foundation:** Societies, SAL (governance), AGY (delegation), ACP (autonomous operation), Dictionaries (semantic bridges), R6/R7 (action framework), Federation (multi-society coordination)
 
 ### The Research Questions
 
