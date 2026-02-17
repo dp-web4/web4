@@ -536,7 +536,7 @@ Trust without coherent identity is meaningless. Consider:
 - Reputation accumulated by an incoherent entity doesn't predict future behavior
 - Trust transfer to a copy/fork of an incoherent entity has no meaning
 
-By making coherence foundational, Web4 ensures that trust is built on stable ground. The T3 tensor includes **identity_coherence** as a prerequisite dimension—without sufficient coherence, other trust dimensions become unreliable.
+By making coherence foundational, Web4 ensures that trust is built on stable ground. Identity coherence is tracked as an LCT-level property and serves as a prerequisite **gate** for trust accumulation—without sufficient coherence, T3 trust dimensions become unreliable.
 
 ### 2.7.5. Agent Types and Coherence Requirements
 

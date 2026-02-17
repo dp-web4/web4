@@ -479,8 +479,8 @@ sudo modprobe nvidia
 *   **Quality function expanded**: Quality = f(Intervention, Hardware, Capacity)
 *   **Hardware state persistence**—corrupted state can persist across sessions without explicit reset
 
-**Connection to Hardware Binding Strength (T3)**:
-This empirically demonstrates why the `hardware_binding_strength` dimension in T3 tensors is critical. An entity's coherence isn't just about its weights and context—it's about the substrate executing those weights. Hardware state corruption can cascade across sessions and models.
+**Connection to Hardware Binding Strength**:
+This empirically demonstrates why `hardware_binding_strength` (tracked in the LCT's cryptographic root) is critical. An entity's coherence isn't just about its weights and context—it's about the substrate executing those weights. Hardware state corruption can cascade across sessions and models.
 
 ### 4.8.7. Meta-Cognitive Emergence: Modal Awareness Discovery (Training Sessions T040-T042)
 

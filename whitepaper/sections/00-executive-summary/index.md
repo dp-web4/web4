@@ -6,7 +6,7 @@ WEB4 adds what was always missing. Where Web2 centralized control and Web3 token
 
 ## The Core Innovation
 
-At the heart of WEB4 lies a simple yet profound shift: **presence creates identity, interaction builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable. 
+At the heart of WEB4 lies a simple yet profound shift: **presence creates identity, interaction builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
 
 Through **Linked Context Tokens (LCTs)**, every entity—human, AI, or hybrid—gains an unforgeable footprint in the digital realm. This is not merely an identifier but a reification of presence itself. Your LCT is born with you, lives through your actions, and bears witness to your contributions. It cannot be stolen, sold, or transferred. It is you, crystallized in cryptographic reality.
 

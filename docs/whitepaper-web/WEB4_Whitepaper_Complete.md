@@ -14,7 +14,7 @@ WEB4 adds what was always missing. Where Web2 centralized control and Web3 token
 
 ## The Core Innovation
 
-At the heart of WEB4 lies a simple yet profound shift: **presence creates identity, interaction builds trust, and contribution generates value**. 
+At the heart of WEB4 lies a simple yet profound shift: **presence creates identity, interaction builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
 
 Through **Linked Context Tokens (LCTs)**, every entity—human, AI, or hybrid—gains an unforgeable footprint in the digital realm. This is not merely an identifier but a reification of presence itself. Your LCT is born with you, lives through your actions, and bears witness to your contributions. It cannot be stolen, sold, or transferred. It is you, crystallized in cryptographic reality.
 
@@ -46,7 +46,7 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 **Vision Components** (described in this document but not yet implemented):
 - Full LCT identity system with trust webs and lifecycle management
 - Complete ATP/ADP energy-value metabolic cycles
-- T3/V3 tensor-based trust and value assessment
+- T3/V3 tensor-based trust and value assessment, built on a formal RDF ontology with fractal sub-dimensions
 - Memory as temporal sensing architecture
 - Blockchain typology (Compost/Leaf/Stem/Root chains)
 - Witness acknowledgment protocols
@@ -76,11 +76,13 @@ WEB4 introduces and interconnects several foundational components:
 
 - **Linked Context Tokens (LCTs)**: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity an unforgeable identity in the digital realm.
 
-- **T3 and V3 Tensors**: Multidimensional trust and value representations that capture capability (Talent, Training, Temperament) and contribution (Valuation, Veracity, Validity).
+- **T3 and V3 Tensors**: Multidimensional trust and value representations whose three root dimensions—Talent, Training, Temperament (T3) and Valuation, Veracity, Validity (V3)—serve as root nodes in open-ended RDF sub-graphs of contextualized sub-dimensions, bound to entity-role pairs.
 
 - **Allocation Transfer Packet (ATP)**: A semi-fungible energy-value exchange modeled on biological ATP/ADP cycles, where work creates value and value generates energy.
 
-- **Markov Relevancy Horizon (MRH)**: A contextual boundary governing what is knowable, actionable, and relevant within each entity's scope.
+- **Markov Relevancy Horizon (MRH)**: A contextual boundary governing what is knowable, actionable, and relevant within each entity's scope, implemented as a typed RDF graph.
+
+- **RDF Ontological Backbone**: All Web4 relationships—trust tensors, MRH edges, role bindings—are expressed as typed RDF triples, enabling semantic interoperability with existing web standards and open-ended extensibility without modifying the core protocol.
 
 - **Memory as Temporal Sensor**: A reconception of memory not as storage but as active perception of temporal patterns, building trust through witnessed experience.
 
@@ -132,36 +134,49 @@ A biological metaphor made digital. ATP packets exist in "charged" (resources al
 ### T3 Tensor (Trust Tensor)
 > *"Trust emerges from capability demonstrated over time—but only when identity is stable."*
 
-A multi-dimensional metric capturing an entity's trustworthiness. The "T3" name reflects three primary categories, but the full tensor includes additional dimensions:
+A multi-dimensional metric capturing an entity's trustworthiness. The "T3" name reflects three root dimensions, each serving as a **root node in an open-ended RDF sub-graph** of contextualized sub-dimensions linked via `web4:subDimensionOf`:
 
-**Primary Dimensions:**
 - **Talent**: Inherent aptitude or originality
 - **Training**: Acquired knowledge and skills
 - **Temperament**: Behavioral characteristics and reliability
 
-**Extended Dimensions:**
-- **Identity Coherence**: Stability of self-referential patterns (C × S × Φ × R score). **Prerequisite dimension**—without C ≥ 0.7, other dimensions are unreliable
-- **Identity Accumulation**: Multi-session stability of coherence over time
-- **Witness Count**: Number of independent observers who have verified behavior
-- **Lineage Depth**: Trust inheritance from parent/creator entities
-- **Hardware Binding Strength**: For embodied agents, strength of physical identity anchor (0-1.0)
+Any domain can define sub-dimensions without modifying the core ontology. A medical institution defines SurgicalPrecision as a sub-dimension of Talent. A law firm defines ContractDrafting as a sub-dimension of Training. There is no fixed depth—the sub-graph is open-ended.
 
-Context-dependent and dynamically updated through actual performance. Identity coherence acts as a **gate**—trust scores from low-coherence states are discounted or invalidated.
+The root scores are aggregates of their sub-graphs. The shorthand `T3(0.9, 0.95, 0.85)` remains valid as the wide-angle view.
+
+Context-dependent, role-specific, and dynamically updated through actual performance. Trust exists only within entity-role pairs—an entity trusted as a surgeon has no inherent trust as a mechanic. Identity Coherence (see below) acts as a prerequisite **gate**—trust scores from low-coherence states are discounted or invalidated.
+
+**Note**: Identity Coherence, Witness Count, Lineage Depth, and Hardware Binding Strength are tracked as LCT-level properties, not T3 sub-dimensions.
 
 ### V3 Tensor (Value Tensor)
 > *"Value is not declared but demonstrated, not claimed but confirmed."*
 
-A three-dimensional metric quantifying created value:
+A three-dimensional metric quantifying created value, following the same fractal RDF pattern as T3:
 - **Valuation**: Subjective worth to the recipient
 - **Veracity**: Objective accuracy and reproducibility
 - **Validity**: Confirmation of actual value transfer
 
-Together with T3, enables nuanced assessment beyond simple ratings.
+Each root can be refined with domain-specific sub-dimensions via `web4:subDimensionOf`—for example, Veracity might decompose into ClaimAccuracy and Reproducibility. Together with T3, enables nuanced assessment beyond simple ratings.
 
 ### Markov Relevancy Horizon (MRH)
 > *"The MRH is how an entity knows where it belongs in the universe of relevance."*
 
-Each entity's contextual lens defining what is knowable, actionable, and relevant within their scope. Not a wall but a gradient—a fuzzy boundary ensuring entities engage where they're most effective. Dimensions include fractal scale, informational scope, geographic scope, action scope, and temporal scope.
+Each entity's contextual lens defining what is knowable, actionable, and relevant within their scope. Not a wall but a gradient—a fuzzy boundary ensuring entities engage where they're most effective. Implemented as an RDF graph with typed edges (binding, pairing, witnessing), enabling SPARQL queries and graph-based trust propagation. Dimensions include fractal scale, informational scope, geographic scope, action scope, and temporal scope.
+
+### Ontology (Web4)
+> *"Web4 is not infrastructure—it's an ontology."*
+
+A formal structure of typed relationships (RDF triples) through which trust, identity, and value are expressed. Where a protocol defines message formats, an ontology defines what things *mean* and how they relate. The T3/V3 ontology is formally defined in `t3v3-ontology.ttl` (Turtle/RDF) with a companion JSON-LD context (`t3v3.jsonld`) for interoperability.
+
+### RDF (Resource Description Framework)
+> *"The backbone that makes relationships machine-readable."*
+
+The W3C standard for expressing relationships as typed subject-predicate-object triples. Web4 uses RDF as its ontological backbone: trust tensors, MRH edges, role bindings, and sub-dimension hierarchies are all expressed as RDF triples. This enables SPARQL queries, semantic interoperability with existing web standards, and open-ended extensibility without modifying the core protocol.
+
+### `web4:subDimensionOf`
+> *"The single property that makes trust infinitely extensible."*
+
+The RDF property that creates the fractal sub-dimension graph in T3 and V3 tensors. Links a child dimension to its parent (analogous to `skos:broader`). Anyone can extend the dimension tree by declaring new dimensions with this property—a medical institution defining SurgicalPrecision, a law firm defining ContractDrafting—without modifying the core ontology. See also: T3 Tensor, V3 Tensor.
 
 ### Entity
 > *"Anything with presence can be an entity—anything that can leave a footprint."*
@@ -550,11 +565,11 @@ The WEB4 vision is underpinned by several interconnected core components designe
 3. **T3/V3 Tensors:** These are multi-dimensional metrics that provide a nuanced way to quantify an entity's capabilities and the value it creates. 
    * The **T3 Tensor** (Trust Tensor) assesses an entity based on its **T**alent, **T**raining, and **T**emperament, offering a dynamic measure of its capability profile and trustworthiness within a given context.
    * The **V3 Tensor** (Value Tensor) evaluates the value generated by an entity through three lenses: **V**aluation (subjective worth to the recipient), **V**eracity (objective assessment of the value claim), and **V**alidity (confirmation of value transfer and receipt).
-   Together, T3 and V3 tensors enable a more granular and context-aware system for evaluating entities and their contributions, moving beyond simplistic or static credentials.
+   Together, T3 and V3 tensors enable a more granular and context-aware system for evaluating entities and their contributions, moving beyond simplistic or static credentials. Both tensors follow a fractal RDF pattern: the three root dimensions are nodes in an open-ended sub-graph that anyone can extend with domain-specific sub-dimensions, without modifying the core protocol.
 
-4. **Markov Relevancy Horizon (MRH):** A contextualizing mechanism that defines an entity's zone of influence, comprehension, and authorization. This multi-dimensional tensor helps manage the complexity of interactions by localizing relevance and optimizing computational resources.
+4. **Markov Relevancy Horizon (MRH):** A contextualizing mechanism that defines an entity's zone of influence, comprehension, and authorization. Implemented as an RDF graph with typed edges, MRH manages the complexity of interactions by localizing relevance and enabling graph-based trust propagation.
 
-These core components are not isolated but are designed to interact and interlock, forming a comprehensive framework. LCTs provide the identity and contextual anchors, ATP manages the flow and accounting of value and energy, and T3/V3 Tensors offer the metrics for assessing trust, capability, and created value. This integrated system is envisioned to support the complex dynamics of a trust-driven, decentralized intelligence ecosystem.
+These core components share a common substrate: **RDF triples**—the typed relationships that bind entities, roles, trust tensors, and context into a single queryable graph. This ontological backbone is what makes Web4 extensible without central coordination. LCTs provide the identity and contextual anchors, ATP manages the flow and accounting of value and energy, T3/V3 Tensors offer the metrics for assessing trust and value, and RDF gives all of these relationships formal, machine-readable structure.
 
 # Part 2: Foundational Concepts and Entities
 
@@ -805,6 +820,22 @@ These dimensions create a unique relevance fingerprint for each entity, optimizi
 
 The MRH is not static. As entities evolve, their relevance horizons shift. A new AI agent starts with narrow scope, expanding as it demonstrates capability. A human expert's MRH in their domain far exceeds a novice's. This dynamic adjustment ensures the system remains adaptive and efficient.
 
+### 2.5.4. The Ontological Backbone: RDF
+
+So far, we have described relationships—binding, pairing, witnessing, relevance. But how are they actually expressed? In Web4, every relationship is a typed triple: "Alice is-bound-to Hardware1," "Bob is-paired-with Surgeon-Role," "Charlie witnessed DataAnalysis with Talent 0.92." This is RDF—the Resource Description Framework, a W3C standard that gives structure to relationships.
+
+RDF turns Web4 from a protocol into an ontology. The difference matters: a protocol defines message formats; an ontology defines what things *mean* and how they relate. When Web4 says "trust," it does not mean a number in a database—it means a typed relationship in a graph that can be queried, extended, and reasoned about by any system that speaks RDF.
+
+This is captured in the canonical equation:
+
+```
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+```
+
+Where `+` means "augmented with," `*` means "contextualized by," and `/` means "verified by." MCP provides the I/O membrane. RDF provides the ontological backbone. LCTs carry identity. T3/V3 tensors measure trust and value, contextualized by MRH. ATP/ADP cycles energy through work.
+
+Because MRH is an RDF graph, you can ask questions like "find all entities within 3 hops that have been witnessed by a time oracle" and get precise, machine-readable answers. Because trust tensors are RDF sub-graphs, each dimension of trust is not a flat number but a node that can be refined with domain-specific sub-dimensions—a fractal pattern we explore fully in Part 3.
+
 ## Synthesis: The Living Substrate
 
 Together, these foundational concepts create something unprecedented: a living substrate for digital interaction where:
@@ -814,6 +845,7 @@ Together, these foundational concepts create something unprecedented: a living s
 - **Roles themselves** become intelligent actors
 - **Intent drives action** through R6 framework
 - **Context determines** relevant interaction through MRH
+- **Relationships are typed** through RDF triples, creating a queryable semantic graph
 - **Meaning is preserved** through dictionary entities
 
 This is not just infrastructure—it's the nervous system for a new kind of internet where trust emerges from the interplay of presence, capability, intent, and context.
@@ -1077,7 +1109,7 @@ Trust without coherent identity is meaningless. Consider:
 - Reputation accumulated by an incoherent entity doesn't predict future behavior
 - Trust transfer to a copy/fork of an incoherent entity has no meaning
 
-By making coherence foundational, Web4 ensures that trust is built on stable ground. The T3 tensor includes **identity_coherence** as a prerequisite dimension—without sufficient coherence, other trust dimensions become unreliable.
+By making coherence foundational, Web4 ensures that trust is built on stable ground. Identity coherence is tracked as an LCT-level property and serves as a prerequisite **gate** for trust accumulation—without sufficient coherence, T3 trust dimensions become unreliable.
 
 ### 2.7.5. Agent Types and Coherence Requirements
 
@@ -1230,11 +1262,45 @@ A brilliant researcher might score:
 - Research context: T3(0.9, 0.95, 0.85)
 - Sales context: T3(0.4, 0.3, 0.6)
 
-The same entity, different contexts, different trust profiles. This isn't limitation—it's honesty. Web4 recognizes that trust is always contextual.
+The same entity, different contexts, different trust profiles. (These shorthand scores are aggregates—the wide-angle view. The full picture reveals sub-dimensions beneath each number, as we will see.) This isn't limitation—it's honesty. Web4 recognizes that trust is always contextual.
 
 ### 3.2.3. Trust in Motion
 
 T3 scores live and breathe. Every interaction updates them. Every success strengthens them. Every failure teaches them. This isn't a report card—it's a living portrait of capability evolving through time.
+
+### 3.2.4. Fractal Depth: From Scores to Sub-Graphs
+
+> *"Trust has resolution. Zoom in, and every number becomes a landscape."*
+
+When we write T3(0.9, 0.95, 0.85), we are looking through a wide-angle lens. But trust has depth. Consider a surgeon with Talent = 0.95. Zoom in, and Talent decomposes into Surgical Precision (0.97), Diagnostic Intuition (0.91), Patient Communication (0.88). Zoom further into Surgical Precision and you find Laparoscopic Skill (0.99) and Open-Heart Technique (0.94). Each level adds resolution without changing what came before.
+
+There is no fixed depth. The three root dimensions—Talent, Training, Temperament—are root nodes in an open-ended RDF sub-graph. Anyone can add sub-dimensions for their domain without modifying the core ontology. A medical institution defines SurgicalPrecision as a sub-dimension of Talent. A law firm defines ContractDrafting as a sub-dimension of Training. A research lab defines ExperimentalReproducibility as a sub-dimension of Temperament. None of these extensions require permission from or modification to Web4 itself.
+
+The mechanism is a single RDF property: `web4:subDimensionOf`. In Turtle—a human-readable format for RDF—declaring these sub-dimensions looks like this:
+
+```turtle
+med:SurgicalPrecision   a web4:Dimension ;
+    web4:subDimensionOf   web4:Talent .
+
+med:DiagnosticIntuition a web4:Dimension ;
+    web4:subDimensionOf   web4:Talent .
+
+med:BoardCertification  a web4:Dimension ;
+    web4:subDimensionOf   web4:Training .
+
+med:StressResponse      a web4:Dimension ;
+    web4:subDimensionOf   web4:Temperament .
+```
+
+Each statement declares a typed relationship: SurgicalPrecision *is a kind of* Talent. That is all it takes. The sub-dimension inherits the parent's semantics, carries its own score, and feeds upward into the parent's aggregate.
+
+The shorthand `T3(0.9, 0.95, 0.85)` and the equivalent RDF form `web4:talent 0.95` remain valid. They carry the aggregate score of the sub-graph rooted at that dimension. Implementations that only need the wide-angle view can ignore sub-dimensions entirely. Both representations coexist—the shorthand for efficiency, the sub-graph for precision.
+
+Sub-dimensions are bound to entity-role pairs, not to entities globally. Alice's Talent sub-graph as a surgeon is completely separate from her Talent sub-graph as a researcher. This is the same role-contextual principle from Section 3.2.2, applied fractally—trust is specific not just to the role, but to the dimension *within* the role, and to the sub-dimension within that dimension.
+
+Fractal sub-dimensions transform T3 from a static metric into a living knowledge graph. A hiring system can query "find all entities whose LaparoscopicSkill exceeds 0.9 and whose StressResponse exceeds 0.8"—a query that flat tensors cannot express. A credentialing body can define its own sub-dimension tree without asking anyone's permission. A regulatory framework can require specific sub-dimensions for compliance. The ontology grows from the edges, not the center.
+
+This is what makes Web4 an ontology rather than a protocol. Protocols define fixed message formats. Ontologies define extensible meaning. The `subDimensionOf` property is the single edge that turns a three-number trust score into an infinitely refinable knowledge graph.
 
 ## 3.3. V3 Tensor: The Measurement of Worth
 
@@ -1265,6 +1331,12 @@ This creates a meritocracy of demonstrated worth, not claimed credentials.
 
 V3 scores determine the ADP→ATP exchange rate. High V3 means your work created exceptional value, earning bonus ATP. Low V3 means minimal return. The economy becomes a mirror of actual contribution.
 
+### 3.3.4. V3 Sub-Dimensions
+
+V3 follows the same fractal RDF pattern as T3. Each root dimension—Valuation, Veracity, Validity—can be refined with domain-specific sub-dimensions via `web4:subDimensionOf`.
+
+For a scientific publication, Veracity might decompose into ClaimAccuracy (0.95) and Reproducibility (0.88). For a financial audit, Validity might decompose into DocumentCompleteness (0.92) and RegulatoryCompliance (0.97). The root score is the aggregate; the sub-dimensions carry the detail. As with T3, extensions are open-ended—any domain can refine what value means in its context.
+
 ## Synthesis: The Living Economy
 
 Together, ATP, T3, and V3 create something unprecedented—an economy that breathes:
@@ -1272,6 +1344,7 @@ Together, ATP, T3, and V3 create something unprecedented—an economy that breat
 - **ATP** provides the energy that fuels creation
 - **T3** establishes the trust that enables collaboration
 - **V3** measures the value that justifies reward
+- **RDF** provides the ontological backbone—new domains bring new sub-dimensions without central coordination
 
 This isn't just a system—it's an organism. It learns. It adapts. It evolves toward greater coherence and value creation.
 
@@ -1760,8 +1833,8 @@ sudo modprobe nvidia
 *   **Quality function expanded**: Quality = f(Intervention, Hardware, Capacity)
 *   **Hardware state persistence**—corrupted state can persist across sessions without explicit reset
 
-**Connection to Hardware Binding Strength (T3)**:
-This empirically demonstrates why the `hardware_binding_strength` dimension in T3 tensors is critical. An entity's coherence isn't just about its weights and context—it's about the substrate executing those weights. Hardware state corruption can cascade across sessions and models.
+**Connection to Hardware Binding Strength**:
+This empirically demonstrates why `hardware_binding_strength` (tracked in the LCT's cryptographic root) is critical. An entity's coherence isn't just about its weights and context—it's about the substrate executing those weights. Hardware state corruption can cascade across sessions and models.
 
 ### 4.8.7. Meta-Cognitive Emergence: Modal Awareness Discovery (Training Sessions T040-T042)
 
@@ -2400,30 +2473,30 @@ class DictionaryEntity:
         self.lct = lct
         self.source_domain = source_domain
         self.target_domain = target_domain
-        self.t3_scores = {"talent": 0.0, "training": 0.0, "temperament": 0.0}
+        self.t3 = T3Tensor(talent=0.0, training=0.0, temperament=0.0)
         self.translation_history = []
-    
+
     def translate(self, content, source_trust):
         """Translate with trust propagation"""
         translation = self.perform_translation(content)
-        
+
         # Trust degrades based on translator's T3 scores
         output_trust = source_trust * self.get_trust_multiplier()
-        
+
         # Record for reputation updates
         self.translation_history.append({
             "content": content,
             "translation": translation,
             "trust_preserved": output_trust / source_trust
         })
-        
+
         return translation, output_trust
-    
+
     def get_trust_multiplier(self):
         """Calculate how much trust is preserved in translation"""
-        return (self.t3_scores["talent"] * 0.3 + 
-                self.t3_scores["training"] * 0.5 + 
-                self.t3_scores["temperament"] * 0.2)
+        return self.t3.weighted_score(
+            talent_weight=0.3, training_weight=0.5, temperament_weight=0.2
+        )
 ```
 
 ## 7.2. Integration Examples
@@ -2499,9 +2572,9 @@ This example demonstrates how multiple AI agents share and verify knowledge thro
 
 ```python
 # Initialize agents with LCTs
-claude = Agent(lct="claude-instance-001", t3={"talent": 0.9, "training": 0.95, "temperament": 0.88})
-gpt = Agent(lct="gpt-instance-001", t3={"talent": 0.92, "training": 0.93, "temperament": 0.90})
-local_model = Agent(lct="local-phi3", t3={"talent": 0.7, "training": 0.75, "temperament": 0.95})
+claude = Agent(lct="claude-instance-001", t3=T3Tensor(talent=0.9, training=0.95, temperament=0.88))
+gpt = Agent(lct="gpt-instance-001", t3=T3Tensor(talent=0.92, training=0.93, temperament=0.90))
+local_model = Agent(lct="local-phi3", t3=T3Tensor(talent=0.7, training=0.75, temperament=0.95))
 
 # Claude discovers an optimization pattern
 insight = claude.discover_pattern(
@@ -2720,14 +2793,17 @@ data_analyst_role = Role(
     system_prompt="Analyze complex datasets and extract actionable insights",
     permissions=["read_data", "run_queries", "create_reports"],
     required_knowledge=["statistics", "sql", "python", "visualization"],
-    t3_requirements={"talent": 0.7, "training": 0.8, "temperament": 0.75}
+    t3_requirements=T3Tensor(talent=0.7, training=0.8, temperament=0.75)
 )
 
 # Agents apply for the role
 applicants = [
-    Agent(lct="alice-ai", t3={"talent": 0.85, "training": 0.9, "temperament": 0.8}),
-    Agent(lct="bob-human", t3={"talent": 0.75, "training": 0.95, "temperament": 0.7}),
-    Agent(lct="charlie-ai", t3={"talent": 0.9, "training": 0.7, "temperament": 0.85})
+    Agent(lct="alice-ai", t3=T3Tensor(talent=0.85, training=0.9, temperament=0.8)),
+    Agent(lct="bob-human", t3=T3Tensor(
+        talent=0.75, training=0.95, temperament=0.7,
+        sub_dimensions={"ContractDrafting": 0.98}  # Training sub-dimension
+    )),
+    Agent(lct="charlie-ai", t3=T3Tensor(talent=0.9, training=0.7, temperament=0.85))
 ]
 
 # System matches based on T3 scores and history
@@ -3188,7 +3264,12 @@ ATP Budget Available?
   "cryptographic_root": {
     "public_key": "ed25519_public_key",
     "signature_algorithm": "ed25519|secp256k1",
-    "key_derivation": "hierarchical_deterministic"
+    "key_derivation": "hierarchical_deterministic",
+    "hardware_binding_strength": 0.0  // 0.0 to 1.0
+  },
+  "identity": {
+    "coherence": 0.0,              // 0.0 to 1.0 (C × S × Φ × R)
+    "accumulation": 0.0            // 0.0 to 1.0 (multi-session stability)
   },
   "temporal_role": {
     "primary_domain": "spatial|past|future",
@@ -3196,19 +3277,16 @@ ATP Budget Available?
     "trust_horizon": "local|regional|global"
   },
   "t3_tensor": {
-    "talent": 0.0,      // 0.0 to 1.0
-    "training": 0.0,    // 0.0 to 1.0
-    "temperament": 0.0, // 0.0 to 1.0
-    "identity_coherence": 0.0,     // 0.0 to 1.0 (C × S × Φ × R)
-    "identity_accumulation": 0.0,  // 0.0 to 1.0 (multi-session stability)
-    "witness_count": 0,            // integer
-    "lineage_depth": 0,            // integer
-    "hardware_binding_strength": 0.0  // 0.0 to 1.0
+    "talent": 0.0,           // Root aggregate [0.0-1.0]
+    "training": 0.0,         // Root aggregate [0.0-1.0]
+    "temperament": 0.0,      // Root aggregate [0.0-1.0]
+    "sub_dimensions": {}     // Domain-specific refinements via web4:subDimensionOf
   },
   "v3_tensor": {
-    "valuation": [],    // Array of historical valuations
-    "veracity": 0.0,    // 0.0 to 1.0
-    "validity": 0.0     // 0.0 to 1.0
+    "valuation": 0.0,        // Root aggregate (can exceed 1.0)
+    "veracity": 0.0,         // Root aggregate [0.0-1.0]
+    "validity": 0.0,         // Root aggregate [0.0-1.0]
+    "sub_dimensions": {}     // Domain-specific refinements via web4:subDimensionOf
   },
   "mrh_tensor": {
     "fractal_scale": ["quantum", "molecular", "cellular", "organism", "ecosystem"],
@@ -3226,18 +3304,22 @@ ATP Budget Available?
       "last_interaction": "ISO-8601"
     }
   ],
-  "witness_chain": [
-    {
-      "level": 0,
-      "witness_lct": "self",
-      "timestamp": "ISO-8601"
-    },
-    {
-      "level": 1,
-      "witness_lct": "parent_lct_id",
-      "timestamp": "ISO-8601"
-    }
-  ],
+  "witness_chain": {
+    "witness_count": 0,            // integer — total independent witnesses
+    "lineage_depth": 0,            // integer — depth in witness tree
+    "witnesses": [
+      {
+        "level": 0,
+        "witness_lct": "self",
+        "timestamp": "ISO-8601"
+      },
+      {
+        "level": 1,
+        "witness_lct": "parent_lct_id",
+        "timestamp": "ISO-8601"
+      }
+    ]
+  },
   "memory_bindings": [
     {
       "memory_type": "entity|sidecar",
@@ -3369,11 +3451,13 @@ This mathematical framework unifies trust computation across all Web4 interactio
 
 ### T3-Weighted Trust
 ```
-T3_Trust = (α × Talent + β × Training + γ × Temperament) × context_relevance
+T3_Trust = (α × Talent_agg + β × Training_agg + γ × Temperament_agg) × context_relevance
 
 Where:
 - α, β, γ are context-specific weights (sum to 1.0)
 - context_relevance ∈ [0, 1] based on MRH overlap
+- Talent_agg = mean(sub-dimensions) when sub-dimensions present, or root score directly
+- Training_agg and Temperament_agg follow the same aggregation rule
 ```
 
 ### V3 Value Certification
@@ -3522,6 +3606,67 @@ message Acknowledgment {
 - [ ] Cross-chain value transfer
 - [ ] Production deployment
 
+## Appendix I: Web4 RDF Ontology Reference
+
+### The Canonical Equation
+
+```
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+```
+
+| Operator | Meaning |
+|----------|---------|
+| `+` | augmented with |
+| `*` | contextualized by |
+| `/` | verified by |
+
+| Symbol | Component | Role |
+|--------|-----------|------|
+| **MCP** | Model Context Protocol | I/O membrane for AI model communication |
+| **RDF** | Resource Description Framework | Ontological backbone — all relationships are typed triples |
+| **LCT** | Linked Context Token | Identity substrate (presence reification) |
+| **T3/V3** | Trust/Value Tensors | Capability and value assessment, bound to entity-role pairs via RDF |
+| **MRH** | Markov Relevancy Horizon | Fractal context scoping — implemented as RDF graphs |
+| **ATP/ADP** | Allocation Transfer/Discharge Packets | Bio-inspired energy metabolism |
+
+### JSON-LD Context
+
+The JSON-LD context enables Web4 RDF data to be expressed in standard JSON. The canonical context is defined in `web4-standard/ontology/t3v3.jsonld`:
+
+```json
+{
+  "@context": {
+    "web4": "https://web4.io/ontology#",
+    "lct": "https://web4.io/lct/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "Dimension": "web4:Dimension",
+    "T3Tensor": "web4:T3Tensor",
+    "V3Tensor": "web4:V3Tensor",
+    "DimensionScore": "web4:DimensionScore",
+
+    "entity": { "@id": "web4:entity", "@type": "@id" },
+    "role": { "@id": "web4:role", "@type": "@id" },
+    "dimension": { "@id": "web4:dimension", "@type": "@id" },
+    "subDimensionOf": { "@id": "web4:subDimensionOf", "@type": "@id" },
+
+    "score": { "@id": "web4:score", "@type": "xsd:decimal" },
+    "observedAt": { "@id": "web4:observedAt", "@type": "xsd:dateTime" },
+
+    "talent": { "@id": "web4:talent", "@type": "xsd:decimal" },
+    "training": { "@id": "web4:training", "@type": "xsd:decimal" },
+    "temperament": { "@id": "web4:temperament", "@type": "xsd:decimal" },
+    "valuation": { "@id": "web4:valuation", "@type": "xsd:decimal" },
+    "veracity": { "@id": "web4:veracity", "@type": "xsd:decimal" },
+    "validity": { "@id": "web4:validity", "@type": "xsd:decimal" }
+  }
+}
+```
+
+### Formal Ontology
+
+The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology/t3v3-ontology.ttl`. It declares the six root dimensions, the `subDimensionOf` property for fractal extension, and the `DimensionScore` class for binding scores to entity-role pairs.
+
 ## Appendix H: Glossary of Acronyms
 
 | Acronym | Full Form | Description |
@@ -3529,7 +3674,7 @@ message Acknowledgment {
 | **LCT** | Linked Context Token | Non-transferable identity token |
 | **ATP** | Allocation Transfer Packet | Energy/value tracking system |
 | **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
-| **T3** | Trust Tensor | Capability assessment (Talent, Training, Temperament + extended dims) |
+| **T3** | Trust Tensor | 3 root dimensions (Talent/Training/Temperament), each a root node in open-ended RDF sub-graph |
 | **V3** | Value Tensor | Value creation (Valuation, Veracity, Validity) |
 | **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
 | **SNARC** | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |
@@ -3539,6 +3684,9 @@ message Acknowledgment {
 | **MCP** | Model Context Protocol | AI model communication standard |
 | **D9** | Dimension 9 | Self-reference frequency metric |
 | **C_STABLE** | Coherence Stable Threshold | 0.7 minimum for trust accumulation |
+| **RDF** | Resource Description Framework | W3C standard for typed subject-predicate-object triples (ontological backbone) |
+| **JSON-LD** | JSON for Linked Data | JSON-based RDF serialization for interoperability |
+| **SPARQL** | SPARQL Protocol and RDF Query Language | Query language for RDF graphs |
 | **TPM** | Trusted Platform Module | Hardware security for key binding |
 | **SE** | Secure Enclave | Hardware-isolated key storage |
 
@@ -3549,4 +3697,4 @@ message Acknowledgment {
 
 ---
 
-*Generated: 2026-02-17 04:35:05*
+*Generated: 2026-02-17 11:18:06*
