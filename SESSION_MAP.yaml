@@ -4,13 +4,13 @@
 
 metadata:
   project: web4
-  last_updated: "2026-02-17T06:00:00Z"
+  last_updated: "2026-02-18T06:00:00Z"
   archivist_version: "1.3"
   total_sessions: 213
   focus: "Distributed Trust Infrastructure"
   date_range: "2025-08 to 2026-02"
   existing_manifest: "ARCHIVE_MANIFEST.md"
-  milestone: "T3/V3/MRH fractal RDF ontology formalization arc (3 sessions): T3/V3 tensors now 3 base dimensions modeled as open RDF sub-graphs. New Turtle ontology + JSON-LD context. Python + Rust implementations aligned. 424 attack vectors stable."
+  milestone: "LCT reframed from identity to witnessed presence (73 files across whitepaper + specs + implementation). 'Unforgeable' → 'verifiable/witness-hardened'. Identity emerges from accumulated witnessed presence. T3/V3 fractal RDF ontology formalized. 424 attack vectors stable."
 
 # =============================================================================
 # RESEARCH ARCS
@@ -92,6 +92,25 @@ arcs:
       - "Emotional IRPs"
     files_location: "implementation/session81-101/"
     organization: "Track-based (track1, track2, track3, track4 per session)"
+
+  lct_witnessed_presence_reframing:
+    name: "LCT Reframing: Identity → Witnessed Presence"
+    session_type: "interactive"
+    date: "2026-02-17"
+    status: "Complete"
+    key_themes:
+      - "LCT is a presence, not an identity"
+      - "'Unforgeable' → 'verifiable' and 'witness-hardened'"
+      - "Identity emerges FROM accumulated presence"
+      - "Birth/Life/Death → Creation/Active Participation/Conclusion"
+      - "Entity type diversity (human, AI, device, org, role, task)"
+      - "Non-transferability = trust record integrity, not soul-binding"
+    deliverables:
+      - "11 whitepaper files reframed (a3a7d47)"
+      - "62 non-whitepaper files reframed (27b8562)"
+      - "Systematic 'unforgeable' → 'verifiable' across LCT contexts"
+      - "TPM/hardware/ADP crypto contexts intentionally preserved"
+    note: "Ontological evolution: LCT was described as soul-like identity token. Now correctly described as witnessed presence node whose resilience grows through cross-linked attestation."
 
   t3v3_fractal_rdf_formalization:
     name: "T3/V3/MRH Fractal RDF Ontology Formalization"
