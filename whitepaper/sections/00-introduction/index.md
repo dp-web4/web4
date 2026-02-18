@@ -8,7 +8,7 @@ The document follows a fractal structure: conceptual foundations that contain th
 
 WEB4 introduces and interconnects several foundational components:
 
-- **Linked Context Tokens (LCTs)**: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity an unforgeable identity in the digital realm.
+- **Linked Context Tokens (LCTs)**: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity verifiable presence in the digital realm.
 
 - **T3 and V3 Tensors**: Multidimensional trust and value representations whose three root dimensions—Talent, Training, Temperament (T3) and Valuation, Veracity, Validity (V3)—serve as root nodes in open-ended RDF sub-graphs of contextualized sub-dimensions, bound to entity-role pairs.
 

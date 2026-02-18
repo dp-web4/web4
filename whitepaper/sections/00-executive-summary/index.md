@@ -6,9 +6,9 @@ WEB4 adds what was always missing. Where Web2 centralized control and Web3 token
 
 ## The Core Innovation
 
-At the heart of WEB4 lies a simple yet profound shift: **presence creates identity, interaction builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
+At the heart of WEB4 lies a simple yet profound shift: **presence is witnessed, witnessed presence builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
 
-Through **Linked Context Tokens (LCTs)**, every entity—human, AI, or hybrid—gains an unforgeable footprint in the digital realm. This is not merely an identifier but a reification of presence itself. Your LCT is born with you, lives through your actions, and bears witness to your contributions. It cannot be stolen, sold, or transferred. It is you, crystallized in cryptographic reality.
+Through **Linked Context Tokens (LCTs)**, every entity—human, AI, device, organization, or role—gains a cryptographic footprint in the digital realm. This is not merely an identifier but a reification of presence itself—a node in a cross-linked graph of witnessed interactions. An LCT crystallizes the moment an entity enters Web4 and accompanies it throughout its participation. Its strength is not absolute security but structural resilience: the more an LCT is witnessed, linked, and contextualized, the more robust its presence becomes. Every action, every contribution, every interaction accumulates into a trust history that belongs to no one else.
 
 The **Allocation Transfer Packet (ATP)** transforms energy into value through a biological metaphor made digital. Like ATP in living cells, our protocol tracks energy expenditure and value creation in a continuous cycle. Work consumes energy, creating value, which when recognized by others, generates new energy. This is not mining or staking—it's genuine contribution recognized by genuine benefit.
 
@@ -36,7 +36,7 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 - **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
 
 **Vision Components** (described in this document but not yet implemented):
-- Full LCT identity system with trust webs and lifecycle management
+- Full LCT presence and trust system with witness webs and lifecycle management
 - Complete ATP/ADP energy-value metabolic cycles
 - T3/V3 tensor-based trust and value assessment, built on a formal RDF ontology with fractal sub-dimensions
 - Memory as temporal sensing architecture

@@ -342,7 +342,7 @@ message Acknowledgment {
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| LCT data structures | ✅ Complete | Core identity tokens working |
+| LCT data structures | ✅ Complete | Core presence tokens working |
 | T3/V3 tensor calculations | ✅ Complete | Trust scoring operational |
 | Identity coherence scoring | ✅ Complete | D9 metrics, C × S × Φ × R validated |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
@@ -396,7 +396,7 @@ Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 |--------|-----------|------|
 | **MCP** | Model Context Protocol | I/O membrane for AI model communication |
 | **RDF** | Resource Description Framework | Ontological backbone — all relationships are typed triples |
-| **LCT** | Linked Context Token | Identity substrate (presence reification) |
+| **LCT** | Linked Context Token | Presence substrate (witnessed presence reification) |
 | **T3/V3** | Trust/Value Tensors | Capability and value assessment, bound to entity-role pairs via RDF |
 | **MRH** | Markov Relevancy Horizon | Fractal context scoping — implemented as RDF graphs |
 | **ATP/ADP** | Allocation Transfer/Discharge Packets | Bio-inspired energy metabolism |
@@ -443,7 +443,7 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 | Acronym | Full Form | Description |
 |---------|-----------|-------------|
-| **LCT** | Linked Context Token | Non-transferable identity token |
+| **LCT** | Linked Context Token | Non-transferable presence token |
 | **ATP** | Allocation Transfer Packet | Energy/value tracking system |
 | **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
 | **T3** | Trust Tensor | 3 root dimensions (Talent/Training/Temperament), each a root node in open-ended RDF sub-graph |

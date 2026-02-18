@@ -8,7 +8,7 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| LCT data structures | ✅ Implemented | Core identity tokens working |
+| LCT data structures | ✅ Implemented | Core presence tokens working |
 | T3/V3 tensor calculations | ✅ Implemented | Trust scoring operational |
 | Identity coherence scoring | ✅ Implemented | D9 metrics, self-reference detection |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
@@ -20,7 +20,7 @@
 
 ### 7.0.2. Hardware Binding Status
 
-**Current State**: The Web4 trust model depends on **unforgeable identity**. Hardware binding is now **partially implemented**:
+**Current State**: The Web4 trust model depends on **witness-hardened presence**. Hardware binding is now **partially implemented**:
 
 **Implemented (hardbound-core):**
 - TPM 2.0 integration via `tss-esapi` (Rust)

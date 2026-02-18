@@ -55,7 +55,7 @@ WEB4 aims to ensure that AI actions are not just technically proficient but are 
 **Seamless Collaboration:**
 By establishing AI as trusted, accountable, and value-aligned participants, WEB4 paves the way for more seamless and effective AI-human collaboration:
 
-*   **Shared Framework:** Humans and AIs operate within the same LCT-based identity and trust framework, using common T3/V3 metrics for evaluation and the ATP system for value exchange. This shared understanding facilitates smoother interaction.
+*   **Shared Framework:** Humans and AIs operate within the same LCT-based presence and trust framework, using common T3/V3 metrics for evaluation and the ATP system for value exchange. This shared understanding facilitates smoother interaction.
 *   **Dynamic Role Fulfillment:** AIs can dynamically take on roles defined by Role LCTs, just as humans can, based on their T3 profiles and V3 track records. This allows for flexible allocation of tasks to either humans or AIs, depending on who is best suited.
 *   **Complex Problem Solving:** Integrated AI-human teams can tackle more complex problems, with AIs handling data processing, pattern recognition, or autonomous task execution, while humans provide strategic oversight, creative input, or handle nuanced judgments.
 

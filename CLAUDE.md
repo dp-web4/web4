@@ -103,7 +103,7 @@ Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
 |--------|-----------|------|
 | **MCP** | Model Context Protocol | I/O membrane |
 | **RDF** | Resource Description Framework | Ontological backbone — all trust relationships are typed RDF triples |
-| **LCT** | Linked Context Token | Identity substrate (presence reification) |
+| **LCT** | Linked Context Token | Presence substrate (witnessed presence reification) |
 | **T3/V3** | Trust/Value Tensors | Trust (Talent/Training/Temperament) and Value (Valuation/Veracity/Validity) bound to entity-role pairs via RDF |
 | **MRH** | Markov Relevancy Horizon | Fractal context scoping — implemented as RDF graphs |
 | **ATP/ADP** | Allocation Transfer/Discharge Packets | Bio-inspired energy metabolism |

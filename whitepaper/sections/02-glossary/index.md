@@ -8,9 +8,9 @@
 *The fundamental building blocks of Web4—master these to understand everything else.*
 
 ### Linked Context Tokens (LCTs)
-> *"Every entity is born with and dies with its LCT—the unforgeable footprint of digital presence."*
+> *"An LCT is a node in a web of witnessed presence—the more links, the more witnesses, the more resilient the presence becomes."*
 
-The reification of presence itself. LCTs are permanently and immutably bound to a single entity (human, AI, organization, role, task, or resource) and are non-transferable. They serve as a cryptographic root identity that cannot be stolen, sold, or faked. If the entity ceases to exist, its LCT is marked void or slashed. LCTs form malleable links to create trust webs, delegation chains, and historical records—the nervous system of Web4.
+The reification of presence itself. LCTs are permanently and immutably bound to a single entity (human, AI, organization, role, task, or resource) and are non-transferable. They serve as the cryptographic root of witnessed presence—the foundation from which identity, trust, and reputation emerge over time. A single LCT is only as strong as its links; its resilience grows with each witnessed interaction and cross-linked context. If the entity's participation ends, its LCT is marked void or slashed. LCTs form malleable links to create trust webs, delegation chains, and historical records—the nervous system of Web4.
 
 ### Allocation Transfer Packet / Allocation Discharge Packet (ATP/ADP)
 > *"Allocation flows through work. Packets carry the proof."*

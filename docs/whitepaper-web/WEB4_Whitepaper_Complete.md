@@ -14,9 +14,9 @@ WEB4 adds what was always missing. Where Web2 centralized control and Web3 token
 
 ## The Core Innovation
 
-At the heart of WEB4 lies a simple yet profound shift: **presence creates identity, interaction builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
+At the heart of WEB4 lies a simple yet profound shift: **presence is witnessed, witnessed presence builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
 
-Through **Linked Context Tokens (LCTs)**, every entity—human, AI, or hybrid—gains an unforgeable footprint in the digital realm. This is not merely an identifier but a reification of presence itself. Your LCT is born with you, lives through your actions, and bears witness to your contributions. It cannot be stolen, sold, or transferred. It is you, crystallized in cryptographic reality.
+Through **Linked Context Tokens (LCTs)**, every entity—human, AI, device, organization, or role—gains a cryptographic footprint in the digital realm. This is not merely an identifier but a reification of presence itself—a node in a cross-linked graph of witnessed interactions. An LCT crystallizes the moment an entity enters Web4 and accompanies it throughout its participation. Its strength is not absolute security but structural resilience: the more an LCT is witnessed, linked, and contextualized, the more robust its presence becomes. Every action, every contribution, every interaction accumulates into a trust history that belongs to no one else.
 
 The **Allocation Transfer Packet (ATP)** transforms energy into value through a biological metaphor made digital. Like ATP in living cells, our protocol tracks energy expenditure and value creation in a continuous cycle. Work consumes energy, creating value, which when recognized by others, generates new energy. This is not mining or staking—it's genuine contribution recognized by genuine benefit.
 
@@ -44,7 +44,7 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 - **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
 
 **Vision Components** (described in this document but not yet implemented):
-- Full LCT identity system with trust webs and lifecycle management
+- Full LCT presence and trust system with witness webs and lifecycle management
 - Complete ATP/ADP energy-value metabolic cycles
 - T3/V3 tensor-based trust and value assessment, built on a formal RDF ontology with fractal sub-dimensions
 - Memory as temporal sensing architecture
@@ -74,7 +74,7 @@ The document follows a fractal structure: conceptual foundations that contain th
 
 WEB4 introduces and interconnects several foundational components:
 
-- **Linked Context Tokens (LCTs)**: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity an unforgeable identity in the digital realm.
+- **Linked Context Tokens (LCTs)**: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity verifiable presence in the digital realm.
 
 - **T3 and V3 Tensors**: Multidimensional trust and value representations whose three root dimensions—Talent, Training, Temperament (T3) and Valuation, Veracity, Validity (V3)—serve as root nodes in open-ended RDF sub-graphs of contextualized sub-dimensions, bound to entity-role pairs.
 
@@ -120,9 +120,9 @@ We invite thoughtful critique, aligned contribution, and resonant imagination. T
 *The fundamental building blocks of Web4—master these to understand everything else.*
 
 ### Linked Context Tokens (LCTs)
-> *"Every entity is born with and dies with its LCT—the unforgeable footprint of digital presence."*
+> *"An LCT is a node in a web of witnessed presence—the more links, the more witnesses, the more resilient the presence becomes."*
 
-The reification of presence itself. LCTs are permanently and immutably bound to a single entity (human, AI, organization, role, task, or resource) and are non-transferable. They serve as a cryptographic root identity that cannot be stolen, sold, or faked. If the entity ceases to exist, its LCT is marked void or slashed. LCTs form malleable links to create trust webs, delegation chains, and historical records—the nervous system of Web4.
+The reification of presence itself. LCTs are permanently and immutably bound to a single entity (human, AI, organization, role, task, or resource) and are non-transferable. They serve as the cryptographic root of witnessed presence—the foundation from which identity, trust, and reputation emerge over time. A single LCT is only as strong as its links; its resilience grows with each witnessed interaction and cross-linked context. If the entity's participation ends, its LCT is marked void or slashed. LCTs form malleable links to create trust webs, delegation chains, and historical records—the nervous system of Web4.
 
 ### Allocation Transfer Packet / Allocation Discharge Packet (ATP/ADP)
 > *"Allocation flows through work. Packets carry the proof."*
@@ -558,7 +558,7 @@ Ultimately, the vision for WEB4 is to lay the groundwork for a more intelligent,
 
 The WEB4 vision is underpinned by several interconnected core components designed to facilitate its trust-driven, decentralized intelligence model. These components, as introduced in the foundational documents, provide the mechanisms for establishing identity, context, trust, value, and operational coherence within the proposed ecosystem. A brief overview of these key pillars is essential to understanding the architecture of WEB4.
 
-1. **Linked Context Tokens (LCTs):** At the heart of WEB4 are LCTs, which serve as the fundamental building blocks for identity and context. Initially termed "Linked Control Tokens" and later refined to "Linked Context Tokens," these are non-transferable, cryptographically bound tokens permanently associated with an entity (be it a human, AI, organization, role, task, or data resource). LCTs provide a verifiable and immutable root of identity, enabling the creation of dynamic trust webs and auditable historical records. They are crucial for defining an entity's scope, permissions, and relationships within specific contexts.
+1. **Linked Context Tokens (LCTs):** At the heart of WEB4 are LCTs, which serve as the fundamental building blocks for witnessed presence and context. Initially termed "Linked Control Tokens" and later refined to "Linked Context Tokens," these are non-transferable, cryptographically bound tokens permanently associated with an entity (be it a human, AI, organization, role, task, or data resource). LCTs provide a verifiable and immutable root of presence, from which identity and reputation emerge, enabling the creation of dynamic trust webs and auditable historical records. They are crucial for defining an entity's scope, permissions, and relationships within specific contexts.
 
 2. **Allocation Transfer Packet (ATP):** ATP packets are designed as a system for tracking the flow of energy and the creation of value. It introduces the concept of semi-fungible tokens that exist in "charged" (ATP) and "discharged" (ADP) states, analogous to biological energy cycles. Energy expenditure converts ATP to ADP, and the subsequent certification of value created allows ADP to be exchanged for new ATP. This mechanism aims to create a transparent and auditable trail of value generation, directly linking it to energy use and incentivizing meaningful contributions over speculation.
 
@@ -579,23 +579,23 @@ This section explores the core building blocks of the WEB4 architecture, beginni
 
 ## 2.1. Linked Context Tokens (LCTs): The Reification of Presence
 
-Imagine if every entity—human, AI, or hybrid—left an unforgeable footprint simply by existing in the digital realm. Not a username or account, but a crystallization of presence itself. This is what Linked Context Tokens achieve.
+Imagine if every entity—human, AI, or hybrid—left a verifiable footprint simply by existing in the digital realm. Not a username or account, but a crystallization of presence itself. This is what Linked Context Tokens achieve.
 
 ### 2.1.1. What is an LCT?
 
-An LCT is not merely an identifier—it is the **reification of an entity's presence in Web4**. Every entity is born with and dies with its LCT. It cannot be stolen, sold, or transferred. It is the entity's footprint in the trust-native internet, as unique and permanent as a fingerprint, but far more expressive.
+An LCT is not merely an identifier—it is the **reification of an entity's presence in Web4**. An LCT is created when an entity enters the Web4 ecosystem and remains bound to it for the duration of that entity's participation—whether that spans a human lifetime, an organization's charter, or a task's execution window. It cannot be stolen, sold, or transferred. It is the entity's footprint in the trust-native internet, as unique as a fingerprint but far more expressive—accumulating context, history, and witnessed trust over time.
 
 Think of it this way: in the physical world, your presence creates ripples—you occupy space, cast shadows, leave traces. In the digital world, presence has been ephemeral, fakeable, transferable. LCTs change this fundamental assumption. They make digital presence as real and verifiable as physical presence.
 
 ### 2.1.2. The Evolution of Understanding
 
-The concept evolved from "Linked Control Tokens" to "Linked Context Tokens"—a shift that reveals deeper understanding. The change from "control" to "context" acknowledges that identity and trust are inseparable from the situations in which they manifest. You are not the same in every context, yet you remain fundamentally you. LCTs capture this duality.
+The concept evolved from "Linked Control Tokens" to "Linked Context Tokens"—a shift that reveals deeper understanding. The change from "control" to "context" acknowledges that presence and trust are inseparable from the situations in which they manifest. An entity's footprint looks different in different contexts—a doctor's LCT carries different weight in a medical forum than in a book club—yet the underlying presence remains continuous and verifiable. LCTs capture this duality.
 
-### 2.1.3. Core Properties: The Unforgeable Footprint
+### 2.1.3. Core Properties: The Witness-Hardened Footprint
 
-**Permanently Bound**: An LCT is born when its entity enters Web4 and dies only when that entity ceases to exist. This permanent binding creates accountability—every action traces back to its source.
+**Permanently Bound**: An LCT is created when its entity enters Web4 and remains bound for the duration of that entity's participation. This permanent binding creates accountability—every action traces back to its source.
 
-**Non-Transferable**: You cannot give away your presence. You cannot sell your existence. This non-transferability is not a limitation but a liberation—it makes identity theft impossible and reputation genuinely earned.
+**Non-Transferable**: An entity's presence cannot be given away or sold. This non-transferability is not a limitation but a structural guarantee—it ensures the integrity of the trust record. Because an LCT is bound to a single entity, every witnessed interaction, every accumulated reputation, and every trust relationship traces back to the entity that actually participated. Reputation becomes genuinely earned, not purchased or inherited.
 
 **Cryptographic Root**: Each LCT anchors in cryptographic reality, providing a mathematically verifiable foundation for all interactions. This is not trust by declaration but trust by demonstration.
 
@@ -615,17 +615,17 @@ These links are not static cables but living connections that grow, adapt, and s
 
 ### 2.1.5. The Lifecycle of Presence
 
-Every LCT follows a natural lifecycle that mirrors its entity's existence:
+Every LCT follows a lifecycle shaped by the nature of its entity:
 
-**Birth (Creation)**: When an entity first manifests in Web4, its LCT crystallizes—a unique footprint that will accompany it throughout its existence.
+**Creation**: When an entity enters Web4, its LCT crystallizes—a unique footprint that will accompany it throughout its participation. A human registers, an AI agent is deployed, an organization incorporates, a task is defined, a device comes online. Each creation is witnessed, anchoring the entity's first moment of presence.
 
-**Life (Active State)**: Throughout its participation, the LCT accumulates history—every interaction strengthens its presence, every contribution adds to its reputation, every link enriches its context.
+**Active Participation**: Throughout its engagement, the LCT accumulates history—every interaction strengthens its presence, every contribution adds to its reputation, every link enriches its context. The duration varies by entity type: a human's participation may span decades; a task's may span hours; an organization's may outlast any individual member.
 
-**Death (Void/Slashed)**: When an entity ceases to exist or violates fundamental trust, its LCT is marked—void for natural ending, slashed for trust violation. Even in death, the footprint remains as historical record, ensuring accountability transcends existence.
+**Conclusion (Void/Slashed)**: When an entity's participation ends or it violates fundamental trust, its LCT is marked—void for natural conclusion, slashed for trust violation. A task completes. A device is decommissioned. An organization dissolves. Even after conclusion, the footprint remains as historical record, ensuring accountability persists beyond active participation.
 
 ### 2.1.6. Why This Matters
 
-In a world where AIs can spin up instances in milliseconds and humans hide behind anonymous accounts, LCTs provide the substrate for genuine accountability. They make presence real, trust measurable, and reputation permanent. This is not surveillance—it is the opposite. By making presence unforgeable, we make trust possible without central authorities.
+In a world where AIs can spin up instances in milliseconds and humans hide behind anonymous accounts, LCTs provide the substrate for genuine accountability. They make presence real, trust measurable, and reputation permanent. This is not surveillance—it is the opposite. By making presence cross-linked and witness-hardened, we make trust possible without central authorities.
 
 Every entity leaves a footprint. With LCTs, that footprint becomes the foundation for a new kind of internet—one where trust emerges from interaction, not declaration.
 
@@ -832,7 +832,7 @@ This is captured in the canonical equation:
 Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-Where `+` means "augmented with," `*` means "contextualized by," and `/` means "verified by." MCP provides the I/O membrane. RDF provides the ontological backbone. LCTs carry identity. T3/V3 tensors measure trust and value, contextualized by MRH. ATP/ADP cycles energy through work.
+Where `+` means "augmented with," `*` means "contextualized by," and `/` means "verified by." MCP provides the I/O membrane. RDF provides the ontological backbone. LCTs carry presence. T3/V3 tensors measure trust and value, contextualized by MRH. ATP/ADP cycles energy through work.
 
 Because MRH is an RDF graph, you can ask questions like "find all entities within 3 hops that have been witnessed by a time oracle" and get precise, machine-readable answers. Because trust tensors are RDF sub-graphs, each dimension of trust is not a flat number but a node that can be refined with domain-specific sub-dimensions—a fractal pattern we explore fully in Part 3.
 
@@ -1409,7 +1409,7 @@ WEB4 aims to ensure that AI actions are not just technically proficient but are 
 **Seamless Collaboration:**
 By establishing AI as trusted, accountable, and value-aligned participants, WEB4 paves the way for more seamless and effective AI-human collaboration:
 
-*   **Shared Framework:** Humans and AIs operate within the same LCT-based identity and trust framework, using common T3/V3 metrics for evaluation and the ATP system for value exchange. This shared understanding facilitates smoother interaction.
+*   **Shared Framework:** Humans and AIs operate within the same LCT-based presence and trust framework, using common T3/V3 metrics for evaluation and the ATP system for value exchange. This shared understanding facilitates smoother interaction.
 *   **Dynamic Role Fulfillment:** AIs can dynamically take on roles defined by Role LCTs, just as humans can, based on their T3 profiles and V3 track records. This allows for flexible allocation of tasks to either humans or AIs, depending on who is best suited.
 *   **Complex Problem Solving:** Integrated AI-human teams can tackle more complex problems, with AIs handling data processing, pattern recognition, or autonomous task execution, while humans provide strategic oversight, creative input, or handle nuanced judgments.
 
@@ -2005,7 +2005,7 @@ When memory becomes a temporal sensor, intelligence transforms:
 
 This reconception of memory has profound implications:
 
-We are not our thoughts—we are our memories. Identity emerges from the continuity of remembered experience. In Web4, this becomes explicit: your LCT accumulates memories that define your digital self.
+We are not our thoughts—we are our memories. Identity emerges from the continuity of witnessed experience. In Web4, this becomes explicit: an entity's LCT accumulates witnessed interactions that build its presence over time—and from that accumulated presence, identity and reputation naturally emerge.
 
 Knowledge is not information—it's crystallized memory. What we call knowledge is simply memories that have proven their worth through repeated use and validation.
 
@@ -2274,7 +2274,7 @@ This typology ensures that each piece of data finds its natural persistence leve
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| LCT data structures | ✅ Implemented | Core identity tokens working |
+| LCT data structures | ✅ Implemented | Core presence tokens working |
 | T3/V3 tensor calculations | ✅ Implemented | Trust scoring operational |
 | Identity coherence scoring | ✅ Implemented | D9 metrics, self-reference detection |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
@@ -2286,7 +2286,7 @@ This typology ensures that each piece of data finds its natural persistence leve
 
 ### 7.0.2. Hardware Binding Status
 
-**Current State**: The Web4 trust model depends on **unforgeable identity**. Hardware binding is now **partially implemented**:
+**Current State**: The Web4 trust model depends on **witness-hardened presence**. Hardware binding is now **partially implemented**:
 
 **Implemented (hardbound-core):**
 - TPM 2.0 integration via `tss-esapi` (Rust)
@@ -2944,7 +2944,7 @@ WEB4 shares some foundational goals with the Web3 movement, particularly the dri
 **Similarities with Web3:**
 
 *   **Decentralization:** Like Web3, WEB4 advocates for moving away from centralized points of control. LCTs, ATP, and emergent trust networks are inherently decentralized mechanisms.
-*   **Verifiable Credentials/Identity:** The concept of LCTs providing a cryptographic root identity and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their identity and how their attributes are shared and verified.
+*   **Verifiable Credentials/Identity:** The concept of LCTs providing a cryptographic root of witnessed presence and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their identity and how their attributes are shared and verified.
 *   **Tokenization and Value Exchange:** WEB4’s ATP system utilizes tokens (ATP/ADP) for value exchange, similar to how cryptocurrencies and other tokens function in Web3. The goal of creating new economic models is common.
 *   **Community Governance:** The idea of governance through resonance and the potential for emergent group ethics in WEB4 has parallels with Web3 concepts like Decentralized Autonomous Organizations (DAOs), which seek to enable community-led governance structures.
 
@@ -2952,7 +2952,7 @@ WEB4 shares some foundational goals with the Web3 movement, particularly the dri
 
 *   **Nature of Trust:** While Web3 often establishes trust through cryptographic security of ledgers and smart contracts (trust in the code/protocol), WEB4 aims for a more deeply embedded, context-aware, and dynamic form of trust based on ongoing T3/V3 assessments of entities (humans, AIs, roles). Trust is not just in the immutability of a record but in the continuously evaluated coherence and capability of the interacting entities.
 *   **Value Representation (ATP vs. Traditional Crypto):** WEB4’s ATP system, with its charged/discharged states and direct link to certified value creation (via VCM and V3 tensors), attempts to ground value in demonstrable utility and energy expenditure in a way that many traditional cryptocurrencies do not. The critique of Proof-of-Work (PoW) highlights this: WEB4 seeks to reward the *product* and its *usefulness*, not just the *task* or computational effort. (Source: "ChatGPT - LCT_T3_ATP Integration with Anthropic Protocol.pdf", "coherence ethics.pdf")
-*   **Non-Transferable Identity (LCTs):** Unlike many Web3 identity solutions where identifiers or credentials might be transferable or presented by an agent, WEB4 LCTs are conceptualized as permanently bound and non-transferable identity anchors for entities. This is more akin to soulbound tokens but with a richer contextual and reputational framework.
+*   **Non-Transferable Presence (LCTs):** Unlike many Web3 identity solutions where identifiers or credentials might be transferable or presented by an agent, WEB4 LCTs are permanently bound and non-transferable presence anchors for entities. While conceptually adjacent to soulbound tokens, LCTs go further: they are not static badges but living records of witnessed participation, accumulating context and trust over time. Identity emerges from this accumulated presence rather than being declared at issuance.
 *   **Integrated AI Participation:** WEB4 is designed from the ground up to seamlessly integrate AI agents as first-class citizens with verifiable identities, capabilities, and accountability. While Web3 can support AI, WEB4 makes this a central design principle, with T3/V3 tensors and Role LCTs specifically catering to AI evaluation and governance.
 *   **Focus on Coherence and Purpose:** WEB4 places a strong emphasis on systemic coherence and purpose-driven ethics, which is a more abstract and holistic layer than often explicitly addressed in many Web3 protocol designs that might focus more on transactional integrity or specific governance rules.
 *   **Semi-Fungibility (ATP/ADP):** The ATP/ADP tokens are described as semi-fungible, potentially carrying context or history, especially in their discharged state. This differs from the fungibility of most cryptocurrencies. (Source: "What is Web4 and Why Does It Matter.pdf")
@@ -3570,7 +3570,7 @@ message Acknowledgment {
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| LCT data structures | ✅ Complete | Core identity tokens working |
+| LCT data structures | ✅ Complete | Core presence tokens working |
 | T3/V3 tensor calculations | ✅ Complete | Trust scoring operational |
 | Identity coherence scoring | ✅ Complete | D9 metrics, C × S × Φ × R validated |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
@@ -3624,7 +3624,7 @@ Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 |--------|-----------|------|
 | **MCP** | Model Context Protocol | I/O membrane for AI model communication |
 | **RDF** | Resource Description Framework | Ontological backbone — all relationships are typed triples |
-| **LCT** | Linked Context Token | Identity substrate (presence reification) |
+| **LCT** | Linked Context Token | Presence substrate (witnessed presence reification) |
 | **T3/V3** | Trust/Value Tensors | Capability and value assessment, bound to entity-role pairs via RDF |
 | **MRH** | Markov Relevancy Horizon | Fractal context scoping — implemented as RDF graphs |
 | **ATP/ADP** | Allocation Transfer/Discharge Packets | Bio-inspired energy metabolism |
@@ -3671,7 +3671,7 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 | Acronym | Full Form | Description |
 |---------|-----------|-------------|
-| **LCT** | Linked Context Token | Non-transferable identity token |
+| **LCT** | Linked Context Token | Non-transferable presence token |
 | **ATP** | Allocation Transfer Packet | Energy/value tracking system |
 | **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
 | **T3** | Trust Tensor | 3 root dimensions (Talent/Training/Temperament), each a root node in open-ended RDF sub-graph |
@@ -3697,4 +3697,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-02-17 11:35:38*
+*Generated: 2026-02-17 19:12:07*

@@ -104,7 +104,7 @@ When memory becomes a temporal sensor, intelligence transforms:
 
 This reconception of memory has profound implications:
 
-We are not our thoughts—we are our memories. Identity emerges from the continuity of remembered experience. In Web4, this becomes explicit: your LCT accumulates memories that define your digital self.
+We are not our thoughts—we are our memories. Identity emerges from the continuity of witnessed experience. In Web4, this becomes explicit: an entity's LCT accumulates witnessed interactions that build its presence over time—and from that accumulated presence, identity and reputation naturally emerge.
 
 Knowledge is not information—it's crystallized memory. What we call knowledge is simply memories that have proven their worth through repeated use and validation.
 

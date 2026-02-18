@@ -6,23 +6,23 @@ This section explores the core building blocks of the WEB4 architecture, beginni
 
 ## 2.1. Linked Context Tokens (LCTs): The Reification of Presence
 
-Imagine if every entity—human, AI, or hybrid—left an unforgeable footprint simply by existing in the digital realm. Not a username or account, but a crystallization of presence itself. This is what Linked Context Tokens achieve.
+Imagine if every entity—human, AI, or hybrid—left a verifiable footprint simply by existing in the digital realm. Not a username or account, but a crystallization of presence itself. This is what Linked Context Tokens achieve.
 
 ### 2.1.1. What is an LCT?
 
-An LCT is not merely an identifier—it is the **reification of an entity's presence in Web4**. Every entity is born with and dies with its LCT. It cannot be stolen, sold, or transferred. It is the entity's footprint in the trust-native internet, as unique and permanent as a fingerprint, but far more expressive.
+An LCT is not merely an identifier—it is the **reification of an entity's presence in Web4**. An LCT is created when an entity enters the Web4 ecosystem and remains bound to it for the duration of that entity's participation—whether that spans a human lifetime, an organization's charter, or a task's execution window. It cannot be stolen, sold, or transferred. It is the entity's footprint in the trust-native internet, as unique as a fingerprint but far more expressive—accumulating context, history, and witnessed trust over time.
 
 Think of it this way: in the physical world, your presence creates ripples—you occupy space, cast shadows, leave traces. In the digital world, presence has been ephemeral, fakeable, transferable. LCTs change this fundamental assumption. They make digital presence as real and verifiable as physical presence.
 
 ### 2.1.2. The Evolution of Understanding
 
-The concept evolved from "Linked Control Tokens" to "Linked Context Tokens"—a shift that reveals deeper understanding. The change from "control" to "context" acknowledges that identity and trust are inseparable from the situations in which they manifest. You are not the same in every context, yet you remain fundamentally you. LCTs capture this duality.
+The concept evolved from "Linked Control Tokens" to "Linked Context Tokens"—a shift that reveals deeper understanding. The change from "control" to "context" acknowledges that presence and trust are inseparable from the situations in which they manifest. An entity's footprint looks different in different contexts—a doctor's LCT carries different weight in a medical forum than in a book club—yet the underlying presence remains continuous and verifiable. LCTs capture this duality.
 
-### 2.1.3. Core Properties: The Unforgeable Footprint
+### 2.1.3. Core Properties: The Witness-Hardened Footprint
 
-**Permanently Bound**: An LCT is born when its entity enters Web4 and dies only when that entity ceases to exist. This permanent binding creates accountability—every action traces back to its source.
+**Permanently Bound**: An LCT is created when its entity enters Web4 and remains bound for the duration of that entity's participation. This permanent binding creates accountability—every action traces back to its source.
 
-**Non-Transferable**: You cannot give away your presence. You cannot sell your existence. This non-transferability is not a limitation but a liberation—it makes identity theft impossible and reputation genuinely earned.
+**Non-Transferable**: An entity's presence cannot be given away or sold. This non-transferability is not a limitation but a structural guarantee—it ensures the integrity of the trust record. Because an LCT is bound to a single entity, every witnessed interaction, every accumulated reputation, and every trust relationship traces back to the entity that actually participated. Reputation becomes genuinely earned, not purchased or inherited.
 
 **Cryptographic Root**: Each LCT anchors in cryptographic reality, providing a mathematically verifiable foundation for all interactions. This is not trust by declaration but trust by demonstration.
 
@@ -42,17 +42,17 @@ These links are not static cables but living connections that grow, adapt, and s
 
 ### 2.1.5. The Lifecycle of Presence
 
-Every LCT follows a natural lifecycle that mirrors its entity's existence:
+Every LCT follows a lifecycle shaped by the nature of its entity:
 
-**Birth (Creation)**: When an entity first manifests in Web4, its LCT crystallizes—a unique footprint that will accompany it throughout its existence.
+**Creation**: When an entity enters Web4, its LCT crystallizes—a unique footprint that will accompany it throughout its participation. A human registers, an AI agent is deployed, an organization incorporates, a task is defined, a device comes online. Each creation is witnessed, anchoring the entity's first moment of presence.
 
-**Life (Active State)**: Throughout its participation, the LCT accumulates history—every interaction strengthens its presence, every contribution adds to its reputation, every link enriches its context.
+**Active Participation**: Throughout its engagement, the LCT accumulates history—every interaction strengthens its presence, every contribution adds to its reputation, every link enriches its context. The duration varies by entity type: a human's participation may span decades; a task's may span hours; an organization's may outlast any individual member.
 
-**Death (Void/Slashed)**: When an entity ceases to exist or violates fundamental trust, its LCT is marked—void for natural ending, slashed for trust violation. Even in death, the footprint remains as historical record, ensuring accountability transcends existence.
+**Conclusion (Void/Slashed)**: When an entity's participation ends or it violates fundamental trust, its LCT is marked—void for natural conclusion, slashed for trust violation. A task completes. A device is decommissioned. An organization dissolves. Even after conclusion, the footprint remains as historical record, ensuring accountability persists beyond active participation.
 
 ### 2.1.6. Why This Matters
 
-In a world where AIs can spin up instances in milliseconds and humans hide behind anonymous accounts, LCTs provide the substrate for genuine accountability. They make presence real, trust measurable, and reputation permanent. This is not surveillance—it is the opposite. By making presence unforgeable, we make trust possible without central authorities.
+In a world where AIs can spin up instances in milliseconds and humans hide behind anonymous accounts, LCTs provide the substrate for genuine accountability. They make presence real, trust measurable, and reputation permanent. This is not surveillance—it is the opposite. By making presence cross-linked and witness-hardened, we make trust possible without central authorities.
 
 Every entity leaves a footprint. With LCTs, that footprint becomes the foundation for a new kind of internet—one where trust emerges from interaction, not declaration.
 
@@ -259,7 +259,7 @@ This is captured in the canonical equation:
 Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-Where `+` means "augmented with," `*` means "contextualized by," and `/` means "verified by." MCP provides the I/O membrane. RDF provides the ontological backbone. LCTs carry identity. T3/V3 tensors measure trust and value, contextualized by MRH. ATP/ADP cycles energy through work.
+Where `+` means "augmented with," `*` means "contextualized by," and `/` means "verified by." MCP provides the I/O membrane. RDF provides the ontological backbone. LCTs carry presence. T3/V3 tensors measure trust and value, contextualized by MRH. ATP/ADP cycles energy through work.
 
 Because MRH is an RDF graph, you can ask questions like "find all entities within 3 hops that have been witnessed by a time oracle" and get precise, machine-readable answers. Because trust tensors are RDF sub-graphs, each dimension of trust is not a flat number but a node that can be refined with domain-specific sub-dimensions—a fractal pattern we explore fully in Part 3.
 
