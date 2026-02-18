@@ -3,7 +3,7 @@
 **Status**: Design Decision v1.0
 **Date**: 2026-02-18
 **Author**: Dennis + Claude (Opus 4.6)
-**Origin**: SOIA convergence discovery (LinkedIn conversation with Renee Karlstrom)
+**Origin**: SOIA convergence discovery (LinkedIn conversation with Renée Karlström)
 
 ---
 
@@ -21,7 +21,7 @@ PolicyEntity should also be elevated to the 15th primary entity type in the Web4
 
 ### The Convergence Discovery
 
-In February 2026, a conversation with Renee Karlstrom (independent SOIA researcher) surfaced a structural convergence between SOIA (Self-Optimizing Intelligence Architecture) and SAGE's IRP stack:
+In February 2026, a conversation with Renée Karlström (independent SOIA researcher) surfaced a structural convergence between SOIA (Self-Optimizing Intelligence Architecture) and SAGE's IRP stack:
 
 | SOIA Component | Function | SAGE Equivalent |
 |---|---|---|
@@ -142,7 +142,7 @@ Do NOT implement CRISIS mode as "stricter policy" (which creates analysis paraly
 
 ## References
 
-- Karlstrom, R. "SOIA-Mother: An Adaptive Control Architecture for AI Cyberdefense, Governance, and Limits" (doi.org/10.5281/zenodo.18370968)
+- Karlström, R. "SOIA-Mother: An Adaptive Control Architecture for AI Cyberdefense, Governance, and Limits" (doi.org/10.5281/zenodo.18370968)
 - SOIA-SAGE mapping: `github.com/dp-web4/HRM/sage/docs/SOIA_IRP_MAPPING.md`
 - Convergence insight: `github.com/dp-web4/HRM/forum/insights/soia-sage-convergence.md`
 - HRM-LCT Alignment (template): `docs/history/design_decisions/HRM-LCT-ALIGNMENT.md`
