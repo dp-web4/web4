@@ -221,7 +221,7 @@ Hardware-bound identity, delegation chains, and ATP settlement create accountabi
 
 ## References
 
-- [Web4 LCT Unified Identity Specification](./LCT_UNIFIED_IDENTITY_SPECIFICATION.md)
+- [Web4 LCT Unified Presence Specification](./LCT_UNIFIED_PRESENCE_SPECIFICATION.md)
 - [SAGE/Web4 Integration Design](./SAGE_WEB4_INTEGRATION_DESIGN.md)
 - [Fractal IRP Architecture Proposal](https://github.com/dp-web4/HRM/blob/main/sage/docs/proposals/FRACTAL_IRP_ARCHITECTURE_PROPOSAL.md)
 - [stealth-browser-mcp](https://github.com/vibheksoni/stealth-browser-mcp) - Example automation tool

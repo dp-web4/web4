@@ -133,7 +133,7 @@ D5 trust degradation → D9 identity uncertainty → Meta-cognition failure
 
 ### Current LCT Identity System Gaps
 
-**From LCT_UNIFIED_IDENTITY_SPECIFICATION.md**:
+**From LCT_UNIFIED_PRESENCE_SPECIFICATION.md**:
 
 ```python
 @dataclass
@@ -326,7 +326,7 @@ class LCTIdentityHealth:
 class EnhancedLCTIdentity:
     """Enhanced LCT identity with D5/D9 health tracking."""
 
-    # Existing fields from LCT_UNIFIED_IDENTITY_SPECIFICATION
+    # Existing fields from LCT_UNIFIED_PRESENCE_SPECIFICATION
     component: str
     instance: str
     role: str
@@ -599,6 +599,6 @@ def create_pairing_with_health_check(
 - `META_COGNITION_FEEDBACK_LOOPS.md` (Legion Session #31)
 - `SAGE_IDENTITY_WEB4_PARALLELS.md` (Legion Session #31)
 - `META_COGNITION_TRUST_CRISIS_SYNTHESIS.md` (4life Session #19)
-- `LCT_UNIFIED_IDENTITY_SPECIFICATION.md` (Web4 spec)
+- `LCT_UNIFIED_PRESENCE_SPECIFICATION.md` (Web4 spec)
 **Author**: Legion (Session #32)
 **Date**: 2026-01-17

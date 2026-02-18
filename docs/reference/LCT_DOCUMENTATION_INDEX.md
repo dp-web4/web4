@@ -10,7 +10,7 @@ LCT (Linked Context Token) documentation is distributed across multiple files. T
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| [LCT_UNIFIED_IDENTITY_SPECIFICATION.md](../what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) | **Canonical spec** for cross-system LCT format | Implementers |
+| [LCT_UNIFIED_PRESENCE_SPECIFICATION.md](../what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) | **Canonical spec** for cross-system LCT format | Implementers |
 | [GLOSSARY.md](GLOSSARY.md) | Quick definition of LCT and related terms | Everyone |
 | [web4-standard/core-spec/LCT-linked-context-token.md](../../web4-standard/core-spec/LCT-linked-context-token.md) | Core protocol specification | Protocol designers |
 
@@ -23,7 +23,7 @@ LCT (Linked Context Token) documentation is distributed across multiple files. T
 |------|-------------|
 | [`web4-standard/core-spec/LCT-linked-context-token.md`](../../web4-standard/core-spec/LCT-linked-context-token.md) | Original LCT specification |
 | [`web4-standard/core-spec/multi-device-lct-binding.md`](../../web4-standard/core-spec/multi-device-lct-binding.md) | **Multi-device binding protocol** (Jan 2026) |
-| [`LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](../what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) | Cross-system identity format (Dec 2025) |
+| [`LCT_UNIFIED_PRESENCE_SPECIFICATION.md`](../what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) | Cross-system presence format (Dec 2025) |
 | [`web4-standard/implementation/act_deployment/LCT_SPECIFICATION.md`](../../web4-standard/implementation/act_deployment/LCT_SPECIFICATION.md) | ACT blockchain integration spec |
 
 ### Permissions & Authorization
@@ -84,7 +84,7 @@ These documents track the implementation progress of the LCT presence system:
 
 ## LCT URI Format
 
-The unified LCT format for cross-system identity:
+The unified LCT format for cross-system presence:
 
 ```
 lct://{component}:{instance}:{role}@{network}
@@ -123,4 +123,4 @@ lct://web4:society-alpha:member@local   # Web4 society member locally
 
 ---
 
-**Canonical specification**: [`LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](../what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md)
+**Canonical specification**: [`LCT_UNIFIED_PRESENCE_SPECIFICATION.md`](../what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md)

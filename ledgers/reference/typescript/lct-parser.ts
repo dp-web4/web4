@@ -10,7 +10,7 @@
  *   lct://mcp:filesystem:reader@local#did:key:z6Mk...
  *
  * @version 1.0.0
- * @see docs/what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md
+ * @see docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md
  */
 
 /**

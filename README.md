@@ -48,7 +48,7 @@ The internet evolved from documents (Web1) to applications (Web2) to ownership (
 
 Like Web1, Web2, and Web3, "Web4" is a generational label describing capabilities needed for the agentic AI era—not a single protocol or product. Many projects are tackling various aspects of this challenge.
 
-**This project suite** focuses specifically on **trust infrastructure** for agent-agent and agent-human interactions: how agents establish identity, build reputation, delegate authority, and coordinate safely across organizational boundaries.
+**This project suite** focuses specifically on **trust infrastructure** for agent-agent and agent-human interactions: how agents establish verifiable presence, build reputation, delegate authority, and coordinate safely across organizational boundaries.
 
 ---
 
@@ -74,7 +74,7 @@ Neither addresses the core question: **How do I know this agent will behave appr
 
 ### What Problems This Could Address
 
-- **AI Agent Accountability**: Every action traceable to an identity with reputation at stake
+- **AI Agent Accountability**: Every action traceable to a verifiable presence with reputation at stake
 - **Cross-Platform Coordination**: Agents from different systems interoperating through shared trust protocols
 - **Graduated Authorization**: Not just "allowed/denied" but nuanced trust based on context, history, and stakes
 - **Self-Organizing Trust**: Societies that establish norms through interaction rather than requiring top-down rule enforcement
@@ -170,7 +170,7 @@ The original prototype (`/game/`) has been archived to `archive/game-prototype/`
 - Pattern exchange protocol (bidirectional SAGE ↔ Web4)
 - EM-state (Epistemic Monitoring) framework
 - Temporal/phase-tagged learning
-- LCT Unified Identity Specification
+- LCT Unified Presence Specification
 
 **Key Components**:
 
@@ -181,7 +181,7 @@ The original prototype (`/game/`) has been archived to `archive/game-prototype/`
 | Phase 2c Circadian Coordinator | Temporal/phase-aware decisions | Validated |
 | Phase 2d Adaptive Coordinator | EM-state modulation | Validated |
 | Pattern Exchange Protocol | Cross-system learning transfer | Operational |
-| LCT Presence Specification | Unified identity format | v1.0.0 draft |
+| LCT Presence Specification | Unified presence format | v1.0.0 draft |
 
 **Validation Results** (Dec 2025):
 - 76% prediction validation (13 of 17 predictions confirmed)
@@ -192,7 +192,7 @@ The original prototype (`/game/`) has been archived to `archive/game-prototype/`
 - `web4_phase2b_integrated_coordinator.py` - Combined epistemic + learning
 - `temporal_pattern_exchange.py` - Phase-aware pattern transfer
 - `universal_pattern_schema.py` - Cross-system pattern format
-- `LCT_UNIFIED_IDENTITY_SPECIFICATION.md` - Identity standard (in `/docs/`)
+- `LCT_UNIFIED_PRESENCE_SPECIFICATION.md` - Presence standard (in `/docs/`)
 
 **Use for**: Coordination research, SAGE integration, cross-system pattern transfer
 
@@ -256,7 +256,7 @@ Example: Agent purchasing with constraints
 
 | Concept | Specification | Implementation | Notes |
 |---------|--------------|----------------|-------|
-| **LCT (Identity)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | Also in 4-life repo |
+| **LCT (Presence)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | Also in 4-life repo |
 | **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | Implementation in progress (private repo) | Contact dp@metalinxx.io |
 | **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`simulations/`](simulations/) | Trust dynamics simulations |
 | **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`simulations/`](simulations/) | Context boundary research |
@@ -264,7 +264,7 @@ Example: Agent purchasing with constraints
 | **Federation** | [`docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md`](docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md) | [`simulations/`](simulations/) | Federation patterns |
 | **Societies** | [`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`](web4-standard/core-spec/SOCIETY_SPECIFICATION.md) | 4-life repo | Society simulation |
 | **Authorization** | [`web4-standard/core-spec/security-framework.md`](web4-standard/core-spec/security-framework.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | PostgreSQL schemas |
-| **Coordination** | [`docs/what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](docs/what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | Phase 2 coordinators |
+| **Coordination** | [`docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md`](docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | Phase 2 coordinators |
 
 ---
 
@@ -341,19 +341,19 @@ web4/
 ## 🤝 Related Projects
 
 - **[HRM/SAGE](https://github.com/dp-web4/HRM)** - Edge AI kernel with MoE expert selection and trust-based routing
-- **[ACT](https://github.com/dp-web4/act)** - Distributed ledger for ATP tokens and LCT identity registry (Cosmos SDK)
+- **[ACT](https://github.com/dp-web4/act)** - Distributed ledger for ATP tokens and LCT presence registry (Cosmos SDK)
 - **[Synchronism](https://github.com/dp-web4/Synchronism)** - Theoretical physics framework (MRH, coherence)
 - **[Memory](https://github.com/dp-web4/memory)** - Distributed memory and witnessing
 
 ### Cross-Project Integration
 
 Web4 integrates with SAGE (neural MoE) and ACT (distributed ledger) via:
-- **Unified LCT Identity**: `lct://{component}:{instance}:{role}@{network}`
+- **Unified LCT Presence**: `lct://{component}:{instance}:{role}@{network}`
 - **ATP Resource Allocation**: Synchronized between ledger and edge systems
 - **Bidirectional Pattern Exchange**: Coordination patterns transfer between domains
 - **Trust Tensor Synchronization**: Trust scores flow across system boundaries
 
-See [`docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`](docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) for the identity standard.
+See [`docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md`](docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) for the presence standard.
 
 ---
 

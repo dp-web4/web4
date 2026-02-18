@@ -73,7 +73,7 @@ npx ts-node lct-parser.test.ts
 
 ## Specification Compliance
 
-This implementation follows the [LCT Unified Identity Specification](../../../docs/what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) v1.0.0.
+This implementation follows the [LCT Unified Presence Specification](../../../docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) v1.0.0.
 
 ### Supported Query Parameters
 
@@ -126,6 +126,6 @@ Create identity from simple entity ID.
 
 ## See Also
 
-- [LCT Specification](../../../docs/what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md)
+- [LCT Specification](../../../docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md)
 - [web4-trust-core](../../../web4-trust-core/) - WASM trust tensor bindings
 - [Python Reference](../python/) - Python ledger implementations

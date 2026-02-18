@@ -1,4 +1,4 @@
-# Unified LCT (Linked Context Token) Identity Specification
+# Unified LCT (Linked Context Token) Presence Specification
 
 **Version**: 1.0.0
 **Date**: 2025-12-17
@@ -9,25 +9,25 @@
 
 ## Abstract
 
-This specification defines a unified Linked Context Token (LCT) identity format that enables seamless identity management across ACT blockchain, SAGE neural systems, and Web4 protocol implementations. It provides a standardized way to represent AI agent identities, component relationships, and role assignments in a distributed multi-agent system.
+This specification defines a unified Linked Context Token (LCT) presence format that enables seamless presence management across ACT blockchain, SAGE neural systems, and Web4 protocol implementations. It provides a standardized way to represent AI agent presence, component relationships, and role assignments in a distributed multi-agent system.
 
 ---
 
 ## Motivation
 
-Three independent identity models have emerged:
+Three independent presence models have emerged:
 
 1. **ACT Blockchain**: LCT relationships with pairing_status validation
 2. **SAGE Neural**: Expert IDs with namespace (e.g., "sage_thinker_expert_42")
 3. **Web4 Protocol**: Conceptual LCT presence system
 
-**Problem**: No standard format for cross-system identity representation
+**Problem**: No standard format for cross-system presence representation
 
 **Solution**: Unified LCT specification compatible with all three systems
 
 ---
 
-## LCT Identity Format
+## LCT Presence Format
 
 ### Core Structure
 
@@ -139,7 +139,7 @@ lct://sage:thinker:expert_42@testnet?version=1.0.0&pairing_status=active&trust_t
 
 ### Pairing Status
 
-LCT identities can form **relationships** with pairing_status:
+LCT presence tokens can form **relationships** with pairing_status:
 
 **Status Values**:
 - `pending`: Relationship requested, not yet confirmed
@@ -196,7 +196,7 @@ message LinkedContextToken {
   string pairing_status = 6;            // Current status
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
-  string public_key = 9;                // Cryptographic identity
+  string public_key = 9;                // Cryptographic attestation key
   map<string, string> metadata = 10;    // Extensible metadata
   int32 version = 11;                   // Version for updates
 }
@@ -204,7 +204,7 @@ message LinkedContextToken {
 
 ### Registration Process
 
-**1. Create LCT Identity**:
+**1. Register LCT**:
 ```bash
 actd tx lctmanager register-lct \
   --lct-id "lct://sage:thinker:expert_42@testnet" \
@@ -333,9 +333,9 @@ class AuthorizedExpertSelector:
 
 ## Integration with Web4 Protocol
 
-### LCT Identity Standard
+### LCT Presence Standard
 
-**Protocol Specification**: Web4 LCT Identity RFC
+**Protocol Specification**: Web4 LCT Presence RFC
 
 **Key Requirements**:
 1. All Web4 agents MUST have valid LCT URI
@@ -422,7 +422,7 @@ from urllib.parse import urlparse, parse_qs
 
 @dataclass
 class LCTIdentity:
-    """Parsed LCT identity."""
+    """Parsed LCT presence record."""
     component: str
     instance: str
     role: str
@@ -461,7 +461,7 @@ class LCTIdentity:
 
 def parse_lct_uri(lct_uri: str) -> LCTIdentity:
     """
-    Parse LCT URI into structured identity.
+    Parse LCT URI into structured presence record.
 
     Args:
         lct_uri: LCT URI string (e.g., "lct://sage:thinker:expert_42@testnet")
@@ -546,13 +546,13 @@ if __name__ == "__main__":
 
 ### 1. LCT URI Forgery
 
-**Threat**: Attacker creates fake LCT URI to impersonate legitimate identity
+**Threat**: Attacker creates fake LCT URI to impersonate legitimate presence
 
 **Mitigation**:
 - All LCT registrations require cryptographic signature
 - Public key anchored in blockchain or DID registry
 - Fragment contains public key hash for verification
-- Trust scores only for verified LCT identities
+- Trust scores only for verified LCT registrations
 
 ### 2. Pairing Status Manipulation
 
@@ -711,7 +711,7 @@ lct://sage:thinker:expert_42@testnet?version=1.0.0&x-anthropic-tier=premium&x-an
 
 ## Conclusion
 
-This Unified LCT Identity Specification provides a **standard format for AI agent identity** across ACT blockchain, SAGE neural systems, and Web4 protocol implementations. Key features:
+This Unified LCT Presence Specification provides a **standard format for AI agent presence** across ACT blockchain, SAGE neural systems, and Web4 protocol implementations. Key features:
 
 1. **URI-based format** compatible with web standards
 2. **Hierarchical structure** (component:instance:role@network)
@@ -722,7 +722,7 @@ This Unified LCT Identity Specification provides a **standard format for AI agen
 
 **Next Steps**:
 1. Implement parsing libraries in all three systems
-2. Migrate existing identities to LCT URI format
+2. Migrate existing LCT records to URI format
 3. Update ExpertIdentityBridge in SAGE
 4. Enhance ACT lctmanager module
 5. Define Web4 API endpoints

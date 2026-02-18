@@ -25,8 +25,8 @@ Missing local links: 17
 - game/engine/signed_epidemic_gossip.py
 - game/engine/membership.py
 - game/engine/treasury.py
-- docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md
-- docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md
+- docs/LCT_UNIFIED_PRESENCE_SPECIFICATION.md
+- docs/LCT_UNIFIED_PRESENCE_SPECIFICATION.md
 
 ### STATUS.md
 Missing local links: 0

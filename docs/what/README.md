@@ -8,7 +8,7 @@ See [`specifications/`](specifications/) for formal technical specs:
 
 | Specification | Description |
 |---------------|-------------|
-| [LCT_UNIFIED_IDENTITY_SPECIFICATION.md](specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) | Linked Context Token identity |
+| [LCT_UNIFIED_PRESENCE_SPECIFICATION.md](specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) | Linked Context Token presence format |
 | [WEB4_REFERENCE_IMPLEMENTATION_SPEC.md](specifications/WEB4_REFERENCE_IMPLEMENTATION_SPEC.md) | Reference implementation |
 | [WEB4-FEDERATED-CONSCIOUSNESS-SPEC-v1.0.md](specifications/WEB4-FEDERATED-CONSCIOUSNESS-SPEC-v1.0.md) | Federation protocol |
 | [WEB4_MRH_LCT_CONTEXT_SPEC.md](specifications/WEB4_MRH_LCT_CONTEXT_SPEC.md) | MRH context specification |

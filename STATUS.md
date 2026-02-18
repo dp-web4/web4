@@ -124,7 +124,7 @@ Over 40 autonomous research sessions (Dec 10-17), we developed and validated a c
 
 ### Cross-System Integration
 
-**LCT Unified Identity Specification** (v1.0.0 draft):
+**LCT Unified Presence Specification** (v1.0.0 draft):
 - Format: `lct://{component}:{instance}:{role}@{network}`
 - Compatible with SAGE neural systems, ACT blockchain, Web4 protocol
 - Reference implementations in Python (180 lines)
@@ -406,7 +406,7 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
 2. ✅ Create honest `STATUS.md` (you're reading it)
 3. ✅ Phase 2 coordinator framework (2a-2d validated)
 4. ✅ Pattern exchange protocol (SAGE ↔ Web4 operational)
-5. ✅ LCT Unified Identity Specification (v1.0.0 draft)
+5. ✅ LCT Unified Presence Specification (v1.0.0 draft)
 6. ✅ 76% prediction validation (13 of 17 confirmed)
 7. ✅ Update README with Track 4 coordination framework
 8. ✅ Promote `/game/` renamed to `/simulations/` (Feb 2026)
@@ -513,7 +513,7 @@ Web4 has done **substantial research work** (~47k lines code, 45+ research sessi
 - Phase 2 coordination framework validated (4 variants)
 - 76% prediction validation rate
 - +386% efficiency improvement demonstrated
-- LCT Unified Identity Specification (cross-system standard)
+- LCT Unified Presence Specification (cross-system standard)
 - SAGE ↔ Web4 pattern exchange operational
 - Ledgers consolidation with terminology reframing
 - Claude Code governance plugin (PR #20448)

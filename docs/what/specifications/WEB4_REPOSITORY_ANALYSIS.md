@@ -125,7 +125,7 @@ web4/ (25 top-level directories + 29 MD files)
 **Status**: ACTIVE  
 **Last Activity**: Dec 17  
 **Key files**:
-- `LCT_UNIFIED_IDENTITY_SPECIFICATION.md` (21 KB, Dec 17 12:07)
+- `LCT_UNIFIED_PRESENCE_SPECIFICATION.md` (21 KB, Dec 17 12:07)
 - `LCT_DOCUMENTATION_INDEX.md` (updated)
 - `GLOSSARY.md` (updated)
 - `epistemic_proprioception_integration.md` (28 KB)
@@ -305,7 +305,7 @@ Files with potential deprecation markers:
    - Status: INTENTIONAL - game/ is simulation, implementation/ is standalone
 
 3. **LCT specifications**:
-   - `/docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`
+   - `/docs/LCT_UNIFIED_PRESENCE_SPECIFICATION.md`
    - `/docs/LCT_DOCUMENTATION_INDEX.md`
    - `/reference/` - Various LCT concept docs
    - Status: INTENTIONAL - docs/ is current spec, reference/ is historical
@@ -371,7 +371,7 @@ Dec 17-22: Sessions #74-84 - Security hardening (10 sessions in 5 days)
 - `STATUS.md` - Session 84 updates
 - `SECURITY.md` - Active threat model
 - `THREAT_MODEL.md` - Session 84 vulnerabilities
-- `docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md` - Dec 17
+- `docs/LCT_UNIFIED_PRESENCE_SPECIFICATION.md` - Dec 17
 - `docs/GLOSSARY.md` - Dec 17
 - `CLAUDE.md` - Dec 13
 

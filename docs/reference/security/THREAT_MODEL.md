@@ -36,7 +36,7 @@ This document provides a **formal threat model** for Web4's trust-native securit
 Unlike traditional access control (static ACLs), Web4 treats security as **emergent property** of incentive-aligned interactions among autonomous AI agents and platforms.
 
 **December 2025 Additions:**
-- **LCT Unified Identity**: Cross-system identity format `lct://{component}:{instance}:{role}@{network}`
+- **LCT Unified Presence**: Cross-system presence format `lct://{component}:{instance}:{role}@{network}`
 - **Coordination Framework**: Phase 2a-2d coordinators for runtime security decisions
 - **Pattern Exchange**: Secure cross-system learning transfer (SAGE ↔ Web4)
 

@@ -191,7 +191,7 @@ See [STATUS.md](../../STATUS.md) for honest assessment.
 ## Related Documentation
 
 - [reference/GLOSSARY.md](../reference/GLOSSARY.md) - Terminology
-- [what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md](../what/specifications/LCT_UNIFIED_IDENTITY_SPECIFICATION.md) - LCT spec
+- [what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md](../what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) - LCT spec
 - [reference/security/THREAT_MODEL.md](../reference/security/THREAT_MODEL.md) - Security model
 - [history/research/](../history/research/) - Research findings
 

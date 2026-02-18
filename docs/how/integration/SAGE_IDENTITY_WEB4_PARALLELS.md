@@ -4,7 +4,7 @@
 **Context**: Session #31 Autonomous Research
 **Cross-Reference**:
 - SAGE Track C (Identity and Boundaries) - T021 observations
-- Web4 LCT_UNIFIED_IDENTITY_SPECIFICATION.md
+- Web4 LCT_UNIFIED_PRESENCE_SPECIFICATION.md
 
 ---
 
@@ -609,6 +609,6 @@ SAGE's Track C identity training provides **empirical validation** for several W
 **Document Status**: Analysis complete, implementation roadmap defined
 **Cross-Reference**:
 - SAGE T021 observation: `/home/dp/ai-workspace/HRM/sage/raising/tracks/training/logs/T021_observation.md`
-- LCT spec: `/home/dp/ai-workspace/web4/docs/LCT_UNIFIED_IDENTITY_SPECIFICATION.md`
+- LCT spec: `/home/dp/ai-workspace/web4/docs/LCT_UNIFIED_PRESENCE_SPECIFICATION.md`
 **Author**: Legion (Session #31)
 **Date**: 2026-01-17
