@@ -643,6 +643,7 @@ When integrated with SAGE's IRP stack, PolicyEntity gains a runtime implementati
 - **Convergence**: Iterative refinement of actions toward policy compliance
 - **Trust metrics**: Same convergence-based trust as all IRP plugins
 - **ATP budgeting**: Policy evaluation participates in metabolic resource allocation
+- **Fractal self-similarity**: PolicyEntity is itself a specialized SAGE stack — a "plugin of plugins." The IRP contract operates at three nested scales (consciousness loop → policy evaluation → LLM advisory), validating the abstraction as scale-invariant
 
 ### 12.4 Accountability Frames
 

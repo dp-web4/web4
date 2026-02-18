@@ -70,6 +70,16 @@ The near-exact mapping revealed that Policy Entity does not need to be invented 
 - Web4's trust stack (web4-core, web4-trust-core) is not modified.
 - PolicyGate is an optional SAGE plugin. Web4 PolicyEntity works without SAGE.
 
+### Fractal Self-Similarity
+
+PolicyEntity is itself a specialized SAGE stack — a "plugin of plugins." The IRP contract (`init_state / step / energy / project / halt`) is self-similar across three nested scales:
+
+1. **Outer**: SAGE consciousness loop runs PolicyGate as one plugin among many
+2. **Middle**: PolicyGate runs evaluate → refine → converge (rule matching, energy scoring, action filtering)
+3. **Inner**: PolicyGate can invoke LLM advisory (Phi-4 Mini) for ambiguous WARN cases — which is itself iterative refinement
+
+The orchestrator does not need to know PolicyGate is fractal. It registers like any other plugin, receives ATP budget proportional to trust, and builds trust from convergence quality. This validates the IRP abstraction: the same contract works at multiple nested scales because iterative refinement toward coherence is scale-invariant.
+
 ### Backward Compatibility
 
 - The `accountability_frame` field defaults to `"normal"`, making it backward-compatible.

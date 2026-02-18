@@ -34,6 +34,7 @@ Key points for Web4:
 - `PolicyEvaluation` gains `accountability_frame` and `duress_context` fields (backward-compatible, defaults to "normal"/None)
 - CRISIS mode changes the accountability equation, not policy strictness
 - HRM owns the engine (PolicyGate IRP plugin); Web4 owns the ontology (entity taxonomy, evaluation API)
+- **Fractal self-similarity**: PolicyEntity is itself a specialized SAGE stack — a "plugin of plugins." The IRP contract is self-similar at three nested scales (consciousness loop → policy evaluation → LLM advisory)
 
 Documents:
 - Design decision: `docs/history/design_decisions/POLICY-ENTITY-REPOSITIONING.md`
