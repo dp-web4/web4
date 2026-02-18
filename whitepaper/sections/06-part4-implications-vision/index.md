@@ -33,7 +33,7 @@ This shift towards fluid skill networks, dynamic role assignment, and transparen
 A pivotal implication of the WEB4 framework is its potential to fundamentally reshape collaboration between humans and autonomous Artificial Intelligence (AI) systems. WEB4 envisions an ecosystem where AIs are not mere tools but can participate as **trusted entities**, operating with defined accountability and their actions aligned with measurable coherence and value. This creates a pathway for more sophisticated, integrated, and reliable AI-human collaboration. (Source: "What is Web4 and Why Does It Matter.pdf")
 
 **AI as Trusted Entities:**
-Central to this vision is the ability to treat AI agents as first-class entities within the WEB4 framework, each possessing its own Linked Context Token (LCT). This LCT serves as the AI's cryptographic identity, anchoring its history, capabilities, and contextual interactions. (Source: "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles.pdf")
+Central to this vision is the ability to treat AI agents as first-class entities within the WEB4 framework, each possessing its own Linked Context Token (LCT). This LCT serves as the AI's cryptographic root of witnessed presence, anchoring its history, capabilities, and contextual interactions. (Source: "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles.pdf")
 
 *   **Verifiable Capabilities (T3 Tensor):** An AI's capabilities—its underlying algorithms (Talent), its training data and learned skills (Training), and its behavioral patterns and adherence to system prompts (Temperament)—are quantified by its T3 Tensor. This allows for a transparent and verifiable assessment of what an AI can do and how reliably it performs within specific contexts.
 *   **Reputation and Track Record (V3 Tensor & LCT Links):** Through its LCT, an AI accumulates a verifiable track record of its past contributions and the value it has created (measured by V3 Tensors). This history of performance builds its reputation within the ecosystem, allowing humans and other AIs to make informed decisions about trusting and collaborating with it.
@@ -182,7 +182,7 @@ Web4 addresses this through **heterogeneous review**—requiring consensus from 
 | Low | Single model + coherence check | Read operations, standard queries |
 | Medium | 2 independent models | Write operations, resource allocation |
 | High | 3+ heterogeneous models | Financial transactions, access grants |
-| Critical | 3+ models + human approval | Identity operations, irreversible actions |
+| Critical | 3+ models + human approval | Presence operations, irreversible actions |
 
 **Implementation Pattern:**
 

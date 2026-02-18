@@ -556,7 +556,7 @@ Ultimately, the vision for WEB4 is to lay the groundwork for a more intelligent,
 
 ## 1.4. Overview of Key Components
 
-The WEB4 vision is underpinned by several interconnected core components designed to facilitate its trust-driven, decentralized intelligence model. These components, as introduced in the foundational documents, provide the mechanisms for establishing identity, context, trust, value, and operational coherence within the proposed ecosystem. A brief overview of these key pillars is essential to understanding the architecture of WEB4.
+The WEB4 vision is underpinned by several interconnected core components designed to facilitate its trust-driven, decentralized intelligence model. These components, as introduced in the foundational documents, provide the mechanisms for establishing presence, context, trust, value, and operational coherence within the proposed ecosystem. A brief overview of these key pillars is essential to understanding the architecture of WEB4.
 
 1. **Linked Context Tokens (LCTs):** At the heart of WEB4 are LCTs, which serve as the fundamental building blocks for witnessed presence and context. Initially termed "Linked Control Tokens" and later refined to "Linked Context Tokens," these are non-transferable, cryptographically bound tokens permanently associated with an entity (be it a human, AI, organization, role, task, or data resource). LCTs provide a verifiable and immutable root of presence, from which identity and reputation emerge, enabling the creation of dynamic trust webs and auditable historical records. They are crucial for defining an entity's scope, permissions, and relationships within specific contexts.
 
@@ -569,7 +569,7 @@ The WEB4 vision is underpinned by several interconnected core components designe
 
 4. **Markov Relevancy Horizon (MRH):** A contextualizing mechanism that defines an entity's zone of influence, comprehension, and authorization. Implemented as an RDF graph with typed edges, MRH manages the complexity of interactions by localizing relevance and enabling graph-based trust propagation.
 
-These core components share a common substrate: **RDF triples**—the typed relationships that bind entities, roles, trust tensors, and context into a single queryable graph. This ontological backbone is what makes Web4 extensible without central coordination. LCTs provide the identity and contextual anchors, ATP manages the flow and accounting of value and energy, T3/V3 Tensors offer the metrics for assessing trust and value, and RDF gives all of these relationships formal, machine-readable structure.
+These core components share a common substrate: **RDF triples**—the typed relationships that bind entities, roles, trust tensors, and context into a single queryable graph. This ontological backbone is what makes Web4 extensible without central coordination. LCTs provide the presence and contextual anchors, ATP manages the flow and accounting of value and energy, T3/V3 Tensors offer the metrics for assessing trust and value, and RDF gives all of these relationships formal, machine-readable structure.
 
 # Part 2: Foundational Concepts and Entities
 
@@ -1387,7 +1387,7 @@ This shift towards fluid skill networks, dynamic role assignment, and transparen
 A pivotal implication of the WEB4 framework is its potential to fundamentally reshape collaboration between humans and autonomous Artificial Intelligence (AI) systems. WEB4 envisions an ecosystem where AIs are not mere tools but can participate as **trusted entities**, operating with defined accountability and their actions aligned with measurable coherence and value. This creates a pathway for more sophisticated, integrated, and reliable AI-human collaboration. (Source: "What is Web4 and Why Does It Matter.pdf")
 
 **AI as Trusted Entities:**
-Central to this vision is the ability to treat AI agents as first-class entities within the WEB4 framework, each possessing its own Linked Context Token (LCT). This LCT serves as the AI's cryptographic identity, anchoring its history, capabilities, and contextual interactions. (Source: "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles.pdf")
+Central to this vision is the ability to treat AI agents as first-class entities within the WEB4 framework, each possessing its own Linked Context Token (LCT). This LCT serves as the AI's cryptographic root of witnessed presence, anchoring its history, capabilities, and contextual interactions. (Source: "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles.pdf")
 
 *   **Verifiable Capabilities (T3 Tensor):** An AI's capabilities—its underlying algorithms (Talent), its training data and learned skills (Training), and its behavioral patterns and adherence to system prompts (Temperament)—are quantified by its T3 Tensor. This allows for a transparent and verifiable assessment of what an AI can do and how reliably it performs within specific contexts.
 *   **Reputation and Track Record (V3 Tensor & LCT Links):** Through its LCT, an AI accumulates a verifiable track record of its past contributions and the value it has created (measured by V3 Tensors). This history of performance builds its reputation within the ecosystem, allowing humans and other AIs to make informed decisions about trusting and collaborating with it.
@@ -1536,7 +1536,7 @@ Web4 addresses this through **heterogeneous review**—requiring consensus from 
 | Low | Single model + coherence check | Read operations, standard queries |
 | Medium | 2 independent models | Write operations, resource allocation |
 | High | 3+ heterogeneous models | Financial transactions, access grants |
-| Critical | 3+ models + human approval | Identity operations, irreversible actions |
+| Critical | 3+ models + human approval | Presence operations, irreversible actions |
 
 **Implementation Pattern:**
 
@@ -2094,7 +2094,7 @@ WEB4 implements a temporal blockchain hierarchy that matches persistence require
 
 **Purpose**: Long-term crystallized wisdom and immutable truth
 - **Characteristics**: Global consensus, immutable record, maximum verification
-- **Use Cases**: Identity anchors, constitutional rules, critical agreements
+- **Use Cases**: Presence anchors, constitutional rules, critical agreements
 - **Persistence**: Permanent with no expiration
 - **Example Applications**:
   - LCT registrations
@@ -2944,7 +2944,7 @@ WEB4 shares some foundational goals with the Web3 movement, particularly the dri
 **Similarities with Web3:**
 
 *   **Decentralization:** Like Web3, WEB4 advocates for moving away from centralized points of control. LCTs, ATP, and emergent trust networks are inherently decentralized mechanisms.
-*   **Verifiable Credentials/Identity:** The concept of LCTs providing a cryptographic root of witnessed presence and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their identity and how their attributes are shared and verified.
+*   **Verifiable Credentials/Identity:** The concept of LCTs providing a cryptographic root of witnessed presence and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their witnessed presence and how their attributes are shared and verified.
 *   **Tokenization and Value Exchange:** WEB4’s ATP system utilizes tokens (ATP/ADP) for value exchange, similar to how cryptocurrencies and other tokens function in Web3. The goal of creating new economic models is common.
 *   **Community Governance:** The idea of governance through resonance and the potential for emergent group ethics in WEB4 has parallels with Web3 concepts like Decentralized Autonomous Organizations (DAOs), which seek to enable community-led governance structures.
 
@@ -2957,7 +2957,7 @@ WEB4 shares some foundational goals with the Web3 movement, particularly the dri
 *   **Focus on Coherence and Purpose:** WEB4 places a strong emphasis on systemic coherence and purpose-driven ethics, which is a more abstract and holistic layer than often explicitly addressed in many Web3 protocol designs that might focus more on transactional integrity or specific governance rules.
 *   **Semi-Fungibility (ATP/ADP):** The ATP/ADP tokens are described as semi-fungible, potentially carrying context or history, especially in their discharged state. This differs from the fungibility of most cryptocurrencies. (Source: "What is Web4 and Why Does It Matter.pdf")
 
-In essence, while Web3 provides many of the foundational cryptographic tools and decentralization philosophies, WEB4 seeks to build upon them by adding richer layers of contextual identity, dynamic trust assessment, nuanced value definition, and deeply integrated AI participation, all aimed at fostering a more coherent and intelligent decentralized ecosystem.
+In essence, while Web3 provides many of the foundational cryptographic tools and decentralization philosophies, WEB4 seeks to build upon them by adding richer layers of contextual presence, dynamic trust assessment, nuanced value definition, and deeply integrated AI participation, all aimed at fostering a more coherent and intelligent decentralized ecosystem.
 
 ## 8.3. Critique of Proof-of-Work (PoW): Why PoW is considered inefficient and misaligned with WEB4 principles of value and energy use.
 
@@ -3697,4 +3697,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-02-17 19:12:07*
+*Generated: 2026-02-18 04:37:01*

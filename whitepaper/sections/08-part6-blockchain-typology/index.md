@@ -62,7 +62,7 @@ WEB4 implements a temporal blockchain hierarchy that matches persistence require
 
 **Purpose**: Long-term crystallized wisdom and immutable truth
 - **Characteristics**: Global consensus, immutable record, maximum verification
-- **Use Cases**: Identity anchors, constitutional rules, critical agreements
+- **Use Cases**: Presence anchors, constitutional rules, critical agreements
 - **Persistence**: Permanent with no expiration
 - **Example Applications**:
   - LCT registrations

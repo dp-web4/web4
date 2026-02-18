@@ -11,7 +11,7 @@ WEB4 shares some foundational goals with the Web3 movement, particularly the dri
 **Similarities with Web3:**
 
 *   **Decentralization:** Like Web3, WEB4 advocates for moving away from centralized points of control. LCTs, ATP, and emergent trust networks are inherently decentralized mechanisms.
-*   **Verifiable Credentials/Identity:** The concept of LCTs providing a cryptographic root of witnessed presence and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their identity and how their attributes are shared and verified.
+*   **Verifiable Credentials/Identity:** The concept of LCTs providing a cryptographic root of witnessed presence and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their witnessed presence and how their attributes are shared and verified.
 *   **Tokenization and Value Exchange:** WEB4’s ATP system utilizes tokens (ATP/ADP) for value exchange, similar to how cryptocurrencies and other tokens function in Web3. The goal of creating new economic models is common.
 *   **Community Governance:** The idea of governance through resonance and the potential for emergent group ethics in WEB4 has parallels with Web3 concepts like Decentralized Autonomous Organizations (DAOs), which seek to enable community-led governance structures.
 
@@ -24,7 +24,7 @@ WEB4 shares some foundational goals with the Web3 movement, particularly the dri
 *   **Focus on Coherence and Purpose:** WEB4 places a strong emphasis on systemic coherence and purpose-driven ethics, which is a more abstract and holistic layer than often explicitly addressed in many Web3 protocol designs that might focus more on transactional integrity or specific governance rules.
 *   **Semi-Fungibility (ATP/ADP):** The ATP/ADP tokens are described as semi-fungible, potentially carrying context or history, especially in their discharged state. This differs from the fungibility of most cryptocurrencies. (Source: "What is Web4 and Why Does It Matter.pdf")
 
-In essence, while Web3 provides many of the foundational cryptographic tools and decentralization philosophies, WEB4 seeks to build upon them by adding richer layers of contextual identity, dynamic trust assessment, nuanced value definition, and deeply integrated AI participation, all aimed at fostering a more coherent and intelligent decentralized ecosystem.
+In essence, while Web3 provides many of the foundational cryptographic tools and decentralization philosophies, WEB4 seeks to build upon them by adding richer layers of contextual presence, dynamic trust assessment, nuanced value definition, and deeply integrated AI participation, all aimed at fostering a more coherent and intelligent decentralized ecosystem.
 
 ## 8.3. Critique of Proof-of-Work (PoW): Why PoW is considered inefficient and misaligned with WEB4 principles of value and energy use.
 

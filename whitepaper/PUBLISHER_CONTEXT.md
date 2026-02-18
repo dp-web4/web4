@@ -203,6 +203,12 @@ After any change:
 
 ## 6. Recent Changes
 
+### 2026-02-18: Publisher Maintenance - LCT Reframe Cleanup
+- Fixed 7 stale "identity" references missed by the witnessed presence reframe
+- Affected files: 03-part1, 06-part4, 08-part6, 10-part8
+- "Identity Coherence" (SAGE research concept) left as-is - distinct from protocol terminology
+- Rebuilt all artifacts (md, pdf)
+
 ### 2026-02-17: Publisher Maintenance
 - Rebuilt all artifacts (md, pdf, web) to reflect Feb 16 terminology reframe
 - "Trust infrastructure" language now consistent across build artifacts
