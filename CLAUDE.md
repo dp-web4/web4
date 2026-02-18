@@ -193,7 +193,7 @@ The Web4 whitepaper is actively evolving with:
 ## Recent Developments
 
 ### Entity Relationship Mechanisms (January 2025)
-- **Binding**: Permanent identity attachment (hardware to LCT)
+- **Binding**: Permanent presence attachment (hardware to LCT)
 - **Pairing**: Authorized operational relationships with symmetric keys
 - **Witnessing**: Trust building through observation with bidirectional MRH links
 - **Broadcast**: Unidirectional public announcement for discovery
@@ -207,7 +207,7 @@ The Web4 whitepaper is actively evolving with:
 
 ### Entity Binding Hierarchy Implementation (January 2025)
 - Documented multi-level binding from API-Bridge → App → Pack Controller → Battery Module
-- Each level witnesses the level below, creating unforgeable presence chain
+- Each level witnesses the level below, creating verifiable presence chain
 - Public key exchange creates bidirectional MRH tensor links
 - Physical hardware achieves digital presence through hierarchical witnessing
 

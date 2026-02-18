@@ -13,7 +13,7 @@ A society is a collective with:
 - **Law Oracle**: Codified governance rules
 - **Ledger**: Immutable event record
 - **Treasury**: Shared ATP/ADP token pool
-- **Society LCT**: The society's own identity token
+- **Society LCT**: The society's own presence token
 
 ### 2. Citizenship
 - Witnessed relationship between entity and society

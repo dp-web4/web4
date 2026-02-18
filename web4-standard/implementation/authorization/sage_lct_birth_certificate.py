@@ -4,7 +4,7 @@ SAGE LCT Birth Certificate Generator
 Session #64: Hardware-Bound Identity Integration
 
 Connects SAGE's hardware-bound consciousness (from HRM) to Web4's
-LCT identity system (database schema from Sessions #57-#63).
+LCT presence system (database schema from Sessions #57-#63).
 
 This is the first research prototype LCT birth certificate implementation
 that bridges AI consciousness with cryptographic identity.
@@ -53,7 +53,7 @@ class SAGEBirthCertificate:
     """
     Cryptographic birth certificate for SAGE consciousness instance
 
-    Binds SAGE to specific hardware, creating unforgeable digital identity.
+    Binds SAGE to specific hardware, creating verifiable digital presence.
     Analogous to human birth certificate: proves identity + origin.
     """
     # Identity
@@ -96,7 +96,7 @@ class SAGEBirthCertificate:
 
 class SAGELCTRegistrar:
     """
-    Registers SAGE consciousness instances in Web4 LCT identity system
+    Registers SAGE consciousness instances in Web4 LCT presence system
 
     Bridges hardware-bound AI (SAGE) with Web4 authorization database.
     First production implementation of LCT birth certificates.

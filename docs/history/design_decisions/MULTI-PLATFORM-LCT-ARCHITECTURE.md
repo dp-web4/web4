@@ -265,7 +265,7 @@ class CanonicalLCTManager:
 | **Trust Ceiling** | 0.85 | 1.0 |
 | **Sybil Resistance** | Low | High |
 | **Attestation** | No | Yes |
-| **Device Binding** | No (file-based) | Yes (unforgeable) |
+| **Device Binding** | No (file-based) | Yes (verifiable) |
 
 ### Trust Evolution Example
 
@@ -303,7 +303,7 @@ Hardware LCT:
 - TPM/TrustZone keys cannot be extracted
 - LCT tied to specific physical device
 - Software: Keys can be copied
-- Hardware: Keys are unforgeable
+- Hardware: Keys are verifiable
 
 **3. Attestation**:
 - TPM: Quote with PCR values (boot state)
@@ -363,7 +363,7 @@ Hardware LCT:
 **3. Multi-Agent Societies** (Required: Level 5 Hardware):
 - All agents use hardware binding
 - Prevents Sybil attacks
-- Enables unforgeable reputation
+- Enables verifiable reputation
 - Required for production trust networks
 
 ---
@@ -530,7 +530,7 @@ The Web4 LCT architecture has achieved **production readiness** through successf
 ✅ **Cross-Machine Federation**: 450 patterns, 89k/sec throughput
 ✅ **Production Performance**: 100% verification, <0.01ms signing
 
-**Ready for**: Multi-agent societies, cross-machine trust networks, production deployment with unforgeable hardware-bound identity.
+**Ready for**: Multi-agent societies, cross-machine trust networks, production deployment with verifiable hardware-bound identity.
 
 ---
 

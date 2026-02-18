@@ -57,7 +57,7 @@ class Domain(Enum):
 
 @dataclass
 class LCT:
-    """Linked Context Token - unforgeable presence anchor."""
+    """Linked Context Token - verifiable presence anchor."""
     token_id: str
     component: str  # Component type (agent, device, service)
     instance: str   # Unique instance identifier

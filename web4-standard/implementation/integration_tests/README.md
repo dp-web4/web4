@@ -24,7 +24,7 @@ VALIDATED          → Tests in real-world/production scenarios
 ## Current Web4 Components
 
 ### UNIT_TESTED (ready for integration testing):
-1. **LCT Identity System** (reputation_tracker.py:1-470)
+1. **LCT Presence System** (reputation_tracker.py:1-470)
    - Reputation (T3) calculation
    - Behavior event recording
    - Coherence tracking

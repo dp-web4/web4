@@ -18,7 +18,7 @@ This proposal defines an authorization system built on LCT (Legible Coordinate T
 **Problem**: LCTs prove *who* an agent is, but not *what* they're allowed to do.
 
 **Current State**:
-- ✅ LCT identity system: VALIDATED (Session #21)
+- ✅ LCT presence system: VALIDATED (Session #21)
 - ✅ Cryptographic verification: VALIDATED
 - ❌ Authorization framework: Not implemented
 - ❌ Permission delegation: Not designed
@@ -709,7 +709,7 @@ class ACTSocietyAuthorization:
 
 ## References
 
-- LCT Identity System: `web4-standard/implementation/reference/lct_registry.py`
+- LCT Presence System: `web4-standard/implementation/reference/lct_registry.py`
 - Phase 2 Security: `web4-standard/implementation/services/identity_service_phase2.py`
 - Epistemic Framework: `private-context/WEB4_EPISTEMIC_STATUS_REGISTRY.md`
 - ACT Societies: `ACT/` repository

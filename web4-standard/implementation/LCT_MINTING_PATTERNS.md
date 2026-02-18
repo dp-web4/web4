@@ -5,7 +5,7 @@
 
 ## Overview
 
-Linked Context Tokens (LCTs) are the foundation of Web4 identity. Through implementation, we've discovered key patterns for minting and managing LCTs that maintain their unforgeable nature while enabling practical operations.
+Linked Context Tokens (LCTs) are the foundation of Web4 identity. Through implementation, we've discovered key patterns for minting and managing LCTs that maintain their verifiable nature while enabling practical operations.
 
 ## Entity Type Taxonomy
 
@@ -254,9 +254,9 @@ Services declare capabilities in metadata:
 ## Conclusion
 
 LCT minting patterns have evolved through implementation to balance:
-- **Uniqueness**: Unforgeable identity
+- **Uniqueness**: Verifiable presence
 - **Flexibility**: Diverse entity types
 - **Efficiency**: Lightweight operations
 - **Integration**: Works with other Web4 components
 
-The patterns discovered in ACT provide a solid foundation for Web4 identity that scales from individual devices to collective swarms while maintaining the core principle of unforgeable presence through witnessed existence.
+The patterns discovered in ACT provide a solid foundation for Web4 identity that scales from individual devices to collective swarms while maintaining the core principle of verifiable presence through witnessed existence.

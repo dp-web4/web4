@@ -16,7 +16,7 @@ Over the past month, we achieved a critical infrastructure milestone: **hardware
 **Problem solved**: How do you know an AI is still the "same" AI—not a clone, not compromised, not running on stolen hardware?
 
 **Solution delivered**:
-- TPM2/TrustZone hardware binding creates unforgeable identity anchors
+- TPM2/TrustZone hardware binding creates verifiable presence anchors
 - Nonce-signature challenge protocol proves *current* hardware access
 - Two-axis trust model separates "continuity" (same hardware) from "content" (authentic data)
 - Trust automatically degrades on verification failure—external entities decide how much

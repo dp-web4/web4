@@ -1,6 +1,6 @@
 # Web4 Entity Types Specification
 
-This document defines the complete taxonomy of entity types in Web4 and their behavioral characteristics. Every entity in Web4 has an LCT (Linked Context Token) that serves as its unforgeable footprint in the digital realm.
+This document defines the complete taxonomy of entity types in Web4 and their behavioral characteristics. Every entity in Web4 has an LCT (Linked Context Token) that serves as its verifiable footprint in the digital realm.
 
 ## 1. Core Concept: Entities with Presence
 

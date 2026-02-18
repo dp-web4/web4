@@ -5,7 +5,7 @@ Track BM: Validates hierarchical LCT binding as described in Web4 architecture.
 
 Key concepts from Web4:
 1. **Binding**: Permanent identity attachment (hardware to LCT)
-2. **Witnessing**: Each level witnesses the level below, creating unforgeable presence chain
+2. **Witnessing**: Each level witnesses the level below, creating verifiable presence chain
 3. **Hierarchy**: API-Bridge → App → Pack Controller → Battery Module (example)
 
 This module provides:

@@ -8,11 +8,11 @@ This document defines the **canonical meanings** of all Web4 terminology. When c
 
 ---
 
-## Core Identity Primitives
+## Core Presence Primitives
 
 ### LCT (Linked Context Token)
 
-**Definition**: An unforgeable digital identity that accumulates witnessed history and reputation over time.
+**Definition**: A verifiable digital presence that accumulates witnessed history and reputation over time.
 
 **NOT**: Lifecycle-Continuous Trust, Linear Context Tracker, or any other expansion.
 

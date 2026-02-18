@@ -410,4 +410,4 @@ The enhanced standard is complete when:
 4. Multiple implementation profiles support diverse use cases
 5. Test vectors enable conformance validation
 
-**Remember**: The goal is not just another DID/VC spec, but the foundation for witnessed digital presence that makes entities unforgeable through accumulated observation.
+**Remember**: The goal is not just another DID/VC spec, but the foundation for witnessed digital presence that makes entities witness-hardened through accumulated observation.

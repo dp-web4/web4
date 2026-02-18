@@ -1,4 +1,4 @@
-# LCT Identity System Design
+# LCT Presence System Design
 
 **Date**: 2025-12-01
 **Author**: Legion Autonomous Session #47
@@ -563,7 +563,7 @@ if check_permission(task.delegating_lct, "delegation.federation"):
 
 ## Summary
 
-**LCT Identity System** provides:
+**LCT Presence System** provides:
 - ✅ Cryptographically-verifiable AI agent identity
 - ✅ Three-component design (Lineage, Context, Task)
 - ✅ Hierarchical authorization model

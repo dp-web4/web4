@@ -80,7 +80,7 @@ All three models flagged the 424+ attack vector corpus as a genuine differentiat
 975+ commits, ~100/week, multiple machines running autonomous sessions. The research is not stale — it's actively advancing. Grok noted: "commits literally hours ago (Feb 14, 2026)."
 
 ### 4c. Hardware Binding as Credibility Multiplier
-All three agree: hardware binding (TPM/Secure Enclave for unforgeable LCTs) is the single biggest credibility unlock. Once it flips from "claimable" to "provably bound to real hardware," it cranks sybil/cartel resistance from empirical/simulated toward game-at-scale.
+All three agree: hardware binding (TPM/Secure Enclave for verifiable LCTs) is the single biggest credibility unlock. Once it flips from "claimable" to "provably bound to real hardware," it cranks sybil/cartel resistance from empirical/simulated toward game-at-scale.
 
 ### 4d. The Synthon Framework
 The emergent coherence entity concept (synthon) provides the theoretical bridge between component-level coordination (Web4) and system-level emergence (what actually happens when agents interact). The lifecycle detection triangle (formation → health → decay) provides observable signatures for each phase.

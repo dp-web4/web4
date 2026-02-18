@@ -6,27 +6,27 @@
 
 ## Abstract
 
-The Linked Context Token (LCT) is Web4's foundational identity primitive. An LCT is an unforgeable digital presence certificate that binds an entity to its context through witnessed relationships. Unlike traditional identity tokens that assert "who you are," LCTs establish "where you exist" - your position in the web of trust and context.
+The Linked Context Token (LCT) is Web4's foundational presence primitive. An LCT is a verifiable digital presence certificate that binds an entity to its context through witnessed relationships. Unlike traditional identity tokens that assert "who you are," LCTs establish "where you exist" - your position in the web of trust and context.
 
 ## 1. Introduction
 
 ### 1.1 Purpose
 
-LCTs solve the fundamental problem of contextual identity in distributed systems:
+LCTs solve the fundamental problem of contextual presence in distributed systems:
 
-- **Unforgeable Presence**: Cryptographically bound identity anchored to hardware or cryptographic keys
+- **Verifiable Presence**: Cryptographically bound presence anchored to hardware or cryptographic keys
 - **Context Emergence**: Identity emerges from relationships, not central authority
 - **Trust Propagation**: Trust flows through witnessed connections in the Markov Relevancy Horizon (MRH)
-- **Birth Certificates**: Societies issue LCTs as foundational identity documents
+- **Birth Certificates**: Societies issue LCTs as foundational presence documents
 
 ### 1.2 Terminology
 
 - **Entity**: Any participant in Web4 (human, AI, device, service, role, task, resource, oracle, accumulator, dictionary)
-- **Binding**: Permanent, unforgeable cryptographic link between entity and LCT
+- **Binding**: Permanent, verifiable cryptographic link between entity and LCT
 - **Pairing**: Authorized operational relationship between entities
 - **Witnessing**: Trust-building observation by other entities
 - **MRH (Markov Relevancy Horizon)**: Dynamic context boundary containing relevant entities
-- **Birth Certificate**: LCT issued by a society as foundational identity
+- **Birth Certificate**: LCT issued by a society as foundational presence
 - **Society**: Governance context that issues and witnesses LCTs
 
 ## 2. LCT Structure
@@ -208,7 +208,7 @@ The primary way LCTs are created is through **birth certificate issuance** by a 
 8. Birth witnesses attest to creation
 ```
 
-**Result**: Entity now has unforgeable presence within society's context.
+**Result**: Entity now has verifiable presence within society's context.
 
 ### 3.2 Self-Issued LCT (Bootstrap)
 
@@ -477,7 +477,7 @@ Effect:
 
 ### 8.1 Unforgeability
 
-LCTs are unforgeable because:
+LCTs resist forgery because:
 - **Cryptographic binding**: Requires private key signature
 - **Hardware anchors**: Optional TPM/secure element attestation
 - **Witness quorum**: Birth requires multiple independent witnesses
@@ -654,4 +654,4 @@ def validate_birth_certificate(lct):
 **Status**: Core Specification
 **Last Updated**: October 1, 2025
 
-*"An LCT is not an identity. It is a presence - witnessed, contextualized, and unforgeable."*
+*"An LCT is not an identity. It is a presence - witnessed, contextualized, and witness-hardened."*

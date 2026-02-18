@@ -16,7 +16,7 @@ The web4-governance plugin provides:
 
 | Feature | Description |
 |---------|-------------|
-| **Soft LCT Identity** | Session-based identity tokens for agent actions |
+| **Soft LCT Identity** | Session-based presence tokens for agent actions |
 | **Trust Tensors** | T3 (competence, reliability, integrity) scoring |
 | **Action Witnessing** | Cryptographic attestation of tool calls |
 | **Rate Limiting** | Persistent rate limits with witness tracking |

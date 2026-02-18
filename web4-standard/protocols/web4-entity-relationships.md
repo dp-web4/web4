@@ -19,7 +19,7 @@ See `web4-r6-framework.md` for complete R6 specification.
 
 ## 1. BINDING (Permanent Identity Attachment)
 
-BINDING is the process of creating a permanent, unforgeable link between a Web4 entity and its digital identity, represented by a Lineage and Capability Token (LCT). This is the foundational act of creating a new Web4 entity.
+BINDING is the process of creating a permanent, verifiable link between a Web4 entity and its digital presence, represented by a Lineage and Capability Token (LCT). This is the foundational act of creating a new Web4 entity.
 
 ### 1.1. ABNF Specification
 
@@ -293,7 +293,7 @@ Once paired (regardless of mode), entities interact through R6 actions:
 
 ## 3. WITNESSING (Trust Building Through Observation)
 
-WITNESSING is the process by which a Web4 entity observes and attests to the existence, actions, or state of another entity. This creates a verifiable record of interactions that builds trust over time and makes entities unforgeable through accumulated observation.
+WITNESSING is the process by which a Web4 entity observes and attests to the existence, actions, or state of another entity. This creates a verifiable record of interactions that builds trust over time and makes entities witness-hardened through accumulated observation.
 
 ### 3.1. ABNF Specification
 

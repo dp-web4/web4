@@ -32,7 +32,7 @@
 binding-request = "BIND/1.0" SP entity-type SP public-key SP hardware-id
 ```
 - Creates parent-child relationships
-- Permanent and unforgeable
+- Permanent and verifiable
 - Updates both entities' MRH
 
 ### PAIRING (Operational Relationships)

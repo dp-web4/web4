@@ -11,7 +11,7 @@ The modbatt-CAN implementation demonstrates four distinct but complementary mech
 3. **Witnessing** - Observation and trust establishment
 4. **Broadcast** - Public presence announcement
 
-Each serves a specific purpose in creating unforgeable, trustworthy entity networks.
+Each serves a specific purpose in creating verifiable, trustworthy entity networks.
 
 ## 1. Binding - Permanent Identity Attachment
 
@@ -246,11 +246,11 @@ Hardware Failure → Binding Voided → Pairings Terminated → Witnesses Record
 
 The four mechanisms work together to create a complete trust architecture:
 
-- **Binding** provides unforgeable identity
+- **Binding** provides verifiable presence
 - **Pairing** enables authorized operations
 - **Witnessing** builds trust through observation
 - **Broadcast** enables discovery
 
-Together, they implement Web4's vision where entities don't just communicate - they establish witnessed presence, build trust through observation, and create unforgeable operational relationships that span from blockchain to physical hardware.
+Together, they implement Web4's vision where entities don't just communicate - they establish witnessed presence, build trust through observation, and create verifiable operational relationships that span from blockchain to physical hardware.
 
 *"In Web4, you broadcast to be discovered, bind to establish identity, witness to build trust, and pair to operate together."*

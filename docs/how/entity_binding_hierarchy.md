@@ -93,7 +93,7 @@ The encryption using public keys ensures:
 - **Embedded Domain**: Pack Controller (Firmware)
 - **Hardware Domain**: Battery Module (Physical)
 
-Each domain transition requires witnessed key exchange, creating an unforgeable chain of presence from web to physical hardware.
+Each domain transition requires witnessed key exchange, creating a verifiable chain of presence from web to physical hardware.
 
 ### 4. Presence Accumulation
 ```
@@ -102,7 +102,7 @@ Initial State: Module exists but has no digital presence
 ↓ Pack Controller witnesses module (first presence)
 ↓ App witnesses pack controller witnessing module (stronger presence)
 ↓ API-Bridge records entire chain (permanent presence)
-Result: Module now has unforgeable digital identity
+Result: Module now has verifiable digital presence
 ```
 
 ## Security Properties Through Binding
@@ -177,7 +177,7 @@ Each key represents a tensor link:
 
 ## Conclusion
 
-The modbatt-CAN implementation demonstrates that Web4's entity binding hierarchy is not theoretical but practical. Through cryptographic key chains and witnessed presence, we create unforgeable identity from web services down to individual hardware components.
+The modbatt-CAN implementation demonstrates that Web4's entity binding hierarchy is not theoretical but practical. Through cryptographic key chains and witnessed presence, we create verifiable presence from web services down to individual hardware components.
 
 This is Web4 in action: **Every entity, from API to battery cell, exists through being witnessed, and presence accumulates through hierarchical binding relationships.**
 

@@ -23,7 +23,7 @@ After completing 5 P0 blockers (Trust Oracle, Ed25519 Signatures, Witness System
 
 ### Components Complete
 
-#### 1. LCT Identity System ✅
+#### 1. LCT Presence System ✅
 
 **Implementation**: `lct_registry.py` (370 LOC)
 
@@ -298,7 +298,7 @@ N/A - Initial production release
 ## Reference Implementation
 
 All code in `web4-standard/implementation/reference/`:
-- `lct_registry.py` - LCT identity system
+- `lct_registry.py` - LCT presence system
 - `witness_system.py` - Witness attestations
 - `authorization_engine.py` - Authorization decisions
 - `trust_oracle.py` - Trust queries
@@ -334,7 +334,7 @@ Public domain
 **Status**: IMPLEMENTATION COMPLETE - HARDWARE BINDING REQUIRED
 
 **Next Steps**:
-1. **Implement hardware binding (P0)** - TPM/SE integration for unforgeable LCT identity
+1. **Implement hardware binding (P0)** - TPM/SE integration for verifiable LCT presence
 2. Deploy PostgreSQL Trust Oracle
 3. Deploy demurrage background service
 4. Multi-machine federation testing

@@ -211,7 +211,7 @@ def determine_verdict(self, alignment, compliance) -> Verdict:
 {
   "id": "WEB4-IDENTITY",
   "name": "Entity Identity",
-  "principle": "All entities must have verifiable, unforgeable identity",
+  "principle": "All entities must have verifiable, witness-hardened presence",
   "enforcement": {
     "alignment": {
       "required": true,

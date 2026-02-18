@@ -17,7 +17,7 @@ This document specifies the Aliveness Verification Protocol (AVP), a mechanism f
 
 ### 1.1 The Problem
 
-Hardware-bound LCTs create unforgeable identity anchors via TPM2 or TrustZone. However, hardware can be:
+Hardware-bound LCTs create verifiable presence anchors via TPM2 or TrustZone. However, hardware can be:
 - Destroyed (permanent loss)
 - Replaced (upgrade, failure)
 - Inaccessible (network partition, theft)

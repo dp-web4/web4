@@ -5,13 +5,13 @@
 **Author**: Analysis for Metalinxx Web4 Architecture
  **Date**: November 2024
  **Context**: Hardware-bound LCT (Linked Context Token) anchoring for ACT blockchain societies
- **Purpose**: Establish unforgeable binding between society root identity and physical hardware to prevent trust inheritance on cloned systems
+ **Purpose**: Establish verifiable binding between society root presence and physical hardware to prevent trust inheritance on cloned systems
 
 ------
 
 ## Executive Summary
 
-Web4 societies require cryptographic binding to physical hardware to maintain trust integrity across distributed edge-cloud topologies. When a society's data and blockchain are cloned to unauthorized hardware, the clone must lose its cryptographic trust anchor, preventing it from masquerading as the legitimate society instance. This document analyzes hardware security mechanisms suitable for serving as unforgeable roots of trust for society LCTs, with particular focus on edge deployment scenarios relevant to SAGE/SNARC architectures and ModBatt hardware integration.
+Web4 societies require cryptographic binding to physical hardware to maintain trust integrity across distributed edge-cloud topologies. When a society's data and blockchain are cloned to unauthorized hardware, the clone must lose its cryptographic trust anchor, preventing it from masquerading as the legitimate society instance. This document analyzes hardware security mechanisms suitable for serving as verifiable roots of trust for society LCTs, with particular focus on edge deployment scenarios relevant to SAGE/SNARC architectures and ModBatt hardware integration.
 
 The core architectural principle: **A society's root LCT derives its signing authority from keys that are cryptographically bound to specific physical silicon, making the trust relationship non-transferable through data cloning.**
 
@@ -160,7 +160,7 @@ The advantage: the key is never stored, only derived when needed from the PUF re
 
 Intrinsic ID's SRAM PUF uses the power-on state of SRAM cells (which settle randomly based on transistor variations) as the PUF source. NXP's EdgeLock SE050 optionally includes PUF for the most sensitive keys.
 
-For Web4 societies requiring maximum hardware binding assurance, PUF-derived root keys provide the strongest possible binding to physical silicon - the society's root identity literally cannot exist apart from that specific chip.
+For Web4 societies requiring maximum hardware binding assurance, PUF-derived root keys provide the strongest possible binding to physical silicon - the society's root presence literally cannot exist apart from that specific chip.
 
 ### 1.4 Cloud HSMs and Key Management Services
 

@@ -2,7 +2,7 @@
 
 ## The Problem
 
-Today's internet lacks a fundamental primitive: **unforgeable digital presence**. While we have cryptographic identity (PKI) and distributed systems (blockchain), we lack a way to make digital entities as real and trustworthy as physical ones. Current systems suffer from:
+Today's internet lacks a fundamental primitive: **verifiable digital presence**. While we have cryptographic identity (PKI) and distributed systems (blockchain), we lack a way to make digital entities as real and trustworthy as physical ones. Current systems suffer from:
 
 - **Identity theft**: Digital identities can be stolen, spoofed, or impersonated
 - **Trust deficit**: No systematic way to build and verify trust through observation
@@ -14,7 +14,7 @@ Today's internet lacks a fundamental primitive: **unforgeable digital presence**
 Web4 introduces **witnessed presence** as a new internet primitive. Just as TCP/IP created reliable communication and HTTPS created secure communication, Web4 creates **trustworthy presence** through four fundamental mechanisms:
 
 ### 1. Binding: Permanent Identity
-- Creates unforgeable link between entities and their digital identity (LCT)
+- Creates verifiable link between entities and their digital presence (LCT)
 - Hardware-rooted for physical devices
 - Once bound, identity cannot be transferred or stolen
 
@@ -90,7 +90,7 @@ Web4 enables entirely new markets:
 
 ### IoT Trust Networks
 - 75 billion IoT devices by 2025 need trustworthy identity
-- Web4 provides unforgeable device identity
+- Web4 provides verifiable device presence
 - Enables autonomous device economies
 
 ### Decentralized Energy Markets
@@ -159,7 +159,7 @@ Web4 is ready for:
 
 ## Conclusion
 
-Web4 represents a fundamental evolution of the internet. Just as HTTPS made commerce possible online, Web4 makes **trust** possible online. By creating unforgeable digital presence through witnessed observation, Web4 enables:
+Web4 represents a fundamental evolution of the internet. Just as HTTPS made commerce possible online, Web4 makes **trust** possible online. By creating verifiable digital presence through witnessed observation, Web4 enables:
 
 - Devices that can't be impersonated
 - AI agents that build real reputation

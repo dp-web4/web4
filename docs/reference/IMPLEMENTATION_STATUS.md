@@ -83,7 +83,7 @@ Trust, attention, and coherence emerge as **flows** from energy allocation patte
 
 #### What Exists
 
-- LCT used as unforgeable identity in Legion's ATP implementation
+- LCT used as verifiable presence in Legion's ATP implementation
 - Cryptographic linking (Ed25519 signatures)
 - Context binding (ATP proofs bound to specific transactions)
 - Trust scoring attached to LCTs

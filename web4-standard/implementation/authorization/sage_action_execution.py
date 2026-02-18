@@ -155,7 +155,7 @@ def sage_cogitate_iteration(iteration_num, previous_insights):
         },
         {
             "iteration": 6,
-            "insight": "Hardware binding creates unforgeable identity anchor for AI agents",
+            "insight": "Hardware binding creates verifiable presence anchor for AI agents",
             "quality": 0.78,
             "depth": "identity"
         },

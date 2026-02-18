@@ -3,7 +3,7 @@
 Web4 Integration Tests: Identity + Reputation
 ==============================================
 
-Tests integration between LCT identity system and reputation tracking.
+Tests integration between LCT presence system and reputation tracking.
 
 Validates:
 - Witness attestation updates reputation

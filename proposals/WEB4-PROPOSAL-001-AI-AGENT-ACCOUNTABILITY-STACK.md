@@ -5,7 +5,7 @@
 **Category**: Core
 **Created**: 2025-12-28
 **Authors**: Sessions 96-99 Research (Legion autonomous research)
-**Requires**: LCT Identity System, ATP Resource System
+**Requires**: LCT Presence System, ATP Resource System
 
 ---
 
@@ -608,7 +608,7 @@ All phases are optional and non-breaking. Systems can adopt incrementally.
 ### Dependencies
 
 **Required**:
-- LCT Identity System (for identity URIs)
+- LCT Presence System (for identity URIs)
 - ATP Resource System (for budget tracking)
 - TPM 2.0 or equivalent (for hardware binding)
 

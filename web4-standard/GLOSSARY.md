@@ -10,7 +10,7 @@
 - **Nature**: Web4 is an **ontology** — a formal structure of typed relationships, not a flat component list
 - **MCP**: I/O membrane — bridges AI models to external resources
 - **RDF**: Ontological backbone — all trust relationships are typed RDF triples, all MRH graphs are RDF
-- **LCT**: Identity substrate — unforgeable presence reification
+- **LCT**: Presence substrate — verifiable presence reification
 - **T3/V3\*MRH**: Trust/Value tensors *contextualized by* Markov Relevancy Horizon — trust only exists within role-scoped fractal context
 - **ATP/ADP**: Bio-inspired energy metabolism — value flows through work
 - **Built on this foundation**: Societies, SAL, AGY, ACP, Dictionaries, R6/R7

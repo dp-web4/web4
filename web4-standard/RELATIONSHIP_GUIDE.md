@@ -8,7 +8,7 @@ Web4 defines four fundamental mechanisms for entities to relate and interact. Ea
 
 ### 1. BINDING - Permanent Identity Attachment
 
-**Purpose**: Create an unforgeable, permanent link between entities, typically establishing parent-child hierarchies.
+**Purpose**: Create a verifiable, permanent link between entities, typically establishing parent-child hierarchies.
 
 **Key Characteristics:**
 - Permanent and irreversible (except through revocation)

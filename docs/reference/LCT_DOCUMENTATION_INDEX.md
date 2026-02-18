@@ -70,7 +70,7 @@ LCT (Linked Context Token) documentation is distributed across multiple files. T
 
 ## Phase Completion Reports
 
-These documents track the implementation progress of the LCT identity system:
+These documents track the implementation progress of the LCT presence system:
 
 | Phase | Document | Status |
 |-------|----------|--------|
@@ -109,7 +109,7 @@ lct://web4:society-alpha:member@local   # Web4 society member locally
 
 | Script | What It Tests |
 |--------|--------------|
-| `archive/game-prototype/run_lct_e2e_integration_test.py` | Full LCT identity system |
+| `archive/game-prototype/run_lct_e2e_integration_test.py` | Full LCT presence system |
 | `archive/game-prototype/run_sage_lct_integration_test.py` | SAGE edge device patterns |
 | `archive/game-prototype/run_identity_consensus_test.py` | Identity consensus |
 

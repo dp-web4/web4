@@ -29,7 +29,7 @@ For Web4, MRH is the rigorous notion of a **context window** for identity, trust
 
 ## 2. Intended role of MRH in Web4 LCTs
 
-Web4 defines **Linked Context Tokens (LCTs)** as unforgeable identity primitives bound to Ed25519 keys and used to represent agents, roles, societies, and resources.
+Web4 defines **Linked Context Tokens (LCTs)** as verifiable presence primitives bound to Ed25519 keys and used to represent agents, roles, societies, and resources.
 
 The whitepaper vision (and related internal design notes) intend that:
 

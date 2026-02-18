@@ -67,7 +67,7 @@ AI agents need to act on behalf of humans across multiple services, including ma
 
 ### What We Have (Security Fixes Complete)
 
-**1. LCT Identity System**
+**1. LCT Presence System**
 - Entity identification with metadata
 - Entity type declaration (human, agent, service, hardware)
 - Provenance tracking (created by, operated by)

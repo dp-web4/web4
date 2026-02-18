@@ -326,11 +326,11 @@ std::unique_ptr<TPairingChallenge> challenge =
 
 The modbatt-CAN implementation demonstrates that these four mechanisms are not just theoretical concepts but practical patterns for building secure, trustworthy IoT systems. Each mechanism serves a specific purpose:
 
-- **Binding** provides unforgeable hardware identity
+- **Binding** provides verifiable hardware presence
 - **Pairing** enables secure operational communication
 - **Witnessing** builds trust through observation
 - **Broadcast** enables discovery without commitment
 
-Together, they create a complete trust architecture from blockchain to CAN bus, implementing Web4's vision of witnessed presence and unforgeable entity relationships in real hardware.
+Together, they create a complete trust architecture from blockchain to CAN bus, implementing Web4's vision of witnessed presence and verifiable entity relationships in real hardware.
 
 *"In the modbatt-CAN system, every battery module broadcasts to be discovered, binds to establish identity, witnesses to build trust, and pairs to exchange energy."*

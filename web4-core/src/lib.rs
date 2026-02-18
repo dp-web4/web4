@@ -10,7 +10,7 @@
 //!
 //! This crate provides the foundational primitives for Web4:
 //!
-//! - **LCT (Linked Context Token)**: Non-transferable identity tokens
+//! - **LCT (Linked Context Token)**: Non-transferable presence tokens
 //! - **T3 (Trust Tensor)**: 3 root dimensions (Talent/Training/Temperament),
 //!   fractally extensible via RDF sub-dimensions
 //! - **V3 (Value Tensor)**: 3 root dimensions (Valuation/Veracity/Validity),

@@ -9,7 +9,7 @@
 
 ## Abstract
 
-LCT (Linked Context Token) is an unforgeable identity primitive for Web4 societies. An LCT cryptographically binds a society identity to an Ed25519 public key, creating a verifiable identifier that cannot be forged or impersonated. LCTs serve as the foundation for trust propagation, ATP marketplace transactions, cross-society messaging, and energy-backed identity bonds.
+LCT (Linked Context Token) is a verifiable presence primitive for Web4 societies. An LCT cryptographically binds a society identity to an Ed25519 public key, creating a verifiable identifier that cannot be forged or impersonated. LCTs serve as the foundation for trust propagation, ATP marketplace transactions, cross-society messaging, and energy-backed identity bonds.
 
 ---
 
@@ -671,7 +671,7 @@ All fields that use LCT across Web4 codebase:
 
 ## 13. Summary
 
-LCT (Linked Context Token) provides unforgeable, cryptographically-bound identity for Web4 societies. By linking identities to Ed25519 key pairs and energy capacity commitments, LCT enables:
+LCT (Linked Context Token) provides verifiable, cryptographically-bound presence for Web4 societies. By linking identities to Ed25519 key pairs and energy capacity commitments, LCT enables:
 
 - Decentralized trust networks
 - Sybil-resistant marketplaces

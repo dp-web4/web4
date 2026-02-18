@@ -32,7 +32,7 @@ Web4 is research into **trust-native distributed intelligence**. Instead of plat
 
 ## Key Concepts (2-minute overview)
 
-**LCT (Linked Context Token)**: Your digital identity—unforgeable, witnessable, contextual.
+**LCT (Linked Context Token)**: Your digital presence—verifiable, witnessable, contextual.
 
 **Trust Tensor (T3)**: Multi-dimensional trust score. Not just "trusted" but "trusted for what, by whom, in what context."
 

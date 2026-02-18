@@ -649,7 +649,7 @@ Hardware binding is **not optional** for production Web4. It's the foundation of
 
 **Recommended Start**: Phase 1 (capability detection) - can be done immediately with no risk, provides data for Phase 2/3 decisions.
 
-**Expected Outcome**: Web4 LCT identity becomes truly unforgeable, enabling production deployment with confidence in the trust model.
+**Expected Outcome**: Web4 LCT presence becomes truly verifiable, enabling production deployment with confidence in the trust model.
 
 ---
 

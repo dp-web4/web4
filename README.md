@@ -181,7 +181,7 @@ The original prototype (`/game/`) has been archived to `archive/game-prototype/`
 | Phase 2c Circadian Coordinator | Temporal/phase-aware decisions | Validated |
 | Phase 2d Adaptive Coordinator | EM-state modulation | Validated |
 | Pattern Exchange Protocol | Cross-system learning transfer | Operational |
-| LCT Identity Specification | Unified identity format | v1.0.0 draft |
+| LCT Presence Specification | Unified identity format | v1.0.0 draft |
 
 **Validation Results** (Dec 2025):
 - 76% prediction validation (13 of 17 predictions confirmed)
@@ -225,7 +225,7 @@ Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
 **Core equation components:**
 - **MCP** (Model Context Protocol) — I/O membrane for inter-entity communication
 - **RDF** (Resource Description Framework) — Ontological backbone; all trust relationships are typed triples, all MRH graphs are RDF, all semantic queries use SPARQL
-- **LCT** (Linked Context Token) — Unforgeable identity anchored to hardware
+- **LCT** (Linked Context Token) — Verifiable presence anchored to hardware
 - **T3/V3** (Trust/Value Tensors) — Multi-dimensional trust (Talent/Training/Temperament) and value (Valuation/Veracity/Validity), bound to entity-role pairs via RDF
 - **MRH** (Markov Relevancy Horizon) — Fractal context scoping, implemented as RDF graphs
 - **ATP/ADP** (Allocation Transfer/Discharge Packets) — Bio-inspired energy metabolism

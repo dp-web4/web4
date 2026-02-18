@@ -6,8 +6,8 @@
 
 //! Linked Context Token (LCT) Implementation
 //!
-//! LCTs are non-transferable identity tokens that serve as the cryptographic
-//! root identity for entities in Web4. Each LCT is permanently bound to a
+//! LCTs are non-transferable presence tokens that serve as the cryptographic
+//! root presence anchor for entities in Web4. Each LCT is permanently bound to a
 //! single entity and cannot be stolen, sold, or faked.
 //!
 //! # P0 BLOCKER: Hardware Binding

@@ -3,7 +3,7 @@
 TPM-Bound Linked Context Token (LCT) Implementation
 
 Provides hardware-rooted identity by binding LCTs to TPM 2.0 signing keys.
-This creates unforgeable digital presence - the private key NEVER leaves the TPM.
+This creates verifiable digital presence - the private key NEVER leaves the TPM.
 
 Key Concepts:
 - **TPM Binding**: LCT identity is tied to a TPM-resident signing key

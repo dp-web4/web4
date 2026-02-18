@@ -58,7 +58,7 @@ The canonical LCT object MUST be represented as follows:
 
 ### 2.2 Binding Fields
 
-The binding establishes the permanent, unforgeable link between the LCT and its entity:
+The binding establishes the permanent, verifiable link between the LCT and its entity:
 
 - **entity_type** (REQUIRED): One of `"human"`, `"ai"`, `"organization"`, `"role"`, `"task"`, `"resource"`, `"device"`, `"service"`, `"oracle"`, `"accumulator"`, `"dictionary"`, `"hybrid"`
 - **public_key** (REQUIRED): The entity's public key in COSE key format, multibase-encoded

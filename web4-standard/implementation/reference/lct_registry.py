@@ -6,7 +6,7 @@ Linked Context Token (LCT) identity management system.
 Handles minting, storage, verification, and lifecycle of Web4 identities.
 
 Key Concepts:
-- LCTs are unforgeable digital identities
+- LCTs are verifiable digital presences
 - Each entity gets exactly one LCT per society
 - Birth certificates prove society membership
 - Hardware binding (future) prevents credential theft

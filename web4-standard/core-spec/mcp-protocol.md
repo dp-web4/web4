@@ -13,7 +13,7 @@ Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
         ↑      ↑     ↑       ↑          ↑
         │      │     │       │          └── Energy metabolism
         │      │     │       └── Trust contextualized by horizon
-        │      │     └── Identity substrate
+        │      │     └── Presence substrate
         │      └── Ontological backbone (semantic structure)
         └── I/O membrane (this spec)
 ```

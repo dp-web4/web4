@@ -11,7 +11,7 @@ SAL is normative for identity lifecycle, role prerequisites, provenance, and att
 ## 0. Notation and Terms
 
 - **MUST/SHOULD/MAY**: As defined in RFC 2119.
-- **LCT**: Linked Context Token (the unforgeable footprint of an entity).
+- **LCT**: Linked Context Token (the verifiable footprint of an entity).
 - **Citizen**: The *genesis role* conferred at LCT creation within a society.
 - **Society**: Any delegative entity (organization, network, platform, polity) with authority to issue citizenship and bind law.
 - **Authority**: The binding capability of a society to create roles, delegate permissions, and enforce law.

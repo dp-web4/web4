@@ -42,7 +42,7 @@ Web4 is trust infrastructure for AI agent coordination. Provides identity (LCT),
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| LCT identity system | Working | `simulations/` |
+| LCT presence system | Working | `simulations/` |
 | Trust tensors (T3/V3) | Working | `simulations/`, `web4-trust-core/` |
 | ATP economics | Working | `simulations/` |
 | Federation/consensus | Working | `simulations/` |

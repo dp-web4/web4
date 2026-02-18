@@ -34,7 +34,7 @@ More devices witnessing the same identity creates *stronger* unforgeability, not
 | **Hardware Anchor** | Cryptographic root of trust (TPM, Secure Enclave, StrongBox, FIDO2 authenticator) |
 | **Device LCT** | LCT bound to a specific hardware anchor |
 | **Root LCT** | Primary identity LCT that device LCTs attest to |
-| **Device Constellation** | Set of all device LCTs for a single root identity |
+| **Device Constellation** | Set of all device LCTs for a single root presence |
 | **Cross-Device Witnessing** | Mutual attestation between devices in a constellation |
 | **Enrollment Ceremony** | Protocol for adding new device to constellation |
 | **Recovery Quorum** | Minimum devices required to recover identity |

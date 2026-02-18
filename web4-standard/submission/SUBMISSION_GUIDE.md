@@ -108,7 +108,7 @@ The submission includes multiple documents that should be submitted as a suite:
 ## Key Messages for IETF Community
 
 ### Unique Value Proposition
-"Web4 introduces witnessed presence as a fundamental internet primitive, enabling unforgeable digital identity through cryptographic witnessing rather than central authorities."
+"Web4 introduces witnessed presence as a fundamental internet primitive, enabling verifiable digital presence through cryptographic witnessing rather than central authorities."
 
 ### Technical Merit
 - Built on proven primitives (HPKE, X25519, Ed25519)

@@ -17,9 +17,9 @@ The equation encodes structural relationships, not a parts list. T3/V3 tensors a
 ## Architectural Layers (the equation)
 
 ### 1. Linked Context Tokens (LCTs)
-**Unforgeable Digital Presence**
+**Verifiable Digital Presence**
 
-Every entity in Web4—human, AI, device, or service—has an LCT that serves as its cryptographically-bound identity. LCTs are not just identifiers; they are living records of an entity's existence, relationships, and reputation.
+Every entity in Web4—human, AI, device, or service—has an LCT that serves as its cryptographically-bound presence. LCTs are not just identifiers; they are living records of an entity's existence, relationships, and reputation.
 
 - Cryptographic binding to public keys
 - Immutable creation records (birth certificates)
@@ -267,7 +267,7 @@ Unlike Web3's focus on financial sovereignty through blockchain, Web4 focuses on
 
 This shift from ownership to relationship, from transaction to interaction, from consensus to context, creates an internet where:
 
-- **Identity is unforgeable** but privacy-preserving
+- **Presence is verifiable** but privacy-preserving
 - **Trust is measurable** but context-specific
 - **Agents are autonomous** but accountable
 - **Accountability is decentralized** but effective

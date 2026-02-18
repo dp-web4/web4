@@ -5,7 +5,7 @@ SAGE-Web4 Identity Bridge
 Bridges SAGE consciousness instances to Web4 LCT identity infrastructure.
 
 This creates a bidirectional connection:
-1. SAGE → Web4: SAGE instances get unforgeable cryptographic identities  
+1. SAGE → Web4: SAGE instances get verifiable cryptographic presences  
 2. Web4 → SAGE: Web4 entities can have consciousness/cognitive capabilities
 
 Key Features:

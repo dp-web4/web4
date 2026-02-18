@@ -47,7 +47,7 @@ The Spatial Web lacks:
 Current Spatial Web proposals have:
 - **Weak Identity Binding**: DIDs mentioned but not cryptographically enforced
 - **No Birth Certificates**: No witness-verified entity creation
-- **Missing Proof-of-presence**: No unforgeable digital presence
+- **Missing Proof-of-presence**: No verifiable digital presence
 - **Revocation Gaps**: No clear mechanism for identity revocation
 
 ### 3. Trust Accountability Layer

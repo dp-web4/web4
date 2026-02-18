@@ -15,7 +15,7 @@ This specification defines how Model Context Protocol (MCP) servers function as 
 
 An MCP server is a standardized interface that enables AI models to interact with external resources through a unified protocol. In the Web4 context, each MCP server:
 
-- **Has its own LCT** (Linked Context Token) for identity and trust tracking
+- **Has its own LCT** (Linked Context Token) for presence and trust tracking
 - **Maintains an MRH** (Markov Relevancy Horizon) of related contexts
 - **Functions as both sensor and effector** in the SAGE architecture
 - **Delegates to underlying resources** while maintaining abstraction
@@ -108,7 +108,7 @@ The canonical Web4 equation:
 Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-MCP is the **I/O membrane** — the sensory interface through which entities interact. RDF provides the ontological backbone, LCTs provide identity, T3/V3*MRH provides role-contextualized trust, and ATP/ADP provides energy metabolism. MCP servers are entities in the RDF graph, and their relationships are typed triples.
+MCP is the **I/O membrane** — the sensory interface through which entities interact. RDF provides the ontological backbone, LCTs provide presence, T3/V3*MRH provides role-contextualized trust, and ATP/ADP provides energy metabolism. MCP servers are entities in the RDF graph, and their relationships are typed triples.
 
 ### 3.2 Why MCP Completes Web4
 
@@ -402,7 +402,7 @@ MCP servers provide trust attestations:
 
 MCP servers as Web4 entities complete the equation for distributed intelligence by providing the crucial bridge between AI models and external resources. Their dual nature as both responsive and delegative entities makes them unique in the Web4 taxonomy, enabling complex workflows while maintaining the trust and context preservation that Web4 demands.
 
-By treating MCP servers as first-class entities with their own LCTs, MRH, and trust metrics, Web4 creates a unified framework where AI agents can reliably interact with the full spectrum of digital resources, from databases to APIs to running processes, all while maintaining cryptographic identity, contextual relevance, and trust-based coordination.
+By treating MCP servers as first-class entities with their own LCTs, MRH, and trust metrics, Web4 creates a unified framework where AI agents can reliably interact with the full spectrum of digital resources, from databases to APIs to running processes, all while maintaining cryptographic presence, contextual relevance, and trust-based coordination.
 
 ---
 

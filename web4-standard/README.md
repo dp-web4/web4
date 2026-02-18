@@ -22,7 +22,7 @@ Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
 
 - **MCP** (Model Context Protocol): I/O membrane — bridges AI models to external resources
 - **RDF** (Resource Description Framework): Ontological backbone — all MRH graphs, trust tensor bindings, and semantic relationships are expressed as typed RDF triples queryable via SPARQL
-- **LCT** (Linked Context Token): Identity substrate — unforgeable presence reification with cryptographic binding
+- **LCT** (Linked Context Token): Presence substrate — verifiable presence reification with cryptographic binding
 - **T3/V3** (Trust/Value Tensors): Trust (Talent/Training/Temperament) and Value (Valuation/Veracity/Validity), bound to entity-role pairs via RDF — trust is a relationship, not a property
 - **MRH** (Markov Relevancy Horizon): Fractal context scoping — implemented as RDF graphs that compose fractally (graph of graphs)
 - **ATP/ADP** (Allocation Transfer/Discharge Packets): Bio-inspired energy metabolism where value flows through work
@@ -173,7 +173,7 @@ Web4 integrates with emerging semantic protocols (HSML, HSTP, Active Inference) 
 ### ✅ Complete Components
 
 #### Foundation Layer
-- **LCTs**: Linked Context Token specification with unforgeable identity
+- **LCTs**: Linked Context Token specification with verifiable presence
 - **MRH**: Markov Relevancy Horizon as RDF graphs with SPARQL queries
 - **Trust**: T3/V3 tensors with role-contextual scoring
 - **Relationships**: Binding, pairing, witnessing, broadcast mechanisms

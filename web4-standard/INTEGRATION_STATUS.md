@@ -107,7 +107,7 @@ web4-standard/
 ### 2. Web4 Philosophy Preserved
 - ✅ Four distinct relationship mechanisms defined
 - ✅ Witnessed presence through MRH tensors
-- ✅ Hardware binding for unforgeable identity
+- ✅ Hardware binding for verifiable presence
 - ✅ Trust accumulation through ATP/ADP metering
 
 ### 3. Standards Compliance

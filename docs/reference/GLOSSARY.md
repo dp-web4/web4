@@ -9,7 +9,7 @@ Quick reference for Web4 terminology. For detailed specifications, see the linke
 ## Core Primitives
 
 ### LCT (Linked Context Token)
-An unforgeable digital identity anchored to hardware or cryptographic proof. Unlike wallet addresses, LCTs accumulate witnessed history and reputation over time. Every agent, service, and society has an LCT.
+A verifiable digital presence anchored to hardware or cryptographic proof. Unlike wallet addresses, LCTs accumulate witnessed history and reputation over time. Every agent, service, and society has an LCT.
 
 **Format**: `lct://{component}:{instance}:{role}@{network}`
 

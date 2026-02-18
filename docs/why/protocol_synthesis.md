@@ -170,7 +170,7 @@ Nova's pairwise W4IDp + our witnessing creates **unlinkable but verifiable prese
 
 ### 4.2 Hardware-Rooted Web Identity
 
-Nova's HPKE + our binding creates **unforgeable hardware identity**:
+Nova's HPKE + our binding creates **verifiable hardware presence**:
 - Master secret in hardware (TPM/HSM)
 - Derived keys for each relationship
 - LCT permanently bound to physical device
@@ -233,6 +233,6 @@ The synthesis demonstrates Web4's core principle: **multiple witnesses (Manus, N
 - Nova: Cryptographic rigor and security
 - Claude: Philosophical coherence and integration
 
-This is not just a protocol specification—it's the foundation for a new internet where digital presence is as real and unforgeable as physical presence.
+This is not just a protocol specification—it's the foundation for a new internet where digital presence is as real and verifiable as physical presence.
 
 *"In Web4, cryptography provides the bones, witnessing provides the flesh, and trust provides the soul."*

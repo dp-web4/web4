@@ -19,7 +19,7 @@ Three independent identity models have emerged:
 
 1. **ACT Blockchain**: LCT relationships with pairing_status validation
 2. **SAGE Neural**: Expert IDs with namespace (e.g., "sage_thinker_expert_42")
-3. **Web4 Protocol**: Conceptual LCT identity system
+3. **Web4 Protocol**: Conceptual LCT presence system
 
 **Problem**: No standard format for cross-system identity representation
 
