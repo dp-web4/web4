@@ -25,6 +25,21 @@ Key principles:
 
 Canonical document: `github.com/dp-web4/HRM/forum/insights/synthon-framing.md`
 
+## SOIA-SAGE Convergence & PolicyGate (February 2026)
+
+SOIA (Self-Optimizing Intelligence Architecture, by Renee Karlstrom) maps near-exactly onto SAGE's IRP stack. Policy Entity is being **repositioned** as a SAGE IRP plugin (PolicyGate) rather than invented as a new system. PolicyGate wraps `PolicyEntity.evaluate()` as its IRP energy function, making policy evaluation a first-class participant in the consciousness loop.
+
+Key points for Web4:
+- PolicyEntity should be added as the 15th entity type in `entity-types.md` (Mode: Responsive/Delegative, Energy: Active)
+- `PolicyEvaluation` gains `accountability_frame` and `duress_context` fields (backward-compatible, defaults to "normal"/None)
+- CRISIS mode changes the accountability equation, not policy strictness
+- HRM owns the engine (PolicyGate IRP plugin); Web4 owns the ontology (entity taxonomy, evaluation API)
+
+Documents:
+- Design decision: `docs/history/design_decisions/POLICY-ENTITY-REPOSITIONING.md`
+- SOIA-SAGE mapping: `github.com/dp-web4/HRM/sage/docs/SOIA_IRP_MAPPING.md`
+- Convergence insight: `github.com/dp-web4/HRM/forum/insights/soia-sage-convergence.md`
+
 ## Cross-Model Strategic Review (February 2026)
 
 Three independent AI models (Grok, Nova, Claude) reviewed Web4 and converged on the same assessment. Key takeaways:
