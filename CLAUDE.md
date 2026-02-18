@@ -263,7 +263,7 @@ cd whitepaper
 
 ## Key Insights
 
-### LCT Unforgeability Through Witnessed Presence
+### LCT Resilience Through Witnessed Presence
 - **Presence exists only through witnessing** - An entity's presence is real to the extent it is observed and recorded
 - **Hierarchical witness chains** - LCTs link to other LCTs, creating trees of contextual witnessing
 - **Cross-domain validation** - LCT trees span ledgers, domains, and fractal boundaries

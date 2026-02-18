@@ -618,7 +618,7 @@ The birth certificate provides:
 ## 12. Specialized Entity: Policy
 
 ### 12.1 Policy Role
-Policy entities are first-class participants in the trust network that represent governance rules with their own identity, witnessing history, and hash-tracked versioning:
+Policy entities are first-class participants in the trust network that represent governance rules with their own LCT, witnessing history, and hash-tracked versioning:
 
 - **Evaluate** proposed actions against configurable rule sets
 - **Witness** member actions (allow/deny/warn decisions)
