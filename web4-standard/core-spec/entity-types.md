@@ -27,6 +27,7 @@ The following entity types are recognized in Web4:
 | **Accumulator** | Broadcast listeners and recorders | Presence validators, history indexers | Responsive | Passive (stores data) |
 | **Dictionary** | Living semantic bridges managing compression-trust | Medical-legal translator, AI model bridges, cultural interpreters | Responsive/Agentic | Active (translates) |
 | **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Mixed | Active |
+| **Policy** | Governance rules as living entities with IRP-backed evaluation | Enterprise safety rules, access policies, compliance frameworks | Responsive/Delegative | Active |
 | **Infrastructure** | Physical passive resources | Buildings, roads, machinery, tools | Passive | Passive |
 
 ### 2.2 Entity Behavioral Modes
@@ -614,7 +615,59 @@ The birth certificate provides:
 - **Inheritance**: Rights/responsibilities from parent
 - **Witnesses**: Who validated the birth
 
-## 12. Future Extensions
+## 12. Specialized Entity: Policy
+
+### 12.1 Policy Role
+Policy entities are first-class participants in the trust network that represent governance rules with their own identity, witnessing history, and hash-tracked versioning:
+
+- **Evaluate** proposed actions against configurable rule sets
+- **Witness** member actions (allow/deny/warn decisions)
+- **Evolve** through versioned updates (changing policy = new entity)
+- **Build** trust through evaluation accuracy and convergence quality
+- **Integrate** with SAGE's IRP plugin architecture via PolicyGate
+
+### 12.2 Policy Entity Characteristics
+
+| Property | Value |
+|----------|-------|
+| Mode | Responsive/Delegative |
+| Energy Pattern | Active |
+| LCT Format | `policy:<name>:<version>:<hash>` |
+| Immutability | Policy config is immutable once registered; updates create new entities |
+
+### 12.3 PolicyGate: IRP-Backed Evaluation
+
+When integrated with SAGE's IRP stack, PolicyEntity gains a runtime implementation (PolicyGate) that follows the IRP contract:
+
+- **Energy function**: `PolicyEntity.evaluate()` output as compliance score (0 = compliant, >0 = violation)
+- **Convergence**: Iterative refinement of actions toward policy compliance
+- **Trust metrics**: Same convergence-based trust as all IRP plugins
+- **ATP budgeting**: Policy evaluation participates in metabolic resource allocation
+
+### 12.4 Accountability Frames
+
+Policy evaluation includes an accountability frame reflecting the agent's metabolic context:
+
+| Frame | Metabolic States | Meaning |
+|-------|-----------------|---------|
+| Normal | WAKE, FOCUS | Standard accountability — agent chose this outcome |
+| Degraded | REST, DREAM | Reduced capabilities acknowledged |
+| Duress | CRISIS | Fight-or-flight — consequences beyond agent's control |
+
+CRISIS mode changes the **accountability equation**, not policy strictness. Both freeze (halt effectors) and fight (proceed with best action) are valid responses under duress. The audit trail records the duress context alongside the decision.
+
+### 12.5 Policy Trust Building
+
+Policy entities earn trust through:
+- Evaluation consistency and accuracy
+- Convergence quality when used as IRP plugin
+- Successful witness attestations from teams
+- Low false-positive/false-negative rates
+- Appropriate handling of edge cases and trust boundaries
+
+For implementation details, see the design decision: `docs/history/design_decisions/POLICY-ENTITY-REPOSITIONING.md`
+
+## 13. Future Extensions
 
 Potential entity types under consideration:
 - **Contract**: Smart contracts as entities

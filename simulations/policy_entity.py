@@ -135,6 +135,13 @@ class PolicyEvaluation:
     requires_approval: bool = False
     atp_cost: int = 0
 
+    # SAGE PolicyGate integration (2026-02-18)
+    # Accountability frame reflects metabolic state context:
+    #   "normal" (WAKE/FOCUS), "degraded" (REST/DREAM), "duress" (CRISIS)
+    # CRISIS changes the accountability equation, not policy strictness.
+    accountability_frame: str = "normal"
+    duress_context: Optional[Dict[str, Any]] = None
+
 
 # ============================================================================
 # Enterprise Presets
