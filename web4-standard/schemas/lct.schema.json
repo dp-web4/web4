@@ -22,7 +22,7 @@
       "properties": {
         "entity_type": {
           "type": "string",
-          "enum": ["human", "ai", "organization", "role", "task", "resource", "device", "service", "oracle", "accumulator", "dictionary", "hybrid", "policy", "infrastructure"]
+          "enum": ["human", "ai", "society", "organization", "role", "task", "resource", "device", "service", "oracle", "accumulator", "dictionary", "hybrid", "policy", "infrastructure"]
         },
         "public_key": {
           "type": "string",
