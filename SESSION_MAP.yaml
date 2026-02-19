@@ -4,13 +4,13 @@
 
 metadata:
   project: web4
-  last_updated: "2026-02-18T06:00:00Z"
+  last_updated: "2026-02-19T06:00:00Z"
   archivist_version: "1.3"
   total_sessions: 213
   focus: "Distributed Trust Infrastructure"
   date_range: "2025-08 to 2026-02"
   existing_manifest: "ARCHIVE_MANIFEST.md"
-  milestone: "LCT reframed from identity to witnessed presence (73 files across whitepaper + specs + implementation). 'Unforgeable' → 'verifiable/witness-hardened'. Identity emerges from accumulated witnessed presence. T3/V3 fractal RDF ontology formalized. 424 attack vectors stable."
+  milestone: "PolicyEntity as 15th entity type (IRP-backed evaluation, accountability frames). SOIA-SAGE convergence: PolicyEntity as plugin of plugins. LCT Unified Identity spec → Presence spec (renamed + 15 cross-refs). Multi-model forum: Grok/Nova/Claude participation perspectives. 424 attack vectors stable."
 
 # =============================================================================
 # RESEARCH ARCS
@@ -92,6 +92,39 @@ arcs:
       - "Emotional IRPs"
     files_location: "implementation/session81-101/"
     organization: "Track-based (track1, track2, track3, track4 per session)"
+
+  policy_entity_soia_convergence:
+    name: "PolicyEntity + SOIA-SAGE Convergence"
+    session_type: "interactive"
+    date: "2026-02-18"
+    status: "Active (Phase 2 blocked)"
+    key_themes:
+      - "PolicyEntity as 15th entity type (IRP-backed evaluation)"
+      - "Accountability frames and duress context"
+      - "SOIA-SAGE convergence: PolicyGate as PolicyEntity plugin"
+      - "Fractal self-similarity: PolicyEntity is a plugin of plugins"
+      - "PolicyGate Phase 1 COMPLETE (684 lines, 8/8 tests)"
+      - "Phase 2 BLOCKED: effector system not yet implemented"
+    deliverables:
+      - "web4-standard/core-spec/entity-types.md - Policy as 15th entity"
+      - "simulations/policy_entity.py - PolicyEvaluation with accountability fields"
+    crosslinks:
+      - {to: hrm, concept: "PolicyGate IRP plugin from SOIA-SAGE convergence"}
+
+  multi_model_forum:
+    name: "Multi-Model Participation Forum"
+    session_type: "interactive"
+    date: "2026-02-18"
+    status: "Complete"
+    key_themes:
+      - "Grok participation criteria and Web4 assessment"
+      - "Nova participation criteria and Web4 assessment"
+      - "Claude's participation perspective"
+    deliverables:
+      - "forum/grok/ - Grok's participation criteria"
+      - "forum/nova/ - Nova's assessment"
+      - "forum/claude/ - Claude's perspective"
+    note: "Three independent AI models assessed Web4 viability and participation criteria."
 
   lct_witnessed_presence_reframing:
     name: "LCT Reframing: Identity → Witnessed Presence"
