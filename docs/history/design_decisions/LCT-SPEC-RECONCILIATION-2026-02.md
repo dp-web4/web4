@@ -122,9 +122,10 @@ accommodate both. This is not actually a conflict — it's two views of the same
 
 | Fix | File | Description |
 |-----|------|-------------|
-| Entity types | `lct.schema.json` | Added `policy` and `infrastructure` to binding.entity_type enum |
+| Entity types | `lct.schema.json` | Added `policy`, `infrastructure`, `society` to binding.entity_type enum |
 | Witness roles | `lct.schema.json` | Added `existence, action, state, quality` to mrh.witnessing.role enum |
 | Birth cert | `lct.schema.json` | Added `issuing_society` to required fields and properties |
+| Deprecation | `core/lct_capability_levels.py` | Added deprecation notice for legacy 6-dim T3/V3 |
 
 ---
 
@@ -132,9 +133,10 @@ accommodate both. This is not actually a conflict — it's two views of the same
 
 ### Priority 1 (High Impact)
 
-- [ ] **Deprecate `core/lct_capability_levels.py`**: Add deprecation notice pointing to
-  `web4-standard/implementation/reference/lct_capability_levels.py`. Check what imports it.
-- [ ] **Add `society` to JSON schema entity_type enum**: Missing from schema but present in spec.
+- [x] **Deprecate `core/lct_capability_levels.py`**: Deprecation notice added (2026-02-19)
+  pointing to `web4-standard/implementation/reference/lct_capability_levels.py`.
+  15+ session/test files import EntityType from it — retained for compatibility.
+- [x] **Add `society` to JSON schema entity_type enum**: Added 2026-02-19.
 
 ### Priority 2 (Medium Impact)
 
