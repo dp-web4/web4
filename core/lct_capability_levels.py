@@ -1,6 +1,25 @@
 """
-LCT Capability Levels - Reference Implementation
-=================================================
+LCT Capability Levels - Reference Implementation (LEGACY — 6-dim tensors)
+==========================================================================
+
+⚠️  DEPRECATION NOTICE (2026-02-19)
+    This file uses the LEGACY 6-dimensional T3/V3 tensor schema:
+      T3: technical_competence, social_reliability, temporal_consistency,
+          witness_count, lineage_depth, context_alignment
+      V3: energy_balance, contribution_history, resource_stewardship,
+          network_effects, reputation_capital, temporal_value
+
+    The CANONICAL schema (per CLAUDE.md, ontology, JSON schema, and spec) uses
+    3 root dimensions:
+      T3: talent, training, temperament
+      V3: valuation, veracity, validity
+
+    CANONICAL version: web4-standard/implementation/reference/lct_capability_levels.py
+    Migration functions: web4-trust-core/src/tensor/t3.rs::from_legacy_6d()
+
+    This file is retained for backward compatibility with session/test imports
+    (which primarily use EntityType and CapabilityLevel, not the tensor classes).
+    New code SHOULD use the canonical version.
 
 Implements the LCT Capability Levels specification for Web4.
 
