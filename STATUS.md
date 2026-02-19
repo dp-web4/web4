@@ -451,15 +451,26 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - `docs/compliance/art9-risk-register-template.md`: EU AI Act risk management template
    - 6 pre-populated risks from Web4 threat model
 
+19. ✅ **Hardware-backed Web4Entity** (Feb 19, 2026)
+   - `implementation/reference/hardware_entity.py`: TPM2 + fractal DNA integration
+   - Team root entity with Level 5 TPM2-bound LCT (trust ceiling = 1.0)
+   - Hardware-signed R6 actions, AVP aliveness proof, PCR attestation
+   - Mixed hierarchy: hardware entities (Level 5) anchor software children (Level 4)
+   - Demo validated on Legion with real TPM2 hardware
+20. ✅ **TypeScript LCT document library** (Feb 19, 2026)
+   - `ledgers/reference/typescript/lct-document.ts`: Full LCT document model
+   - Matches `lct.schema.json`: T3/V3 tensors, MRH, birth certificate, attestations
+   - Builder pattern, validation, legacy 6-dim migration functions
+   - Complements existing URI parser (`lct-parser.ts`)
+
 ### Immediate (Feb 2026)
 
-19. 🔄 Implement LCT parsing libraries in Go (ACT) and TypeScript
-   - **TypeScript Status**: Full LCT URI parser complete (`ledgers/reference/typescript/lct-parser.ts`)
+21. 🔄 Implement LCT parsing library in Go (ACT)
+   - **TypeScript Status**: URI parser + document library COMPLETE
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-   - **Gap**: Full LCT JSON document library (birth certs, MRH, attestations)
-20. 🔄 Calibrate satisfaction threshold for combined filtering
-21. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-22. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+22. 🔄 Calibrate satisfaction threshold for combined filtering
+23. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+24. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 
 ### Near-Term (Q1 2026)
 
@@ -563,5 +574,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 19, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Fractal DNA reference implementation working. Cross-machine trust verification protocol designed. LCT schema reconciled across implementations.
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. Fractal DNA reference implementation working. Cross-machine trust verification protocol designed. LCT schema reconciled across implementations.
 
