@@ -463,14 +463,31 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Builder pattern, validation, legacy 6-dim migration functions
    - Complements existing URI parser (`lct-parser.ts`)
 
+21. ✅ **AVP transport layer** (Feb 19, 2026)
+   - `implementation/reference/avp_transport.py`: HTTP/JSON protocol for CMTVP
+   - AVPNode: combined server + client for bidirectional pairing
+   - Full flow: discovery → mutual AVP → bridge → heartbeat
+   - Tested: Legion TPM2 (real) ↔ simulated TrustZone on localhost
+22. ✅ **EK certificate chain verified** (Feb 19, 2026)
+   - `core/lct_binding/ek_attestation.py`: Intel root-of-trust extraction
+   - 2 EK certs (RSA + ECC), chain: Intel Root → ODCA → On-Die CA → EK
+   - CRL checked: not revoked, valid through 2049
+   - Attestation bundle for remote verifiers (2234 bytes)
+   - Root-of-trust: VERIFIED — genuine Intel ADL PTT hardware
+23. ✅ **Hardbound CLI** (Feb 19, 2026)
+   - `implementation/reference/hardbound_cli.py`: Enterprise team management
+   - Team creation with TPM2-bound root + admin
+   - Member management, hardware-signed R6 actions
+   - JSON output for automation integration
+
 ### Immediate (Feb 2026)
 
-21. 🔄 Implement LCT parsing library in Go (ACT)
+24. 🔄 Implement LCT parsing library in Go (ACT)
    - **TypeScript Status**: URI parser + document library COMPLETE
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-22. 🔄 Calibrate satisfaction threshold for combined filtering
-23. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-24. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+25. 🔄 Calibrate satisfaction threshold for combined filtering
+26. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+27. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 
 ### Near-Term (Q1 2026)
 
@@ -574,5 +591,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 19, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. Fractal DNA reference implementation working. Cross-machine trust verification protocol designed. LCT schema reconciled across implementations.
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON). EK certificate chain verified (Intel root-of-trust). Hardbound CLI for enterprise team management.
 
