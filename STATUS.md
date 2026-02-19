@@ -1,8 +1,8 @@
 # Web4 Implementation Status
 
-**Last Updated**: February 13, 2026
+**Last Updated**: February 19, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
-**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete.
+**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity.
 
 ---
 
@@ -416,17 +416,31 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - ACT Chain referenced as operational implementation (81,000+ lines Go)
    - Python/TypeScript reference implementations documented
 10. ✅ **Claude Code plugin** linked to [PR #20448](https://github.com/anthropics/claude-code/pull/20448)
+11. ✅ **TPM2 hardware binding validated on Legion** (Feb 19, 2026)
+   - All 9 tests passed: key creation, signing, verification, PCR read, attestation quote
+   - TCTI blocker from Dec 2025 resolved
+   - Level 5 LCT capability confirmed on Intel TPM 2.0
+   - See: `tests/sessions/test_legion_tpm2_live.py`, `tests/outputs/tpm2_live_validation_2026-02-19.json`
+12. ✅ **EU AI Act compliance mapping** (Feb 19, 2026)
+   - Article-by-article mapping: Art. 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 26, 61-68
+   - Strongest: Art. 12 (record-keeping), Art. 15 (cybersecurity)
+   - Includes implementation roadmap toward Aug 2, 2026 deadline
+   - See: `docs/strategy/eu-ai-act-compliance-mapping.md`
+13. ✅ **Web4 framing validated as coherence substrate** (Feb 19, 2026)
+   - SAGE sessions S39/S40: Web4 ontological framing creates Engaged Partnership attractor (C ≈ 0.65-0.70)
+   - Reproduced on 2 machines (Legion, Thor) without fine-tuning
+   - See: `docs/history/research/web4-framing-as-coherence-substrate.md`
+14. ✅ Formal threat model (v2.0) — `docs/reference/security/THREAT_MODEL.md`
 
 ### Immediate (Feb 2026)
 
-11. 🔄 Implement LCT parsing libraries in Go (ACT) and TypeScript
-   - **TypeScript Status**: WASM bindings exist in `web4-trust-core/pkg/`
-   - Exposes T3Tensor, V3Tensor, EntityTrust, WasmTrustStore
-   - Basic entity ID parsing (`type:name`) implemented
-   - **Gap**: Full LCT URL parsing (`lct://{component}:{instance}:{role}@{network}`)
-12. 🔄 Calibrate satisfaction threshold for combined filtering
-13. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-14. ✅ Formal threat model (v2.0) — `docs/reference/security/THREAT_MODEL.md`
+15. 🔄 Implement LCT parsing libraries in Go (ACT) and TypeScript
+   - **TypeScript Status**: Full LCT URI parser complete (`ledgers/reference/typescript/lct-parser.ts`)
+   - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
+   - **Gap**: Full LCT JSON document library (birth certs, MRH, attestations)
+16. 🔄 Calibrate satisfaction threshold for combined filtering
+17. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+18. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 
 ### Near-Term (Q1 2026)
 
@@ -528,7 +542,7 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 ---
 
-**Last Updated**: February 13, 2026
+**Last Updated**: February 19, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Attestation and proof system attacks (FS) complete with 100% detection rate.
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate.
 

@@ -750,6 +750,113 @@ class TPM2Provider(LCTBindingProvider):
             })
         return keys
 
+    def evict_key(self, key_id: str) -> bool:
+        """
+        Evict a persistent key from the TPM and remove its metadata.
+
+        Args:
+            key_id: Key identifier to evict
+
+        Returns:
+            True if successfully evicted
+        """
+        try:
+            # Load metadata to get handle
+            if key_id not in self._keys:
+                self._load_metadata(key_id)
+
+            metadata = self._keys[key_id]
+            handle = metadata["persistent_handle"]
+
+            # Evict from TPM
+            self._run_tpm2_command([
+                self.TPM2_EVICTCONTROL, "-C", "o", "-c", handle
+            ])
+
+            # Remove metadata file
+            safe_id = self._safe_filename(key_id)
+            meta_file = self.storage_dir / f"{safe_id}.json"
+            if meta_file.exists():
+                meta_file.unlink()
+
+            # Remove from cache
+            self._keys.pop(key_id, None)
+
+            return True
+        except Exception:
+            return False
+
+    def cleanup_orphaned_handles(self) -> dict:
+        """
+        Find and optionally evict TPM persistent handles that have no
+        corresponding metadata files. These are orphans from crashed
+        sessions or incomplete cleanup.
+
+        Returns:
+            Dict with 'tracked' (handles with metadata), 'orphaned'
+            (handles without metadata), and 'system' (non-Web4 handles)
+        """
+        result = {"tracked": [], "orphaned": [], "system": []}
+
+        try:
+            # Get all persistent handles from TPM
+            cap_result = self._run_tpm2_command(
+                ["tpm2_getcap", "handles-persistent"],
+                check=False
+            )
+            if cap_result.returncode != 0:
+                return result
+
+            # Parse handles
+            handles = []
+            for line in cap_result.stdout.decode().split('\n'):
+                line = line.strip()
+                if line.startswith('- 0x'):
+                    handles.append(int(line[2:], 16))
+
+            # Get tracked handles from metadata
+            tracked_handles = set()
+            for meta_file in self.storage_dir.glob("*.json"):
+                with open(meta_file, 'r') as f:
+                    metadata = json.load(f)
+                handle_str = metadata.get("persistent_handle", "")
+                if handle_str:
+                    tracked_handles.add(int(handle_str, 16))
+
+            # Classify handles
+            for handle in handles:
+                handle_hex = f"0x{handle:08x}"
+                if handle < self.PERSISTENT_HANDLE_BASE or handle >= self.PERSISTENT_HANDLE_BASE + 0x100:
+                    result["system"].append(handle_hex)
+                elif handle in tracked_handles:
+                    result["tracked"].append(handle_hex)
+                else:
+                    result["orphaned"].append(handle_hex)
+
+        except Exception:
+            pass
+
+        return result
+
+    def evict_orphaned_handles(self) -> int:
+        """
+        Evict all orphaned persistent handles in the Web4 namespace.
+
+        Returns:
+            Number of handles evicted
+        """
+        status = self.cleanup_orphaned_handles()
+        evicted = 0
+        for handle in status["orphaned"]:
+            try:
+                self._run_tpm2_command([
+                    self.TPM2_EVICTCONTROL, "-C", "o", "-c", handle
+                ])
+                evicted += 1
+            except Exception:
+                pass
+        return evicted
+
     def get_public_key(self, key_id: str) -> str:
         """
         Get public key PEM for a stored key.
