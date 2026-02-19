@@ -432,15 +432,34 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - See: `docs/history/research/web4-framing-as-coherence-substrate.md`
 14. ✅ Formal threat model (v2.0) — `docs/reference/security/THREAT_MODEL.md`
 
+15. ✅ **Fractal DNA reference implementation** (Feb 19, 2026)
+   - `implementation/reference/web4_entity.py`: Complete Web4 equation as living entity
+   - Composes: LCT + T3/V3 + ATP/ADP + PolicyGate + R6 + MRH + metabolic states
+   - Demo validates: trust evolution, ATP metabolism, policy denial, CRISIS transition
+   - See: private-context insight `fractal-dna-blueprint-2026-02-19.md`
+16. ✅ **Cross-machine trust verification protocol (CMTVP)** (Feb 19, 2026)
+   - `docs/strategy/cross-machine-trust-verification-protocol.md`: 3-phase protocol
+   - Discovery → Mutual AVP → Trust Bridge (with heartbeat and degradation)
+   - Simulation: `implementation/reference/cross_machine_trust.py`
+   - Key finding: trust is dynamic — degraded HW bridge < maintained SW bridge
+17. ✅ **LCT spec reconciliation** (Feb 19, 2026)
+   - `docs/history/design_decisions/LCT-SPEC-RECONCILIATION-2026-02.md`
+   - Found 6 categories of divergence across Python/TS/Rust/Schema
+   - Fixed JSON schema: added society/policy/infrastructure types, witness roles, issuing_society
+   - Deprecated legacy 6-dim tensors in `core/lct_capability_levels.py`
+18. ✅ **Art. 9 risk register template** (Feb 19, 2026)
+   - `docs/compliance/art9-risk-register-template.md`: EU AI Act risk management template
+   - 6 pre-populated risks from Web4 threat model
+
 ### Immediate (Feb 2026)
 
-15. 🔄 Implement LCT parsing libraries in Go (ACT) and TypeScript
+19. 🔄 Implement LCT parsing libraries in Go (ACT) and TypeScript
    - **TypeScript Status**: Full LCT URI parser complete (`ledgers/reference/typescript/lct-parser.ts`)
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
    - **Gap**: Full LCT JSON document library (birth certs, MRH, attestations)
-16. 🔄 Calibrate satisfaction threshold for combined filtering
-17. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-18. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+20. 🔄 Calibrate satisfaction threshold for combined filtering
+21. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+22. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 
 ### Near-Term (Q1 2026)
 
@@ -544,5 +563,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 19, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate.
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Fractal DNA reference implementation working. Cross-machine trust verification protocol designed. LCT schema reconciled across implementations.
 
