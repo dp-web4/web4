@@ -17,7 +17,10 @@ Requirements:
 
 Trust ceiling: 1.0 (hardware-bound)
 
-STATUS: DRAFT - Requires testing on Legion (native Linux with TPM)
+STATUS: VALIDATED - Full end-to-end test passed on Legion (2026-02-19)
+  - Key creation, signing, verification, PCR read, attestation quote all working
+  - See: tests/sessions/test_legion_tpm2_live.py
+  - See: tests/outputs/tpm2_live_validation_2026-02-19.json
 """
 
 import os
@@ -57,7 +60,7 @@ class TPM2Provider(LCTBindingProvider):
     Uses tpm2-tools for TPM operations. Keys are created in the TPM
     and cannot be extracted - only the TPM can perform signing operations.
 
-    STATUS: DRAFT - Written on CBP (no TPM), needs testing on Legion.
+    STATUS: VALIDATED on Legion (2026-02-19). Full end-to-end flow confirmed.
     """
 
     # TPM2 tool commands

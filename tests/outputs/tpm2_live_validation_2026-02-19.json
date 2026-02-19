@@ -1,0 +1,19 @@
+{
+  "test": "TPM2 Hardware Binding Validation",
+  "date": "2026-02-19T18:23:10.321509+00:00",
+  "machine": "Legion Pro 7 (dp-Legion-Pro-7-16IRX8H)",
+  "tpm_manufacturer": "Unknown",
+  "results": {
+    "primary_key": true,
+    "signing_key": true,
+    "key_load": true,
+    "persistent": true,
+    "public_key": true,
+    "signing": true,
+    "verification": true,
+    "pcr_read": true,
+    "attestation": true
+  },
+  "all_pass": true,
+  "conclusion": "Level 5 hardware binding operational"
+}
