@@ -2,7 +2,7 @@
 
 **Authors:** Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus
 
-**Updated:** February 16, 2026
+**Updated:** February 19, 2026
 
 ---
 
@@ -3255,7 +3255,7 @@ ATP Budget Available?
 ```json
 {
   "lct_id": "uuid-v4",
-  "entity_type": "human|ai|organization|role|task|resource|hybrid",
+  "entity_type": "human|ai|organization|role|task|resource|hybrid|device|thought|dictionary|society|event|location|concept|policy",
   "entity_metadata": {
     "created_at": "ISO-8601",
     "created_by": "creator_lct_id",
@@ -3697,4 +3697,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-02-18 04:37:01*
+*Generated: 2026-02-19 04:37:03*
