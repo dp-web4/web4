@@ -1,0 +1,47 @@
+{
+  "schema": "web4-audit-v1",
+  "timestamp": "2026-02-19T18:30:16.077500+00:00",
+  "agent": {
+    "lct_id": "lct:web4:ai:092bde4e254372b6",
+    "entity_type": "ai",
+    "capability_level": 5,
+    "hardware_binding": {
+      "type": "tpm2",
+      "anchor": "0x81010096",
+      "trust_ceiling": 1.0,
+      "key_extractable": false
+    }
+  },
+  "action": {
+    "type": "analyze_dataset",
+    "target": "dataset://sales-q4-2025",
+    "hash": "bf5c311fc65c2a656ba83d6338ece3e93ec93796e727637101338187aa77766c",
+    "signature": "MEQCIGWDcNOBgKDY6cqEErYipXKkBt+EZFhjupk4/vh1A6SsAiAu/TUCCHmFJB+fvN+gWqqv/PBXjJdr8uAjtqWbMfIe/Q==",
+    "algorithm": "ECDSA-P256-SHA256",
+    "verified": true
+  },
+  "attestation": {
+    "type": "tpm2_quote",
+    "pcr_values": {
+      "0": "a0a3127e4c4f0cff",
+      "1": "da2b0592d4d4d493",
+      "2": "ffc9e9d1642875f4",
+      "3": "da301acd1cfa3963",
+      "4": "17226fe6486fe058",
+      "5": "2c54e7c4bcc97b91",
+      "6": "da301acd1cfa3963",
+      "7": "eefa9f0e882406a2"
+    }
+  },
+  "aliveness": {
+    "verified": true,
+    "continuity_score": 1.0,
+    "content_score": 1.0,
+    "hardware_type": "tpm2"
+  },
+  "eu_ai_act_mapping": {
+    "art_12_record_keeping": "Hash-chained audit record with TPM signature",
+    "art_13_transparency": "Identity verifiable via LCT lct:web4:ai:092bde4e254372b6",
+    "art_15_cybersecurity": "Non-extractable TPM-bound key, PCR attestation"
+  }
+}
