@@ -22,7 +22,7 @@
       "properties": {
         "entity_type": {
           "type": "string",
-          "enum": ["human", "ai", "organization", "role", "task", "resource", "device", "service", "oracle", "accumulator", "dictionary", "hybrid"]
+          "enum": ["human", "ai", "organization", "role", "task", "resource", "device", "service", "oracle", "accumulator", "dictionary", "hybrid", "policy", "infrastructure"]
         },
         "public_key": {
           "type": "string",
@@ -46,8 +46,13 @@
     },
     "birth_certificate": {
       "type": "object",
-      "required": ["citizen_role", "context", "birth_timestamp", "birth_witnesses"],
+      "required": ["issuing_society", "citizen_role", "context", "birth_timestamp", "birth_witnesses"],
       "properties": {
+        "issuing_society": {
+          "type": "string",
+          "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+          "description": "LCT of the society issuing this birth certificate"
+        },
         "citizen_role": {
           "type": "string",
           "pattern": "^lct:web4:role:citizen:[a-z]+$",
@@ -115,7 +120,7 @@
             "required": ["lct_id", "role", "last_attestation"],
             "properties": {
               "lct_id": {"type": "string"},
-              "role": {"type": "string", "enum": ["time", "audit", "oracle", "peer"]},
+              "role": {"type": "string", "enum": ["time", "audit", "oracle", "peer", "existence", "action", "state", "quality"]},
               "last_attestation": {"type": "string", "format": "date-time"}
             }
           }
