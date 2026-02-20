@@ -1264,10 +1264,12 @@ class HardboundTeam:
         if "root" in team_state:
             team.root = team._entity_from_state(team_state["root"])
 
-        # Restore members
+        # Restore members (skip birth certificate files)
         members_dir = base / "members"
         if members_dir.exists():
             for member_file in sorted(members_dir.glob("*.json")):
+                if member_file.name.endswith("_birth_cert.json"):
+                    continue
                 member_state = json.loads(member_file.read_text())
                 member = team._entity_from_state(member_state)
                 team.members[member_state["name"]] = member
@@ -2968,11 +2970,12 @@ def demo():
           f"{len(policy.operator_min)} operator-min)")
     print(f"  Team ATP: {team.team_atp:.1f}/{team.team_atp_max:.1f} "
           f"({team.team_adp_discharged:.1f} discharged)")
+    print(f"  Birth certificates: {len(team.birth_certificates)}")
 
     print("\n" + "=" * 65)
     print("  Hardbound: Real enterprise AI governance.")
     print("  Hash-chained ledger. Role-based authorization.")
-    print("  Policy-from-ledger. Team ATP budget pool.")
+    print("  Policy-from-ledger. SAL birth certificates.")
     print("  State survives sessions. The chain remembers.")
     print("=" * 65)
 
