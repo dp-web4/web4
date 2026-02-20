@@ -2,7 +2,7 @@
 
 **Last Updated**: February 20, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
-**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity.
+**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational. Go LCT library complete. Cross-team trust bridges working.**
 
 ---
 
@@ -587,16 +587,30 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Nested societies verified: distinct LCT identities, independent law versions
    - See: `implementation/reference/sal_birth_cert_test.py`
 
+44. ✅ **Go LCT library (URI parser + document model)** (Feb 20, 2026)
+   - Full port from TypeScript: ParseURI/BuildURI/ValidateURI + Document struct
+   - 15 entity types, T3/V3 tensor operations, composite scoring, legacy 6-dim migration
+   - Document validation per lct.schema.json, JSON serialization roundtrip
+   - 43 tests pass (spec test vectors, validation, tensor ops, roundtrip)
+   - See: `ledgers/reference/go/lct/`
+45. ✅ **Cross-team trust bridges (HardboundOrganization)** (Feb 20, 2026)
+   - `OrgBridge` class: bridge lifecycle (NEW→ACTIVE→ESTABLISHED→DEGRADED→BROKEN)
+   - Mutual verification ceremony, heartbeat-driven trust evolution
+   - Cross-team R6 delegation with ATP forwarding (cost ∝ 1/trust)
+   - `HardboundOrganization`: multi-team governance, bridge management, persistence
+   - See: `implementation/reference/hardbound_org.py`
+46. ✅ **TPM2 handle cleanup automation** (Feb 20, 2026)
+   - Standalone `TPM2Cleanup` utility: scan, evict_orphaned, evict_all_web4
+   - Status report: system/tracked/orphaned/foreign handle classification
+   - CLI: `hardbound tpm2-cleanup [--evict|--evict-all]`
+   - See: `core/lct_binding/tpm2_cleanup.py`
+
 ### Immediate (Feb 2026)
 
-44. 🔄 Implement LCT parsing library in Go (ACT)
-   - **TypeScript Status**: URI parser + document library COMPLETE
-   - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-45. 🔄 Calibrate satisfaction threshold for combined filtering
-46. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-47. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-48. 🔄 Cross-team trust bridges within Hardbound
-49. 🔄 LCT registry implementation
+47. 🔄 Calibrate satisfaction threshold for combined filtering
+48. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+49. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+50. 🔄 LCT registry implementation
 
 ### Near-Term (Q1 2026)
 
