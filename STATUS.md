@@ -556,14 +556,42 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Recharge applied on each heartbeat tick
    - `flush()` method for explicit pre-shutdown flush
 
+38. ✅ **Governance stress test** (Feb 20, 2026)
+   - 200-action sustained load test across 5 actors with mixed roles
+   - Discovered death spiral: CRISIS state with 0.0 recharge → unrecoverable depletion
+   - Fix: crisis recharge 0→3, focus 1→2 ATP/tick (trickle prevents death spiral)
+   - Result: V-shaped ATP recovery, self-sustaining equilibrium (714 recharged = 714 discharged)
+   - See: `implementation/reference/governance_stress_test.py`
+39. ✅ **Attack surface analysis (30/30 defended)** (Feb 20, 2026)
+   - 30 attack vectors across 8 governance layers (hash-chain, RBAC, policy, costs, metabolic, recharge, multi-sig, heartbeat)
+   - 100% defense rate after policy integrity hash fix
+   - 3 API boundary issues noted (object-level access) — design choice, not logic bugs
+   - See: `implementation/reference/governance_attack_test.py`
+40. ✅ **Policy integrity hash** (Feb 20, 2026)
+   - `TeamPolicy._integrity_hash`: SHA-256 seal computed at construction
+   - `_resolve_policy()` verifies hash on each read — tampered cache auto-re-derives from ledger
+   - Closed attack vector 3.3 (direct policy cache manipulation)
+41. ✅ **T3/V3 reputation deltas in sign_action()** (Feb 20, 2026)
+   - EMA-weighted reputation updates from every action outcome
+   - ACTION_QUALITY map, cost-weighted quality, before/after snapshots in ledger
+42. ✅ **SAL birth certificates** (Feb 20, 2026)
+   - `BirthCertificate` class: SAL spec §2 compliance
+   - Generated on `create()` (admin) and `add_member()` (all members)
+   - JSON-LD format: entity, citizenRole, society, lawVersion, witnesses, rights, responsibilities
+   - Self-hash integrity verification, persisted as `<name>_birth_cert.json`
+   - Restored on `load()`, CLI `team-birth-cert` command
+   - See: `implementation/reference/hardbound_cli.py`
+
 ### Immediate (Feb 2026)
 
-38. 🔄 Implement LCT parsing library in Go (ACT)
+43. 🔄 Implement LCT parsing library in Go (ACT)
    - **TypeScript Status**: URI parser + document library COMPLETE
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-39. 🔄 Calibrate satisfaction threshold for combined filtering
-40. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-41. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+44. 🔄 Calibrate satisfaction threshold for combined filtering
+45. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+46. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+47. 🔄 Cross-team trust bridges within Hardbound
+48. 🔄 LCT registry implementation
 
 ### Near-Term (Q1 2026)
 
@@ -667,5 +695,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 20, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. Full governance stack operational: versioned policy, dynamic costs, metabolic timing, aggregate budgets, queryable analytics, self-sustaining ATP, quorum governance, heartbeat-driven ledger blocks.**
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. Full governance stack operational: versioned policy, dynamic costs, metabolic timing, aggregate budgets, queryable analytics, self-sustaining ATP, quorum governance, heartbeat-driven ledger blocks. Governance stress-tested (200 actions, self-sustaining equilibrium). 30-vector attack surface: 100% defended. T3/V3 reputation deltas from every action. SAL birth certificates for all team members.**
 
