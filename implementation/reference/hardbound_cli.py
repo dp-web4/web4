@@ -83,6 +83,85 @@ class TeamRole:
     OPERATOR_MIN = DEFAULT_OPERATOR_MIN
 
 
+class TeamHeartbeat:
+    """
+    Heartbeat-driven ledger timing.
+
+    The ledger doesn't write every action immediately — it aggregates
+    actions into blocks based on the team's metabolic state:
+
+      FOCUS:  15s heartbeat — intensive work, frequent commits
+      WAKE:   60s heartbeat — normal operation
+      REST:  300s heartbeat — reduced activity, batched updates
+      DREAM: 1800s heartbeat — consolidation, minimal writes
+      CRISIS:  5s heartbeat — emergency mode, near-real-time
+
+    Between heartbeats, actions accumulate in a pending buffer.
+    On each heartbeat tick, the buffer is flushed to a ledger block.
+
+    This is bio-inspired: metabolic rate controls information flow.
+    """
+
+    # Heartbeat intervals per metabolic state (seconds)
+    INTERVALS = {
+        "focus": 15,
+        "wake": 60,
+        "rest": 300,
+        "dream": 1800,
+        "crisis": 5,
+    }
+
+    def __init__(self, state: str = "wake"):
+        self.state = state
+        self.last_heartbeat = datetime.now(timezone.utc)
+        self.pending_actions: list = []
+        self.blocks_written = 0
+
+    @property
+    def interval(self) -> int:
+        """Current heartbeat interval in seconds."""
+        return self.INTERVALS.get(self.state, 60)
+
+    def seconds_since_last(self) -> float:
+        """Seconds since last heartbeat."""
+        now = datetime.now(timezone.utc)
+        return (now - self.last_heartbeat).total_seconds()
+
+    def should_flush(self) -> bool:
+        """Check if enough time has elapsed for a heartbeat flush."""
+        return self.seconds_since_last() >= self.interval
+
+    def queue_action(self, action: dict):
+        """Queue an action for the next heartbeat flush."""
+        self.pending_actions.append(action)
+
+    def flush(self) -> list:
+        """Flush pending actions and reset heartbeat timer."""
+        actions = list(self.pending_actions)
+        self.pending_actions = []
+        self.last_heartbeat = datetime.now(timezone.utc)
+        self.blocks_written += 1
+        return actions
+
+    def transition(self, new_state: str):
+        """Transition to a new metabolic state."""
+        if new_state != self.state:
+            old = self.state
+            self.state = new_state
+            return {"from": old, "to": new_state,
+                    "interval_change": f"{self.INTERVALS.get(old, 60)}s → {self.interval}s"}
+        return None
+
+    def to_dict(self) -> dict:
+        return {
+            "state": self.state,
+            "interval_seconds": self.interval,
+            "pending_actions": len(self.pending_actions),
+            "blocks_written": self.blocks_written,
+            "seconds_since_last": round(self.seconds_since_last(), 1),
+        }
+
+
 class TeamPolicy:
     """
     Versioned policy for team governance.
@@ -93,12 +172,47 @@ class TeamPolicy:
     - The full policy history is tamper-evident
     """
 
+    # Default action costs (ATP) — higher for more impactful actions
+    DEFAULT_ACTION_COSTS = {
+        # Admin actions (high cost — they change system state)
+        "approve_deployment": 25.0,
+        "emergency_shutdown": 50.0,
+        "rotate_credentials": 20.0,
+        "set_resource_limit": 15.0,
+        "add_member": 10.0,
+        "remove_member": 10.0,
+        "update_policy": 30.0,
+        "grant_role": 15.0,
+        "revoke_role": 15.0,
+        "set_atp_limit": 20.0,
+        # Operator actions (medium cost)
+        "deploy_staging": 20.0,
+        "run_migration": 25.0,
+        "scale_service": 15.0,
+        "update_config": 10.0,
+        "restart_service": 10.0,
+        # Agent actions (low cost — routine work)
+        "run_analysis": 5.0,
+        "review_pr": 5.0,
+        "execute_review": 3.0,
+        "run_diagnostics": 5.0,
+        "validate_schema": 3.0,
+        "analyze_dataset": 8.0,
+    }
+    DEFAULT_COST = 10.0  # Fallback for unknown actions
+
     def __init__(self, version: int = 1, admin_only: set = None,
-                 operator_min: set = None, custom_rules: dict = None):
+                 operator_min: set = None, custom_rules: dict = None,
+                 action_costs: dict = None):
         self.version = version
         self.admin_only = admin_only if admin_only is not None else set(TeamRole.DEFAULT_ADMIN_ONLY)
         self.operator_min = operator_min if operator_min is not None else set(TeamRole.DEFAULT_OPERATOR_MIN)
         self.custom_rules = custom_rules or {}
+        self.action_costs = action_costs if action_costs is not None else dict(self.DEFAULT_ACTION_COSTS)
+
+    def get_cost(self, action: str) -> float:
+        """Get the ATP cost for an action from policy."""
+        return self.action_costs.get(action, self.DEFAULT_COST)
 
     def to_dict(self) -> dict:
         return {
@@ -106,6 +220,7 @@ class TeamPolicy:
             "admin_only": sorted(list(self.admin_only)),
             "operator_min": sorted(list(self.operator_min)),
             "custom_rules": self.custom_rules,
+            "action_costs": self.action_costs,
         }
 
     @classmethod
@@ -115,6 +230,7 @@ class TeamPolicy:
             admin_only=set(data.get("admin_only", [])),
             operator_min=set(data.get("operator_min", [])),
             custom_rules=data.get("custom_rules", {}),
+            action_costs=data.get("action_costs"),
         )
 
     @classmethod
@@ -125,6 +241,7 @@ class TeamPolicy:
             admin_only=set(TeamRole.DEFAULT_ADMIN_ONLY),
             operator_min=set(TeamRole.DEFAULT_OPERATOR_MIN),
             custom_rules={},
+            action_costs=dict(cls.DEFAULT_ACTION_COSTS),
         )
 
 
@@ -376,6 +493,160 @@ class TeamLedger:
                     continue
         return entries[-n:]
 
+    def _all_entries(self) -> list:
+        """Load all entries (cached internally for analytics)."""
+        if not self.path.exists():
+            return []
+        entries = []
+        with open(self.path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        return entries
+
+    def query(self, actor: str = None, action_type: str = None,
+              decision: str = None, hw_only: bool = False,
+              since_seq: int = None, limit: int = None) -> list:
+        """
+        Query ledger entries with filters.
+
+        Args:
+            actor: Filter by actor name (in action dict)
+            action_type: Filter by action type (genesis, action, policy_update, add_member)
+            decision: Filter by decision (approved, denied)
+            hw_only: Only hardware-signed entries
+            since_seq: Only entries with sequence >= this
+            limit: Maximum entries to return
+
+        Returns:
+            List of matching entries (most recent first)
+        """
+        entries = self._all_entries()
+        results = []
+
+        for entry in entries:
+            action = entry.get("action", {})
+
+            if since_seq is not None and entry.get("sequence", 0) < since_seq:
+                continue
+            if actor and action.get("actor") != actor:
+                continue
+            if action_type and action.get("type") != action_type:
+                continue
+            if decision and action.get("decision") != decision:
+                continue
+            if hw_only and not entry.get("hw_signed"):
+                continue
+
+            results.append(entry)
+
+        # Most recent first
+        results.reverse()
+
+        if limit:
+            results = results[:limit]
+
+        return results
+
+    def analytics(self) -> dict:
+        """
+        Compute analytics over the entire ledger.
+
+        Returns:
+            {
+                "total_entries": int,
+                "actions": {"total": int, "approved": int, "denied": int, "approval_rate": float},
+                "by_actor": {"name": {"actions": int, "approved": int, "denied": int, "atp_spent": float}},
+                "by_action_type": {"type": {"count": int, "total_atp": float}},
+                "policy_versions": int,
+                "hw_signed_pct": float,
+                "timeline": {"first": str, "last": str, "duration_hours": float},
+            }
+        """
+        entries = self._all_entries()
+        if not entries:
+            return {"total_entries": 0}
+
+        total = len(entries)
+        actions = 0
+        approved = 0
+        denied = 0
+        hw_signed = 0
+        by_actor = {}
+        by_type = {}
+        policy_versions = 0
+
+        for entry in entries:
+            if entry.get("hw_signed"):
+                hw_signed += 1
+
+            action = entry.get("action", {})
+            atype = action.get("type", "unknown")
+
+            # Count by type
+            if atype not in by_type:
+                by_type[atype] = {"count": 0, "total_atp": 0.0}
+            by_type[atype]["count"] += 1
+
+            if atype == "policy_update":
+                policy_versions += 1
+                continue
+
+            if atype == "action":
+                actions += 1
+                actor_name = action.get("actor", "unknown")
+                adecision = action.get("decision", "unknown")
+                atp_cost = action.get("atp_cost", 0.0)
+
+                by_type[atype]["total_atp"] += atp_cost
+
+                if actor_name not in by_actor:
+                    by_actor[actor_name] = {"actions": 0, "approved": 0,
+                                            "denied": 0, "atp_spent": 0.0}
+                by_actor[actor_name]["actions"] += 1
+
+                if adecision == "approved":
+                    approved += 1
+                    by_actor[actor_name]["approved"] += 1
+                    by_actor[actor_name]["atp_spent"] += atp_cost
+                elif adecision == "denied":
+                    denied += 1
+                    by_actor[actor_name]["denied"] += 1
+
+        # Timeline
+        first_ts = entries[0].get("timestamp", "")
+        last_ts = entries[-1].get("timestamp", "")
+        try:
+            from datetime import datetime as dt
+            t1 = dt.fromisoformat(first_ts.replace("Z", "+00:00"))
+            t2 = dt.fromisoformat(last_ts.replace("Z", "+00:00"))
+            duration_hours = (t2 - t1).total_seconds() / 3600
+        except Exception:
+            duration_hours = 0.0
+
+        return {
+            "total_entries": total,
+            "actions": {
+                "total": actions,
+                "approved": approved,
+                "denied": denied,
+                "approval_rate": round(approved / actions * 100, 1) if actions > 0 else 0.0,
+            },
+            "by_actor": by_actor,
+            "by_action_type": by_type,
+            "policy_versions": policy_versions,
+            "hw_signed_pct": round(hw_signed / total * 100, 1) if total > 0 else 0.0,
+            "timeline": {
+                "first": first_ts,
+                "last": last_ts,
+                "duration_hours": round(duration_hours, 2),
+            },
+        }
+
 
 def detect_tpm2() -> bool:
     """Check if TPM2 is available."""
@@ -435,6 +706,9 @@ class HardboundTeam:
 
         # Policy cache (resolved from ledger, avoids re-scanning)
         self._cached_policy: TeamPolicy = None
+
+        # Heartbeat-driven ledger timing
+        self.heartbeat = TeamHeartbeat()
 
     # ─── Persistence ────────────────────────────────────────────
 
@@ -812,6 +1086,9 @@ class HardboundTeam:
                 "coherence": round(member.coherence, 4),
             })
 
+        # Heartbeat info
+        result["heartbeat"] = self.heartbeat.to_dict()
+
         # Team ATP pool
         result["team_atp"] = {
             "balance": round(self.team_atp, 2),
@@ -898,11 +1175,17 @@ class HardboundTeam:
             rule = changes["set_custom_rule"]
             new_custom[rule["name"]] = rule["value"]
 
+        # Action cost changes
+        new_action_costs = dict(current.action_costs)
+        for action, cost in changes.get("set_action_costs", {}).items():
+            new_action_costs[action] = float(cost)
+
         new_policy = TeamPolicy(
             version=current.version + 1,
             admin_only=new_admin_only,
             operator_min=new_operator_min,
             custom_rules=new_custom,
+            action_costs=new_action_costs,
         )
 
         # Write to ledger
@@ -1014,8 +1297,12 @@ class HardboundTeam:
                 self.save()
                 return record
 
+        # Get action cost from policy (not hardcoded)
+        policy = self._resolve_policy()
+        action_cost = policy.get_cost(action)
+        record["action_cost_policy"] = action_cost
+
         # Check team ATP pool before executing
-        action_cost = 10.0  # Default R6 resource estimate
         if self.team_atp < action_cost:
             record["decision"] = "denied"
             record["reason"] = f"team ATP pool exhausted ({self.team_atp:.1f} remaining, need {action_cost:.1f})"
@@ -1040,6 +1327,20 @@ class HardboundTeam:
             self.team_atp -= result.atp_consumed
             self.team_adp_discharged += result.atp_consumed
             record["team_atp_remaining"] = round(self.team_atp, 2)
+
+            # Update team metabolic state based on ATP ratio
+            atp_ratio = self.team_atp / self.team_atp_max if self.team_atp_max > 0 else 0
+            if atp_ratio < 0.1:
+                new_state = "crisis"
+            elif atp_ratio < 0.3:
+                new_state = "rest"
+            elif atp_ratio > 0.8:
+                new_state = "focus"
+            else:
+                new_state = "wake"
+            transition = self.heartbeat.transition(new_state)
+            if transition:
+                record["metabolic_transition"] = transition
 
         if isinstance(member, HardwareWeb4Entity) and result.decision == R6Decision.APPROVED:
             record["hw_signed"] = True
@@ -1124,6 +1425,36 @@ def cmd_team_verify(args):
     result = ledger.verify()
     result["team"] = args.team
     print(json.dumps(result, indent=2))
+
+
+def cmd_team_analytics(args):
+    """Show team ledger analytics."""
+    team_dir = HARDBOUND_DIR / "teams" / args.team
+    ledger = TeamLedger(team_dir / "ledger.jsonl")
+
+    result = ledger.analytics()
+    result["team"] = args.team
+    print(json.dumps(result, indent=2))
+
+
+def cmd_team_query(args):
+    """Query team ledger entries."""
+    team_dir = HARDBOUND_DIR / "teams" / args.team
+    ledger = TeamLedger(team_dir / "ledger.jsonl")
+
+    results = ledger.query(
+        actor=getattr(args, 'actor', None),
+        action_type=getattr(args, 'type', None),
+        decision=getattr(args, 'decision', None),
+        hw_only=getattr(args, 'hw_only', False),
+        limit=getattr(args, 'limit', 20),
+    )
+
+    print(json.dumps({
+        "team": args.team,
+        "matches": len(results),
+        "entries": results,
+    }, indent=2))
 
 
 def cmd_entity_create(args):
@@ -1396,11 +1727,37 @@ def demo():
             rel = f.relative_to(state_dir)
             print(f"  {str(rel):30s} ({f.stat().st_size:,} bytes)")
 
-    # ─── Team ATP Pool ───
-    print("\n--- Team ATP Pool ---")
-    print(f"  Team ATP balance: {team.team_atp:.1f} / {team.team_atp_max:.1f}")
-    print(f"  Total discharged: {team.team_adp_discharged:.1f}")
-    print(f"  Utilization: {team.team_adp_discharged / team.team_atp_max * 100:.1f}%")
+    # ─── Ledger Analytics ───
+    print("\n--- Ledger Analytics ---")
+    analytics = team.ledger.analytics()
+    acts = analytics["actions"]
+    print(f"  Total entries: {analytics['total_entries']}")
+    print(f"  Actions: {acts['total']} ({acts['approved']} approved, {acts['denied']} denied)")
+    print(f"  Approval rate: {acts['approval_rate']}%")
+    print(f"  HW-signed: {analytics['hw_signed_pct']}%")
+    print(f"  Policy versions: {analytics['policy_versions']}")
+
+    # Per-actor breakdown
+    print("\n  Per-actor:")
+    for actor, stats in analytics.get("by_actor", {}).items():
+        print(f"    {actor:25s} acts={stats['actions']:2d}  ok={stats['approved']:2d}  "
+              f"denied={stats['denied']:2d}  ATP={stats['atp_spent']:.1f}")
+
+    # Query example: denied actions
+    denied = team.ledger.query(decision="denied", limit=3)
+    print(f"\n  Recent denied actions ({len(denied)}):")
+    for entry in denied:
+        action = entry.get("action", {})
+        print(f"    #{entry['sequence']} {action.get('actor', '?')} → "
+              f"{action.get('action', '?')}: {action.get('reason', '?')[:50]}")
+
+    # ─── Heartbeat + Metabolic State ───
+    print("\n--- Heartbeat-Driven Ledger ---")
+    hb = team.heartbeat
+    print(f"  Metabolic state: {hb.state}")
+    print(f"  Heartbeat interval: {hb.interval}s")
+    print(f"  Team ATP: {team.team_atp:.1f}/{team.team_atp_max:.1f} "
+          f"(ratio={team.team_atp / team.team_atp_max:.2f})")
 
     # Show member ATP for comparison
     for name, member in team.members.items():
@@ -1476,6 +1833,19 @@ def main():
     team_verify = subparsers.add_parser("team-verify", help="Verify team ledger chain")
     team_verify.add_argument("team", help="Team name")
 
+    # team analytics
+    team_analytics = subparsers.add_parser("team-analytics", help="Show team ledger analytics")
+    team_analytics.add_argument("team", help="Team name")
+
+    # team query
+    team_query = subparsers.add_parser("team-query", help="Query team ledger entries")
+    team_query.add_argument("team", help="Team name")
+    team_query.add_argument("--actor", help="Filter by actor name")
+    team_query.add_argument("--type", help="Filter by action type")
+    team_query.add_argument("--decision", help="Filter by decision (approved/denied)")
+    team_query.add_argument("--hw-only", action="store_true", help="Only hardware-signed entries")
+    team_query.add_argument("--limit", type=int, default=20, help="Max entries to show")
+
     # demo
     subparsers.add_parser("demo", help="Run interactive demo")
 
@@ -1519,6 +1889,8 @@ def main():
         "team-sign": cmd_team_sign,
         "team-actions": cmd_team_actions,
         "team-verify": cmd_team_verify,
+        "team-analytics": cmd_team_analytics,
+        "team-query": cmd_team_query,
         "demo": lambda a: demo(),
         "entity-create": cmd_entity_create,
         "entity-sign": cmd_entity_sign,
