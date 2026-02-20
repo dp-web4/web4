@@ -2979,6 +2979,20 @@ def demo():
     print("  State survives sessions. The chain remembers.")
     print("=" * 65)
 
+    # Auto-cleanup TPM2 stale metadata after demo
+    if tpm_available:
+        try:
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+            from core.lct_binding.tpm2_provider import TPM2Provider
+            provider = TPM2Provider()
+            status = provider.deep_cleanup(dry_run=False)
+            cleaned = status["removed"] + status["evicted"]
+            if cleaned > 0:
+                print(f"\n  [cleanup] Removed {status['removed']} stale metadata, "
+                      f"evicted {status['evicted']} orphaned handles")
+        except Exception:
+            pass
+
 
 def main():
     """Parse CLI arguments and dispatch commands."""

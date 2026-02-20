@@ -857,6 +857,114 @@ class TPM2Provider(LCTBindingProvider):
                 pass
         return evicted
 
+    def deep_cleanup(self, dry_run: bool = True) -> dict:
+        """
+        Comprehensive TPM2 handle and metadata cleanup.
+
+        Finds and optionally removes:
+        1. Stale metadata files (reference handles not in TPM)
+        2. Orphaned TPM handles (in Web4 namespace, no metadata)
+        3. Colliding metadata (multiple files → same handle)
+
+        Args:
+            dry_run: If True, only report; if False, actually clean up
+
+        Returns:
+            Dict with 'stale_metadata', 'orphaned_handles',
+            'collisions', 'live_keys', 'evicted', 'removed'
+        """
+        result = {
+            "stale_metadata": [],
+            "orphaned_handles": [],
+            "collisions": {},
+            "live_keys": [],
+            "evicted": 0,
+            "removed": 0,
+        }
+
+        try:
+            # Step 1: Get live TPM handles
+            cap_result = self._run_tpm2_command(
+                ["tpm2_getcap", "handles-persistent"],
+                check=False
+            )
+            live_handles = set()
+            if cap_result.returncode == 0:
+                for line in cap_result.stdout.decode().split('\n'):
+                    line = line.strip()
+                    if line.startswith('- 0x'):
+                        h = int(line[2:], 16)
+                        if (self.PERSISTENT_HANDLE_BASE <= h
+                                < self.PERSISTENT_HANDLE_BASE + 0x100):
+                            live_handles.add(f"0x{h:08x}")
+
+            # Step 2: Build metadata → handle map
+            handle_to_files = {}  # handle_hex → [filenames]
+            file_to_handle = {}   # filename → handle_hex
+            for meta_file in self.storage_dir.glob("*.json"):
+                try:
+                    metadata = json.loads(meta_file.read_text())
+                    handle_str = metadata.get("persistent_handle", "")
+                    if handle_str:
+                        h = f"0x{int(handle_str, 16):08x}"
+                        handle_to_files.setdefault(h, []).append(meta_file.name)
+                        file_to_handle[meta_file.name] = h
+                except Exception:
+                    result["stale_metadata"].append(meta_file.name)
+
+            # Step 3: Find collisions
+            for h, files in handle_to_files.items():
+                if len(files) > 1:
+                    result["collisions"][h] = files
+
+            # Step 4: Classify metadata files
+            for fname, h in file_to_handle.items():
+                if h in live_handles:
+                    result["live_keys"].append(fname)
+                else:
+                    result["stale_metadata"].append(fname)
+
+            # Step 5: Find orphaned handles (in TPM but no metadata)
+            metadata_handles = set(handle_to_files.keys())
+            for h in live_handles:
+                if h not in metadata_handles:
+                    result["orphaned_handles"].append(h)
+
+            # Step 6: Clean up if not dry_run
+            if not dry_run:
+                # Remove stale metadata
+                for fname in result["stale_metadata"]:
+                    fpath = self.storage_dir / fname
+                    if fpath.exists():
+                        fpath.unlink()
+                        result["removed"] += 1
+
+                # Evict orphaned handles
+                for h in result["orphaned_handles"]:
+                    try:
+                        self._run_tpm2_command([
+                            self.TPM2_EVICTCONTROL, "-C", "o", "-c", h
+                        ])
+                        result["evicted"] += 1
+                    except Exception:
+                        pass
+
+                # For collisions: keep newest metadata, remove rest
+                for h, files in result["collisions"].items():
+                    if h in live_handles:
+                        # Keep the most recent file, remove others
+                        paths = [(self.storage_dir / f) for f in files]
+                        paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                        for p in paths[1:]:  # Skip newest
+                            if p.exists():
+                                p.unlink()
+                                result["removed"] += 1
+
+        except Exception:
+            pass
+
+        return result
+
     def get_public_key(self, key_id: str) -> str:
         """
         Get public key PEM for a stored key.
@@ -877,11 +985,48 @@ class TPM2Provider(LCTBindingProvider):
 
 # Quick test when run directly
 if __name__ == "__main__":
+    import sys
+
+    provider = TPM2Provider()
+
+    # Handle --cleanup flag
+    if "--cleanup" in sys.argv or "cleanup" in sys.argv:
+        dry = "--dry-run" in sys.argv
+        mode = "DRY RUN" if dry else "EXECUTING"
+        print(f"{'=' * 60}")
+        print(f"TPM2 DEEP CLEANUP ({mode})")
+        print(f"{'=' * 60}")
+
+        status = provider.deep_cleanup(dry_run=dry)
+        print(f"Live keys (preserved):     {len(status['live_keys'])}")
+        print(f"Stale metadata:            {len(status['stale_metadata'])}")
+        print(f"Orphaned handles:          {len(status['orphaned_handles'])}")
+        print(f"Handle collisions:         {len(status['collisions'])}")
+        if not dry:
+            print(f"Metadata files removed:    {status['removed']}")
+            print(f"Handles evicted:           {status['evicted']}")
+
+        if status['live_keys']:
+            print(f"\nLive keys:")
+            for f in status['live_keys']:
+                print(f"  {f}")
+        if status['orphaned_handles']:
+            print(f"\nOrphaned handles:")
+            for h in status['orphaned_handles']:
+                print(f"  {h}")
+
+        print(f"\n{'=' * 60}")
+        if dry:
+            print("Re-run without --dry-run to execute cleanup")
+        else:
+            print("CLEANUP COMPLETE")
+        print(f"{'=' * 60}")
+        exit(0)
+
+    # Default: run test
     print("=" * 60)
     print("TPM2 BINDING PROVIDER TEST")
     print("=" * 60)
-
-    provider = TPM2Provider()
 
     # Show platform info
     platform = provider.get_platform_info()
