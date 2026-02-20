@@ -14,3 +14,8 @@ venv/
 web4-standard/implementation/reference/tpm_cli_keys/
 # Python cache
 **/__pycache__/
+
+# Hardbound private key (never commit)
+.hardbound/signing.key
+
+.hardbound/actors/claude/signing.key

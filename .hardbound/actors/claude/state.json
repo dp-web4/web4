@@ -1,0 +1,28 @@
+{
+  "actor_id": "lct:web4:claude:opus-4",
+  "name": "claude",
+  "algorithm": "ES256",
+  "trust": {
+    "talent": 0.5,
+    "training": 0.5,
+    "temperament": 0.5,
+    "context_weights": [
+      0.33,
+      0.33,
+      0.34
+    ]
+  },
+  "trust_evolution": {
+    "enabled": true,
+    "gain_rate": 0.01,
+    "decay_rate": 0.02,
+    "successes": 0,
+    "failures": 0,
+    "dimension_specific": true,
+    "coherence_modulation": true,
+    "coherence_mode": "auto",
+    "coherence_score": 0.5,
+    "recent_outcomes": []
+  },
+  "created_at": "2026-02-20T02:00:07.600Z"
+}
