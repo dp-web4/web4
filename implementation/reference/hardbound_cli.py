@@ -2636,6 +2636,28 @@ def cmd_status(args):
     print(json.dumps(status, indent=2))
 
 
+def cmd_tpm2_cleanup(args):
+    """Handle tpm2-cleanup command."""
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+        from core.lct_binding.tpm2_cleanup import TPM2Cleanup
+        cleanup = TPM2Cleanup()
+        if getattr(args, 'evict_all', False):
+            results = cleanup.evict_all_web4()
+            print(f"Evicted: {len(results['evicted'])}, "
+                  f"Metadata removed: {len(results['metadata_removed'])}")
+        elif getattr(args, 'evict', False):
+            results = cleanup.evict_orphaned()
+            print(f"Evicted: {len(results['evicted'])}, "
+                  f"Failed: {len(results['failed'])}")
+        else:
+            cleanup.print_status()
+    except ImportError:
+        print("Error: tpm2_cleanup module not available")
+    except RuntimeError as e:
+        print(f"Error: {e}")
+
+
 # ═══════════════════════════════════════════════════════════════
 # Interactive Demo
 # ═══════════════════════════════════════════════════════════════
@@ -3098,6 +3120,13 @@ def main():
     # status
     subparsers.add_parser("status", help="Show system status")
 
+    # tpm2-cleanup
+    tpm2_cleanup = subparsers.add_parser("tpm2-cleanup", help="Manage TPM2 persistent handles")
+    tpm2_cleanup.add_argument("--evict", action="store_true",
+                              help="Evict orphaned handles")
+    tpm2_cleanup.add_argument("--evict-all", action="store_true",
+                              help="Evict ALL Web4 handles (nuclear option)")
+
     args = parser.parse_args()
 
     dispatch = {
@@ -3121,6 +3150,7 @@ def main():
         "ek-info": cmd_ek_info,
         "ek-verify": cmd_ek_verify,
         "status": cmd_status,
+        "tpm2-cleanup": cmd_tpm2_cleanup,
     }
 
     handler = dispatch.get(args.command)
