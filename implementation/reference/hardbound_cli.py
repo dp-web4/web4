@@ -54,6 +54,230 @@ from hardware_entity import HardwareWeb4Entity
 # Default state directory
 HARDBOUND_DIR = Path.cwd() / ".hardbound"
 
+# ═══════════════════════════════════════════════════════════════
+# Team Roles — Enterprise governance structure
+# ═══════════════════════════════════════════════════════════════
+
+class TeamRole:
+    """Role definitions for team governance."""
+    ADMIN = "admin"       # Hardware-bound, can approve/deny, manage members
+    OPERATOR = "operator" # Can execute approved actions, modify resources
+    AGENT = "agent"       # AI agent, self-approving for permitted actions
+    VIEWER = "viewer"     # Read-only, can witness but not act
+
+    # Actions that require admin approval
+    ADMIN_ONLY = {
+        "approve_deployment", "set_resource_limit", "rotate_credentials",
+        "add_member", "remove_member", "update_policy", "grant_role",
+        "revoke_role", "set_atp_limit", "emergency_shutdown",
+    }
+
+    # Actions that require operator or higher
+    OPERATOR_MIN = {
+        "deploy_staging", "run_migration", "scale_service",
+        "update_config", "restart_service",
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Team Ledger — Hash-chained append-only action log
+# ═══════════════════════════════════════════════════════════════
+
+class TeamLedger:
+    """
+    Hash-chained append-only ledger for team governance actions.
+
+    Each entry contains:
+    - sequence: Monotonically increasing integer
+    - action: The action record
+    - prev_hash: SHA-256 of the previous entry (tamper detection)
+    - entry_hash: SHA-256 of this entry's canonical form
+    - signer_lct: Who signed this entry
+    - signature: Hardware or software signature of entry_hash
+
+    The genesis entry (sequence=0) has prev_hash="genesis".
+    """
+
+    GENESIS_HASH = "0" * 64  # All zeros for genesis
+
+    def __init__(self, ledger_path: Path):
+        self.path = ledger_path
+        self._head_hash: str = self.GENESIS_HASH
+        self._sequence: int = 0
+
+        # Load existing chain head
+        if self.path.exists():
+            self._load_head()
+
+    def _load_head(self):
+        """Load the chain head from the existing ledger file."""
+        last_line = None
+        with open(self.path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    last_line = line
+        if last_line:
+            try:
+                entry = json.loads(last_line)
+                self._head_hash = entry.get("entry_hash", self.GENESIS_HASH)
+                self._sequence = entry.get("sequence", 0)
+            except json.JSONDecodeError:
+                pass  # Corrupt last line, will append from current head
+
+    @staticmethod
+    def _canonical(data: dict) -> str:
+        """Canonical JSON for hashing (sorted keys, no whitespace)."""
+        return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+    @staticmethod
+    def _hash(data: str) -> str:
+        """SHA-256 hex hash."""
+        return hashlib.sha256(data.encode()).hexdigest()
+
+    def append(self, action: dict, signer_lct: str = "",
+               signer_entity=None) -> dict:
+        """
+        Append an action to the ledger with hash-chain linkage.
+
+        If signer_entity is a HardwareWeb4Entity, the entry is
+        hardware-signed. Otherwise, a software hash is used.
+        """
+        self._sequence += 1
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        # Build the entry (without entry_hash — that's computed)
+        entry = {
+            "sequence": self._sequence,
+            "timestamp": timestamp,
+            "prev_hash": self._head_hash,
+            "action": action,
+            "signer_lct": signer_lct,
+        }
+
+        # Compute entry hash from canonical form
+        canonical = self._canonical(entry)
+        entry_hash = self._hash(canonical)
+        entry["entry_hash"] = entry_hash
+
+        # Sign the entry hash
+        signature = ""
+        hw_signed = False
+        if signer_entity and isinstance(signer_entity, HardwareWeb4Entity):
+            sig_record = signer_entity.sign_action(
+                R6Request(request=f"ledger:{self._sequence}", role=signer_lct)
+            )
+            signature = sig_record.get("signature", "")[:64]
+            hw_signed = True
+        else:
+            # Software signature: hash of entry_hash + signer_lct
+            signature = self._hash(f"{entry_hash}:{signer_lct}")
+
+        entry["signature"] = signature
+        entry["hw_signed"] = hw_signed
+
+        # Append to file
+        with open(self.path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+        # Update chain head
+        self._head_hash = entry_hash
+        return entry
+
+    def append_genesis(self, team_name: str, root_lct: str,
+                       admin_lct: str, signer_entity=None) -> dict:
+        """Write the genesis entry when a team is created."""
+        return self.append(
+            action={
+                "type": "genesis",
+                "team": team_name,
+                "root_lct": root_lct,
+                "admin_lct": admin_lct,
+            },
+            signer_lct=root_lct,
+            signer_entity=signer_entity,
+        )
+
+    def verify(self) -> dict:
+        """
+        Verify the entire ledger chain.
+
+        Returns verification result with:
+        - valid: bool (all hashes match)
+        - entries: total entry count
+        - breaks: list of sequence numbers where chain breaks
+        - hw_signed: count of hardware-signed entries
+        """
+        if not self.path.exists():
+            return {"valid": True, "entries": 0, "breaks": [], "hw_signed": 0}
+
+        entries = 0
+        breaks = []
+        hw_signed = 0
+        expected_prev = self.GENESIS_HASH
+
+        with open(self.path) as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    breaks.append(line_num)
+                    continue
+
+                entries += 1
+
+                # Check prev_hash linkage
+                if entry.get("prev_hash") != expected_prev:
+                    breaks.append(entry.get("sequence", line_num))
+
+                # Count hw_signed before stripping
+                if entry.get("hw_signed"):
+                    hw_signed += 1
+
+                # Verify entry_hash (strip fields not in canonical form)
+                entry_hash = entry.pop("entry_hash", "")
+                entry.pop("signature", "")
+                entry.pop("hw_signed", False)
+                canonical = self._canonical(entry)
+                computed_hash = self._hash(canonical)
+
+                if computed_hash != entry_hash:
+                    breaks.append(entry.get("sequence", line_num))
+
+                expected_prev = entry_hash
+
+        return {
+            "valid": len(breaks) == 0,
+            "entries": entries,
+            "breaks": breaks,
+            "hw_signed": hw_signed,
+            "head_hash": expected_prev,
+        }
+
+    def count(self) -> int:
+        """Count entries in the ledger."""
+        if not self.path.exists():
+            return 0
+        return sum(1 for line in open(self.path) if line.strip())
+
+    def tail(self, n: int = 10) -> list:
+        """Get the last N entries."""
+        if not self.path.exists():
+            return []
+        entries = []
+        for line in open(self.path):
+            line = line.strip()
+            if line:
+                try:
+                    entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        return entries[-n:]
+
 
 def detect_tpm2() -> bool:
     """Check if TPM2 is available."""
@@ -95,11 +319,15 @@ class HardboundTeam:
         self.root: HardwareWeb4Entity = None
         self.admin: HardwareWeb4Entity = None
         self.members: dict = {}  # name → HardwareWeb4Entity
+        self.roles: dict = {}    # member_name → TeamRole constant
         self.action_log: list = []
         self.created_at = datetime.now(timezone.utc).isoformat()
 
         # State directory
         self.state_dir = state_dir or (HARDBOUND_DIR / "teams" / name)
+
+        # Hash-chained ledger
+        self.ledger = TeamLedger(self.state_dir / "ledger.jsonl")
 
     # ─── Persistence ────────────────────────────────────────────
 
@@ -141,7 +369,12 @@ class HardboundTeam:
         return state
 
     def _entity_from_state(self, state: dict) -> HardwareWeb4Entity:
-        """Reconstruct entity from persisted state."""
+        """
+        Reconstruct entity from persisted state.
+
+        For hardware entities, attempts to reconnect to the TPM2
+        persistent handle so hardware signing works after reload.
+        """
         if "key_id" in state:
             # Hardware entity
             entity = HardwareWeb4Entity(
@@ -155,6 +388,23 @@ class HardboundTeam:
                 atp_allocation=state.get("atp_balance", 100.0),
             )
             entity.binding_proof = state.get("binding_proof")
+
+            # Reconnect to TPM2 persistent handle if available
+            if self.use_tpm and state.get("tpm_handle"):
+                try:
+                    from core.lct_binding.tpm2_provider import TPM2Provider
+                    provider = TPM2Provider()
+                    # Verify the persistent handle still exists
+                    handle = state["tpm_handle"]
+                    result = provider._run_tpm2_cmd(
+                        ["tpm2_readpublic", "-c", handle]
+                    )
+                    if result.returncode == 0:
+                        entity._tpm2_reconnected = True
+                    else:
+                        entity._tpm2_reconnected = False
+                except Exception:
+                    entity._tpm2_reconnected = False
         else:
             # Software entity (reconstruct as Web4Entity)
             entity = Web4Entity(
@@ -184,6 +434,7 @@ class HardboundTeam:
             "created_at": self.created_at,
             "use_tpm": self.use_tpm,
             "member_names": list(self.members.keys()),
+            "roles": self.roles,
         }
         if self.root:
             team_state["root"] = self._entity_to_state(self.root)
@@ -202,12 +453,16 @@ class HardboundTeam:
                 json.dumps(member_state, indent=2)
             )
 
-        # Append new actions to ledger
+        # Flush pending actions to hash-chained ledger
         if self.action_log:
-            with open(self.state_dir / "actions.jsonl", "a") as f:
-                for action in self.action_log:
-                    action["saved_at"] = datetime.now(timezone.utc).isoformat()
-                    f.write(json.dumps(action) + "\n")
+            for action in self.action_log:
+                actor_name = action.get("actor", "")
+                signer = self.members.get(actor_name)
+                self.ledger.append(
+                    action=action,
+                    signer_lct=signer.lct_id if signer and hasattr(signer, 'lct_id') else "",
+                    signer_entity=signer if isinstance(signer, HardwareWeb4Entity) else None,
+                )
             self.action_log = []  # Clear after saving
 
     @classmethod
@@ -222,6 +477,9 @@ class HardboundTeam:
         team = cls(team_state["name"], use_tpm=team_state.get("use_tpm", True))
         team.created_at = team_state.get("created_at", "unknown")
         team.state_dir = base
+
+        # Reinitialize ledger pointing to correct file
+        team.ledger = TeamLedger(base / "ledger.jsonl")
 
         # Restore root
         if "root" in team_state:
@@ -240,12 +498,19 @@ class HardboundTeam:
         if admin_name and admin_name in team.members:
             team.admin = team.members[admin_name]
 
-        # Load action count
-        actions_file = base / "actions.jsonl"
-        if actions_file.exists():
-            team._action_count = sum(1 for _ in open(actions_file))
-        else:
-            team._action_count = 0
+        # Restore roles
+        team.roles = team_state.get("roles", {})
+
+        # Assign default roles if not persisted
+        if not team.roles and admin_name:
+            team.roles[admin_name] = TeamRole.ADMIN
+            for mname in team.members:
+                if mname not in team.roles:
+                    member = team.members[mname]
+                    if member.entity_type in (EntityType.AI, EntityType.SERVICE, EntityType.TASK):
+                        team.roles[mname] = TeamRole.AGENT
+                    else:
+                        team.roles[mname] = TeamRole.OPERATOR
 
         return team
 
@@ -298,14 +563,35 @@ class HardboundTeam:
         self.root.witness(self.admin, "admin_binding")
         self.members[f"{self.name}-admin"] = self.admin
 
-        # Persist immediately
+        # Assign roles
+        self.roles[f"{self.name}-admin"] = TeamRole.ADMIN
+
+        # Persist state first (creates state_dir)
         self.save()
+
+        # Write genesis entry to hash-chained ledger
+        self.ledger.append_genesis(
+            team_name=self.name,
+            root_lct=self.root.lct_id,
+            admin_lct=self.admin.lct_id,
+            signer_entity=self.root if isinstance(self.root, HardwareWeb4Entity) else None,
+        )
 
         return self.info()
 
-    def add_member(self, name: str, entity_type: str) -> dict:
-        """Add a member to the team."""
+    def add_member(self, name: str, entity_type: str,
+                   role: str = None) -> dict:
+        """Add a member to the team with a role."""
         etype = EntityType(entity_type)
+
+        # Determine role
+        if role is None:
+            if etype in (EntityType.AI, EntityType.SERVICE, EntityType.TASK):
+                role = TeamRole.AGENT
+            elif entity_type == "human":
+                role = TeamRole.OPERATOR
+            else:
+                role = TeamRole.VIEWER
 
         # Software entities can be spawned as children of the root
         # Hardware entities need their own TPM key
@@ -317,12 +603,21 @@ class HardboundTeam:
             # AI/Task/Service entities are software spawns from root
             member = self.root.spawn(etype, name, atp_share=50.0)
             self.members[name] = member
+            self.roles[name] = role
+
+            # Log to ledger
+            self.ledger.append(
+                action={"type": "add_member", "name": name,
+                        "entity_type": entity_type, "role": role,
+                        "binding": "software"},
+                signer_lct=self.root.lct_id,
+                signer_entity=self.root if isinstance(self.root, HardwareWeb4Entity) else None,
+            )
+
             self.save()
             return {
-                "name": name,
-                "type": entity_type,
-                "lct_id": member.lct_id,
-                "level": 4,
+                "name": name, "type": entity_type, "role": role,
+                "lct_id": member.lct_id, "level": 4,
                 "binding": "software (spawned child)",
                 "parent": self.root.lct_id,
             }
@@ -334,13 +629,22 @@ class HardboundTeam:
         # Root witnesses the new member
         self.root.witness(member, "member_binding")
         self.members[name] = member
+        self.roles[name] = role
+
+        # Log to ledger
+        self.ledger.append(
+            action={"type": "add_member", "name": name,
+                    "entity_type": entity_type, "role": role,
+                    "binding": "hardware" if isinstance(member, HardwareWeb4Entity) else "software"},
+            signer_lct=self.root.lct_id,
+            signer_entity=self.root if isinstance(self.root, HardwareWeb4Entity) else None,
+        )
 
         # Persist
         self.save()
 
         return {
-            "name": name,
-            "type": entity_type,
+            "name": name, "type": entity_type, "role": role,
             "lct_id": member.lct_id if hasattr(member, 'lct_id') else "unknown",
             "level": getattr(member, 'capability_level', 4),
             "binding": "hardware" if isinstance(member, HardwareWeb4Entity) and hasattr(member, 'tpm_handle') else "software",
@@ -377,25 +681,103 @@ class HardboundTeam:
             result["members"].append({
                 "name": name,
                 "type": member.entity_type.value if hasattr(member, 'entity_type') else "unknown",
+                "role": self.roles.get(name, "unknown"),
                 "level": getattr(member, 'capability_level', 4),
                 "coherence": round(member.coherence, 4),
             })
 
-        # Action count from ledger
-        actions_file = self.state_dir / "actions.jsonl"
-        action_count = getattr(self, '_action_count', 0)
-        if actions_file.exists():
-            action_count = sum(1 for _ in open(actions_file))
-        result["total_actions"] = action_count + len(self.action_log)
+        # Ledger info
+        result["ledger"] = {
+            "entries": self.ledger.count(),
+            "pending": len(self.action_log),
+        }
 
         return result
 
-    def sign_action(self, actor_name: str, action: str) -> dict:
-        """Sign an R6 action with a member's hardware key."""
+    def check_authorization(self, actor_name: str, action: str) -> dict:
+        """
+        Check if an actor is authorized for an action based on their role.
+
+        Returns:
+            {"authorized": bool, "reason": str, "requires_approval": bool,
+             "approver_role": str or None}
+        """
+        role = self.roles.get(actor_name, TeamRole.VIEWER)
+
+        # Admin can do anything
+        if role == TeamRole.ADMIN:
+            return {"authorized": True, "reason": "admin privilege",
+                    "requires_approval": False, "approver_role": None}
+
+        # Check admin-only actions
+        if action in TeamRole.ADMIN_ONLY:
+            if role != TeamRole.ADMIN:
+                return {"authorized": False,
+                        "reason": f"'{action}' requires admin role (actor has '{role}')",
+                        "requires_approval": True, "approver_role": TeamRole.ADMIN}
+
+        # Check operator-min actions
+        if action in TeamRole.OPERATOR_MIN:
+            if role not in (TeamRole.ADMIN, TeamRole.OPERATOR):
+                return {"authorized": False,
+                        "reason": f"'{action}' requires operator role (actor has '{role}')",
+                        "requires_approval": True, "approver_role": TeamRole.OPERATOR}
+
+        # Viewer can't act
+        if role == TeamRole.VIEWER:
+            return {"authorized": False,
+                    "reason": "viewer role cannot execute actions",
+                    "requires_approval": True, "approver_role": TeamRole.OPERATOR}
+
+        # Agent and operator can execute non-restricted actions
+        return {"authorized": True, "reason": f"permitted for role '{role}'",
+                "requires_approval": False, "approver_role": None}
+
+    def sign_action(self, actor_name: str, action: str,
+                    approved_by: str = None) -> dict:
+        """
+        Sign an R6 action with role-based authorization.
+
+        If the action requires higher privileges, `approved_by` must be
+        the name of an authorized approver (e.g., the admin).
+        """
         member = self.members.get(actor_name)
         if not member:
             return {"error": f"Member '{actor_name}' not found"}
 
+        # Check authorization
+        auth = self.check_authorization(actor_name, action)
+        record = {
+            "type": "action",
+            "actor": actor_name,
+            "action": action,
+            "role": self.roles.get(actor_name, "unknown"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if not auth["authorized"]:
+            # Check if an approver was provided
+            if approved_by:
+                approver_auth = self.check_authorization(approved_by, action)
+                if approver_auth["authorized"]:
+                    record["approved_by"] = approved_by
+                    record["approval_reason"] = "delegated by " + approved_by
+                else:
+                    record["decision"] = "denied"
+                    record["reason"] = auth["reason"]
+                    record["denied_approver"] = approved_by
+                    self.action_log.append(record)
+                    self.save()
+                    return record
+            else:
+                record["decision"] = "denied"
+                record["reason"] = auth["reason"]
+                record["required_approver"] = auth["approver_role"]
+                self.action_log.append(record)
+                self.save()
+                return record
+
+        # Execute the action
         request = R6Request(
             rules="team-policy-v1",
             role=member.lct_id if hasattr(member, 'lct_id') else "unknown",
@@ -404,13 +786,8 @@ class HardboundTeam:
         )
 
         result = member.act(request)
-        record = {
-            "actor": actor_name,
-            "action": action,
-            "decision": result.decision.value,
-            "atp_cost": result.atp_consumed,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+        record["decision"] = result.decision.value
+        record["atp_cost"] = result.atp_consumed
 
         if isinstance(member, HardwareWeb4Entity) and result.decision == R6Decision.APPROVED:
             record["hw_signed"] = True
@@ -418,7 +795,7 @@ class HardboundTeam:
 
         self.action_log.append(record)
 
-        # Auto-save after each action
+        # Auto-save (which flushes to hash-chained ledger)
         self.save()
 
         return record
@@ -472,29 +849,29 @@ def cmd_team_sign(args):
 
 
 def cmd_team_actions(args):
-    """Show action log for a team."""
+    """Show action log from the hash-chained ledger."""
     team_dir = HARDBOUND_DIR / "teams" / args.team
-    actions_file = team_dir / "actions.jsonl"
-    if not actions_file.exists():
-        print(json.dumps({"actions": [], "count": 0}, indent=2))
-        return
+    ledger = TeamLedger(team_dir / "ledger.jsonl")
 
-    actions = []
-    for line in open(actions_file):
-        try:
-            actions.append(json.loads(line.strip()))
-        except json.JSONDecodeError:
-            continue
-
-    # Show last N actions
     limit = args.limit if hasattr(args, 'limit') else 20
-    recent = actions[-limit:]
+    entries = ledger.tail(limit)
+
     print(json.dumps({
         "team": args.team,
-        "total_actions": len(actions),
-        "showing_last": len(recent),
-        "actions": recent,
+        "total_entries": ledger.count(),
+        "showing_last": len(entries),
+        "entries": entries,
     }, indent=2))
+
+
+def cmd_team_verify(args):
+    """Verify the team's hash-chained ledger."""
+    team_dir = HARDBOUND_DIR / "teams" / args.team
+    ledger = TeamLedger(team_dir / "ledger.jsonl")
+
+    result = ledger.verify()
+    result["team"] = args.team
+    print(json.dumps(result, indent=2))
 
 
 def cmd_entity_create(args):
@@ -603,15 +980,22 @@ def cmd_status(args):
 # ═══════════════════════════════════════════════════════════════
 
 def demo():
-    """Interactive demo showing the Hardbound CLI workflow with persistence."""
+    """Interactive demo showing Hardbound CLI with hash-chained ledger and role-based governance."""
+    import shutil
+
     print("=" * 65)
-    print("  HARDBOUND CLI — Enterprise Team Management")
-    print("  Hardware-backed identity with persistent state")
+    print("  HARDBOUND CLI — Enterprise Team Governance")
+    print("  Hash-chained ledger + Role-based authorization + TPM2")
     print("=" * 65)
 
     tpm_available = detect_tpm2()
     print(f"\n  TPM2: {'available (real hardware)' if tpm_available else 'not available (simulation mode)'}")
     print(f"  State dir: {HARDBOUND_DIR}/teams/")
+
+    # Clean up previous demo
+    demo_dir = HARDBOUND_DIR / "teams" / "acme-ai-ops"
+    if demo_dir.exists():
+        shutil.rmtree(demo_dir)
 
     # ─── Create team ───
     print("\n--- Creating Team ---")
@@ -622,72 +1006,100 @@ def demo():
     print(f"  Root LCT: {result['root']['lct_id'][:40]}...")
     level = result['root']['level']
     print(f"  Root level: {level} ({'HARDWARE' if level == 5 else 'SOFTWARE'})")
-    print(f"  Root handle: {result['root'].get('handle')}")
-    print(f"  Admin LCT: {result['admin']['lct_id'][:40]}...")
-    print(f"  State saved to: {result['state_dir']}")
+    print(f"  Genesis ledger entry written")
+    print(f"  Ledger entries: {team.ledger.count()}")
 
-    # ─── Add members ───
-    print("\n--- Adding Team Members ---")
+    # ─── Add members with roles ───
+    print("\n--- Adding Team Members (with roles) ---")
 
     members_to_add = [
-        ("data-analyst-agent", "ai"),
-        ("code-review-agent", "ai"),
-        ("deploy-service", "service"),
-        ("qa-engineer", "human"),
+        ("data-analyst-agent", "ai", TeamRole.AGENT),
+        ("code-review-agent", "ai", TeamRole.AGENT),
+        ("deploy-service", "service", TeamRole.OPERATOR),
+        ("qa-engineer", "human", TeamRole.OPERATOR),
     ]
 
-    for name, mtype in members_to_add:
-        info = team.add_member(name, mtype)
-        binding = info.get('binding', 'unknown')
-        level = info.get('level', '?')
-        print(f"  Added: {name} ({mtype}) — level={level}, binding={binding}")
+    for name, mtype, role in members_to_add:
+        info = team.add_member(name, mtype, role=role)
+        print(f"  Added: {name:25s} ({mtype:7s}) role={info.get('role'):10s} binding={info.get('binding', '?')}")
 
-    # ─── Team status ───
+    # ─── Team status with roles ───
     print("\n--- Team Status ---")
     info = team.info()
     print(f"  Members: {len(info['members'])}")
     for m in info['members']:
-        print(f"    {m['name']:25s} | {m['type']:12s} | level={m['level']} | C={m['coherence']:.4f}")
+        print(f"    {m['name']:25s} | {m['type']:12s} | role={m['role']:10s} | level={m['level']}")
+    print(f"  Ledger entries: {info['ledger']['entries']}")
 
-    # ─── Signed actions ───
-    print("\n--- Hardware-Signed Actions ---")
-    actions = [
-        (f"{team.name}-admin", "approve_deployment"),
-        (f"{team.name}-admin", "set_resource_limit"),
-        ("data-analyst-agent", "run_analysis"),
-        ("code-review-agent", "review_pr"),
-        ("deploy-service", "deploy_staging"),
-    ]
+    # ─── Authorized actions ───
+    print("\n--- Role-Based Actions ---")
 
-    for actor, action in actions:
-        record = team.sign_action(actor, action)
+    # Admin actions (should succeed)
+    admin = f"{team.name}-admin"
+    for action in ["approve_deployment", "set_resource_limit"]:
+        record = team.sign_action(admin, action)
         hw = "HW" if record.get("hw_signed") else "SW"
-        print(f"  [{hw}] {actor:25s} → {action:20s} : {record['decision']}")
+        print(f"  [{hw}] {admin:25s} → {action:22s} : {record['decision']}")
 
-    # ─── Persistence test ───
+    # Agent actions (permitted non-restricted)
+    for actor, action in [("data-analyst-agent", "run_analysis"),
+                          ("code-review-agent", "review_pr")]:
+        record = team.sign_action(actor, action)
+        print(f"  [SW] {actor:25s} → {action:22s} : {record['decision']}")
+
+    # Operator action (permitted)
+    record = team.sign_action("deploy-service", "deploy_staging")
+    print(f"  [SW] {'deploy-service':25s} → {'deploy_staging':22s} : {record['decision']}")
+
+    # ─── Authorization denial ───
+    print("\n--- Role-Based Denial ---")
+
+    # Agent tries admin-only action (should be denied)
+    record = team.sign_action("data-analyst-agent", "approve_deployment")
+    print(f"  Agent → approve_deployment: {record['decision']}")
+    print(f"    Reason: {record.get('reason', 'n/a')}")
+
+    # Agent tries with admin approval (should succeed)
+    record = team.sign_action("data-analyst-agent", "approve_deployment",
+                              approved_by=admin)
+    print(f"  Agent → approve_deployment (approved by admin): {record['decision']}")
+
+    # ─── Ledger verification ───
+    print("\n--- Ledger Verification ---")
+    verification = team.ledger.verify()
+    print(f"  Chain valid: {verification['valid']}")
+    print(f"  Total entries: {verification['entries']}")
+    print(f"  HW-signed entries: {verification['hw_signed']}")
+    print(f"  Chain breaks: {verification['breaks']}")
+    print(f"  Head hash: {verification['head_hash'][:16]}...")
+
+    # Show last few ledger entries
+    print("\n--- Last 3 Ledger Entries ---")
+    for entry in team.ledger.tail(3):
+        action = entry.get("action", {})
+        hw = "HW" if entry.get("hw_signed") else "SW"
+        print(f"  #{entry['sequence']:3d} [{hw}] {action.get('type', action.get('action', '?')):20s} "
+              f"prev={entry['prev_hash'][:8]}... hash={entry['entry_hash'][:8]}...")
+
+    # ─── Persistence + reload test ───
     print("\n--- Persistence Test ---")
-    print("  Loading team from disk...")
     loaded = HardboundTeam.load("acme-ai-ops")
     loaded_info = loaded.info()
-    print(f"  Loaded team: {loaded_info['team']}")
     print(f"  Members restored: {len(loaded_info['members'])}")
-    print(f"  Actions in ledger: {loaded_info['total_actions']}")
+    print(f"  Ledger entries: {loaded_info['ledger']['entries']}")
     for m in loaded_info['members']:
-        print(f"    {m['name']:25s} | {m['type']:12s} | level={m['level']}")
+        print(f"    {m['name']:25s} role={m['role']:10s}")
 
-    # Sign one more action on the loaded team
-    print("\n  Signing action on loaded team...")
+    # Sign on loaded team
     record = loaded.sign_action(f"{loaded.name}-admin", "rotate_credentials")
-    print(f"  [{('HW' if record.get('hw_signed') else 'SW')}] rotate_credentials: {record['decision']}")
-    print(f"  Total actions now: {loaded.info()['total_actions']}")
+    print(f"\n  Sign after reload: rotate_credentials → {record['decision']}")
 
-    # ─── List teams ───
-    print("\n--- Teams on This Machine ---")
-    teams = HardboundTeam.list_teams()
-    for t in teams:
-        print(f"  {t['name']:20s} | members={t.get('members', '?')} | tpm={t.get('use_tpm')}")
+    # Re-verify after new action
+    reload_verify = loaded.ledger.verify()
+    print(f"  Ledger still valid: {reload_verify['valid']}")
+    print(f"  Total entries: {reload_verify['entries']}")
 
-    # ─── State directory contents ───
+    # ─── State files ───
     print("\n--- Persisted State Files ---")
     state_dir = team.state_dir
     for f in sorted(state_dir.rglob("*")):
@@ -701,15 +1113,18 @@ def demo():
                     if isinstance(m, HardwareWeb4Entity))
     sw_members = len(team.members) - hw_members
     print(f"  Team: {team.name}")
-    print(f"  Total members: {len(team.members)} ({hw_members} hardware, {sw_members} software)")
-    print(f"  Actions in ledger: {team.info()['total_actions']}")
-    print(f"  State persisted: {team.state_dir}")
-    print(f"  Root coherence: {team.root.coherence:.4f}")
+    print(f"  Members: {len(team.members)} ({hw_members} HW, {sw_members} SW)")
+    print(f"  Roles: admin={sum(1 for r in team.roles.values() if r == TeamRole.ADMIN)}, "
+          f"operator={sum(1 for r in team.roles.values() if r == TeamRole.OPERATOR)}, "
+          f"agent={sum(1 for r in team.roles.values() if r == TeamRole.AGENT)}")
+    print(f"  Ledger: {team.ledger.count()} entries (hash-chained)")
+    final_verify = team.ledger.verify()
+    print(f"  Chain integrity: {'VERIFIED' if final_verify['valid'] else 'BROKEN'}")
 
     print("\n" + "=" * 65)
-    print("  Hardbound: Persistent enterprise AI governance.")
-    print("  Teams survive sessions. Actions append to ledger.")
-    print("  State is JSON. Trust is hardware. The TPM remembers.")
+    print("  Hardbound: Real enterprise AI governance.")
+    print("  Hash-chained ledger. Role-based authorization.")
+    print("  State survives sessions. The chain remembers.")
     print("=" * 65)
 
 
@@ -750,6 +1165,10 @@ def main():
     team_actions = subparsers.add_parser("team-actions", help="Show team action log")
     team_actions.add_argument("team", help="Team name")
     team_actions.add_argument("--limit", type=int, default=20, help="Max actions to show")
+
+    # team verify
+    team_verify = subparsers.add_parser("team-verify", help="Verify team ledger chain")
+    team_verify.add_argument("team", help="Team name")
 
     # demo
     subparsers.add_parser("demo", help="Run interactive demo")
@@ -793,6 +1212,7 @@ def main():
         "team-add-member": cmd_team_add_member,
         "team-sign": cmd_team_sign,
         "team-actions": cmd_team_actions,
+        "team-verify": cmd_team_verify,
         "demo": lambda a: demo(),
         "entity-create": cmd_entity_create,
         "entity-sign": cmd_entity_sign,

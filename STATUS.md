@@ -1,6 +1,6 @@
 # Web4 Implementation Status
 
-**Last Updated**: February 19, 2026
+**Last Updated**: February 20, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
 **Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity.
 
@@ -495,14 +495,29 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - All 5 links VERIFIED on Legion with real Intel TPM 2.0
    - Bugs found and fixed: signature format mismatch, attribute naming, NV space management
 
+27. ✅ **Hash-chained team ledger** (Feb 20, 2026)
+   - `TeamLedger` class in `hardbound_cli.py`: SHA-256 hash-chained append-only log
+   - Genesis entry on team creation, prev_hash linkage, entry_hash verification
+   - `verify()` walks entire chain and detects breaks/tampering
+   - Replaces flat `actions.jsonl` with cryptographically-linked `ledger.jsonl`
+28. ✅ **Role-based governance + admin approval** (Feb 20, 2026)
+   - `TeamRole` (admin/operator/agent/viewer) with action-level permission checks
+   - Admin-only actions (`approve_deployment`, `rotate_credentials`, etc.) enforced
+   - Delegation: agents can execute restricted actions with `approved_by=admin`
+   - Roles persisted in team.json, restored on load
+29. ✅ **TPM2 handle restoration on entity reload** (Feb 20, 2026)
+   - `_entity_from_state()` now attempts to reconnect to TPM2 persistent handle
+   - Verifies handle still exists via `tpm2_readpublic`
+   - Sets `_tpm2_reconnected` flag for diagnostics
+
 ### Immediate (Feb 2026)
 
-27. 🔄 Implement LCT parsing library in Go (ACT)
+30. 🔄 Implement LCT parsing library in Go (ACT)
    - **TypeScript Status**: URI parser + document library COMPLETE
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-28. 🔄 Calibrate satisfaction threshold for combined filtering
-29. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-30. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+31. 🔄 Calibrate satisfaction threshold for combined filtering
+32. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+33. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 
 ### Near-Term (Q1 2026)
 
@@ -604,7 +619,7 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 ---
 
-**Last Updated**: February 19, 2026
+**Last Updated**: February 20, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation.**
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, and role-based governance. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation.**
 
