@@ -13,10 +13,10 @@
 | Identity coherence scoring | ✅ Implemented | D9 metrics, self-reference detection |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
 | Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
-| Blockchain consensus | ❌ Not implemented | Zero consensus backend |
+| Blockchain consensus | ⚠️ **Partial** | Hash-chained team ledger in Hardbound CLI; no full consensus protocol |
 | VCM recipient attestation | ❌ Not implemented | Vision only |
-| ATP/ADP settlement | ❌ Not implemented | No energy accounting |
-| **Hardware binding** | ⚠️ **Partial** | TPM 2.0 in hardbound-core |
+| ATP/ADP settlement | ⚠️ **Partial** | Hardbound CLI: ATP recharge, team pools, dynamic costs, anti-gaming caps |
+| **Hardware binding** | ⚠️ **Partial** | TPM 2.0, EK chain verified, end-to-end 5-link trust chain |
 
 ### 7.0.2. Hardware Binding Status
 

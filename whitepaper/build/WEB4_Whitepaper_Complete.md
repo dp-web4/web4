@@ -43,16 +43,23 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 **Currently Available** (ready for testing):
 - **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
 
-**Vision Components** (described in this document but not yet implemented):
+**Emerging Implementation** (operational in Hardbound CLI, validating Web4 protocol concepts):
+- ATP/ADP energy-value metabolic cycles: recharge, team pools, dynamic action costs, anti-gaming caps
+- Hash-chained team ledger with heartbeat-driven metabolic timing
+- Policy-from-ledger with versioning, temporal queries, and multi-sig quorum approval
+- Role-based trust infrastructure (admin/operator/agent/viewer permissions)
+- End-to-end hardware trust chain: EK → TPM2 → team → AVP bridge → delegation
+- Cross-bridge action delegation across trust boundaries
+
+**Vision Components** (described in this document, not yet implemented):
 - Full LCT presence and trust system with witness webs and lifecycle management
-- Complete ATP/ADP energy-value metabolic cycles
 - T3/V3 tensor-based trust and value assessment, built on a formal RDF ontology with fractal sub-dimensions
 - Memory as temporal sensing architecture
 - Blockchain typology (Compost/Leaf/Stem/Root chains)
 - Witness acknowledgment protocols
 - Dictionary entity systems
 
-The agent authorization system demonstrates that Web4's core principles—verifiable trust, cryptographic delegation, resource constraints, and instant revocation—can be implemented and tested today. The broader vision provides a roadmap for future development.
+The agent authorization system and the Hardbound CLI governance stack demonstrate that Web4's core principles—verifiable trust, cryptographic delegation, resource constraints, metabolic energy cycles, and hardware-rooted trust—can be implemented and tested today. The broader vision provides a roadmap for further development.
 
 ## An Invitation
 
@@ -2279,10 +2286,10 @@ This typology ensures that each piece of data finds its natural persistence leve
 | Identity coherence scoring | ✅ Implemented | D9 metrics, self-reference detection |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
 | Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
-| Blockchain consensus | ❌ Not implemented | Zero consensus backend |
+| Blockchain consensus | ⚠️ **Partial** | Hash-chained team ledger in Hardbound CLI; no full consensus protocol |
 | VCM recipient attestation | ❌ Not implemented | Vision only |
-| ATP/ADP settlement | ❌ Not implemented | No energy accounting |
-| **Hardware binding** | ⚠️ **Partial** | TPM 2.0 in hardbound-core |
+| ATP/ADP settlement | ⚠️ **Partial** | Hardbound CLI: ATP recharge, team pools, dynamic costs, anti-gaming caps |
+| **Hardware binding** | ⚠️ **Partial** | TPM 2.0, EK chain verified, end-to-end 5-link trust chain |
 
 ### 7.0.2. Hardware Binding Status
 
@@ -3575,10 +3582,10 @@ message Acknowledgment {
 | Identity coherence scoring | ✅ Complete | D9 metrics, C × S × Φ × R validated |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
 | Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
-| Blockchain consensus | ❌ Not started | Zero consensus backend |
+| Blockchain consensus | ⚠️ Partial | Hash-chained team ledger operational in Hardbound CLI; no full consensus protocol |
 | VCM recipient attestation | ❌ Not started | Vision only |
-| ATP/ADP settlement | ❌ Not started | No energy accounting |
-| **Hardware binding** | ⚠️ Partial | TPM 2.0 via `tss-esapi` in hardbound-core (x86_64) |
+| ATP/ADP settlement | ⚠️ Partial | Hardbound CLI: ATP recharge (metabolic-state-dependent), team pools, dynamic action costs, anti-gaming caps |
+| **Hardware binding** | ⚠️ Partial | TPM 2.0 via `tss-esapi`, EK certificate chain verified, end-to-end 5-link trust chain demonstrated |
 
 ### Completed Features
 - [x] LCT data structure implementation
@@ -3595,16 +3602,46 @@ message Acknowledgment {
 - [x] Nonce-based replay protection
 - [x] Witness reputation tracking
 
-### Roadmap (Hardware Binding In Progress)
+### Roadmap
 - [x] TPM 2.0 integration via `tss-esapi` (x86_64)
+- [x] EK certificate chain extraction and verification
+- [x] End-to-end trust chain (EK → TPM2 → team → AVP bridge → delegation)
+- [x] Hash-chained team ledger (Hardbound CLI)
+- [x] ATP recharge with metabolic-state-dependent rates (Hardbound CLI)
+- [x] Dynamic action costs from policy (Hardbound CLI)
+- [x] Multi-sig approval (M-of-N quorum) (Hardbound CLI)
+- [x] Policy-from-ledger with versioning and temporal queries (Hardbound CLI)
+- [x] Heartbeat-driven ledger blocks with metabolic timing (Hardbound CLI)
+- [x] Role-based permissions (admin/operator/agent/viewer) (Hardbound CLI)
+- [x] Cross-bridge action delegation (web4-core)
 - [ ] TrustZone/OP-TEE for ARM platforms
-- [ ] Hardware attestation protocols
-- [ ] PCR sealing for boot-time verification
-- [ ] Four-tier blockchain implementation
-- [ ] ATP/ADP token system
+- [ ] Broad hardware attestation protocols
+- [ ] Four-tier blockchain consensus protocol
 - [ ] VCM multi-party attestation
 - [ ] Cross-chain value transfer
-- [ ] Production deployment
+
+## Appendix H: Glossary of Acronyms
+
+| Acronym | Full Form | Description |
+|---------|-----------|-------------|
+| **LCT** | Linked Context Token | Non-transferable presence token |
+| **ATP** | Allocation Transfer Packet | Energy/value tracking system |
+| **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
+| **T3** | Trust Tensor | 3 root dimensions (Talent/Training/Temperament), each a root node in open-ended RDF sub-graph |
+| **V3** | Value Tensor | Value creation (Valuation, Veracity, Validity) |
+| **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
+| **SNARC** | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |
+| **HRM** | Hierarchical Reasoning Model | Two-level reasoning architecture |
+| **SAGE** | Self-Aware Goal-directed Entity | AI identity research testbed |
+| **VCM** | Value Confirmation Mechanism | Multi-party value certification |
+| **MCP** | Model Context Protocol | AI model communication standard |
+| **D9** | Dimension 9 | Self-reference frequency metric |
+| **C_STABLE** | Coherence Stable Threshold | 0.7 minimum for trust accumulation |
+| **RDF** | Resource Description Framework | W3C standard for typed subject-predicate-object triples (ontological backbone) |
+| **JSON-LD** | JSON for Linked Data | JSON-based RDF serialization for interoperability |
+| **SPARQL** | SPARQL Protocol and RDF Query Language | Query language for RDF graphs |
+| **TPM** | Trusted Platform Module | Hardware security for key binding |
+| **SE** | Secure Enclave | Hardware-isolated key storage |
 
 ## Appendix I: Web4 RDF Ontology Reference
 
@@ -3667,29 +3704,6 @@ The JSON-LD context enables Web4 RDF data to be expressed in standard JSON. The 
 
 The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology/t3v3-ontology.ttl`. It declares the six root dimensions, the `subDimensionOf` property for fractal extension, and the `DimensionScore` class for binding scores to entity-role pairs.
 
-## Appendix H: Glossary of Acronyms
-
-| Acronym | Full Form | Description |
-|---------|-----------|-------------|
-| **LCT** | Linked Context Token | Non-transferable presence token |
-| **ATP** | Allocation Transfer Packet | Energy/value tracking system |
-| **ADP** | Allocation Discharge Packet | Spent ATP awaiting certification |
-| **T3** | Trust Tensor | 3 root dimensions (Talent/Training/Temperament), each a root node in open-ended RDF sub-graph |
-| **V3** | Value Tensor | Value creation (Valuation, Veracity, Validity) |
-| **MRH** | Markov Relevancy Horizon | Contextual relevance boundary |
-| **SNARC** | Surprise, Novelty, Arousal, Reward, Conflict | Affect gating signals |
-| **HRM** | Hierarchical Reasoning Model | Two-level reasoning architecture |
-| **SAGE** | Self-Aware Goal-directed Entity | AI identity research testbed |
-| **VCM** | Value Confirmation Mechanism | Multi-party value certification |
-| **MCP** | Model Context Protocol | AI model communication standard |
-| **D9** | Dimension 9 | Self-reference frequency metric |
-| **C_STABLE** | Coherence Stable Threshold | 0.7 minimum for trust accumulation |
-| **RDF** | Resource Description Framework | W3C standard for typed subject-predicate-object triples (ontological backbone) |
-| **JSON-LD** | JSON for Linked Data | JSON-based RDF serialization for interoperability |
-| **SPARQL** | SPARQL Protocol and RDF Query Language | Query language for RDF graphs |
-| **TPM** | Trusted Platform Module | Hardware security for key binding |
-| **SE** | Secure Enclave | Hardware-isolated key storage |
-
 ---
 
 *These appendices provide technical details for implementers. For the latest specifications and updates, see https://github.com/dp-web4/web4*
@@ -3697,4 +3711,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-02-19 04:37:03*
+*Generated: 2026-02-20 04:39:58*

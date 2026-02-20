@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-02-17
+**Last Updated**: 2026-02-20
 **Whitepaper Status**: Active Development
 
 ---
@@ -203,6 +203,18 @@ After any change:
 
 ## 6. Recent Changes
 
+### 2026-02-20: Publisher Maintenance - Implementation Status Update
+- Updated Appendix G, Section 7.0, and Executive Summary to reflect Hardbound CLI governance stack
+- ATP/ADP, blockchain, and hardware binding statuses moved from "Not started" to "Partial"
+- New "Emerging Implementation" section in Executive Summary for operational Hardbound CLI features
+- Fixed Appendix H/I ordering (were swapped: I before H)
+- Roadmap expanded with 11 completed items (policy-from-ledger, multi-sig, heartbeat blocks, etc.)
+- Rebuilt all artifacts (md, pdf)
+
+### 2026-02-19: Publisher Maintenance - Entity Type Expansion
+- Updated date, expanded entity_type enum to 15 types
+- Rebuilt all artifacts (md, pdf)
+
 ### 2026-02-18: Publisher Maintenance - LCT Reframe Cleanup
 - Fixed 7 stale "identity" references missed by the witnessed presence reframe
 - Affected files: 03-part1, 06-part4, 08-part6, 10-part8
@@ -341,18 +353,16 @@ Web4 whitepaper uses **direct edit** model (simpler than Synchronism):
 
 The whitepaper should reflect implementation reality. Current gaps:
 
-1. **R6 Framework**: Recently documented, needs whitepaper section update
-2. **TPM Integration**: Now real (was stub), whitepaper mentions hardware binding
-3. **Policy Engine**: Implemented, may need whitepaper documentation
-4. **Claude Code Plugins**: New, consider adding to implementation examples
+1. **R6 Framework**: Documented, Hardbound CLI demonstrates role-based R6 in practice
+2. **Governance Stack Detail**: 9-layer stack operational in Hardbound CLI — whitepaper mentions concepts but not the operational stack
+3. **Claude Code Plugins**: Working, consider adding to implementation examples
 
 ### Pending Updates
 
 | Area | Priority | Status |
 |------|----------|--------|
-| R6 section expansion | High | New docs available |
-| Hardware binding update | Medium | TPM now real |
-| Policy engine docs | Medium | Implemented in hardbound |
+| R6 section expansion | Medium | Hardbound CLI demonstrates R6 roles and delegation |
+| Governance stack documentation | Medium | 9-layer operational stack could strengthen Part 3/Part 7 |
 | Plugin examples | Low | Nice to have |
 
 ---

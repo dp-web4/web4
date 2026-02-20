@@ -35,16 +35,23 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 **Currently Available** (ready for testing):
 - **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
 
-**Vision Components** (described in this document but not yet implemented):
+**Emerging Implementation** (operational in Hardbound CLI, validating Web4 protocol concepts):
+- ATP/ADP energy-value metabolic cycles: recharge, team pools, dynamic action costs, anti-gaming caps
+- Hash-chained team ledger with heartbeat-driven metabolic timing
+- Policy-from-ledger with versioning, temporal queries, and multi-sig quorum approval
+- Role-based trust infrastructure (admin/operator/agent/viewer permissions)
+- End-to-end hardware trust chain: EK → TPM2 → team → AVP bridge → delegation
+- Cross-bridge action delegation across trust boundaries
+
+**Vision Components** (described in this document, not yet implemented):
 - Full LCT presence and trust system with witness webs and lifecycle management
-- Complete ATP/ADP energy-value metabolic cycles
 - T3/V3 tensor-based trust and value assessment, built on a formal RDF ontology with fractal sub-dimensions
 - Memory as temporal sensing architecture
 - Blockchain typology (Compost/Leaf/Stem/Root chains)
 - Witness acknowledgment protocols
 - Dictionary entity systems
 
-The agent authorization system demonstrates that Web4's core principles—verifiable trust, cryptographic delegation, resource constraints, and instant revocation—can be implemented and tested today. The broader vision provides a roadmap for future development.
+The agent authorization system and the Hardbound CLI governance stack demonstrate that Web4's core principles—verifiable trust, cryptographic delegation, resource constraints, metabolic energy cycles, and hardware-rooted trust—can be implemented and tested today. The broader vision provides a roadmap for further development.
 
 ## An Invitation
 
