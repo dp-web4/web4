@@ -30,7 +30,7 @@ Enterprise Terminology Bridge:
     Blockchain → Ledger
     Birth Cert → Onboarding Record
 
-Date: 2026-02-19 (persistent state: 2026-02-20)
+Date: 2026-02-19 (persistent state: 2026-02-20, governance: 2026-02-20)
 """
 
 import sys
@@ -65,18 +65,67 @@ class TeamRole:
     AGENT = "agent"       # AI agent, self-approving for permitted actions
     VIEWER = "viewer"     # Read-only, can witness but not act
 
-    # Actions that require admin approval
-    ADMIN_ONLY = {
+    # Default actions that require admin approval (used for initial policy)
+    DEFAULT_ADMIN_ONLY = {
         "approve_deployment", "set_resource_limit", "rotate_credentials",
         "add_member", "remove_member", "update_policy", "grant_role",
         "revoke_role", "set_atp_limit", "emergency_shutdown",
     }
 
-    # Actions that require operator or higher
-    OPERATOR_MIN = {
+    # Default actions that require operator or higher (used for initial policy)
+    DEFAULT_OPERATOR_MIN = {
         "deploy_staging", "run_migration", "scale_service",
         "update_config", "restart_service",
     }
+
+    # Keep backward compat aliases
+    ADMIN_ONLY = DEFAULT_ADMIN_ONLY
+    OPERATOR_MIN = DEFAULT_OPERATOR_MIN
+
+
+class TeamPolicy:
+    """
+    Versioned policy for team governance.
+
+    Policies are stored as entries in the hash-chained ledger, so:
+    - "What policy was active when action X occurred?" is answerable from the chain
+    - Policy changes are themselves governed actions (admin-only)
+    - The full policy history is tamper-evident
+    """
+
+    def __init__(self, version: int = 1, admin_only: set = None,
+                 operator_min: set = None, custom_rules: dict = None):
+        self.version = version
+        self.admin_only = admin_only if admin_only is not None else set(TeamRole.DEFAULT_ADMIN_ONLY)
+        self.operator_min = operator_min if operator_min is not None else set(TeamRole.DEFAULT_OPERATOR_MIN)
+        self.custom_rules = custom_rules or {}
+
+    def to_dict(self) -> dict:
+        return {
+            "version": self.version,
+            "admin_only": sorted(list(self.admin_only)),
+            "operator_min": sorted(list(self.operator_min)),
+            "custom_rules": self.custom_rules,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TeamPolicy":
+        return cls(
+            version=data.get("version", 1),
+            admin_only=set(data.get("admin_only", [])),
+            operator_min=set(data.get("operator_min", [])),
+            custom_rules=data.get("custom_rules", {}),
+        )
+
+    @classmethod
+    def default(cls) -> "TeamPolicy":
+        """Create the default policy (matches TeamRole defaults)."""
+        return cls(
+            version=1,
+            admin_only=set(TeamRole.DEFAULT_ADMIN_ONLY),
+            operator_min=set(TeamRole.DEFAULT_OPERATOR_MIN),
+            custom_rules={},
+        )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -258,6 +307,55 @@ class TeamLedger:
             "head_hash": expected_prev,
         }
 
+    def active_policy(self) -> dict:
+        """
+        Find the most recent policy_update entry in the ledger.
+
+        Returns the policy dict, or None if no policy has been written.
+        This is O(n) — walks the entire chain. For hot paths, the
+        HardboundTeam caches the result.
+        """
+        if not self.path.exists():
+            return None
+        last_policy = None
+        with open(self.path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        entry = json.loads(line)
+                        action = entry.get("action", {})
+                        if action.get("type") == "policy_update":
+                            last_policy = action.get("policy")
+                    except json.JSONDecodeError:
+                        continue
+        return last_policy
+
+    def policy_at_sequence(self, seq: int) -> dict:
+        """
+        Find the policy that was active at a given sequence number.
+
+        Returns the most recent policy_update entry with sequence <= seq,
+        or None if no policy existed at that point.
+        """
+        if not self.path.exists():
+            return None
+        last_policy = None
+        with open(self.path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        entry = json.loads(line)
+                        if entry.get("sequence", 0) > seq:
+                            break
+                        action = entry.get("action", {})
+                        if action.get("type") == "policy_update":
+                            last_policy = action.get("policy")
+                    except json.JSONDecodeError:
+                        continue
+        return last_policy
+
     def count(self) -> int:
         """Count entries in the ledger."""
         if not self.path.exists():
@@ -313,7 +411,8 @@ class HardboundTeam:
         actions.jsonl       — Append-only action log (ledger)
     """
 
-    def __init__(self, name: str, use_tpm: bool = True, state_dir: Path = None):
+    def __init__(self, name: str, use_tpm: bool = True, state_dir: Path = None,
+                 team_atp: float = 1000.0):
         self.name = name
         self.use_tpm = use_tpm and detect_tpm2()
         self.root: HardwareWeb4Entity = None
@@ -323,11 +422,19 @@ class HardboundTeam:
         self.action_log: list = []
         self.created_at = datetime.now(timezone.utc).isoformat()
 
+        # Team-level ATP pool (aggregate budget)
+        self.team_atp = team_atp
+        self.team_atp_max = team_atp
+        self.team_adp_discharged = 0.0  # Total ATP consumed by team
+
         # State directory
         self.state_dir = state_dir or (HARDBOUND_DIR / "teams" / name)
 
         # Hash-chained ledger
         self.ledger = TeamLedger(self.state_dir / "ledger.jsonl")
+
+        # Policy cache (resolved from ledger, avoids re-scanning)
+        self._cached_policy: TeamPolicy = None
 
     # ─── Persistence ────────────────────────────────────────────
 
@@ -396,8 +503,9 @@ class HardboundTeam:
                     provider = TPM2Provider()
                     # Verify the persistent handle still exists
                     handle = state["tpm_handle"]
-                    result = provider._run_tpm2_cmd(
-                        ["tpm2_readpublic", "-c", handle]
+                    result = provider._run_tpm2_command(
+                        ["tpm2_readpublic", "-c", handle],
+                        check=False
                     )
                     if result.returncode == 0:
                         entity._tpm2_reconnected = True
@@ -435,6 +543,9 @@ class HardboundTeam:
             "use_tpm": self.use_tpm,
             "member_names": list(self.members.keys()),
             "roles": self.roles,
+            "team_atp": round(self.team_atp, 2),
+            "team_atp_max": round(self.team_atp_max, 2),
+            "team_adp_discharged": round(self.team_adp_discharged, 2),
         }
         if self.root:
             team_state["root"] = self._entity_to_state(self.root)
@@ -474,8 +585,11 @@ class HardboundTeam:
             raise FileNotFoundError(f"Team '{name}' not found at {base}")
 
         team_state = json.loads(team_file.read_text())
-        team = cls(team_state["name"], use_tpm=team_state.get("use_tpm", True))
+        team = cls(team_state["name"], use_tpm=team_state.get("use_tpm", True),
+                   team_atp=team_state.get("team_atp", 1000.0))
         team.created_at = team_state.get("created_at", "unknown")
+        team.team_atp_max = team_state.get("team_atp_max", team.team_atp)
+        team.team_adp_discharged = team_state.get("team_adp_discharged", 0.0)
         team.state_dir = base
 
         # Reinitialize ledger pointing to correct file
@@ -511,6 +625,9 @@ class HardboundTeam:
                         team.roles[mname] = TeamRole.AGENT
                     else:
                         team.roles[mname] = TeamRole.OPERATOR
+
+        # Warm up policy cache from ledger
+        team._resolve_policy()
 
         return team
 
@@ -574,6 +691,15 @@ class HardboundTeam:
             team_name=self.name,
             root_lct=self.root.lct_id,
             admin_lct=self.admin.lct_id,
+            signer_entity=self.root if isinstance(self.root, HardwareWeb4Entity) else None,
+        )
+
+        # Write initial policy to ledger (versioned from day one)
+        initial_policy = TeamPolicy.default()
+        self._cached_policy = initial_policy
+        self.ledger.append(
+            action={"type": "policy_update", "policy": initial_policy.to_dict()},
+            signer_lct=self.root.lct_id,
             signer_entity=self.root if isinstance(self.root, HardwareWeb4Entity) else None,
         )
 
@@ -686,52 +812,163 @@ class HardboundTeam:
                 "coherence": round(member.coherence, 4),
             })
 
+        # Team ATP pool
+        result["team_atp"] = {
+            "balance": round(self.team_atp, 2),
+            "max": round(self.team_atp_max, 2),
+            "discharged": round(self.team_adp_discharged, 2),
+            "utilization": round(self.team_adp_discharged / self.team_atp_max * 100, 1)
+                           if self.team_atp_max > 0 else 0.0,
+        }
+
         # Ledger info
         result["ledger"] = {
             "entries": self.ledger.count(),
             "pending": len(self.action_log),
         }
 
+        # Policy info (from ledger)
+        policy = self._resolve_policy()
+        result["policy"] = {
+            "version": policy.version,
+            "admin_only_actions": len(policy.admin_only),
+            "operator_min_actions": len(policy.operator_min),
+            "custom_rules": len(policy.custom_rules),
+            "source": "ledger" if self.ledger.active_policy() else "default",
+        }
+
         return result
+
+    def _resolve_policy(self) -> TeamPolicy:
+        """
+        Resolve the active policy from the ledger (with caching).
+
+        If no policy exists in the ledger, returns the default policy.
+        Cache is invalidated when a policy_update is appended.
+        """
+        if self._cached_policy is not None:
+            return self._cached_policy
+
+        policy_data = self.ledger.active_policy()
+        if policy_data:
+            self._cached_policy = TeamPolicy.from_dict(policy_data)
+        else:
+            self._cached_policy = TeamPolicy.default()
+        return self._cached_policy
+
+    def update_policy(self, admin_name: str, changes: dict) -> dict:
+        """
+        Update the team policy (admin-only meta-governance action).
+
+        Args:
+            admin_name: Name of the admin making the change
+            changes: Dict with optional keys:
+                - add_admin_only: list of actions to add to admin_only
+                - remove_admin_only: list of actions to remove from admin_only
+                - add_operator_min: list of actions to add to operator_min
+                - remove_operator_min: list of actions to remove from operator_min
+                - set_custom_rule: {"name": "...", "value": "..."}
+
+        Returns:
+            Result dict with new policy version
+        """
+        # Only admin can update policy
+        role = self.roles.get(admin_name, TeamRole.VIEWER)
+        if role != TeamRole.ADMIN:
+            return {"error": f"policy update requires admin role (actor has '{role}')",
+                    "denied": True}
+
+        # Resolve current policy
+        current = self._resolve_policy()
+
+        # Apply changes
+        new_admin_only = set(current.admin_only)
+        new_operator_min = set(current.operator_min)
+        new_custom = dict(current.custom_rules)
+
+        for action in changes.get("add_admin_only", []):
+            new_admin_only.add(action)
+        for action in changes.get("remove_admin_only", []):
+            new_admin_only.discard(action)
+        for action in changes.get("add_operator_min", []):
+            new_operator_min.add(action)
+        for action in changes.get("remove_operator_min", []):
+            new_operator_min.discard(action)
+        if "set_custom_rule" in changes:
+            rule = changes["set_custom_rule"]
+            new_custom[rule["name"]] = rule["value"]
+
+        new_policy = TeamPolicy(
+            version=current.version + 1,
+            admin_only=new_admin_only,
+            operator_min=new_operator_min,
+            custom_rules=new_custom,
+        )
+
+        # Write to ledger
+        admin_entity = self.members.get(admin_name)
+        self.ledger.append(
+            action={"type": "policy_update", "policy": new_policy.to_dict()},
+            signer_lct=admin_entity.lct_id if admin_entity else "",
+            signer_entity=admin_entity if isinstance(admin_entity, HardwareWeb4Entity) else None,
+        )
+
+        # Invalidate cache
+        self._cached_policy = new_policy
+
+        return {
+            "policy_version": new_policy.version,
+            "admin_only_count": len(new_policy.admin_only),
+            "operator_min_count": len(new_policy.operator_min),
+            "custom_rules": len(new_policy.custom_rules),
+            "changes_applied": changes,
+        }
 
     def check_authorization(self, actor_name: str, action: str) -> dict:
         """
-        Check if an actor is authorized for an action based on their role.
+        Check if an actor is authorized for an action based on their role
+        and the active policy from the ledger.
 
         Returns:
             {"authorized": bool, "reason": str, "requires_approval": bool,
-             "approver_role": str or None}
+             "approver_role": str or None, "policy_version": int}
         """
         role = self.roles.get(actor_name, TeamRole.VIEWER)
+        policy = self._resolve_policy()
 
         # Admin can do anything
         if role == TeamRole.ADMIN:
             return {"authorized": True, "reason": "admin privilege",
-                    "requires_approval": False, "approver_role": None}
+                    "requires_approval": False, "approver_role": None,
+                    "policy_version": policy.version}
 
-        # Check admin-only actions
-        if action in TeamRole.ADMIN_ONLY:
+        # Check admin-only actions (from ledger policy)
+        if action in policy.admin_only:
             if role != TeamRole.ADMIN:
                 return {"authorized": False,
                         "reason": f"'{action}' requires admin role (actor has '{role}')",
-                        "requires_approval": True, "approver_role": TeamRole.ADMIN}
+                        "requires_approval": True, "approver_role": TeamRole.ADMIN,
+                        "policy_version": policy.version}
 
-        # Check operator-min actions
-        if action in TeamRole.OPERATOR_MIN:
+        # Check operator-min actions (from ledger policy)
+        if action in policy.operator_min:
             if role not in (TeamRole.ADMIN, TeamRole.OPERATOR):
                 return {"authorized": False,
                         "reason": f"'{action}' requires operator role (actor has '{role}')",
-                        "requires_approval": True, "approver_role": TeamRole.OPERATOR}
+                        "requires_approval": True, "approver_role": TeamRole.OPERATOR,
+                        "policy_version": policy.version}
 
         # Viewer can't act
         if role == TeamRole.VIEWER:
             return {"authorized": False,
                     "reason": "viewer role cannot execute actions",
-                    "requires_approval": True, "approver_role": TeamRole.OPERATOR}
+                    "requires_approval": True, "approver_role": TeamRole.OPERATOR,
+                    "policy_version": policy.version}
 
         # Agent and operator can execute non-restricted actions
         return {"authorized": True, "reason": f"permitted for role '{role}'",
-                "requires_approval": False, "approver_role": None}
+                "requires_approval": False, "approver_role": None,
+                "policy_version": policy.version}
 
     def sign_action(self, actor_name: str, action: str,
                     approved_by: str = None) -> dict:
@@ -777,17 +1014,32 @@ class HardboundTeam:
                 self.save()
                 return record
 
+        # Check team ATP pool before executing
+        action_cost = 10.0  # Default R6 resource estimate
+        if self.team_atp < action_cost:
+            record["decision"] = "denied"
+            record["reason"] = f"team ATP pool exhausted ({self.team_atp:.1f} remaining, need {action_cost:.1f})"
+            self.action_log.append(record)
+            self.save()
+            return record
+
         # Execute the action
         request = R6Request(
             rules="team-policy-v1",
             role=member.lct_id if hasattr(member, 'lct_id') else "unknown",
             request=action,
-            resource_estimate=10.0,
+            resource_estimate=action_cost,
         )
 
         result = member.act(request)
         record["decision"] = result.decision.value
         record["atp_cost"] = result.atp_consumed
+
+        # Debit team pool on successful actions
+        if result.decision == R6Decision.APPROVED and result.atp_consumed > 0:
+            self.team_atp -= result.atp_consumed
+            self.team_adp_discharged += result.atp_consumed
+            record["team_atp_remaining"] = round(self.team_atp, 2)
 
         if isinstance(member, HardwareWeb4Entity) and result.decision == R6Decision.APPROVED:
             record["hw_signed"] = True
@@ -1064,6 +1316,43 @@ def demo():
                               approved_by=admin)
     print(f"  Agent → approve_deployment (approved by admin): {record['decision']}")
 
+    # ─── Policy-from-Ledger ───
+    print("\n--- Policy-from-Ledger ---")
+    policy = team._resolve_policy()
+    print(f"  Active policy version: {policy.version}")
+    print(f"  Admin-only actions: {len(policy.admin_only)}")
+    print(f"  Source: {'ledger' if team.ledger.active_policy() else 'default'}")
+
+    # Agent tries 'restart_service' — currently requires operator
+    record = team.sign_action("data-analyst-agent", "restart_service")
+    print(f"\n  Agent → restart_service (before policy change): {record['decision']}")
+    print(f"    Reason: {record.get('reason', 'authorized')}")
+
+    # Admin updates policy: move 'restart_service' to agent-accessible
+    result = team.update_policy(admin, {
+        "remove_operator_min": ["restart_service"],
+    })
+    print(f"\n  Policy updated to v{result['policy_version']}")
+    print(f"  Removed 'restart_service' from operator-min")
+
+    # Same agent tries again — now allowed
+    record = team.sign_action("data-analyst-agent", "restart_service")
+    print(f"  Agent → restart_service (after policy change): {record['decision']}")
+
+    # Also add a custom admin-only action
+    result = team.update_policy(admin, {
+        "add_admin_only": ["delete_team_data"],
+        "set_custom_rule": {"name": "max_delegation_depth", "value": "3"},
+    })
+    print(f"\n  Policy updated to v{result['policy_version']}")
+    print(f"  Added 'delete_team_data' to admin-only")
+
+    # Historical policy query
+    policy_at_genesis = team.ledger.policy_at_sequence(2)
+    policy_at_latest = team.ledger.active_policy()
+    print(f"\n  Policy at seq 2: v{policy_at_genesis['version']} ({len(policy_at_genesis['admin_only'])} admin-only)")
+    print(f"  Current policy:  v{policy_at_latest['version']} ({len(policy_at_latest['admin_only'])} admin-only)")
+
     # ─── Ledger verification ───
     print("\n--- Ledger Verification ---")
     verification = team.ledger.verify()
@@ -1107,11 +1396,23 @@ def demo():
             rel = f.relative_to(state_dir)
             print(f"  {str(rel):30s} ({f.stat().st_size:,} bytes)")
 
+    # ─── Team ATP Pool ───
+    print("\n--- Team ATP Pool ---")
+    print(f"  Team ATP balance: {team.team_atp:.1f} / {team.team_atp_max:.1f}")
+    print(f"  Total discharged: {team.team_adp_discharged:.1f}")
+    print(f"  Utilization: {team.team_adp_discharged / team.team_atp_max * 100:.1f}%")
+
+    # Show member ATP for comparison
+    for name, member in team.members.items():
+        m_atp = member.atp.atp_balance if hasattr(member, 'atp') else 0
+        print(f"    {name:25s} ATP: {m_atp:.1f}")
+
     # ─── Summary ───
     print("\n--- Summary ---")
     hw_members = sum(1 for m in team.members.values()
                     if isinstance(m, HardwareWeb4Entity))
     sw_members = len(team.members) - hw_members
+    policy = team._resolve_policy()
     print(f"  Team: {team.name}")
     print(f"  Members: {len(team.members)} ({hw_members} HW, {sw_members} SW)")
     print(f"  Roles: admin={sum(1 for r in team.roles.values() if r == TeamRole.ADMIN)}, "
@@ -1120,10 +1421,15 @@ def demo():
     print(f"  Ledger: {team.ledger.count()} entries (hash-chained)")
     final_verify = team.ledger.verify()
     print(f"  Chain integrity: {'VERIFIED' if final_verify['valid'] else 'BROKEN'}")
+    print(f"  Policy: v{policy.version} ({len(policy.admin_only)} admin-only, "
+          f"{len(policy.operator_min)} operator-min)")
+    print(f"  Team ATP: {team.team_atp:.1f}/{team.team_atp_max:.1f} "
+          f"({team.team_adp_discharged:.1f} discharged)")
 
     print("\n" + "=" * 65)
     print("  Hardbound: Real enterprise AI governance.")
     print("  Hash-chained ledger. Role-based authorization.")
+    print("  Policy-from-ledger. Team ATP budget pool.")
     print("  State survives sessions. The chain remembers.")
     print("=" * 65)
 

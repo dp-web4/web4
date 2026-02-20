@@ -509,15 +509,30 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - `_entity_from_state()` now attempts to reconnect to TPM2 persistent handle
    - Verifies handle still exists via `tpm2_readpublic`
    - Sets `_tpm2_reconnected` flag for diagnostics
+   - Bug fix: method name `_run_tpm2_cmd` → `_run_tpm2_command` (was silently failing)
+   - Validated: TPM2 ECDSA signing works after entity reload (96-char DER signature)
+30. ✅ **Policy-from-ledger** (Feb 20, 2026)
+   - `TeamPolicy` class: versioned policy rules stored as ledger entries
+   - `policy_update` entries in hash-chain: full audit trail of rule changes
+   - `active_policy()`: resolve current rules from ledger
+   - `policy_at_sequence(n)`: "what policy was active when action N occurred?"
+   - `update_policy()`: admin-only meta-governance with version incrementing
+   - Initial policy v1 written at genesis; `check_authorization()` reads from ledger
+31. ✅ **Team-level ATP pool** (Feb 20, 2026)
+   - Aggregate ATP budget constraining all members
+   - Actions denied when team pool exhausted (regardless of member balance)
+   - `team_atp`, `team_atp_max`, `team_adp_discharged` tracked and persisted
+   - Utilization reporting in team info
+   - Validated: 25 ATP pool → 2 actions approved, 3 denied (correct throttling)
 
 ### Immediate (Feb 2026)
 
-30. 🔄 Implement LCT parsing library in Go (ACT)
+32. 🔄 Implement LCT parsing library in Go (ACT)
    - **TypeScript Status**: URI parser + document library COMPLETE
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-31. 🔄 Calibrate satisfaction threshold for combined filtering
-32. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-33. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+33. 🔄 Calibrate satisfaction threshold for combined filtering
+34. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+35. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 
 ### Near-Term (Q1 2026)
 
@@ -621,5 +636,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 20, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, and role-based governance. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation.**
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, and team ATP pool. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. Policy rules versioned in hash-chain. Team ATP pool enforces aggregate budget constraints.**
 
