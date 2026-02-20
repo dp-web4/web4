@@ -4,13 +4,13 @@
 
 metadata:
   project: web4
-  last_updated: "2026-02-19T06:00:00Z"
+  last_updated: "2026-02-20T06:00:00Z"
   archivist_version: "1.3"
   total_sessions: 213
   focus: "Distributed Trust Infrastructure"
   date_range: "2025-08 to 2026-02"
   existing_manifest: "ARCHIVE_MANIFEST.md"
-  milestone: "PolicyEntity as 15th entity type (IRP-backed evaluation, accountability frames). SOIA-SAGE convergence: PolicyEntity as plugin of plugins. LCT Unified Identity spec → Presence spec (renamed + 15 cross-refs). Multi-model forum: Grok/Nova/Claude participation perspectives. 424 attack vectors stable."
+  milestone: "Hardbound CLI 9-layer governance stack: hash-chained ledger, role-based governance, TPM2, cross-bridge delegation, versioned policy, team ATP pool, heartbeat-driven metabolic ledger, dynamic action costs, ATP recharge, multi-sig approval, heartbeat block aggregation, analytics API. Complete self-regulating system. 424 attack vectors stable."
 
 # =============================================================================
 # RESEARCH ARCS
@@ -92,6 +92,27 @@ arcs:
       - "Emotional IRPs"
     files_location: "implementation/session81-101/"
     organization: "Track-based (track1, track2, track3, track4 per session)"
+
+  hardbound_governance_stack:
+    name: "Hardbound CLI 9-Layer Governance Stack"
+    session_type: "autonomous"
+    date: "2026-02-19 to 2026-02-20"
+    status: "Complete (self-regulating)"
+    key_themes:
+      - "Hash-chained ledger with role-based governance"
+      - "TPM2 hardware binding + EK certificate chain"
+      - "Cross-bridge delegation + AVP transport"
+      - "Team ATP pool with metabolic heartbeat"
+      - "Dynamic action costs (3-50 ATP per category)"
+      - "ATP recharge tied to metabolic state (DREAM=20, REST=10, WAKE=5, FOCUS=1, CRISIS=0)"
+      - "Multi-sig M-of-N quorum approval with TTL"
+      - "Heartbeat block aggregation (crisis bypass)"
+      - "Analytics API with queryable team history"
+    deliverables:
+      - "implementation/reference/hardbound_cli.py — 1064+ lines added (complete governance stack)"
+      - "STATUS.md — updated with items 15-23"
+    key_insight: "System is self-sustaining: REST/DREAM recharge > FOCUS/CRISIS consumption. Natural equilibrium emerges from metabolic dynamics. Anti-gaming: recharge capped at 3x rate."
+    note: "8 autonomous sessions by Legion built complete governance infrastructure. Each session added ~2-3 tracks. Heartbeat-driven ledger makes the system biologically-inspired (pulse rate adapts to metabolic state)."
 
   policy_entity_soia_convergence:
     name: "PolicyEntity + SOIA-SAGE Convergence"
