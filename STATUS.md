@@ -2,7 +2,7 @@
 
 **Last Updated**: February 20, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
-**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational. Go LCT library complete. Cross-team trust bridges working.**
+**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational. Go LCT library complete (55 tests). Cross-team trust bridges + inter-org delegation working. Trust conflict resolution explored — 6 arbitration strategies tested.**
 
 ---
 
@@ -587,11 +587,12 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Nested societies verified: distinct LCT identities, independent law versions
    - See: `implementation/reference/sal_birth_cert_test.py`
 
-44. ✅ **Go LCT library (URI parser + document model)** (Feb 20, 2026)
+44. ✅ **Go LCT library (URI + Document + Builder, 55 tests)** (Feb 20, 2026)
    - Full port from TypeScript: ParseURI/BuildURI/ValidateURI + Document struct
    - 15 entity types, T3/V3 tensor operations, composite scoring, legacy 6-dim migration
    - Document validation per lct.schema.json, JSON serialization roundtrip
-   - 43 tests pass (spec test vectors, validation, tensor ops, roundtrip)
+   - Fluent Builder pattern: `NewBuilder(EntityAI, "name").WithT3().Build()`
+   - 55 tests pass (spec test vectors, validation, tensor ops, builder, roundtrip)
    - See: `ledgers/reference/go/lct/`
 45. ✅ **Cross-team trust bridges (HardboundOrganization)** (Feb 20, 2026)
    - `OrgBridge` class: bridge lifecycle (NEW→ACTIVE→ESTABLISHED→DEGRADED→BROKEN)
@@ -599,18 +600,28 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Cross-team R6 delegation with ATP forwarding (cost ∝ 1/trust)
    - `HardboundOrganization`: multi-team governance, bridge management, persistence
    - See: `implementation/reference/hardbound_org.py`
-46. ✅ **TPM2 handle cleanup automation** (Feb 20, 2026)
-   - Standalone `TPM2Cleanup` utility: scan, evict_orphaned, evict_all_web4
-   - Status report: system/tracked/orphaned/foreign handle classification
-   - CLI: `hardbound tpm2-cleanup [--evict|--evict-all]`
-   - See: `core/lct_binding/tpm2_cleanup.py`
+46. ✅ **TPM2 deep cleanup** (Feb 20, 2026)
+   - `deep_cleanup()` in TPM2Provider: finds stale metadata + orphaned handles + collisions
+   - Root cause: 256-slot handle namespace fills with metadata from hash collisions
+   - Cleaned 161 stale files, preserved 5 live keys (from 166 metadata files)
+   - Auto-cleanup integrated into hardbound_cli.py and hardbound_org.py demo teardown
+   - CLI: `python -m core.lct_binding.tpm2_provider --cleanup`
+   - See: `core/lct_binding/tpm2_provider.py`, `core/lct_binding/tpm2_cleanup.py`
+47. ✅ **Trust conflict resolution simulation** (Feb 20, 2026)
+   - 3 orgs, 3 agents, 6 arbitration strategies, 7 conflicts detected
+   - Strategies: minimum, maximum, weighted, bridge_mediated, defer_local, isolate
+   - Key finding: BRIDGE_MEDIATED safest (dampens controversial agents via trust cap)
+   - WEIGHTED handles partial knowledge gracefully (more observations = more influence)
+   - Trust gaming detection: spread > 0.4 flags 2/3 manipulative agents
+   - Open question: confidence-weighted spread for context vs manipulation distinction
+   - See: `implementation/reference/trust_conflict_simulation.py`
 
 ### Immediate (Feb 2026)
 
-47. 🔄 Calibrate satisfaction threshold for combined filtering
-48. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-49. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-50. 🔄 LCT registry implementation
+48. 🔄 Calibrate satisfaction threshold for combined filtering
+49. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+50. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+51. 🔄 LCT registry federation integration (single-society impl exists)
 
 ### Near-Term (Q1 2026)
 
@@ -714,5 +725,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 20, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. 10-layer governance stack: SAL birth certificates → multi-sig quorum → ATP recharge → heartbeat blocks → analytics → metabolic state → dynamic costs → policy-from-ledger → RBAC → hash-chained ledger. Governance stress-tested (200 actions, self-sustaining equilibrium). 30-vector attack surface: 100% defended. T3/V3 reputation deltas from every action. SAL birth certificates with tamper detection + fractal citizenship (6/6 tests pass).**
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. 10-layer governance stack operational. Go LCT library complete (55 tests). Cross-team trust bridges + cross-org delegation. TPM2 deep cleanup automated. Trust conflict resolution simulation: 6 arbitration strategies tested, gaming detection operational.**
 
