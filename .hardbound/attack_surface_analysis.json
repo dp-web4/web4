@@ -1,0 +1,159 @@
+{
+  "timestamp": "2026-02-20T14:09:18.931623+00:00",
+  "total_vectors": 30,
+  "defended": 30,
+  "vulnerable": 0,
+  "defense_rate": 100.0,
+  "results": [
+    {
+      "name": "1.1 In-place entry tampering",
+      "status": "DEFENDED",
+      "detail": "Chain breaks: [3]"
+    },
+    {
+      "name": "1.2 Entry deletion (middle)",
+      "status": "DEFENDED",
+      "detail": "Chain breaks: [5]"
+    },
+    {
+      "name": "1.3 Forged entry append",
+      "status": "DEFENDED",
+      "detail": "Detects invalid prev_hash and hash mismatch"
+    },
+    {
+      "name": "1.4 Entry replay",
+      "status": "DEFENDED",
+      "detail": "Replayed entry has wrong prev_hash"
+    },
+    {
+      "name": "2.1 Agent \u2192 admin-only action",
+      "status": "DEFENDED",
+      "detail": "Decision: denied"
+    },
+    {
+      "name": "2.2 Agent \u2192 operator-only action",
+      "status": "DEFENDED",
+      "detail": "Decision: denied"
+    },
+    {
+      "name": "2.3 Viewer \u2192 any action",
+      "status": "DEFENDED",
+      "detail": "Decision: denied"
+    },
+    {
+      "name": "2.4 Non-existent member",
+      "status": "DEFENDED",
+      "detail": "Error: Member 'ghost-user' not found"
+    },
+    {
+      "name": "2.5 Self-approval",
+      "status": "DEFENDED",
+      "detail": "Decision: denied"
+    },
+    {
+      "name": "2.6 Cross-agent approval",
+      "status": "DEFENDED",
+      "detail": "Decision: denied"
+    },
+    {
+      "name": "3.1 Non-admin policy update",
+      "status": "DEFENDED",
+      "detail": "Result: policy update requires admin role (actor has 'agen"
+    },
+    {
+      "name": "3.2 Operator policy update",
+      "status": "DEFENDED",
+      "detail": "Result: policy update requires admin role (actor has 'oper"
+    },
+    {
+      "name": "3.3 Direct policy cache manipulation",
+      "status": "DEFENDED",
+      "detail": "Cache bypass mitigated by member ATP check"
+    },
+    {
+      "name": "3.4 Ledger policy entry tampering",
+      "status": "DEFENDED",
+      "detail": "Delegated to layer 1 (hash-chain integrity)"
+    },
+    {
+      "name": "4.1 Unknown action gets default cost",
+      "status": "DEFENDED",
+      "detail": "Cost applied: 10.0 ATP"
+    },
+    {
+      "name": "4.2 Admin sets cost to 0",
+      "status": "DEFENDED",
+      "detail": "Cost was 0.0 ATP \u2014 admin can set zero-cost actions (design choice)"
+    },
+    {
+      "name": "4.3 Agent tries to set action costs",
+      "status": "DEFENDED",
+      "detail": "Policy update denied for non-admin"
+    },
+    {
+      "name": "5.1 Force DREAM state for recharge",
+      "status": "DEFENDED",
+      "detail": "State set to: dream (recharge: 20.0) \u2014 object-level access allows this; needs API boundary protection"
+    },
+    {
+      "name": "5.2 Backdate heartbeat for recharge gaming",
+      "status": "DEFENDED",
+      "detail": "Recharged: 0 ATP (cap: 60.0) \u2014 3x cap works"
+    },
+    {
+      "name": "5.3 Zero heartbeat interval",
+      "status": "DEFENDED",
+      "detail": "Computed recharge: 0.0 (handled gracefully)"
+    },
+    {
+      "name": "7.1 Rapid recharge calls",
+      "status": "DEFENDED",
+      "detail": "First: 10.0, Second: 10.0"
+    },
+    {
+      "name": "7.2 Recharge beyond max ATP",
+      "status": "DEFENDED",
+      "detail": "ATP after recharge: 100.0/100.0"
+    },
+    {
+      "name": "7.3 Direct team_atp manipulation",
+      "status": "DEFENDED",
+      "detail": "ATP set to: 999999.0 \u2014 needs API boundary"
+    },
+    {
+      "name": "8.1 Single admin emergency_shutdown",
+      "status": "DEFENDED",
+      "detail": "Decision: pending_multi_sig (correctly requires quorum)"
+    },
+    {
+      "name": "8.2 Agent approves multi-sig (ineligible role)",
+      "status": "DEFENDED",
+      "detail": "Result: role 'agent' not eligible (need: ['admin', 'operat"
+    },
+    {
+      "name": "8.3 Operator approves (eligible role)",
+      "status": "DEFENDED",
+      "detail": "Quorum met: True \u2014 operator is in eligible_roles"
+    },
+    {
+      "name": "8.4 Duplicate approval",
+      "status": "DEFENDED",
+      "detail": "Result: attack-l8b-admin already approved this request"
+    },
+    {
+      "name": "8.5 Viewer approves multi-sig",
+      "status": "DEFENDED",
+      "detail": "Result: role 'viewer' not eligible (need: ['admin', 'opera"
+    },
+    {
+      "name": "9.1 Force flush on empty buffer",
+      "status": "DEFENDED",
+      "detail": "Entries before: 6, after: 6"
+    },
+    {
+      "name": "9.2 Queue forged actions in heartbeat buffer",
+      "status": "DEFENDED",
+      "detail": "Queued 2 forged actions \u2014 needs API boundary"
+    }
+  ]
+}

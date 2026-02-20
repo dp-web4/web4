@@ -113,12 +113,14 @@ class TeamHeartbeat:
 
     # ATP recharge rates per heartbeat tick (per metabolic state)
     # Higher recharge in restful states; minimal during intense work
+    # NOTE: crisis has a small trickle to prevent death spirals
+    # (stress test 2026-02-20: 0.0 crisis rate → unrecoverable depletion)
     RECHARGE_RATES = {
         "dream": 20.0,   # Max recharge — consolidation/recovery mode
         "rest": 10.0,    # High recharge — reduced activity
         "wake": 5.0,     # Moderate — normal operation
-        "focus": 1.0,    # Minimal — energy goes to work
-        "crisis": 0.0,   # Zero — all resources committed to emergency
+        "focus": 2.0,    # Low — most energy goes to work
+        "crisis": 3.0,   # Trickle — prevents death spiral, allows slow recovery
     }
 
     def __init__(self, state: str = "wake"):
@@ -253,6 +255,17 @@ class TeamPolicy:
         self.custom_rules = custom_rules or {}
         self.action_costs = action_costs if action_costs is not None else dict(self.DEFAULT_ACTION_COSTS)
         self.multi_sig = multi_sig if multi_sig is not None else dict(self.DEFAULT_MULTI_SIG)
+        # Seal the integrity hash after construction
+        self._integrity_hash = self._compute_hash()
+
+    def _compute_hash(self) -> str:
+        """Compute integrity hash over all policy fields."""
+        canonical = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode()).hexdigest()
+
+    def verify_integrity(self) -> bool:
+        """Check if policy state matches its sealed hash (detects cache tampering)."""
+        return self._integrity_hash == self._compute_hash()
 
     def get_cost(self, action: str) -> float:
         """Get the ATP cost for an action from policy."""
@@ -815,6 +828,55 @@ class MultiSigBuffer:
             "requests": {rid: req.to_dict() for rid, req in self.pending.items()},
         }
 
+    def save(self, path: "Path"):
+        """Persist pending requests to disk."""
+        self._prune_expired()
+        data = []
+        for req in self.pending.values():
+            if not req.executed and not req.is_expired:
+                data.append({
+                    "request_id": req.request_id,
+                    "actor": req.actor,
+                    "action": req.action,
+                    "required": req.required,
+                    "eligible_roles": req.eligible_roles,
+                    "approvals": req.approvals,
+                    "created_at": req.created_at.isoformat(),
+                    "ttl_seconds": req.ttl_seconds,
+                })
+        if data:
+            path.write_text(json.dumps(data, indent=2))
+        elif path.exists():
+            path.unlink()  # Clean up empty file
+
+    @classmethod
+    def load(cls, path: "Path") -> "MultiSigBuffer":
+        """Restore pending requests from disk."""
+        buf = cls()
+        if not path.exists():
+            return buf
+        try:
+            data = json.loads(path.read_text())
+            for item in data:
+                req = MultiSigRequest(
+                    request_id=item["request_id"],
+                    actor=item["actor"],
+                    action=item["action"],
+                    required=item["required"],
+                    eligible_roles=item["eligible_roles"],
+                    ttl_seconds=item.get("ttl_seconds", 3600),
+                )
+                # Restore creation time
+                req.created_at = datetime.fromisoformat(item["created_at"])
+                # Restore approvals
+                req.approvals = item.get("approvals", [])
+                # Only add if not expired
+                if not req.is_expired:
+                    buf.pending[req.request_id] = req
+        except (json.JSONDecodeError, KeyError):
+            pass  # Corrupt file, start fresh
+        return buf
+
 
 def detect_tpm2() -> bool:
     """Check if TPM2 is available."""
@@ -1010,6 +1072,9 @@ class HardboundTeam:
                 json.dumps(member_state, indent=2)
             )
 
+        # Persist multi-sig pending requests
+        self.multi_sig_buffer.save(self.state_dir / "multi_sig_pending.json")
+
         # Flush pending actions to hash-chained ledger
         if self.action_log:
             for action in self.action_log:
@@ -1075,6 +1140,9 @@ class HardboundTeam:
 
         # Warm up policy cache from ledger
         team._resolve_policy()
+
+        # Restore multi-sig pending requests
+        team.multi_sig_buffer = MultiSigBuffer.load(base / "multi_sig_pending.json")
 
         return team
 
@@ -1251,13 +1319,18 @@ class HardboundTeam:
 
         result["members"] = []
         for name, member in self.members.items():
-            result["members"].append({
+            m_info = {
                 "name": name,
                 "type": member.entity_type.value if hasattr(member, 'entity_type') else "unknown",
                 "role": self.roles.get(name, "unknown"),
                 "level": getattr(member, 'capability_level', 4),
                 "coherence": round(member.coherence, 4),
-            })
+            }
+            if hasattr(member, 't3'):
+                m_info["t3"] = member.t3.to_dict()
+            if hasattr(member, 'v3'):
+                m_info["v3"] = member.v3.to_dict()
+            result["members"].append(m_info)
 
         # Heartbeat info
         result["heartbeat"] = self.heartbeat.to_dict()
@@ -1303,9 +1376,13 @@ class HardboundTeam:
 
         If no policy exists in the ledger, returns the default policy.
         Cache is invalidated when a policy_update is appended.
+        Integrity hash detects direct cache tampering (attack vector 3.3).
         """
         if self._cached_policy is not None:
-            return self._cached_policy
+            if self._cached_policy.verify_integrity():
+                return self._cached_policy
+            # Cache was tampered with — re-derive from ledger
+            self._cached_policy = None
 
         policy_data = self.ledger.active_policy()
         if policy_data:
@@ -1676,6 +1753,107 @@ class HardboundTeam:
             "status": "pending",
         }
 
+    # ─── Reputation Engine ──────────────────────────────────────
+
+    # Quality map: action type → base quality score
+    # Higher for more impactful/difficult actions
+    ACTION_QUALITY = {
+        "approve_deployment": 0.8,
+        "emergency_shutdown": 0.9,
+        "rotate_credentials": 0.7,
+        "set_resource_limit": 0.6,
+        "deploy_staging": 0.7,
+        "run_migration": 0.8,
+        "scale_service": 0.6,
+        "update_config": 0.5,
+        "restart_service": 0.5,
+        "run_analysis": 0.5,
+        "review_pr": 0.6,
+        "execute_review": 0.4,
+        "run_diagnostics": 0.4,
+        "validate_schema": 0.4,
+        "analyze_dataset": 0.6,
+    }
+    DEFAULT_QUALITY = 0.5
+
+    def _compute_reputation_delta(self, member, action: str,
+                                   decision: R6Decision,
+                                   action_cost: float) -> dict:
+        """
+        Compute T3/V3 reputation delta from action outcome.
+
+        Uses EMA (Exponential Moving Average) approach from web4_entity.py:
+        - Success → trust increases toward quality target
+        - Denial → slight decrease (behavioral signal)
+        - Higher-cost actions have stronger signal
+
+        Returns delta dict for ledger recording, or None if no change.
+        """
+        success = (decision == R6Decision.APPROVED)
+        quality = self.ACTION_QUALITY.get(action, self.DEFAULT_QUALITY)
+
+        # Scale quality by action cost (expensive actions matter more)
+        # Normalize: 10 ATP = 1.0x, 50 ATP = 1.5x, 3 ATP = 0.7x
+        cost_multiplier = min(1.5, max(0.5, action_cost / 20.0))
+        effective_quality = min(1.0, quality * cost_multiplier)
+
+        # Snapshot before
+        t3_before = {
+            "talent": round(member.t3.talent, 4),
+            "training": round(member.t3.training, 4),
+            "temperament": round(member.t3.temperament, 4),
+        }
+        v3_before = {
+            "valuation": round(member.v3.valuation, 4),
+            "veracity": round(member.v3.veracity, 4),
+            "validity": round(member.v3.validity, 4),
+        }
+        coherence_before = round(member.coherence, 4)
+
+        # Apply T3 update
+        member.t3.update_from_outcome(success, effective_quality)
+
+        # Apply V3 update
+        # value_created: proportional to quality on success, 0 on denial
+        value_created = effective_quality * 0.8 if success else 0.0
+        # accurate: successful actions are considered accurate
+        member.v3.update_from_outcome(value_created, accurate=success)
+
+        # Snapshot after
+        t3_after = {
+            "talent": round(member.t3.talent, 4),
+            "training": round(member.t3.training, 4),
+            "temperament": round(member.t3.temperament, 4),
+        }
+        v3_after = {
+            "valuation": round(member.v3.valuation, 4),
+            "veracity": round(member.v3.veracity, 4),
+            "validity": round(member.v3.validity, 4),
+        }
+        coherence_after = round(member.coherence, 4)
+
+        # Compute deltas
+        t3_delta = {
+            k: round(t3_after[k] - t3_before[k], 4)
+            for k in t3_before
+        }
+        v3_delta = {
+            k: round(v3_after[k] - v3_before[k], 4)
+            for k in v3_before
+        }
+
+        return {
+            "success": success,
+            "quality": round(effective_quality, 3),
+            "t3_delta": t3_delta,
+            "v3_delta": v3_delta,
+            "t3_composite": round(member.t3.composite(), 4),
+            "v3_composite": round(member.v3.composite(), 4),
+            "coherence_before": coherence_before,
+            "coherence_after": coherence_after,
+            "coherence_delta": round(coherence_after - coherence_before, 4),
+        }
+
     def recharge(self, force: bool = False) -> dict:
         """
         Apply metabolic ATP recharge based on elapsed time and heartbeat state.
@@ -1741,6 +1919,9 @@ class HardboundTeam:
             (members_dir / f"{safe_name}.json").write_text(
                 json.dumps(member_state, indent=2)
             )
+
+        # Persist multi-sig pending requests
+        self.multi_sig_buffer.save(self.state_dir / "multi_sig_pending.json")
 
     def _flush_heartbeat_block(self):
         """
@@ -1902,6 +2083,13 @@ class HardboundTeam:
         if isinstance(member, HardwareWeb4Entity) and result.decision == R6Decision.APPROVED:
             record["hw_signed"] = True
             record["signed_actions"] = len(member.signed_actions)
+
+        # ─── Reputation Delta: Update T3/V3 from action outcome ───
+        reputation_delta = self._compute_reputation_delta(
+            member, action, result.decision, action_cost
+        )
+        if reputation_delta:
+            record["reputation_delta"] = reputation_delta
 
         self.action_log.append(record)
 
@@ -2369,6 +2557,41 @@ def demo():
     for name, member in team.members.items():
         m_atp = member.atp.atp_balance if hasattr(member, 'atp') else 0
         print(f"    {name:25s} ATP: {m_atp:.1f}")
+
+    # ─── Reputation Evolution ───
+    print("\n--- Reputation Evolution (T3/V3 Deltas) ---")
+    print("  Trust evolves from every action:")
+    for name, member in team.members.items():
+        t3 = member.t3
+        v3 = member.v3
+        c = member.coherence
+        print(f"    {name:25s} T3=[{t3.talent:.3f},{t3.training:.3f},{t3.temperament:.3f}] "
+              f"V3=[{v3.valuation:.3f},{v3.veracity:.3f},{v3.validity:.3f}] C={c:.3f}")
+
+    # Show recent deltas from action records
+    recent_with_deltas = [
+        r for r in team.action_log[-10:]
+        if "reputation_delta" in r
+    ]
+    # If action_log was flushed, check the ledger
+    if not recent_with_deltas:
+        for entry in team.ledger.tail(10):
+            action = entry.get("action", {})
+            if "reputation_delta" in action:
+                recent_with_deltas.append(action)
+
+    if recent_with_deltas:
+        print(f"\n  Recent reputation deltas ({len(recent_with_deltas)}):")
+        for r in recent_with_deltas[-5:]:
+            delta = r.get("reputation_delta", {})
+            t3d = delta.get("t3_delta", {})
+            actor = r.get("actor", "?")
+            action_name = r.get("action", "?")
+            cd = delta.get("coherence_delta", 0)
+            sign = "+" if cd >= 0 else ""
+            print(f"    {actor:20s} → {action_name:20s} "
+                  f"C{sign}{cd:.4f} "
+                  f"(talent{'+' if t3d.get('talent', 0) >= 0 else ''}{t3d.get('talent', 0):.4f})")
 
     # ─── Multi-Sig Approval ───
     print("\n--- Multi-Sig Approval (M-of-N) ---")
