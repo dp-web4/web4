@@ -1,0 +1,33 @@
+{
+  "@context": [
+    "https://web4.io/contexts/sal.jsonld"
+  ],
+  "type": "Web4BirthCertificate",
+  "entity": "lct:web4:ai:7bc9c1b9e6837b1a",
+  "entityName": "analytics-agent",
+  "citizenRole": "lct:web4:role:citizen:analytics-agent@data-team",
+  "society": "lct:web4:society:634250b7df296365",
+  "societyName": "data-team",
+  "lawOracle": "lct:web4:human:38f77729f06c9640",
+  "lawVersion": "v1",
+  "birthTimestamp": "2026-02-20T20:06:53.074258+00:00",
+  "witnesses": [
+    "lct:web4:society:634250b7df296365"
+  ],
+  "genesisBlock": "block:4",
+  "initialRights": [
+    "exist",
+    "interact",
+    "accumulate_reputation",
+    "self_approve_permitted",
+    "execute_tasks"
+  ],
+  "initialResponsibilities": [
+    "abide_law",
+    "respect_quorum",
+    "minimize_resource_use",
+    "report_failures"
+  ],
+  "bindingType": "software",
+  "certHash": "ae73e6889c8705882428c2b01f5f2f81682e3b1db62bcab41bb534d9d358962e"
+}

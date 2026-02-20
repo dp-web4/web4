@@ -1,0 +1,19 @@
+{
+  "entity_type": "service",
+  "name": "ml-pipeline",
+  "lct_id": "lct:web4:service:e31912585f225d27",
+  "coherence": 0.605,
+  "t3": {
+    "talent": 0.5,
+    "training": 0.5,
+    "temperament": 0.5
+  },
+  "v3": {
+    "valuation": 0.0,
+    "veracity": 0.5,
+    "validity": 0.5
+  },
+  "atp_balance": 50.0,
+  "adp_discharged": 0.0,
+  "capability_level": 4
+}

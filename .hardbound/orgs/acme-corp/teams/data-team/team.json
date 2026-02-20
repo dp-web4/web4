@@ -1,0 +1,46 @@
+{
+  "name": "data-team",
+  "created_at": "2026-02-20T20:06:50.695279+00:00",
+  "use_tpm": true,
+  "member_names": [
+    "data-team-admin",
+    "analytics-agent",
+    "ml-pipeline"
+  ],
+  "roles": {
+    "data-team-admin": "admin",
+    "analytics-agent": "agent",
+    "ml-pipeline": "operator"
+  },
+  "team_atp": 470.0,
+  "team_atp_max": 500.0,
+  "team_adp_discharged": 30.0,
+  "total_recharged": 0.0,
+  "root": {
+    "entity_type": "society",
+    "name": "data-team",
+    "lct_id": "lct:web4:society:634250b7df296365",
+    "coherence": 0.545,
+    "t3": {
+      "talent": 0.5,
+      "training": 0.5,
+      "temperament": 0.5
+    },
+    "v3": {
+      "valuation": 0.0,
+      "veracity": 0.5,
+      "validity": 0.5
+    },
+    "atp_balance": 400.0,
+    "adp_discharged": 100.0,
+    "key_id": "634250b7df296365",
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0YtMy5mSf9Zdt5JU1z+DnQJdRBg4\nYbk11WVXftYLtPgbi65SuqhIZgv3oLiILzEncLE4qoiPUE2x31THn2gE9A==\n-----END PUBLIC KEY-----\n",
+    "tpm_handle": "0x810100f1",
+    "hardware_type": "tpm2",
+    "capability_level": 5,
+    "trust_ceiling": 1.0,
+    "binding_proof": "ABgACwAgEixefxBsayDnElTwpOV6CeWHQL7JxNq2YWjiAZ7kNRoAIHcoFDD7APRJZWenFRlF3OALKGHYjbJj4mV5BOVfdUM2",
+    "signed_action_count": 10
+  },
+  "admin_name": "data-team-admin"
+}

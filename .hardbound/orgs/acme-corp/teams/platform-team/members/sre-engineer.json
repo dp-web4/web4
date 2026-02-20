@@ -1,0 +1,26 @@
+{
+  "entity_type": "human",
+  "name": "sre-engineer",
+  "lct_id": "lct:web4:human:755af9172cd1de82",
+  "coherence": 0.605,
+  "t3": {
+    "talent": 0.5,
+    "training": 0.5,
+    "temperament": 0.5
+  },
+  "v3": {
+    "valuation": 0.0,
+    "veracity": 0.5,
+    "validity": 0.5
+  },
+  "atp_balance": 100.0,
+  "adp_discharged": 0.0,
+  "key_id": "755af9172cd1de82",
+  "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBR6Z+7KV7Vew4DRB8O/o8fKQvDtF\nZkYQ1jNhuwVFvdRxhxtJgTPwYTy1gWkfuDfDC5+87+VLeLyEoKPN7FAYTA==\n-----END PUBLIC KEY-----\n",
+  "tpm_handle": "0x810100eb",
+  "hardware_type": "tpm2",
+  "capability_level": 5,
+  "trust_ceiling": 1.0,
+  "binding_proof": "ABgACwAgpt2s71WjudjjWAwx9X/Gm52U6fdRaTu3/s/yUawl52MAIB67x0FFbUxTLXkM5c+Y5eXib5hBiNYMBSircncCoM+8",
+  "signed_action_count": 0
+}

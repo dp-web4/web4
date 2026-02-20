@@ -1,0 +1,16 @@
+{
+  "bridge_id": "bridge:b8b8b7c932e8",
+  "team_a": "data-team",
+  "team_b": "platform-team",
+  "state": "active",
+  "trust_multiplier": 0.8,
+  "effective_trust": 0.8,
+  "trust_ceiling_a": 1.0,
+  "trust_ceiling_b": 1.0,
+  "consecutive_successes": 1,
+  "consecutive_failures": 0,
+  "created_at": "2026-02-20T20:06:53.262045+00:00",
+  "last_heartbeat": "2026-02-20T20:06:53.886125+00:00",
+  "witnesses": 0,
+  "delegations": 2
+}

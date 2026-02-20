@@ -1,0 +1,26 @@
+{
+  "entity_type": "human",
+  "name": "data-team-admin",
+  "lct_id": "lct:web4:human:38f77729f06c9640",
+  "coherence": 0.6488,
+  "t3": {
+    "talent": 0.493,
+    "training": 0.6399999999999999,
+    "temperament": 0.6600000000000001
+  },
+  "v3": {
+    "valuation": 0.07039999999999999,
+    "veracity": 0.557,
+    "validity": 0.538
+  },
+  "atp_balance": 196.75,
+  "adp_discharged": 5.0,
+  "key_id": "38f77729f06c9640",
+  "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAElTCh+QREwbLPCs5SR1YL5jZvnQxq\nHDWp3iWTI1fKyIqRPOX7txWP7k2wh0JETfmcX8YX7RLHBPBGnnkRqvVitg==\n-----END PUBLIC KEY-----\n",
+  "tpm_handle": "0x81010068",
+  "hardware_type": "tpm2",
+  "capability_level": 5,
+  "trust_ceiling": 1.0,
+  "binding_proof": "ABgACwAg+2w4f9FrmlEkjiEgVnp7AuB9KAIIlO0tuVbkDALSbfcAIDhXvEovxcfx6ltCxW5P7jDpNN31XPPTs5TwL995p+Vq",
+  "signed_action_count": 1
+}

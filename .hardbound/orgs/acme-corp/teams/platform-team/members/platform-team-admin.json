@@ -1,0 +1,26 @@
+{
+  "entity_type": "human",
+  "name": "platform-team-admin",
+  "lct_id": "lct:web4:human:10bff87a699c72e9",
+  "coherence": 0.6376,
+  "t3": {
+    "talent": 0.538,
+    "training": 0.6399999999999999,
+    "temperament": 0.6600000000000001
+  },
+  "v3": {
+    "valuation": 0.1064,
+    "veracity": 0.557,
+    "validity": 0.538
+  },
+  "atp_balance": 187.0,
+  "adp_discharged": 20.0,
+  "key_id": "10bff87a699c72e9",
+  "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmO9InqvDM0arg79M00xmFJMGJDfd\nK+QR4PeTfyQXBVZwOIHDSmVQXRlx4s/X7ZbKfFBXvxDCovUln5QcDuwjyA==\n-----END PUBLIC KEY-----\n",
+  "tpm_handle": "0x810100a7",
+  "hardware_type": "tpm2",
+  "capability_level": 5,
+  "trust_ceiling": 1.0,
+  "binding_proof": "ABgACwAgupug4FvvtLmgARZykaGBl/Boy+6A08o2ru36bszvQOcAIDnWGkooo3SgDZuvJPL0HgtjebJYCDVTn5tWzcuyzV/O",
+  "signed_action_count": 1
+}

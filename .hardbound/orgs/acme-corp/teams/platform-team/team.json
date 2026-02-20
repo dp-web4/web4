@@ -1,0 +1,46 @@
+{
+  "name": "platform-team",
+  "created_at": "2026-02-20T20:06:49.266200+00:00",
+  "use_tpm": true,
+  "member_names": [
+    "platform-team-admin",
+    "deploy-bot",
+    "sre-engineer"
+  ],
+  "roles": {
+    "platform-team-admin": "admin",
+    "deploy-bot": "agent",
+    "sre-engineer": "operator"
+  },
+  "team_atp": 474.12,
+  "team_atp_max": 500.0,
+  "team_adp_discharged": 26.25,
+  "total_recharged": 0.37,
+  "root": {
+    "entity_type": "society",
+    "name": "platform-team",
+    "lct_id": "lct:web4:society:2db2d36bacae2ec7",
+    "coherence": 0.575,
+    "t3": {
+      "talent": 0.5,
+      "training": 0.5,
+      "temperament": 0.5
+    },
+    "v3": {
+      "valuation": 0.0,
+      "veracity": 0.5,
+      "validity": 0.5
+    },
+    "atp_balance": 450.0,
+    "adp_discharged": 50.0,
+    "key_id": "2db2d36bacae2ec7",
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfWYu6Jm9L4WBvDPzdGV12gFQthW3\nKOBKfvq05E/gsXvLRtkce+BIK5FUOaB3bYhvTjeo200b+mIpVVr7LhwWIg==\n-----END PUBLIC KEY-----\n",
+    "tpm_handle": "0x810100c3",
+    "hardware_type": "tpm2",
+    "capability_level": 5,
+    "trust_ceiling": 1.0,
+    "binding_proof": "ABgACwAgtdSx0IPgIVShLFRaiFZPPwqXgJ7IcUCqIhyIAezDJ7EAIL1ntNolnA9aOYFjE4K/yr59TGU5bFxyMR3shC5E5pGU",
+    "signed_action_count": 10
+  },
+  "admin_name": "platform-team-admin"
+}

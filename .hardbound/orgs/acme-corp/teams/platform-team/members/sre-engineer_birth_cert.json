@@ -1,0 +1,34 @@
+{
+  "@context": [
+    "https://web4.io/contexts/sal.jsonld"
+  ],
+  "type": "Web4BirthCertificate",
+  "entity": "lct:web4:human:755af9172cd1de82",
+  "entityName": "sre-engineer",
+  "citizenRole": "lct:web4:role:citizen:sre-engineer@platform-team",
+  "society": "lct:web4:society:2db2d36bacae2ec7",
+  "societyName": "platform-team",
+  "lawOracle": "lct:web4:human:10bff87a699c72e9",
+  "lawVersion": "v1",
+  "birthTimestamp": "2026-02-20T20:06:52.948343+00:00",
+  "witnesses": [
+    "lct:web4:society:2db2d36bacae2ec7"
+  ],
+  "genesisBlock": "block:6",
+  "initialRights": [
+    "exist",
+    "interact",
+    "accumulate_reputation",
+    "execute_approved",
+    "modify_resources",
+    "deploy"
+  ],
+  "initialResponsibilities": [
+    "abide_law",
+    "respect_quorum",
+    "report_anomalies",
+    "follow_procedures"
+  ],
+  "bindingType": "hardware",
+  "certHash": "6b4835b969050384995e81b019b8bef2bf7b43206d9a28b7408a7050cc5c559b"
+}

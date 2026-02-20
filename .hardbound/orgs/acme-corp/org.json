@@ -1,0 +1,14 @@
+{
+  "name": "acme-corp",
+  "created_at": "2026-02-20T20:06:49.258471+00:00",
+  "use_tpm": true,
+  "team_names": [
+    "platform-team",
+    "data-team"
+  ],
+  "bridge_ids": [
+    "bridge:b8b8b7c932e8"
+  ],
+  "org_atp": 5000.0,
+  "org_atp_max": 5000.0
+}
