@@ -111,16 +111,32 @@ class TeamHeartbeat:
         "crisis": 5,
     }
 
+    # ATP recharge rates per heartbeat tick (per metabolic state)
+    # Higher recharge in restful states; minimal during intense work
+    RECHARGE_RATES = {
+        "dream": 20.0,   # Max recharge — consolidation/recovery mode
+        "rest": 10.0,    # High recharge — reduced activity
+        "wake": 5.0,     # Moderate — normal operation
+        "focus": 1.0,    # Minimal — energy goes to work
+        "crisis": 0.0,   # Zero — all resources committed to emergency
+    }
+
     def __init__(self, state: str = "wake"):
         self.state = state
         self.last_heartbeat = datetime.now(timezone.utc)
         self.pending_actions: list = []
         self.blocks_written = 0
+        self.total_recharged = 0.0  # Cumulative ATP recharged
 
     @property
     def interval(self) -> int:
         """Current heartbeat interval in seconds."""
         return self.INTERVALS.get(self.state, 60)
+
+    @property
+    def recharge_rate(self) -> float:
+        """ATP recharge per heartbeat tick in current state."""
+        return self.RECHARGE_RATES.get(self.state, 5.0)
 
     def seconds_since_last(self) -> float:
         """Seconds since last heartbeat."""
@@ -143,21 +159,42 @@ class TeamHeartbeat:
         self.blocks_written += 1
         return actions
 
+    def compute_recharge(self, elapsed_seconds: float) -> float:
+        """
+        Compute ATP recharge based on elapsed time and metabolic state.
+
+        Recharge is proportional to elapsed heartbeat intervals:
+        - 1 full heartbeat interval = 1x recharge_rate
+        - Partial intervals = proportional recharge
+        - Capped at 3x recharge_rate per call (prevent time-skip abuse)
+        """
+        if self.recharge_rate <= 0:
+            return 0.0
+        intervals_elapsed = elapsed_seconds / self.interval if self.interval > 0 else 0
+        raw_recharge = intervals_elapsed * self.recharge_rate
+        # Cap at 3x to prevent gaming via long idle periods
+        max_recharge = self.recharge_rate * 3.0
+        recharge = min(raw_recharge, max_recharge)
+        return round(recharge, 2)
+
     def transition(self, new_state: str):
         """Transition to a new metabolic state."""
         if new_state != self.state:
             old = self.state
             self.state = new_state
             return {"from": old, "to": new_state,
-                    "interval_change": f"{self.INTERVALS.get(old, 60)}s → {self.interval}s"}
+                    "interval_change": f"{self.INTERVALS.get(old, 60)}s → {self.interval}s",
+                    "recharge_change": f"{self.RECHARGE_RATES.get(old, 5.0)} → {self.recharge_rate} ATP/tick"}
         return None
 
     def to_dict(self) -> dict:
         return {
             "state": self.state,
             "interval_seconds": self.interval,
+            "recharge_rate": self.recharge_rate,
             "pending_actions": len(self.pending_actions),
             "blocks_written": self.blocks_written,
+            "total_recharged": round(self.total_recharged, 2),
             "seconds_since_last": round(self.seconds_since_last(), 1),
         }
 
@@ -201,18 +238,29 @@ class TeamPolicy:
     }
     DEFAULT_COST = 10.0  # Fallback for unknown actions
 
+    # Default multi-sig requirements for critical actions
+    DEFAULT_MULTI_SIG = {
+        "emergency_shutdown": {"required": 2, "eligible_roles": ["admin", "operator"]},
+        "rotate_credentials": {"required": 2, "eligible_roles": ["admin"]},
+    }
+
     def __init__(self, version: int = 1, admin_only: set = None,
                  operator_min: set = None, custom_rules: dict = None,
-                 action_costs: dict = None):
+                 action_costs: dict = None, multi_sig: dict = None):
         self.version = version
         self.admin_only = admin_only if admin_only is not None else set(TeamRole.DEFAULT_ADMIN_ONLY)
         self.operator_min = operator_min if operator_min is not None else set(TeamRole.DEFAULT_OPERATOR_MIN)
         self.custom_rules = custom_rules or {}
         self.action_costs = action_costs if action_costs is not None else dict(self.DEFAULT_ACTION_COSTS)
+        self.multi_sig = multi_sig if multi_sig is not None else dict(self.DEFAULT_MULTI_SIG)
 
     def get_cost(self, action: str) -> float:
         """Get the ATP cost for an action from policy."""
         return self.action_costs.get(action, self.DEFAULT_COST)
+
+    def requires_multi_sig(self, action: str) -> dict:
+        """Check if an action requires multi-sig. Returns requirement or None."""
+        return self.multi_sig.get(action)
 
     def to_dict(self) -> dict:
         return {
@@ -221,6 +269,7 @@ class TeamPolicy:
             "operator_min": sorted(list(self.operator_min)),
             "custom_rules": self.custom_rules,
             "action_costs": self.action_costs,
+            "multi_sig": self.multi_sig,
         }
 
     @classmethod
@@ -231,6 +280,7 @@ class TeamPolicy:
             operator_min=set(data.get("operator_min", [])),
             custom_rules=data.get("custom_rules", {}),
             action_costs=data.get("action_costs"),
+            multi_sig=data.get("multi_sig"),
         )
 
     @classmethod
@@ -242,6 +292,7 @@ class TeamPolicy:
             operator_min=set(TeamRole.DEFAULT_OPERATOR_MIN),
             custom_rules={},
             action_costs=dict(cls.DEFAULT_ACTION_COSTS),
+            multi_sig=dict(cls.DEFAULT_MULTI_SIG),
         )
 
 
@@ -648,6 +699,123 @@ class TeamLedger:
         }
 
 
+class MultiSigRequest:
+    """
+    A pending multi-signature request.
+
+    Critical actions requiring M-of-N approval accumulate signatures
+    in this buffer. Once the quorum is met, the action executes.
+    Expired requests are pruned on access.
+    """
+
+    def __init__(self, request_id: str, actor: str, action: str,
+                 required: int, eligible_roles: list,
+                 ttl_seconds: int = 3600):
+        self.request_id = request_id
+        self.actor = actor          # Who requested the action
+        self.action = action        # What action
+        self.required = required    # How many approvals needed
+        self.eligible_roles = eligible_roles
+        self.approvals: list = []   # List of {"approver": name, "role": role, "timestamp": ts}
+        self.created_at = datetime.now(timezone.utc)
+        self.ttl_seconds = ttl_seconds
+        self.executed = False
+        self.denied = False
+
+    @property
+    def is_expired(self) -> bool:
+        elapsed = (datetime.now(timezone.utc) - self.created_at).total_seconds()
+        return elapsed > self.ttl_seconds
+
+    @property
+    def approval_count(self) -> int:
+        return len(self.approvals)
+
+    @property
+    def is_quorum_met(self) -> bool:
+        return self.approval_count >= self.required
+
+    def add_approval(self, approver: str, role: str) -> dict:
+        """Add an approval. Returns status."""
+        # Check for duplicate
+        for a in self.approvals:
+            if a["approver"] == approver:
+                return {"error": f"{approver} already approved this request",
+                        "duplicate": True}
+
+        # Check role eligibility
+        if role not in self.eligible_roles:
+            return {"error": f"role '{role}' not eligible (need: {self.eligible_roles})",
+                    "ineligible": True}
+
+        self.approvals.append({
+            "approver": approver,
+            "role": role,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
+        return {
+            "approved_by": approver,
+            "approvals": self.approval_count,
+            "required": self.required,
+            "quorum_met": self.is_quorum_met,
+        }
+
+    def to_dict(self) -> dict:
+        return {
+            "request_id": self.request_id,
+            "actor": self.actor,
+            "action": self.action,
+            "required": self.required,
+            "approvals": self.approvals,
+            "approval_count": self.approval_count,
+            "quorum_met": self.is_quorum_met,
+            "eligible_roles": self.eligible_roles,
+            "created_at": self.created_at.isoformat(),
+            "expired": self.is_expired,
+            "executed": self.executed,
+        }
+
+
+class MultiSigBuffer:
+    """Buffer for pending multi-sig requests."""
+
+    def __init__(self):
+        self.pending: dict = {}  # request_id → MultiSigRequest
+
+    def create_request(self, actor: str, action: str,
+                       required: int, eligible_roles: list) -> MultiSigRequest:
+        """Create a new multi-sig request."""
+        request_id = hashlib.sha256(
+            f"{actor}:{action}:{datetime.now(timezone.utc).isoformat()}".encode()
+        ).hexdigest()[:16]
+
+        req = MultiSigRequest(request_id, actor, action, required, eligible_roles)
+        self.pending[request_id] = req
+        return req
+
+    def find_pending(self, action: str) -> MultiSigRequest:
+        """Find a pending (non-expired, non-executed) request for an action."""
+        self._prune_expired()
+        for req in self.pending.values():
+            if req.action == action and not req.executed and not req.is_expired:
+                return req
+        return None
+
+    def _prune_expired(self):
+        """Remove expired requests."""
+        expired = [rid for rid, req in self.pending.items() if req.is_expired]
+        for rid in expired:
+            del self.pending[rid]
+
+    def to_dict(self) -> dict:
+        self._prune_expired()
+        return {
+            "pending_count": len(self.pending),
+            "requests": {rid: req.to_dict() for rid, req in self.pending.items()},
+        }
+
+
 def detect_tpm2() -> bool:
     """Check if TPM2 is available."""
     try:
@@ -709,6 +877,9 @@ class HardboundTeam:
 
         # Heartbeat-driven ledger timing
         self.heartbeat = TeamHeartbeat()
+
+        # Multi-sig approval buffer
+        self.multi_sig_buffer = MultiSigBuffer()
 
     # ─── Persistence ────────────────────────────────────────────
 
@@ -820,6 +991,7 @@ class HardboundTeam:
             "team_atp": round(self.team_atp, 2),
             "team_atp_max": round(self.team_atp_max, 2),
             "team_adp_discharged": round(self.team_adp_discharged, 2),
+            "total_recharged": round(self.heartbeat.total_recharged, 2),
         }
         if self.root:
             team_state["root"] = self._entity_to_state(self.root)
@@ -864,6 +1036,7 @@ class HardboundTeam:
         team.created_at = team_state.get("created_at", "unknown")
         team.team_atp_max = team_state.get("team_atp_max", team.team_atp)
         team.team_adp_discharged = team_state.get("team_adp_discharged", 0.0)
+        team.heartbeat.total_recharged = team_state.get("total_recharged", 0.0)
         team.state_dir = base
 
         # Reinitialize ledger pointing to correct file
@@ -1094,6 +1267,8 @@ class HardboundTeam:
             "balance": round(self.team_atp, 2),
             "max": round(self.team_atp_max, 2),
             "discharged": round(self.team_adp_discharged, 2),
+            "recharged": round(self.heartbeat.total_recharged, 2),
+            "net_flow": round(self.heartbeat.total_recharged - self.team_adp_discharged, 2),
             "utilization": round(self.team_adp_discharged / self.team_atp_max * 100, 1)
                            if self.team_atp_max > 0 else 0.0,
         }
@@ -1110,9 +1285,15 @@ class HardboundTeam:
             "version": policy.version,
             "admin_only_actions": len(policy.admin_only),
             "operator_min_actions": len(policy.operator_min),
+            "multi_sig_actions": len(policy.multi_sig),
             "custom_rules": len(policy.custom_rules),
             "source": "ledger" if self.ledger.active_policy() else "default",
         }
+
+        # Multi-sig pending requests
+        msig = self.multi_sig_buffer.to_dict()
+        if msig["pending_count"] > 0:
+            result["pending_multi_sig"] = msig
 
         return result
 
@@ -1180,12 +1361,23 @@ class HardboundTeam:
         for action, cost in changes.get("set_action_costs", {}).items():
             new_action_costs[action] = float(cost)
 
+        # Multi-sig requirement changes
+        new_multi_sig = dict(current.multi_sig)
+        for action, req in changes.get("set_multi_sig", {}).items():
+            if req is None:
+                new_multi_sig.pop(action, None)  # Remove requirement
+            else:
+                new_multi_sig[action] = req
+        for action in changes.get("remove_multi_sig", []):
+            new_multi_sig.pop(action, None)
+
         new_policy = TeamPolicy(
             version=current.version + 1,
             admin_only=new_admin_only,
             operator_min=new_operator_min,
             custom_rules=new_custom,
             action_costs=new_action_costs,
+            multi_sig=new_multi_sig,
         )
 
         # Write to ledger
@@ -1253,6 +1445,356 @@ class HardboundTeam:
                 "requires_approval": False, "approver_role": None,
                 "policy_version": policy.version}
 
+    def _handle_multi_sig(self, actor_name: str, action: str,
+                          record: dict, requirement: dict,
+                          approved_by: str = None) -> dict:
+        """
+        Handle multi-sig approval flow.
+
+        If no pending request exists, create one with the actor as first approver.
+        If a pending request exists, add the actor (or approved_by) as approver.
+        If quorum is met, execute the action.
+        """
+        required = requirement.get("required", 2)
+        eligible_roles = requirement.get("eligible_roles", ["admin"])
+
+        # Find existing pending request for this action
+        pending = self.multi_sig_buffer.find_pending(action)
+
+        if pending is None:
+            # Create new multi-sig request — actor is first approver
+            pending = self.multi_sig_buffer.create_request(
+                actor_name, action, required, eligible_roles
+            )
+            # Actor approves their own request
+            actor_role = self.roles.get(actor_name, "viewer")
+            result = pending.add_approval(actor_name, actor_role)
+
+            if result.get("ineligible"):
+                record["decision"] = "denied"
+                record["reason"] = f"multi-sig: {result['error']}"
+                self.action_log.append(record)
+                self.save()
+                return record
+
+            # Also add approved_by if provided
+            if approved_by and approved_by != actor_name:
+                approver_role = self.roles.get(approved_by, "viewer")
+                pending.add_approval(approved_by, approver_role)
+
+            if pending.is_quorum_met:
+                # Quorum met immediately (enough approvers provided)
+                return self._execute_multi_sig(pending, record)
+
+            # Still need more approvals
+            record["decision"] = "pending_multi_sig"
+            record["multi_sig"] = {
+                "request_id": pending.request_id,
+                "approvals": pending.approval_count,
+                "required": required,
+                "remaining": required - pending.approval_count,
+                "eligible_roles": eligible_roles,
+            }
+            # Log the pending request to ledger
+            self.ledger.append(
+                action={
+                    "type": "multi_sig_request",
+                    "request_id": pending.request_id,
+                    "actor": actor_name,
+                    "action": action,
+                    "required": required,
+                    "approvals": [a["approver"] for a in pending.approvals],
+                },
+                signer_lct=self.members[actor_name].lct_id if actor_name in self.members else "",
+                signer_entity=self.members.get(actor_name),
+            )
+            return record
+
+        else:
+            # Existing pending request — add approval
+            approver = approved_by or actor_name
+            approver_role = self.roles.get(approver, "viewer")
+            result = pending.add_approval(approver, approver_role)
+
+            if result.get("duplicate"):
+                record["decision"] = "denied"
+                record["reason"] = f"multi-sig: {result['error']}"
+                return record
+
+            if result.get("ineligible"):
+                record["decision"] = "denied"
+                record["reason"] = f"multi-sig: {result['error']}"
+                return record
+
+            if pending.is_quorum_met:
+                return self._execute_multi_sig(pending, record)
+
+            # Still need more
+            record["decision"] = "pending_multi_sig"
+            record["multi_sig"] = {
+                "request_id": pending.request_id,
+                "approvals": pending.approval_count,
+                "required": pending.required,
+                "remaining": pending.required - pending.approval_count,
+                "new_approver": approver,
+            }
+            # Log the approval to ledger
+            self.ledger.append(
+                action={
+                    "type": "multi_sig_approval",
+                    "request_id": pending.request_id,
+                    "approver": approver,
+                    "approvals_so_far": pending.approval_count,
+                    "required": pending.required,
+                },
+                signer_lct=self.members[approver].lct_id if approver in self.members else "",
+                signer_entity=self.members.get(approver),
+            )
+            return record
+
+    def _execute_multi_sig(self, pending: MultiSigRequest, record: dict) -> dict:
+        """Execute an action that has met its multi-sig quorum."""
+        pending.executed = True
+        actor_name = pending.actor
+        action = pending.action
+        member = self.members.get(actor_name)
+
+        policy = self._resolve_policy()
+        action_cost = policy.get_cost(action)
+        record["action_cost_policy"] = action_cost
+        record["multi_sig_quorum_met"] = True
+        record["multi_sig_approvals"] = [a["approver"] for a in pending.approvals]
+
+        # Check team ATP pool
+        if self.team_atp < action_cost:
+            record["decision"] = "denied"
+            record["reason"] = f"team ATP pool exhausted ({self.team_atp:.1f} remaining, need {action_cost:.1f})"
+            self.action_log.append(record)
+            self.save()
+            return record
+
+        # Execute
+        request = R6Request(
+            rules="team-policy-v1",
+            role=member.lct_id if member and hasattr(member, 'lct_id') else "unknown",
+            request=action,
+            resource_estimate=action_cost,
+        )
+
+        result = member.act(request) if member else None
+        if result:
+            record["decision"] = result.decision.value
+            record["atp_cost"] = result.atp_consumed
+
+            if result.decision == R6Decision.APPROVED and result.atp_consumed > 0:
+                self.team_atp -= result.atp_consumed
+                self.team_adp_discharged += result.atp_consumed
+                record["team_atp_remaining"] = round(self.team_atp, 2)
+
+                atp_ratio = self.team_atp / self.team_atp_max if self.team_atp_max > 0 else 0
+                if atp_ratio < 0.1:
+                    new_state = "crisis"
+                elif atp_ratio < 0.3:
+                    new_state = "rest"
+                elif atp_ratio > 0.8:
+                    new_state = "focus"
+                else:
+                    new_state = "wake"
+                transition = self.heartbeat.transition(new_state)
+                if transition:
+                    record["metabolic_transition"] = transition
+
+            if isinstance(member, HardwareWeb4Entity) and result.decision == R6Decision.APPROVED:
+                record["hw_signed"] = True
+        else:
+            record["decision"] = "approved"
+            record["atp_cost"] = action_cost
+
+        # Log execution to ledger
+        self.action_log.append(record)
+        self.save()
+
+        # Log the multi-sig execution
+        self.ledger.append(
+            action={
+                "type": "multi_sig_executed",
+                "request_id": pending.request_id,
+                "action": action,
+                "actor": actor_name,
+                "approvers": [a["approver"] for a in pending.approvals],
+                "decision": record.get("decision", "unknown"),
+            },
+            signer_lct=member.lct_id if member and hasattr(member, 'lct_id') else "",
+            signer_entity=member if isinstance(member, HardwareWeb4Entity) else None,
+        )
+
+        return record
+
+    def approve_multi_sig(self, approver_name: str, request_id: str = None,
+                          action: str = None) -> dict:
+        """
+        Approve a pending multi-sig request.
+
+        Find by request_id or by action name.
+        """
+        pending = None
+        if request_id:
+            pending = self.multi_sig_buffer.pending.get(request_id)
+        elif action:
+            pending = self.multi_sig_buffer.find_pending(action)
+
+        if not pending:
+            return {"error": "no pending multi-sig request found",
+                    "request_id": request_id, "action": action}
+
+        if pending.is_expired:
+            return {"error": "multi-sig request expired",
+                    "request_id": pending.request_id}
+
+        approver_role = self.roles.get(approver_name, "viewer")
+        result = pending.add_approval(approver_name, approver_role)
+
+        if result.get("error"):
+            return result
+
+        if pending.is_quorum_met:
+            record = {
+                "type": "action",
+                "actor": pending.actor,
+                "action": pending.action,
+                "role": self.roles.get(pending.actor, "unknown"),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            return self._execute_multi_sig(pending, record)
+
+        return {
+            "approved_by": approver_name,
+            "request_id": pending.request_id,
+            "approvals": pending.approval_count,
+            "required": pending.required,
+            "remaining": pending.required - pending.approval_count,
+            "status": "pending",
+        }
+
+    def recharge(self, force: bool = False) -> dict:
+        """
+        Apply metabolic ATP recharge based on elapsed time and heartbeat state.
+
+        Recharge happens automatically on each heartbeat tick. Call this
+        to manually trigger a recharge check (e.g., before an action).
+
+        Returns recharge record or None if no recharge occurred.
+        """
+        elapsed = self.heartbeat.seconds_since_last()
+        recharge_amount = self.heartbeat.compute_recharge(elapsed)
+
+        if recharge_amount <= 0 and not force:
+            return None
+
+        # Apply recharge up to max
+        headroom = self.team_atp_max - self.team_atp
+        actual = min(recharge_amount, headroom)
+
+        if actual <= 0:
+            return None
+
+        self.team_atp += actual
+        self.heartbeat.total_recharged += actual
+
+        return {
+            "recharged": round(actual, 2),
+            "elapsed_seconds": round(elapsed, 1),
+            "metabolic_state": self.heartbeat.state,
+            "recharge_rate": self.heartbeat.recharge_rate,
+            "team_atp_after": round(self.team_atp, 2),
+        }
+
+    def _save_state_only(self):
+        """Save entity and team state without flushing actions to ledger."""
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        members_dir = self.state_dir / "members"
+        members_dir.mkdir(exist_ok=True)
+
+        team_state = {
+            "name": self.name,
+            "created_at": self.created_at,
+            "use_tpm": self.use_tpm,
+            "member_names": list(self.members.keys()),
+            "roles": self.roles,
+            "team_atp": round(self.team_atp, 2),
+            "team_atp_max": round(self.team_atp_max, 2),
+            "team_adp_discharged": round(self.team_adp_discharged, 2),
+            "total_recharged": round(self.heartbeat.total_recharged, 2),
+        }
+        if self.root:
+            team_state["root"] = self._entity_to_state(self.root)
+        if self.admin:
+            team_state["admin_name"] = f"{self.name}-admin"
+
+        (self.state_dir / "team.json").write_text(
+            json.dumps(team_state, indent=2)
+        )
+
+        for name, member in self.members.items():
+            member_state = self._entity_to_state(member)
+            safe_name = name.replace("/", "_").replace(" ", "_")
+            (members_dir / f"{safe_name}.json").write_text(
+                json.dumps(member_state, indent=2)
+            )
+
+    def _flush_heartbeat_block(self):
+        """
+        Flush pending heartbeat actions as a ledger block.
+
+        All queued actions are written as a single "block" entry, then
+        the heartbeat timer resets. Individual actions within the block
+        are preserved in the block's action list.
+        """
+        actions = self.heartbeat.flush()
+
+        if not actions:
+            return
+
+        # Apply recharge on heartbeat tick
+        recharge_record = self.recharge()
+
+        # Write individual actions to ledger (preserves per-action granularity)
+        for action_record in actions:
+            actor_name = action_record.get("actor", "")
+            signer = self.members.get(actor_name)
+            self.ledger.append(
+                action=action_record,
+                signer_lct=signer.lct_id if signer and hasattr(signer, 'lct_id') else "",
+                signer_entity=signer if isinstance(signer, HardwareWeb4Entity) else None,
+            )
+
+        # Write block metadata entry
+        self.ledger.append(
+            action={
+                "type": "heartbeat_block",
+                "block_number": self.heartbeat.blocks_written,
+                "actions_count": len(actions),
+                "metabolic_state": self.heartbeat.state,
+                "heartbeat_interval": self.heartbeat.interval,
+                "recharge": recharge_record,
+            },
+            signer_lct=self.root.lct_id if self.root else "",
+            signer_entity=self.root if isinstance(self.root, HardwareWeb4Entity) else None,
+        )
+
+        # Clear action_log (already flushed)
+        self.action_log = [a for a in self.action_log if a not in actions]
+
+        # Save state
+        self._save_state_only()
+
+    def flush(self):
+        """Force-flush any pending actions (e.g., before shutdown)."""
+        if self.heartbeat.pending_actions:
+            self._flush_heartbeat_block()
+        # Also flush any remaining action_log entries via save()
+        self.save()
+
     def sign_action(self, actor_name: str, action: str,
                     approved_by: str = None) -> dict:
         """
@@ -1265,6 +1807,9 @@ class HardboundTeam:
         if not member:
             return {"error": f"Member '{actor_name}' not found"}
 
+        # Apply metabolic recharge before action (time-based recovery)
+        recharge_record = self.recharge()
+
         # Check authorization
         auth = self.check_authorization(actor_name, action)
         record = {
@@ -1274,6 +1819,10 @@ class HardboundTeam:
             "role": self.roles.get(actor_name, "unknown"),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+        # Record recharge if it happened
+        if recharge_record:
+            record["pre_action_recharge"] = recharge_record
 
         if not auth["authorized"]:
             # Check if an approver was provided
@@ -1297,8 +1846,16 @@ class HardboundTeam:
                 self.save()
                 return record
 
-        # Get action cost from policy (not hardcoded)
+        # Check multi-sig requirements
         policy = self._resolve_policy()
+        multi_sig_req = policy.requires_multi_sig(action)
+        if multi_sig_req:
+            return self._handle_multi_sig(
+                actor_name, action, record, multi_sig_req,
+                approved_by=approved_by
+            )
+
+        # Get action cost from policy (not hardcoded)
         action_cost = policy.get_cost(action)
         record["action_cost_policy"] = action_cost
 
@@ -1348,8 +1905,16 @@ class HardboundTeam:
 
         self.action_log.append(record)
 
-        # Auto-save (which flushes to hash-chained ledger)
-        self.save()
+        # Heartbeat-driven block aggregation:
+        # Queue action in heartbeat buffer; flush when heartbeat fires
+        self.heartbeat.queue_action(record)
+
+        if self.heartbeat.should_flush() or self.heartbeat.state == "crisis":
+            # Heartbeat tick: flush all pending actions as a block
+            self._flush_heartbeat_block()
+        else:
+            # Still save entity state (ATP balances etc) but don't flush to ledger
+            self._save_state_only()
 
         return record
 
@@ -1435,6 +2000,42 @@ def cmd_team_analytics(args):
     result = ledger.analytics()
     result["team"] = args.team
     print(json.dumps(result, indent=2))
+
+
+def cmd_team_approve(args):
+    """Approve a pending multi-sig request."""
+    try:
+        team = HardboundTeam.load(args.team)
+        result = team.approve_multi_sig(
+            args.approver,
+            request_id=getattr(args, 'request_id', None),
+            action=getattr(args, 'action', None),
+        )
+        print(json.dumps(result, indent=2, default=str))
+    except FileNotFoundError as e:
+        print(json.dumps({"error": str(e)}, indent=2))
+
+
+def cmd_team_recharge(args):
+    """Manually trigger ATP recharge for a team."""
+    try:
+        team = HardboundTeam.load(args.team)
+        result = team.recharge(force=True)
+        if result:
+            team.save()
+            result["team"] = args.team
+        else:
+            result = {
+                "team": args.team,
+                "recharged": 0,
+                "reason": "pool at max or zero recharge rate",
+                "team_atp": round(team.team_atp, 2),
+                "team_atp_max": round(team.team_atp_max, 2),
+                "metabolic_state": team.heartbeat.state,
+            }
+        print(json.dumps(result, indent=2))
+    except FileNotFoundError as e:
+        print(json.dumps({"error": str(e)}, indent=2))
 
 
 def cmd_team_query(args):
@@ -1685,6 +2286,8 @@ def demo():
     print(f"  Current policy:  v{policy_at_latest['version']} ({len(policy_at_latest['admin_only'])} admin-only)")
 
     # ─── Ledger verification ───
+    # Force-flush any buffered actions before verifying
+    team.flush()
     print("\n--- Ledger Verification ---")
     verification = team.ledger.verify()
     print(f"  Chain valid: {verification['valid']}")
@@ -1702,6 +2305,8 @@ def demo():
               f"prev={entry['prev_hash'][:8]}... hash={entry['entry_hash'][:8]}...")
 
     # ─── Persistence + reload test ───
+    # Flush pending actions before testing persistence
+    team.flush()
     print("\n--- Persistence Test ---")
     loaded = HardboundTeam.load("acme-ai-ops")
     loaded_info = loaded.info()
@@ -1710,11 +2315,12 @@ def demo():
     for m in loaded_info['members']:
         print(f"    {m['name']:25s} role={m['role']:10s}")
 
-    # Sign on loaded team
-    record = loaded.sign_action(f"{loaded.name}-admin", "rotate_credentials")
-    print(f"\n  Sign after reload: rotate_credentials → {record['decision']}")
+    # Sign on loaded team (use non-multi-sig action to test basic reload)
+    record = loaded.sign_action(f"{loaded.name}-admin", "set_resource_limit")
+    print(f"\n  Sign after reload: set_resource_limit → {record['decision']}")
 
-    # Re-verify after new action
+    # Flush and re-verify after new action
+    loaded.flush()
     reload_verify = loaded.ledger.verify()
     print(f"  Ledger still valid: {reload_verify['valid']}")
     print(f"  Total entries: {reload_verify['entries']}")
@@ -1764,7 +2370,54 @@ def demo():
         m_atp = member.atp.atp_balance if hasattr(member, 'atp') else 0
         print(f"    {name:25s} ATP: {m_atp:.1f}")
 
+    # ─── Multi-Sig Approval ───
+    print("\n--- Multi-Sig Approval (M-of-N) ---")
+
+    # Use the loaded team to avoid stale chain head from persistence test
+    team = loaded
+    admin = f"{team.name}-admin"
+
+    policy = team._resolve_policy()
+    print(f"  Multi-sig actions defined: {len(policy.multi_sig)}")
+    for action, req in policy.multi_sig.items():
+        print(f"    {action}: {req['required']}-of-{req['eligible_roles']}")
+
+    # Admin tries emergency_shutdown — requires 2-of-[admin,operator]
+    record = team.sign_action(admin, "emergency_shutdown")
+    print(f"\n  Admin → emergency_shutdown: {record.get('decision', 'unknown')}")
+    if "multi_sig" in record:
+        msig = record["multi_sig"]
+        print(f"    Request ID: {msig.get('request_id', 'n/a')}")
+        print(f"    Approvals: {msig['approvals']}/{msig['required']}")
+        print(f"    Remaining: {msig['remaining']}")
+        request_id = msig.get("request_id")
+
+        # Second approver (operator) completes the quorum
+        result = team.approve_multi_sig("qa-engineer", action="emergency_shutdown")
+        if result.get("decision") == "approved" or result.get("multi_sig_quorum_met"):
+            print(f"\n  Operator (qa-engineer) approves → quorum met!")
+            print(f"    Decision: {result.get('decision', 'unknown')}")
+            print(f"    ATP cost: {result.get('atp_cost', 'n/a')}")
+            print(f"    Approvers: {result.get('multi_sig_approvals', [])}")
+        elif result.get("status") == "pending":
+            print(f"\n  Operator approves → still pending ({result['approvals']}/{result['required']})")
+        else:
+            print(f"\n  Approval result: {result}")
+    else:
+        print(f"    (executed without multi-sig — check policy)")
+
+    # Also try rotate_credentials (requires 2 admins)
+    print(f"\n  Admin → rotate_credentials (needs 2 admins):")
+    record = team.sign_action(admin, "rotate_credentials")
+    if record.get("decision") == "pending_multi_sig":
+        print(f"    Status: pending (only 1 admin available)")
+        print(f"    Would need a second admin to approve")
+    else:
+        print(f"    Decision: {record.get('decision', 'unknown')}")
+
     # ─── Summary ───
+    # Flush any remaining buffered actions
+    team.flush()
     print("\n--- Summary ---")
     hw_members = sum(1 for m in team.members.values()
                     if isinstance(m, HardwareWeb4Entity))
@@ -1837,6 +2490,17 @@ def main():
     team_analytics = subparsers.add_parser("team-analytics", help="Show team ledger analytics")
     team_analytics.add_argument("team", help="Team name")
 
+    # team approve
+    team_approve = subparsers.add_parser("team-approve", help="Approve a pending multi-sig request")
+    team_approve.add_argument("team", help="Team name")
+    team_approve.add_argument("approver", help="Name of the approver")
+    team_approve.add_argument("--request-id", help="Multi-sig request ID")
+    team_approve.add_argument("--action", help="Action name to find pending request")
+
+    # team recharge
+    team_recharge = subparsers.add_parser("team-recharge", help="Manually trigger ATP recharge")
+    team_recharge.add_argument("team", help="Team name")
+
     # team query
     team_query = subparsers.add_parser("team-query", help="Query team ledger entries")
     team_query.add_argument("team", help="Team name")
@@ -1890,6 +2554,8 @@ def main():
         "team-actions": cmd_team_actions,
         "team-verify": cmd_team_verify,
         "team-analytics": cmd_team_analytics,
+        "team-approve": cmd_team_approve,
+        "team-recharge": cmd_team_recharge,
         "team-query": cmd_team_query,
         "demo": lambda a: demo(),
         "entity-create": cmd_entity_create,

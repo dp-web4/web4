@@ -538,15 +538,32 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - `query()`: filter by actor, action type, decision, hw-only, sequence range
    - `analytics()`: approval rates, per-actor breakdown, ATP utilization, policy version count
    - CLI commands: `team-analytics`, `team-query` with rich filtering
+35. ✅ **ATP recharge mechanism** (Feb 20, 2026)
+   - Metabolic state-dependent recharge rates: dream=20, rest=10, wake=5, focus=1, crisis=0 ATP/tick
+   - Recharge proportional to elapsed heartbeat intervals, capped at 3x (anti-gaming)
+   - `recharge()` method + `team-recharge` CLI command
+   - Persisted total_recharged counter, net flow tracking
+36. ✅ **Multi-sig approval (M-of-N quorum)** (Feb 20, 2026)
+   - `MultiSigRequest` + `MultiSigBuffer`: pending approval accumulation with TTL
+   - Default: emergency_shutdown=2-of-[admin,operator], rotate_credentials=2-of-[admin]
+   - `approve_multi_sig()` method + `team-approve` CLI command
+   - Policy-configurable via `set_multi_sig` in policy updates
+   - Full ledger trail: multi_sig_request → multi_sig_approval → multi_sig_executed
+37. ✅ **Heartbeat block aggregation** (Feb 20, 2026)
+   - Actions buffered in heartbeat queue, flushed as blocks on heartbeat tick
+   - `_flush_heartbeat_block()`: writes individual actions + block metadata entry
+   - Crisis state bypasses buffer (immediate write)
+   - Recharge applied on each heartbeat tick
+   - `flush()` method for explicit pre-shutdown flush
 
 ### Immediate (Feb 2026)
 
-35. 🔄 Implement LCT parsing library in Go (ACT)
+38. 🔄 Implement LCT parsing library in Go (ACT)
    - **TypeScript Status**: URI parser + document library COMPLETE
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-36. 🔄 Calibrate satisfaction threshold for combined filtering
-37. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-38. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+39. 🔄 Calibrate satisfaction threshold for combined filtering
+40. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+41. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 
 ### Near-Term (Q1 2026)
 
@@ -650,5 +667,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 20, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, and ledger analytics. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. Full governance stack operational: versioned policy, dynamic costs, metabolic timing, aggregate budgets, queryable analytics.**
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. Full governance stack operational: versioned policy, dynamic costs, metabolic timing, aggregate budgets, queryable analytics, self-sustaining ATP, quorum governance, heartbeat-driven ledger blocks.**
 
