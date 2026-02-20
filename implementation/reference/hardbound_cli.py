@@ -310,6 +310,156 @@ class TeamPolicy:
 
 
 # ═══════════════════════════════════════════════════════════════
+# SAL Birth Certificate — Genesis identity record
+# ═══════════════════════════════════════════════════════════════
+
+# Role → initial rights mapping (from SAL spec §2.2)
+ROLE_INITIAL_RIGHTS = {
+    TeamRole.ADMIN: [
+        "exist", "interact", "accumulate_reputation",
+        "manage_members", "update_policy", "approve_actions",
+        "delegate_authority", "emergency_powers",
+    ],
+    TeamRole.OPERATOR: [
+        "exist", "interact", "accumulate_reputation",
+        "execute_approved", "modify_resources", "deploy",
+    ],
+    TeamRole.AGENT: [
+        "exist", "interact", "accumulate_reputation",
+        "self_approve_permitted", "execute_tasks",
+    ],
+    TeamRole.VIEWER: [
+        "exist", "interact", "accumulate_reputation",
+        "witness", "read_state",
+    ],
+}
+
+# Role → initial responsibilities mapping
+ROLE_INITIAL_RESPONSIBILITIES = {
+    TeamRole.ADMIN: [
+        "abide_law", "respect_quorum", "maintain_integrity",
+        "respond_to_crisis", "audit_compliance",
+    ],
+    TeamRole.OPERATOR: [
+        "abide_law", "respect_quorum", "report_anomalies",
+        "follow_procedures",
+    ],
+    TeamRole.AGENT: [
+        "abide_law", "respect_quorum", "minimize_resource_use",
+        "report_failures",
+    ],
+    TeamRole.VIEWER: [
+        "abide_law", "respect_quorum",
+    ],
+}
+
+
+class BirthCertificate:
+    """
+    SAL Birth Certificate — genesis identity record for team members.
+
+    Created when an entity joins a society (team). Immutable after creation.
+    Follows the canonical JSON-LD structure from SAL spec §2.2.
+
+    Enterprise Terminology:
+        Society    → Team
+        Citizen    → Member
+        Law Oracle → Admin (the team's policy authority)
+        Birth Cert → Onboarding Record
+    """
+
+    def __init__(self, entity_lct: str, citizen_role: str,
+                 society_lct: str, law_oracle_lct: str,
+                 law_version: int, witnesses: list,
+                 genesis_block: str, initial_rights: list,
+                 initial_responsibilities: list,
+                 binding_type: str = "software",
+                 entity_name: str = "",
+                 society_name: str = ""):
+        self.entity_lct = entity_lct
+        self.citizen_role = citizen_role
+        self.society_lct = society_lct
+        self.law_oracle_lct = law_oracle_lct
+        self.law_version = f"v{law_version}"
+        self.birth_timestamp = datetime.now(timezone.utc).isoformat()
+        self.witnesses = witnesses
+        self.genesis_block = genesis_block
+        self.initial_rights = initial_rights
+        self.initial_responsibilities = initial_responsibilities
+        self.binding_type = binding_type
+        self.entity_name = entity_name
+        self.society_name = society_name
+
+        # Compute certificate hash for tamper detection
+        self.cert_hash = self._compute_hash()
+
+    def _compute_hash(self) -> str:
+        """Compute SHA-256 hash of the canonical certificate content."""
+        canonical = json.dumps(self.to_dict(include_hash=False),
+                               sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode()).hexdigest()
+
+    def verify(self) -> bool:
+        """Verify certificate integrity."""
+        return self.cert_hash == self._compute_hash()
+
+    def to_dict(self, include_hash: bool = True) -> dict:
+        """Serialize to canonical JSON-LD form."""
+        d = {
+            "@context": ["https://web4.io/contexts/sal.jsonld"],
+            "type": "Web4BirthCertificate",
+            "entity": self.entity_lct,
+            "entityName": self.entity_name,
+            "citizenRole": self.citizen_role,
+            "society": self.society_lct,
+            "societyName": self.society_name,
+            "lawOracle": self.law_oracle_lct,
+            "lawVersion": self.law_version,
+            "birthTimestamp": self.birth_timestamp,
+            "witnesses": self.witnesses,
+            "genesisBlock": self.genesis_block,
+            "initialRights": self.initial_rights,
+            "initialResponsibilities": self.initial_responsibilities,
+            "bindingType": self.binding_type,
+        }
+        if include_hash:
+            d["certHash"] = self.cert_hash
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BirthCertificate":
+        """Reconstruct from persisted dict."""
+        law_version_str = data.get("lawVersion", "v1")
+        # Parse "v1" → 1
+        law_version_int = int(law_version_str.lstrip("v")) if law_version_str.startswith("v") else 1
+
+        cert = cls(
+            entity_lct=data["entity"],
+            citizen_role=data["citizenRole"],
+            society_lct=data["society"],
+            law_oracle_lct=data["lawOracle"],
+            law_version=law_version_int,
+            witnesses=data.get("witnesses", []),
+            genesis_block=data.get("genesisBlock", ""),
+            initial_rights=data.get("initialRights", []),
+            initial_responsibilities=data.get("initialResponsibilities", []),
+            binding_type=data.get("bindingType", "software"),
+            entity_name=data.get("entityName", ""),
+            society_name=data.get("societyName", ""),
+        )
+        # Restore original timestamp
+        cert.birth_timestamp = data.get("birthTimestamp", cert.birth_timestamp)
+        # Recompute hash (should match if untampered)
+        cert.cert_hash = cert._compute_hash()
+        stored_hash = data.get("certHash")
+        if stored_hash and stored_hash != cert.cert_hash:
+            cert._tampered = True
+        else:
+            cert._tampered = False
+        return cert
+
+
+# ═══════════════════════════════════════════════════════════════
 # Team Ledger — Hash-chained append-only action log
 # ═══════════════════════════════════════════════════════════════
 
@@ -943,6 +1093,9 @@ class HardboundTeam:
         # Multi-sig approval buffer
         self.multi_sig_buffer = MultiSigBuffer()
 
+        # SAL Birth Certificates (member_name → BirthCertificate)
+        self.birth_certificates: dict = {}
+
     # ─── Persistence ────────────────────────────────────────────
 
     def _entity_to_state(self, entity) -> dict:
@@ -1144,6 +1297,19 @@ class HardboundTeam:
         # Restore multi-sig pending requests
         team.multi_sig_buffer = MultiSigBuffer.load(base / "multi_sig_pending.json")
 
+        # Restore birth certificates from disk
+        members_dir = base / "members"
+        if members_dir.exists():
+            for cert_file in members_dir.glob("*_birth_cert.json"):
+                try:
+                    data = json.loads(cert_file.read_text())
+                    cert = BirthCertificate.from_dict(data)
+                    member_name = data.get("entityName", "")
+                    if member_name:
+                        team.birth_certificates[member_name] = cert
+                except (json.JSONDecodeError, KeyError):
+                    pass  # Skip corrupt cert files
+
         return team
 
     @staticmethod
@@ -1218,6 +1384,12 @@ class HardboundTeam:
             signer_entity=self.root if isinstance(self.root, HardwareWeb4Entity) else None,
         )
 
+        # SAL Birth Certificate for the founding admin (first citizen)
+        admin_name = f"{self.name}-admin"
+        binding_type = "hardware" if isinstance(self.admin, HardwareWeb4Entity) and getattr(self.admin, 'tpm_handle', None) else "software"
+        self._generate_birth_certificate(admin_name, self.admin,
+                                          TeamRole.ADMIN, binding_type)
+
         return self.info()
 
     def add_member(self, name: str, entity_type: str,
@@ -1256,11 +1428,16 @@ class HardboundTeam:
             )
 
             self.save()
+
+            # Generate SAL birth certificate for software spawn
+            cert = self._generate_birth_certificate(name, member, role, "software")
+
             return {
                 "name": name, "type": entity_type, "role": role,
                 "lct_id": member.lct_id, "level": 4,
                 "binding": "software (spawned child)",
                 "parent": self.root.lct_id,
+                "birth_cert_hash": cert.cert_hash[:16] + "...",
             }
         else:
             member = HardwareWeb4Entity.create_simulated(
@@ -1284,12 +1461,109 @@ class HardboundTeam:
         # Persist
         self.save()
 
+        # Generate SAL birth certificate
+        binding_type = "hardware" if isinstance(member, HardwareWeb4Entity) and hasattr(member, 'tpm_handle') else "software"
+        cert = self._generate_birth_certificate(name, member, role, binding_type)
+
         return {
             "name": name, "type": entity_type, "role": role,
             "lct_id": member.lct_id if hasattr(member, 'lct_id') else "unknown",
             "level": getattr(member, 'capability_level', 4),
-            "binding": "hardware" if isinstance(member, HardwareWeb4Entity) and hasattr(member, 'tpm_handle') else "software",
+            "binding": binding_type,
+            "birth_cert_hash": cert.cert_hash[:16] + "...",
         }
+
+    def _generate_birth_certificate(self, member_name: str, member,
+                                     role: str, binding_type: str) -> BirthCertificate:
+        """
+        Generate a SAL birth certificate for a new team member.
+
+        The birth certificate is the immutable genesis record for a member's
+        identity within this team (society). It captures:
+        - Who they are (entity LCT)
+        - What society they belong to (team root LCT)
+        - What role they were born into (citizen role)
+        - What law governs them (current policy version)
+        - Who witnessed the birth (root entity)
+        - What rights and responsibilities they start with
+        """
+        policy = self._resolve_policy()
+
+        # Get the genesis block reference (current ledger head)
+        verify = self.ledger.verify()
+        genesis_block = f"block:{verify['entries']}"
+
+        cert = BirthCertificate(
+            entity_lct=member.lct_id if hasattr(member, 'lct_id') else f"lct:web4:entity:{member_name}",
+            citizen_role=f"lct:web4:role:citizen:{member_name}@{self.name}",
+            society_lct=self.root.lct_id if self.root else f"lct:web4:society:{self.name}",
+            law_oracle_lct=self.admin.lct_id if self.admin else "",
+            law_version=policy.version,
+            witnesses=[self.root.lct_id] if self.root else [],
+            genesis_block=genesis_block,
+            initial_rights=ROLE_INITIAL_RIGHTS.get(role, ["exist", "interact"]),
+            initial_responsibilities=ROLE_INITIAL_RESPONSIBILITIES.get(role, ["abide_law"]),
+            binding_type=binding_type,
+            entity_name=member_name,
+            society_name=self.name,
+        )
+
+        # Store in memory
+        self.birth_certificates[member_name] = cert
+
+        # Persist to disk
+        certs_dir = self.state_dir / "members"
+        certs_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = member_name.replace("/", "_").replace(" ", "_")
+        cert_path = certs_dir / f"{safe_name}_birth_cert.json"
+        cert_path.write_text(json.dumps(cert.to_dict(), indent=2))
+
+        # Record birth certificate hash in ledger
+        self.ledger.append(
+            action={
+                "type": "sal_birth_certificate",
+                "member": member_name,
+                "role": role,
+                "cert_hash": cert.cert_hash,
+                "law_version": cert.law_version,
+                "binding": binding_type,
+                "rights_count": len(cert.initial_rights),
+                "responsibilities_count": len(cert.initial_responsibilities),
+            },
+            signer_lct=self.root.lct_id if self.root else "",
+            signer_entity=self.root if isinstance(self.root, HardwareWeb4Entity) else None,
+        )
+
+        return cert
+
+    def get_birth_certificate(self, member_name: str) -> dict:
+        """Get a member's birth certificate."""
+        # Check in-memory first
+        if member_name in self.birth_certificates:
+            cert = self.birth_certificates[member_name]
+            return {
+                "found": True,
+                "valid": cert.verify(),
+                "certificate": cert.to_dict(),
+            }
+
+        # Try loading from disk
+        safe_name = member_name.replace("/", "_").replace(" ", "_")
+        cert_path = self.state_dir / "members" / f"{safe_name}_birth_cert.json"
+        if cert_path.exists():
+            try:
+                data = json.loads(cert_path.read_text())
+                cert = BirthCertificate.from_dict(data)
+                self.birth_certificates[member_name] = cert
+                return {
+                    "found": True,
+                    "valid": cert.verify() and not getattr(cert, '_tampered', False),
+                    "certificate": cert.to_dict(),
+                }
+            except (json.JSONDecodeError, KeyError):
+                return {"found": False, "error": "corrupt certificate file"}
+
+        return {"found": False, "error": f"no birth certificate for '{member_name}'"}
 
     def info(self) -> dict:
         """Get team status."""
@@ -1345,6 +1619,9 @@ class HardboundTeam:
             "utilization": round(self.team_adp_discharged / self.team_atp_max * 100, 1)
                            if self.team_atp_max > 0 else 0.0,
         }
+
+        # Birth certificates
+        result["birth_certificates"] = len(self.birth_certificates)
 
         # Ledger info
         result["ledger"] = {
@@ -2226,6 +2503,16 @@ def cmd_team_recharge(args):
         print(json.dumps({"error": str(e)}, indent=2))
 
 
+def cmd_team_birth_cert(args):
+    """Show a member's SAL birth certificate."""
+    try:
+        team = HardboundTeam.load(args.team)
+        result = team.get_birth_certificate(args.member)
+        print(json.dumps(result, indent=2))
+    except FileNotFoundError as e:
+        print(json.dumps({"error": str(e)}, indent=2))
+
+
 def cmd_team_query(args):
     """Query team ledger entries."""
     team_dir = HARDBOUND_DIR / "teams" / args.team
@@ -2393,7 +2680,23 @@ def demo():
 
     for name, mtype, role in members_to_add:
         info = team.add_member(name, mtype, role=role)
-        print(f"  Added: {name:25s} ({mtype:7s}) role={info.get('role'):10s} binding={info.get('binding', '?')}")
+        cert_hash = info.get('birth_cert_hash', 'n/a')
+        print(f"  Added: {name:25s} ({mtype:7s}) role={info.get('role'):10s} cert={cert_hash}")
+
+    # ─── SAL Birth Certificates ───
+    print("\n--- SAL Birth Certificates ---")
+    print(f"  Certificates issued: {len(team.birth_certificates)}")
+    for member_name, cert in team.birth_certificates.items():
+        print(f"\n  [{member_name}]")
+        print(f"    Citizen role: {cert.citizen_role}")
+        print(f"    Society: {cert.society_name}")
+        print(f"    Law version: {cert.law_version}")
+        print(f"    Binding: {cert.binding_type}")
+        print(f"    Rights: {', '.join(cert.initial_rights[:4])}{'...' if len(cert.initial_rights) > 4 else ''}")
+        print(f"    Responsibilities: {', '.join(cert.initial_responsibilities[:3])}{'...' if len(cert.initial_responsibilities) > 3 else ''}")
+        print(f"    Witnesses: {len(cert.witnesses)}")
+        print(f"    Cert hash: {cert.cert_hash[:24]}...")
+        print(f"    Integrity: {'VALID' if cert.verify() else 'TAMPERED'}")
 
     # ─── Team status with roles ───
     print("\n--- Team Status ---")
@@ -2500,8 +2803,15 @@ def demo():
     loaded_info = loaded.info()
     print(f"  Members restored: {len(loaded_info['members'])}")
     print(f"  Ledger entries: {loaded_info['ledger']['entries']}")
+    print(f"  Birth certs restored: {loaded_info['birth_certificates']}")
     for m in loaded_info['members']:
         print(f"    {m['name']:25s} role={m['role']:10s}")
+
+    # Verify birth certificates survived reload
+    certs_valid = all(
+        cert.verify() for cert in loaded.birth_certificates.values()
+    )
+    print(f"  Birth cert integrity: {'ALL VALID' if certs_valid else 'SOME TAMPERED'}")
 
     # Sign on loaded team (use non-multi-sig action to test basic reload)
     record = loaded.sign_action(f"{loaded.name}-admin", "set_resource_limit")
@@ -2733,6 +3043,11 @@ def main():
     team_query.add_argument("--hw-only", action="store_true", help="Only hardware-signed entries")
     team_query.add_argument("--limit", type=int, default=20, help="Max entries to show")
 
+    # team birth-cert
+    team_birth_cert = subparsers.add_parser("team-birth-cert", help="Show a member's SAL birth certificate")
+    team_birth_cert.add_argument("team", help="Team name")
+    team_birth_cert.add_argument("member", help="Member name")
+
     # demo
     subparsers.add_parser("demo", help="Run interactive demo")
 
@@ -2780,6 +3095,7 @@ def main():
         "team-approve": cmd_team_approve,
         "team-recharge": cmd_team_recharge,
         "team-query": cmd_team_query,
+        "team-birth-cert": cmd_team_birth_cert,
         "demo": lambda a: demo(),
         "entity-create": cmd_entity_create,
         "entity-sign": cmd_entity_sign,
