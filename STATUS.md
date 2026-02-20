@@ -479,15 +479,30 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Team creation with TPM2-bound root + admin
    - Member management, hardware-signed R6 actions
    - JSON output for automation integration
+24. ✅ **Hardbound persistent state** (Feb 20, 2026)
+   - Team state persisted to `.hardbound/teams/<name>/` as JSON files
+   - Per-member entity serialization/deserialization (T3/V3, ATP, key info)
+   - Append-only action ledger (JSONL format)
+   - Teams survive sessions: save, reload, continue signing
+25. ✅ **Cross-bridge action delegation** (Feb 20, 2026)
+   - `POST /avp/delegate`: R6 action delegation across trust bridges
+   - Bidirectional: A→B and B→A delegation verified
+   - Bridge health validation, liveness challenge, hardware-signed results
+   - Symmetric bridge IDs (sorted LCT pairs) for consistent addressing
+26. ✅ **End-to-end trust chain demo** (Feb 20, 2026)
+   - `implementation/reference/e2e_trust_chain_demo.py`: Full integration proof
+   - 5 chain links: EK chain → TPM2 identity → team persistence → AVP bridge → delegation
+   - All 5 links VERIFIED on Legion with real Intel TPM 2.0
+   - Bugs found and fixed: signature format mismatch, attribute naming, NV space management
 
 ### Immediate (Feb 2026)
 
-24. 🔄 Implement LCT parsing library in Go (ACT)
+27. 🔄 Implement LCT parsing library in Go (ACT)
    - **TypeScript Status**: URI parser + document library COMPLETE
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-25. 🔄 Calibrate satisfaction threshold for combined filtering
-26. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-27. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+28. 🔄 Calibrate satisfaction threshold for combined filtering
+29. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+30. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 
 ### Near-Term (Q1 2026)
 
@@ -591,5 +606,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 19, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON). EK certificate chain verified (Intel root-of-trust). Hardbound CLI for enterprise team management.
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation.**
 

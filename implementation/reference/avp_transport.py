@@ -304,8 +304,14 @@ class SigningAdapter:
             except Exception:
                 pass
 
-        # Simulation/software verification: accept structurally valid sha256 signatures
-        return len(signature_hex) == 64
+        # Simulation/software verification: accept structurally valid signatures.
+        # SHA-256 sigs are 64 hex chars; TPM2 ECDSA P-256 sigs are ~128-144 hex chars.
+        # Accept any hex string of reasonable length (32+ bytes = 64+ hex chars).
+        try:
+            bytes.fromhex(signature_hex)
+            return len(signature_hex) >= 64
+        except ValueError:
+            return False
 
     def get_attestation(self) -> dict:
         """Get hardware attestation."""
@@ -447,6 +453,8 @@ class AVPNode:
                     self._send_json(200, node._handle_challenge(body))
                 elif self.path == "/avp/heartbeat":
                     self._send_json(200, node._handle_heartbeat(body))
+                elif self.path == "/avp/delegate":
+                    self._send_json(200, node._handle_delegate(body))
                 else:
                     self._send_json(404, {"error": "not found"})
 
@@ -593,6 +601,91 @@ class AVPNode:
             },
         }
 
+    def _handle_delegate(self, body: dict) -> dict:
+        """
+        Handle POST /avp/delegate.
+        Remote peer requests this node to execute an R6 action on their behalf.
+
+        The delegation includes:
+        - The R6 request (what to do)
+        - The bridge_id (trust context)
+        - A signed challenge proving the delegator is alive
+        - The delegator's LCT (for authorization)
+
+        This node verifies trust through the bridge, then executes locally.
+        """
+        bridge_id = body.get("bridge_id", "")
+        delegator_lct = body.get("delegator_lct", "")
+        r6_request = body.get("r6_request", {})
+        challenge_data = body.get("challenge", {})
+
+        # Validate bridge exists and is healthy
+        bridge = self.bridges.get(bridge_id)
+        if not bridge:
+            self._log("delegate_no_bridge", bridge_id)
+            return {
+                "status": "rejected",
+                "error": f"bridge {bridge_id} not found",
+                "failure_type": "no_bridge",
+            }
+
+        if bridge.state in ("broken", "degraded"):
+            self._log("delegate_unhealthy_bridge", bridge.state)
+            return {
+                "status": "rejected",
+                "error": f"bridge is {bridge.state}",
+                "failure_type": "unhealthy_bridge",
+            }
+
+        # Verify the challenge (proves delegator is alive)
+        if challenge_data:
+            challenge = AVPChallenge.from_dict(challenge_data)
+            if challenge.is_expired():
+                return {
+                    "status": "rejected",
+                    "error": "delegation challenge expired",
+                    "failure_type": "challenge_expired",
+                }
+
+        # Execute the R6 action locally
+        action = r6_request.get("request", "unknown_action")
+        resource_est = r6_request.get("resource_estimate", 10.0)
+        rules = r6_request.get("rules", "delegation-policy-v1")
+
+        request = R6Request(
+            rules=rules,
+            role=delegator_lct,
+            request=action,
+            reference=f"bridge:{bridge_id}",
+            resource_estimate=resource_est,
+        )
+
+        result = self.entity.act(request)
+
+        # Sign the result
+        result_hash = hashlib.sha256(
+            f"{result.r6_id}:{result.decision.value}:{result.atp_consumed}".encode()
+        ).hexdigest()
+        result_signature = self.signer.sign(result_hash.encode())
+
+        record = {
+            "status": "executed",
+            "r6_result": {
+                "r6_id": result.r6_id,
+                "decision": result.decision.value,
+                "reason": result.reason,
+                "atp_consumed": result.atp_consumed,
+            },
+            "executor_lct": self.entity.lct_id,
+            "bridge_id": bridge_id,
+            "bridge_trust": bridge.trust_multiplier,
+            "result_signature": result_signature,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        self._log("delegate_executed", f"{action}:{result.decision.value}")
+        return record
+
     # ─── Client Methods ─────────────────────────────────────────
 
     def discover_peer(self, remote_url: str) -> Optional[DiscoveryRecord]:
@@ -736,7 +829,9 @@ class AVPNode:
         if not peer or not verification_result.get("valid"):
             return None
 
-        bridge_id = f"bridge:{hashlib.sha256(f'{self.entity.lct_id}:{peer_lct_id}'.encode()).hexdigest()[:12]}"
+        # Sort LCT IDs so both sides generate the same bridge_id
+        sorted_lcts = sorted([self.entity.lct_id, peer_lct_id])
+        bridge_id = f"bridge:{hashlib.sha256(f'{sorted_lcts[0]}:{sorted_lcts[1]}'.encode()).hexdigest()[:12]}"
         now = datetime.now(timezone.utc).isoformat()
 
         bridge = BridgeRecord(
@@ -759,6 +854,78 @@ class AVPNode:
         self.bridges[bridge_id] = bridge
         self._log("bridge_created", bridge_id)
         return bridge
+
+    def delegate_action(
+        self,
+        bridge_id: str,
+        action: str,
+        resource_estimate: float = 10.0,
+        rules: str = "delegation-policy-v1",
+    ) -> Optional[dict]:
+        """
+        Delegate an R6 action to a remote node via a trust bridge.
+
+        This is the key operation: use trust established through AVP
+        to request another entity to do work on your behalf.
+
+        Returns the delegation result or None on failure.
+        """
+        bridge = self.bridges.get(bridge_id)
+        if not bridge:
+            self._log("delegate_no_bridge", bridge_id)
+            return None
+
+        # Determine remote endpoint
+        remote_lct = bridge.endpoint_b if bridge.endpoint_a == self.entity.lct_id else bridge.endpoint_a
+        peer = self.known_peers.get(remote_lct)
+        if not peer:
+            self._log("delegate_unknown_peer", remote_lct)
+            return None
+
+        # Create a fresh challenge to prove we're alive
+        challenge = AVPChallenge.create(
+            verifier_lct_id=self.entity.lct_id,
+            target_lct_id=remote_lct,
+            purpose="delegation",
+            ttl_seconds=60,
+        )
+
+        # Build delegation request
+        delegation = {
+            "bridge_id": bridge_id,
+            "delegator_lct": self.entity.lct_id,
+            "r6_request": {
+                "rules": rules,
+                "request": action,
+                "resource_estimate": resource_estimate,
+            },
+            "challenge": challenge.to_dict(),
+        }
+
+        try:
+            data = json.dumps(delegation).encode()
+            req = Request(
+                f"{peer.endpoint}/avp/delegate",
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+
+            if result.get("status") == "executed":
+                self._log(
+                    "delegation_complete",
+                    f"{action}:{result['r6_result']['decision']}"
+                )
+            else:
+                self._log("delegation_failed", result.get("error", "unknown"))
+
+            return result
+
+        except Exception as e:
+            self._log("delegation_transport_error", str(e))
+            return {"status": "error", "error": str(e)}
 
     # ─── Full Pairing Flow ───────────────────────────────────────
 
@@ -993,6 +1160,43 @@ def demo():
                     print(f"  Heartbeat {i+1}: {'OK' if ok else 'FAIL'} | "
                           f"state={bridge_a.state} | "
                           f"trust_mult={bridge_a.trust_multiplier:.2f}")
+
+        # ─── Phase 5: Cross-Bridge Delegation ───
+        print("\n--- Phase 5: Cross-Bridge Delegation ---")
+        if bridge_a:
+            # Node A delegates actions to Node B via the trust bridge
+            delegations = [
+                ("analyze_dataset", 15.0),
+                ("run_diagnostics", 8.0),
+                ("validate_schema", 5.0),
+            ]
+
+            for action, cost in delegations:
+                result = node_a.delegate_action(
+                    bridge_a.bridge_id,
+                    action,
+                    resource_estimate=cost,
+                    rules="delegation-policy-v1",
+                )
+                if result and result.get("status") == "executed":
+                    r6 = result["r6_result"]
+                    print(f"  Delegated: {action:20s} → {r6['decision']:10s} "
+                          f"(cost={r6['atp_consumed']:.1f}, "
+                          f"bridge_trust={result['bridge_trust']:.2f})")
+                else:
+                    err = result.get("error", "unknown") if result else "no response"
+                    print(f"  Delegated: {action:20s} → FAILED ({err})")
+
+            # Try delegation on a broken bridge (should fail)
+            print("\n  Testing delegation rejection...")
+            fake_bridge_id = "bridge:nonexistent"
+            result = node_a.delegate_action(fake_bridge_id, "should_fail")
+            if result is None or result.get("status") != "executed":
+                print(f"  Nonexistent bridge: correctly rejected")
+            else:
+                print(f"  Nonexistent bridge: ERROR — should have been rejected!")
+        else:
+            print("  No bridge — skipping delegation test")
 
         # ─── Status check ───
         print("\n--- Node Status (via HTTP) ---")

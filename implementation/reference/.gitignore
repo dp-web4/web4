@@ -1,0 +1,5 @@
+
+# Hardbound private key (never commit)
+.hardbound/signing.key
+
+.hardbound/actors/claude/signing.key

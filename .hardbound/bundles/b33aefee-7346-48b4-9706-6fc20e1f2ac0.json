@@ -1,0 +1,45 @@
+{
+  "bundle_id": "b33aefee-7346-48b4-9706-6fc20e1f2ac0",
+  "timestamp": "2026-02-20T02:00:30.674Z",
+  "actor_id": "lct:web4:claude:opus-4",
+  "action": {
+    "type": "file_operation",
+    "target": "/home/dp/ai-workspace/private-context/moments/2026-02-19-legion-autonomous-session-avp-transport.md",
+    "parameters": {},
+    "result_hash": "sha256:b5b70505725cff67e4ddfc23c32049d0230e2d5128602f8957724e8c0afb406c",
+    "timestamp": "2026-02-20T02:00:30.674Z"
+  },
+  "t3_tensor_snapshot": {
+    "talent": 0.5,
+    "training": 0.5,
+    "temperament": 0.5,
+    "context_weights": [
+      0.33,
+      0.33,
+      0.34
+    ]
+  },
+  "coherence_metrics": {
+    "score": 1,
+    "delta": 0
+  },
+  "provenance": {
+    "prev_bundle_id": "7162db6e-cfaf-459d-99e3-d81af21328b4",
+    "signatures": [
+      {
+        "signer": "lct:web4:claude:opus-4",
+        "algorithm": "ES256",
+        "signature": "MEUCIQCybp5kSnmx7gko2W2AwR/puTciwvGpfTXDazXZOtNSuAIgJXZKmelqUuE6U6t/I1h4NfOB5CpGiZbaAaO7dRAWQks=",
+        "timestamp": "2026-02-20T02:00:30.676Z"
+      }
+    ],
+    "witness_signatures": []
+  },
+  "device_set": [
+    "lct:web4:claude:opus-4"
+  ],
+  "rationale_summary": "Read: /home/dp/ai-workspace/private-context/moments/2026-02-19-legion-autonomous-session-avp-transport.md",
+  "outputs_hashes": [
+    "sha256:b5b70505725cff67e4ddfc23c32049d0230e2d5128602f8957724e8c0afb406c"
+  ]
+}

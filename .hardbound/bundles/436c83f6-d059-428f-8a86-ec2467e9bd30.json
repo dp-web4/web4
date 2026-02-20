@@ -1,0 +1,45 @@
+{
+  "bundle_id": "436c83f6-d059-428f-8a86-ec2467e9bd30",
+  "timestamp": "2026-02-20T02:00:59.459Z",
+  "actor_id": "lct:web4:claude:opus-4",
+  "action": {
+    "type": "command_execution",
+    "target": "ls -la .hardbound/actors/claude/",
+    "parameters": {},
+    "result_hash": "sha256:adb930aec87fa8fc19ff7f04e158a04c47b978da3b0f09a4c05a61f539574c71",
+    "timestamp": "2026-02-20T02:00:59.459Z"
+  },
+  "t3_tensor_snapshot": {
+    "talent": 0.5,
+    "training": 0.5,
+    "temperament": 0.5,
+    "context_weights": [
+      0.33,
+      0.33,
+      0.34
+    ]
+  },
+  "coherence_metrics": {
+    "score": 1,
+    "delta": 0
+  },
+  "provenance": {
+    "prev_bundle_id": "0d118055-15a2-42d3-8536-138c60108837",
+    "signatures": [
+      {
+        "signer": "lct:web4:claude:opus-4",
+        "algorithm": "ES256",
+        "signature": "MEUCIQDX50e0oTym/aN2++w1uGwnWyPELcdcuLL/zIbwEeVC0QIgQSeCeKiefXAHnZFyXYu/u8DC4rwIoX5YTHq5ldQWRy4=",
+        "timestamp": "2026-02-20T02:00:59.461Z"
+      }
+    ],
+    "witness_signatures": []
+  },
+  "device_set": [
+    "lct:web4:claude:opus-4"
+  ],
+  "rationale_summary": "Bash: ls -la .hardbound/actors/claude/",
+  "outputs_hashes": [
+    "sha256:adb930aec87fa8fc19ff7f04e158a04c47b978da3b0f09a4c05a61f539574c71"
+  ]
+}
