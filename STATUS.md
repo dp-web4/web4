@@ -581,17 +581,22 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Self-hash integrity verification, persisted as `<name>_birth_cert.json`
    - Restored on `load()`, CLI `team-birth-cert` command
    - See: `implementation/reference/hardbound_cli.py`
+43. ✅ **SAL birth certificate test suite (6/6 pass)** (Feb 20, 2026)
+   - Integrity verification, tamper detection (3 vectors), role-based rights mapping
+   - Persistence roundtrip, ledger entry validation, fractal citizenship (nested societies)
+   - Nested societies verified: distinct LCT identities, independent law versions
+   - See: `implementation/reference/sal_birth_cert_test.py`
 
 ### Immediate (Feb 2026)
 
-43. 🔄 Implement LCT parsing library in Go (ACT)
+44. 🔄 Implement LCT parsing library in Go (ACT)
    - **TypeScript Status**: URI parser + document library COMPLETE
    - WASM bindings exist in `web4-trust-core/pkg/` for T3/V3 tensors
-44. 🔄 Calibrate satisfaction threshold for combined filtering
-45. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-46. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-47. 🔄 Cross-team trust bridges within Hardbound
-48. 🔄 LCT registry implementation
+45. 🔄 Calibrate satisfaction threshold for combined filtering
+46. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+47. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+48. 🔄 Cross-team trust bridges within Hardbound
+49. 🔄 LCT registry implementation
 
 ### Near-Term (Q1 2026)
 
@@ -695,5 +700,5 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 **Last Updated**: February 20, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. Full governance stack operational: versioned policy, dynamic costs, metabolic timing, aggregate budgets, queryable analytics, self-sustaining ATP, quorum governance, heartbeat-driven ledger blocks. Governance stress-tested (200 actions, self-sustaining equilibrium). 30-vector attack surface: 100% defended. T3/V3 reputation deltas from every action. SAL birth certificates for all team members.**
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. 10-layer governance stack: SAL birth certificates → multi-sig quorum → ATP recharge → heartbeat blocks → analytics → metabolic state → dynamic costs → policy-from-ledger → RBAC → hash-chained ledger. Governance stress-tested (200 actions, self-sustaining equilibrium). 30-vector attack surface: 100% defended. T3/V3 reputation deltas from every action. SAL birth certificates with tamper detection + fractal citizenship (6/6 tests pass).**
 
