@@ -461,24 +461,25 @@ class LawOracle:
         chain = []
         current_id = interpretation_id
 
-        # Find in current dataset
+        # Build index of all interpretations across current + history
+        all_interps: Dict[str, Interpretation] = {}
         for interp in self.current_dataset.interpretations:
-            if interp.interpretation_id == current_id:
-                chain.append(interp)
-                if interp.replaces:
-                    current_id = interp.replaces
-                else:
-                    break
-
-        # Search historical datasets
+            all_interps[interp.interpretation_id] = interp
         for dataset in reversed(self.dataset_history):
             for interp in dataset.interpretations:
-                if interp.interpretation_id == current_id:
-                    chain.append(interp)
-                    if interp.replaces:
-                        current_id = interp.replaces
-                    else:
-                        return chain
+                if interp.interpretation_id not in all_interps:
+                    all_interps[interp.interpretation_id] = interp
+
+        # Walk the replaces chain
+        visited = set()
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            interp = all_interps.get(current_id)
+            if interp:
+                chain.append(interp)
+                current_id = interp.replaces
+            else:
+                break
 
         return chain
 
