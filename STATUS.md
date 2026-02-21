@@ -613,12 +613,39 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Key finding: BRIDGE_MEDIATED safest (dampens controversial agents via trust cap)
    - WEIGHTED handles partial knowledge gracefully (more observations = more influence)
    - Trust gaming detection: spread > 0.4 flags 2/3 manipulative agents
-   - Open question: confidence-weighted spread for context vs manipulation distinction
+   - Open question: confidence-weighted spread for context vs manipulation distinction → CLOSED (item 48)
    - See: `implementation/reference/trust_conflict_simulation.py`
+48. ✅ **R7 action framework reference implementation** (Feb 20, 2026)
+   - Full R7 spec implementation: Rules + Role + Request + Reference + Resource → Result + Reputation
+   - Reputation is explicit, role-contextualized, witnessed first-class output (the R7 innovation)
+   - R7Executor: validate → execute → compute_reputation → settle flow
+   - Configurable reputation rules (success reward, failure penalty, efficiency bonus, stake reward)
+   - R7ActionBuilder for fluent action construction
+   - Hash-chained ledger with reputation records
+   - ATP staking amplifies reputation rewards; even failures produce reputation deltas
+   - 14/14 tests pass
+   - See: `implementation/reference/r7_executor.py`, `implementation/reference/r7_executor_test.py`
+49. ✅ **Confidence-weighted trust gaming detection** (Feb 20, 2026)
+   - Closes the open question from trust conflict simulation
+   - Formula: cw_spread = raw_spread × √(min_confidence) × log₂(min_obs+1)/log₂(max_obs+1)
+   - 5-level classification: CLEAR, INCOMPLETE, CONTEXT_DEPENDENT, SUSPICIOUS, GAMING
+   - Avoids 3 false positives that raw spread would trigger (context-dependent, insufficient data, single-dimension)
+   - Dimension analysis separates single-dim divergence (context) from uniform (gaming)
+   - 6 scenarios, 8 checks, all pass
+   - See: `implementation/reference/confidence_weighted_gaming.py`
+50. ✅ **10-layer governance integration test** (Feb 20, 2026)
+   - Exercises all 10 Hardbound governance layers in a single coherent scenario
+   - 3-member team (admin + operator + agent), 13 ledger entries
+   - Multi-sig emergency_shutdown with 2-of-2 quorum
+   - Policy update v1→v2 with historical queries
+   - Birth certificate tamper detection, heartbeat block aggregation
+   - Anti-gaming recharge cap, metabolic state transitions
+   - 62/62 checks pass across all 10 layers
+   - See: `implementation/reference/governance_integration_test.py`
 
 ### Immediate (Feb 2026)
 
-48. 🔄 Calibrate satisfaction threshold for combined filtering
+51. 🔄 Calibrate satisfaction threshold for combined filtering
 49. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
 50. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
 51. 🔄 LCT registry federation integration (single-society impl exists)
