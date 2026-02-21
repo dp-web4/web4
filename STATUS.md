@@ -1,8 +1,8 @@
 # Web4 Implementation Status
 
-**Last Updated**: February 20, 2026
+**Last Updated**: February 21, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
-**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework implemented (14 tests): reputation as explicit, role-contextualized first-class output. R7-Hardbound integration (30 checks): R7 actions flow through all 10 governance layers. Confidence-weighted gaming detection closes context vs manipulation question. LCT federation registry (29 checks): multi-society resolution via bilateral trust bridges. ATP game-theoretic analysis (13 checks): Nash equilibrium proves cooperate-dominant at proper stake levels; witness count is strongest deterrence lever. Cross-team trust bridges + inter-org delegation working.**
+**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working.**
 
 ---
 
@@ -671,11 +671,45 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - 13/13 checks pass
    - See: `implementation/reference/atp_game_theory.py`
 
+54. ✅ **ACP (Agentic Context Protocol) reference implementation** (Feb 21, 2026)
+   - Full ACP spec implementation: Trigger → Plan → Intent → Law Check → Approve → Execute → Record
+   - AgentPlan: multi-step workflows with triggers (manual, event), dependencies, guards
+   - Intent: proposals with proof of agency, explanation, risk assessment
+   - Approval gate: auto-approve, manual-approve, custom auto-approvers, deny, modify
+   - ExecutionRecord: hash-chained immutable audit trail with governance trace
+   - Resource cap enforcement (ATP + execution count), scope validation, grant expiry
+   - 37/37 checks across 14 test scenarios
+   - Key insight: ACP sits above R7+Hardbound — agents PLAN then R7 EXECUTES through governance
+   - See: `implementation/reference/acp_executor.py`
+55. ✅ **Dictionary Entity reference implementation** (Feb 21, 2026)
+   - Living semantic bridges between domains with LCT, T3/V3 tensors, versioned codebook
+   - Forward + reverse translation (bidirectional) with greedy phrase matching
+   - Multi-hop translation chain with cumulative trust degradation (medical→legal→insurance: 0.727)
+   - ATP staking on confidence claims (10% reward, proportional slash on overconfidence)
+   - Feedback-driven learning + semantic drift detection + auto-versioning
+   - DictionaryRegistry: discovery, best-selection, BFS chain routing
+   - 30/30 checks across 13 test scenarios
+   - Key insight: compression-trust duality is now observable and measurable
+   - See: `implementation/reference/dictionary_entity.py`
+56. ✅ **Unified trust decay framework** (Feb 21, 2026)
+   - Unifies 5 competing decay models into one composable framework
+   - Exponential: time-based decay toward dimensional baselines
+   - Metabolic: heartbeat state modulates all rates (dream=0, crisis=1.5x)
+   - Cosmological: network density → coherence → decay scaling (1/C)
+   - Tidal: external pressure strips weak outer trust layers first
+   - Diversity: observation overlap reduces imported federated trust
+   - R7 observation reset: recent R7 actions partially reset the decay clock
+   - 90-day simulation validates: 0.855 → 0.538 with work pattern + weekends
+   - 24/24 checks across 12 test scenarios
+   - Key insight: all models compose multiplicatively — enable/disable any combination
+   - See: `implementation/reference/trust_decay_unified.py`
+
 ### Immediate (Feb 2026)
 
-54. 🔄 Calibrate satisfaction threshold for combined filtering
-55. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-56. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+57. 🔄 Calibrate satisfaction threshold for combined filtering
+58. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+59. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+60. 🔄 ACP → Hardbound integration (end-to-end agentic governance demo)
 
 ### Near-Term (Q1 2026)
 
@@ -777,7 +811,7 @@ Not overselling. Not underselling. Just accurately describing what exists.
 
 ---
 
-**Last Updated**: February 20, 2026
+**Last Updated**: February 21, 2026
 **Next Review**: March 2026 (after ACT integration)
-**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. 10-layer governance stack operational (62/62 integration test). R7 framework implemented (14 tests) + R7-Hardbound integration (30 checks): R7 actions through all 10 governance layers. Confidence-weighted gaming detection: context vs manipulation (8 checks). LCT federation registry (29 checks): multi-society resolution via bilateral trust bridges. ATP game theory (13 checks): Nash equilibrium, coalition resistance, stake deterrence formally validated. Go LCT library complete (55 tests). Cross-team trust bridges + cross-org delegation. TPM2 deep cleanup automated.**
+**Status**: Research prototype - 424 attack vectors across 84 tracks. Formal threat model v2.0 complete. Hardware binding (TPM2) validated. EU AI Act compliance mapping complete. Web4 framing empirically validated as coherence substrate. Hardware-backed fractal DNA entity operational. LCT spec reconciled across 5 implementations. TypeScript document library complete. AVP transport layer operational (HTTP/JSON) with cross-bridge delegation. EK certificate chain verified (Intel root-of-trust). Hardbound CLI with persistent state, hash-chained ledger, role-based governance, policy-from-ledger, team ATP pool, heartbeat-driven metabolic timing, dynamic action costs, ledger analytics, ATP metabolic recharge, M-of-N multi-sig approval, and heartbeat block aggregation. **End-to-end trust chain verified: silicon → EK → TPM2 → team → bridge → delegation. ACP agentic protocol (37 checks): plan→intent→approve→execute→record lifecycle with agency grants. Dictionary Entity (30 checks): living semantic bridges with cumulative trust degradation chains. Unified trust decay (24 checks): 5 models composed multiplicatively with R7 observation reset. R7+Hardbound (30 checks) + 10-layer governance (62 checks). LCT federation (29 checks) + ATP game theory (13 checks). Go LCT library (55 tests). TPM2 deep cleanup automated.**
 
