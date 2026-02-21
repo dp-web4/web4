@@ -45,11 +45,21 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 
 **Emerging Implementation** (operational in Hardbound CLI, validating Web4 protocol concepts):
 - ATP/ADP energy-value metabolic cycles: recharge, team pools, dynamic action costs, anti-gaming caps
-- Hash-chained team ledger with heartbeat-driven metabolic timing
+- Hash-chained team ledger with heartbeat-driven metabolic timing and Merkle-tree aggregation (8.26× ledger reduction)
 - Policy-from-ledger with versioning, temporal queries, and multi-sig quorum approval
 - Role-based trust infrastructure (admin/operator/agent/viewer permissions)
 - End-to-end hardware trust chain: EK → TPM2 → team → AVP bridge → delegation
 - Cross-bridge action delegation across trust boundaries
+- **R7 action framework**: Rules/Role/Request/Reference/Resource → Result + Reputation as first-class output; composes with 10-layer governance (62/62 integration checks)
+- **ACP (Agentic Context Protocol)**: plan → intent → law check → approve → execute → record lifecycle; full E2E integration with R7 + Hardbound (28/28 checks)
+- **Sybil resistance**: formally proven via 5 theorems — ATP economic floor, witness detection, T3 reputation wall, combined cost analysis, 4.6× PoW / 13× PoS efficiency
+- **ATP game theory**: 4 formal models proving stake deterrence; Nash-dominant cooperation when stake ≥ 2× expected gain
+- **Dictionary Entity**: living semantic bridges with forward/reverse translation, multi-hop chains, ATP-staked confidence, drift detection (30/30 checks)
+- **LCT federation registry**: peer-to-peer bilateral bridges, BFS resolution (max 3 hops), trust path as product of bridge trusts (29/29 checks)
+- **Multi-device LCT binding**: TPM2/Phone SE/FIDO2/Software anchors, enrollment ceremony, cross-device witnessing, quorum recovery (45/45 checks)
+- **Unified trust decay**: 5 composable models (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset (24/24 checks)
+- **Law Oracle**: SAL "Law as Data" principle observable end-to-end; ATP limits and witness requirements enforced from versioned law norms (45/45 checks)
+- **MRH graph**: trust as relational RDF — 134 triples, Turtle export, trust propagation through graph paths with decay (41/41 checks)
 
 **Vision Components** (described in this document, not yet implemented):
 - Full LCT presence and trust system with witness webs and lifecycle management
@@ -57,9 +67,8 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 - Memory as temporal sensing architecture
 - Blockchain typology (Compost/Leaf/Stem/Root chains)
 - Witness acknowledgment protocols
-- Dictionary entity systems
 
-The agent authorization system and the Hardbound CLI governance stack demonstrate that Web4's core principles—verifiable trust, cryptographic delegation, resource constraints, metabolic energy cycles, and hardware-rooted trust—can be implemented and tested today. The broader vision provides a roadmap for further development.
+The agent authorization system and the Hardbound CLI governance stack — now including R7 reputation, ACP agent workflows, Sybil-resistance proofs, and multi-device binding — demonstrate that Web4's core principles can be implemented and tested today. The broader vision provides a roadmap for further development.
 
 ## An Invitation
 
@@ -2273,7 +2282,7 @@ This typology ensures that each piece of data finds its natural persistence leve
 
 # Part 7: Proposed Implementation Details
 
-> **Note**: This section describes the vision architecture for Web4 components. Most features described here are not yet implemented. For working code, see the agent authorization demo in `/demo`.
+> **Note**: This section describes Web4 component architecture. Core mechanisms (witness marks, VCM, SNARC, dictionary entities) are vision-level. The governance stack, R7 framework, ACP protocol, and supporting infrastructure have operational reference implementations — see Section 7.0.1 for current status.
 
 ## 7.0. Implementation Status and Critical Blockers
 
@@ -2281,15 +2290,23 @@ This typology ensures that each piece of data finds its natural persistence leve
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| LCT data structures | ✅ Implemented | Core presence tokens working |
-| T3/V3 tensor calculations | ✅ Implemented | Trust scoring operational |
+| LCT data structures | ✅ Implemented | Core presence tokens; Go, TS, Python, Rust libraries |
+| T3/V3 tensor calculations | ✅ Implemented | Trust scoring operational; EMA-weighted reputation deltas |
 | Identity coherence scoring | ✅ Implemented | D9 metrics, self-reference detection |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
-| Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
-| Blockchain consensus | ⚠️ **Partial** | Hash-chained team ledger in Hardbound CLI; no full consensus protocol |
+| Coherence regulation | ⚠️ Partial | Unified trust decay: 5 composable models (24/24 checks) |
+| Blockchain consensus | ⚠️ **Partial** | Hash-chained ledger + Merkle-tree heartbeat aggregation (8.26× reduction) |
 | VCM recipient attestation | ❌ Not implemented | Vision only |
-| ATP/ADP settlement | ⚠️ **Partial** | Hardbound CLI: ATP recharge, team pools, dynamic costs, anti-gaming caps |
-| **Hardware binding** | ⚠️ **Partial** | TPM 2.0, EK chain verified, end-to-end 5-link trust chain |
+| ATP/ADP settlement | ⚠️ **Partial** | ATP recharge, team pools, dynamic costs, game-theoretic deterrence proven |
+| **Hardware binding** | ⚠️ **Partial** | TPM 2.0, EK chain verified, multi-device binding (4 anchor types, 45/45 checks) |
+| **R7 action framework** | ✅ **Implemented** | R7 executor + Hardbound 10-layer integration (30/30 checks) |
+| **ACP protocol** | ✅ **Implemented** | Plan→intent→approve→execute→record; E2E with R7+Hardbound (28/28 checks) |
+| **Sybil resistance** | ✅ **Proven** | 5 formal theorems, triple-layered defense (17/17 checks) |
+| **Dictionary entities** | ✅ **Implemented** | Bidirectional translation, multi-hop chains, ATP staking (30/30 checks) |
+| **LCT federation** | ✅ **Implemented** | Peer-to-peer BFS resolution, max 3 hops (29/29 checks) |
+| **Law Oracle** | ✅ **Implemented** | SAL "Law as Data", versioned norms, interpretation chains (45/45 checks) |
+| **MRH graph** | ✅ **Implemented** | RDF triples, Turtle export, trust propagation (41/41 checks) |
+| **10-layer governance** | ✅ **Integrated** | SAL→RBAC→Policy→Cost→Multi-sig→Recharge→Heartbeat→Execute→Reputation→Ledger (62/62 checks) |
 
 ### 7.0.2. Hardware Binding Status
 
@@ -2569,9 +2586,9 @@ ai_researcher.receive_atp(exchange_rate * ai_researcher.spent_atp.amount)
 
 These implementation details provide the technical foundation for Web4's trust-native architecture while maintaining efficiency and scalability.
 
-# Part 7 (continued): Future Implementation Examples
+# Part 7 (continued): Implementation Examples
 
-> **Note**: The following examples illustrate how Web4 vision components could work together once fully implemented. Currently, these examples represent future possibilities rather than working code. For a working implementation demonstrating core Web4 principles (trust delegation, resource constraints, revocation), see the agent authorization demo in `/demo`.
+> **Note**: The following examples illustrate how Web4 vision components work together. While the conceptual patterns shown here (multi-agent learning, fleet coordination, SAGE integration) remain forward-looking, the underlying mechanisms — R7 reputation, ACP agent workflows, dictionary entity translation, trust decay, LCT federation — now have operational reference implementations. See Section 7.0.1 for current status.
 
 ## 7.4. Multi-Agent Collaborative Learning
 
@@ -3711,4 +3728,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-02-20 04:39:58*
+*Generated: 2026-02-21 04:35:12*

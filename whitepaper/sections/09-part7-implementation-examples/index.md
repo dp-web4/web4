@@ -1,6 +1,6 @@
-# Part 7 (continued): Future Implementation Examples
+# Part 7 (continued): Implementation Examples
 
-> **Note**: The following examples illustrate how Web4 vision components could work together once fully implemented. Currently, these examples represent future possibilities rather than working code. For a working implementation demonstrating core Web4 principles (trust delegation, resource constraints, revocation), see the agent authorization demo in `/demo`.
+> **Note**: The following examples illustrate how Web4 vision components work together. While the conceptual patterns shown here (multi-agent learning, fleet coordination, SAGE integration) remain forward-looking, the underlying mechanisms — R7 reputation, ACP agent workflows, dictionary entity translation, trust decay, LCT federation — now have operational reference implementations. See Section 7.0.1 for current status.
 
 ## 7.4. Multi-Agent Collaborative Learning
 

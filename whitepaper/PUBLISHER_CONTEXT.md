@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-02-20
+**Last Updated**: 2026-02-21
 **Whitepaper Status**: Active Development
 
 ---
@@ -203,6 +203,15 @@ After any change:
 
 ## 6. Recent Changes
 
+### 2026-02-21: Publisher Maintenance - R7/ACP/Federation Expansion
+- Executive Summary: expanded "Emerging Implementation" with 10 new capabilities (R7, ACP, Sybil proofs, game theory, Dictionary Entity, federation, multi-device, trust decay, Law Oracle, MRH graph)
+- Moved Dictionary Entity from "Vision" to "Emerging Implementation" (now has 30/30-check reference impl)
+- Section 7.0.1 status table: added 8 new rows (R7, ACP, Sybil, Dictionary, federation, Law Oracle, MRH, 10-layer governance)
+- Updated coherence regulation, blockchain consensus, hardware binding rows with new capabilities
+- Softened "most features not yet implemented" note in Part 7 — governance stack is now operational
+- Updated Part 7 examples header to acknowledge operational reference implementations
+- Rebuilt all artifacts (md, pdf)
+
 ### 2026-02-20: Publisher Maintenance - Implementation Status Update
 - Updated Appendix G, Section 7.0, and Executive Summary to reflect Hardbound CLI governance stack
 - ATP/ADP, blockchain, and hardware binding statuses moved from "Not started" to "Partial"
@@ -361,8 +370,9 @@ The whitepaper should reflect implementation reality. Current gaps:
 
 | Area | Priority | Status |
 |------|----------|--------|
-| R6 section expansion | Medium | Hardbound CLI demonstrates R6 roles and delegation |
-| Governance stack documentation | Medium | 9-layer operational stack could strengthen Part 3/Part 7 |
+| R7 section in Part 7 body | Medium | Reference impl exists; Part 7 body still uses R6 language |
+| ACP protocol section in Part 7 | Medium | Full lifecycle implemented; no dedicated whitepaper section yet |
+| 10-layer governance diagram | Low | Described in status table; could benefit from visual representation |
 | Plugin examples | Low | Nice to have |
 
 ---

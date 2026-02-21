@@ -1,6 +1,6 @@
 # Part 7: Proposed Implementation Details
 
-> **Note**: This section describes the vision architecture for Web4 components. Most features described here are not yet implemented. For working code, see the agent authorization demo in `/demo`.
+> **Note**: This section describes Web4 component architecture. Core mechanisms (witness marks, VCM, SNARC, dictionary entities) are vision-level. The governance stack, R7 framework, ACP protocol, and supporting infrastructure have operational reference implementations — see Section 7.0.1 for current status.
 
 ## 7.0. Implementation Status and Critical Blockers
 
@@ -8,15 +8,23 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| LCT data structures | ✅ Implemented | Core presence tokens working |
-| T3/V3 tensor calculations | ✅ Implemented | Trust scoring operational |
+| LCT data structures | ✅ Implemented | Core presence tokens; Go, TS, Python, Rust libraries |
+| T3/V3 tensor calculations | ✅ Implemented | Trust scoring operational; EMA-weighted reputation deltas |
 | Identity coherence scoring | ✅ Implemented | D9 metrics, self-reference detection |
 | Witness system framework | ⚠️ Partial | 8 witness types, not persisted to chain |
-| Coherence regulation | ⚠️ Partial | Decay, soft bounds implemented |
-| Blockchain consensus | ⚠️ **Partial** | Hash-chained team ledger in Hardbound CLI; no full consensus protocol |
+| Coherence regulation | ⚠️ Partial | Unified trust decay: 5 composable models (24/24 checks) |
+| Blockchain consensus | ⚠️ **Partial** | Hash-chained ledger + Merkle-tree heartbeat aggregation (8.26× reduction) |
 | VCM recipient attestation | ❌ Not implemented | Vision only |
-| ATP/ADP settlement | ⚠️ **Partial** | Hardbound CLI: ATP recharge, team pools, dynamic costs, anti-gaming caps |
-| **Hardware binding** | ⚠️ **Partial** | TPM 2.0, EK chain verified, end-to-end 5-link trust chain |
+| ATP/ADP settlement | ⚠️ **Partial** | ATP recharge, team pools, dynamic costs, game-theoretic deterrence proven |
+| **Hardware binding** | ⚠️ **Partial** | TPM 2.0, EK chain verified, multi-device binding (4 anchor types, 45/45 checks) |
+| **R7 action framework** | ✅ **Implemented** | R7 executor + Hardbound 10-layer integration (30/30 checks) |
+| **ACP protocol** | ✅ **Implemented** | Plan→intent→approve→execute→record; E2E with R7+Hardbound (28/28 checks) |
+| **Sybil resistance** | ✅ **Proven** | 5 formal theorems, triple-layered defense (17/17 checks) |
+| **Dictionary entities** | ✅ **Implemented** | Bidirectional translation, multi-hop chains, ATP staking (30/30 checks) |
+| **LCT federation** | ✅ **Implemented** | Peer-to-peer BFS resolution, max 3 hops (29/29 checks) |
+| **Law Oracle** | ✅ **Implemented** | SAL "Law as Data", versioned norms, interpretation chains (45/45 checks) |
+| **MRH graph** | ✅ **Implemented** | RDF triples, Turtle export, trust propagation (41/41 checks) |
+| **10-layer governance** | ✅ **Integrated** | SAL→RBAC→Policy→Cost→Multi-sig→Recharge→Heartbeat→Execute→Reputation→Ledger (62/62 checks) |
 
 ### 7.0.2. Hardware Binding Status
 
