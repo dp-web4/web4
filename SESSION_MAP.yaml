@@ -4,13 +4,13 @@
 
 metadata:
   project: web4
-  last_updated: "2026-02-20T06:00:00Z"
+  last_updated: "2026-02-21T06:00:00Z"
   archivist_version: "1.3"
   total_sessions: 213
   focus: "Distributed Trust Infrastructure"
   date_range: "2025-08 to 2026-02"
   existing_manifest: "ARCHIVE_MANIFEST.md"
-  milestone: "Hardbound CLI 9-layer governance stack: hash-chained ledger, role-based governance, TPM2, cross-bridge delegation, versioned policy, team ATP pool, heartbeat-driven metabolic ledger, dynamic action costs, ATP recharge, multi-sig approval, heartbeat block aggregation, analytics API. Complete self-regulating system. 424 attack vectors stable."
+  milestone: "10 reference implementations (7,779 lines, 318/318 checks). ACP agent governance stack (Trigger→Plan→Execute→Record). Formal Sybil resistance (5 theorems, 4.6× PoW / 13× PoS). Merkle heartbeat (8.26× ledger reduction). PolicyGate IRP (SOIA-SAGE convergence). Multi-device LCT binding (4 anchor types). MRH graph as nervous system (RDF/Turtle). Unified trust decay (5 models composed). Dictionary Entity (semantic bridges). Law Oracle integration. All 10 remaining gaps CLOSED."
 
 # =============================================================================
 # RESEARCH ARCS
@@ -114,21 +114,53 @@ arcs:
     key_insight: "System is self-sustaining: REST/DREAM recharge > FOCUS/CRISIS consumption. Natural equilibrium emerges from metabolic dynamics. Anti-gaming: recharge capped at 3x rate."
     note: "8 autonomous sessions by Legion built complete governance infrastructure. Each session added ~2-3 tracks. Heartbeat-driven ledger makes the system biologically-inspired (pulse rate adapts to metabolic state)."
 
+  reference_implementation_sprint:
+    name: "Reference Implementation Sprint — 10 Gap-Closing Implementations"
+    session_type: "autonomous"
+    date: "2026-02-20 to 2026-02-21"
+    status: "Complete (all 10 gaps closed)"
+    key_themes:
+      - "ACP (Agentic Context Protocol): 7-stage lifecycle, agents plan before executing"
+      - "Formal Sybil resistance: 5 theorems, 4.6× PoW / 13× PoS cheaper"
+      - "Merkle heartbeat aggregation: O(log N) verification, 8.26× ledger reduction"
+      - "PolicyGate IRP: energy function, CRISIS mode, SOIA-SAGE convergence"
+      - "Dictionary Entity: semantic bridges, compression-trust duality measurable"
+      - "Unified trust decay: 5 models composed (exponential, metabolic, cosmological, tidal, diversity)"
+      - "Law Oracle integration: law as observable data, versioned hash-sealed datasets"
+      - "MRH graph integration: RDF/Turtle export, entity→trust→society triples"
+      - "Multi-device LCT binding: 4 anchor types (TPM2/Phone SE/FIDO2/SW), recovery quorum"
+      - "ACP→R7→Hardbound E2E: full agent governance stack proven end-to-end"
+    deliverables:
+      - "implementation/reference/acp_executor.py — 1299 lines, 37/37 checks"
+      - "implementation/reference/acp_hardbound_e2e.py — 510 lines, 28/28 checks"
+      - "implementation/reference/dictionary_entity.py — 973 lines, 30/30 checks"
+      - "implementation/reference/law_governance_integration.py — 512 lines, 45/45 checks"
+      - "implementation/reference/merkle_heartbeat.py — 583 lines, 36/36 checks"
+      - "implementation/reference/mrh_governance_integration.py — 650 lines, 41/41 checks"
+      - "implementation/reference/multi_device_binding.py — 855 lines, 45/45 checks"
+      - "implementation/reference/policygate_irp.py — 1042 lines, 40/40 checks"
+      - "implementation/reference/sybil_resistance_proof.py — 575 lines, 17/17 checks"
+      - "implementation/reference/trust_decay_unified.py — 780 lines, 24/24 checks"
+    key_insight: "All 10 remaining STATUS.md gaps (items 54-63) closed in one sprint. 7,779 lines, 318/318 checks. Full agent governance stack now operational: ACP (planning) → R7 (semantics) → Hardbound (governance) → Ledger (audit). STATUS.md items 64-67 now in progress."
+    note: "2 autonomous Legion sessions closed every remaining gap. Sybil resistance formally proven. Trust composition unified. Agent governance complete."
+
   policy_entity_soia_convergence:
     name: "PolicyEntity + SOIA-SAGE Convergence"
     session_type: "interactive"
     date: "2026-02-18"
-    status: "Active (Phase 2 blocked)"
+    status: "Complete (Phase 2 UNBLOCKED — effector system implemented)"
     key_themes:
       - "PolicyEntity as 15th entity type (IRP-backed evaluation)"
       - "Accountability frames and duress context"
       - "SOIA-SAGE convergence: PolicyGate as PolicyEntity plugin"
       - "Fractal self-similarity: PolicyEntity is a plugin of plugins"
       - "PolicyGate Phase 1 COMPLETE (684 lines, 8/8 tests)"
-      - "Phase 2 BLOCKED: effector system not yet implemented"
+      - "PolicyGate IRP reference implementation: 40/40 checks (policygate_irp.py)"
+      - "CRISIS mode closes SOIA-SAGE convergence gap"
     deliverables:
       - "web4-standard/core-spec/entity-types.md - Policy as 15th entity"
       - "simulations/policy_entity.py - PolicyEvaluation with accountability fields"
+      - "implementation/reference/policygate_irp.py - 1042 lines, 40/40 checks"
     crosslinks:
       - {to: hrm, concept: "PolicyGate IRP plugin from SOIA-SAGE convergence"}
 
