@@ -2,7 +2,7 @@
 
 **Last Updated**: February 21, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
-**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. PolicyGate IRP (40 checks): SOIA-SAGE convergence complete, accountability frames, energy function. Sybil resistance formally proven (17 checks): 5 theorems, Web4 4.6× PoW / 13× PoS. Merkle heartbeat aggregation (36 checks): 8.26× ledger reduction, O(log N) verification. ACP→R7→Hardbound E2E integration (28 checks): full agent governance stack proven. Law Oracle→Governance (45 checks): SAL "Law as Data" made observable. MRH Graph integration (41 checks): trust as relational RDF, 134 triples, Turtle export. Multi-device LCT binding (45 checks): device constellations, enrollment ceremony, recovery quorum. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working. LCT Schema Validator (73 checks): 53 divergences cataloged, Python lacks full LCT document class. Society Metabolic States (90 checks): 8-state lifecycle from spec. AGY Agency Delegation (92 checks): provably-scoped agent auth with sub-delegation chains.**
+**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. PolicyGate IRP (40 checks): SOIA-SAGE convergence complete, accountability frames, energy function. Sybil resistance formally proven (17 checks): 5 theorems, Web4 4.6× PoW / 13× PoS. Merkle heartbeat aggregation (36 checks): 8.26× ledger reduction, O(log N) verification. ACP→R7→Hardbound E2E integration (28 checks): full agent governance stack proven. Law Oracle→Governance (45 checks): SAL "Law as Data" made observable. MRH Graph integration (41 checks): trust as relational RDF, 134 triples, Turtle export. Multi-device LCT binding (45 checks): device constellations, enrollment ceremony, recovery quorum. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working. LCT Schema Validator (73 checks): 53 divergences cataloged across Python impls. Society Metabolic States (90 checks): 8-state lifecycle from spec. AGY Agency Delegation (92 checks): provably-scoped agent auth with sub-delegation chains. Cross-Society ATP Sync (75 checks): commit-verify-reconcile protocol, conservation detection. Python LCT Document (90 checks): closes schema compliance gap, all 15 entity types validated. Core Protocol Handshake (69 checks): HPKE W4-BASE-1, X25519+Ed25519+ChaCha20-Poly1305, 3 pairing methods.**
 
 ---
 
@@ -809,12 +809,34 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - 5 transfers across 3 societies, 330 ATP moved, 3 reconciliation statements
    - See: `implementation/reference/cross_society_atp_sync.py`
 
+68. ✅ **Python LCT Document — schema-compliant builder** (Feb 21, 2026)
+   - Closes #1 finding from LCT Schema Validator: Python now has full LCT documents: 90/90 checks
+   - Port from TypeScript/Go: LCTBuilder, structural validation, JSON schema validation
+   - All 15 entity types pass both structural and JSON Schema 2020-12 validation
+   - T3/V3 tensor operations, composite scoring, legacy 6-dim migration
+   - Serialization roundtrip (to_dict/from_dict/to_json/from_json), document hashing
+   - Sub-dimensions, MRH witnessing, attestations, lineage, revocation lifecycle
+   - See: `implementation/reference/lct_document.py`
+
+69. ✅ **Core Protocol Handshake — HPKE-based W4-BASE-1** (Feb 21, 2026)
+   - First implementation of core-protocol.md handshake: 69/69 checks
+   - W4-BASE-1 suite: X25519 KEM + Ed25519 Sig + ChaCha20-Poly1305 AEAD + SHA-256 + HKDF
+   - 4-message protocol: ClientHello → ServerHello → ClientFinished → ServerFinished
+   - Encrypted credential exchange via early handshake keys (transcript-derived)
+   - Transcript MAC verification (Ed25519 signed transcript hash)
+   - Session key derivation via HKDF with role-swapped send/recv keys
+   - Suite negotiation (first-match), extension negotiation with GREASE
+   - 3 pairing methods: direct (full handshake), mediated (signed token), QR code
+   - Session isolation: multiple concurrent sessions with independent key material
+   - Large message support: verified up to 1MB
+   - See: `implementation/reference/core_protocol_handshake.py`
+
 ### Immediate (Feb 2026)
 
-68. 🔄 Calibrate satisfaction threshold for combined filtering
-69. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-70. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-71. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
+70. 🔄 Calibrate satisfaction threshold for combined filtering
+71. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+72. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+73. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
 
 ### Near-Term (Q1 2026)
 
