@@ -2,7 +2,7 @@
 
 **Last Updated**: February 21, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
-**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. PolicyGate IRP (40 checks): SOIA-SAGE convergence complete, accountability frames, energy function. Sybil resistance formally proven (17 checks): 5 theorems, Web4 4.6× PoW / 13× PoS. Merkle heartbeat aggregation (36 checks): 8.26× ledger reduction, O(log N) verification. ACP→R7→Hardbound E2E integration (28 checks): full agent governance stack proven. Law Oracle→Governance (45 checks): SAL "Law as Data" made observable. MRH Graph integration (41 checks): trust as relational RDF, 134 triples, Turtle export. Multi-device LCT binding (45 checks): device constellations, enrollment ceremony, recovery quorum. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working.**
+**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. PolicyGate IRP (40 checks): SOIA-SAGE convergence complete, accountability frames, energy function. Sybil resistance formally proven (17 checks): 5 theorems, Web4 4.6× PoW / 13× PoS. Merkle heartbeat aggregation (36 checks): 8.26× ledger reduction, O(log N) verification. ACP→R7→Hardbound E2E integration (28 checks): full agent governance stack proven. Law Oracle→Governance (45 checks): SAL "Law as Data" made observable. MRH Graph integration (41 checks): trust as relational RDF, 134 triples, Turtle export. Multi-device LCT binding (45 checks): device constellations, enrollment ceremony, recovery quorum. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working. LCT Schema Validator (73 checks): 53 divergences cataloged, Python lacks full LCT document class. Society Metabolic States (90 checks): 8-state lifecycle from spec. AGY Agency Delegation (92 checks): provably-scoped agent auth with sub-delegation chains.**
 
 ---
 
@@ -764,12 +764,45 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Key insight: more devices = STRONGER identity (not weaker)
    - See: `implementation/reference/multi_device_binding.py`
 
+64. ✅ **LCT Schema Validator — spec vs code divergences** (Feb 21, 2026)
+   - Validates all Python LCT emitters against lct.schema.json: 73/73 checks
+   - Key finding: NO Python implementation produces a full schema-compliant LCT document
+   - TypeScript + Go are compliant; Python emits fragments (0-9.1% coverage)
+   - 53 total divergences: 16 critical (missing required fields), 37 warnings (extra fields)
+   - BirthCertificate uses camelCase JSON-LD ≠ schema's snake_case (8 unmapped fields)
+   - Produced 6 actionable recommendations (HIGH: PythonLCTDocument class + BirthCert format decision)
+   - See: `implementation/reference/lct_schema_validator.py`
+
+65. ✅ **Society Metabolic States — 8-state lifecycle** (Feb 21, 2026)
+   - First implementation of SOCIETY_METABOLIC_STATES.md spec: 90/90 checks
+   - 8 states: Active/Rest/Sleep/Hibernation/Torpor/Estivation/Dreaming/Molting
+   - 17 valid state transitions with full transition matrix
+   - Witness rotation (deterministic shuffle by block height) + sentinel witnesses
+   - ATP economics: per-state energy multipliers, heartbeat intervals, recharge rates
+   - Trust tensor adjustments: frozen (hibernation), -20% (molting), recalibrated (dreaming)
+   - Wake penalties for interrupted cycles, security attack detection (sleep deprivation, torpor exhaustion)
+   - Metabolic reliability scoring based on schedule adherence, recovery rate, molt success
+   - See: `implementation/reference/society_metabolic_states.py`
+
+66. ✅ **AGY Agency Delegation — provably-scoped agent auth** (Feb 21, 2026)
+   - First implementation of AGY framework: 92/92 checks
+   - Full grant lifecycle: create → validate → execute → revoke (with cascade)
+   - Scope narrowing: sub-delegation chains where child ⊆ parent (methods, ATP, trust caps)
+   - Dual attribution: agent gets T3 (execution quality), client gets V3 (delegation validity)
+   - Resource caps: max_atp, max_executions, rate_limit enforcement
+   - Replay protection: per-action nonces, used nonce tracking
+   - Proof of Agency: on every agent action (grantId + grant hash + nonce + action)
+   - Recursive cascade revocation: revoking parent revokes all descendants
+   - ACP integration: closes grantId placeholder, builds MCP context with proofOfAgency
+   - 3-level delegation simulation: CEO → VP → TeamLead → Dev with scope narrowing
+   - See: `implementation/reference/agy_agency_delegation.py`
+
 ### Immediate (Feb 2026)
 
-64. 🔄 Calibrate satisfaction threshold for combined filtering
-65. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-66. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-67. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
+67. 🔄 Calibrate satisfaction threshold for combined filtering
+68. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+69. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+70. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
 
 ### Near-Term (Q1 2026)
 
