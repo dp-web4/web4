@@ -2,7 +2,7 @@
 
 **Last Updated**: February 21, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
-**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working.**
+**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. PolicyGate IRP (40 checks): SOIA-SAGE convergence complete, accountability frames, energy function. Sybil resistance formally proven (17 checks): 5 theorems, Web4 4.6× PoW / 13× PoS. Merkle heartbeat aggregation (36 checks): 8.26× ledger reduction, O(log N) verification. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working.**
 
 ---
 
@@ -704,12 +704,33 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Key insight: all models compose multiplicatively — enable/disable any combination
    - See: `implementation/reference/trust_decay_unified.py`
 
+57. ✅ **PolicyGate IRP plugin (SOIA-SAGE convergence)** (Feb 21, 2026)
+   - PolicyEntity as 15th entity type with full IRP contract (init_state/step/energy/project/halt)
+   - AccountabilityFrame: NORMAL (wake/focus), DEGRADED (rest/dream), DURESS (crisis)
+   - Energy function: 0=compliant, >0=violations (RBAC=50+ > trust=15 > cost=9)
+   - CRISIS mode records duress context, doesn't change policy strictness
+   - Immutable versioning: upgrades create new PolicyEntity with new LCT
+   - 40/40 checks across 12 test scenarios
+   - Closes SOIA-SAGE convergence gap (PolicyGate as IRP energy function)
+   - See: `implementation/reference/policygate_irp.py`
+58. ✅ **Sybil resistance formal proof** (Feb 21, 2026)
+   - 5 theorems proving Web4's triple-layered Sybil resistance
+   - Th1: ATP economic floor, Th2: Witness detection exponential, Th3: T3 reputation wall
+   - Th4: Combined cost makes all ring sizes unprofitable, Th5: 4.6× PoW / 13× PoS
+   - 17/17 checks, closes "formal Sybil-resistance proofs" gap
+   - See: `implementation/reference/sybil_resistance_proof.py`
+59. ✅ **Merkle-tree heartbeat aggregation** (Feb 21, 2026)
+   - O(log N) verification, 8.26× ledger reduction, selective disclosure
+   - Tamper detection, proof serialization, edge cases
+   - 36/36 checks, closes "heartbeat Merkle trees" gap
+   - See: `implementation/reference/merkle_heartbeat.py`
+
 ### Immediate (Feb 2026)
 
-57. 🔄 Calibrate satisfaction threshold for combined filtering
-58. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-59. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-60. 🔄 ACP → Hardbound integration (end-to-end agentic governance demo)
+60. 🔄 Calibrate satisfaction threshold for combined filtering
+61. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+62. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+63. 🔄 ACP → Hardbound integration (end-to-end agentic governance demo)
 
 ### Near-Term (Q1 2026)
 
@@ -758,7 +779,7 @@ If research pauses:
 
 **Don't Trust**:
 - ~~Stake amounts (not validated)~~ → Validated via game-theoretic analysis (item 53)
-- Witness diversity (no formal Sybil-resistance)
+- ~~Witness diversity (no formal Sybil-resistance)~~ → Proven: 5-theorem Sybil resistance proof (item 58)
 - Challenge protocol (no dispute resolution)
 - Any "production-ready" claims
 
