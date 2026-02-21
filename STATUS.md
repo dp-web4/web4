@@ -797,12 +797,24 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - 3-level delegation simulation: CEO → VP → TeamLead → Dev with scope narrowing
    - See: `implementation/reference/agy_agency_delegation.py`
 
+67. ✅ **Cross-Society ATP Sync — commit-verify-reconcile protocol** (Feb 21, 2026)
+   - Closes the #1 known gap: cross-society ATP balance synchronization: 75/75 checks
+   - ATPPool with lock/escrow, BalanceProof with cryptographic state hashing
+   - 3-phase protocol: COMMIT (lock+proof) → VERIFY (target confirms) → COMPLETE (atomic swap)
+   - Bilateral reconciliation: net position, transfer counts, dual proofs
+   - Conservation detection: drift alerts on unauthorized ATP creation
+   - Double-spend prevention: available balance = total - reserved (locked)
+   - Lock isolation: concurrent transfers compete for available balance
+   - Full lifecycle: initiate → commit → verify → complete (or cancel with lock release)
+   - 5 transfers across 3 societies, 330 ATP moved, 3 reconciliation statements
+   - See: `implementation/reference/cross_society_atp_sync.py`
+
 ### Immediate (Feb 2026)
 
-67. 🔄 Calibrate satisfaction threshold for combined filtering
-68. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
-69. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-70. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
+68. 🔄 Calibrate satisfaction threshold for combined filtering
+69. 🔄 Begin ATP balance synchronization (SAGE ↔ ACT)
+70. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+71. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
 
 ### Near-Term (Q1 2026)
 
