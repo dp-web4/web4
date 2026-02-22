@@ -282,6 +282,18 @@ cd whitepaper
 - Low trust = Minimal compression
 - Zero trust = Raw data transmission
 
+## 4-Life Feedback Loop
+
+4-Life (https://4-life-ivory.vercel.app/) is the interactive explainer for Web4 — a fractal laboratory where trust, identity, and energy concepts are demonstrated to people with zero Web4 background.
+
+**4-life visitor logs are a perspective input for web4 sessions.** A daily visitor track (05:00) browses the live site as a naive first-timer and generates friction logs. When a visitor can't understand LCTs, or confuses ATP/ADP with crypto tokens, or doesn't see why trust tensors matter — that's signal about where Web4's own abstractions may be unclear, overloaded, or under-motivated.
+
+**How to use**: Periodically check `4-life/visitor/logs/` for recent entries. Not as mandates — the visitor is confused on purpose. But as perspective: if the explainer can't convey it, the spec may be assuming too much.
+
+**The loop is bidirectional**: Web4 decisions (terminology changes, spec clarifications, new features) inform 4-life content. 4-life visitor confusion informs whether Web4's abstractions are actually communicable. Teaching surfaces assumptions invisible from the inside.
+
+**Visitor logs location** (from web4 working directory): `../4-life/visitor/logs/YYYY-MM-DD.md`
+
 ## Related Projects
 
 ### Modbatt-CAN
