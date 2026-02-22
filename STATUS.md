@@ -2,7 +2,7 @@
 
 **Last Updated**: February 21, 2026
 **Current Phase**: Research Prototype with Active Coordination Framework Development
-**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. PolicyGate IRP (40 checks): SOIA-SAGE convergence complete, accountability frames, energy function. Sybil resistance formally proven (17 checks): 5 theorems, Web4 4.6× PoW / 13× PoS. Merkle heartbeat aggregation (36 checks): 8.26× ledger reduction, O(log N) verification. ACP→R7→Hardbound E2E integration (28 checks): full agent governance stack proven. Law Oracle→Governance (45 checks): SAL "Law as Data" made observable. MRH Graph integration (41 checks): trust as relational RDF, 134 triples, Turtle export. Multi-device LCT binding (45 checks): device constellations, enrollment ceremony, recovery quorum. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working. LCT Schema Validator (73 checks): 53 divergences cataloged across Python impls. Society Metabolic States (90 checks): 8-state lifecycle from spec. AGY Agency Delegation (92 checks): provably-scoped agent auth with sub-delegation chains. Cross-Society ATP Sync (75 checks): commit-verify-reconcile protocol, conservation detection. Python LCT Document (90 checks): closes schema compliance gap, all 15 entity types validated. Core Protocol Handshake (69 checks): HPKE W4-BASE-1, X25519+Ed25519+ChaCha20-Poly1305, 3 pairing methods. Web4 Error Handler (97 checks): RFC 9457 Problem Details, 24 error codes, typed exception hierarchy. ATP/ADP Metering (88 checks): CreditGrant→UsageReport→Settle, token-bucket rate limiting. MCP Trust Binding (79 checks): trust-native MCP with LCT entities, ATP metering, witness attestation. LCT Capability Levels v2 (174 checks): 6-level validation framework, security checks, upgrade paths. Society Lifecycle (113 checks): formation→citizenship→ledger→treasury→fractal. W4ID Data Formats (91 checks): DID identifiers, pairwise privacy, VCs, JCS/CBOR canonicalization. T3/V3 Tensor & Reputation Engine (117 checks): role-contextual tensors with fractal sub-dims, multi-factor delta computation. Cross-Implementation Integration (93 checks): 8 modules, 7 chains, semantic coherence validated.**
+**Honest Assessment**: Substantial progress on coordination, pattern exchange, and cross-system integration. Attack simulations now at 424 vectors across 84 tracks. AI agent collusion and cross-chain MEV attack tracks complete. **Hardware binding (TPM2) validated on Legion. EU AI Act compliance mapping complete.** Web4 framing empirically validated as coherence substrate for SAGE identity. **10-layer governance stack operational + 62-check integration test. Go LCT library complete (55 tests). R7 framework (14 tests) + R7-Hardbound integration (30 checks). ACP agentic protocol (37 checks): full plan→intent→approve→execute→record lifecycle. Dictionary Entity (30 checks): living semantic bridges with measurable compression-trust duality. Unified trust decay (24 checks): 5 models composed (exponential, metabolic, cosmological, tidal, diversity) with R7 observation reset. PolicyGate IRP (40 checks): SOIA-SAGE convergence complete, accountability frames, energy function. Sybil resistance formally proven (17 checks): 5 theorems, Web4 4.6× PoW / 13× PoS. Merkle heartbeat aggregation (36 checks): 8.26× ledger reduction, O(log N) verification. ACP→R7→Hardbound E2E integration (28 checks): full agent governance stack proven. Law Oracle→Governance (45 checks): SAL "Law as Data" made observable. MRH Graph integration (41 checks): trust as relational RDF, 134 triples, Turtle export. Multi-device LCT binding (45 checks): device constellations, enrollment ceremony, recovery quorum. LCT federation (29 checks). ATP game theory (13 checks). Confidence-weighted gaming detection. Cross-team trust bridges + inter-org delegation working. LCT Schema Validator (73 checks): 53 divergences cataloged across Python impls. Society Metabolic States (90 checks): 8-state lifecycle from spec. AGY Agency Delegation (92 checks): provably-scoped agent auth with sub-delegation chains. Cross-Society ATP Sync (75 checks): commit-verify-reconcile protocol, conservation detection. Python LCT Document (90 checks): closes schema compliance gap, all 15 entity types validated. Core Protocol Handshake (69 checks): HPKE W4-BASE-1, X25519+Ed25519+ChaCha20-Poly1305, 3 pairing methods. Web4 Error Handler (97 checks): RFC 9457 Problem Details, 24 error codes, typed exception hierarchy. ATP/ADP Metering (88 checks): CreditGrant→UsageReport→Settle, token-bucket rate limiting. MCP Trust Binding (79 checks): trust-native MCP with LCT entities, ATP metering, witness attestation. LCT Capability Levels v2 (174 checks): 6-level validation framework, security checks, upgrade paths. Society Lifecycle (113 checks): formation→citizenship→ledger→treasury→fractal. W4ID Data Formats (91 checks): DID identifiers, pairwise privacy, VCs, JCS/CBOR canonicalization. T3/V3 Tensor & Reputation Engine (117 checks): role-contextual tensors with fractal sub-dims, multi-factor delta computation. Cross-Implementation Integration (99 checks): 8 modules, 10 chains, semantic coherence validated. ACT Settlement Protocol (120 checks): MockACTChain, FractalChainManager, settlement finality, SNARC gating — closes #1 gap. MRH Policy Scoping (126 checks): horizon-aware authorization, five-zone model, trust-distance policy. RDF Ontology Consistency (100 checks): 21 classes, 38 properties, 15 entity types, namespace validation.**
 
 ---
 
@@ -25,7 +25,7 @@ Web4 is **exploratory research** into trust-native distributed intelligence. The
 | **Federation** | ~2,800 lines + federation registry | Architecture + bilateral trust bridges | Real multi-platform deployment |
 | **Agent Authorization** | Demo | Visual delegation UI works | Integration with full Web4 stack |
 | **Coordination Framework** | ~25,000 lines (Dec 2025) | Phase 2a-2d validated, 76% predictions | Production deployment |
-| **Cross-System Integration** | LCT spec + protocols | SAGE ↔ Web4 pattern exchange | ACT blockchain integration |
+| **Cross-System Integration** | LCT spec + protocols | SAGE ↔ Web4 pattern exchange | ACT real chain (mock exists) |
 
 **Total**: ~47,000 lines of code across game simulation, authorization, and coordination framework
 
@@ -897,6 +897,66 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - CBOR deterministic encoding: RFC 7049 with graceful cbor2 fallback
    - W4ID Document: DID Document resolution structure
    - Full signing flow: W4ID → create VC → canonicalize → sign → verify
+   - See: `implementation/reference/w4id_data_formats.py`
+
+76. ✅ **T3/V3 Tensor & Reputation Engine** (Feb 21, 2026)
+   - Role-contextual tensors with fractal sub-dimensions: 117/117 checks
+   - ReputationEngine: rule-triggered T3/V3 deltas with modifier multipliers
+   - Contributing factors (witnesses, agents, metrics) influence delta computation
+   - Diminishing returns: repeated identical actions have reduced impact after 5 occurrences
+   - Time-weighted aggregation with configurable decay
+   - Witness selection by trust threshold, skill match, and freshness
+   - Key fix: diminishing returns counter was per-dimension (3×) not per-call (1×)
+   - Key fix: float precision (round(..., 10)) prevents comparison artifacts
+   - See: `implementation/reference/t3v3_reputation_engine.py`
+
+77. ✅ **Cross-Implementation Integration Test** (Feb 21, 2026)
+   - Validates semantic coherence across 8 independently-implemented modules: 99/99 checks
+   - 10 integration chains: Society→Treasury→ATP, Reputation→MCP, W4ID→LCT→VC,
+     MCP→Reputation→Ledger, Error taxonomy, Capability→MCP→Reputation, Full lifecycle,
+     Pairwise privacy, Team composition, Serialization round-trip
+   - Key discovery: 6-dim legacy tensors need explicit mapping to 3-dim canonical T3
+     (technical_competence→talent, temporal_consistency→training, social_reliability→temperament)
+   - Key discovery: each module defines its own type system; cross-module bridging required
+   - Key discovery: pairwise IDs (w4id:pair:) distinct from DIDs (did:web4:key:) by design
+   - See: `implementation/reference/cross_implementation_integration.py`
+
+78. ✅ **ACT Settlement Protocol — closes #1 canonical equation gap** (Feb 21, 2026)
+   - Implements the missing ACT blockchain settlement layer: 120/120 checks
+   - MockACTChain: hash-chained blocks, 2/3 consensus, Merkle proofs
+   - FractalChainManager: Compost→Leaf→Stem→Root with SNARC gating
+   - ACTSettlementEngine: BilateralStatement anchoring + ATP finality
+   - Double-spend detection and fork resolution (witness majority)
+   - Conservation proof anchoring (ATP conservation invariant)
+   - ADP discharge proof anchoring with evidence digests
+   - SNARC scoring: Significant/Novel/Anomalous/Relevant/Consequential (≥3 retain, ≥5 promote)
+   - Merkle proofs provide O(log N) verification per entry
+   - Full E2E: Society→ATP→Settlement→ACT (13 steps in T21)
+   - See: `implementation/reference/act_settlement_protocol.py`
+
+79. ✅ **MRH Policy Scoping — horizon-aware authorization** (Feb 21, 2026)
+   - Policy decisions scoped by Markov Relevancy Horizon: 126/126 checks
+   - Five-zone model: SELF→DIRECT→INDIRECT→PERIPHERAL→BEYOND
+   - Trust propagation through MRH graph influences authorization
+   - Delegation scopes monotonically narrow with MRH distance
+   - Auto-DENY for entities beyond Markov Relevancy Horizon
+   - ATP cost multipliers increase with graph distance (1.0×→2.0×)
+   - Witness requirements scale: 0 (self)→1→2→3 (peripheral)
+   - Accountability frames: NORMAL/DEGRADED/DURESS from metabolic state
+   - Energy score quantifies compliance distance (IRP-compatible)
+   - Full audit trail for every policy decision
+   - See: `implementation/reference/mrh_policy_scoping.py`
+
+80. ✅ **RDF Ontology Consistency — semantic backbone validation** (Feb 21, 2026)
+   - Cross-validates 4 Turtle ontologies, 6 Python implementations, 2 JSON schemas: 100/100 checks
+   - 21 classes across T3V3, ACP, AGY, SAL ontologies
+   - 38 formally defined properties, 49 predicates used in implementations
+   - All 15 entity types covered in LCT schema
+   - Namespace consistency verified: web4.io/ontology# is canonical
+   - 42 implementation predicates not formally defined in ontology TTL files (gap cataloged)
+   - Cross-ontology references valid (SAL↔T3V3, AGY↔SAL, ACP↔AGY)
+   - Predicate taxonomy: 7 categories (binding, witness, society, authority, trust, fractal, action)
+   - See: `implementation/reference/rdf_ontology_consistency.py`
    - See: `implementation/reference/w4id_data_formats.py`
 
 76. ✅ **T3/V3 Tensor & Reputation Engine** (Feb 21, 2026)
