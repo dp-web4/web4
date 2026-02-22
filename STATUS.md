@@ -1077,10 +1077,63 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Trust evolution: T3 adjustments bounded, V3 accumulation monotonic
    - See: `implementation/reference/full_stack_protocol_integration.py`
 
+91. ✅ **Witness Protocol Unified — 8 witness classes + quorum** (Feb 22, 2026)
+   - Unifies web4-witness.md and web4-witnessing.md specs: 176/176 checks
+   - 8 witness classes: time, audit, audit-minimal, oracle, existence, action, state, quality
+   - WitnessAttestation with required/optional claims per class
+   - Dual envelope: COSEWitnessEnvelope (CBOR, Ed25519) + JOSEWitnessEnvelope (JSON, ES256)
+   - WitnessRequest lifecycle with timeout/expiry management
+   - Replay guard: nonce uniqueness + ±300s timestamp tolerance + sliding window
+   - WitnessDiscovery: bootstrap, registry, peer recommendation, broadcast
+   - WitnessQuorum: 4 policies (simple majority, 2-of-3, Byzantine, unanimous)
+   - ATP incentives: reward for valid attestation, penalty for replays/invalid
+   - Reputation tracking: accuracy, availability, diversity metrics
+   - MRH integration: witness relationships tracked in horizon context
+   - See: `implementation/reference/witness_protocol_unified.py`
+
+92. ✅ **Cross-Language Interop Test Vectors — shared validation** (Feb 22, 2026)
+   - 3 canonical test vectors for Python/Go/TypeScript round-trip validation: 152/152 checks
+   - MINIMAL_VECTOR: agent entity, bare minimum fields
+   - HUMAN_VECTOR: human entity with full T3/V3, capabilities, MRH, metadata
+   - REVOKED_VECTOR: revoked agent with reason + successor
+   - Canonical JSON (JCS-like RFC 8785): sorted keys, no trailing commas
+   - T3/V3 composite scoring verified: T3 weights 0.4/0.3/0.3, V3 weights 0.3/0.35/0.35
+   - snake_case enforcement: no camelCase in any field name
+   - Go JSON tag compatibility: validates lowercase + underscored struct tags
+   - LCT ID pattern validation: `[A-Za-z0-9_:-]+` across all languages
+   - SHA-256 canonical hash reproducibility test
+   - JSON test vector files written to `web4-standard/test-vectors/lct/`
+   - See: `implementation/reference/cross_language_interop.py`
+
+93. ✅ **Appeals Mechanism — SAL-level trust penalty appeals** (Feb 22, 2026)
+   - Formal appeals system addressing 4-life visitor gap "no appeals mechanism": 120/120 checks
+   - 6 appeal types: T3 penalty, V3 penalty, capability revocation, role suspension, ATP seizure, expulsion
+   - 10-state lifecycle: filed → reviewed → evidence → hearing → verdict → enforce/rollback
+   - Panel selection: T3-gated eligibility (≥0.7), conflict-of-interest exclusion, MRH distance filtering
+   - Panel voting: 2/3 majority (exact fraction), confidence weighting, abstention handling
+   - Evidence management: witness testimony, document, ledger record, attestation, T3 history, system log, external
+   - TensorRollback: snapshot-based T3/V3 restoration on successful appeal
+   - Anti-gaming: ATP cost per appeal, cooldown after denial, active appeal limits, evidence caps
+   - AppealManager orchestrates full lifecycle with state validation
+   - Addresses 4-life visitor friction: "what if Web4 penalizes me unfairly?"
+   - See: `implementation/reference/appeals_mechanism.py`
+
+94. ✅ **Entity Relationships Unified — binding, pairing, witnessing, broadcast** (Feb 22, 2026)
+   - Implements all 4 relationship types from web4-entity-relationships.md: 127/127 checks
+   - BIND/1.0: permanent identity binding, parent-child hierarchy, binding hash
+   - PAIR/1.0: 3 modes — direct (mutual request), witnessed (3rd-party witness), authorized (delegation chain)
+   - WTNS/1.0: observation-based trust building, 5 evidence types, bidirectional MRH links
+   - CAST/1.0: unidirectional broadcast, 4 types (discovery, status, capability, alert), accumulator entities
+   - MRH integration: bound/paired/witnessing arrays tracked per entity
+   - T3 evolution: witnessing and pairing actions adjust trust scores
+   - RelationshipCoordinator: orchestrates all 4 managers with unified entity registry
+   - Full E2E scenario: genesis→bind→pair→witness→broadcast→trust evolution
+   - See: `implementation/reference/entity_relationships.py`
+
 ### Immediate (Feb 2026)
 
-91. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-92. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
+95. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+96. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
 
 ### Near-Term (Q1 2026)
 
@@ -1161,7 +1214,7 @@ Both projects use **same honest posture**:
 
 ## Conclusion
 
-Web4 has done **substantial research work** (~51k lines code, 45+ research sessions, comprehensive documentation) exploring trust-native coordination for distributed AI.
+Web4 has done **substantial research work** (~54k lines code, 45+ research sessions, comprehensive documentation) exploring trust-native coordination for distributed AI.
 
 **December 2025 - February 2026 Progress**:
 - Phase 2 coordination framework validated (4 variants)
