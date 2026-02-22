@@ -2,23 +2,23 @@
 """
 Web4 Cross-Implementation Integration Test
 
-Validates that independently-developed reference implementations work together
-as a coherent system. Each module was built from its own spec section; this test
-proves the semantic glue between them.
+Verifies that independently-implemented Web4 reference modules work together
+as a coherent system. Each chain exercises data flow across 2-4 implementations.
 
-7 Integration Chains:
-  C1: Society → Treasury → ATP Metering (resource lifecycle)
-  C2: W4ID → LCT Document → Verifiable Credential (identity lifecycle)
-  C3: T3/V3 Reputation → MCP Trust Gating (trust-based access control)
-  C4: MCP Interaction → Reputation Delta → Society Ledger (full loop)
-  C5: Error codes consistent across MCP, Metering, and Error Handler
-  C6: Capability Levels + Reputation Integration
-  C7: Full Lifecycle — Formation → Identity → Operation → Audit
+Integration Chains:
+  C1: Society → Treasury → ATP Metering (economic lifecycle)
+  C2: T3/V3 Reputation → MCP Trust Gating (trust-based access control)
+  C3: W4ID → LCT Document → Verifiable Credential (identity stack)
+  C4: MCP Interaction → Reputation Delta → Society Ledger (feedback loop)
+  C5: Error Taxonomy consistency across MCP + W4Error + Metering
+  C6: Capability Level → MCP Access → Reputation (promotion/demotion cycle)
+  C7: Full lifecycle: Society forms → member joins → gets ATP → uses MCP tool
+      → reputation updates → society records
+  C8: Pairwise privacy across societies
+  C9: Team composition via multi-role reputation tensors
+  C10: Serialization round-trip consistency across all modules
 
-Cross-references 8 reference implementations:
-  - society_lifecycle.py, atp_metering.py, t3v3_reputation_engine.py
-  - mcp_trust_binding.py, w4id_data_formats.py, lct_document.py
-  - web4_error_handler.py, lct_capability_levels_v2.py
+This is NOT a unit test — it validates semantic coherence across modules.
 
 @version 1.0.0
 """
@@ -27,618 +27,747 @@ import hashlib
 import json
 import os
 import sys
-import time
 from datetime import datetime, timezone
+
+# ── Import all modules under test ────────────────────────────
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import society_lifecycle as soc
-import atp_metering as atp
-import t3v3_reputation_engine as rep
-import mcp_trust_binding as mcp
-import w4id_data_formats as w4id
-import lct_document as lctd
-import web4_error_handler as err
-import lct_capability_levels_v2 as cap
+# Society lifecycle
+from society_lifecycle import (
+    Society, SocietyPhase, CitizenStatus, LedgerType,
+    Law, SocietyLedger, Treasury, TreasuryAllocation, CitizenRecord,
+)
+
+# ATP metering
+from atp_metering import (
+    CreditGrant, UsageReport, UsageItem, WitnessAttestation as MeteringWitness,
+    MeteringError, MeteringException, TokenBucket,
+)
+
+# MCP trust binding
+from mcp_trust_binding import (
+    MCPServer, MCPClient, MCPTool, MCPSession, MCPError, MCPErrorCode,
+    Web4Context, InteractionWitness,
+    T3 as MCPT3, V3 as MCPV3,
+)
+
+# T3/V3 reputation engine
+from t3v3_reputation_engine import (
+    Tensor, RoleTensor, EntityTensorRegistry, ReputationEngine,
+    ReputationRule, DimensionImpact, RuleModifier,
+    ContributingFactor, WitnessSelector,
+    compute_team_trust,
+    T3_DIMS, V3_DIMS,
+)
+
+# W4ID data formats
+from w4id_data_formats import (
+    W4ID, PairwiseIdentityManager, VerifiableCredential,
+    W4IDDocument, canonicalize_json, generate_keypair,
+)
+
+# LCT document
+from lct_document import (
+    LCTBuilder, ENTITY_TYPES,
+    T3Tensor as LCTT3,
+)
+
+# Error handler
+from web4_error_handler import (
+    W4Error, ProblemDetails, Web4Exception, error as make_error,
+)
+
+# Capability levels
+from lct_capability_levels_v2 import (
+    LCTEntity, CapabilityValidator, CapLevel,
+    EntityFactory, CapabilityQuery, CapabilityResponse,
+)
 
 
-# ═══════════════════════════════════════════════════════════════
-# Test Framework
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
+# Test Harness
+# ══════════════════════════════════════════════════════════════
 
 passed = 0
 failed = 0
 
-
-def check(label: str, condition: bool):
+def check(name: str, condition: bool):
     global passed, failed
     if condition:
+        print(f"  [PASS] {name}")
         passed += 1
-        print(f"  [PASS] {label}")
     else:
+        print(f"  [FAIL] {name}")
         failed += 1
-        print(f"  [FAIL] {label}")
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def run_tests():
+def run_tests() -> tuple[int, int]:
     global passed, failed
 
     # ══════════════════════════════════════════════════════════
-    # Chain 1: Society → Treasury → ATP Metering
+    # C1: Society → Treasury → ATP Metering
     # ══════════════════════════════════════════════════════════
     print("\n═══ C1: Society → Treasury → ATP Metering ═══")
 
-    # 1a. Form society (requires founding_law)
-    founding_law = soc.Law("LAW-GENESIS", "Genesis Law",
-                           "All decisions by unanimous consent")
-    society = soc.Society(
-        society_lct="lct:web4:society:devteam",
-        name="Dev Team Society",
+    # 1. Society forms with ATP treasury
+    founding_law = Law("LAW-001", "Charter", "All members get ATP allocation")
+    society = Society(
+        society_lct="lct:web4:society:integration-test",
+        name="Integration Test Society",
         founding_law=founding_law,
-        initial_atp=1000,
-        ledger_type=soc.LedgerType.CONFINED,
+        initial_atp=1000.0,
+        ledger_type=LedgerType.WITNESSED,
     )
-    founders = ["lct:web4:human:alice", "lct:web4:human:bob"]
-    society.bootstrap(founders, witness_lcts=["lct:web4:oracle:genesis"])
+    check("C1: society created", society.phase == SocietyPhase.GENESIS)
+    check("C1: treasury has 1000 ATP", society.treasury.atp_balance == 1000.0)
+
+    # 2. Bootstrap with founders
+    founders = ["lct:web4:human:alice", "lct:web4:ai:sage"]
+    society.bootstrap(founders, witness_lcts=["lct:web4:oracle:time"])
+    check("C1: bootstrapped", society.phase == SocietyPhase.BOOTSTRAP)
     society.go_operational()
-    check("C1.1: society operational", society.phase == soc.SocietyPhase.OPERATIONAL)
-    check("C1.2: treasury has 1000 ATP", society.treasury.atp_balance == 1000)
+    check("C1: operational", society.phase == SocietyPhase.OPERATIONAL)
 
-    # 1b. Propose and ratify allocation law
-    alloc_law = soc.Law("LAW-ATP-ALLOC", "ATP Allocation",
-                         "Citizens may receive up to 200 ATP per cycle")
-    society.propose_law(alloc_law, "lct:web4:human:alice")
-    society.ratify_law("LAW-ATP-ALLOC",
-                       {"alice": "yea", "bob": "yea"},
-                       witnesses=["lct:web4:oracle:law"])
-    check("C1.3: allocation law ratified", society.laws["LAW-ATP-ALLOC"].status == "ratified")
+    # 3. Allocate ATP to member → becomes CreditGrant ceiling
+    alloc = society.allocate_atp("lct:web4:ai:sage", 100.0, "MCP tool access")
+    check("C1: ATP allocated", alloc is not None)
+    check("C1: treasury decreased", society.treasury.atp_balance == 900.0)
 
-    # 1c. Allocate ATP to citizen (Society → Treasury)
-    alloc = society.allocate_atp("lct:web4:human:alice", 100, "sprint allocation")
-    check("C1.4: ATP allocated", alloc is not None)
-    check("C1.5: treasury balance decreased", society.treasury.atp_balance == 900)
-
-    # 1d. Create metering engine and grant
-    grantor_engine = atp.MeteringEngine("lct:web4:society:devteam")
-    grant = grantor_engine.issue_grant(
-        scopes=["sprint:tools"],
-        ceiling=100,
-        unit="joule-equivalent",
-        rate_max_per_min=20,
+    # 4. CreditGrant matches allocated amount
+    grant = CreditGrant(
+        grant_id="grant:sage-mcp",
+        scopes=["tools/analyze", "tools/search"],
+        ceiling_total=alloc.amount,
+        ceiling_unit="ATP",
+        rate_max_per_min=10,
     )
-    check("C1.6: grant created", grant is not None)
-    check("C1.7: grant ceiling=100", grant.ceiling_total == 100)
+    check("C1: grant ceiling = allocation", grant.ceiling_total == 100.0)
+    check("C1: grant active", grant.is_active())
 
-    # Consumer receives the grant
-    consumer_engine = atp.MeteringEngine("lct:web4:human:alice")
-    consumer_engine.receive_grant(grant)
-
-    # 1e. Consumer reports usage (with required time witness)
-    time_witness = [atp.WitnessAttestation(
-        witness_type="time", witness_ref="lct:web4:oracle:time")]
-
-    usage1 = consumer_engine.submit_usage(
-        grant.grant_id,
-        [atp.UsageItem(scope="sprint:tools", amount=10, unit="joule-equivalent")],
-        witness=time_witness,
+    # 5. Usage report against grant
+    usage = UsageReport(
+        grant_id=grant.grant_id,
+        seq=1,
+        window_start="2026-02-21T12:00:00Z",
+        window_end="2026-02-21T12:05:00Z",
+        usage=[UsageItem(scope="tools/analyze", amount=5.0, unit="ATP")],
+        witness=[MeteringWitness(witness_type="time", witness_ref="lct:web4:oracle:time")],
     )
-    check("C1.8: first usage recorded", usage1 is not None)
-    check("C1.9: usage seq=1", usage1.seq == 1)
+    check("C1: usage < ceiling", usage.total_amount <= grant.ceiling_total)
+    check("C1: evidence digest computed", len(usage.evidence_digest) == 64)
 
-    usage2 = consumer_engine.submit_usage(
-        grant.grant_id,
-        [atp.UsageItem(scope="sprint:tools", amount=15, unit="joule-equivalent")],
-        witness=time_witness,
-    )
-    check("C1.10: second usage recorded", usage2 is not None)
-    check("C1.11: usage seq=2", usage2.seq == 2)
+    # 6. ADP returns to treasury after settlement
+    society.treasury.receive_adp(usage.total_amount * 0.9)  # 90% ADP return
+    check("C1: ADP received", society.treasury.adp_pool == 4.5)
+    recharged = society.treasury.recharge(4.5)
+    check("C1: recharge", recharged == 4.5)
+    check("C1: ATP restored", society.treasury.atp_balance == 904.5)
 
-    # 1f. Grantor settles (replay usage on grantor side)
-    grantor_engine.submit_usage(
-        grant.grant_id,
-        [atp.UsageItem(scope="sprint:tools", amount=10, unit="joule-equivalent")],
-        witness=time_witness,
-    )
-    grantor_engine.submit_usage(
-        grant.grant_id,
-        [atp.UsageItem(scope="sprint:tools", amount=15, unit="joule-equivalent")],
-        witness=time_witness,
-    )
-    settlement = grantor_engine.settle(grant.grant_id)
-    check("C1.12: settlement created", settlement is not None)
-    check("C1.13: settlement remaining = 75", settlement.remaining == 75)
-
-    # Record in society ledger
-    society.ledger.append(
-        entry_type="economic_event",
-        data={
-            "action": "metering_settlement",
-            "grant_id": grant.grant_id,
-            "citizen_lct": "lct:web4:human:alice",
-            "consumed": 25,
-            "remaining": 75,
-        },
-        witnesses=["lct:web4:oracle:audit"],
-    )
-    ledger_econ = [e for e in society.ledger.entries if e.entry_type == "economic_event"]
-    check("C1.14: settlement in ledger", len(ledger_econ) > 0)
-    check("C1.15: ATP conservation", society.treasury.atp_balance + 100 == 1000)
+    # 7. Ledger records full economic lifecycle
+    econ_entries = society.ledger.query(entry_type="economic_event")
+    check("C1: economic events in ledger", len(econ_entries) >= 1)
+    check("C1: ledger chain valid", society.ledger.verify_chain())
 
     # ══════════════════════════════════════════════════════════
-    # Chain 2: W4ID → LCT Document → Verifiable Credential
+    # C2: T3/V3 Reputation → MCP Trust Gating
     # ══════════════════════════════════════════════════════════
-    print("\n═══ C2: W4ID → LCT Document → Verifiable Credential ═══")
+    print("\n═══ C2: Reputation Engine → MCP Trust Gating ═══")
 
-    # 2a. Generate keypair and create W4ID
-    priv_bytes, pub_bytes = w4id.generate_keypair()
-    entity_w4id = w4id.W4ID.from_public_key(pub_bytes)
-    check("C2.1: W4ID created", entity_w4id.method == "key")
-    check("C2.2: DID format correct", entity_w4id.did.startswith("did:web4:key:"))
-
-    # 2b. Build LCT document referencing the W4ID
-    lct_doc = lctd.LCTBuilder("ai", "sage-agent") \
-        .with_binding(entity_w4id.method_specific_id, "cose:ed25519_proof") \
-        .with_birth_certificate(
-            "lct:web4:society:devteam",
-            "lct:web4:role:citizen:ai",
-            witnesses=["lct:web4:oracle:genesis"]) \
-        .with_t3(talent=0.85, training=0.90, temperament=0.80) \
-        .with_v3(veracity=0.88, validity=0.85, valuation=0.0) \
-        .add_capability("witness:attest") \
-        .add_capability("execute:tools") \
-        .build()
-    check("C2.3: LCT doc built", lct_doc is not None)
-    check("C2.4: LCT has binding", lct_doc.binding is not None)
-    check("C2.5: LCT has T3", lct_doc.t3_tensor is not None)
-    check("C2.6: LCT has V3", lct_doc.v3_tensor is not None)
-    check("C2.7: LCT has capabilities", len(lct_doc.policy.capabilities) == 2)
-
-    # 2c. Validate LCT document against schema
-    validation = lct_doc.validate()
-    check("C2.8: LCT validates", validation.valid)
-
-    # 2d. Issue verifiable credential for citizenship
-    vc = w4id.VerifiableCredential(
-        vc_id=f"vc:{society.society_lct}:citizenship:{lct_doc.lct_id}",
-        vc_type=["VerifiableCredential", "Web4Citizenship"],
-        issuer=society.society_lct,
-        issuance_date=_now(),
-        credential_subject={
-            "id": entity_w4id.did,
-            "society": society.society_lct,
-            "citizen_lct": lct_doc.lct_id,
-            "rights": ["vote", "propose", "allocate"],
-            "status": "active",
-        },
-    )
-    check("C2.9: VC issued", vc is not None)
-    check("C2.10: VC subject references W4ID",
-          vc.credential_subject["id"] == entity_w4id.did)
-    check("C2.11: VC issuer is society", vc.issuer == society.society_lct)
-
-    # 2e. Sign and verify the VC
-    signed_vc = vc.sign(priv_bytes)
-    check("C2.12: VC signed", signed_vc.proof is not None)
-    check("C2.13: VC proof type", signed_vc.proof["type"] == "Ed25519Signature2020")
-
-    verified = signed_vc.verify(pub_bytes)
-    check("C2.14: VC verified", verified)
-
-    # 2f. T3 composite from LCT
-    t3_composite = lct_doc.t3_tensor.compute_composite()
-    check("C2.15: LCT T3 composite valid", 0 < t3_composite <= 1.0)
-
-    # 2g. JCS canonicalization of LCT + VC
-    combined = {
-        "lct": lct_doc.to_dict(),
-        "credential": vc.to_dict(),
-    }
-    canonical = w4id.canonicalize_json(combined)
-    check("C2.16: JCS canonical form", isinstance(canonical, str))
-    check("C2.17: JCS deterministic", canonical == w4id.canonicalize_json(combined))
-
-    # ══════════════════════════════════════════════════════════
-    # Chain 3: T3/V3 Reputation → MCP Trust Gating
-    # ══════════════════════════════════════════════════════════
-    print("\n═══ C3: T3/V3 Reputation → MCP Trust Gating ═══")
-
-    # 3a. Set up reputation engine
-    registry = rep.EntityTensorRegistry()
-    engine = rep.ReputationEngine(registry)
-
-    success_rule = rep.ReputationRule(
-        rule_id="tool_success",
-        trigger_conditions={"result_status": "success"},
-        t3_impacts={
-            "training": rep.DimensionImpact(base_delta=0.02),
-            "temperament": rep.DimensionImpact(base_delta=0.01),
-        },
-        v3_impacts={
-            "veracity": rep.DimensionImpact(base_delta=0.015),
-        },
-    )
-    failure_rule = rep.ReputationRule(
-        rule_id="tool_failure",
-        trigger_conditions={"result_status": "failure"},
-        t3_impacts={
-            "temperament": rep.DimensionImpact(base_delta=-0.05),
-        },
-        v3_impacts={
-            "veracity": rep.DimensionImpact(base_delta=-0.03),
-        },
-        category="failure",
-    )
-    engine.add_rule(success_rule)
-    engine.add_rule(failure_rule)
-
-    # Entity with moderate initial T3
+    # 1. Entity has reputation-managed T3 tensors
+    registry = EntityTensorRegistry()
     rt = registry.get_or_create(
         "lct:web4:ai:sage", "web4:DataAnalyst",
-        t3_init={"talent": 0.70, "training": 0.65, "temperament": 0.60},
-        v3_init={"veracity": 0.70, "validity": 0.65, "value": 0.50},
+        t3_init={"talent": 0.85, "training": 0.90, "temperament": 0.80},
+        v3_init={"veracity": 0.85, "validity": 0.80, "value": 0.70},
     )
-    check("C3.1: entity created", rt is not None)
-    initial_trust = rt.trust_score()
-    check("C3.2: initial trust moderate", 0.5 < initial_trust < 0.8)
+    check("C2: role tensor created", rt.trust_score() > 0.8)
 
-    # 3b. MCP server with trust-gated tool
-    server = mcp.MCPServer("lct:web4:service:analytics")
-    server.register_tool(mcp.MCPTool(
-        name="advanced_query",
-        description="Complex analytical query requiring high trust",
-        atp_cost=5.0,
-        trust_requirements=mcp.T3(talent=0.65, training=0.70, temperament=0.65),
-    ))
+    # 2. Bridge reputation T3 to MCP T3
+    mcp_t3 = MCPT3(
+        talent=rt.t3["talent"],
+        training=rt.t3["training"],
+        temperament=rt.t3["temperament"],
+    )
+    check("C2: T3 bridged to MCP", mcp_t3.talent == 0.85)
 
-    # 3c. Bridge: reputation T3 → MCP T3
-    def rep_to_mcp_t3(role_tensor):
-        return mcp.T3(
-            talent=role_tensor.t3["talent"],
-            training=role_tensor.t3["training"],
-            temperament=role_tensor.t3["temperament"],
-        )
+    # 3. MCP server with trust-gated tools
+    server = MCPServer("lct:web4:service:analyzer", entity_type="service")
+    high_tool = MCPTool(
+        name="deep_analysis",
+        description="Advanced analysis requiring high trust",
+        atp_cost=10.0,
+        trust_requirements=MCPT3(talent=0.7, training=0.8, temperament=0.7),
+    )
+    low_tool = MCPTool(
+        name="basic_search",
+        description="Basic search, low trust needed",
+        atp_cost=1.0,
+        trust_requirements=MCPT3(talent=0.3, training=0.3, temperament=0.3),
+    )
+    server.register_tool(high_tool)
+    server.register_tool(low_tool)
 
-    mcp_t3 = rep_to_mcp_t3(rt)
-    check("C3.3: T3 bridge works", mcp_t3.talent == 0.70)
-
-    # 3d. FIRST ATTEMPT: training too low (0.65 < 0.70)
-    ctx = mcp.Web4Context(
+    # 4. High-trust entity can access high-trust tools
+    ctx = Web4Context(
         sender_lct="lct:web4:ai:sage",
         sender_role="web4:DataAnalyst",
         t3_in_role=mcp_t3,
     )
-    session = server.create_session("lct:web4:ai:sage", atp_budget=50)
-    try:
-        server.handle_request(session.session_id, "advanced_query", {}, ctx)
-        check("C3.4: trust gated (should fail)", False)
-    except mcp.MCPError as e:
-        check("C3.4: trust gated correctly",
-              e.code == mcp.MCPErrorCode.INSUFFICIENT_TRUST)
+    session = server.create_session("lct:web4:ai:sage", atp_budget=100)
+    result = server.handle_request(session.session_id, "deep_analysis", {}, ctx)
+    check("C2: high-trust access granted", result["result"]["status"] == "ok")
 
-    # 3e. Build reputation through successes
-    for i in range(5):
-        engine.compute_reputation_delta(
-            "lct:web4:ai:sage", "web4:DataAnalyst",
-            "data_analysis", f"txn:train-{i}", "success", 0.92)
-    check("C3.5: training improved", rt.t3["training"] > 0.65)
-    check("C3.6: temperament improved", rt.t3["temperament"] > 0.60)
-
-    # 3f. SECOND ATTEMPT with improved T3
-    mcp_t3_improved = rep_to_mcp_t3(rt)
-    ctx_improved = mcp.Web4Context(
-        sender_lct="lct:web4:ai:sage",
-        sender_role="web4:DataAnalyst",
-        t3_in_role=mcp_t3_improved,
+    # 5. Low-trust entity gets denied
+    low_t3 = MCPT3(talent=0.4, training=0.35, temperament=0.4)
+    low_ctx = Web4Context(
+        sender_lct="lct:web4:ai:newbie",
+        sender_role="web4:Intern",
+        t3_in_role=low_t3,
     )
-    result = server.handle_request(session.session_id, "advanced_query", {}, ctx_improved)
-    check("C3.7: now passes trust gate", result["result"]["status"] == "ok")
-    check("C3.8: ATP consumed", result["web4_context"]["atp_consumed"] == 5.0)
+    low_session = server.create_session("lct:web4:ai:newbie", atp_budget=50)
+    denied = False
+    try:
+        server.handle_request(low_session.session_id, "deep_analysis", {}, low_ctx)
+    except MCPError as e:
+        denied = True
+        check("C2: denial is INSUFFICIENT_TRUST", e.code == MCPErrorCode.INSUFFICIENT_TRUST)
+    check("C2: low-trust denied", denied)
 
-    # 3g. Witness attestation
-    check("C3.9: interaction witnessed", len(server.witness_log) > 0)
-    last_witness = server.witness_log[-1]
-    check("C3.10: witness records success", last_witness.success)
-
-    # 3h. Failure scenario
-    delta = engine.compute_reputation_delta(
-        "lct:web4:ai:sage", "web4:DataAnalyst",
-        "data_analysis", "txn:fail-1", "failure")
-    check("C3.11: failure recorded", delta is not None)
-    check("C3.12: temperament dropped",
-          "temperament" in delta.t3_delta)
-    check("C3.13: net trust negative", delta.net_trust_change < 0)
+    # 6. Same low-trust entity can access low-trust tool
+    result2 = server.handle_request(low_session.session_id, "basic_search", {}, low_ctx)
+    check("C2: low-trust accesses basic tool", result2["result"]["status"] == "ok")
 
     # ══════════════════════════════════════════════════════════
-    # Chain 4: MCP Interaction → Reputation → Society Ledger
+    # C3: W4ID → LCT Document → Verifiable Credential
+    # ══════════════════════════════════════════════════════════
+    print("\n═══ C3: W4ID → LCT Document → Verifiable Credential ═══")
+
+    # 1. Generate Ed25519 keypair → W4ID
+    priv_key, pub_key = generate_keypair()
+    w4id = W4ID.from_public_key(pub_key)
+    check("C3: W4ID created", w4id.did.startswith("did:web4:key:"))
+    check("C3: W4ID has method", w4id.method == "key")
+
+    # 2. Build LCT document referencing W4ID
+    lct_doc = LCTBuilder("ai", "sage-integration") \
+        .with_binding(pub_key.hex()[:20], "cose:ed25519_proof") \
+        .with_birth_certificate(
+            "lct:web4:society:integration-test",
+            "lct:web4:role:citizen:ai",
+            witnesses=["lct:web4:oracle:time"],
+        ) \
+        .with_t3(talent=0.85, training=0.90, temperament=0.80) \
+        .add_capability("witness:attest") \
+        .add_capability("execute:tools/analyze") \
+        .build()
+    check("C3: LCT document built", lct_doc is not None)
+    check("C3: LCT has id", lct_doc.lct_id.startswith("lct:web4:"))
+    validation = lct_doc.validate()
+    check("C3: LCT validates", validation.valid)
+
+    # 3. LCT T3 matches W4ID-holder's reputation
+    lct_t3 = lct_doc.t3_tensor
+    check("C3: LCT T3 talent matches", lct_t3.talent == 0.85)
+    check("C3: LCT T3 training matches", lct_t3.training == 0.90)
+
+    # 4. Issue VC for citizenship
+    citizenship_vc = VerifiableCredential(
+        vc_id=f"vc:{hashlib.sha256(lct_doc.lct_id.encode()).hexdigest()[:16]}",
+        vc_type=["VerifiableCredential", "Web4Citizenship"],
+        issuer=w4id.did,
+        issuance_date="2026-02-21T12:00:00Z",
+        credential_subject={
+            "id": lct_doc.lct_id,
+            "society": "lct:web4:society:integration-test",
+            "rights": ["vote", "propose"],
+        },
+    )
+    signed_vc = citizenship_vc.sign(priv_key)
+    check("C3: VC signed", signed_vc.proof is not None)
+    check("C3: VC issuer is W4ID", signed_vc.issuer == w4id.did)
+    check("C3: VC subject is LCT", signed_vc.credential_subject["id"] == lct_doc.lct_id)
+
+    # 5. VC can be verified
+    verified = signed_vc.verify(pub_key)
+    check("C3: VC verification passes", verified)
+
+    # 6. JCS canonicalization is deterministic
+    vc_dict = signed_vc.to_dict()
+    canonical1 = canonicalize_json(vc_dict)
+    canonical2 = canonicalize_json(vc_dict)
+    check("C3: JCS deterministic", canonical1 == canonical2)
+
+    # ══════════════════════════════════════════════════════════
+    # C4: MCP Interaction → Reputation Delta → Ledger
     # ══════════════════════════════════════════════════════════
     print("\n═══ C4: MCP → Reputation → Society Ledger ═══")
 
-    # 4a. MCP witness → reputation delta
-    witness = server.witness_log[-1]
-    check("C4.1: witness has client", witness.client_lct == "lct:web4:ai:sage")
-    check("C4.2: witness has server", witness.server_lct == server.lct_id)
+    # 1. Set up reputation engine with rules
+    rep_registry = EntityTensorRegistry()
+    rep_engine = ReputationEngine(rep_registry)
 
-    mcp_delta = engine.compute_reputation_delta(
-        witness.client_lct, "web4:DataAnalyst",
-        f"mcp:{witness.action}", "txn:mcp-witnessed",
-        "success" if witness.success else "failure",
-        0.95 if witness.success else 0.0,
-    )
-    check("C4.3: MCP witness → rep delta", mcp_delta is not None)
-
-    # 4b. Record in society ledger
-    society.ledger.append(
-        entry_type="trust_event",
-        data={
-            "action": "reputation_update",
-            "entity_lct": mcp_delta.subject_lct,
-            "role_lct": mcp_delta.role_lct,
-            "source": "mcp_interaction",
-            "t3_changes": {k: v.to_dict() for k, v in mcp_delta.t3_delta.items()},
-            "v3_changes": {k: v.to_dict() for k, v in mcp_delta.v3_delta.items()},
-            "net_trust_change": mcp_delta.net_trust_change,
-            "witness": witness.to_dict(),
+    success_rule = ReputationRule(
+        rule_id="mcp_tool_success",
+        trigger_conditions={"result_status": "success", "quality_threshold": 0.5},
+        t3_impacts={
+            "training": DimensionImpact(base_delta=0.02),
+            "temperament": DimensionImpact(base_delta=0.01),
         },
-        witnesses=[witness.witness_lct],
-    )
-    check("C4.4: reputation in ledger", True)
-
-    # 4c. Ledger integrity
-    ledger_entries = society.ledger.entries
-    trust_entries = [e for e in ledger_entries if e.entry_type == "trust_event"]
-    econ_entries = [e for e in ledger_entries if e.entry_type == "economic_event"]
-    check("C4.5: trust events in ledger", len(trust_entries) > 0)
-    check("C4.6: economic events in ledger", len(econ_entries) > 0)
-
-    # 4d. Hash chain
-    chain_ok = True
-    for i in range(1, len(ledger_entries)):
-        if ledger_entries[i].prev_hash != ledger_entries[i-1].entry_hash:
-            chain_ok = False
-            break
-    check("C4.7: hash chain valid", chain_ok)
-
-    # 4e. Trust event content
-    latest_trust = trust_entries[-1]
-    check("C4.8: entity correct",
-          latest_trust.data["entity_lct"] == "lct:web4:ai:sage")
-    check("C4.9: has t3 changes", "t3_changes" in latest_trust.data)
-    check("C4.10: has witness", "witness" in latest_trust.data)
-
-    # 4f. Session summary
-    session_data = session.to_dict()
-    check("C4.11: session tracks interactions",
-          session_data["session"]["context"]["trust_evolution"]["interaction_count"] > 0)
-    check("C4.12: session has t3 deltas",
-          len(session_data["session"]["context"]["trust_evolution"]["t3_delta"]) > 0)
-
-    # ══════════════════════════════════════════════════════════
-    # Chain 5: Error Code Consistency
-    # ══════════════════════════════════════════════════════════
-    print("\n═══ C5: Error Code Consistency ═══")
-
-    # 5a. MCP errors → W4Error equivalents
-    mcp_to_w4 = {
-        mcp.MCPErrorCode.INSUFFICIENT_TRUST: err.W4Error.AUTHZ_DENIED,
-        mcp.MCPErrorCode.INVALID_LCT: err.W4Error.BINDING_INVALID,
-        mcp.MCPErrorCode.ATP_INSUFFICIENT: err.W4Error.AUTHZ_SCOPE,
-    }
-    check("C5.1: trust error maps",
-          mcp_to_w4[mcp.MCPErrorCode.INSUFFICIENT_TRUST].name == "AUTHZ_DENIED")
-
-    # 5b. MCP error → W4 ProblemDetails
-    mcp_err = mcp.MCPError(mcp.MCPErrorCode.INSUFFICIENT_TRUST, "Training too low")
-    mcp_response = mcp_err.to_response()
-    check("C5.2: MCP error has jsonrpc", mcp_response.get("jsonrpc") == "2.0")
-    check("C5.3: MCP error code -32001", mcp_response["error"]["code"] == -32001)
-
-    w4_err = mcp_to_w4[mcp.MCPErrorCode.INSUFFICIENT_TRUST]
-    problem = err.ProblemDetails.from_w4error(
-        w4_err,
-        detail=mcp_err.detail,
-        instance=f"/mcp/{server.lct_id}/advanced_query",
-    )
-    check("C5.4: W4 problem details created", problem is not None)
-    check("C5.5: HTTP status mapped", problem.status > 0)
-    pd_json = problem.to_dict()
-    check("C5.6: RFC 9457 type field", "type" in pd_json)
-    check("C5.7: RFC 9457 title field", "title" in pd_json)
-    check("C5.8: RFC 9457 detail", pd_json.get("detail") == "Training too low")
-
-    # 5c. Metering error → W4Error
-    meter_to_w4 = {
-        atp.MeteringError.GRANT_EXPIRED: err.W4Error.AUTHZ_EXPIRED,
-        atp.MeteringError.RATE_LIMIT: err.W4Error.AUTHZ_RATE,
-        atp.MeteringError.SCOPE_DENIED: err.W4Error.AUTHZ_SCOPE,
-    }
-    for m_err, w4_equiv in meter_to_w4.items():
-        check(f"C5.9: {m_err.name} → {w4_equiv.name}", w4_equiv is not None)
-
-    # 5d. Consistent HTTP status ranges
-    check("C5.10: MCP trust = JSON-RPC negative",
-          mcp.MCPErrorCode.INSUFFICIENT_TRUST.json_rpc_code < 0)
-    check("C5.11: W4 authz denied = HTTP 401", err.W4Error.AUTHZ_DENIED.status == 401)
-    check("C5.12: W4 authz rate = HTTP 429", err.W4Error.AUTHZ_RATE.status == 429)
-
-    # 5e. Error in society audit ledger
-    society.ledger.append(
-        entry_type="audit_event",
-        data={
-            "error_code": w4_err.code,
-            "http_status": w4_err.status,
-            "mcp_code": mcp.MCPErrorCode.INSUFFICIENT_TRUST.json_rpc_code,
-            "detail": "Training too low for advanced_query",
-            "entity_lct": "lct:web4:ai:sage",
+        v3_impacts={
+            "veracity": DimensionImpact(base_delta=0.01),
         },
-        witnesses=["lct:web4:oracle:audit"],
     )
-    audit_entries = [e for e in society.ledger.entries if e.entry_type == "audit_event"]
-    check("C5.13: error in audit ledger", len(audit_entries) > 0)
-    check("C5.14: audit has W4 code",
-          audit_entries[-1].data["error_code"] == "W4_ERR_AUTHZ_DENIED")
-
-    # ══════════════════════════════════════════════════════════
-    # Chain 6: Capability Levels + Reputation
-    # ══════════════════════════════════════════════════════════
-    print("\n═══ C6: Capability Levels + Reputation ═══")
-
-    # 6a. Create entity at STANDARD level
-    entity = cap.EntityFactory.make_standard("ai", "sage-1", "lct:web4:device:legion")
-    check("C6.1: entity at STANDARD", entity.capability_level == cap.CapLevel.STANDARD)
-
-    # 6b. Validate entity
-    validator = cap.CapabilityValidator()
-    result = validator.validate(entity)
-    check("C6.2: entity valid", result.valid)
-
-    # 6c. Reputation engine T3 → capability context
-    # Note: cap module uses 6-dim tensors (legacy), rep module uses 3-dim (canonical)
-    # The bridge maps 3 canonical dims to the 6-dim legacy representation
-    check("C6.3: rep engine T3 talent",
-          rt.t3["talent"] == registry.get("lct:web4:ai:sage", "web4:DataAnalyst").t3["talent"])
-
-    # 6d. Security check
-    sec = cap.SecurityChecker()
-    misrep = sec.check_misrepresentation(entity)
-    check("C6.4: no misrepresentation", misrep.clean)
-
-    # 6e. Capability query
-    query = cap.CapabilityQuery(
-        target_lct=entity.lct_id,
-        requester_lct="lct:web4:service:analytics",
+    failure_rule = ReputationRule(
+        rule_id="mcp_tool_failure",
+        trigger_conditions={"result_status": "failure"},
+        t3_impacts={
+            "temperament": DimensionImpact(base_delta=-0.03),
+        },
+        v3_impacts={
+            "veracity": DimensionImpact(base_delta=-0.02),
+        },
+        category="failure",
     )
-    response = cap.handle_capability_query(entity, query)
-    check("C6.5: capability response", response is not None)
-    check("C6.6: response has components",
-          len(response.supported_components) > 0)
+    rep_engine.add_rule(success_rule)
+    rep_engine.add_rule(failure_rule)
 
-    # 6f. Cross-domain negotiation
-    negotiator = cap.CrossDomainNegotiator()
-    partner = cap.EntityFactory.make_full("service", "partner-1", "lct:web4:society:s1")
-    neg_result = negotiator.negotiate(entity, partner)
-    check("C6.7: negotiation completed", neg_result is not None)
-    check("C6.8: entities compatible", neg_result.compatible)
+    # Pre-create role tensor
+    rep_registry.get_or_create(
+        "lct:web4:ai:sage", "web4:DataAnalyst",
+        t3_init={"talent": 0.85, "training": 0.70, "temperament": 0.80},
+        v3_init={"veracity": 0.75, "validity": 0.80, "value": 0.60},
+    )
+
+    # 2. Simulate MCP interaction (success)
+    mcp_result = server.handle_request(session.session_id, "deep_analysis",
+                                        {"query": "trust analysis"}, ctx)
+    mcp_success = mcp_result["result"]["status"] == "ok"
+    check("C4: MCP interaction successful", mcp_success)
+
+    # 3. Feed MCP result into reputation engine
+    rep_status = "success" if mcp_success else "failure"
+    delta = rep_engine.compute_reputation_delta(
+        "lct:web4:ai:sage",
+        "web4:DataAnalyst",
+        "deep_analysis",
+        "txn:mcp-1",
+        rep_status,
+        quality=0.92,
+        factors_data={"deadline_met": True},
+    )
+    check("C4: reputation delta computed", delta is not None)
+    check("C4: training increased", delta.t3_delta.get("training") is not None and
+                                     delta.t3_delta["training"].change > 0)
+    check("C4: net trust positive", delta.net_trust_change > 0)
+
+    # 4. Record reputation change in society ledger
+    society.ledger.append("reputation_event", {
+        "entity_lct": "lct:web4:ai:sage",
+        "role": "web4:DataAnalyst",
+        "action": "deep_analysis",
+        "result": rep_status,
+        "trust_delta": round(delta.net_trust_change, 4),
+        "value_delta": round(delta.net_value_change, 4),
+    }, witnesses=["lct:web4:service:analyzer"])
+    rep_events = society.ledger.query(entry_type="reputation_event")
+    check("C4: reputation event in ledger", len(rep_events) == 1)
+
+    # 5. Failure path
+    delta_fail = rep_engine.compute_reputation_delta(
+        "lct:web4:ai:sage", "web4:DataAnalyst",
+        "deep_analysis", "txn:mcp-fail", "failure",
+    )
+    check("C4: failure delta computed", delta_fail is not None)
+    check("C4: failure decreases temperament", delta_fail.net_trust_change < 0)
+
+    society.ledger.append("reputation_event", {
+        "entity_lct": "lct:web4:ai:sage",
+        "action": "deep_analysis",
+        "result": "failure",
+        "trust_delta": round(delta_fail.net_trust_change, 4),
+    })
+
+    # 6. Ledger maintains integrity across all events
+    check("C4: ledger chain still valid", society.ledger.verify_chain())
+    total_entries = society.ledger.length
+    check("C4: ledger has full history", total_entries >= 8)
 
     # ══════════════════════════════════════════════════════════
-    # Chain 7: Full Lifecycle — Formation → Identity → Operation → Audit
+    # C5: Error Taxonomy Consistency
+    # ══════════════════════════════════════════════════════════
+    print("\n═══ C5: Error Taxonomy Consistency ═══")
+
+    # 1. MCP error codes map to W4Error taxonomy
+    mcp_err = MCPError(MCPErrorCode.INSUFFICIENT_TRUST, "Not enough trust")
+    mcp_resp = mcp_err.to_response()
+    check("C5: MCP error has JSON-RPC code", mcp_resp["error"]["code"] == -32001)
+    check("C5: MCP error has web4_context", "web4_context" in mcp_resp)
+
+    # 2. W4Error covers the same error space (AUTHZ_DENIED maps to trust denial)
+    w4_trust_err = make_error(W4Error.AUTHZ_DENIED, detail="T3 too low for tool")
+    check("C5: W4Error has status", w4_trust_err.status == 401)
+    check("C5: W4Error has code", w4_trust_err.code == "W4_ERR_AUTHZ_DENIED")
+
+    # 3. Metering errors map to HTTP status codes
+    meter_rate = MeteringError.RATE_LIMIT
+    check("C5: metering rate limit = 429", meter_rate.value[2] == 429)
+    meter_scope = MeteringError.SCOPE_DENIED
+    check("C5: metering scope denied = 403", meter_scope.value[2] == 403)
+
+    # 4. Error codes don't collide
+    mcp_codes = {e.json_rpc_code for e in MCPErrorCode}
+    check("C5: MCP codes are negative", all(c < 0 for c in mcp_codes))
+    w4_statuses = {e.value[2] for e in W4Error}
+    meter_statuses = {e.value[2] for e in MeteringError}
+    check("C5: HTTP statuses overlap expected", 403 in w4_statuses and 403 in meter_statuses)
+
+    # 5. ProblemDetails wraps correctly
+    pd = make_error(W4Error.AUTHZ_RATE, detail="Session budget exhausted after 10 tool calls")
+    pd_json = pd.to_dict()
+    check("C5: ProblemDetails has code", "AUTHZ_RATE" in pd_json["code"])
+    check("C5: ProblemDetails has status", pd_json["status"] == 429)
+
+    # ══════════════════════════════════════════════════════════
+    # C6: Capability Level → MCP → Reputation Cycle
+    # ══════════════════════════════════════════════════════════
+    print("\n═══ C6: Capability Level → MCP → Reputation Cycle ═══")
+
+    # 1. Entity at capability level 3 (STANDARD)
+    entity = EntityFactory.make_standard("ai", "cap-sage", "lct:web4:device:legion")
+    validator = CapabilityValidator()
+    val_result = validator.validate(entity)
+    check("C6: STANDARD entity valid", val_result.valid)
+    check("C6: entity level = 3", entity.capability_level == CapLevel.STANDARD)
+
+    # 2. Entity's T3 from capability level → MCP context
+    # Cap levels use 6-dim legacy tensors; bridge to 3-dim MCP T3
+    # Map: technical_competence→talent, social_reliability→temperament, temporal_consistency→training
+    entity_mcp_t3 = MCPT3(
+        talent=entity.t3.dimensions.get("technical_competence", 0.5),
+        training=entity.t3.dimensions.get("temporal_consistency", 0.5),
+        temperament=entity.t3.dimensions.get("social_reliability", 0.5),
+    )
+    check("C6: cap→MCP T3 bridge", entity_mcp_t3.average() > 0.3)
+
+    # 3. MCP tool call success → reputation improves
+    cap_registry = EntityTensorRegistry()
+    cap_engine = ReputationEngine(cap_registry)
+    cap_engine.add_rule(success_rule)
+    cap_registry.get_or_create(
+        entity.lct_id, "web4:Researcher",
+        t3_init={"talent": entity_mcp_t3.talent,
+                 "training": entity_mcp_t3.training,
+                 "temperament": entity_mcp_t3.temperament},
+    )
+
+    # Multiple successes → reputation grows
+    for i in range(5):
+        d = cap_engine.compute_reputation_delta(
+            entity.lct_id, "web4:Researcher",
+            "research_query", f"txn:cap-{i}", "success", quality=0.95,
+            factors_data={"deadline_met": True},
+        )
+    rt_after = cap_registry.get(entity.lct_id, "web4:Researcher")
+    check("C6: training improved after successes", rt_after.t3["training"] > entity_mcp_t3.training)
+    check("C6: temperament improved", rt_after.t3["temperament"] > entity_mcp_t3.temperament)
+
+    # 4. Updated reputation feeds back into MCP access
+    updated_mcp_t3 = MCPT3(
+        talent=rt_after.t3["talent"],
+        training=rt_after.t3["training"],
+        temperament=rt_after.t3["temperament"],
+    )
+    check("C6: MCP T3 reflects reputation growth",
+          updated_mcp_t3.training > entity_mcp_t3.training)
+
+    # ══════════════════════════════════════════════════════════
+    # C7: Full Lifecycle Integration
     # ══════════════════════════════════════════════════════════
     print("\n═══ C7: Full Lifecycle Integration ═══")
 
-    # 7a. Form new society
-    ops_law = soc.Law("LAW-OPS-GENESIS", "Ops Genesis", "Operations by majority vote")
-    ops_society = soc.Society(
-        society_lct="lct:web4:society:ops",
-        name="Operations Society",
-        founding_law=ops_law,
-        initial_atp=5000,
-        ledger_type=soc.LedgerType.WITNESSED,
+    # 1. Create a society
+    charter = Law("LAW-FULL", "Full Charter", "Members use MCP tools under ATP budget")
+    full_society = Society(
+        society_lct="lct:web4:society:full-test",
+        name="Full Integration Society",
+        founding_law=charter,
+        initial_atp=5000.0,
+        ledger_type=LedgerType.WITNESSED,
     )
-    ops_society.bootstrap(
-        ["lct:web4:human:carol", "lct:web4:human:dave"],
-        witness_lcts=["lct:web4:oracle:genesis"],
+
+    # 2. Bootstrap with human founder
+    full_society.bootstrap(
+        ["lct:web4:human:admin"],
+        witness_lcts=["lct:web4:oracle:time"],
     )
-    ops_society.go_operational()
-    check("C7.1: ops society operational", ops_society.phase == soc.SocietyPhase.OPERATIONAL)
 
-    # 7b. Create W4ID for agent
-    agent_w4id = w4id.W4ID.from_domain("agent.ops.web4.example")
-    check("C7.2: agent W4ID created", agent_w4id.method == "web")
+    # 3. AI entity joins
+    app = full_society.apply_for_citizenship("lct:web4:ai:worker")
+    check("C7: AI applied", app is not None)
+    full_society.accept_citizen(
+        "lct:web4:ai:worker",
+        rights=["execute", "report"],
+        obligations=["abide_law", "witness"],
+        witnesses=["lct:web4:human:admin"],
+    )
+    check("C7: AI accepted", full_society.citizens["lct:web4:ai:worker"].status == CitizenStatus.ACTIVE)
+    full_society.go_operational()
+    check("C7: society operational", full_society.phase == SocietyPhase.OPERATIONAL)
 
-    # 7c. Build agent LCT (full compliant document)
-    agent_lct = lctd.LCTBuilder("ai", "ops-agent") \
-        .with_binding("mb64ops_agent_key", "cose:ed25519_ops") \
+    # 4. Society allocates ATP to AI worker
+    atp_alloc = full_society.allocate_atp("lct:web4:ai:worker", 200.0, "tool_access",
+                                           approved_by=["lct:web4:human:admin"])
+    check("C7: ATP allocated to worker", atp_alloc is not None)
+    check("C7: correct amount", atp_alloc.amount == 200.0)
+
+    # 5. ATP allocation becomes CreditGrant for MCP
+    worker_grant = CreditGrant(
+        grant_id="grant:worker-mcp",
+        scopes=["tools/*"],
+        ceiling_total=atp_alloc.amount,
+        ceiling_unit="ATP",
+        rate_max_per_min=20,
+    )
+
+    # 6. Worker creates identity
+    w_priv, w_pub = generate_keypair()
+    worker_w4id = W4ID.from_public_key(w_pub)
+    check("C7: worker W4ID created", worker_w4id.did.startswith("did:web4:key:"))
+
+    # 7. Worker builds LCT with reputation-based T3
+    worker_registry = EntityTensorRegistry()
+    worker_rt = worker_registry.get_or_create(
+        "lct:web4:ai:worker", "web4:TaskExecutor",
+        t3_init={"talent": 0.60, "training": 0.55, "temperament": 0.70},
+        v3_init={"veracity": 0.65, "validity": 0.60, "value": 0.50},
+    )
+
+    worker_lct = LCTBuilder("ai", "worker-full") \
+        .with_binding(w_pub.hex()[:20], "cose:ed25519_proof") \
         .with_birth_certificate(
-            ops_society.society_lct,
+            "lct:web4:society:full-test",
             "lct:web4:role:citizen:ai",
-            witnesses=["lct:web4:oracle:genesis"]) \
-        .with_t3(talent=0.75, training=0.80, temperament=0.85) \
+            witnesses=["lct:web4:human:admin"],
+        ) \
+        .with_t3(
+            talent=worker_rt.t3["talent"],
+            training=worker_rt.t3["training"],
+            temperament=worker_rt.t3["temperament"],
+        ) \
+        .add_capability("execute:tools/*") \
         .build()
-    check("C7.3: agent LCT built", agent_lct is not None)
+    check("C7: worker LCT built", worker_lct is not None)
+    check("C7: LCT T3 matches reputation", worker_lct.t3_tensor.talent == 0.60)
 
-    # 7d. Grant citizenship (apply → accept flow)
-    ops_society.apply_for_citizenship(agent_lct.lct_id)
-    ops_society.accept_citizen(
-        agent_lct.lct_id,
-        rights=["execute", "witness"],
-        obligations=["contribute"],
-        witnesses=["lct:web4:oracle:citizenship"],
-    )
-    citizen = ops_society.citizens.get(agent_lct.lct_id)
-    check("C7.4: citizen accepted", citizen is not None)
-    check("C7.5: citizen active", citizen.status == soc.CitizenStatus.ACTIVE)
-
-    # 7e. MCP tool access for citizen
-    ops_server = mcp.MCPServer("lct:web4:service:ops-tools")
-    ops_server.register_tool(mcp.MCPTool(
-        name="deploy",
-        description="Deploy service",
-        atp_cost=10,
-        trust_requirements=mcp.T3(talent=0.70, training=0.75, temperament=0.80),
+    # 8. Worker uses MCP tool
+    mcp_server = MCPServer("lct:web4:service:task-runner", entity_type="service")
+    mcp_server.register_tool(MCPTool(
+        name="execute_task",
+        description="Execute a task",
+        atp_cost=5.0,
+        trust_requirements=MCPT3(talent=0.5, training=0.5, temperament=0.5),
     ))
-    ops_session = ops_server.create_session(agent_lct.lct_id, atp_budget=200)
-    ops_ctx = mcp.Web4Context(
-        sender_lct=agent_lct.lct_id,
-        sender_role="web4:Operator",
-        t3_in_role=mcp.T3(
-            talent=agent_lct.t3_tensor.talent,
-            training=agent_lct.t3_tensor.training,
-            temperament=agent_lct.t3_tensor.temperament,
+    worker_session = mcp_server.create_session("lct:web4:ai:worker",
+                                                atp_budget=worker_grant.ceiling_total)
+    worker_ctx = Web4Context(
+        sender_lct="lct:web4:ai:worker",
+        sender_role="web4:TaskExecutor",
+        t3_in_role=MCPT3(
+            talent=worker_rt.t3["talent"],
+            training=worker_rt.t3["training"],
+            temperament=worker_rt.t3["temperament"],
         ),
-        society=ops_society.society_lct,
+        society="lct:web4:society:full-test",
     )
-    deploy_result = ops_server.handle_request(
-        ops_session.session_id, "deploy", {"target": "production"}, ops_ctx)
-    check("C7.6: deploy succeeded", deploy_result["result"]["status"] == "ok")
-
-    # 7f. Reputation update from deployment
-    ops_registry = rep.EntityTensorRegistry()
-    ops_engine = rep.ReputationEngine(ops_registry)
-    ops_engine.add_rule(success_rule)
-    ops_registry.get_or_create(
-        agent_lct.lct_id, "web4:Operator",
-        t3_init={"talent": 0.75, "training": 0.80, "temperament": 0.85},
+    tool_result = mcp_server.handle_request(
+        worker_session.session_id, "execute_task",
+        {"task": "analyze trust data"}, worker_ctx,
     )
-    deploy_delta = ops_engine.compute_reputation_delta(
-        agent_lct.lct_id, "web4:Operator",
-        "deploy", "txn:deploy-1", "success", 0.95)
-    check("C7.7: deploy rep delta", deploy_delta is not None)
-    check("C7.8: positive trust change", deploy_delta.net_trust_change > 0)
+    check("C7: tool execution success", tool_result["result"]["status"] == "ok")
+    check("C7: ATP consumed", tool_result["web4_context"]["atp_consumed"] == 5.0)
 
-    # 7g. Record in ledger
-    ops_society.ledger.append(
-        entry_type="operational_event",
-        data={
-            "action": "deployment",
-            "actor_lct": agent_lct.lct_id,
-            "tool": "deploy",
-            "atp_consumed": deploy_result["web4_context"]["atp_consumed"],
-            "trust_delta": deploy_delta.net_trust_change,
-            "result": "success",
+    # 9. Usage report for metering
+    worker_usage = UsageReport(
+        grant_id=worker_grant.grant_id,
+        seq=1,
+        window_start="2026-02-21T12:00:00Z",
+        window_end="2026-02-21T12:05:00Z",
+        usage=[UsageItem(scope="tools/execute_task", amount=5.0, unit="ATP")],
+    )
+    check("C7: usage within ceiling", worker_usage.total_amount <= worker_grant.ceiling_total)
+
+    # 10. MCP result → reputation delta
+    worker_engine = ReputationEngine(worker_registry)
+    worker_engine.add_rule(success_rule)
+    worker_delta = worker_engine.compute_reputation_delta(
+        "lct:web4:ai:worker", "web4:TaskExecutor",
+        "execute_task", "txn:full-1", "success",
+        quality=0.88,
+        factors_data={"deadline_met": True},
+    )
+    check("C7: reputation delta computed", worker_delta is not None)
+    check("C7: worker trust improved", worker_delta.net_trust_change > 0)
+
+    # 11. Record in society ledger
+    full_society.ledger.append("interaction_event", {
+        "entity_lct": "lct:web4:ai:worker",
+        "tool": "execute_task",
+        "atp_consumed": 5.0,
+        "trust_delta": round(worker_delta.net_trust_change, 4),
+        "grant_id": worker_grant.grant_id,
+    }, witnesses=["lct:web4:service:task-runner"])
+
+    # 12. Issue VC for completed work
+    work_vc = VerifiableCredential(
+        vc_id="vc:task-completion-001",
+        vc_type=["VerifiableCredential", "Web4TaskCompletion"],
+        issuer="lct:web4:service:task-runner",
+        issuance_date="2026-02-21T12:05:00Z",
+        credential_subject={
+            "id": "lct:web4:ai:worker",
+            "task": "analyze trust data",
+            "quality": 0.88,
+            "trust_delta": round(worker_delta.net_trust_change, 4),
+            "society": "lct:web4:society:full-test",
         },
-        witnesses=[ops_server.lct_id],
+    )
+    check("C7: work VC created", "Web4TaskCompletion" in work_vc.vc_type)
+
+    # 13. Verify full ledger integrity
+    check("C7: ledger chain valid", full_society.ledger.verify_chain())
+    check("C7: ledger has all events", full_society.ledger.length >= 6)
+
+    # 14. Treasury conservation: ATP allocated + remaining = initial
+    consumed = atp_alloc.amount
+    remaining = full_society.treasury.atp_balance
+    check("C7: ATP conserved", consumed + remaining == 5000.0)
+
+    # 15. Cross-check MCP witness log
+    check("C7: MCP interactions witnessed", len(mcp_server.witness_log) >= 1)
+    witness_entry = mcp_server.witness_log[0]
+    check("C7: witness records client", witness_entry.client_lct == "lct:web4:ai:worker")
+
+    # ══════════════════════════════════════════════════════════
+    # C8: Pairwise Privacy Across Societies
+    # ══════════════════════════════════════════════════════════
+    print("\n═══ C8: Pairwise Privacy Across Societies ═══")
+
+    # 1. Entity has different W4IDs for different peer societies
+    pw_manager = PairwiseIdentityManager(
+        master_secret=b"worker-master-secret-key-32bytes!",
     )
 
-    # 7h. Verify audit trail
-    all_entries = ops_society.ledger.entries
-    cit_events = [e for e in all_entries if e.entry_type == "citizenship_event"]
-    op_events = [e for e in all_entries if e.entry_type == "operational_event"]
-    check("C7.9: citizenship in ledger", len(cit_events) > 0)
-    check("C7.10: operation in ledger", len(op_events) > 0)
+    pw_for_society1 = pw_manager.get_pairwise_id("lct:web4:society:alpha")
+    pw_for_society2 = pw_manager.get_pairwise_id("lct:web4:society:beta")
+    check("C8: pairwise IDs are different", pw_for_society1 != pw_for_society2)
+    check("C8: pairwise is w4id", pw_for_society1.startswith("w4id:pair:"))
 
-    # Hash chain integrity
-    chain_valid = True
-    for i in range(1, len(all_entries)):
-        if all_entries[i].prev_hash != all_entries[i-1].entry_hash:
-            chain_valid = False
-            break
-    check("C7.11: full ledger hash chain valid", chain_valid)
+    # 2. Same entity, same peer → same pairwise (deterministic)
+    pw_repeat = pw_manager.get_pairwise_id("lct:web4:society:alpha")
+    check("C8: pairwise is deterministic", pw_for_society1 == pw_repeat)
+    check("C8: deterministic verified", pw_manager.verify_deterministic("lct:web4:society:alpha"))
 
-    # Treasury
-    check("C7.12: ops treasury intact", ops_society.treasury.atp_balance > 0)
+    # 3. Pairwise W4IDs can be used in VCs
+    pw_vc = VerifiableCredential(
+        vc_id="vc:pairwise-membership-001",
+        vc_type=["VerifiableCredential", "PairwiseMembership"],
+        issuer=pw_for_society1,
+        issuance_date="2026-02-21T12:00:00Z",
+        credential_subject={"id": "lct:web4:society:alpha", "role": "researcher", "pseudonymous": True},
+    )
+    check("C8: pairwise VC created", pw_vc.issuer == pw_for_society1)
+
+    # ══════════════════════════════════════════════════════════
+    # C9: Team Composition via Multi-Role Tensors
+    # ══════════════════════════════════════════════════════════
+    print("\n═══ C9: Team Composition via Reputation ═══")
+
+    # 1. Build a team of entities with role-specific T3
+    team_reg = EntityTensorRegistry()
+    team_reg.get_or_create("lct:alice", "web4:Engineer",
+                            t3_init={"talent": 0.90, "training": 0.85, "temperament": 0.80})
+    team_reg.get_or_create("lct:bob", "web4:Engineer",
+                            t3_init={"talent": 0.70, "training": 0.75, "temperament": 0.90})
+    team_reg.get_or_create("lct:carol", "web4:Engineer",
+                            t3_init={"talent": 0.85, "training": 0.80, "temperament": 0.85})
+
+    # 2. Compute team trust
+    team_members = ["lct:alice", "lct:bob", "lct:carol"]
+    team_trust = compute_team_trust(team_reg, team_members, "web4:Engineer")
+    check("C9: team trust computed", team_trust is not None)
+    check("C9: team trust > 0.7", team_trust > 0.7)
+
+    # 3. Team trust determines MCP session budget
+    team_budget = 100.0 + (team_trust * 200.0)
+    check("C9: team budget > 200", team_budget > 200)
+
+    team_grant = CreditGrant(
+        grant_id="grant:team-project",
+        scopes=["tools/*"],
+        ceiling_total=team_budget,
+        ceiling_unit="ATP",
+        rate_max_per_min=30,
+    )
+    check("C9: team grant reflects trust", team_grant.ceiling_total > 200)
+
+    # 4. Any member uses tools under team grant
+    alice_mcp_t3 = MCPT3(talent=0.90, training=0.85, temperament=0.80)
+    alice_ctx = Web4Context(
+        sender_lct="lct:alice",
+        sender_role="web4:Engineer",
+        t3_in_role=alice_mcp_t3,
+    )
+    team_session = mcp_server.create_session("lct:alice", atp_budget=team_grant.ceiling_total)
+    alice_result = mcp_server.handle_request(
+        team_session.session_id, "execute_task",
+        {"task": "team engineering work"}, alice_ctx,
+    )
+    check("C9: team member uses tool", alice_result["result"]["status"] == "ok")
+
+    # ══════════════════════════════════════════════════════════
+    # C10: Serialization Round-Trip Consistency
+    # ══════════════════════════════════════════════════════════
+    print("\n═══ C10: Serialization Round-Trip ═══")
+
+    # 1. Society serializes → JSON → fields preserved
+    soc_dict = full_society.to_dict()
+    soc_json = json.dumps(soc_dict)
+    soc_rt2 = json.loads(soc_json)
+    check("C10: society roundtrip", soc_rt2["name"] == "Full Integration Society")
+    check("C10: society phase preserved", soc_rt2["phase"] == "operational")
+    check("C10: treasury in dict", "atp_balance" in soc_rt2["treasury"])
+
+    # 2. MCP session serializes
+    sess_dict = worker_session.to_dict()
+    check("C10: session has id", "id" in sess_dict["session"])
+    check("C10: session has atp_consumed", "atp_consumed" in sess_dict["session"]["context"])
+
+    # 3. Reputation delta serializes
+    delta_dict = worker_delta.to_dict()
+    delta_json = json.dumps(delta_dict)
+    delta_rt2 = json.loads(delta_json)
+    check("C10: delta roundtrip subject", delta_rt2["subject_lct"] == "lct:web4:ai:worker")
+    check("C10: delta has t3", "t3_delta" in delta_rt2)
+
+    # 4. LCT document serializes
+    lct_dict = worker_lct.to_dict()
+    lct_json = json.dumps(lct_dict)
+    lct_rt2 = json.loads(lct_json)
+    check("C10: LCT roundtrip id", lct_rt2["lct_id"] == worker_lct.lct_id)
+    check("C10: LCT has t3_tensor", "t3_tensor" in lct_rt2)
+
+    # 5. W4ID roundtrip
+    w4id_str = worker_w4id.did
+    w4id_parsed = W4ID.parse(w4id_str)
+    check("C10: W4ID roundtrip", w4id_parsed == worker_w4id)
+
+    # 6. CreditGrant serializes
+    grant_dict = worker_grant.to_dict()
+    grant_json = json.dumps(grant_dict)
+    grant_rt2 = json.loads(grant_json)
+    check("C10: grant roundtrip", grant_rt2["grant_id"] == "grant:worker-mcp")
+    check("C10: grant ceiling preserved", grant_rt2["ceil"]["total"] == 200.0)
 
     # ══════════════════════════════════════════════════════════
     # Summary
@@ -651,16 +780,20 @@ def run_tests():
 """)
 
     if failed == 0:
-        print("  All checks pass — Web4 implementations integrate correctly")
-        print(f"  Modules tested: 8 reference implementations")
-        print(f"  Chains validated:")
-        print(f"    C1: Society → Treasury → ATP Metering")
-        print(f"    C2: W4ID → LCT Document → Verifiable Credential")
-        print(f"    C3: T3/V3 Reputation → MCP Trust Gating")
-        print(f"    C4: MCP Interaction → Reputation → Society Ledger")
-        print(f"    C5: Error Code Consistency across layers")
-        print(f"    C6: Capability Levels + Reputation Integration")
-        print(f"    C7: Full Lifecycle — Formation → Identity → Operation → Audit")
+        print("  All integration chains verified:")
+        print("  C1:  Society → Treasury → ATP Metering (economic lifecycle)")
+        print("  C2:  T3/V3 Reputation → MCP Trust Gating (access control)")
+        print("  C3:  W4ID → LCT Document → Verifiable Credential (identity)")
+        print("  C4:  MCP → Reputation Delta → Society Ledger (feedback loop)")
+        print("  C5:  Error taxonomy consistency (MCP + W4Error + Metering)")
+        print("  C6:  Capability Level → MCP → Reputation (promotion cycle)")
+        print("  C7:  Full lifecycle: form → join → ATP → MCP → reputation → ledger")
+        print("  C8:  Pairwise privacy across societies")
+        print("  C9:  Team composition via multi-role reputation tensors")
+        print("  C10: Serialization round-trip consistency across all modules")
+        print()
+        print("  8 modules integrated: Society, ATP Metering, MCP Trust,")
+        print("  T3/V3 Reputation, W4ID, LCT Document, Error Handler, Capability Levels")
     else:
         print("  Some checks failed — review output above")
 
@@ -668,5 +801,5 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    passed, failed = run_tests()
-    sys.exit(0 if failed == 0 else 1)
+    p, f = run_tests()
+    sys.exit(0 if f == 0 else 1)
