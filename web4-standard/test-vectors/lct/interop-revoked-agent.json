@@ -1,0 +1,61 @@
+{
+  "canonical_hash": "630dd9508ca838574e1b521e4f64f42770e760de44ee482907737e853b2769eb",
+  "description": "Revoked AI agent LCT",
+  "expected_output": {
+    "binding": {
+      "binding_proof": "cose:revoked_proof",
+      "created_at": "2026-01-01T00:00:00Z",
+      "entity_type": "ai",
+      "public_key": "mb64revokedkey"
+    },
+    "birth_certificate": {
+      "birth_timestamp": "2026-01-01T00:00:00Z",
+      "birth_witnesses": [
+        "lct:web4:witness-w1",
+        "lct:web4:witness-w2",
+        "lct:web4:witness-w3"
+      ],
+      "citizen_role": "lct:web4:role:citizen:ai",
+      "context": "platform",
+      "issuing_society": "lct:web4:society-test"
+    },
+    "lct_id": "lct:web4:ai:revoked-agent-999",
+    "lineage": [
+      {
+        "reason": "genesis",
+        "ts": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "mrh": {
+      "bound": [],
+      "horizon_depth": 3,
+      "last_updated": "2026-02-15T12:00:00Z",
+      "paired": [
+        {
+          "lct_id": "lct:web4:role:citizen:ai",
+          "pairing_type": "birth_certificate",
+          "permanent": true,
+          "ts": "2026-01-01T00:00:00Z"
+        }
+      ]
+    },
+    "policy": {
+      "capabilities": []
+    },
+    "revocation": {
+      "reason": "compromise",
+      "status": "revoked",
+      "ts": "2026-02-15T12:00:00Z"
+    },
+    "subject": "did:web4:key:z6MkRevoked",
+    "t3_tensor": {
+      "composite_score": 0.21,
+      "talent": 0.3,
+      "temperament": 0.1,
+      "training": 0.2
+    }
+  },
+  "notes": "Cross-language interop test vector",
+  "schema_version": "1.0",
+  "should_succeed": true
+}
