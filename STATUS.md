@@ -1129,10 +1129,55 @@ See [`SECURITY.md`](SECURITY.md) for comprehensive assessment.
    - Cross-mechanism integration: bind→pair→witness→broadcast→MRH→T3 in single scenario
    - See: `implementation/reference/entity_relationships_unified.py`
 
+95. ✅ **MRH Grounding & Coherence Index — ephemeral operational presence** (Feb 22, 2026)
+   - Implements MRH_GROUNDING_PROPOSAL.md: 137/137 checks
+   - 5th MRH relationship type: GROUNDING (ephemeral operational presence, not persistent identity)
+   - Coherence Index (CI): 4-dimension weighted geometric mean (spatial, capability, temporal, relational)
+   - Consequence Index (CX): 5-level action classification with CI/CX gating threshold = 0.3 + cx×0.6
+   - Trust modulation: CI gates T3 application, ATP cost multipliers (up to 10×), witness requirements
+   - Security: impossible travel (haversine), capability spoofing, history poisoning detection
+   - Full lifecycle: register→ground→modulate→escalate→degrade→remove
+   - RDF serialization: Turtle format for grounding edges and CI scores
+   - See: `implementation/reference/mrh_grounding_coherence.py`
+
+96. ✅ **ATP Insurance Protocol — federation-wide insurance pools** (Feb 22, 2026)
+   - Implements ATP_INSURANCE_PROTOCOL.md: 118/118 checks
+   - Insurance pools: per-society pools with reserve ratio (≥0.2), max-payout (3× premium), hash-chained audit
+   - Dynamic premiums: 4 tiers (LOW_RISK 0.8×, STANDARD 1.0×, ELEVATED 1.3×, HIGH_RISK 1.8×)
+   - Claims: fraud evaluation (claim score based on evidence, history, collusion), cooling-off period
+   - Parametric insurance: auto-trigger on ATP threshold breach (no manual claims)
+   - Reinsurance: pool-of-pools with cascading escalation and contribution ratios
+   - Collusion detection: timing correlation, outcome alignment, ATP funneling analysis
+   - Attribution engine: ATP flow tracking with lineage chains
+   - See: `implementation/reference/atp_insurance_protocol.py`
+
+97. ✅ **Cognitive Sub-Entity Framework — hierarchical LCT spawning** (Feb 22, 2026)
+   - Implements RFC_COGNITIVE_SUB_ENTITIES.md: 117/117 checks
+   - Sub-entity types: AGENT, MODEL, TOOL, ROLE, VALIDATOR with autonomy levels
+   - Trust inheritance: autonomy-gated coefficients (SUPERVISED 0.9×, SEMI 0.8×, AUTONOMOUS 0.6×, FULLY 0.4×)
+   - Trust evolution: delta = 0.02 × (outcome_quality - 0.5) per decision, gradual autonomy promotion
+   - Collusion detection: timing correlation, outcome alignment, ATP funneling between sub-entities
+   - Conflict resolution: inter-sub-entity conflicts with priority ordering
+   - ATP attribution: per-sub-entity cost tracking with parent caps
+   - Cognitive diversity: ensemble deviation scoring for group intelligence metrics
+   - See: `implementation/reference/cognitive_sub_entity.py`
+
+98. ✅ **Temporal Authentication — surprise-based continuous auth** (Feb 22, 2026)
+   - Implements RFC_TEMPORAL_AUTHENTICATION.md: 114/114 checks
+   - Temporal patterns: weekday/weekend × time-slot × location probability distributions
+   - Surprise calculation: surprise = 1 - P(current_context | temporal_pattern)
+   - Trust modulation: T3_new = T3_old × (1 - surprise × 0.5), V3_new = V3_old × (1 - surprise × 0.3)
+   - Graduated auth actions: CONTINUE (<0.3), VALIDATE (0.3-0.6), WITNESS_REQUEST (0.6-0.8), QUARANTINE (>0.8)
+   - Pattern learning: adaptive observation engine with learning rate, drift detection against baseline
+   - Network fingerprints: IP prefix matching for location resolution
+   - Anomaly broadcasting: federation alerts when surprise > 0.6, with ATP cost model
+   - RDF serialization: Turtle format for temporal patterns and auth events
+   - See: `implementation/reference/temporal_authentication.py`
+
 ### Immediate (Feb 2026)
 
-95. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
-96. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
+99. 🔄 TrustZone binding on Thor/Sprout (OP-TEE setup)
+100. 🔄 Cross-ledger consistency protocol (ACT blockchain integration)
 
 ### Near-Term (Q1 2026)
 
@@ -1213,7 +1258,7 @@ Both projects use **same honest posture**:
 
 ## Conclusion
 
-Web4 has done **substantial research work** (~72k lines code, 45+ research sessions, comprehensive documentation) exploring trust-native coordination for distributed AI.
+Web4 has done **substantial research work** (~76k lines code, 45+ research sessions, comprehensive documentation) exploring trust-native coordination for distributed AI.
 
 **December 2025 - February 2026 Progress**:
 - Phase 2 coordination framework validated (4 variants)
