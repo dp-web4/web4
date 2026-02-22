@@ -1,0 +1,244 @@
+@prefix web4: <https://web4.io/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+
+# ===========================================================================
+# Web4 Core Ontology — Binding, Pairing, Witness, Action, and Identity
+#
+# Formalizes the 22 predicates used across Web4 reference implementations
+# that were not covered by the domain-specific ontologies:
+#   - t3v3-ontology.ttl  (trust/value tensors)
+#   - sal-ontology.ttl   (society/authority/law)
+#   - acp-ontology.ttl   (agentic context protocol)
+#   - agy-ontology.ttl   (agency delegation)
+#
+# These predicates are the fundamental verbs of the Web4 trust substrate:
+# how entities bind, pair, witness, act, and reference each other.
+#
+# Discovery: RDF Ontology Consistency test (rdf_ontology_consistency.py)
+# identified 42 predicate instances (22 unique) used in 6 implementations
+# but absent from formal ontology definitions.
+#
+# Canonical namespace: https://web4.io/ontology#
+# ===========================================================================
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CLASSES
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:Binding a rdfs:Class ;
+  rdfs:comment "A permanent presence attachment between an entity and its trust substrate. Bindings are hierarchical (parent/child/sibling) and form the hardware-to-digital trust chain." .
+
+web4:Pairing a rdfs:Class ;
+  rdfs:comment "An authorized operational relationship between entities with symmetric key exchange. Pairings are channel-typed: energy (ATP/ADP), data, or service." .
+
+web4:WitnessAttestation a rdfs:Class ;
+  rdfs:comment "A trust-building observation recorded by a witness entity. Witness types include time-based, audit, and oracle attestations." .
+
+web4:ActionRecord a rdfs:Class ;
+  rdfs:comment "A recorded action in the R6/R7 framework. Captures action type, target resource, ATP cost, and authorizing law hash." .
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  BINDING PROPERTIES
+#
+#  Binding = permanent presence attachment (hardware to LCT, entity to
+#  society). Hierarchical bindings form the silicon→EK→TPM2→team→bridge
+#  trust chain verified in e2e_trust_chain_demo.py.
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:boundTo a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "Permanent binding between an entity and its trust anchor (e.g., LCT to hardware, entity to society). The foundational relationship in Web4's presence model." .
+
+web4:parentBinding a rdf:Property ;
+  rdfs:domain web4:Binding ;
+  rdfs:range web4:Binding ;
+  rdfs:comment "Links a binding to its parent in the hierarchy (e.g., battery module bound to pack controller)." .
+
+web4:childBinding a rdf:Property ;
+  rdfs:domain web4:Binding ;
+  rdfs:range web4:Binding ;
+  rdfs:comment "Links a binding to a subordinate binding. Inverse of web4:parentBinding." .
+
+web4:siblingBinding a rdf:Property ;
+  rdfs:domain web4:Binding ;
+  rdfs:range web4:Binding ;
+  rdfs:comment "Links bindings at the same hierarchical level (peer relationships within a cluster)." .
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PAIRING PROPERTIES
+#
+#  Pairing = authorized operational relationship with symmetric keys.
+#  Three channel types reflect the biological membrane metaphor:
+#  energy (ATP/ADP exchange), data (information), service (capability).
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:energyPairing a rdf:Property ;
+  rdfs:domain web4:Pairing ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "An energy-channel pairing for ATP/ADP metabolic exchange between entities." .
+
+web4:dataPairing a rdf:Property ;
+  rdfs:domain web4:Pairing ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "A data-channel pairing for information exchange between entities." .
+
+web4:servicePairing a rdf:Property ;
+  rdfs:domain web4:Pairing ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "A service-channel pairing for capability invocation between entities." .
+
+web4:pairedWithRole a rdf:Property ;
+  rdfs:domain web4:Pairing ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "The role context under which a pairing was established. Pairings are role-scoped." .
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  WITNESS PROPERTIES
+#
+#  Witnessing = trust building through observation. Three witness types:
+#  time (temporal validity), audit (compliance), oracle (external truth).
+#  Extends web4:witnessedBy (defined in t3v3-ontology.ttl).
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:timeWitness a rdf:Property ;
+  rdfs:domain web4:WitnessAttestation ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "A time-based witness attesting to temporal validity. Used in Merkle heartbeat verification." .
+
+web4:auditWitness a rdf:Property ;
+  rdfs:domain web4:WitnessAttestation ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "An audit witness providing compliance verification. Linked to AuditorRole in SAL." .
+
+web4:oracleWitness a rdf:Property ;
+  rdfs:domain web4:WitnessAttestation ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "An oracle witness providing external truth attestation. Linked to LawOracle in SAL." .
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  ENTITY-ROLE PROPERTIES
+#
+#  Trust is always role-specific in Web4. An entity inhabits roles; each
+#  role has its own T3/V3 tensor scores. web4:hasRole is the bridge.
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:hasRole a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "Links an entity to a role it inhabits. Trust is always role-specific: the same entity may have different T3 scores in different roles." .
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  TENSOR BINDING PROPERTIES
+#
+#  These link entities (via role context) to their trust and value tensors.
+#  Complements web4:entity and web4:role in t3v3-ontology.ttl by providing
+#  the inverse direction: entity → tensor (not tensor → entity).
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:hasT3Tensor a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range web4:T3Tensor ;
+  rdfs:comment "Links an entity-role pair to its trust tensor (Talent/Training/Temperament). Inverse direction of web4:entity on T3Tensor." .
+
+web4:hasV3Tensor a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range web4:V3Tensor ;
+  rdfs:comment "Links an entity-role pair to its value tensor (Valuation/Veracity/Validity). Inverse direction of web4:entity on V3Tensor." .
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  ACTION METADATA PROPERTIES
+#
+#  The R6 framework (Rules/Role/Request/Reference/Resource/Result) requires
+#  action records with type, target, cost, and policy reference.
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:actionType a rdf:Property ;
+  rdfs:domain web4:ActionRecord ;
+  rdfs:range xsd:string ;
+  rdfs:comment "The R6/R7 action type identifier (e.g., 'data_access', 'fund_transfer')." .
+
+web4:resource a rdf:Property ;
+  rdfs:domain web4:ActionRecord ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "The R6 Resource targeted by an action." .
+
+web4:atpCost a rdf:Property ;
+  rdfs:domain web4:ActionRecord ;
+  rdfs:range xsd:decimal ;
+  rdfs:comment "ATP units consumed by this action. Part of the ATP/ADP metabolic cycle." .
+
+web4:lawHash a rdf:Property ;
+  rdfs:domain web4:ActionRecord ;
+  rdfs:range xsd:string ;
+  rdfs:comment "Hash reference to the law/policy authorizing this action. Links actions to SAL governance." .
+
+web4:authorizedAction a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range web4:ActionRecord ;
+  rdfs:comment "Links an entity to an action it is authorized to perform under current policy." .
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  DELEGATION PROPERTIES (extends SAL)
+#
+#  web4:delegatesTo is defined in sal-ontology.ttl (AuthorityRole → AuthorityRole).
+#  web4:delegatedBy is its inverse, needed for bidirectional trust traversal
+#  in MRH policy scoping.
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:delegatedBy a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "Inverse of web4:delegatesTo. The entity that granted delegation authority. Required for bidirectional MRH trust traversal." .
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  IDENTITY PROPERTIES
+#
+#  Cross-cutting identity relationships used across multiple modules.
+# ═══════════════════════════════════════════════════════════════════════════
+
+web4:references a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range rdfs:Resource ;
+  rdfs:comment "Generic reference link between entities or records. Used for cross-module traceability." .
+
+web4:birthCertificate a rdf:Property ;
+  rdfs:domain rdfs:Resource ;
+  rdfs:range web4:Web4BirthCertificate ;
+  rdfs:comment "Links an entity to its birth certificate establishing initial presence. References Web4BirthCertificate class from SAL ontology." .
+
+
+# ===========================================================================
+# Summary: 4 classes, 22 properties
+#
+# Classes: Binding, Pairing, WitnessAttestation, ActionRecord
+# Properties by category:
+#   Binding (4):   boundTo, parentBinding, childBinding, siblingBinding
+#   Pairing (4):   energyPairing, dataPairing, servicePairing, pairedWithRole
+#   Witness (3):   timeWitness, auditWitness, oracleWitness
+#   Entity-Role (1): hasRole
+#   Tensor (2):    hasT3Tensor, hasV3Tensor
+#   Action (5):    actionType, resource, atpCost, lawHash, authorizedAction
+#   Delegation (1): delegatedBy
+#   Identity (2):  references, birthCertificate
+#
+# Combined with existing ontologies:
+#   Total classes:    21 + 4 = 25
+#   Total properties: 38 + 22 = 60
+#
+# This closes the gap identified by rdf_ontology_consistency.py where
+# 22 unique predicates were used in implementations but not formally
+# defined in any ontology file.
+# ===========================================================================

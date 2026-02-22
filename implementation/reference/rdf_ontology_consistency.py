@@ -322,6 +322,7 @@ def run_tests():
         f"{BASE}/forum/nova/ACP-bundle/acp-ontology.ttl",
         f"{BASE}/forum/nova/agency-bundle/agy-ontology.ttl",
         f"{BASE}/forum/nova/web4-sal-bundle/sal-ontology.ttl",
+        f"{BASE}/web4-standard/ontology/web4-core-ontology.ttl",
     ]
 
     ontologies = []
@@ -332,7 +333,7 @@ def run_tests():
         exists = len(onto.parse_errors) == 0
         check(f"T1: {name} parsed", exists)
 
-    check("T1: 4 ontology files found", len(ontologies) == 4)
+    check("T1: 5 ontology files found", len(ontologies) == 5)
 
     # Count total definitions
     total_classes = sum(len(o.classes) for o in ontologies)
@@ -417,6 +418,13 @@ def run_tests():
     # AGY ontology classes
     agy = ontologies[2]
     check("T4: AgencyGrant defined in AGY", any("Grant" in c or "Agency" in c for c in agy.classes))
+
+    # Core ontology classes
+    core = ontologies[4]
+    check("T4: Binding defined in core", any("Binding" in c for c in core.classes))
+    check("T4: Pairing defined in core", any("Pairing" in c for c in core.classes))
+    check("T4: WitnessAttestation defined in core", any("WitnessAttestation" in c for c in core.classes))
+    check("T4: ActionRecord defined in core", any("ActionRecord" in c for c in core.classes))
 
     # ─── T5: Property Definitions ───
     print("\n═══ T5: Property Definitions ═══")
@@ -555,10 +563,25 @@ def run_tests():
 
     # Report undefined predicates
     if report.undefined_predicates:
-        print(f"\n    Implementation predicates not in ontology ({len(report.undefined_predicates)}):")
-        for file, pred in report.undefined_predicates[:15]:
-            print(f"      {file}: {pred}")
-    check("T11: undefined predicates cataloged", True)
+        # Separate structural predicates (lowercase local name) from
+        # role/instance references (uppercase local name like Engineer, Talent)
+        structural = [(f, p) for f, p in report.undefined_predicates
+                      if p.split(":")[-1][0].islower()]
+        instances = [(f, p) for f, p in report.undefined_predicates
+                     if p.split(":")[-1][0].isupper()]
+
+        if structural:
+            print(f"\n    Structural predicates still undefined ({len(structural)}):")
+            for file, pred in structural[:15]:
+                print(f"      {file}: {pred}")
+        if instances:
+            print(f"\n    Instance references (role names, not ontology defs): {len(instances)}")
+            instance_names = sorted(set(p for _, p in instances))
+            print(f"      {', '.join(instance_names[:10])}")
+
+        check("T11: structural predicates ≤ 5 undefined", len(structural) <= 5)
+    else:
+        check("T11: all predicates formally defined", True)
 
     # Entity type gaps
     if report.entity_type_gaps:
@@ -715,6 +738,80 @@ def run_tests():
     check("T18: comprehensive analysis complete", True)
     check("T18: statistics captured", len(stats) > 0)
 
+    # ─── T19: Core Ontology Closure ───
+    print("\n═══ T19: Core Ontology Closure ═══")
+
+    # All 22 structural predicates that were previously undefined
+    core_structural_predicates = {
+        # Binding (4)
+        "web4:boundTo": "Binding",
+        "web4:parentBinding": "Binding",
+        "web4:childBinding": "Binding",
+        "web4:siblingBinding": "Binding",
+        # Pairing (4)
+        "web4:energyPairing": "Pairing",
+        "web4:dataPairing": "Pairing",
+        "web4:servicePairing": "Pairing",
+        "web4:pairedWithRole": "Pairing",
+        # Witness (3)
+        "web4:timeWitness": "Witness",
+        "web4:auditWitness": "Witness",
+        "web4:oracleWitness": "Witness",
+        # Entity-Role (1)
+        "web4:hasRole": "Entity-Role",
+        # Tensor Binding (2)
+        "web4:hasT3Tensor": "Tensor",
+        "web4:hasV3Tensor": "Tensor",
+        # Action Metadata (5)
+        "web4:actionType": "Action",
+        "web4:resource": "Action",
+        "web4:atpCost": "Action",
+        "web4:lawHash": "Action",
+        "web4:authorizedAction": "Action",
+        # Delegation (1)
+        "web4:delegatedBy": "Delegation",
+        # Identity (2)
+        "web4:references": "Identity",
+        "web4:birthCertificate": "Identity",
+    }
+
+    now_defined = 0
+    still_missing = []
+    for pred, category in core_structural_predicates.items():
+        found = pred in all_defined_props
+        if found:
+            now_defined += 1
+        else:
+            still_missing.append((pred, category))
+
+    check("T19: core ontology file parsed", len(core.properties) >= 20)
+    check("T19: ≥ 20 of 22 structural predicates defined", now_defined >= 20)
+    check("T19: all 22 structural predicates defined", now_defined == 22)
+
+    if still_missing:
+        print(f"\n    Still missing ({len(still_missing)}):")
+        for pred, cat in still_missing:
+            print(f"      [{cat}] {pred}")
+    else:
+        print(f"    All 22 structural predicates formally defined in ontology!")
+
+    # Verify core classes
+    core_classes = {"web4:Binding", "web4:Pairing", "web4:WitnessAttestation", "web4:ActionRecord"}
+    all_class_set = set()
+    for onto in ontologies:
+        all_class_set.update(onto.classes)
+    for cls in sorted(core_classes):
+        check(f"T19: {cls} class defined", cls in all_class_set)
+
+    # Combined totals
+    combined_classes = sum(len(o.classes) for o in ontologies)
+    combined_props = sum(len(o.properties) for o in ontologies)
+    check("T19: combined classes ≥ 25", combined_classes >= 25)
+    check("T19: combined properties ≥ 58", combined_props >= 58)
+
+    print(f"\n    Combined ontology: {combined_classes} classes, {combined_props} properties")
+    print(f"    Closure: {now_defined}/22 structural predicates formally defined")
+
     # ═══ Summary ═══
     total = passed + failed
     print(f"\n{'=' * 60}")
@@ -725,10 +822,10 @@ def run_tests():
     if failed == 0:
         print(f"""
   All consistency checks verified:
-  T1:  Turtle ontology parsing (4 files)
+  T1:  Turtle ontology parsing (5 files)
   T2:  Namespace inventory across all files
   T3:  Namespace consistency (variants cataloged)
-  T4:  Class definitions per ontology
+  T4:  Class definitions per ontology (incl. core)
   T5:  Property definitions across ontologies
   T6:  Python implementation scanning (6 files)
   T7:  Essential predicate coverage
@@ -743,14 +840,16 @@ def run_tests():
   T16: Canonical namespace recommendation
   T17: Predicate taxonomy by category
   T18: Summary statistics
+  T19: Core ontology closure (22 structural predicates)
 
   Key findings:
   - {len(web4_uris)} web4: namespace variants found
-  - {total_classes} classes across 4 ontologies
-  - {total_props} properties defined
+  - {combined_classes} classes across 5 ontologies
+  - {combined_props} properties defined
   - {len(impl_predicates)} predicates used in implementations
   - {len(schema_types)} entity types in LCT schema
   - {len(turtle_exporters)} implementations export Turtle
+  - {now_defined}/22 structural predicates formally closed
 """)
     else:
         print(f"\n  {failed} checks need attention.")
