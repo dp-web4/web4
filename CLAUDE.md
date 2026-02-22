@@ -294,6 +294,16 @@ cd whitepaper
 
 **Visitor logs location** (from web4 working directory): `../4-life/visitor/logs/YYYY-MM-DD.md`
 
+## Patent Foundation (305 Family — Metalinxx Inc.)
+
+Web4's entity management, trust verification, and hardware binding architecture has direct patent coverage through the **305 patent family** (assigned to Metalinxx, Inc.):
+
+- **US 11,477,027** — Controlled Object management across Manufacture/Use/Compliance domains (physical system + lifecycle)
+- **US 12,278,913** — Cryptographic association protocol for ANY two identifiable data records via Authentication Controller (broadly covers every LCT-to-LCT binding, trust attestation, and MRH relationship)
+- **305CIP2 (draft)** — Extension to agentic entities (AI, humans, organizations) with T3/V3 tensors and ATP/ADP tokens
+
+**Read `docs/305-patent-applicability.md`** for the full terminology mapping, claim structures, implementation alignment checklist, and coverage analysis. This document maps every patent concept to its Web4 equivalent so sessions can design implementations that build on the patented framework.
+
 ## Related Projects
 
 ### Modbatt-CAN
