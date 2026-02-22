@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-20T14:09:18.931623+00:00",
+  "timestamp": "2026-02-22T20:29:15.791865+00:00",
   "total_vectors": 30,
   "defended": 30,
   "vulnerable": 0,
@@ -148,7 +148,7 @@
     {
       "name": "9.1 Force flush on empty buffer",
       "status": "DEFENDED",
-      "detail": "Entries before: 6, after: 6"
+      "detail": "Entries before: 11, after: 11"
     },
     {
       "name": "9.2 Queue forged actions in heartbeat buffer",

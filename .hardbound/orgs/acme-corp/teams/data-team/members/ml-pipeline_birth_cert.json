@@ -3,16 +3,16 @@
     "https://web4.io/contexts/sal.jsonld"
   ],
   "type": "Web4BirthCertificate",
-  "entity": "lct:web4:service:e31912585f225d27",
+  "entity": "lct:web4:service:f4c007893abf97e8",
   "entityName": "ml-pipeline",
   "citizenRole": "lct:web4:role:citizen:ml-pipeline@data-team",
-  "society": "lct:web4:society:634250b7df296365",
+  "society": "lct:web4:society:fe90ae978f3df889",
   "societyName": "data-team",
-  "lawOracle": "lct:web4:human:38f77729f06c9640",
+  "lawOracle": "lct:web4:human:2717906d7c1ee85f",
   "lawVersion": "v1",
-  "birthTimestamp": "2026-02-20T20:06:53.199860+00:00",
+  "birthTimestamp": "2026-02-22T20:29:25.524687+00:00",
   "witnesses": [
-    "lct:web4:society:634250b7df296365"
+    "lct:web4:society:fe90ae978f3df889"
   ],
   "genesisBlock": "block:6",
   "initialRights": [
@@ -30,5 +30,5 @@
     "follow_procedures"
   ],
   "bindingType": "software",
-  "certHash": "0930b436732f4c72e78772d7ca3b700f30ba151f72440b5be45cf75dc7357e24"
+  "certHash": "e43182d3628023410a92bb19069a07dc9268c3a4d15ac8142e63a5f611e07a41"
 }

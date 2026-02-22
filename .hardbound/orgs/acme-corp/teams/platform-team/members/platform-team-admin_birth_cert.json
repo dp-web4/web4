@@ -3,16 +3,16 @@
     "https://web4.io/contexts/sal.jsonld"
   ],
   "type": "Web4BirthCertificate",
-  "entity": "lct:web4:human:10bff87a699c72e9",
+  "entity": "lct:web4:human:612d80ea99e1e1f8",
   "entityName": "platform-team-admin",
   "citizenRole": "lct:web4:role:citizen:platform-team-admin@platform-team",
-  "society": "lct:web4:society:2db2d36bacae2ec7",
+  "society": "lct:web4:society:79d60872d783c0cb",
   "societyName": "platform-team",
-  "lawOracle": "lct:web4:human:10bff87a699c72e9",
+  "lawOracle": "lct:web4:human:612d80ea99e1e1f8",
   "lawVersion": "v1",
-  "birthTimestamp": "2026-02-20T20:06:50.625040+00:00",
+  "birthTimestamp": "2026-02-22T20:29:22.999308+00:00",
   "witnesses": [
-    "lct:web4:society:2db2d36bacae2ec7"
+    "lct:web4:society:79d60872d783c0cb"
   ],
   "genesisBlock": "block:2",
   "initialRights": [
@@ -33,5 +33,5 @@
     "audit_compliance"
   ],
   "bindingType": "hardware",
-  "certHash": "67acacdd6e78a423eba7c0b8e6c12d48e979aa601c672a3dbb9544f3f255a29a"
+  "certHash": "718386aa2c06a0e9c92f937704a40014a5d7961bea149341c16a4811b127f5b2"
 }

@@ -1,7 +1,7 @@
 {
   "entity_type": "human",
   "name": "data-team-admin",
-  "lct_id": "lct:web4:human:38f77729f06c9640",
+  "lct_id": "lct:web4:human:2717906d7c1ee85f",
   "coherence": 0.6488,
   "t3": {
     "talent": 0.493,
@@ -15,12 +15,12 @@
   },
   "atp_balance": 196.75,
   "adp_discharged": 5.0,
-  "key_id": "38f77729f06c9640",
-  "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAElTCh+QREwbLPCs5SR1YL5jZvnQxq\nHDWp3iWTI1fKyIqRPOX7txWP7k2wh0JETfmcX8YX7RLHBPBGnnkRqvVitg==\n-----END PUBLIC KEY-----\n",
-  "tpm_handle": "0x81010068",
+  "key_id": "2717906d7c1ee85f",
+  "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAETNWwkKuNozuHY4c6cP5l0ArAwbF4\nL0IVoHOMXTmZ+f1ejM6Ig6SJd/3z5KCe09NaDPH7vdg43Wi6bUyVKMbHMg==\n-----END PUBLIC KEY-----\n",
+  "tpm_handle": "0x81010055",
   "hardware_type": "tpm2",
   "capability_level": 5,
   "trust_ceiling": 1.0,
-  "binding_proof": "ABgACwAg+2w4f9FrmlEkjiEgVnp7AuB9KAIIlO0tuVbkDALSbfcAIDhXvEovxcfx6ltCxW5P7jDpNN31XPPTs5TwL995p+Vq",
+  "binding_proof": "ABgACwAg0Q0BdBeaoQuTck4xpX5cNUxMDuImeoH6jrjOsSm77hIAIGCTGB1RUcex6OMTi3Y0MyKLfCNDRZBVNbTLf3fqY87c",
   "signed_action_count": 1
 }

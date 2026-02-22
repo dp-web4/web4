@@ -9,8 +9,8 @@
   "trust_ceiling_b": 1.0,
   "consecutive_successes": 1,
   "consecutive_failures": 0,
-  "created_at": "2026-02-20T20:06:53.262045+00:00",
-  "last_heartbeat": "2026-02-20T20:06:53.886125+00:00",
+  "created_at": "2026-02-22T20:29:25.588021+00:00",
+  "last_heartbeat": "2026-02-22T20:29:26.214070+00:00",
   "witnesses": 0,
   "delegations": 2
 }

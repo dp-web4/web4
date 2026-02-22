@@ -1,7 +1,7 @@
 {
   "entity_type": "human",
   "name": "sre-engineer",
-  "lct_id": "lct:web4:human:755af9172cd1de82",
+  "lct_id": "lct:web4:human:411794f80cca1556",
   "coherence": 0.605,
   "t3": {
     "talent": 0.5,
@@ -15,12 +15,12 @@
   },
   "atp_balance": 100.0,
   "adp_discharged": 0.0,
-  "key_id": "755af9172cd1de82",
-  "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBR6Z+7KV7Vew4DRB8O/o8fKQvDtF\nZkYQ1jNhuwVFvdRxhxtJgTPwYTy1gWkfuDfDC5+87+VLeLyEoKPN7FAYTA==\n-----END PUBLIC KEY-----\n",
-  "tpm_handle": "0x810100eb",
+  "key_id": "411794f80cca1556",
+  "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEVC+jJB+SonvnZe/hX7CbkHCJZKqW\nRTBiZ3g7OXUc1C/prV2Bv37E7UmUN2L2NLgBVFROkqDyt3QWztaXOgzMSw==\n-----END PUBLIC KEY-----\n",
+  "tpm_handle": "0x810100a4",
   "hardware_type": "tpm2",
   "capability_level": 5,
   "trust_ceiling": 1.0,
-  "binding_proof": "ABgACwAgpt2s71WjudjjWAwx9X/Gm52U6fdRaTu3/s/yUawl52MAIB67x0FFbUxTLXkM5c+Y5eXib5hBiNYMBSircncCoM+8",
+  "binding_proof": "ABgACwAgh+3rTvhs7rgXMVf4kAXR4N59xVXuuSOlEEaDFCbFQDkAINohlxy4aN6ft++5FWihSt9LnQv19zgPwiPrQlcU8zQ+",
   "signed_action_count": 0
 }

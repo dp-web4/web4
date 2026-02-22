@@ -3,16 +3,16 @@
     "https://web4.io/contexts/sal.jsonld"
   ],
   "type": "Web4BirthCertificate",
-  "entity": "lct:web4:human:755af9172cd1de82",
+  "entity": "lct:web4:human:411794f80cca1556",
   "entityName": "sre-engineer",
   "citizenRole": "lct:web4:role:citizen:sre-engineer@platform-team",
-  "society": "lct:web4:society:2db2d36bacae2ec7",
+  "society": "lct:web4:society:79d60872d783c0cb",
   "societyName": "platform-team",
-  "lawOracle": "lct:web4:human:10bff87a699c72e9",
+  "lawOracle": "lct:web4:human:612d80ea99e1e1f8",
   "lawVersion": "v1",
-  "birthTimestamp": "2026-02-20T20:06:52.948343+00:00",
+  "birthTimestamp": "2026-02-22T20:29:25.267948+00:00",
   "witnesses": [
-    "lct:web4:society:2db2d36bacae2ec7"
+    "lct:web4:society:79d60872d783c0cb"
   ],
   "genesisBlock": "block:6",
   "initialRights": [
@@ -30,5 +30,5 @@
     "follow_procedures"
   ],
   "bindingType": "hardware",
-  "certHash": "6b4835b969050384995e81b019b8bef2bf7b43206d9a28b7408a7050cc5c559b"
+  "certHash": "ef2afcd96a4b8f8131bd82b6c66cc8dadb94746f6c6f547821f29dc86f5dece3"
 }
