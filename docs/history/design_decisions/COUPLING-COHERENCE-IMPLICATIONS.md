@@ -1,4 +1,4 @@
-# Design Decision: Coupling-Coherence Experiment Implications for Web4
+# Design Decision: Compression Trust Phase Transition Implications for Web4
 
 **Date**: 2026-02-22
 **Source**: Synchronism coupling-coherence experiment (900 simulation runs)
@@ -6,7 +6,9 @@
 
 ## Context
 
-The coupling-coherence experiment tested 5 Bayesian agents discovering a random knowledge graph with controllable coupling (sharing probability p). It found a clear sigmoid transition from incoherent (C=0.34) to coherent (C=0.94), with the critical threshold at p ≈ 0.002.
+The coupling-coherence experiment tested 5 Bayesian agents discovering a random knowledge graph with controllable **compression trust** — the frequency of events where one agent accepts another's compressed representation of reality. It found a clear sigmoid transition from incoherent (C=0.34) to coherent (C=0.94), with the critical trust frequency at p ≈ 0.002.
+
+**Compression trust** is the act of accepting another agent's lossy summary as input to your own reasoning. The coupling parameter p is not "density" — it is the rate of compression trust events. This reframing connects the experiment directly to Web4's existing compression-trust framework.
 
 ## Key Findings Relevant to Web4
 
@@ -28,11 +30,11 @@ The geometric mean C = √(convergence × correctness) catches "trust bubbles" �
 
 **Implication**: Web4 should track trust convergence AND outcome validation separately. A metric that combines both would detect degenerate consensus early.
 
-### 4. Derived critical thresholds fail
+### 4. Critical trust thresholds are relational, not intrinsic
 
-The attempt to derive p_crit from system properties (noise, world entropy, agent count) failed catastrophically (400× error). Critical thresholds are empirical, not derivable.
+The attempt to derive p_crit from system properties (noise, world entropy, agent count) failed catastrophically (400× error). The compression trust framing explains why: trust is relational — it depends on the quality of compressed representations being shared, which emerges from interaction history. You can't derive the minimum trust frequency because the value of trust depends on what is trusted.
 
-**Implication**: Web4 cannot predict optimal federation parameters from first principles. Trust thresholds, ATP budgets, and witnessing frequencies must be learned from observed outcomes.
+**Implication**: Web4 cannot predict optimal federation parameters from first principles. Trust thresholds, ATP budgets, and witnessing frequencies must be learned from observed outcomes — which is exactly what trust-based allocation already does.
 
 ## No Code Changes Required
 
