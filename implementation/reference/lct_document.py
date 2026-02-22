@@ -54,7 +54,7 @@ REVOCATION_STATUSES = ["active", "revoked"]
 REVOCATION_REASONS = ["compromise", "superseded", "expired"]
 
 # Patterns from lct.schema.json
-LCT_ID_PATTERN = re.compile(r"^lct:web4:[A-Za-z0-9_-]+$")
+LCT_ID_PATTERN = re.compile(r"^lct:web4:[A-Za-z0-9_:-]+$")
 SUBJECT_PATTERN = re.compile(r"^did:web4:(key|method):[A-Za-z0-9_-]+$")
 PUBLIC_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 BINDING_PROOF_PATTERN = re.compile(r"^cose:[A-Za-z0-9_-]+$")

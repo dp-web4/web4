@@ -8,7 +8,7 @@
   "properties": {
     "lct_id": {
       "type": "string",
-      "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+      "pattern": "^lct:web4:[A-Za-z0-9_:-]+$",
       "description": "Globally unique LCT identifier"
     },
     "subject": {
@@ -50,7 +50,7 @@
       "properties": {
         "issuing_society": {
           "type": "string",
-          "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+          "pattern": "^lct:web4:[A-Za-z0-9_:-]+$",
           "description": "LCT of the society issuing this birth certificate"
         },
         "citizen_role": {
@@ -69,14 +69,14 @@
         },
         "parent_entity": {
           "type": "string",
-          "pattern": "^lct:web4:[A-Za-z0-9_-]+$"
+          "pattern": "^lct:web4:[A-Za-z0-9_:-]+$"
         },
         "birth_witnesses": {
           "type": "array",
           "minItems": 1,
           "items": {
             "type": "string",
-            "pattern": "^lct:web4:[A-Za-z0-9_-]+$"
+            "pattern": "^lct:web4:[A-Za-z0-9_:-]+$"
           }
         }
       }

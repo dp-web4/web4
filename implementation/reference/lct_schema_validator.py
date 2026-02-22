@@ -399,7 +399,7 @@ def analyze_field_coverage(schema: dict, implementations: List[Tuple[dict, str]]
 def check_lct_id_patterns(implementations: List[Tuple[dict, str]]) -> List[Divergence]:
     """Check if lct_id values match the required pattern."""
     import re
-    pattern = re.compile(r"^lct:web4:[A-Za-z0-9_-]+$")
+    pattern = re.compile(r"^lct:web4:[A-Za-z0-9_:-]+$")
     divergences = []
 
     for doc, name in implementations:
@@ -408,7 +408,7 @@ def check_lct_id_patterns(implementations: List[Tuple[dict, str]]) -> List[Diver
             divergences.append(Divergence(
                 source=name, category="pattern_mismatch",
                 path="lct_id",
-                expected="^lct:web4:[A-Za-z0-9_-]+$",
+                expected="^lct:web4:[A-Za-z0-9_:-]+$",
                 actual=lct_id,
                 severity="critical"
             ))
@@ -422,7 +422,7 @@ def check_lct_id_patterns(implementations: List[Tuple[dict, str]]) -> List[Diver
                     divergences.append(Divergence(
                         source=name, category="pattern_mismatch",
                         path=f"birth_certificate.{field_name}",
-                        expected="^lct:web4:[A-Za-z0-9_-]+$",
+                        expected="^lct:web4:[A-Za-z0-9_:-]+$",
                         actual=val,
                         severity="warning"
                     ))
