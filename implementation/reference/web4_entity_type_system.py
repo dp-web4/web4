@@ -421,7 +421,9 @@ class PolicySpec:
 
     def __post_init__(self):
         if not self.config_hash:
-            payload = json.dumps(self.rules, sort_keys=True).encode()
+            # Hash rule names (callables can't be serialized)
+            rule_keys = sorted(self.rules.keys())
+            payload = json.dumps(rule_keys).encode()
             self.config_hash = hashlib.sha256(payload).hexdigest()[:16]
 
     def evaluate(self, action: Dict, frame: AccountabilityFrame = AccountabilityFrame.NORMAL) -> dict:
@@ -681,7 +683,8 @@ class EntityFactory:
 
         # 4. Citizen Role Pairing
         self.citizen_role_counter += 1
-        citizen_role_lct = f"lct:web4:role:citizen:{self.citizen_role_counter:04d}"
+        society_suffix = hashlib.sha256(self.society_lct.encode()).hexdigest()[:6]
+        citizen_role_lct = f"lct:web4:role:citizen:{society_suffix}:{self.citizen_role_counter:04d}"
         entity.assign_role(citizen_role_lct, RoleLevel.CITIZEN,
                            permissions=["exist", "interact", "accumulate_reputation"])
 
