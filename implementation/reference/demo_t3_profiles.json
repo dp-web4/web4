@@ -1,0 +1,61 @@
+{
+  "agent-claude-001": {
+    "agent_id": "agent-claude-001",
+    "talent": 0.7939999999999999,
+    "training": 0.38823676709842325,
+    "temperament": 0.7628,
+    "transaction_history": [
+      {
+        "timestamp": "2026-02-26T15:36:31.979698Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 45.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      },
+      {
+        "timestamp": "2026-02-26T15:36:31.979871Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 25.0,
+        "within_constraints": true,
+        "quality_score": 0.85,
+        "notes": ""
+      },
+      {
+        "timestamp": "2026-02-26T15:36:31.989249Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 75.0,
+        "within_constraints": true,
+        "quality_score": 0.95,
+        "notes": ""
+      },
+      {
+        "timestamp": "2026-02-26T15:36:31.989411Z",
+        "transaction_type": "purchase",
+        "success": false,
+        "amount": 150.0,
+        "within_constraints": false,
+        "quality_score": 0.3,
+        "notes": ""
+      },
+      {
+        "timestamp": "2026-02-26T15:36:31.989583Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 30.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
+      }
+    ],
+    "created_at": "2026-02-26T15:36:31.979520Z",
+    "last_updated": "2026-02-26T15:36:31.989650Z",
+    "total_transactions": 5,
+    "successful_transactions": 4,
+    "constraint_violations": 1,
+    "total_value_handled": 325.0
+  }
+}

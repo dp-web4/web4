@@ -2,7 +2,7 @@
   "agent-claude-42": {
     "agent_id": "agent-claude-42",
     "talent": 0.97,
-    "training": 0.15019048322368794,
+    "training": 0.23804628387473534,
     "temperament": 0.8,
     "transaction_history": [
       {
@@ -13,14 +13,23 @@
         "within_constraints": true,
         "quality_score": 0.9,
         "notes": ""
+      },
+      {
+        "timestamp": "2026-02-26T15:36:32.181738Z",
+        "transaction_type": "purchase",
+        "success": true,
+        "amount": 75.0,
+        "within_constraints": true,
+        "quality_score": 0.9,
+        "notes": ""
       }
     ],
     "created_at": "2025-11-19T02:30:39.013048Z",
-    "last_updated": "2025-11-19T02:30:39.014024Z",
-    "total_transactions": 1,
-    "successful_transactions": 1,
+    "last_updated": "2026-02-26T15:36:32.181781Z",
+    "total_transactions": 2,
+    "successful_transactions": 2,
     "constraint_violations": 0,
-    "total_value_handled": 75.0
+    "total_value_handled": 150.0
   },
   "agent-test-01": {
     "agent_id": "agent-test-01",
