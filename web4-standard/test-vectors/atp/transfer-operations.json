@@ -1,0 +1,302 @@
+{
+  "description": "Cross-language ATP transfer and settlement test vectors",
+  "schema_version": "1.0",
+  "notes": "All implementations MUST produce identical results for these operations",
+  "vectors": [
+    {
+      "id": "atp-001",
+      "description": "Basic transfer with 5% fee",
+      "operation": "transfer",
+      "input": {
+        "sender_balance": 100.0,
+        "receiver_balance": 50.0,
+        "amount": 20.0,
+        "fee_rate": 0.05
+      },
+      "expected": {
+        "fee": 1.0,
+        "sender_balance": 79.0,
+        "receiver_balance": 70.0,
+        "total_deducted": 21.0,
+        "formula": "fee = amount * fee_rate; sender -= (amount + fee); receiver += amount"
+      },
+      "tolerance": 0.0001,
+      "notes": "Fee = 20*0.05 = 1.0. Sender: 100-21=79. Receiver: 50+20=70."
+    },
+    {
+      "id": "atp-002",
+      "description": "Transfer with MAX_BALANCE cap and overflow return",
+      "operation": "transfer_capped",
+      "input": {
+        "sender_balance": 200.0,
+        "receiver_balance": 490.0,
+        "amount": 30.0,
+        "fee_rate": 0.05,
+        "max_balance": 500.0
+      },
+      "expected": {
+        "fee": 1.5,
+        "actual_credit": 10.0,
+        "overflow": 20.0,
+        "sender_balance": 188.5,
+        "receiver_balance": 500.0,
+        "formula": "actual_credit = max(0, min(amount, max_balance - receiver)); overflow = amount - actual_credit; sender += overflow"
+      },
+      "tolerance": 0.0001,
+      "notes": "Cap allows only 10 of 30. Overflow 20 returned to sender. Sender: 200-31.5+20=188.5"
+    },
+    {
+      "id": "atp-003",
+      "description": "Transfer to already-full receiver",
+      "operation": "transfer_capped",
+      "input": {
+        "sender_balance": 100.0,
+        "receiver_balance": 500.0,
+        "amount": 50.0,
+        "fee_rate": 0.05,
+        "max_balance": 500.0
+      },
+      "expected": {
+        "fee": 2.5,
+        "actual_credit": 0.0,
+        "overflow": 50.0,
+        "sender_balance": 97.5,
+        "receiver_balance": 500.0,
+        "notes": "Receiver at max. All amount returned. Only fee is lost."
+      },
+      "tolerance": 0.0001,
+      "notes": "Fee still charged (committed to transfer), but no ATP reaches receiver"
+    },
+    {
+      "id": "atp-004",
+      "description": "Conservation invariant check",
+      "operation": "conservation_check",
+      "input": {
+        "initial_balances": [100.0, 100.0, 100.0],
+        "transfers": [
+          {"from": 0, "to": 1, "amount": 20.0},
+          {"from": 1, "to": 2, "amount": 30.0},
+          {"from": 2, "to": 0, "amount": 10.0}
+        ],
+        "fee_rate": 0.05
+      },
+      "expected": {
+        "initial_total": 300.0,
+        "total_fees": 3.0,
+        "final_total": 297.0,
+        "invariant": "initial_total == final_total + total_fees",
+        "per_transfer_fees": [1.0, 1.5, 0.5],
+        "notes": "Conservation: 300 = 297 + 3"
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "atp-005",
+      "description": "Sliding scale payment — below threshold",
+      "operation": "sliding_scale",
+      "input": {
+        "quality": 0.2,
+        "base_payment": 100.0,
+        "zero_threshold": 0.3,
+        "full_threshold": 0.7
+      },
+      "expected": {
+        "payment": 0.0,
+        "formula": "quality < zero_threshold → 0"
+      },
+      "tolerance": 0.0001,
+      "notes": "Quality 0.2 is below zero_threshold 0.3 → zero payment"
+    },
+    {
+      "id": "atp-006",
+      "description": "Sliding scale payment — in ramp zone",
+      "operation": "sliding_scale",
+      "input": {
+        "quality": 0.5,
+        "base_payment": 100.0,
+        "zero_threshold": 0.3,
+        "full_threshold": 0.7
+      },
+      "expected": {
+        "payment": 50.0,
+        "scale_factor": 0.5,
+        "formula": "scale = (quality - zero) / (full - zero); payment = base * scale",
+        "calculation": "(0.5 - 0.3) / (0.7 - 0.3) = 0.2/0.4 = 0.5; 100 * 0.5 = 50"
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "atp-007",
+      "description": "Sliding scale payment — above full threshold",
+      "operation": "sliding_scale",
+      "input": {
+        "quality": 0.85,
+        "base_payment": 100.0,
+        "zero_threshold": 0.3,
+        "full_threshold": 0.7
+      },
+      "expected": {
+        "payment": 100.0,
+        "formula": "quality > full_threshold → base_payment (full payment)",
+        "notes": "Above threshold = full payment. Quality incentive above 0.7 comes from T3 reputation."
+      },
+      "tolerance": 0.0001,
+      "notes": "Continuous with ramp: at full_threshold, ramp scale=1.0 → 100. Above stays at 100."
+    },
+    {
+      "id": "atp-008",
+      "description": "Lock-commit-rollback lifecycle",
+      "operation": "lock_lifecycle",
+      "input": {
+        "initial_balance": 100.0,
+        "lock_amount": 30.0
+      },
+      "expected": {
+        "after_lock": {
+          "available": 70.0,
+          "locked": 30.0,
+          "total": 100.0
+        },
+        "after_commit": {
+          "available": 70.0,
+          "locked": 0.0,
+          "total": 70.0,
+          "committed_amount": 30.0
+        },
+        "after_rollback_instead": {
+          "available": 100.0,
+          "locked": 0.0,
+          "total": 100.0
+        },
+        "notes": "Lock reduces available but preserves total. Commit releases locked ATP. Rollback restores to available."
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "atp-009",
+      "description": "Recharge calculation",
+      "operation": "recharge",
+      "input": {
+        "current_balance": 40.0,
+        "initial_balance": 100.0,
+        "recharge_rate": 0.1,
+        "max_recharge_multiplier": 3.0
+      },
+      "expected": {
+        "recharge_amount": 10.0,
+        "new_balance": 50.0,
+        "max_balance": 300.0,
+        "formula": "recharge = initial * rate; new = min(current + recharge, initial * multiplier)",
+        "notes": "10% of initial = 10. New: 40+10=50. Max allowed: 100*3=300"
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "atp-010",
+      "description": "Recharge at cap",
+      "operation": "recharge",
+      "input": {
+        "current_balance": 295.0,
+        "initial_balance": 100.0,
+        "recharge_rate": 0.1,
+        "max_recharge_multiplier": 3.0
+      },
+      "expected": {
+        "recharge_amount": 5.0,
+        "new_balance": 300.0,
+        "capped": true,
+        "formula": "recharge = min(initial * rate, max - current)",
+        "notes": "Would recharge 10, but cap at 300 limits to 5"
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "atp-011",
+      "description": "Sybil cost analysis",
+      "operation": "sybil_cost",
+      "input": {
+        "num_identities": 5,
+        "hardware_cost_per_identity": 250.0,
+        "atp_stake_per_identity": 50.0,
+        "transfer_fee_rate": 0.05,
+        "cycles": 10
+      },
+      "expected": {
+        "total_setup_cost": 1500.0,
+        "per_identity_cost": 300.0,
+        "circular_flow_loss_per_cycle": 12.5,
+        "formula": "setup = N * (hardware + stake); circular_loss = N * stake * fee_rate",
+        "notes": "5 × (250+50) = 1500 setup. Circular: 5×50×0.05 = 12.5/cycle"
+      },
+      "tolerance": 0.01
+    },
+    {
+      "id": "atp-012",
+      "description": "Energy ratio calculation",
+      "operation": "energy_ratio",
+      "input": {
+        "atp_balance": 80.0,
+        "adp_accumulated": 20.0
+      },
+      "expected": {
+        "energy_ratio": 0.8,
+        "formula": "atp / (atp + adp)",
+        "interpretation": "High energy ratio = entity is earning/conserving, not spending",
+        "notes": "80 / (80 + 20) = 0.8"
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "atp-013",
+      "description": "Energy ratio edge cases",
+      "operation": "energy_ratio",
+      "input": {
+        "cases": [
+          {"atp": 100.0, "adp": 0.0},
+          {"atp": 0.0, "adp": 100.0},
+          {"atp": 0.0, "adp": 0.0},
+          {"atp": 50.0, "adp": 50.0}
+        ]
+      },
+      "expected": {
+        "ratios": [1.0, 0.0, 0.5, 0.5],
+        "notes": "Zero/zero defaults to 0.5 (neutral). Pure ATP = 1.0. Pure ADP = 0.0."
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "atp-014",
+      "description": "Fee sensitivity sweep",
+      "operation": "fee_sensitivity",
+      "input": {
+        "amount": 100.0,
+        "fee_rates": [0.0, 0.01, 0.05, 0.10, 0.20]
+      },
+      "expected": {
+        "fees": [0.0, 1.0, 5.0, 10.0, 20.0],
+        "net_received": [100.0, 99.0, 95.0, 90.0, 80.0],
+        "formula": "net = amount - fee; total_cost = amount + fee (to sender)",
+        "total_sender_costs": [100.0, 101.0, 105.0, 110.0, 120.0]
+      },
+      "tolerance": 0.0001,
+      "notes": "Fee is additive to sender, not deducted from transfer amount"
+    },
+    {
+      "id": "atp-015",
+      "description": "Quality-based settlement",
+      "operation": "settlement",
+      "input": {
+        "task_payment": 100.0,
+        "quality_scores": [0.0, 0.3, 0.5, 0.7, 0.85, 1.0],
+        "zero_threshold": 0.3,
+        "full_threshold": 0.7
+      },
+      "expected": {
+        "payments": [0.0, 0.0, 50.0, 100.0, 100.0, 100.0],
+        "notes": "Below 0.3 = 0. 0.3-0.7 = linear ramp. At/above 0.7 = full base_payment (continuous)."
+      },
+      "tolerance": 0.01,
+      "notes": "Sliding scale eliminates binary quality cliff"
+    }
+  ]
+}

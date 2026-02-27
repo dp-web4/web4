@@ -5,9 +5,9 @@ This directory contains test vectors for Web4 protocol implementations to ensure
 ## Structure
 
 - `keys/` - Fixed keypairs for deterministic testing
-- `handshake/` - HPKE handshake test vectors
 - `lct/` - LCT signing and verification vectors
-- `mrh/` - MRH update vectors
+- `t3v3/` - T3/V3 tensor operation vectors (composite, update, bridge, decay, coherence)
+- `atp/` - ATP transfer, settlement, conservation, and market vectors
 - `trust-query/` - ATP-staked trust query vectors
 
 ## Usage

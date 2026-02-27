@@ -1,0 +1,200 @@
+{
+  "description": "Cross-language T3/V3 tensor operation test vectors",
+  "schema_version": "1.0",
+  "notes": "All implementations MUST produce identical results for these operations",
+  "vectors": [
+    {
+      "id": "t3v3-001",
+      "description": "T3 composite calculation (canonical weights)",
+      "operation": "t3_composite",
+      "input": {
+        "talent": 0.8,
+        "training": 0.7,
+        "temperament": 0.9
+      },
+      "expected": {
+        "composite": 0.8,
+        "formula": "talent*0.4 + training*0.3 + temperament*0.3",
+        "weights": {"talent": 0.4, "training": 0.3, "temperament": 0.3}
+      },
+      "tolerance": 0.0001,
+      "notes": "0.8*0.4 + 0.7*0.3 + 0.9*0.3 = 0.32 + 0.21 + 0.27 = 0.80"
+    },
+    {
+      "id": "t3v3-002",
+      "description": "V3 composite calculation (canonical weights)",
+      "operation": "v3_composite",
+      "input": {
+        "valuation": 0.3,
+        "veracity": 0.85,
+        "validity": 0.8
+      },
+      "expected": {
+        "composite": 0.6675,
+        "formula": "valuation*0.3 + veracity*0.35 + validity*0.35",
+        "weights": {"valuation": 0.3, "veracity": 0.35, "validity": 0.35}
+      },
+      "tolerance": 0.0001,
+      "notes": "0.3*0.3 + 0.85*0.35 + 0.8*0.35 = 0.09 + 0.2975 + 0.28 = 0.6675"
+    },
+    {
+      "id": "t3v3-003",
+      "description": "T3 update from successful action (spec: 0.02 × (quality - 0.5))",
+      "operation": "t3_update",
+      "input": {
+        "initial": {"talent": 0.5, "training": 0.5, "temperament": 0.5},
+        "success": true,
+        "quality": 0.8
+      },
+      "expected": {
+        "delta_formula": "0.02 * (quality - 0.5)",
+        "base_delta": 0.006,
+        "talent_delta": 0.006,
+        "training_delta": 0.0048,
+        "temperament_delta": 0.0036,
+        "talent": 0.506,
+        "training": 0.5048,
+        "temperament": 0.5036,
+        "dimension_factors": {"talent": 1.0, "training": 0.8, "temperament": 0.6}
+      },
+      "tolerance": 0.0001,
+      "notes": "Base delta = 0.02*(0.8-0.5) = 0.006. Talent gets 1.0x, training 0.8x, temperament 0.6x"
+    },
+    {
+      "id": "t3v3-004",
+      "description": "T3 update from failed action",
+      "operation": "t3_update",
+      "input": {
+        "initial": {"talent": 0.5, "training": 0.5, "temperament": 0.5},
+        "success": false,
+        "quality": 0.3
+      },
+      "expected": {
+        "base_delta": -0.004,
+        "talent_delta": -0.004,
+        "training_delta": -0.0032,
+        "temperament_delta": -0.0024,
+        "talent": 0.496,
+        "training": 0.4968,
+        "temperament": 0.4976
+      },
+      "tolerance": 0.0001,
+      "notes": "Failed: delta = 0.02*(0.3-0.5) = -0.004"
+    },
+    {
+      "id": "t3v3-005",
+      "description": "T3 clamping at boundaries",
+      "operation": "t3_update",
+      "input": {
+        "initial": {"talent": 0.01, "training": 0.01, "temperament": 0.01},
+        "success": false,
+        "quality": 0.0
+      },
+      "expected": {
+        "talent_clamped_at": 0.0,
+        "training_clamped_at": 0.0,
+        "temperament_clamped_at": 0.0,
+        "notes": "Values MUST NOT go below 0.0"
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "t3v3-006",
+      "description": "T3 upper clamping",
+      "operation": "t3_update",
+      "input": {
+        "initial": {"talent": 0.99, "training": 0.99, "temperament": 0.99},
+        "success": true,
+        "quality": 1.0
+      },
+      "expected": {
+        "talent_max": 1.0,
+        "training_max": 1.0,
+        "temperament_max": 1.0,
+        "notes": "Values MUST NOT exceed 1.0"
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "t3v3-007",
+      "description": "Diminishing returns for repeated actions",
+      "operation": "diminishing_returns",
+      "input": {
+        "repeat_count": 5,
+        "base_factor": 0.8
+      },
+      "expected": {
+        "factors": [1.0, 0.8, 0.64, 0.512, 0.4096],
+        "formula": "0.8^(n-1) where n = 1-indexed repeat count",
+        "floor": 0.1
+      },
+      "tolerance": 0.0001,
+      "notes": "Different action types reset to full rate (1.0)"
+    },
+    {
+      "id": "t3v3-008",
+      "description": "Trust bridge: 6-dim to 3-dim mapping",
+      "operation": "trust_bridge",
+      "input": {
+        "six_dim": {
+          "competence": 0.7,
+          "reliability": 0.6,
+          "consistency": 0.5,
+          "alignment": 0.8,
+          "witnesses": 0.4,
+          "lineage": 0.3
+        }
+      },
+      "expected": {
+        "talent": 0.62,
+        "training": 0.56,
+        "temperament": 0.50,
+        "formula": "primary*0.6 + sum(secondary)*0.133",
+        "primary_mapping": {
+          "competence": "talent",
+          "reliability": "training",
+          "consistency": "temperament"
+        },
+        "secondary_weight": 0.1333,
+        "primary_weight": 0.6
+      },
+      "tolerance": 0.001,
+      "notes": "talent = 0.6*0.7 + 0.133*(0.8+0.4+0.3) = 0.42+0.2=0.62. Actually: talent = 0.6*competence + (0.4/3)*(alignment+witnesses+lineage) = 0.6*0.7 + 0.1333*1.5 = 0.42 + 0.2 = 0.62"
+    },
+    {
+      "id": "t3v3-009",
+      "description": "MRH trust decay per hop",
+      "operation": "mrh_trust_decay",
+      "input": {
+        "base_trust": 1.0,
+        "hops": [0, 1, 2, 3, 4, 5],
+        "decay_factor": 0.7
+      },
+      "expected": {
+        "trust_per_hop": [1.0, 0.7, 0.49, 0.343, 0.2401, 0.0],
+        "zones": ["SELF", "DIRECT", "INDIRECT", "PERIPHERAL", "PERIPHERAL", "BEYOND"],
+        "beyond_trust": 0.0
+      },
+      "tolerance": 0.0001,
+      "notes": "5+ hops = BEYOND = zero trust. Decay is multiplicative: 0.7^n"
+    },
+    {
+      "id": "t3v3-010",
+      "description": "Coherence calculation (C ≈ 0.7 threshold)",
+      "operation": "coherence",
+      "input": {
+        "t3_composite": 0.8,
+        "v3_composite": 0.6,
+        "energy_ratio": 0.7
+      },
+      "expected": {
+        "coherence": 0.71,
+        "formula": "t3*0.4 + v3*0.3 + energy*0.3",
+        "above_threshold": true,
+        "threshold": 0.7
+      },
+      "tolerance": 0.01,
+      "notes": "0.8*0.4 + 0.6*0.3 + 0.7*0.3 = 0.32 + 0.18 + 0.21 = 0.71"
+    }
+  ]
+}
