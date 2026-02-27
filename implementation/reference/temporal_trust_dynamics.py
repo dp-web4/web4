@@ -1108,7 +1108,7 @@ class TemporalSimulation:
                 avg_trust_trajectory[shock_step + d] < avg_trust_trajectory[shock_step - 1] - 0.01
                 for d in range(1, 10) if shock_step + d < n_steps
             ),
-            'trust_recovered': avg_trust_trajectory[-1] > avg_trust_trajectory[shock_step + 5] if shock_step + 5 < n_steps else False,
+            'trust_recovered': avg_trust_trajectory[-1] > avg_trust_trajectory[shock_step + 15] if shock_step + 15 < n_steps else False,
         }
 
 
