@@ -2,16 +2,12 @@
 Web4 End-to-End Integration Pipeline — Session 17, Track 5
 ==========================================================
 
-Full integration test: privacy + governance + consensus + economy + deployment.
-This chains ALL major subsystems together and verifies end-to-end properties:
+Full system integration: entity lifecycle through all layers.
+Tests complete flow: entity birth → trust accumulation → ATP earning →
+governance participation → privacy-preserving queries → consensus →
+cross-federation → audit.
 
-1. Entity registration with trust initialization
-2. Privacy-preserving trust queries
-3. Governance proposal submission and voting
-4. Consensus on governance decisions
-5. Economic settlement (ATP transfers)
-6. Deployment across network regions
-7. Cross-module invariant verification
+This is the capstone — every prior module participates.
 
 12 sections, ~75 checks expected.
 """
@@ -19,6 +15,7 @@ This chains ALL major subsystems together and verifies end-to-end properties:
 import hashlib
 import math
 import random
+import time as time_module
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Dict, List, Optional, Set, Tuple, Any
@@ -26,63 +23,74 @@ from collections import defaultdict
 
 
 # ============================================================
-# §1 — Entity Registration Layer
+# §1 — Entity Lifecycle
 # ============================================================
 
-class EntityStatus(Enum):
-    PENDING = "pending"
+class EntityState(Enum):
+    NASCENT = "nascent"
     ACTIVE = "active"
     SUSPENDED = "suspended"
     REVOKED = "revoked"
 
 
 @dataclass
-class TrustTensor:
-    talent: float = 0.5
-    training: float = 0.5
-    temperament: float = 0.5
-
-    def composite(self) -> float:
-        return (self.talent + self.training + self.temperament) / 3.0
-
-    def bounded(self) -> bool:
-        return all(0 <= v <= 1 for v in [self.talent, self.training, self.temperament])
-
-
-@dataclass
 class Entity:
     entity_id: str
-    trust: TrustTensor = field(default_factory=TrustTensor)
-    atp_balance: float = 100.0
-    status: EntityStatus = EntityStatus.ACTIVE
+    entity_type: str
+    state: EntityState = EntityState.NASCENT
+    trust: Dict[str, float] = field(default_factory=lambda: {"talent": 0.5, "training": 0.5, "temperament": 0.5})
+    atp_balance: float = 0.0
+    lct_id: str = ""
+    public_key: str = ""
+    created_at: float = 0.0
+    witnesses: List[str] = field(default_factory=list)
+    society_id: str = ""
     roles: Set[str] = field(default_factory=set)
-    history: List[Dict] = field(default_factory=list)
-    registered_at: float = 0.0
+    reputation_history: List[float] = field(default_factory=list)
 
-    def is_active(self) -> bool:
-        return self.status == EntityStatus.ACTIVE
+    def composite_trust(self) -> float:
+        vals = [v for v in self.trust.values() if isinstance(v, (int, float))]
+        return sum(vals) / len(vals) if vals else 0.0
 
-    def can_propose(self, min_trust: float = 0.3, min_atp: float = 10.0) -> bool:
-        return (self.is_active() and
-                self.trust.composite() >= min_trust and
-                self.atp_balance >= min_atp)
+    def activate(self) -> bool:
+        if self.state == EntityState.NASCENT:
+            self.state = EntityState.ACTIVE
+            return True
+        return False
 
-    def can_vote(self, min_trust: float = 0.1) -> bool:
-        return self.is_active() and self.trust.composite() >= min_trust
+    def suspend(self) -> bool:
+        if self.state == EntityState.ACTIVE:
+            self.state = EntityState.SUSPENDED
+            return True
+        return False
+
+    def revoke(self) -> bool:
+        if self.state in [EntityState.ACTIVE, EntityState.SUSPENDED]:
+            self.state = EntityState.REVOKED
+            return True
+        return False
+
+    def reactivate(self) -> bool:
+        if self.state == EntityState.SUSPENDED:
+            self.state = EntityState.ACTIVE
+            return True
+        return False
 
 
 @dataclass
 class EntityRegistry:
     entities: Dict[str, Entity] = field(default_factory=dict)
-    next_id: int = 0
+    lct_counter: int = 0
 
-    def register(self, entity_id: str, initial_trust: TrustTensor = None,
-                 initial_atp: float = 100.0, current_time: float = 0.0) -> Entity:
-        if entity_id in self.entities:
-            return self.entities[entity_id]
-        trust = initial_trust or TrustTensor()
-        entity = Entity(entity_id=entity_id, trust=trust, atp_balance=initial_atp,
-                       registered_at=current_time)
+    def create_entity(self, entity_id: str, entity_type: str,
+                      initial_atp: float = 100.0, time: float = 0.0) -> Entity:
+        self.lct_counter += 1
+        lct_id = f"lct:web4:{entity_id}:{self.lct_counter:08d}"
+        pk = hashlib.sha256(f"pk:{entity_id}".encode()).hexdigest()[:32]
+        entity = Entity(
+            entity_id=entity_id, entity_type=entity_type,
+            lct_id=lct_id, public_key=pk, created_at=time, atp_balance=initial_atp,
+        )
         self.entities[entity_id] = entity
         return entity
 
@@ -90,985 +98,789 @@ class EntityRegistry:
         return self.entities.get(entity_id)
 
     def active_count(self) -> int:
-        return sum(1 for e in self.entities.values() if e.is_active())
+        return sum(1 for e in self.entities.values() if e.state == EntityState.ACTIVE)
 
 
 def test_section_1():
     checks = []
+    reg = EntityRegistry()
+    alice = reg.create_entity("alice", "human", 200.0, time=1000.0)
 
-    registry = EntityRegistry()
-    alice = registry.register("alice", TrustTensor(0.8, 0.7, 0.75), 500.0)
-    bob = registry.register("bob", TrustTensor(0.6, 0.5, 0.55), 200.0)
+    checks.append(("entity_created", alice is not None))
+    checks.append(("nascent_state", alice.state == EntityState.NASCENT))
+    checks.append(("has_lct", len(alice.lct_id) > 0))
+    checks.append(("has_pk", len(alice.public_key) == 32))
+    checks.append(("initial_trust", abs(alice.composite_trust() - 0.5) < 0.01))
 
-    checks.append(("alice_registered", alice.entity_id == "alice"))
-    checks.append(("alice_active", alice.is_active()))
-    checks.append(("alice_trust_bounded", alice.trust.bounded()))
-    checks.append(("alice_can_propose", alice.can_propose()))
-    checks.append(("bob_can_vote", bob.can_vote()))
-    checks.append(("active_count", registry.active_count() == 2))
+    checks.append(("activate", alice.activate()))
+    checks.append(("active_state", alice.state == EntityState.ACTIVE))
+    checks.append(("cant_reactivate_active", not alice.reactivate()))
+    checks.append(("suspend", alice.suspend()))
+    checks.append(("suspended_state", alice.state == EntityState.SUSPENDED))
+    checks.append(("reactivate", alice.reactivate()))
+    checks.append(("active_again", alice.state == EntityState.ACTIVE))
 
-    # Low trust can't propose
-    newbie = registry.register("newbie", TrustTensor(0.1, 0.1, 0.1), 5.0)
-    checks.append(("newbie_cant_propose", not newbie.can_propose()))
-    checks.append(("newbie_cant_vote_low", not newbie.can_vote(min_trust=0.2)))
-
-    # Duplicate registration returns existing
-    alice2 = registry.register("alice")
-    checks.append(("no_duplicate", alice2.atp_balance == 500.0))
+    alice.suspend()
+    checks.append(("revoke_suspended", alice.revoke()))
+    checks.append(("revoked_state", alice.state == EntityState.REVOKED))
+    checks.append(("cant_reactivate_revoked", not alice.reactivate()))
 
     return checks
 
 
 # ============================================================
-# §2 — Privacy-Preserving Trust Query Layer
+# §2 — Trust Accumulation Pipeline
 # ============================================================
 
-@dataclass
-class PrivacyLayer:
-    """DP-protected trust queries with budget tracking."""
-    budget_max: float = 10.0
-    budget_used: float = 0.0
-    queries: List[Dict] = field(default_factory=list)
-
-    def remaining(self) -> float:
-        return self.budget_max - self.budget_used
-
-    def query_mean_trust(self, entities: List[Entity], epsilon: float,
-                         rng: random.Random) -> Dict:
-        """DP-protected mean trust query."""
-        if self.budget_used + epsilon > self.budget_max:
-            return {"success": False, "reason": "budget_exceeded"}
-
-        n = len(entities)
-        if n == 0:
-            return {"success": False, "reason": "no_entities"}
-
-        true_mean = sum(e.trust.composite() for e in entities) / n
-        sensitivity = 1.0 / n
-        scale = sensitivity / epsilon
-        noise = rng.gauss(0, scale * math.sqrt(2))  # Laplace approximation
-        noisy_mean = max(0, min(1, true_mean + noise))
-
-        self.budget_used += epsilon
-        result = {
-            "success": True,
-            "noisy_mean": noisy_mean,
-            "true_mean": true_mean,
-            "epsilon": epsilon,
-            "remaining": self.remaining(),
-        }
-        self.queries.append(result)
-        return result
-
-    def query_trust_histogram(self, entities: List[Entity], bins: int,
-                              epsilon: float, rng: random.Random) -> Dict:
-        """DP-protected trust histogram."""
-        if self.budget_used + epsilon > self.budget_max:
-            return {"success": False, "reason": "budget_exceeded"}
-
-        composites = [e.trust.composite() for e in entities]
-        bin_edges = [i / bins for i in range(bins + 1)]
-        true_counts = [0] * bins
-        for c in composites:
-            idx = min(int(c * bins), bins - 1)
-            true_counts[idx] += 1
-
-        # Add Laplace noise to each bin
-        sensitivity = 2.0 / len(entities) if entities else 1.0
-        scale = sensitivity / epsilon
-        noisy_counts = [max(0, round(c + rng.gauss(0, scale * math.sqrt(2))))
-                       for c in true_counts]
-
-        self.budget_used += epsilon
-        result = {
-            "success": True,
-            "histogram": noisy_counts,
-            "bins": bins,
-            "epsilon": epsilon,
-            "remaining": self.remaining(),
-        }
-        self.queries.append(result)
-        return result
+def accumulate_trust(entity: Entity, observations: List[Tuple[str, float]]) -> Dict:
+    updates = []
+    for dim, quality in observations:
+        if dim not in entity.trust:
+            continue
+        delta = 0.02 * (quality - 0.5)
+        old = entity.trust[dim]
+        entity.trust[dim] = max(0.0, min(1.0, old + delta))
+        updates.append({"dim": dim, "old": old, "new": entity.trust[dim], "delta": entity.trust[dim] - old})
+    entity.reputation_history.append(entity.composite_trust())
+    return {"updates": updates, "composite": entity.composite_trust(), "history_len": len(entity.reputation_history)}
 
 
 def test_section_2():
     checks = []
-    rng = random.Random(42)
+    reg = EntityRegistry()
+    bob = reg.create_entity("bob", "ai_agent", 100.0)
+    bob.activate()
 
-    registry = EntityRegistry()
-    for i in range(20):
-        trust = TrustTensor(0.4 + rng.random() * 0.4,
-                           0.4 + rng.random() * 0.4,
-                           0.4 + rng.random() * 0.4)
-        registry.register(f"entity_{i}", trust)
+    result = accumulate_trust(bob, [("talent", 0.9), ("training", 0.8), ("temperament", 0.7)])
+    checks.append(("trust_increased", bob.composite_trust() > 0.5))
+    checks.append(("all_bounded", all(0 <= v <= 1 for v in bob.trust.values())))
+    checks.append(("history_recorded", len(bob.reputation_history) == 1))
 
-    entities = list(registry.entities.values())
-    privacy = PrivacyLayer(budget_max=5.0)
+    for _ in range(50):
+        accumulate_trust(bob, [("talent", 0.95), ("training", 0.9), ("temperament", 0.85)])
+    checks.append(("trust_high_after_50", bob.composite_trust() > 0.7))
+    checks.append(("trust_capped_at_1", all(v <= 1.0 for v in bob.trust.values())))
 
-    # Mean trust query
-    result = privacy.query_mean_trust(entities, 1.0, rng)
-    checks.append(("mean_query_success", result["success"]))
-    checks.append(("mean_reasonable", 0 <= result["noisy_mean"] <= 1))
-    checks.append(("budget_consumed", privacy.budget_used == 1.0))
-
-    # Histogram query
-    hist = privacy.query_trust_histogram(entities, 5, 1.0, rng)
-    checks.append(("histogram_success", hist["success"]))
-    checks.append(("histogram_bins", len(hist["histogram"]) == 5))
-
-    # Budget tracking
-    checks.append(("budget_tracked", privacy.budget_used == 2.0))
-
-    # Over-budget rejection
-    over = privacy.query_mean_trust(entities, 5.0, rng)
-    checks.append(("over_budget_rejected", not over["success"]))
+    carol = reg.create_entity("carol", "human", 100.0)
+    carol.activate()
+    for _ in range(30):
+        accumulate_trust(carol, [("talent", 0.1), ("training", 0.2)])
+    checks.append(("bad_decreases_trust", carol.composite_trust() < 0.5))
+    checks.append(("trust_floor_0", all(v >= 0.0 for v in carol.trust.values())))
 
     return checks
 
 
 # ============================================================
-# §3 — Governance Proposal Layer
+# §3 — ATP Earning and Spending
 # ============================================================
 
-class ProposalStatus(Enum):
-    OPEN = "open"
-    PASSED = "passed"
-    REJECTED = "rejected"
-    EXPIRED = "expired"
+@dataclass
+class ATPLedger:
+    balances: Dict[str, float] = field(default_factory=dict)
+    total_minted: float = 0.0
+    total_fees: float = 0.0
+    total_staked: float = 0.0
+    fee_rate: float = 0.05
+    transactions: List[Dict] = field(default_factory=list)
 
+    def mint(self, entity_id: str, amount: float):
+        self.balances[entity_id] = self.balances.get(entity_id, 0) + amount
+        self.total_minted += amount
+
+    def transfer(self, sender: str, receiver: str, amount: float) -> Dict:
+        if amount <= 0:
+            return {"success": False, "reason": "non_positive"}
+        fee = amount * self.fee_rate
+        total = amount + fee
+        if self.balances.get(sender, 0) < total:
+            return {"success": False, "reason": "insufficient"}
+        self.balances[sender] -= total
+        self.balances[receiver] = self.balances.get(receiver, 0) + amount
+        self.total_fees += fee
+        tx = {"sender": sender, "receiver": receiver, "amount": amount, "fee": fee}
+        self.transactions.append(tx)
+        return {"success": True, **tx}
+
+    def stake(self, entity_id: str, amount: float) -> bool:
+        if self.balances.get(entity_id, 0) < amount:
+            return False
+        self.balances[entity_id] -= amount
+        self.total_staked += amount
+        return True
+
+    def balance(self, entity_id: str) -> float:
+        return self.balances.get(entity_id, 0)
+
+    def conservation_check(self) -> bool:
+        total_in_accounts = sum(self.balances.values())
+        return abs(total_in_accounts + self.total_fees + self.total_staked - self.total_minted) < 0.01
+
+
+def earn_atp(entity: Entity, ledger: ATPLedger, task_quality: float,
+             base_reward: float = 10.0) -> Dict:
+    if entity.state != EntityState.ACTIVE:
+        return {"earned": 0, "reason": "not_active"}
+    reward = base_reward * task_quality * entity.composite_trust()
+    ledger.mint(entity.entity_id, reward)
+    entity.atp_balance = ledger.balance(entity.entity_id)
+    return {"earned": reward, "new_balance": entity.atp_balance}
+
+
+def test_section_3():
+    checks = []
+    reg = EntityRegistry()
+    ledger = ATPLedger()
+
+    alice = reg.create_entity("alice", "human")
+    alice.activate()
+    ledger.mint("alice", 100.0)
+
+    result = earn_atp(alice, ledger, 0.8, 10.0)
+    checks.append(("earned_atp", result["earned"] > 0))
+    checks.append(("balance_updated", alice.atp_balance > 100.0))
+
+    alice.trust = {"talent": 0.9, "training": 0.9, "temperament": 0.9}
+    result_high = earn_atp(alice, ledger, 0.8, 10.0)
+
+    bob = reg.create_entity("bob", "ai_agent")
+    bob.activate()
+    bob.trust = {"talent": 0.3, "training": 0.3, "temperament": 0.3}
+    ledger.mint("bob", 100.0)
+    result_low = earn_atp(bob, ledger, 0.8, 10.0)
+    checks.append(("trust_amplifies_earnings", result_high["earned"] > result_low["earned"]))
+
+    tx = ledger.transfer("alice", "bob", 50.0)
+    checks.append(("transfer_success", tx["success"]))
+    checks.append(("fee_charged", tx["fee"] == 2.5))
+    checks.append(("conservation", ledger.conservation_check()))
+
+    carol = reg.create_entity("carol", "human")
+    result_inactive = earn_atp(carol, ledger, 0.8)
+    checks.append(("inactive_cant_earn", result_inactive["earned"] == 0))
+
+    return checks
+
+
+# ============================================================
+# §4 — Governance Participation
+# ============================================================
 
 @dataclass
 class Proposal:
     proposal_id: str
     proposer: str
     title: str
-    cost: float = 0.0
-    status: ProposalStatus = ProposalStatus.OPEN
-    votes: Dict[str, Tuple[bool, float]] = field(default_factory=dict)  # voter → (approve, weight)
-    created_at: float = 0.0
-    deadline: float = 0.0
+    votes: Dict[str, Tuple[bool, float]] = field(default_factory=dict)
+    status: str = "open"
+    atp_stake: float = 0.0
 
-    def total_weight(self) -> float:
-        return sum(w for _, w in self.votes.values())
-
-    def approval_weight(self) -> float:
-        return sum(w for approve, w in self.votes.values() if approve)
-
-    def approval_ratio(self) -> float:
-        total = self.total_weight()
-        return self.approval_weight() / total if total > 0 else 0
+    def tally(self) -> Dict:
+        approve = sum(w for _, (v, w) in self.votes.items() if v)
+        reject = sum(w for _, (v, w) in self.votes.items() if not v)
+        return {"approve": approve, "reject": reject, "total_votes": len(self.votes)}
 
 
 @dataclass
-class GovernanceLayer:
+class GovernanceSystem:
     proposals: Dict[str, Proposal] = field(default_factory=dict)
-    proposal_cost: float = 10.0
-    quorum_ratio: float = 0.5
-    approval_threshold: float = 0.6
-    next_id: int = 0
+    min_trust_to_propose: float = 0.3
+    min_trust_to_vote: float = 0.1
+    proposal_stake: float = 10.0
+    proposal_counter: int = 0
 
-    def submit_proposal(self, proposer: Entity, title: str, cost: float = 0.0,
-                        current_time: float = 0.0,
-                        economy: 'EconomyLayer' = None) -> Optional[Proposal]:
-        if not proposer.can_propose(min_atp=self.proposal_cost):
+    def submit_proposal(self, entity: Entity, title: str, ledger: ATPLedger) -> Optional[Proposal]:
+        if entity.state != EntityState.ACTIVE:
             return None
-
-        proposer.atp_balance -= self.proposal_cost
-        # Track proposal cost as burned fees for conservation
-        if economy is not None:
-            economy.total_fees += self.proposal_cost
-        prop_id = f"prop_{self.next_id}"
-        self.next_id += 1
-
-        proposal = Proposal(
-            proposal_id=prop_id,
-            proposer=proposer.entity_id,
-            title=title,
-            cost=cost,
-            created_at=current_time,
-            deadline=current_time + 100.0,
+        if entity.composite_trust() < self.min_trust_to_propose:
+            return None
+        if not ledger.stake(entity.entity_id, self.proposal_stake):
+            return None
+        self.proposal_counter += 1
+        prop = Proposal(
+            proposal_id=f"prop_{self.proposal_counter}", proposer=entity.entity_id,
+            title=title, atp_stake=self.proposal_stake,
         )
-        self.proposals[prop_id] = proposal
-        return proposal
+        self.proposals[prop.proposal_id] = prop
+        return prop
 
-    def vote(self, voter: Entity, proposal_id: str, approve: bool) -> bool:
-        if proposal_id not in self.proposals:
+    def vote(self, proposal_id: str, entity: Entity, approve: bool) -> bool:
+        prop = self.proposals.get(proposal_id)
+        if not prop or prop.status != "open":
             return False
-        if not voter.can_vote():
+        if entity.state != EntityState.ACTIVE or entity.composite_trust() < self.min_trust_to_vote:
             return False
-        proposal = self.proposals[proposal_id]
-        if proposal.status != ProposalStatus.OPEN:
-            return False
-        if voter.entity_id in proposal.votes:
-            return False  # Already voted
-
-        weight = voter.trust.composite()
-        proposal.votes[voter.entity_id] = (approve, weight)
+        prop.votes[entity.entity_id] = (approve, entity.composite_trust())
         return True
 
-    def resolve(self, proposal_id: str, total_weight: float) -> ProposalStatus:
-        """Resolve proposal: check quorum and approval threshold."""
-        proposal = self.proposals.get(proposal_id)
-        if not proposal or proposal.status != ProposalStatus.OPEN:
-            return proposal.status if proposal else ProposalStatus.EXPIRED
-
-        if proposal.total_weight() < total_weight * self.quorum_ratio:
-            proposal.status = ProposalStatus.EXPIRED
-            return ProposalStatus.EXPIRED
-
-        if proposal.approval_ratio() >= self.approval_threshold:
-            proposal.status = ProposalStatus.PASSED
-        else:
-            proposal.status = ProposalStatus.REJECTED
-
-        return proposal.status
-
-
-def test_section_3():
-    checks = []
-
-    registry = EntityRegistry()
-    alice = registry.register("alice", TrustTensor(0.8, 0.7, 0.75), 500.0)
-    bob = registry.register("bob", TrustTensor(0.6, 0.5, 0.55), 200.0)
-    carol = registry.register("carol", TrustTensor(0.7, 0.6, 0.65), 300.0)
-
-    gov = GovernanceLayer()
-
-    # Submit proposal
-    prop = gov.submit_proposal(alice, "Upgrade consensus", cost=100.0)
-    checks.append(("proposal_submitted", prop is not None))
-    checks.append(("alice_charged", alice.atp_balance == 490.0))
-
-    # Vote
-    checks.append(("alice_votes", gov.vote(alice, prop.proposal_id, True)))
-    checks.append(("bob_votes", gov.vote(bob, prop.proposal_id, True)))
-    checks.append(("carol_votes", gov.vote(carol, prop.proposal_id, False)))
-
-    # Duplicate vote blocked
-    checks.append(("no_double_vote", not gov.vote(alice, prop.proposal_id, True)))
-
-    # Resolve
-    total_weight = sum(e.trust.composite() for e in registry.entities.values())
-    status = gov.resolve(prop.proposal_id, total_weight)
-    # Alice (0.75) + Bob (0.55) approve = 1.30 vs Carol (0.65) reject
-    # Approval ratio = 1.30 / 1.95 ≈ 0.667 > 0.6 threshold
-    checks.append(("proposal_passed", status == ProposalStatus.PASSED))
-
-    return checks
-
-
-# ============================================================
-# §4 — Consensus Layer
-# ============================================================
-
-@dataclass
-class ConsensusLayer:
-    """Simplified BFT consensus for governance decisions."""
-    node_count: int = 10
-    faulty_max: int = 3
-    decisions: Dict[str, Any] = field(default_factory=dict)
-
-    def quorum(self) -> int:
-        return 2 * self.faulty_max + 1
-
-    def propose_decision(self, decision_id: str, value: Any,
-                         supporters: int, rng: random.Random) -> Dict:
-        """Propose and attempt to reach consensus."""
-        if supporters < self.quorum():
-            return {"decided": False, "reason": "insufficient_support"}
-
-        # Simulate message delivery (with some loss)
-        delivered = sum(1 for _ in range(supporters) if rng.random() > 0.05)
-
-        if delivered >= self.quorum():
-            self.decisions[decision_id] = value
-            return {"decided": True, "value": value, "supporters": delivered}
-
-        return {"decided": False, "reason": "delivery_failure", "delivered": delivered}
+    def resolve(self, proposal_id: str) -> str:
+        prop = self.proposals.get(proposal_id)
+        if not prop or prop.status != "open":
+            return "invalid"
+        tally = prop.tally()
+        prop.status = "passed" if tally["approve"] > tally["reject"] and tally["total_votes"] >= 2 else "rejected"
+        return prop.status
 
 
 def test_section_4():
     checks = []
-    rng = random.Random(42)
+    reg = EntityRegistry()
+    ledger = ATPLedger()
+    gov = GovernanceSystem()
 
-    consensus = ConsensusLayer(node_count=10)
-    checks.append(("quorum_7", consensus.quorum() == 7))
+    alice = reg.create_entity("alice", "human")
+    alice.activate()
+    alice.trust = {"talent": 0.8, "training": 0.7, "temperament": 0.9}
+    ledger.mint("alice", 500.0)
 
-    # Sufficient support → consensus
-    result = consensus.propose_decision("gov_1", "approve", 9, rng)
-    checks.append(("consensus_reached", result["decided"]))
+    bob = reg.create_entity("bob", "ai_agent")
+    bob.activate()
+    bob.trust = {"talent": 0.6, "training": 0.5, "temperament": 0.7}
+    ledger.mint("bob", 300.0)
 
-    # Insufficient support → no consensus
-    result2 = consensus.propose_decision("gov_2", "reject", 5, rng)
-    checks.append(("insufficient_no_consensus", not result2["decided"]))
+    carol = reg.create_entity("carol", "human")
+    carol.activate()
+    carol.trust = {"talent": 0.05, "training": 0.05, "temperament": 0.05}
 
-    # Decision recorded
-    checks.append(("decision_recorded", "gov_1" in consensus.decisions))
+    prop = gov.submit_proposal(alice, "Increase rewards", ledger)
+    checks.append(("proposal_created", prop is not None))
+    checks.append(("stake_deducted", ledger.balance("alice") == 490.0))
+
+    checks.append(("alice_votes", gov.vote(prop.proposal_id, alice, True)))
+    checks.append(("bob_votes", gov.vote(prop.proposal_id, bob, True)))
+    checks.append(("carol_blocked", not gov.vote(prop.proposal_id, carol, False)))
+
+    status = gov.resolve(prop.proposal_id)
+    checks.append(("proposal_passed", status == "passed"))
+
+    low_trust = reg.create_entity("low", "device")
+    low_trust.activate()
+    low_trust.trust = {"talent": 0.1, "training": 0.1, "temperament": 0.1}
+    ledger.mint("low", 500.0)
+    checks.append(("low_trust_cant_propose", gov.submit_proposal(low_trust, "Bad", ledger) is None))
 
     return checks
 
 
 # ============================================================
-# §5 — Economic Settlement Layer
+# §5 — Privacy-Preserving Queries
 # ============================================================
 
 @dataclass
-class EconomyLayer:
-    """ATP economic settlement."""
-    fee_rate: float = 0.05
-    total_fees: float = 0.0
-    initial_supply: float = 0.0
-    transactions: List[Dict] = field(default_factory=list)
+class PrivacyBudget:
+    total_epsilon: float = 0.0
+    max_epsilon: float = 10.0
 
-    def initialize(self, entities: Dict[str, Entity]):
-        self.initial_supply = sum(e.atp_balance for e in entities.values())
+    def can_spend(self, epsilon: float) -> bool:
+        return self.total_epsilon + epsilon <= self.max_epsilon
 
-    def transfer(self, sender: Entity, receiver: Entity, amount: float) -> Dict:
-        fee = amount * self.fee_rate
-        total_cost = amount + fee
+    def spend(self, epsilon: float) -> bool:
+        if not self.can_spend(epsilon):
+            return False
+        self.total_epsilon += epsilon
+        return True
 
-        if sender.atp_balance < total_cost:
-            return {"success": False, "reason": "insufficient_funds"}
-        if amount <= 0:
-            return {"success": False, "reason": "invalid_amount"}
 
-        sender.atp_balance -= total_cost
-        receiver.atp_balance += amount
-        self.total_fees += fee
-
-        tx = {
-            "success": True,
-            "sender": sender.entity_id,
-            "receiver": receiver.entity_id,
-            "amount": amount,
-            "fee": fee,
-        }
-        self.transactions.append(tx)
-        return tx
-
-    def reward(self, entity: Entity, amount: float, source: str = "system"):
-        """System reward (from pool, not from another entity)."""
-        entity.atp_balance += amount
-        self.initial_supply += amount  # System mint
-
-    def conservation_check(self, entities: Dict[str, Entity]) -> Tuple[bool, float]:
-        total = sum(e.atp_balance for e in entities.values())
-        expected = self.initial_supply - self.total_fees
-        diff = abs(total - expected)
-        return diff < 0.01, diff
+def private_trust_query(entity: Entity, epsilon: float,
+                        budget: PrivacyBudget, rng: random.Random) -> Dict:
+    if not budget.spend(epsilon):
+        return {"trust": None, "exhausted": True}
+    true_trust = entity.composite_trust()
+    noise = rng.gauss(0, 1.0 / epsilon)
+    noisy_trust = max(0.0, min(1.0, true_trust + noise))
+    return {"trust": noisy_trust, "true_trust": true_trust, "error": abs(noisy_trust - true_trust), "exhausted": False}
 
 
 def test_section_5():
     checks = []
+    rng = random.Random(42)
 
-    registry = EntityRegistry()
-    alice = registry.register("alice", initial_atp=1000.0)
-    bob = registry.register("bob", initial_atp=500.0)
+    reg = EntityRegistry()
+    alice = reg.create_entity("alice", "human")
+    alice.activate()
+    alice.trust = {"talent": 0.8, "training": 0.7, "temperament": 0.9}
 
-    economy = EconomyLayer()
-    economy.initialize(registry.entities)
+    budget = PrivacyBudget(max_epsilon=5.0)
+    result = private_trust_query(alice, 1.0, budget, rng)
+    checks.append(("trust_returned", result["trust"] is not None))
+    checks.append(("trust_bounded", 0.0 <= result["trust"] <= 1.0))
+    checks.append(("budget_spent", abs(budget.total_epsilon - 1.0) < 0.01))
 
-    # Transfer
-    result = economy.transfer(alice, bob, 100.0)
-    checks.append(("transfer_success", result["success"]))
-    checks.append(("fee_charged", result["fee"] == 5.0))
-    checks.append(("sender_debited", alice.atp_balance == 895.0))
-    checks.append(("receiver_credited", bob.atp_balance == 600.0))
+    budget2 = PrivacyBudget(max_epsilon=0.5)
+    r3 = private_trust_query(alice, 1.0, budget2, rng)
+    checks.append(("budget_exhausted", r3["exhausted"]))
 
-    # Conservation
-    conserved, diff = economy.conservation_check(registry.entities)
-    checks.append(("conservation_holds", conserved))
-
-    # Insufficient funds
-    result2 = economy.transfer(alice, bob, 10000.0)
-    checks.append(("insufficient_blocked", not result2["success"]))
+    errors = []
+    budget3 = PrivacyBudget(max_epsilon=200.0)
+    for _ in range(50):
+        r = private_trust_query(alice, 2.0, budget3, rng)
+        if r["trust"] is not None:
+            errors.append(r["error"])
+    avg_error = sum(errors) / len(errors)
+    checks.append(("reasonable_error", avg_error < 0.5))
 
     return checks
 
 
 # ============================================================
-# §6 — Deployment Layer
+# §6 — Consensus Integration
 # ============================================================
 
-class Region(Enum):
-    US_EAST = "us_east"
-    US_WEST = "us_west"
-    EU_WEST = "eu_west"
-    ASIA_EAST = "asia_east"
-
-
 @dataclass
-class DeploymentLayer:
-    """Multi-region deployment simulation."""
-    regions: Dict[Region, List[str]] = field(default_factory=dict)
-    latency_map: Dict[Tuple[Region, Region], float] = field(default_factory=dict)
+class ConsensusRound:
+    round_id: int
+    participants: List[Entity] = field(default_factory=list)
+    votes: Dict[str, bool] = field(default_factory=dict)
+    decided: bool = False
+    decision: Optional[bool] = None
 
-    def __post_init__(self):
-        self.latency_map = {
-            (Region.US_EAST, Region.US_WEST): 35.0,
-            (Region.US_EAST, Region.EU_WEST): 45.0,
-            (Region.US_EAST, Region.ASIA_EAST): 100.0,
-            (Region.US_WEST, Region.EU_WEST): 80.0,
-            (Region.US_WEST, Region.ASIA_EAST): 70.0,
-            (Region.EU_WEST, Region.ASIA_EAST): 120.0,
-        }
+    def vote(self, entity: Entity, value: bool) -> bool:
+        if entity.state != EntityState.ACTIVE:
+            return False
+        self.votes[entity.entity_id] = value
+        return True
 
-    def deploy_entity(self, entity_id: str, region: Region):
-        if region not in self.regions:
-            self.regions[region] = []
-        self.regions[region].append(entity_id)
-
-    def latency(self, r1: Region, r2: Region) -> float:
-        if r1 == r2:
-            return 2.0  # Intra-region
-        key = (min(r1, r2, key=lambda x: x.value),
-               max(r1, r2, key=lambda x: x.value))
-        return self.latency_map.get(key, self.latency_map.get((key[1], key[0]), 100.0))
-
-    def global_consensus_latency(self) -> float:
-        """Estimate global consensus latency (3 phases × max cross-region RTT)."""
-        if not self.regions:
-            return 0.0
-        active_regions = [r for r in self.regions if self.regions[r]]
-        if len(active_regions) <= 1:
-            return 6.0  # 3 phases × 2ms intra-region
-
-        max_lat = 0.0
-        for i, r1 in enumerate(active_regions):
-            for r2 in active_regions[i+1:]:
-                lat = self.latency(r1, r2)
-                max_lat = max(max_lat, lat)
-
-        return max_lat * 3  # 3 phases of BFT
+    def decide(self) -> bool:
+        if len(self.votes) < 2:
+            return False
+        approve_weight = sum(
+            next((p.composite_trust() for p in self.participants if p.entity_id == eid), 0)
+            for eid, v in self.votes.items() if v
+        )
+        reject_weight = sum(
+            next((p.composite_trust() for p in self.participants if p.entity_id == eid), 0)
+            for eid, v in self.votes.items() if not v
+        )
+        self.decided = True
+        self.decision = approve_weight > reject_weight
+        return True
 
 
 def test_section_6():
     checks = []
+    reg = EntityRegistry()
+    entities = []
+    for i in range(5):
+        e = reg.create_entity(f"node_{i}", "ai_agent")
+        e.activate()
+        e.trust = {"talent": 0.5 + i * 0.1, "training": 0.5, "temperament": 0.5}
+        entities.append(e)
 
-    deploy = DeploymentLayer()
-    deploy.deploy_entity("alice", Region.US_EAST)
-    deploy.deploy_entity("bob", Region.EU_WEST)
-    deploy.deploy_entity("carol", Region.ASIA_EAST)
+    cr = ConsensusRound(round_id=1, participants=entities)
+    for e in entities[:3]:
+        cr.vote(e, True)
+    for e in entities[3:]:
+        cr.vote(e, False)
+    checks.append(("consensus_decided", cr.decide()))
+    checks.append(("has_decision", cr.decision is not None))
 
-    checks.append(("entities_deployed", len(deploy.regions) == 3))
-    checks.append(("intra_region_fast", deploy.latency(Region.US_EAST, Region.US_EAST) == 2.0))
+    cr2 = ConsensusRound(round_id=2, participants=entities)
+    cr2.vote(entities[4], True)   # trust 0.633 (highest)
+    cr2.vote(entities[3], True)   # trust 0.567
+    cr2.vote(entities[0], False)  # trust 0.5 (lowest)
+    cr2.decide()
+    # approve_weight = 0.633+0.567 = 1.2, reject_weight = 0.5
+    checks.append(("high_trust_wins", cr2.decision == True))
 
-    cross_lat = deploy.latency(Region.US_EAST, Region.ASIA_EAST)
-    checks.append(("cross_region_slow", cross_lat > 50.0))
-
-    global_lat = deploy.global_consensus_latency()
-    checks.append(("global_consensus_latency", global_lat > 100.0))
-    checks.append(("global_vs_local", global_lat > 6.0))
+    inactive = reg.create_entity("inactive", "device")
+    cr3 = ConsensusRound(round_id=3, participants=[inactive])
+    checks.append(("inactive_cant_vote", not cr3.vote(inactive, True)))
 
     return checks
 
 
 # ============================================================
-# §7 — Trust Update Pipeline
+# §7 — Cross-Federation Bridge
 # ============================================================
 
-def trust_update_pipeline(entity: Entity, action_quality: float,
-                          action_type: str, observers: List[Entity]) -> Dict:
-    """
-    End-to-end trust update pipeline:
-    1. Entity performs action
-    2. Observers witness and rate
-    3. Trust tensor updated
-    4. History recorded
-    """
-    if not entity.is_active():
-        return {"success": False, "reason": "entity_inactive"}
+@dataclass
+class Federation:
+    federation_id: str
+    members: Dict[str, Entity] = field(default_factory=dict)
+    trust_threshold: float = 0.3
+    ledger: Optional[ATPLedger] = None
 
-    # Determine which dimension to update
-    dim_map = {
-        "technical": "talent",
-        "learning": "training",
-        "social": "temperament",
-    }
-    dimension = dim_map.get(action_type, "temperament")
+    def __post_init__(self):
+        if self.ledger is None:
+            self.ledger = ATPLedger()
 
-    # Calculate trust delta from quality and observer count
-    base_delta = 0.02 * (action_quality - 0.5)  # Symmetric around 0.5
-    observer_weight = min(1.0, len(observers) / 5.0)  # More observers = more impact
-    delta = base_delta * observer_weight
+    def admit(self, entity: Entity) -> bool:
+        if entity.composite_trust() < self.trust_threshold or entity.state != EntityState.ACTIVE:
+            return False
+        self.members[entity.entity_id] = entity
+        return True
 
-    # Apply update
-    old_value = getattr(entity.trust, dimension)
-    new_value = max(0.0, min(1.0, old_value + delta))
-    setattr(entity.trust, dimension, new_value)
 
-    # Record history
-    entry = {
-        "action_type": action_type,
-        "quality": action_quality,
-        "dimension": dimension,
-        "delta": delta,
-        "old_value": old_value,
-        "new_value": new_value,
-        "observers": len(observers),
-    }
-    entity.history.append(entry)
-
-    return {"success": True, "update": entry}
+def cross_federation_transfer(source_fed: Federation, target_fed: Federation,
+                               entity_id: str, amount: float) -> Dict:
+    source_entity = source_fed.members.get(entity_id)
+    if not source_entity:
+        return {"success": False, "reason": "not_member"}
+    if source_entity.composite_trust() < 0.5:
+        return {"success": False, "reason": "insufficient_trust"}
+    if source_fed.ledger.balance(entity_id) < amount * 1.1:
+        return {"success": False, "reason": "insufficient_balance"}
+    cross_fee = amount * 0.1
+    source_fed.ledger.balances[entity_id] -= amount + cross_fee
+    source_fed.ledger.total_fees += cross_fee
+    target_fed.ledger.balances[entity_id] = target_fed.ledger.balance(entity_id) + amount
+    return {"success": True, "amount": amount, "cross_fee": cross_fee}
 
 
 def test_section_7():
     checks = []
+    reg = EntityRegistry()
+    fed_a = Federation("federation_a", trust_threshold=0.3)
+    fed_b = Federation("federation_b", trust_threshold=0.4)
 
-    registry = EntityRegistry()
-    alice = registry.register("alice", TrustTensor(0.5, 0.5, 0.5))
-    observers = [registry.register(f"obs_{i}") for i in range(5)]
+    alice = reg.create_entity("alice", "human")
+    alice.activate()
+    alice.trust = {"talent": 0.8, "training": 0.7, "temperament": 0.9}
+    fed_a.admit(alice)
+    fed_a.ledger.mint("alice", 1000.0)
 
-    # Good technical action increases talent
-    result = trust_update_pipeline(alice, 0.9, "technical", observers)
-    checks.append(("update_success", result["success"]))
-    checks.append(("talent_increased", alice.trust.talent > 0.5))
+    bob = reg.create_entity("bob", "ai_agent")
+    bob.activate()
+    bob.trust = {"talent": 0.6, "training": 0.5, "temperament": 0.7}
 
-    # Bad social action decreases temperament
-    result2 = trust_update_pipeline(alice, 0.1, "social", observers)
-    checks.append(("temperament_decreased", alice.trust.temperament < 0.5))
+    checks.append(("alice_admitted_a", "alice" in fed_a.members))
+    checks.append(("bob_admitted_b", fed_b.admit(bob)))
 
-    # History recorded
-    checks.append(("history_recorded", len(alice.history) == 2))
+    low = reg.create_entity("low", "device")
+    low.activate()
+    low.trust = {"talent": 0.1, "training": 0.1, "temperament": 0.1}
+    checks.append(("low_rejected", not fed_b.admit(low)))
 
-    # Bounded updates
-    high_trust = registry.register("high", TrustTensor(0.99, 0.99, 0.99))
-    trust_update_pipeline(high_trust, 1.0, "technical", observers)
-    checks.append(("trust_capped_at_1", high_trust.trust.talent <= 1.0))
+    result = cross_federation_transfer(fed_a, fed_b, "alice", 100.0)
+    checks.append(("cross_fed_success", result["success"]))
+    checks.append(("cross_fee_charged", result["cross_fee"] == 10.0))
 
-    # No observers = no impact
-    result3 = trust_update_pipeline(alice, 0.9, "technical", [])
-    checks.append(("no_observers_no_delta", result3["update"]["delta"] == 0.0))
+    low_fed = reg.create_entity("low_fed", "human")
+    low_fed.activate()
+    low_fed.trust = {"talent": 0.3, "training": 0.3, "temperament": 0.3}
+    fed_a.admit(low_fed)
+    fed_a.ledger.mint("low_fed", 1000.0)
+    result2 = cross_federation_transfer(fed_a, fed_b, "low_fed", 100.0)
+    checks.append(("low_trust_cross_blocked", not result2["success"]))
 
     return checks
 
 
 # ============================================================
-# §8 — Cross-Module State Verification
+# §8 — Audit Trail
 # ============================================================
 
-def verify_system_state(registry: EntityRegistry,
-                        privacy: PrivacyLayer,
-                        governance: GovernanceLayer,
-                        economy: EconomyLayer) -> Dict:
-    """Verify cross-module invariants across the entire system."""
-    invariants = {}
+@dataclass
+class AuditEntry:
+    timestamp: float
+    entity_id: str
+    action: str
+    details: Dict
+    hash: str = ""
+    prev_hash: str = ""
 
-    # 1. All trust tensors bounded
-    all_bounded = all(e.trust.bounded() for e in registry.entities.values())
-    invariants["trust_bounded"] = all_bounded
+    def compute_hash(self):
+        data = f"{self.timestamp}:{self.entity_id}:{self.action}:{self.prev_hash}"
+        self.hash = hashlib.sha256(data.encode()).hexdigest()
 
-    # 2. ATP conservation
-    conserved, diff = economy.conservation_check(registry.entities)
-    invariants["atp_conservation"] = conserved
 
-    # 3. Privacy budget respected
-    invariants["privacy_budget"] = privacy.budget_used <= privacy.budget_max
+@dataclass
+class AuditTrail:
+    entries: List[AuditEntry] = field(default_factory=list)
+    last_hash: str = "genesis"
 
-    # 4. No entity has negative ATP
-    invariants["atp_non_negative"] = all(
-        e.atp_balance >= 0 for e in registry.entities.values())
+    def log(self, entity_id: str, action: str, details: Dict, time: float = 0.0):
+        entry = AuditEntry(timestamp=time, entity_id=entity_id, action=action,
+                          details=details, prev_hash=self.last_hash)
+        entry.compute_hash()
+        self.entries.append(entry)
+        self.last_hash = entry.hash
 
-    # 5. Active entities can participate
-    active = [e for e in registry.entities.values() if e.is_active()]
-    invariants["active_entities_exist"] = len(active) > 0
+    def verify_integrity(self) -> Tuple[bool, int]:
+        prev_hash = "genesis"
+        for i, entry in enumerate(self.entries):
+            if entry.prev_hash != prev_hash:
+                return False, i
+            expected = hashlib.sha256(
+                f"{entry.timestamp}:{entry.entity_id}:{entry.action}:{entry.prev_hash}".encode()
+            ).hexdigest()
+            if entry.hash != expected:
+                return False, i
+            prev_hash = entry.hash
+        return True, -1
 
-    # 6. Governance proposals have valid proposers
-    for prop in governance.proposals.values():
-        proposer = registry.get(prop.proposer)
-        if proposer is None:
-            invariants["valid_proposers"] = False
-            break
-    else:
-        invariants["valid_proposers"] = True
-
-    all_hold = all(invariants.values())
-    return {
-        "invariants": invariants,
-        "all_hold": all_hold,
-    }
+    def entries_for(self, entity_id: str) -> List[AuditEntry]:
+        return [e for e in self.entries if e.entity_id == entity_id]
 
 
 def test_section_8():
     checks = []
-    rng = random.Random(42)
+    trail = AuditTrail()
+    trail.log("alice", "create", {"type": "human"}, 100.0)
+    trail.log("alice", "activate", {}, 101.0)
+    trail.log("bob", "create", {"type": "ai_agent"}, 102.0)
+    trail.log("alice", "transfer", {"to": "bob", "amount": 50}, 103.0)
 
-    # Set up full system
-    registry = EntityRegistry()
-    for i in range(10):
-        trust = TrustTensor(0.4 + rng.random() * 0.4,
-                           0.4 + rng.random() * 0.4,
-                           0.4 + rng.random() * 0.4)
-        registry.register(f"entity_{i}", trust, 500.0)
+    checks.append(("entries_logged", len(trail.entries) == 4))
+    valid, _ = trail.verify_integrity()
+    checks.append(("integrity_valid", valid))
 
-    privacy = PrivacyLayer(budget_max=10.0)
-    governance = GovernanceLayer()
-    economy = EconomyLayer()
-    economy.initialize(registry.entities)
+    # Tamper detection
+    trail.entries[1].action = "TAMPERED"
+    valid2, broken2 = trail.verify_integrity()
+    checks.append(("tamper_detected", not valid2))
+    checks.append(("tamper_at_1", broken2 == 1))
 
-    # Run some operations
-    entities = list(registry.entities.values())
-    privacy.query_mean_trust(entities, 1.0, rng)
-    prop = governance.submit_proposal(entities[0], "Test proposal", economy=economy)
-    if prop:
-        governance.vote(entities[1], prop.proposal_id, True)
-    economy.transfer(entities[0], entities[1], 50.0)
-
-    # Verify state
-    result = verify_system_state(registry, privacy, governance, economy)
-    checks.append(("all_invariants_hold", result["all_hold"]))
-    checks.append(("trust_bounded", result["invariants"]["trust_bounded"]))
-    checks.append(("atp_conservation", result["invariants"]["atp_conservation"]))
-    checks.append(("privacy_budget", result["invariants"]["privacy_budget"]))
-    checks.append(("atp_non_negative", result["invariants"]["atp_non_negative"]))
-    checks.append(("valid_proposers", result["invariants"]["valid_proposers"]))
+    # Entity query on fresh trail
+    fresh = AuditTrail()
+    fresh.log("alice", "create", {}, 1.0)
+    fresh.log("bob", "create", {}, 2.0)
+    fresh.log("alice", "earn", {"amount": 10}, 3.0)
+    checks.append(("alice_entries_2", len(fresh.entries_for("alice")) == 2))
 
     return checks
 
 
 # ============================================================
-# §9 — Attack Simulation in E2E
+# §9 — Full System Simulation
 # ============================================================
 
-def simulate_e2e_attack(registry: EntityRegistry, governance: GovernanceLayer,
-                        economy: EconomyLayer, rng: random.Random) -> Dict:
-    """
-    Simulate an attacker trying to exploit cross-module interactions:
-    1. Register sybil identities
-    2. Try to pass malicious governance proposal
-    3. Try to drain treasury via proposal
-    """
-    # Create sybils
-    sybils = []
-    for i in range(5):
-        sybil = registry.register(f"sybil_{i}", TrustTensor(0.15, 0.15, 0.15), 50.0)
-        sybils.append(sybil)
+def simulate_full_system(num_entities: int, num_rounds: int, rng: random.Random) -> Dict:
+    reg = EntityRegistry()
+    ledger = ATPLedger()
+    gov = GovernanceSystem()
+    trail = AuditTrail()
+    fed = Federation("main", trust_threshold=0.3)
 
-    # Create honest entities
-    honest = []
-    for i in range(10):
-        h = registry.register(f"honest_{i}", TrustTensor(0.7, 0.7, 0.7), 500.0)
-        honest.append(h)
+    entities = []
+    for i in range(num_entities):
+        e = reg.create_entity(f"e{i}", "ai_agent" if i % 2 == 0 else "human",
+                             initial_atp=100.0, time=float(i))
+        e.activate()
+        ledger.mint(e.entity_id, 100.0)
+        fed.admit(e)
+        trail.log(e.entity_id, "create", {"type": e.entity_type}, float(i))
+        entities.append(e)
 
-    economy.initialize(registry.entities)
+    proposals_created = 0
+    consensus_decisions = 0
+    total_earned = 0.0
 
-    # Attack 1: Sybils try to propose (should fail — low trust)
-    sybil_proposals = []
-    for s in sybils:
-        prop = governance.submit_proposal(s, "Malicious proposal", cost=100.0)
-        sybil_proposals.append(prop)
-    sybil_can_propose = any(p is not None for p in sybil_proposals)
+    for round_num in range(num_rounds):
+        for e in entities:
+            q = rng.uniform(0.3, 0.9)
+            accumulate_trust(e, [("talent", q), ("training", q*0.9), ("temperament", q*0.95)])
 
-    # Attack 2: Even if one sybil proposes, honest majority should reject
-    # Manually create a proposal from a higher-trust sybil
-    boosted_sybil = registry.register("boosted_sybil", TrustTensor(0.4, 0.4, 0.4), 100.0)
-    prop = governance.submit_proposal(boosted_sybil, "Drain treasury", cost=500.0)
+        for e in entities:
+            result = earn_atp(e, ledger, rng.uniform(0.5, 1.0))
+            total_earned += result.get("earned", 0)
 
-    if prop:
-        # Sybils vote approve
-        for s in sybils:
-            governance.vote(s, prop.proposal_id, True)
-        governance.vote(boosted_sybil, prop.proposal_id, True)
+        if round_num % 5 == 0:
+            proposer = entities[round_num % num_entities]
+            prop = gov.submit_proposal(proposer, f"Proposal {round_num}", ledger)
+            if prop:
+                proposals_created += 1
+                for e in rng.sample(entities, min(5, len(entities))):
+                    gov.vote(prop.proposal_id, e, rng.random() > 0.3)
+                gov.resolve(prop.proposal_id)
 
-        # Honest entities vote reject
-        for h in honest:
-            governance.vote(h, prop.proposal_id, False)
+        if round_num % 3 == 0:
+            cr = ConsensusRound(round_id=round_num, participants=entities)
+            for e in rng.sample(entities, min(5, len(entities))):
+                cr.vote(e, rng.random() > 0.4)
+            if cr.decide():
+                consensus_decisions += 1
 
-        total_weight = sum(e.trust.composite() for e in registry.entities.values())
-        status = governance.resolve(prop.proposal_id, total_weight)
-        attack_passed = status == ProposalStatus.PASSED
-    else:
-        attack_passed = False
+        if len(entities) >= 2:
+            s = entities[rng.randint(0, len(entities)-1)]
+            r = entities[rng.randint(0, len(entities)-1)]
+            if s.entity_id != r.entity_id:
+                ledger.transfer(s.entity_id, r.entity_id, rng.uniform(1, 20))
 
+    audit_valid, _ = trail.verify_integrity()
     return {
-        "sybil_can_propose": sybil_can_propose,
-        "attack_proposal_passed": attack_passed,
-        "honest_majority_defended": not attack_passed,
-        "sybil_count": len(sybils),
-        "honest_count": len(honest),
+        "entities": num_entities, "rounds": num_rounds,
+        "proposals_created": proposals_created,
+        "consensus_decisions": consensus_decisions,
+        "total_earned": total_earned,
+        "conservation": ledger.conservation_check(),
+        "audit_valid": audit_valid,
+        "federation_members": len(fed.members),
+        "trust_mean": sum(e.composite_trust() for e in entities) / num_entities,
     }
 
 
 def test_section_9():
     checks = []
     rng = random.Random(42)
+    result = simulate_full_system(20, 50, rng)
 
-    registry = EntityRegistry()
-    governance = GovernanceLayer()
-    economy = EconomyLayer()
-
-    result = simulate_e2e_attack(registry, governance, economy, rng)
-    checks.append(("sybils_cant_propose", not result["sybil_can_propose"]))
-    checks.append(("attack_blocked", not result["attack_proposal_passed"]))
-    checks.append(("honest_majority_wins", result["honest_majority_defended"]))
+    checks.append(("all_entities", result["entities"] == 20))
+    checks.append(("rounds_done", result["rounds"] == 50))
+    checks.append(("proposals", result["proposals_created"] > 0))
+    checks.append(("consensus", result["consensus_decisions"] > 0))
+    checks.append(("atp_earned", result["total_earned"] > 0))
+    checks.append(("conservation", result["conservation"]))
+    checks.append(("audit_valid", result["audit_valid"]))
+    checks.append(("federation", result["federation_members"] > 0))
+    checks.append(("trust_evolved", result["trust_mean"] != 0.5))
 
     return checks
 
 
 # ============================================================
-# §10 — Multi-Round E2E Simulation
+# §10 — Stress Test
 # ============================================================
-
-def run_multi_round_simulation(rounds: int, rng: random.Random) -> Dict:
-    """Run a multi-round E2E simulation with all layers interacting."""
-    registry = EntityRegistry()
-    privacy = PrivacyLayer(budget_max=100.0)
-    governance = GovernanceLayer()
-    economy = EconomyLayer()
-    deploy = DeploymentLayer()
-
-    # Initialize entities across regions
-    regions = list(Region)
-    for i in range(20):
-        trust = TrustTensor(
-            0.3 + rng.random() * 0.5,
-            0.3 + rng.random() * 0.5,
-            0.3 + rng.random() * 0.5,
-        )
-        entity = registry.register(f"node_{i}", trust, 500.0)
-        deploy.deploy_entity(entity.entity_id, regions[i % len(regions)])
-
-    economy.initialize(registry.entities)
-    entities = list(registry.entities.values())
-
-    round_results = []
-    proposals_created = 0
-    transfers_completed = 0
-
-    for r in range(rounds):
-        round_data = {"round": r}
-
-        # 1. Privacy query (every 5 rounds)
-        if r % 5 == 0 and privacy.remaining() >= 0.5:
-            query = privacy.query_mean_trust(entities, 0.5, rng)
-            round_data["privacy_query"] = query.get("success")
-
-        # 2. Governance proposal (every 10 rounds)
-        if r % 10 == 0:
-            proposer = entities[r % len(entities)]
-            prop = governance.submit_proposal(proposer, f"Proposal round {r}",
-                                                economy=economy)
-            if prop:
-                proposals_created += 1
-                # Random voting
-                for e in entities:
-                    if e.entity_id != proposer.entity_id and rng.random() > 0.3:
-                        governance.vote(e, prop.proposal_id, rng.random() > 0.4)
-                total_weight = sum(e.trust.composite() for e in entities)
-                governance.resolve(prop.proposal_id, total_weight)
-
-        # 3. Economic activity
-        sender = entities[rng.randint(0, len(entities) - 1)]
-        receiver = entities[rng.randint(0, len(entities) - 1)]
-        if sender.entity_id != receiver.entity_id:
-            amount = rng.uniform(1, 20)
-            result = economy.transfer(sender, receiver, amount)
-            if result["success"]:
-                transfers_completed += 1
-
-        # 4. Trust updates
-        actor = entities[rng.randint(0, len(entities) - 1)]
-        quality = rng.uniform(0.3, 0.8)
-        action = rng.choice(["technical", "learning", "social"])
-        observers = rng.sample(entities, min(3, len(entities)))
-        trust_update_pipeline(actor, quality, action, observers)
-
-        round_results.append(round_data)
-
-    # Final verification
-    state = verify_system_state(registry, privacy, governance, economy)
-
-    return {
-        "rounds": rounds,
-        "entities": len(entities),
-        "proposals_created": proposals_created,
-        "transfers_completed": transfers_completed,
-        "final_state_valid": state["all_hold"],
-        "privacy_budget_used": privacy.budget_used,
-        "total_fees": economy.total_fees,
-        "invariants": state["invariants"],
-    }
-
 
 def test_section_10():
     checks = []
     rng = random.Random(42)
 
-    result = run_multi_round_simulation(100, rng)
-    checks.append(("simulation_completed", result["rounds"] == 100))
-    checks.append(("proposals_created", result["proposals_created"] > 0))
-    checks.append(("transfers_completed", result["transfers_completed"] > 0))
-    checks.append(("final_state_valid", result["final_state_valid"]))
-    checks.append(("trust_bounded", result["invariants"]["trust_bounded"]))
-    checks.append(("atp_conservation", result["invariants"]["atp_conservation"]))
-    checks.append(("fees_collected", result["total_fees"] > 0))
+    reg = EntityRegistry()
+    ledger = ATPLedger()
+    entities = []
+    for i in range(100):
+        e = reg.create_entity(f"stress_{i}", "ai_agent")
+        e.activate()
+        ledger.mint(e.entity_id, 1000.0)
+        entities.append(e)
+
+    for _ in range(200):
+        for e in entities:
+            accumulate_trust(e, [("talent", rng.uniform(0.2, 0.8))])
+
+    for _ in range(500):
+        s = entities[rng.randint(0, 99)]
+        r = entities[rng.randint(0, 99)]
+        if s.entity_id != r.entity_id:
+            ledger.transfer(s.entity_id, r.entity_id, rng.uniform(0.1, 5.0))
+
+    checks.append(("stress_100", len(entities) == 100))
+    checks.append(("trust_bounded", all(0 <= v <= 1 for e in entities for v in e.trust.values())))
+    checks.append(("balances_positive", all(ledger.balance(e.entity_id) >= -0.01 for e in entities)))
+    checks.append(("conservation", ledger.conservation_check()))
+    checks.append(("transactions", len(ledger.transactions) > 100))
 
     return checks
 
 
 # ============================================================
-# §11 — Stress Test
+# §11 — Error Recovery
 # ============================================================
-
-def stress_test(entity_count: int, rounds: int, rng: random.Random) -> Dict:
-    """High-load stress test with many entities and rapid operations."""
-    registry = EntityRegistry()
-    economy = EconomyLayer()
-
-    for i in range(entity_count):
-        trust = TrustTensor(
-            0.3 + rng.random() * 0.5,
-            0.3 + rng.random() * 0.5,
-            0.3 + rng.random() * 0.5,
-        )
-        registry.register(f"stress_{i}", trust, 1000.0)
-
-    economy.initialize(registry.entities)
-    entities = list(registry.entities.values())
-
-    operations = 0
-    for r in range(rounds):
-        # Batch transfers
-        for _ in range(10):
-            s = entities[rng.randint(0, len(entities) - 1)]
-            recv = entities[rng.randint(0, len(entities) - 1)]
-            if s.entity_id != recv.entity_id:
-                economy.transfer(s, recv, rng.uniform(0.1, 5.0))
-                operations += 1
-
-        # Batch trust updates
-        for _ in range(5):
-            actor = entities[rng.randint(0, len(entities) - 1)]
-            quality = rng.uniform(0.2, 0.8)
-            observers = rng.sample(entities, min(3, len(entities)))
-            trust_update_pipeline(actor, quality, "technical", observers)
-            operations += 1
-
-    conserved, diff = economy.conservation_check(registry.entities)
-    all_bounded = all(e.trust.bounded() for e in entities)
-    all_positive = all(e.atp_balance >= -0.01 for e in entities)  # Small float tolerance
-
-    return {
-        "entity_count": entity_count,
-        "rounds": rounds,
-        "operations": operations,
-        "conservation": conserved,
-        "conservation_diff": diff,
-        "trust_bounded": all_bounded,
-        "atp_positive": all_positive,
-    }
-
 
 def test_section_11():
     checks = []
     rng = random.Random(42)
 
-    result = stress_test(100, 50, rng)
-    checks.append(("stress_conservation", result["conservation"]))
-    checks.append(("stress_trust_bounded", result["trust_bounded"]))
-    checks.append(("stress_atp_positive", result["atp_positive"]))
-    checks.append(("stress_operations", result["operations"] > 500))
+    reg = EntityRegistry()
+    ledger = ATPLedger()
 
-    # Larger stress
-    result2 = stress_test(200, 20, rng)
-    checks.append(("large_conservation", result2["conservation"]))
-    checks.append(("large_trust_bounded", result2["trust_bounded"]))
+    alice = reg.create_entity("alice", "human")
+    alice.activate()
+    checks.append(("double_activate_blocked", not alice.activate()))
+
+    ledger.mint("alice", 100.0)
+    result = ledger.transfer("alice", "nonexistent", 10.0)
+    checks.append(("transfer_to_new", result["success"]))
+    checks.append(("conservation_after", ledger.conservation_check()))
+
+    bob = reg.create_entity("bob", "ai_agent")
+    bob.activate()
+    bob.revoke()
+    checks.append(("revoked_cant_earn", earn_atp(bob, ledger, 0.8)["earned"] == 0))
+
+    budget = PrivacyBudget(max_epsilon=1.0)
+    budget.spend(1.0)
+    checks.append(("budget_exhausted", not budget.can_spend(0.1)))
+
+    carol = reg.create_entity("carol", "human")
+    carol.activate()
+    ledger.mint("carol", 100.0)
+    checks.append(("continues_after_revoke", earn_atp(carol, ledger, 0.9)["earned"] > 0))
 
     return checks
 
 
 # ============================================================
-# §12 — Complete E2E Integration Verification
+# §12 — Complete E2E Pipeline
 # ============================================================
 
 def run_complete_e2e_pipeline(rng: random.Random) -> List[Tuple[str, bool]]:
     checks = []
 
-    # Phase 1: Entity registration
-    registry = EntityRegistry()
+    reg = EntityRegistry()
+    ledger = ATPLedger()
+    gov = GovernanceSystem()
+    trail = AuditTrail()
+    budget = PrivacyBudget(max_epsilon=20.0)
+    fed = Federation("main", ledger=ledger)
+
+    # Phase 1: Create entities
     entities = []
-    for i in range(15):
-        trust = TrustTensor(
-            0.4 + rng.random() * 0.4,
-            0.4 + rng.random() * 0.4,
-            0.4 + rng.random() * 0.4,
-        )
-        e = registry.register(f"e2e_{i}", trust, 500.0)
+    for i in range(10):
+        e = reg.create_entity(f"e{i}", "human" if i < 5 else "ai_agent")
+        e.activate()
+        ledger.mint(e.entity_id, 200.0)
+        fed.admit(e)
+        trail.log(e.entity_id, "birth", {"type": e.entity_type})
         entities.append(e)
-    checks.append(("registration", registry.active_count() == 15))
+    checks.append(("phase1_entities", len(entities) == 10))
 
-    # Phase 2: Privacy queries
-    privacy = PrivacyLayer(budget_max=10.0)
-    mean_result = privacy.query_mean_trust(entities, 1.0, rng)
-    checks.append(("privacy_query", mean_result["success"]))
+    # Phase 2: Trust
+    for _ in range(30):
+        for e in entities:
+            q = rng.uniform(0.4, 0.9)
+            accumulate_trust(e, [("talent", q), ("training", q*0.9), ("temperament", q*0.95)])
+    checks.append(("phase2_trust_grown", sum(e.composite_trust() for e in entities) / 10 > 0.5))
 
-    hist_result = privacy.query_trust_histogram(entities, 5, 1.0, rng)
-    checks.append(("histogram_query", hist_result["success"]))
+    # Phase 3: ATP
+    for _ in range(20):
+        for e in entities:
+            earn_atp(e, ledger, rng.uniform(0.5, 1.0))
+    checks.append(("phase3_atp_earned", all(ledger.balance(e.entity_id) > 200 for e in entities)))
 
-    # Phase 3: Governance (economy created early for conservation tracking)
-    economy = EconomyLayer()
-    economy.initialize(registry.entities)
-    governance = GovernanceLayer()
-    prop = governance.submit_proposal(entities[0], "Network upgrade", cost=200.0,
-                                      economy=economy)
-    checks.append(("proposal_created", prop is not None))
+    # Phase 4: Governance
+    prop = gov.submit_proposal(entities[0], "Upgrade protocol", ledger)
+    checks.append(("phase4_proposal", prop is not None))
+    for e in entities[1:6]:
+        gov.vote(prop.proposal_id, e, True)
+    for e in entities[6:]:
+        gov.vote(prop.proposal_id, e, False)
+    checks.append(("phase4_decided", gov.resolve(prop.proposal_id) in ["passed", "rejected"]))
 
-    for e in entities[1:]:
-        governance.vote(e, prop.proposal_id, rng.random() > 0.3)
-    total_weight = sum(e.trust.composite() for e in entities)
-    status = governance.resolve(prop.proposal_id, total_weight)
-    checks.append(("governance_resolved", status != ProposalStatus.OPEN))
+    # Phase 5: Privacy
+    for e in entities[:3]:
+        r = private_trust_query(e, 1.0, budget, rng)
+        checks.append((f"phase5_{e.entity_id}", r["trust"] is not None))
 
-    # Phase 4: Consensus
-    consensus = ConsensusLayer(node_count=15)
-    decision = consensus.propose_decision(
-        "gov_decision_1", {"proposal": prop.proposal_id, "status": status.value},
-        supporters=12, rng=rng,
-    )
-    checks.append(("consensus_reached", decision["decided"]))
+    # Phase 6: Consensus
+    cr = ConsensusRound(round_id=1, participants=entities)
+    for e in entities:
+        cr.vote(e, rng.random() > 0.3)
+    cr.decide()
+    checks.append(("phase6_consensus", cr.decided))
 
-    # Phase 5: Economic settlement
-    if status == ProposalStatus.PASSED:
-        economy.transfer(entities[0], entities[1], 50.0)
-    economy.transfer(entities[2], entities[3], 30.0)
-    checks.append(("economy_settled", len(economy.transactions) > 0))
+    # Phase 7: Cross-federation
+    fed_b = Federation("secondary", trust_threshold=0.5, ledger=ledger)
+    for e in entities[5:]:
+        fed_b.admit(e)
+    result = cross_federation_transfer(fed, fed_b, entities[0].entity_id, 50.0)
+    checks.append(("phase7_cross_fed", result["success"]))
 
-    conserved, _ = economy.conservation_check(registry.entities)
-    checks.append(("conservation_holds", conserved))
+    # Phase 8: Audit
+    checks.append(("phase8_audit", trail.verify_integrity()[0]))
 
-    # Phase 6: Deployment
-    deploy = DeploymentLayer()
-    regions = list(Region)
-    for i, e in enumerate(entities):
-        deploy.deploy_entity(e.entity_id, regions[i % len(regions)])
-    global_lat = deploy.global_consensus_latency()
-    checks.append(("deployment_latency", global_lat > 0))
+    # Phase 9: Conservation
+    checks.append(("phase9_conservation", ledger.conservation_check()))
 
-    # Phase 7: Trust updates
-    for e in entities[:5]:
-        trust_update_pipeline(e, rng.uniform(0.5, 0.9), "technical",
-                            entities[5:10])
-    all_bounded = all(e.trust.bounded() for e in entities)
-    checks.append(("trust_updates_bounded", all_bounded))
-
-    # Phase 8: Cross-module verification
-    state = verify_system_state(registry, privacy, governance, economy)
-    checks.append(("cross_module_valid", state["all_hold"]))
-
-    # Phase 9: Attack resistance
-    attack = simulate_e2e_attack(EntityRegistry(), GovernanceLayer(), EconomyLayer(), rng)
-    checks.append(("attack_defended", attack["honest_majority_defended"]))
-
-    # Phase 10: Multi-round stability
-    multi = run_multi_round_simulation(50, rng)
-    checks.append(("multi_round_stable", multi["final_state_valid"]))
+    # Phase 10: Trust bounded
+    checks.append(("phase10_bounded", all(0 <= v <= 1 for e in entities for v in e.trust.values())))
 
     return checks
 
 
 def test_section_12():
-    rng = random.Random(42)
-    return run_complete_e2e_pipeline(rng)
+    return run_complete_e2e_pipeline(random.Random(42))
 
 
 # ============================================================
@@ -1077,17 +889,17 @@ def test_section_12():
 
 def run_all():
     sections = [
-        ("§1 Entity Registration", test_section_1),
-        ("§2 Privacy Trust Queries", test_section_2),
-        ("§3 Governance Proposals", test_section_3),
-        ("§4 Consensus Layer", test_section_4),
-        ("§5 Economic Settlement", test_section_5),
-        ("§6 Deployment Layer", test_section_6),
-        ("§7 Trust Update Pipeline", test_section_7),
-        ("§8 Cross-Module Verification", test_section_8),
-        ("§9 Attack Simulation", test_section_9),
-        ("§10 Multi-Round Simulation", test_section_10),
-        ("§11 Stress Test", test_section_11),
+        ("§1 Entity Lifecycle", test_section_1),
+        ("§2 Trust Accumulation", test_section_2),
+        ("§3 ATP Earning/Spending", test_section_3),
+        ("§4 Governance Participation", test_section_4),
+        ("§5 Privacy Queries", test_section_5),
+        ("§6 Consensus Integration", test_section_6),
+        ("§7 Cross-Federation", test_section_7),
+        ("§8 Audit Trail", test_section_8),
+        ("§9 Full System Simulation", test_section_9),
+        ("§10 Stress Test", test_section_10),
+        ("§11 Error Recovery", test_section_11),
         ("§12 Complete E2E Pipeline", test_section_12),
     ]
 
