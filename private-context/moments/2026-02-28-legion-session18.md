@@ -1,101 +1,82 @@
 # Session 18 — Feb 28, 2026 (Legion)
 
 ## Summary
-Session 18: 5 tracks exploring the mathematical foundations of trust.
-403/403 checks, 8 bugs found and fixed, 5 new reference implementations.
-Total: 180 reference implementations.
+Session 18: 5 tracks, 427/427 checks, 7 bugs found and fixed. Mathematical foundations of trust. All tracks committed and pushed.
 
 ## Tracks
 
 ### Track 1: Temporal Logic Trust Verification (75/75)
-- CTL model checking: AG (safety), AF/EF (liveness), AU (until)
-- Bounded BFS over non-deterministic state transitions
-- Compositional verification: A safe ∧ B safe ∧ interface safe → A∘B safe
-- Counterexample generation for violated properties
-- Trust convergence: Lyapunov stability, fixed points, monotonicity
-- **Bugs**: 1
-  - Passed CTLFormula as initial state (type confusion → AttributeError)
-  - State space: 4-entity all-evaluated needs 25K states (12^4 branching)
+- CTL model checking: AG (safety), AF/EF (liveness), AU (until) over trust system states
+- Bounded BFS state exploration, non-deterministic transitions (3 quality levels)
+- Counterexample generation, Lyapunov stability, multi-entity temporal properties
+- **Bugs**: 2
+  - CTLFormula passed as initial state (wrong argument to bounded_model_check)
+  - 4-entity EF exhaustive check: branching 12^4=20736, needed max_states=25000 (not 5000)
 
 ### Track 2: Cryptographic Trust Anchoring (114/114)
 - Merkle trees with second-preimage resistance (0x00/0x01 prefixes)
-- Trust state commitments with nonce-protected hiding
-- HMAC-signed attestation chains with hash-linked integrity
-- Inclusion proofs AND exclusion proofs (sorted-order neighbor bounds)
-- Historical trust proofs via snapshot chains
-- Multi-attestor aggregation with weighted consensus scoring
-- Batch verification (200 proofs in <2s)
-- Pedersen-style commitment schemes (hiding + binding)
+- Trust state commitments, HMAC-signed attestation chains
+- Inclusion proofs, exclusion proofs (sorted-order neighbor bounds), historical proofs
+- Multi-attestor consensus, batch verification, Pedersen-style commitments
 - **Bugs**: 1
-  - Expected HMAC invalidation after value restore — but binding property
-    means identical content → identical hash → valid signature
+  - HMAC binding property: restoring value to exact original heals signature (test expectation wrong)
 
 ### Track 3: Adversarial Trust Game Theory (71/71)
-- Normal-form games with trust-dependent payoffs
-- Nash equilibria (pure + mixed), indifference computation
-- Evolutionary dynamics: replicator equation on populations
-- Repeated games: TFT, grudge, discount factors
-- Coalition games: Shapley values, superadditivity, core
-- Mechanism design: logarithmic scoring rules (strictly proper)
-- Bayesian games: incomplete information, separating equilibria
-- ESS analysis: defect is ESS in PD, both in coordination
-- Trust tournaments: round-robin with 5 strategies
+- Normal-form games, Nash equilibria (pure + mixed), replicator dynamics
+- Repeated games (TFT, Grudge), coalition (Shapley values), mechanism design
+- Bayesian games, ESS analysis, ATP staking, evolutionary tournament
 - **Bugs**: 1
-  - `max(0, negative_float)` returns int 0, not float 0.0 in Python
+  - `max(0, -1.0)` returns int 0, not float 0.0 — `isinstance(0, float)` is False
 
-### Track 4: Trust Tensor Field Dynamics (61/61)
-- Trust as scalar field on graphs with graph Laplacian
-- Heat equation diffusion: ∂f/∂t = D·Δf
-- Sources/sinks with capacity limits
-- Wave propagation with damping (second-order dynamics)
-- Potential fields: force = -∇φ, equilibrium conditions
-- Spectral analysis: power iteration for dominant eigenvector
-- Conservation laws: mean preserved, variance decreases, entropy increases
-- Boundary conditions: Dirichlet (fixed values → linear gradient), Neumann
-- Tensor decomposition: independent diffusion per T3 dimension
-- **Bugs**: 4
-  - Mid-point at exact neighbor average → zero Laplacian (need asymmetric config)
-  - 500 diffusion steps insufficient for Neumann convergence (→ 2000)
+### Track 4: Trust Tensor Field Dynamics (82/82)
+- 1D/2D diffusion (explicit Euler), wave propagation (Störmer-Verlet leapfrog)
+- Sources/sinks, Gauss-Seidel steady state, graph Laplacian diffusion
+- CFL stability, conservation laws, trust-as-gravity potential fields
+- Coupled multi-dimensional tensor diffusion with cross-dim coupling
+- Performance: 1000-node diffusion benchmarked
+- **Bugs**: 3
+  - Poisson source 0.5 → peak 2.5 clamped to 1.0 broke residual (reduced to 0.05)
+  - Force sign: F=-grad wrong; F=+grad correct (U=-T, so F=-dU/dx=+dT/dx)
+  - Gaussian σ=4: negligible gradient at 3σ → edge entities don't converge (widened to σ=8)
 
-### Track 5: Bootstrap Inequality & Fair ATP Distribution (82/82)
-- 4 inequality metrics: Gini, Lorenz curve, Theil index, Palma ratio
-- 7 distribution algorithms: uniform, PoW, trust-weighted, quadratic, UBI+merit, vesting, challenge
-- Dynamic inequality evolution (50-round economy simulation)
-- Sybil resistance: challenge-based is fully resistant (0 tasks = 0 allocation)
-- Social mobility: quartile transition matrices
-- Progressive redistribution with bracket taxation
-- BTC vs Web4 comparison: Web4 Gini < BTC Gini (key finding!)
-- Composite optimal scheme: 30% UBI + 30% challenge + 40% sqrt-trust
-- **Bugs**: 1
-  - BTC model needed 300 rounds for concentration to manifest (100 insufficient)
+### Track 5: Bootstrap Inequality & Fair ATP Distribution (85/85)
+- Gini coefficients, Lorenz curves, 3 allocation schemes (flat/proportional/sqrt)
+- Stake-weighted distribution, trust-gated progressive tiers
+- Sybil-resistant bootstrap with hardware cost analysis ($250/identity makes sybil unprofitable)
+- Temporal vesting (cliff + linear), redistribution (flat tax, progressive tax, UBI, demurrage)
+- Mobility metrics (Spearman rank, quintile transitions), anti-concentration (HHI, share caps)
+- Multi-cohort fairness (inflation-adjusted grants), combined simulation (100-500 entities)
+- **Bugs**: 0 — CLEAN first run!
 
 ## Key Insights
 
 ### New Technical Discoveries
-- CTL model checking: bounded BFS with max_states parameter manages state explosion
-- 4-entity system: 12 branches/step means 12^4 = 20K+ paths for 4-step property
-- HMAC binding property: restoring original value heals chain (content hash is deterministic)
-- Merkle exclusion proof: sorted neighbors bound where absent entity would be
-- `max(0, negative_float)` returns Python int, not float — type system gotcha
-- Trust field at exact neighbor average has zero Laplacian — "equilibrium at symmetry"
-- Diffusion preserves mean trust (conservation law) and decreases variance (entropy analog)
-- Dirichlet BCs create linear steady-state gradient in diffusion
-- BTC PoW model: wealth-proportional mining creates Gini > 0.5 at 300 rounds
-- Web4 composite (UBI + challenge + sqrt-trust) achieves Gini < 0.5
-- Challenge-based distribution is perfectly sybil-resistant (0 work = 0 reward)
-- Progressive tax + bottom-half redistribution reduces Gini more than equal redistribution
-- Replicator dynamics: PD→defection dominates; Hawk-Dove→stable mixed ESS at v/c
+- Force in trust-as-gravity: F = +dT/dx (NOT -dT/dx) because potential U = -T
+- Gaussian trust fields: σ must be ~n/4 for edge forces to matter
+- CFL stability: α·dt/dx² ≤ 0.5 for explicit Euler diffusion
+- Poisson solver clamping: strong sources push solution past [0,1], breaking PDE
+- HMAC binding property: restoring tampered data to exact original HEALS signature
+- Python type coercion: max(0, negative_float) returns int 0, not float 0.0
+- Sqrt allocation: Gini between flat and proportional (sublinear reduces concentration)
+- Hardware sybil defense: $250/identity cost makes 5-sybil attack -$200/identity net
+- Anti-concentration: cap individual share at 10%, redistribute excess
+- Multi-cohort early advantage bounded <5x with tenure-based trust growth
+- Combined tax+UBI keeps Gini < 0.6 over 50 periods at 100 entities
+- Wave trust: damped Störmer-Verlet with [0,1] clamping preserves stability
+- State space explosion: 4 entities × 3 qualities = 12^depth branching
+- Replicator dynamics: Hawk-Dove converges to v/c mixed ESS (verified)
 - Shapley values sum to grand coalition value (efficiency axiom verified)
 
 ### Research Significance
 - **Bootstrap inequality CLOSED** — the open question from cross-model review now has
-  a formal answer: Web4 does NOT recreate BTC concentration because sqrt dampening,
-  UBI floor, and challenge-based verification prevent it
-- Trust now has full mathematical treatment: temporal (CTL), cryptographic (Merkle),
-  game-theoretic (Nash/ESS), physical (field equations), and economic (inequality)
+  formal models: sqrt dampening, UBI floor, anti-concentration caps, and hardware sybil
+  costs prevent runaway wealth concentration
+- Trust now has full mathematical treatment across 5 domains: temporal logic (CTL),
+  cryptographic (Merkle/attestation), game-theoretic (Nash/ESS), physical (field equations),
+  and economic (inequality/redistribution)
 
 ## Cumulative Stats
 - 180 reference implementations (was 175)
-- Session 18: 403 checks, 8 bugs
-- Estimated cumulative: ~11,524+ checks across all sessions
-- Sessions 13-18: 1913 checks total, 48 bugs
+- Session 18: 427 checks, 7 bugs
+- Estimated cumulative: ~11,548+ checks across all sessions
+- Sessions 13-18: 1937 checks total, 47 bugs
