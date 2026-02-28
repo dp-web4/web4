@@ -2,215 +2,228 @@
 Wire Protocol & Tensor Serialization
 ======================================
 
-Implements canonical binary formats for Web4 cross-federation messages:
-trust tensor encoding, ATP packet framing, message envelopes with
-integrity, version negotiation, compression, roundtrip fuzz testing,
-and protocol handshake.
+Implements canonical binary encoding for Web4 trust tensors, ATP
+packets, and attestation proofs crossing federation boundaries.
+Includes framing, compression, version negotiation, and roundtrip
+property-based fuzz testing.
 
 Sections:
-  S1  — Primitive Encoding (varint, float, string)
-  S2  — Trust Tensor Serialization
+  S1  — Primitive Type Encoding (varint, float, string, bytes)
+  S2  — Trust Tensor Serialization (T3, V3)
   S3  — ATP Packet Encoding
-  S4  — Message Envelope & Integrity
-  S5  — Version Negotiation
-  S6  — Compression
-  S7  — Batch Encoding
-  S8  — Roundtrip Fuzz Testing
-  S9  — Protocol Handshake
-  S10 — Error Recovery
-  S11 — Performance & Throughput
+  S4  — Attestation Proof Encoding
+  S5  — Message Envelope & Framing
+  S6  — Version Negotiation
+  S7  — Compression (optional payload compression)
+  S8  — Batch Encoding
+  S9  — Roundtrip Fuzz Testing
+  S10 — Cross-Federation Message Format
+  S11 — Performance & Size Benchmarks
 """
 
 from __future__ import annotations
 import math
-import random
 import struct
+import random
 import hashlib
 import zlib
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional, Any, Set
-from enum import Enum, IntEnum
-from io import BytesIO
+from typing import List, Dict, Tuple, Optional, Any
+from enum import IntEnum
 
 
 # ============================================================
-# S1 — Primitive Encoding (varint, float, string)
+# S1 — Primitive Type Encoding
 # ============================================================
 
 def encode_varint(value: int) -> bytes:
-    """Encode unsigned integer as variable-length bytes (LEB128)."""
+    """Encode unsigned integer as variable-length integer (LEB128)."""
     if value < 0:
         raise ValueError("varint must be non-negative")
     result = bytearray()
-    while value > 0x7f:
-        result.append((value & 0x7f) | 0x80)
+    while value > 0x7F:
+        result.append((value & 0x7F) | 0x80)
         value >>= 7
-    result.append(value & 0x7f)
+    result.append(value & 0x7F)
     return bytes(result)
 
 
 def decode_varint(data: bytes, offset: int = 0) -> Tuple[int, int]:
-    """Decode varint, return (value, bytes_consumed)."""
+    """Decode varint, return (value, new_offset)."""
     value = 0
     shift = 0
-    consumed = 0
-    while offset + consumed < len(data):
-        byte = data[offset + consumed]
-        value |= (byte & 0x7f) << shift
-        consumed += 1
+    while offset < len(data):
+        byte = data[offset]
+        value |= (byte & 0x7F) << shift
+        offset += 1
         if not (byte & 0x80):
             break
         shift += 7
-    return value, consumed
+    return value, offset
 
 
 def encode_float64(value: float) -> bytes:
-    """Encode as IEEE 754 double (8 bytes, big-endian)."""
-    return struct.pack(">d", value)
+    """Encode float64 in IEEE 754 big-endian."""
+    return struct.pack('>d', value)
 
 
 def decode_float64(data: bytes, offset: int = 0) -> Tuple[float, int]:
-    return struct.unpack_from(">d", data, offset)[0], 8
+    return struct.unpack_from('>d', data, offset)[0], offset + 8
 
 
 def encode_string(value: str) -> bytes:
     """Length-prefixed UTF-8 string."""
-    encoded = value.encode("utf-8")
+    encoded = value.encode('utf-8')
     return encode_varint(len(encoded)) + encoded
 
 
 def decode_string(data: bytes, offset: int = 0) -> Tuple[str, int]:
-    length, consumed = decode_varint(data, offset)
-    start = offset + consumed
-    return data[start:start + length].decode("utf-8"), consumed + length
+    length, offset = decode_varint(data, offset)
+    value = data[offset:offset + length].decode('utf-8')
+    return value, offset + length
 
 
 def encode_bytes_field(value: bytes) -> bytes:
-    """Length-prefixed raw bytes."""
+    """Length-prefixed bytes."""
     return encode_varint(len(value)) + value
 
 
 def decode_bytes_field(data: bytes, offset: int = 0) -> Tuple[bytes, int]:
-    length, consumed = decode_varint(data, offset)
-    start = offset + consumed
-    return data[start:start + length], consumed + length
+    length, offset = decode_varint(data, offset)
+    return data[offset:offset + length], offset + length
 
 
 def test_section_1():
     checks = []
 
-    # Varint encoding
-    checks.append(("varint_0", encode_varint(0) == b'\x00'))
-    checks.append(("varint_127", encode_varint(127) == b'\x7f'))
-    checks.append(("varint_128", encode_varint(128) == b'\x80\x01'))
-    checks.append(("varint_300", encode_varint(300) == b'\xac\x02'))
-
     # Varint roundtrip
-    for val in [0, 1, 127, 128, 255, 1000, 65535, 1000000]:
-        decoded, consumed = decode_varint(encode_varint(val))
-        checks.append((f"varint_rt_{val}", decoded == val))
+    for v in [0, 1, 127, 128, 255, 300, 16383, 16384, 2097151, 2**21]:
+        encoded = encode_varint(v)
+        decoded, _ = decode_varint(encoded)
+        if decoded != v:
+            checks.append((f"varint_{v}", False))
+            break
+    else:
+        checks.append(("varint_roundtrip", True))
+
+    # Varint size efficiency
+    checks.append(("varint_1_byte", len(encode_varint(127)) == 1))
+    checks.append(("varint_2_bytes", len(encode_varint(128)) == 2))
+    checks.append(("varint_3_bytes", len(encode_varint(16384)) == 3))
 
     # Float64 roundtrip
-    for val in [0.0, 1.0, -1.0, 3.14159, 1e-10, float('inf')]:
-        decoded, _ = decode_float64(encode_float64(val))
-        if math.isinf(val):
-            checks.append((f"float_rt_inf", math.isinf(decoded)))
-        else:
-            checks.append((f"float_rt_{val}", abs(decoded - val) < 1e-15))
+    for v in [0.0, 1.0, -1.0, 3.14159, 1e-10, float('inf')]:
+        encoded = encode_float64(v)
+        decoded, _ = decode_float64(encoded)
+        if v != v:  # NaN
+            checks.append(("float_nan", decoded != decoded))
+        elif decoded != v:
+            checks.append(("float_roundtrip", False))
+            break
+    else:
+        checks.append(("float64_roundtrip", True))
 
     # String roundtrip
-    for s in ["", "hello", "Web4 Trust™", "日本語"]:
-        decoded, _ = decode_string(encode_string(s))
-        checks.append((f"string_rt_{len(s)}", decoded == s))
+    for s in ["", "hello", "日本語", "a" * 1000]:
+        encoded = encode_string(s)
+        decoded, _ = decode_string(encoded)
+        if decoded != s:
+            checks.append(("string_roundtrip", False))
+            break
+    else:
+        checks.append(("string_roundtrip", True))
+
+    # Bytes roundtrip
+    test_bytes = b'\x00\x01\x02\xff' * 100
+    encoded = encode_bytes_field(test_bytes)
+    decoded, _ = decode_bytes_field(encoded)
+    checks.append(("bytes_roundtrip", decoded == test_bytes))
+
+    # Negative varint rejected
+    try:
+        encode_varint(-1)
+        checks.append(("negative_varint_rejected", False))
+    except ValueError:
+        checks.append(("negative_varint_rejected", True))
 
     return checks
 
 
 # ============================================================
-# S2 — Trust Tensor Serialization
+# S2 — Trust Tensor Serialization (T3, V3)
 # ============================================================
 
-class TensorFieldTag(IntEnum):
-    TALENT = 1
-    TRAINING = 2
-    TEMPERAMENT = 3
-    COMPOSITE = 4
-    CONFIDENCE = 5
-    VERSION = 6
+class TensorType(IntEnum):
+    T3 = 1  # Trust tensor
+    V3 = 2  # Value tensor
 
 
 @dataclass
 class TrustTensor:
-    talent: float
-    training: float
-    temperament: float
+    tensor_type: TensorType
+    entity_id: str
+    talent: float       # T3 dim 1
+    training: float     # T3 dim 2
+    temperament: float  # T3 dim 3
     confidence: float = 1.0
-    version: int = 1
+    timestamp: float = 0.0
 
     @property
     def composite(self) -> float:
         return (self.talent + self.training + self.temperament) / 3.0
 
     def encode(self) -> bytes:
-        buf = BytesIO()
-        # Tag-length-value format
-        for tag, value in [
-            (TensorFieldTag.TALENT, self.talent),
-            (TensorFieldTag.TRAINING, self.training),
-            (TensorFieldTag.TEMPERAMENT, self.temperament),
-            (TensorFieldTag.CONFIDENCE, self.confidence),
-        ]:
-            buf.write(encode_varint(tag))
-            buf.write(encode_float64(value))
-        buf.write(encode_varint(TensorFieldTag.VERSION))
-        buf.write(encode_varint(self.version))
-        return buf.getvalue()
+        result = bytearray()
+        result.append(self.tensor_type)
+        result.extend(encode_string(self.entity_id))
+        result.extend(encode_float64(self.talent))
+        result.extend(encode_float64(self.training))
+        result.extend(encode_float64(self.temperament))
+        result.extend(encode_float64(self.confidence))
+        result.extend(encode_float64(self.timestamp))
+        return bytes(result)
 
     @classmethod
-    def decode(cls, data: bytes) -> 'TrustTensor':
-        offset = 0
-        fields = {}
-        while offset < len(data):
-            tag, consumed = decode_varint(data, offset)
-            offset += consumed
-            if tag == TensorFieldTag.VERSION:
-                val, consumed = decode_varint(data, offset)
-                fields['version'] = val
-            else:
-                val, consumed = decode_float64(data, offset)
-                fields[TensorFieldTag(tag).name.lower()] = val
-            offset += consumed
-        return cls(
-            talent=fields.get('talent', 0.0),
-            training=fields.get('training', 0.0),
-            temperament=fields.get('temperament', 0.0),
-            confidence=fields.get('confidence', 1.0),
-            version=fields.get('version', 1),
-        )
+    def decode(cls, data: bytes, offset: int = 0) -> Tuple['TrustTensor', int]:
+        tensor_type = TensorType(data[offset])
+        offset += 1
+        entity_id, offset = decode_string(data, offset)
+        talent, offset = decode_float64(data, offset)
+        training, offset = decode_float64(data, offset)
+        temperament, offset = decode_float64(data, offset)
+        confidence, offset = decode_float64(data, offset)
+        timestamp, offset = decode_float64(data, offset)
+        return cls(tensor_type, entity_id, talent, training, temperament,
+                   confidence, timestamp), offset
 
 
 def test_section_2():
     checks = []
 
-    t = TrustTensor(talent=0.8, training=0.6, temperament=0.7, confidence=0.95)
-    encoded = t.encode()
+    t3 = TrustTensor(TensorType.T3, "alice", 0.8, 0.6, 0.7, 0.95, 1709164800.0)
+    encoded = t3.encode()
+    decoded, _ = TrustTensor.decode(encoded)
 
-    checks.append(("encoded_bytes", len(encoded) > 0))
-    checks.append(("compact_size", len(encoded) < 50))  # should be ~37 bytes
+    checks.append(("t3_type", decoded.tensor_type == TensorType.T3))
+    checks.append(("t3_entity", decoded.entity_id == "alice"))
+    checks.append(("t3_talent", abs(decoded.talent - 0.8) < 1e-10))
+    checks.append(("t3_training", abs(decoded.training - 0.6) < 1e-10))
+    checks.append(("t3_temperament", abs(decoded.temperament - 0.7) < 1e-10))
+    checks.append(("t3_confidence", abs(decoded.confidence - 0.95) < 1e-10))
+    checks.append(("t3_timestamp", abs(decoded.timestamp - 1709164800.0) < 1e-6))
 
-    decoded = TrustTensor.decode(encoded)
-    checks.append(("rt_talent", abs(decoded.talent - 0.8) < 1e-10))
-    checks.append(("rt_training", abs(decoded.training - 0.6) < 1e-10))
-    checks.append(("rt_temperament", abs(decoded.temperament - 0.7) < 1e-10))
-    checks.append(("rt_confidence", abs(decoded.confidence - 0.95) < 1e-10))
-    checks.append(("rt_version", decoded.version == 1))
-    checks.append(("rt_composite", abs(decoded.composite - t.composite) < 1e-10))
+    # Size: 1 (type) + ~6 (entity) + 5*8 (floats) = ~47 bytes
+    checks.append(("t3_compact", len(encoded) < 60))
 
-    # Boundary values
-    boundary = TrustTensor(0.0, 1.0, 0.5)
-    decoded_b = TrustTensor.decode(boundary.encode())
-    checks.append(("boundary_zero", decoded_b.talent == 0.0))
-    checks.append(("boundary_one", decoded_b.training == 1.0))
+    # V3 tensor
+    v3 = TrustTensor(TensorType.V3, "bob", 0.9, 0.85, 0.75)
+    v3_enc = v3.encode()
+    v3_dec, _ = TrustTensor.decode(v3_enc)
+    checks.append(("v3_type", v3_dec.tensor_type == TensorType.V3))
+    checks.append(("v3_roundtrip", abs(v3_dec.talent - 0.9) < 1e-10))
+
+    # Composite preserved
+    checks.append(("composite_preserved", abs(decoded.composite - t3.composite) < 1e-10))
 
     return checks
 
@@ -234,31 +247,35 @@ class ATPPacket:
     to_entity: str
     amount: float
     fee: float
-    nonce: int
     timestamp: float
+    nonce: int = 0
+    federation_id: str = ""
 
     def encode(self) -> bytes:
-        buf = BytesIO()
-        buf.write(encode_varint(self.packet_type))
-        buf.write(encode_string(self.from_entity))
-        buf.write(encode_string(self.to_entity))
-        buf.write(encode_float64(self.amount))
-        buf.write(encode_float64(self.fee))
-        buf.write(encode_varint(self.nonce))
-        buf.write(encode_float64(self.timestamp))
-        return buf.getvalue()
+        result = bytearray()
+        result.append(self.packet_type)
+        result.extend(encode_string(self.from_entity))
+        result.extend(encode_string(self.to_entity))
+        result.extend(encode_float64(self.amount))
+        result.extend(encode_float64(self.fee))
+        result.extend(encode_float64(self.timestamp))
+        result.extend(encode_varint(self.nonce))
+        result.extend(encode_string(self.federation_id))
+        return bytes(result)
 
     @classmethod
-    def decode(cls, data: bytes) -> 'ATPPacket':
-        offset = 0
-        ptype, consumed = decode_varint(data, offset); offset += consumed
-        from_e, consumed = decode_string(data, offset); offset += consumed
-        to_e, consumed = decode_string(data, offset); offset += consumed
-        amount, consumed = decode_float64(data, offset); offset += consumed
-        fee, consumed = decode_float64(data, offset); offset += consumed
-        nonce, consumed = decode_varint(data, offset); offset += consumed
-        timestamp, consumed = decode_float64(data, offset); offset += consumed
-        return cls(ATPPacketType(ptype), from_e, to_e, amount, fee, nonce, timestamp)
+    def decode(cls, data: bytes, offset: int = 0) -> Tuple['ATPPacket', int]:
+        packet_type = ATPPacketType(data[offset])
+        offset += 1
+        from_entity, offset = decode_string(data, offset)
+        to_entity, offset = decode_string(data, offset)
+        amount, offset = decode_float64(data, offset)
+        fee, offset = decode_float64(data, offset)
+        timestamp, offset = decode_float64(data, offset)
+        nonce, offset = decode_varint(data, offset)
+        federation_id, offset = decode_string(data, offset)
+        return cls(packet_type, from_entity, to_entity, amount, fee,
+                   timestamp, nonce, federation_id), offset
 
     def content_hash(self) -> str:
         return hashlib.sha256(self.encode()).hexdigest()
@@ -267,707 +284,673 @@ class ATPPacket:
 def test_section_3():
     checks = []
 
-    pkt = ATPPacket(
-        packet_type=ATPPacketType.TRANSFER,
-        from_entity="alice",
-        to_entity="bob",
-        amount=100.0,
-        fee=5.0,
-        nonce=12345,
-        timestamp=1709136000.0,
-    )
-
+    pkt = ATPPacket(ATPPacketType.TRANSFER, "alice", "bob", 50.0, 2.5,
+                    1709164800.0, nonce=42, federation_id="fed-alpha")
     encoded = pkt.encode()
-    checks.append(("atp_encoded", len(encoded) > 0))
-    checks.append(("atp_compact", len(encoded) < 100))
+    decoded, _ = ATPPacket.decode(encoded)
 
-    decoded = ATPPacket.decode(encoded)
-    checks.append(("atp_rt_type", decoded.packet_type == ATPPacketType.TRANSFER))
-    checks.append(("atp_rt_from", decoded.from_entity == "alice"))
-    checks.append(("atp_rt_to", decoded.to_entity == "bob"))
-    checks.append(("atp_rt_amount", abs(decoded.amount - 100.0) < 1e-10))
-    checks.append(("atp_rt_fee", abs(decoded.fee - 5.0) < 1e-10))
-    checks.append(("atp_rt_nonce", decoded.nonce == 12345))
+    checks.append(("atp_type", decoded.packet_type == ATPPacketType.TRANSFER))
+    checks.append(("atp_from", decoded.from_entity == "alice"))
+    checks.append(("atp_to", decoded.to_entity == "bob"))
+    checks.append(("atp_amount", abs(decoded.amount - 50.0) < 1e-10))
+    checks.append(("atp_fee", abs(decoded.fee - 2.5) < 1e-10))
+    checks.append(("atp_nonce", decoded.nonce == 42))
+    checks.append(("atp_federation", decoded.federation_id == "fed-alpha"))
 
-    # Hash determinism
-    checks.append(("hash_deterministic", pkt.content_hash() == ATPPacket.decode(encoded).content_hash()))
+    # Compact
+    checks.append(("atp_compact", len(encoded) < 80))
+
+    # Content hash deterministic
+    h1 = pkt.content_hash()
+    h2 = pkt.content_hash()
+    checks.append(("hash_deterministic", h1 == h2))
+
+    # Different packet -> different hash
+    pkt2 = ATPPacket(ATPPacketType.TRANSFER, "alice", "bob", 51.0, 2.5,
+                     1709164800.0, nonce=42, federation_id="fed-alpha")
+    checks.append(("hash_differs", pkt.content_hash() != pkt2.content_hash()))
 
     return checks
 
 
 # ============================================================
-# S4 — Message Envelope & Integrity
+# S4 — Attestation Proof Encoding
 # ============================================================
 
-class MessageType(IntEnum):
-    TRUST_UPDATE = 1
-    ATP_TRANSFER = 2
-    DELEGATION = 3
-    CONSENSUS = 4
-    HEARTBEAT = 5
-
-
 @dataclass
-class MessageEnvelope:
-    message_type: MessageType
-    sender: str
-    federation_id: str
-    payload: bytes
-    sequence: int = 0
+class AttestationProof:
+    attestor_id: str
+    subject_id: str
+    trust_snapshot: TrustTensor
+    signature: bytes
+    merkle_path: List[bytes]  # inclusion proof
+    timestamp: float
 
     def encode(self) -> bytes:
-        buf = BytesIO()
-        # Magic bytes
-        buf.write(b'W4')
-        # Version
-        buf.write(encode_varint(1))
-        # Type
-        buf.write(encode_varint(self.message_type))
-        # Sender
-        buf.write(encode_string(self.sender))
-        # Federation
-        buf.write(encode_string(self.federation_id))
-        # Sequence
-        buf.write(encode_varint(self.sequence))
-        # Payload
-        buf.write(encode_bytes_field(self.payload))
-        # Integrity: SHA-256 over all preceding bytes
-        content = buf.getvalue()
-        mac = hashlib.sha256(content).digest()
-        buf.write(mac)
-        return buf.getvalue()
+        result = bytearray()
+        result.extend(encode_string(self.attestor_id))
+        result.extend(encode_string(self.subject_id))
+        result.extend(self.trust_snapshot.encode())
+        result.extend(encode_bytes_field(self.signature))
+        result.extend(encode_varint(len(self.merkle_path)))
+        for node in self.merkle_path:
+            result.extend(encode_bytes_field(node))
+        result.extend(encode_float64(self.timestamp))
+        return bytes(result)
 
     @classmethod
-    def decode(cls, data: bytes) -> Tuple['MessageEnvelope', bool]:
-        """Decode and verify. Returns (envelope, integrity_ok)."""
-        if data[:2] != b'W4':
-            raise ValueError("Invalid magic bytes")
-
-        # Integrity check: last 32 bytes are SHA-256
-        content = data[:-32]
-        mac = data[-32:]
-        expected_mac = hashlib.sha256(content).digest()
-        integrity_ok = mac == expected_mac
-
-        if not integrity_ok:
-            # Don't attempt to decode corrupted content
-            return cls(MessageType.HEARTBEAT, "", "", b"", 0), False
-
-        offset = 2
-        version, consumed = decode_varint(content, offset); offset += consumed
-        msg_type, consumed = decode_varint(content, offset); offset += consumed
-        sender, consumed = decode_string(content, offset); offset += consumed
-        fed_id, consumed = decode_string(content, offset); offset += consumed
-        seq, consumed = decode_varint(content, offset); offset += consumed
-        payload, consumed = decode_bytes_field(content, offset); offset += consumed
-
-        return cls(MessageType(msg_type), sender, fed_id, payload, seq), integrity_ok
+    def decode(cls, data: bytes, offset: int = 0) -> Tuple['AttestationProof', int]:
+        attestor_id, offset = decode_string(data, offset)
+        subject_id, offset = decode_string(data, offset)
+        trust_snapshot, offset = TrustTensor.decode(data, offset)
+        signature, offset = decode_bytes_field(data, offset)
+        path_len, offset = decode_varint(data, offset)
+        merkle_path = []
+        for _ in range(path_len):
+            node, offset = decode_bytes_field(data, offset)
+            merkle_path.append(node)
+        timestamp, offset = decode_float64(data, offset)
+        return cls(attestor_id, subject_id, trust_snapshot, signature,
+                   merkle_path, timestamp), offset
 
 
 def test_section_4():
     checks = []
 
-    tensor = TrustTensor(0.8, 0.6, 0.7)
-    env = MessageEnvelope(
-        message_type=MessageType.TRUST_UPDATE,
-        sender="alice",
-        federation_id="fed-001",
-        payload=tensor.encode(),
-        sequence=42,
-    )
+    tensor = TrustTensor(TensorType.T3, "bob", 0.7, 0.6, 0.8)
+    sig = hashlib.sha256(b"attestation_signature").digest()
+    merkle = [hashlib.sha256(f"node_{i}".encode()).digest() for i in range(4)]
 
-    encoded = env.encode()
-    checks.append(("envelope_has_magic", encoded[:2] == b'W4'))
+    proof = AttestationProof("alice", "bob", tensor, sig, merkle, 1709164800.0)
+    encoded = proof.encode()
+    decoded, _ = AttestationProof.decode(encoded)
 
-    decoded, integrity = MessageEnvelope.decode(encoded)
-    checks.append(("integrity_ok", integrity))
-    checks.append(("rt_sender", decoded.sender == "alice"))
-    checks.append(("rt_fed", decoded.federation_id == "fed-001"))
-    checks.append(("rt_seq", decoded.sequence == 42))
+    checks.append(("proof_attestor", decoded.attestor_id == "alice"))
+    checks.append(("proof_subject", decoded.subject_id == "bob"))
+    checks.append(("proof_tensor", abs(decoded.trust_snapshot.talent - 0.7) < 1e-10))
+    checks.append(("proof_sig", decoded.signature == sig))
+    checks.append(("proof_merkle_len", len(decoded.merkle_path) == 4))
+    checks.append(("proof_merkle_match", decoded.merkle_path[0] == merkle[0]))
 
-    # Payload is trust tensor
-    inner = TrustTensor.decode(decoded.payload)
-    checks.append(("inner_tensor", abs(inner.talent - 0.8) < 1e-10))
+    # Size with 4-node Merkle path: should fit in ~256 bytes
+    checks.append(("proof_size", len(encoded) < 300))
 
-    # Tamper detection
-    tampered = bytearray(encoded)
-    tampered[10] ^= 0xff  # flip a byte
-    _, tampered_ok = MessageEnvelope.decode(bytes(tampered))
-    checks.append(("tamper_detected", not tampered_ok))
+    # Empty Merkle path
+    empty_proof = AttestationProof("a", "b", tensor, b"", [], 0.0)
+    enc2 = empty_proof.encode()
+    dec2, _ = AttestationProof.decode(enc2)
+    checks.append(("empty_merkle", len(dec2.merkle_path) == 0))
 
     return checks
 
 
 # ============================================================
-# S5 — Version Negotiation
+# S5 — Message Envelope & Framing
 # ============================================================
 
+class MessageType(IntEnum):
+    TRUST_UPDATE = 1
+    ATP_TRANSFER = 2
+    ATTESTATION = 3
+    HEARTBEAT = 4
+    CONSENSUS = 5
+    FEDERATION_SYNC = 6
+
+
 @dataclass
-class VersionCapability:
-    min_version: int = 1
-    max_version: int = 1
-    supported_types: Set[MessageType] = field(default_factory=lambda: set(MessageType))
-    extensions: Set[str] = field(default_factory=set)
+class MessageEnvelope:
+    version: int
+    message_type: MessageType
+    sender_id: str
+    recipient_id: str  # "" for broadcast
+    payload: bytes
+    mac: bytes = b""  # HMAC for integrity
 
-    def negotiate(self, other: 'VersionCapability') -> Optional[int]:
-        """Find highest mutually supported version."""
-        overlap_min = max(self.min_version, other.min_version)
-        overlap_max = min(self.max_version, other.max_version)
-        if overlap_min > overlap_max:
-            return None
-        return overlap_max
+    def encode(self) -> bytes:
+        result = bytearray()
+        # Magic bytes + version
+        result.extend(b'W4')  # 2-byte magic
+        result.extend(encode_varint(self.version))
+        result.append(self.message_type)
+        result.extend(encode_string(self.sender_id))
+        result.extend(encode_string(self.recipient_id))
+        result.extend(encode_bytes_field(self.payload))
+        result.extend(encode_bytes_field(self.mac))
+        # Length prefix for framing
+        frame = encode_varint(len(result)) + bytes(result)
+        return frame
 
-    def common_types(self, other: 'VersionCapability') -> Set[MessageType]:
-        return self.supported_types & other.supported_types
+    @classmethod
+    def decode(cls, data: bytes, offset: int = 0) -> Tuple['MessageEnvelope', int]:
+        frame_len, offset = decode_varint(data, offset)
+        # Magic check
+        if data[offset:offset+2] != b'W4':
+            raise ValueError("Invalid magic bytes")
+        offset += 2
+        version, offset = decode_varint(data, offset)
+        message_type = MessageType(data[offset])
+        offset += 1
+        sender_id, offset = decode_string(data, offset)
+        recipient_id, offset = decode_string(data, offset)
+        payload, offset = decode_bytes_field(data, offset)
+        mac, offset = decode_bytes_field(data, offset)
+        return cls(version, message_type, sender_id, recipient_id, payload, mac), offset
 
-    def common_extensions(self, other: 'VersionCapability') -> Set[str]:
-        return self.extensions & other.extensions
+    def compute_mac(self, key: bytes) -> bytes:
+        import hmac as hmac_mod
+        content = self.version.to_bytes(2, 'big') + self.message_type.to_bytes(1, 'big')
+        content += self.sender_id.encode() + self.recipient_id.encode() + self.payload
+        return hmac_mod.new(key, content, hashlib.sha256).digest()
+
+    def sign(self, key: bytes):
+        self.mac = self.compute_mac(key)
+
+    def verify(self, key: bytes) -> bool:
+        import hmac as hmac_mod
+        expected = self.compute_mac(key)
+        return hmac_mod.compare_digest(self.mac, expected)
 
 
 def test_section_5():
     checks = []
 
-    v1 = VersionCapability(min_version=1, max_version=3,
-                           supported_types={MessageType.TRUST_UPDATE, MessageType.ATP_TRANSFER},
-                           extensions={"compression", "batching"})
-    v2 = VersionCapability(min_version=2, max_version=4,
-                           supported_types={MessageType.ATP_TRANSFER, MessageType.CONSENSUS},
-                           extensions={"compression", "streaming"})
+    payload = b"test_payload_data"
+    msg = MessageEnvelope(1, MessageType.ATP_TRANSFER, "alice", "bob", payload)
 
-    # Version negotiation
-    agreed = v1.negotiate(v2)
-    checks.append(("version_3", agreed == 3))
+    encoded = msg.encode()
+    decoded, _ = MessageEnvelope.decode(encoded)
 
-    # Common types
-    common = v1.common_types(v2)
-    checks.append(("common_atp", MessageType.ATP_TRANSFER in common))
-    checks.append(("not_common_trust", MessageType.TRUST_UPDATE not in common))
+    checks.append(("msg_version", decoded.version == 1))
+    checks.append(("msg_type", decoded.message_type == MessageType.ATP_TRANSFER))
+    checks.append(("msg_sender", decoded.sender_id == "alice"))
+    checks.append(("msg_recipient", decoded.recipient_id == "bob"))
+    checks.append(("msg_payload", decoded.payload == payload))
 
-    # Common extensions
-    common_ext = v1.common_extensions(v2)
-    checks.append(("common_compression", "compression" in common_ext))
-    checks.append(("no_streaming", "streaming" not in common_ext))
+    # HMAC signing
+    key = b"federation_secret_key"
+    msg.sign(key)
+    checks.append(("mac_signed", len(msg.mac) == 32))
 
-    # No overlap
-    v3 = VersionCapability(min_version=5, max_version=6)
-    checks.append(("no_overlap", v1.negotiate(v3) is None))
+    encoded_signed = msg.encode()
+    decoded_signed, _ = MessageEnvelope.decode(encoded_signed)
+    checks.append(("mac_verifies", decoded_signed.verify(key)))
+    checks.append(("mac_wrong_key", not decoded_signed.verify(b"wrong_key")))
 
-    # Same version
-    v4 = VersionCapability(min_version=1, max_version=1)
-    checks.append(("exact_match", v1.negotiate(v4) == 1))
+    # Invalid magic
+    try:
+        bad_data = encode_varint(10) + b'XX' + b'\x00' * 8
+        MessageEnvelope.decode(bad_data)
+        checks.append(("bad_magic_rejected", False))
+    except ValueError:
+        checks.append(("bad_magic_rejected", True))
 
     return checks
 
 
 # ============================================================
-# S6 — Compression
+# S6 — Version Negotiation
 # ============================================================
 
-def compress_payload(data: bytes, level: int = 6) -> Tuple[bytes, float]:
-    """Compress payload with zlib. Returns (compressed, ratio)."""
-    compressed = zlib.compress(data, level)
-    ratio = len(compressed) / len(data) if len(data) > 0 else 1.0
-    return compressed, ratio
+@dataclass
+class VersionNegotiator:
+    """Negotiate wire protocol version between two endpoints."""
+    supported_versions: List[int] = field(default_factory=lambda: [1, 2, 3])
+    min_version: int = 1
 
+    def propose(self) -> bytes:
+        """Encode version proposal."""
+        result = bytearray()
+        result.extend(encode_varint(len(self.supported_versions)))
+        for v in sorted(self.supported_versions, reverse=True):
+            result.extend(encode_varint(v))
+        return bytes(result)
 
-def decompress_payload(data: bytes) -> bytes:
-    return zlib.decompress(data)
+    @classmethod
+    def decode_proposal(cls, data: bytes, offset: int = 0) -> Tuple[List[int], int]:
+        count, offset = decode_varint(data, offset)
+        versions = []
+        for _ in range(count):
+            v, offset = decode_varint(data, offset)
+            versions.append(v)
+        return versions, offset
 
-
-def auto_compress(data: bytes, threshold: float = 0.9) -> Tuple[bytes, bool]:
-    """Only compress if ratio < threshold (compression actually helps)."""
-    if len(data) < 32:
-        return data, False
-    compressed, ratio = compress_payload(data)
-    if ratio < threshold:
-        return compressed, True
-    return data, False
+    def negotiate(self, remote_versions: List[int]) -> Optional[int]:
+        """Find highest common version."""
+        common = set(self.supported_versions) & set(remote_versions)
+        valid = [v for v in common if v >= self.min_version]
+        return max(valid) if valid else None
 
 
 def test_section_6():
     checks = []
 
-    # Repetitive data compresses well
-    data = b"trust_tensor_update " * 100
-    compressed, ratio = compress_payload(data)
-    checks.append(("compresses", ratio < 0.2))
+    local = VersionNegotiator(supported_versions=[1, 2, 3])
+    remote = VersionNegotiator(supported_versions=[2, 3, 4])
 
-    # Roundtrip
-    decompressed = decompress_payload(compressed)
-    checks.append(("decompress_match", decompressed == data))
+    # Proposal encoding
+    proposal = local.propose()
+    decoded_versions, _ = VersionNegotiator.decode_proposal(proposal)
+    checks.append(("proposal_roundtrip", set(decoded_versions) == {1, 2, 3}))
 
-    # Random data doesn't compress well
-    random_data = bytes(random.getrandbits(8) for _ in range(1000))
-    _, ratio_random = compress_payload(random_data)
-    checks.append(("random_ratio_high", ratio_random > 0.8))
+    # Negotiation
+    agreed = local.negotiate(remote.supported_versions)
+    checks.append(("negotiated_v3", agreed == 3))
 
-    # Auto-compress skips small data
-    small, was_compressed = auto_compress(b"tiny")
-    checks.append(("skip_small", not was_compressed))
+    # No common version
+    incompatible = VersionNegotiator(supported_versions=[5, 6])
+    checks.append(("no_common", local.negotiate(incompatible.supported_versions) is None))
 
-    # Auto-compress uses compression when beneficial
-    big_repetitive = b"x" * 1000
-    big_compressed, was = auto_compress(big_repetitive)
-    checks.append(("auto_compresses", was))
+    # Min version enforcement
+    min_v2 = VersionNegotiator(supported_versions=[1, 2, 3], min_version=2)
+    checks.append(("min_version", min_v2.negotiate([1, 2]) == 2))
+    checks.append(("below_min", min_v2.negotiate([1]) is None))
 
-    # Auto-compress skips when not beneficial
-    random_big = bytes(random.getrandbits(8) for _ in range(1000))
-    _, was_random = auto_compress(random_big, threshold=0.5)
-    checks.append(("skip_random", not was_random))
+    # Self-negotiation
+    checks.append(("self_negotiate", local.negotiate(local.supported_versions) == 3))
 
     return checks
 
 
 # ============================================================
-# S7 — Batch Encoding
+# S7 — Compression
 # ============================================================
 
 @dataclass
-class MessageBatch:
-    """Batch multiple messages for efficient wire transport."""
-    messages: List[MessageEnvelope] = field(default_factory=list)
+class CompressedPayload:
+    """Optional zlib compression for large payloads."""
+    COMPRESSION_THRESHOLD = 128  # only compress if larger
 
-    def encode(self) -> bytes:
-        buf = BytesIO()
-        buf.write(b'W4B')  # batch magic
-        buf.write(encode_varint(len(self.messages)))
-        for msg in self.messages:
-            encoded_msg = msg.encode()
-            buf.write(encode_bytes_field(encoded_msg))
-        # Batch integrity
-        content = buf.getvalue()
-        buf.write(hashlib.sha256(content).digest())
-        return buf.getvalue()
+    @staticmethod
+    def compress(data: bytes) -> Tuple[bytes, bool]:
+        """Compress if beneficial. Returns (data, is_compressed)."""
+        if len(data) < CompressedPayload.COMPRESSION_THRESHOLD:
+            return data, False
+        compressed = zlib.compress(data, level=6)
+        if len(compressed) < len(data):
+            return compressed, True
+        return data, False
 
-    @classmethod
-    def decode(cls, data: bytes) -> Tuple['MessageBatch', bool]:
-        if data[:3] != b'W4B':
-            raise ValueError("Invalid batch magic")
+    @staticmethod
+    def decompress(data: bytes, is_compressed: bool) -> bytes:
+        if is_compressed:
+            return zlib.decompress(data)
+        return data
 
-        content = data[:-32]
-        mac = data[-32:]
-        integrity_ok = hashlib.sha256(content).digest() == mac
+    @staticmethod
+    def encode(data: bytes) -> bytes:
+        """Encode with compression flag."""
+        compressed, is_compressed = CompressedPayload.compress(data)
+        flag = b'\x01' if is_compressed else b'\x00'
+        return flag + encode_bytes_field(compressed)
 
-        offset = 3
-        count, consumed = decode_varint(content, offset); offset += consumed
-
-        messages = []
-        for _ in range(count):
-            msg_bytes, consumed = decode_bytes_field(content, offset); offset += consumed
-            msg, _ = MessageEnvelope.decode(msg_bytes)
-            messages.append(msg)
-
-        return cls(messages), integrity_ok
+    @staticmethod
+    def decode(data: bytes, offset: int = 0) -> Tuple[bytes, int]:
+        is_compressed = data[offset] == 0x01
+        offset += 1
+        payload, offset = decode_bytes_field(data, offset)
+        return CompressedPayload.decompress(payload, is_compressed), offset
 
 
 def test_section_7():
     checks = []
 
-    batch = MessageBatch()
-    for i in range(10):
-        tensor = TrustTensor(random.random(), random.random(), random.random())
-        env = MessageEnvelope(
-            message_type=MessageType.TRUST_UPDATE,
-            sender=f"entity_{i}",
-            federation_id="fed-001",
-            payload=tensor.encode(),
-            sequence=i,
-        )
-        batch.messages.append(env)
+    # Small data: no compression
+    small = b"hello"
+    compressed, is_comp = CompressedPayload.compress(small)
+    checks.append(("small_not_compressed", not is_comp))
 
-    encoded = batch.encode()
-    checks.append(("batch_magic", encoded[:3] == b'W4B'))
+    # Large repetitive data: compression helps
+    large = b"trust_tensor_data_" * 100
+    compressed, is_comp = CompressedPayload.compress(large)
+    checks.append(("large_compressed", is_comp))
+    checks.append(("compression_saves", len(compressed) < len(large)))
 
-    decoded, integrity = MessageBatch.decode(encoded)
-    checks.append(("batch_integrity", integrity))
-    checks.append(("batch_count", len(decoded.messages) == 10))
-    checks.append(("batch_sender", decoded.messages[5].sender == "entity_5"))
+    # Roundtrip
+    encoded = CompressedPayload.encode(large)
+    decoded, _ = CompressedPayload.decode(encoded)
+    checks.append(("compression_roundtrip", decoded == large))
 
-    # Batch is more compact than individual messages
-    individual_size = sum(len(msg.encode()) for msg in batch.messages)
-    batch_size = len(encoded)
-    # Batch adds batch header + length prefixes but saves nothing on compression
-    # However batch has only ONE integrity hash instead of 10
-    checks.append(("batch_overhead_small", batch_size < individual_size * 1.2))
+    # Small data roundtrip
+    enc_small = CompressedPayload.encode(small)
+    dec_small, _ = CompressedPayload.decode(enc_small)
+    checks.append(("small_roundtrip", dec_small == small))
 
-    # Tamper detection
-    tampered = bytearray(encoded)
-    tampered[20] ^= 0xff
-    _, tampered_ok = MessageBatch.decode(bytes(tampered))
-    checks.append(("batch_tamper_detected", not tampered_ok))
+    # Random data (low compressibility)
+    random_data = bytes(random.getrandbits(8) for _ in range(500))
+    enc_random = CompressedPayload.encode(random_data)
+    dec_random, _ = CompressedPayload.decode(enc_random)
+    checks.append(("random_roundtrip", dec_random == random_data))
+
+    # Compression ratio
+    ratio = len(compressed) / len(large)
+    checks.append(("good_ratio", ratio < 0.3))
 
     return checks
 
 
 # ============================================================
-# S8 — Roundtrip Fuzz Testing
+# S8 — Batch Encoding
 # ============================================================
 
-def fuzz_trust_tensor(n_iterations: int = 100, seed: int = 42) -> Tuple[int, int]:
-    """Property-based roundtrip testing for trust tensors."""
-    random.seed(seed)
-    passed = 0
-    failed = 0
+@dataclass
+class BatchMessage:
+    """Encode multiple messages in a single frame."""
+    messages: List[MessageEnvelope] = field(default_factory=list)
 
-    for _ in range(n_iterations):
-        t = TrustTensor(
-            talent=random.uniform(0.0, 1.0),
-            training=random.uniform(0.0, 1.0),
-            temperament=random.uniform(0.0, 1.0),
-            confidence=random.uniform(0.0, 1.0),
-            version=random.randint(1, 100),
-        )
-        encoded = t.encode()
-        decoded = TrustTensor.decode(encoded)
+    def encode(self) -> bytes:
+        result = bytearray()
+        result.extend(b'W4B')  # batch magic
+        result.extend(encode_varint(len(self.messages)))
+        for msg in self.messages:
+            msg_bytes = msg.encode()
+            result.extend(encode_bytes_field(msg_bytes))
+        return bytes(result)
 
-        if (abs(decoded.talent - t.talent) < 1e-10 and
-            abs(decoded.training - t.training) < 1e-10 and
-            abs(decoded.temperament - t.temperament) < 1e-10 and
-            abs(decoded.confidence - t.confidence) < 1e-10 and
-            decoded.version == t.version):
-            passed += 1
-        else:
-            failed += 1
-
-    return passed, failed
-
-
-def fuzz_atp_packet(n_iterations: int = 100, seed: int = 42) -> Tuple[int, int]:
-    """Property-based roundtrip testing for ATP packets."""
-    random.seed(seed)
-    passed = 0
-    failed = 0
-    names = ["alice", "bob", "charlie", "dave", "eve", "frank"]
-
-    for _ in range(n_iterations):
-        pkt = ATPPacket(
-            packet_type=random.choice(list(ATPPacketType)),
-            from_entity=random.choice(names),
-            to_entity=random.choice(names),
-            amount=random.uniform(0.01, 10000.0),
-            fee=random.uniform(0.0, 500.0),
-            nonce=random.randint(0, 2**32),
-            timestamp=random.uniform(1e9, 2e9),
-        )
-        encoded = pkt.encode()
-        decoded = ATPPacket.decode(encoded)
-
-        if (decoded.packet_type == pkt.packet_type and
-            decoded.from_entity == pkt.from_entity and
-            decoded.to_entity == pkt.to_entity and
-            abs(decoded.amount - pkt.amount) < 1e-10 and
-            abs(decoded.fee - pkt.fee) < 1e-10 and
-            decoded.nonce == pkt.nonce):
-            passed += 1
-        else:
-            failed += 1
-
-    return passed, failed
-
-
-def fuzz_envelope(n_iterations: int = 50, seed: int = 42) -> Tuple[int, int]:
-    """Roundtrip test for message envelopes with random payloads."""
-    random.seed(seed)
-    passed = 0
-    failed = 0
-
-    for i in range(n_iterations):
-        payload = bytes(random.getrandbits(8) for _ in range(random.randint(10, 200)))
-        env = MessageEnvelope(
-            message_type=random.choice(list(MessageType)),
-            sender=f"entity_{random.randint(0, 99)}",
-            federation_id=f"fed-{random.randint(1, 10):03d}",
-            payload=payload,
-            sequence=i,
-        )
-        encoded = env.encode()
-        decoded, integrity = MessageEnvelope.decode(encoded)
-
-        if (integrity and
-            decoded.sender == env.sender and
-            decoded.federation_id == env.federation_id and
-            decoded.payload == env.payload and
-            decoded.sequence == env.sequence):
-            passed += 1
-        else:
-            failed += 1
-
-    return passed, failed
+    @classmethod
+    def decode(cls, data: bytes, offset: int = 0) -> Tuple['BatchMessage', int]:
+        if data[offset:offset+3] != b'W4B':
+            raise ValueError("Invalid batch magic")
+        offset += 3
+        count, offset = decode_varint(data, offset)
+        messages = []
+        for _ in range(count):
+            msg_bytes, offset = decode_bytes_field(data, offset)
+            msg, _ = MessageEnvelope.decode(msg_bytes)
+            messages.append(msg)
+        return cls(messages), offset
 
 
 def test_section_8():
     checks = []
 
-    # Fuzz trust tensors
-    tp, tf = fuzz_trust_tensor(200)
-    checks.append(("fuzz_tensor_200", tp == 200 and tf == 0))
+    batch = BatchMessage()
+    for i in range(5):
+        msg = MessageEnvelope(1, MessageType.TRUST_UPDATE, f"e{i}", "broadcast",
+                              f"trust_data_{i}".encode())
+        batch.messages.append(msg)
 
-    # Fuzz ATP packets
-    ap, af = fuzz_atp_packet(200)
-    checks.append(("fuzz_atp_200", ap == 200 and af == 0))
+    encoded = batch.encode()
+    decoded, _ = BatchMessage.decode(encoded)
 
-    # Fuzz envelopes
-    ep, ef = fuzz_envelope(100)
-    checks.append(("fuzz_envelope_100", ep == 100 and ef == 0))
+    checks.append(("batch_count", len(decoded.messages) == 5))
+    checks.append(("batch_first", decoded.messages[0].sender_id == "e0"))
+    checks.append(("batch_last", decoded.messages[4].sender_id == "e4"))
 
-    # Edge cases
-    edge = TrustTensor(0.0, 0.0, 0.0, 0.0, 1)
-    decoded = TrustTensor.decode(edge.encode())
-    checks.append(("edge_zeros", decoded.talent == 0.0 and decoded.training == 0.0))
+    # Batch size vs individual
+    individual_size = sum(len(msg.encode()) for msg in batch.messages)
+    checks.append(("batch_reasonable_size", len(encoded) < individual_size * 1.5))
 
-    max_t = TrustTensor(1.0, 1.0, 1.0, 1.0, 999)
-    decoded_max = TrustTensor.decode(max_t.encode())
-    checks.append(("edge_ones", decoded_max.talent == 1.0 and decoded_max.version == 999))
+    # Empty batch
+    empty = BatchMessage()
+    enc_empty = empty.encode()
+    dec_empty, _ = BatchMessage.decode(enc_empty)
+    checks.append(("empty_batch", len(dec_empty.messages) == 0))
+
+    # Invalid batch magic
+    try:
+        BatchMessage.decode(b'XXX\x00')
+        checks.append(("bad_batch_magic", False))
+    except ValueError:
+        checks.append(("bad_batch_magic", True))
 
     return checks
 
 
 # ============================================================
-# S9 — Protocol Handshake
+# S9 — Roundtrip Fuzz Testing
 # ============================================================
 
-@dataclass
-class HandshakeRequest:
-    sender: str
-    federation_id: str
-    capability: VersionCapability
-    challenge: bytes = field(default_factory=lambda: bytes(random.getrandbits(8) for _ in range(32)))
-
-    def encode(self) -> bytes:
-        buf = BytesIO()
-        buf.write(b'W4H')  # handshake magic
-        buf.write(encode_string(self.sender))
-        buf.write(encode_string(self.federation_id))
-        buf.write(encode_varint(self.capability.min_version))
-        buf.write(encode_varint(self.capability.max_version))
-        buf.write(encode_varint(len(self.capability.supported_types)))
-        for t in sorted(self.capability.supported_types, key=lambda x: x.value):
-            buf.write(encode_varint(t))
-        buf.write(encode_bytes_field(self.challenge))
-        return buf.getvalue()
+def random_trust_tensor() -> TrustTensor:
+    return TrustTensor(
+        tensor_type=random.choice([TensorType.T3, TensorType.V3]),
+        entity_id=f"entity_{random.randint(0, 999)}",
+        talent=random.uniform(0, 1),
+        training=random.uniform(0, 1),
+        temperament=random.uniform(0, 1),
+        confidence=random.uniform(0, 1),
+        timestamp=random.uniform(0, 2e9),
+    )
 
 
-@dataclass
-class HandshakeResponse:
-    responder: str
-    agreed_version: Optional[int]
-    common_types: Set[MessageType]
-    challenge_response: bytes  # SHA-256(challenge)
-    accepted: bool
+def random_atp_packet() -> ATPPacket:
+    return ATPPacket(
+        packet_type=random.choice(list(ATPPacketType)),
+        from_entity=f"from_{random.randint(0, 99)}",
+        to_entity=f"to_{random.randint(0, 99)}",
+        amount=random.uniform(0, 10000),
+        fee=random.uniform(0, 100),
+        timestamp=random.uniform(0, 2e9),
+        nonce=random.randint(0, 2**20),
+        federation_id=f"fed_{random.randint(0, 9)}",
+    )
 
-    def verify_challenge(self, original_challenge: bytes) -> bool:
-        expected = hashlib.sha256(original_challenge).digest()
-        return self.challenge_response == expected
 
-
-def perform_handshake(request: HandshakeRequest,
-                      responder_cap: VersionCapability,
-                      responder_id: str) -> HandshakeResponse:
-    agreed = request.capability.negotiate(responder_cap)
-    common = request.capability.common_types(responder_cap)
-    challenge_resp = hashlib.sha256(request.challenge).digest()
-
-    return HandshakeResponse(
-        responder=responder_id,
-        agreed_version=agreed,
-        common_types=common,
-        challenge_response=challenge_resp,
-        accepted=agreed is not None and len(common) > 0,
+def random_message() -> MessageEnvelope:
+    return MessageEnvelope(
+        version=random.randint(1, 5),
+        message_type=random.choice(list(MessageType)),
+        sender_id=f"sender_{random.randint(0, 99)}",
+        recipient_id=f"recipient_{random.randint(0, 99)}",
+        payload=bytes(random.getrandbits(8) for _ in range(random.randint(0, 200))),
     )
 
 
 def test_section_9():
     checks = []
+    random.seed(42)
 
-    cap_a = VersionCapability(1, 3,
-                              {MessageType.TRUST_UPDATE, MessageType.ATP_TRANSFER},
-                              {"compression"})
-    cap_b = VersionCapability(2, 4,
-                              {MessageType.ATP_TRANSFER, MessageType.CONSENSUS},
-                              {"compression", "batching"})
+    # Fuzz trust tensors
+    tensor_failures = 0
+    for _ in range(200):
+        t = random_trust_tensor()
+        encoded = t.encode()
+        decoded, _ = TrustTensor.decode(encoded)
+        if (decoded.entity_id != t.entity_id or
+            abs(decoded.talent - t.talent) > 1e-10 or
+            abs(decoded.training - t.training) > 1e-10 or
+            abs(decoded.temperament - t.temperament) > 1e-10):
+            tensor_failures += 1
+    checks.append(("fuzz_tensors_200", tensor_failures == 0))
 
-    req = HandshakeRequest("alice", "fed-001", cap_a)
-    resp = perform_handshake(req, cap_b, "bob")
+    # Fuzz ATP packets
+    atp_failures = 0
+    for _ in range(200):
+        p = random_atp_packet()
+        encoded = p.encode()
+        decoded, _ = ATPPacket.decode(encoded)
+        if (decoded.from_entity != p.from_entity or
+            decoded.to_entity != p.to_entity or
+            abs(decoded.amount - p.amount) > 1e-10 or
+            decoded.nonce != p.nonce):
+            atp_failures += 1
+    checks.append(("fuzz_atp_200", atp_failures == 0))
 
-    checks.append(("handshake_accepted", resp.accepted))
-    checks.append(("agreed_v3", resp.agreed_version == 3))
-    checks.append(("challenge_verified", resp.verify_challenge(req.challenge)))
-    checks.append(("common_type_atp", MessageType.ATP_TRANSFER in resp.common_types))
+    # Fuzz message envelopes
+    msg_failures = 0
+    for _ in range(200):
+        m = random_message()
+        encoded = m.encode()
+        decoded, _ = MessageEnvelope.decode(encoded)
+        if (decoded.sender_id != m.sender_id or
+            decoded.payload != m.payload or
+            decoded.version != m.version):
+            msg_failures += 1
+    checks.append(("fuzz_messages_200", msg_failures == 0))
 
-    # Encoding
-    encoded_req = req.encode()
-    checks.append(("handshake_magic", encoded_req[:3] == b'W4H'))
-    checks.append(("handshake_compact", len(encoded_req) < 100))
+    # Fuzz attestation proofs
+    proof_failures = 0
+    for _ in range(100):
+        tensor = random_trust_tensor()
+        sig = bytes(random.getrandbits(8) for _ in range(32))
+        path = [bytes(random.getrandbits(8) for _ in range(32))
+                for _ in range(random.randint(0, 8))]
+        proof = AttestationProof(f"attestor_{random.randint(0, 99)}",
+                                 f"subject_{random.randint(0, 99)}",
+                                 tensor, sig, path, random.uniform(0, 2e9))
+        encoded = proof.encode()
+        decoded, _ = AttestationProof.decode(encoded)
+        if (decoded.attestor_id != proof.attestor_id or
+            decoded.signature != proof.signature or
+            len(decoded.merkle_path) != len(proof.merkle_path)):
+            proof_failures += 1
+    checks.append(("fuzz_proofs_100", proof_failures == 0))
 
-    # Failed handshake (no overlap)
-    cap_c = VersionCapability(5, 6, {MessageType.HEARTBEAT})
-    req2 = HandshakeRequest("charlie", "fed-002", cap_c)
-    resp2 = perform_handshake(req2, cap_a, "dave")
-    checks.append(("handshake_rejected", not resp2.accepted))
+    # Fuzz batch messages
+    batch_failures = 0
+    for _ in range(50):
+        batch = BatchMessage([random_message() for _ in range(random.randint(0, 10))])
+        encoded = batch.encode()
+        decoded, _ = BatchMessage.decode(encoded)
+        if len(decoded.messages) != len(batch.messages):
+            batch_failures += 1
+    checks.append(("fuzz_batches_50", batch_failures == 0))
 
     return checks
 
 
 # ============================================================
-# S10 — Error Recovery
+# S10 — Cross-Federation Message Format
 # ============================================================
 
 @dataclass
-class FrameReader:
-    """Read framed messages with error recovery."""
-    buffer: bytearray = field(default_factory=bytearray)
-    _good_frames: int = 0
-    _bad_frames: int = 0
+class CrossFederationTransfer:
+    """ATP transfer between two federations."""
+    source_federation: str
+    target_federation: str
+    source_entity: str
+    target_entity: str
+    amount: float
+    cross_fee: float
+    source_trust: TrustTensor
+    attestation: AttestationProof
+    nonce: int
 
-    def feed(self, data: bytes):
-        self.buffer.extend(data)
+    def encode(self) -> bytes:
+        result = bytearray()
+        result.extend(b'W4X')  # cross-federation magic
+        result.extend(encode_string(self.source_federation))
+        result.extend(encode_string(self.target_federation))
+        result.extend(encode_string(self.source_entity))
+        result.extend(encode_string(self.target_entity))
+        result.extend(encode_float64(self.amount))
+        result.extend(encode_float64(self.cross_fee))
+        result.extend(self.source_trust.encode())
+        result.extend(self.attestation.encode())
+        result.extend(encode_varint(self.nonce))
+        return bytes(result)
 
-    def read_frames(self) -> List[bytes]:
-        """Extract valid frames from buffer."""
-        frames = []
-        while len(self.buffer) >= 2:
-            # Look for magic bytes
-            idx = self.buffer.find(b'W4')
-            if idx < 0:
-                self._bad_frames += 1
-                self.buffer.clear()
-                break
-            if idx > 0:
-                self._bad_frames += 1
-                del self.buffer[:idx]
-
-            # Try to decode
-            if len(self.buffer) < 36:  # minimum frame size
-                break
-
-            # Extract length from varint after version
-            try:
-                # Read past magic (2) + version varint
-                offset = 2
-                _, consumed = decode_varint(bytes(self.buffer), offset)
-                offset += consumed
-
-                # Try full decode to find frame boundary
-                # For simplicity, try to find next W4 or end of buffer
-                next_magic = self.buffer.find(b'W4', 2)
-                if next_magic > 0:
-                    frame = bytes(self.buffer[:next_magic])
-                else:
-                    frame = bytes(self.buffer)
-
-                # Verify integrity (last 32 bytes should be valid SHA-256)
-                if len(frame) > 32:
-                    content = frame[:-32]
-                    mac = frame[-32:]
-                    if hashlib.sha256(content).digest() == mac:
-                        frames.append(frame)
-                        self._good_frames += 1
-                        del self.buffer[:len(frame)]
-                        continue
-
-                # If integrity check failed, skip this W4 marker
-                del self.buffer[:2]
-                self._bad_frames += 1
-
-            except Exception:
-                del self.buffer[:2]
-                self._bad_frames += 1
-
-        return frames
+    @classmethod
+    def decode(cls, data: bytes, offset: int = 0) -> Tuple['CrossFederationTransfer', int]:
+        if data[offset:offset+3] != b'W4X':
+            raise ValueError("Invalid cross-federation magic")
+        offset += 3
+        source_fed, offset = decode_string(data, offset)
+        target_fed, offset = decode_string(data, offset)
+        source_entity, offset = decode_string(data, offset)
+        target_entity, offset = decode_string(data, offset)
+        amount, offset = decode_float64(data, offset)
+        cross_fee, offset = decode_float64(data, offset)
+        trust, offset = TrustTensor.decode(data, offset)
+        attestation, offset = AttestationProof.decode(data, offset)
+        nonce, offset = decode_varint(data, offset)
+        return cls(source_fed, target_fed, source_entity, target_entity,
+                   amount, cross_fee, trust, attestation, nonce), offset
 
 
 def test_section_10():
     checks = []
 
-    # Normal frames
-    reader = FrameReader()
-    env1 = MessageEnvelope(MessageType.HEARTBEAT, "a", "f1", b"ping", 1)
-    env2 = MessageEnvelope(MessageType.HEARTBEAT, "b", "f1", b"pong", 2)
+    trust = TrustTensor(TensorType.T3, "alice", 0.8, 0.7, 0.9, 0.95, 1709164800.0)
+    sig = hashlib.sha256(b"cross_fed_sig").digest()
+    proof = AttestationProof("validator", "alice", trust, sig,
+                             [hashlib.sha256(b"m1").digest()], 1709164800.0)
 
-    reader.feed(env1.encode())
-    reader.feed(env2.encode())
+    xfer = CrossFederationTransfer(
+        source_federation="fed-alpha",
+        target_federation="fed-beta",
+        source_entity="alice",
+        target_entity="bob",
+        amount=100.0,
+        cross_fee=10.0,
+        source_trust=trust,
+        attestation=proof,
+        nonce=12345,
+    )
 
-    frames = reader.read_frames()
-    checks.append(("two_frames", len(frames) == 2))
+    encoded = xfer.encode()
+    decoded, _ = CrossFederationTransfer.decode(encoded)
 
-    # Garbage between frames
-    reader2 = FrameReader()
-    reader2.feed(b"garbage" + env1.encode() + b"more_garbage" + env2.encode())
-    frames2 = reader2.read_frames()
-    checks.append(("recovery_works", len(frames2) >= 1))
+    checks.append(("xfed_source", decoded.source_federation == "fed-alpha"))
+    checks.append(("xfed_target", decoded.target_federation == "fed-beta"))
+    checks.append(("xfed_amount", abs(decoded.amount - 100.0) < 1e-10))
+    checks.append(("xfed_fee", abs(decoded.cross_fee - 10.0) < 1e-10))
+    checks.append(("xfed_trust", abs(decoded.source_trust.talent - 0.8) < 1e-10))
+    checks.append(("xfed_proof", decoded.attestation.attestor_id == "validator"))
+    checks.append(("xfed_nonce", decoded.nonce == 12345))
 
-    # Partial frame
-    reader3 = FrameReader()
-    partial = env1.encode()[:10]  # truncated
-    reader3.feed(partial)
-    frames3 = reader3.read_frames()
-    checks.append(("partial_buffered", len(frames3) == 0 and len(reader3.buffer) > 0))
-
-    # Stats
-    checks.append(("good_frame_count", reader._good_frames == 2))
+    # Size check: full cross-fed message with proof should be < 512 bytes
+    checks.append(("xfed_compact", len(encoded) < 512))
 
     return checks
 
 
 # ============================================================
-# S11 — Performance & Throughput
+# S11 — Performance & Size Benchmarks
 # ============================================================
 
 def test_section_11():
     checks = []
-
-    import time as time_mod
     random.seed(42)
 
-    # Tensor serialization throughput
+    import time as time_mod
+
+    # Tensor encoding speed
     start = time_mod.perf_counter()
     for _ in range(10000):
-        t = TrustTensor(random.random(), random.random(), random.random())
+        t = TrustTensor(TensorType.T3, "entity_123", 0.8, 0.6, 0.7, 0.95, 1e9)
         encoded = t.encode()
         TrustTensor.decode(encoded)
     tensor_time = time_mod.perf_counter() - start
     checks.append(("10k_tensors_fast", tensor_time < 3.0))
 
-    # ATP packet throughput
+    # ATP packet speed
     start = time_mod.perf_counter()
-    for i in range(10000):
-        pkt = ATPPacket(ATPPacketType.TRANSFER, "alice", "bob",
-                        100.0, 5.0, i, 1e9)
-        encoded = pkt.encode()
+    for _ in range(10000):
+        p = ATPPacket(ATPPacketType.TRANSFER, "alice", "bob", 50.0, 2.5, 1e9, 42, "fed")
+        encoded = p.encode()
         ATPPacket.decode(encoded)
     atp_time = time_mod.perf_counter() - start
     checks.append(("10k_atp_fast", atp_time < 3.0))
 
-    # Envelope throughput
+    # Message envelope speed
     start = time_mod.perf_counter()
-    for i in range(1000):
-        env = MessageEnvelope(MessageType.TRUST_UPDATE, f"e{i}", "fed",
-                              b"payload" * 10, i)
-        encoded = env.encode()
+    for _ in range(5000):
+        m = MessageEnvelope(1, MessageType.TRUST_UPDATE, "sender", "receiver",
+                           b"x" * 100)
+        encoded = m.encode()
         MessageEnvelope.decode(encoded)
-    env_time = time_mod.perf_counter() - start
-    checks.append(("1k_envelopes_fast", env_time < 3.0))
+    msg_time = time_mod.perf_counter() - start
+    checks.append(("5k_messages_fast", msg_time < 3.0))
 
-    # Batch throughput
-    batch = MessageBatch()
-    for i in range(100):
-        batch.messages.append(MessageEnvelope(
-            MessageType.ATP_TRANSFER, f"e{i}", "fed",
-            ATPPacket(ATPPacketType.TRANSFER, f"e{i}", "dest", 50.0, 2.5, i, 1e9).encode(),
-            i
-        ))
-    start = time_mod.perf_counter()
-    encoded = batch.encode()
-    decoded, ok = MessageBatch.decode(encoded)
-    batch_time = time_mod.perf_counter() - start
-    checks.append(("batch_100_fast", batch_time < 2.0))
-    checks.append(("batch_integrity", ok))
+    # Size benchmarks
+    t3_size = len(TrustTensor(TensorType.T3, "entity_id", 0.8, 0.6, 0.7).encode())
+    checks.append(("t3_under_55_bytes", t3_size < 55))  # 1 type + 10 entity + 40 floats = 51
 
-    # Size analysis
-    tensor_size = len(TrustTensor(0.8, 0.6, 0.7).encode())
-    atp_size = len(ATPPacket(ATPPacketType.TRANSFER, "alice", "bob", 100.0, 5.0, 1, 1e9).encode())
-    checks.append(("tensor_compact", tensor_size < 50))
-    checks.append(("atp_compact", atp_size < 60))
+    atp_size = len(ATPPacket(ATPPacketType.TRANSFER, "alice", "bob", 50.0, 2.5,
+                             1e9, 42, "fed_id").encode())
+    checks.append(("atp_under_70_bytes", atp_size < 70))
+
+    # Batch efficiency: 100 messages in one frame
+    batch = BatchMessage([MessageEnvelope(1, MessageType.HEARTBEAT, f"e{i}", "",
+                                         b"hb") for i in range(100)])
+    batch_size = len(batch.encode())
+    single_size = sum(len(MessageEnvelope(1, MessageType.HEARTBEAT, f"e{i}", "",
+                                          b"hb").encode()) for i in range(100))
+    checks.append(("batch_efficient", batch_size < single_size * 1.2))
+
+    # Compression on batch
+    compressed = CompressedPayload.encode(batch.encode())
+    checks.append(("batch_compresses", len(compressed) < batch_size))
 
     return checks
 
@@ -980,17 +963,17 @@ def main():
     random.seed(42)
 
     sections = [
-        ("S1 Primitive Encoding", test_section_1),
+        ("S1 Primitive Type Encoding", test_section_1),
         ("S2 Trust Tensor Serialization", test_section_2),
         ("S3 ATP Packet Encoding", test_section_3),
-        ("S4 Message Envelope & Integrity", test_section_4),
-        ("S5 Version Negotiation", test_section_5),
-        ("S6 Compression", test_section_6),
-        ("S7 Batch Encoding", test_section_7),
-        ("S8 Roundtrip Fuzz Testing", test_section_8),
-        ("S9 Protocol Handshake", test_section_9),
-        ("S10 Error Recovery", test_section_10),
-        ("S11 Performance & Throughput", test_section_11),
+        ("S4 Attestation Proof Encoding", test_section_4),
+        ("S5 Message Envelope & Framing", test_section_5),
+        ("S6 Version Negotiation", test_section_6),
+        ("S7 Compression", test_section_7),
+        ("S8 Batch Encoding", test_section_8),
+        ("S9 Roundtrip Fuzz Testing", test_section_9),
+        ("S10 Cross-Federation Message", test_section_10),
+        ("S11 Performance & Size Benchmarks", test_section_11),
     ]
 
     total_pass = 0
