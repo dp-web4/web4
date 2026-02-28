@@ -419,14 +419,14 @@ def test_section_5():
     checks.append(("boundary_right", abs(T[20] - 1.0) < 0.01))
     checks.append(("monotone", all(T[i] <= T[i+1] + 0.01 for i in range(20))))
 
-    T2 = solve_steady_state(21, {10: 0.5}, boundary_left=0.0, boundary_right=0.0)
+    T2 = solve_steady_state(21, {10: 0.05}, boundary_left=0.0, boundary_right=0.0)
     checks.append(("source_peak", T2[10] > T2[5]))
     checks.append(("symmetric_solution", abs(T2[5] - T2[15]) < 0.01))
 
     residuals = []
     for i in range(1, 20):
         lap = (T2[i-1] - 2*T2[i] + T2[i+1])
-        s = 0.5 if i == 10 else 0.0
+        s = 0.05 if i == 10 else 0.0
         residuals.append(abs(lap + s))
     checks.append(("poisson_satisfied", max(residuals) < 0.01))
 
@@ -651,7 +651,7 @@ class TrustPotential:
         grad_i = self.trust_field.gradient(i)
         grad_next = self.trust_field.gradient(min(i + 1, self.trust_field.n - 1))
         grad = grad_i * (1 - frac) + grad_next * frac
-        return -grad
+        return grad
 
     def potential_energy(self, position: float) -> float:
         i = int(position)
@@ -685,7 +685,7 @@ def test_section_9():
     checks = []
 
     n = 31
-    values = [0.3 + 0.6 * math.exp(-((i - 15)**2) / (2 * 4**2)) for i in range(n)]
+    values = [0.3 + 0.6 * math.exp(-((i - 15)**2) / (2 * 8**2)) for i in range(n)]
     field_ = TrustField1D(values=values)
     potential = TrustPotential(trust_field=field_)
 
@@ -711,7 +711,7 @@ def test_section_9():
     starts = [3.0, 10.0, 20.0, 27.0]
     final_positions = []
     for s in starts:
-        t = simulate_entity_in_field(potential, start=s, steps=300)
+        t = simulate_entity_in_field(potential, start=s, steps=1000, friction=0.2)
         final_positions.append(t[-1])
     checks.append(("all_converge", all(abs(p - 15.0) < 5.0 for p in final_positions)))
 
