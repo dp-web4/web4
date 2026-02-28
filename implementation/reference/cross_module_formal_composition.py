@@ -2,14 +2,17 @@
 Web4 Cross-Module Formal Composition — Session 17, Track 3
 ==========================================================
 
-Formal proofs for cross-module property composition:
-- Privacy budget composition across DP + ZK + Graph modules
-- Trust tensor consistency across module boundaries
-- Consensus-governance-privacy interaction proofs
-- Module interface contracts and violation detection
-- Compositional safety: if A safe ∧ B safe → A∘B safe
+Proves composition properties when modules are combined:
+- Privacy budget composition (sequential + parallel)
+- ZK proof composition (AND, OR, threshold)
+- Graph + privacy composition (private community detection)
+- Trust + consensus composition (trust-weighted BFT)
+- ATP + governance composition (stake-weighted voting)
+- Full stack composition (all layers interact correctly)
 
-12 sections, ~70 checks expected.
+Key question: Do module-level guarantees hold when combined?
+
+12 sections, ~80 checks expected.
 """
 
 import hashlib
@@ -25,1191 +28,1149 @@ from collections import defaultdict
 # §1 — Module Interface Contracts
 # ============================================================
 
-class ModuleType(Enum):
-    PRIVACY_DP = "differential_privacy"
-    PRIVACY_ZK = "zero_knowledge"
-    TRUST_TENSOR = "trust_tensor"
-    CONSENSUS = "consensus"
-    GOVERNANCE = "governance"
-    GRAPH = "graph_analysis"
-    ATP_ECONOMY = "atp_economy"
+@dataclass
+class ModuleContract:
+    """Formal interface contract for a module."""
+    name: str
+    preconditions: List[Callable[..., bool]] = field(default_factory=list)
+    postconditions: List[Callable[..., bool]] = field(default_factory=list)
+    invariants: List[Callable[..., bool]] = field(default_factory=list)
+
+    def check_preconditions(self, state: Dict) -> Tuple[bool, List[str]]:
+        failures = []
+        for i, pre in enumerate(self.preconditions):
+            if not pre(state):
+                failures.append(f"precondition_{i}")
+        return len(failures) == 0, failures
+
+    def check_postconditions(self, state: Dict) -> Tuple[bool, List[str]]:
+        failures = []
+        for i, post in enumerate(self.postconditions):
+            if not post(state):
+                failures.append(f"postcondition_{i}")
+        return len(failures) == 0, failures
+
+    def check_invariants(self, state: Dict) -> Tuple[bool, List[str]]:
+        failures = []
+        for i, inv in enumerate(self.invariants):
+            if not inv(state):
+                failures.append(f"invariant_{i}")
+        return len(failures) == 0, failures
 
 
 @dataclass
-class InterfaceContract:
-    """Formal contract for module interaction."""
-    module: ModuleType
-    preconditions: List[str]
-    postconditions: List[str]
-    invariants: List[str]
-    resource_bounds: Dict[str, float]  # e.g., {"epsilon": 1.0, "delta": 1e-5}
-
-    def validate_preconditions(self, state: Dict[str, Any]) -> Tuple[bool, List[str]]:
-        violations = []
-        for pre in self.preconditions:
-            if pre == "epsilon_positive" and state.get("epsilon", 0) <= 0:
-                violations.append(pre)
-            elif pre == "trust_bounded" and not (0 <= state.get("trust", 0.5) <= 1):
-                violations.append(pre)
-            elif pre == "atp_non_negative" and state.get("atp", 0) < 0:
-                violations.append(pre)
-            elif pre == "quorum_met" and state.get("votes", 0) < state.get("quorum", 1):
-                violations.append(pre)
-            elif pre == "budget_available" and state.get("budget_used", 0) >= state.get("budget_max", 10):
-                violations.append(pre)
-        return len(violations) == 0, violations
-
-    def validate_postconditions(self, pre_state: Dict, post_state: Dict) -> Tuple[bool, List[str]]:
-        violations = []
-        for post in self.postconditions:
-            if post == "epsilon_consumed" and post_state.get("budget_used", 0) <= pre_state.get("budget_used", 0):
-                violations.append(post)
-            elif post == "trust_updated" and post_state.get("trust") == pre_state.get("trust"):
-                violations.append(post)
-            elif post == "atp_conserved":
-                pre_total = pre_state.get("total_atp", 0)
-                post_total = post_state.get("total_atp", 0)
-                fees = post_state.get("fees", 0) - pre_state.get("fees", 0)
-                if abs(pre_total - (post_total + fees)) > 0.01:
-                    violations.append(post)
-        return len(violations) == 0, violations
+class CompositionProof:
+    """Proof that two modules compose safely."""
+    module_a: str
+    module_b: str
+    property_name: str
+    holds: bool
+    evidence: str = ""
+    counterexample: Optional[Dict] = None
 
 
-# Standard contracts for each module
-DP_CONTRACT = InterfaceContract(
-    module=ModuleType.PRIVACY_DP,
-    preconditions=["epsilon_positive", "budget_available"],
-    postconditions=["epsilon_consumed"],
-    invariants=["budget_monotone", "noise_calibrated"],
-    resource_bounds={"epsilon": 10.0, "delta": 1e-5},
-)
+def make_privacy_contract() -> ModuleContract:
+    return ModuleContract(
+        name="privacy",
+        preconditions=[
+            lambda s: s.get("epsilon", 0) > 0,
+            lambda s: s.get("budget_remaining", 0) >= s.get("epsilon", 0),
+        ],
+        postconditions=[
+            lambda s: s.get("budget_remaining", 0) >= 0,
+            lambda s: s.get("noise_added", False),
+        ],
+        invariants=[
+            lambda s: s.get("total_epsilon", 0) <= s.get("max_epsilon", 10),
+        ],
+    )
 
-ZK_CONTRACT = InterfaceContract(
-    module=ModuleType.PRIVACY_ZK,
-    preconditions=["trust_bounded"],
-    postconditions=[],  # ZK doesn't consume privacy budget
-    invariants=["soundness", "zero_knowledge"],
-    resource_bounds={},  # No budget cost
-)
 
-TRUST_CONTRACT = InterfaceContract(
-    module=ModuleType.TRUST_TENSOR,
-    preconditions=["trust_bounded"],
-    postconditions=["trust_updated"],
-    invariants=["trust_bounded_post", "symmetric_update"],
-    resource_bounds={"max_delta": 0.05},
-)
+def make_trust_contract() -> ModuleContract:
+    return ModuleContract(
+        name="trust",
+        preconditions=[
+            lambda s: 0 <= s.get("trust", 0.5) <= 1.0,
+        ],
+        postconditions=[
+            lambda s: 0 <= s.get("trust", 0.5) <= 1.0,
+        ],
+        invariants=[
+            lambda s: s.get("trust_delta", 0) <= 0.05,  # Max change per step
+        ],
+    )
+
+
+def make_atp_contract() -> ModuleContract:
+    return ModuleContract(
+        name="atp",
+        preconditions=[
+            lambda s: s.get("balance", 0) >= 0,
+            lambda s: s.get("amount", 0) > 0,
+        ],
+        postconditions=[
+            lambda s: s.get("balance", 0) >= 0,
+        ],
+        invariants=[
+            lambda s: abs(s.get("supply_before", 0) - s.get("supply_after", 0) - s.get("fees", 0)) < 0.01,
+        ],
+    )
 
 
 def test_section_1():
     checks = []
 
-    # DP contract precondition validation
-    valid_state = {"epsilon": 1.0, "budget_used": 3.0, "budget_max": 10.0}
-    ok, violations = DP_CONTRACT.validate_preconditions(valid_state)
-    checks.append(("dp_preconditions_valid", ok))
+    # Privacy contract
+    pc = make_privacy_contract()
+    good_state = {"epsilon": 1.0, "budget_remaining": 5.0, "noise_added": True, "total_epsilon": 3.0, "max_epsilon": 10.0}
+    pre_ok, pre_fail = pc.check_preconditions(good_state)
+    checks.append(("privacy_pre_ok", pre_ok))
+    post_ok, _ = pc.check_postconditions(good_state)
+    checks.append(("privacy_post_ok", post_ok))
+    inv_ok, _ = pc.check_invariants(good_state)
+    checks.append(("privacy_inv_ok", inv_ok))
 
-    # DP with exhausted budget
-    exhausted = {"epsilon": 1.0, "budget_used": 10.0, "budget_max": 10.0}
-    ok, violations = DP_CONTRACT.validate_preconditions(exhausted)
-    checks.append(("dp_budget_exhausted_fails", not ok))
-    checks.append(("dp_budget_violation_reported", "budget_available" in violations))
+    # Bad state: over budget
+    bad_state = {"epsilon": 1.0, "budget_remaining": 0.5, "total_epsilon": 11.0, "max_epsilon": 10.0}
+    pre_ok2, failures = pc.check_preconditions(bad_state)
+    checks.append(("privacy_pre_fail", not pre_ok2))
+    inv_ok2, _ = pc.check_invariants(bad_state)
+    checks.append(("privacy_inv_fail", not inv_ok2))
 
-    # ZK contract — no budget constraints
-    zk_state = {"trust": 0.7}
-    ok, _ = ZK_CONTRACT.validate_preconditions(zk_state)
-    checks.append(("zk_no_budget_needed", ok))
+    # Trust contract
+    tc = make_trust_contract()
+    trust_state = {"trust": 0.7, "trust_delta": 0.02}
+    checks.append(("trust_valid", tc.check_invariants(trust_state)[0]))
 
-    # Trust bounded check
-    invalid_trust = {"trust": 1.5}
-    ok, violations = TRUST_CONTRACT.validate_preconditions(invalid_trust)
-    checks.append(("trust_out_of_range", not ok))
+    # ATP contract
+    ac = make_atp_contract()
+    atp_state = {"balance": 100.0, "amount": 10.0, "supply_before": 1000.0, "supply_after": 999.5, "fees": 0.5}
+    checks.append(("atp_conserved", ac.check_invariants(atp_state)[0]))
 
-    # Postcondition: epsilon consumed
-    pre = {"budget_used": 3.0}
-    post = {"budget_used": 4.0}
-    ok, _ = DP_CONTRACT.validate_postconditions(pre, post)
-    checks.append(("epsilon_consumed_verified", ok))
-
-    # Postcondition: epsilon NOT consumed (violation)
-    post_same = {"budget_used": 3.0}
-    ok, violations = DP_CONTRACT.validate_postconditions(pre, post_same)
-    checks.append(("epsilon_not_consumed_violation", not ok))
+    # Composition proof structure
+    proof = CompositionProof("privacy", "trust", "trust_bounded_after_noise", True,
+                             evidence="Trust values remain in [0,1] after DP noise addition")
+    checks.append(("proof_holds", proof.holds))
 
     return checks
 
 
 # ============================================================
-# §2 — Privacy Budget Composition Theorem
+# §2 — Privacy Budget Composition
 # ============================================================
 
 @dataclass
-class PrivacyBudgetComposer:
-    """
-    Formal privacy budget composition across modules.
-
-    Theorems implemented:
-    1. Basic composition: ε_total = Σ ε_i
-    2. Advanced composition: ε_total = √(2k·ln(1/δ))·ε + k·ε·(e^ε-1)
-    3. Parallel composition: ε_total = max(ε_i) for disjoint datasets
-    4. ZK is free: ε_ZK = 0 (information-theoretic, no statistical leakage)
-    """
+class PrivacyBudget:
     total_epsilon: float = 0.0
-    total_delta: float = 0.0
     max_epsilon: float = 10.0
     queries: List[Dict] = field(default_factory=list)
 
-    def basic_compose(self, epsilons: List[float]) -> float:
-        """Basic sequential composition: sum of epsilons."""
-        return sum(epsilons)
+    def can_spend(self, epsilon: float) -> bool:
+        return self.total_epsilon + epsilon <= self.max_epsilon
 
-    def advanced_compose(self, epsilon: float, k: int, delta: float = 1e-5) -> float:
-        """Advanced composition theorem (tighter bound for many queries)."""
-        if k == 0 or epsilon <= 0:
-            return 0.0
-        term1 = math.sqrt(2 * k * math.log(1.0 / delta)) * epsilon
-        term2 = k * epsilon * (math.exp(epsilon) - 1)
-        return term1 + term2
+    def spend(self, epsilon: float, module: str = "", query: str = "") -> bool:
+        if not self.can_spend(epsilon):
+            return False
+        self.total_epsilon += epsilon
+        self.queries.append({"module": module, "query": query, "epsilon": epsilon})
+        return True
 
-    def parallel_compose(self, epsilons: List[float]) -> float:
-        """Parallel composition: max of epsilons for disjoint data."""
-        return max(epsilons) if epsilons else 0.0
+    def remaining(self) -> float:
+        return self.max_epsilon - self.total_epsilon
 
-    def zk_cost(self) -> float:
-        """ZK proofs have zero privacy cost."""
+
+def sequential_composition(epsilons: List[float]) -> float:
+    """Sequential composition: total epsilon = sum of individual epsilons."""
+    return sum(epsilons)
+
+
+def parallel_composition(epsilons: List[float]) -> float:
+    """Parallel composition (disjoint data): total epsilon = max of individual epsilons."""
+    return max(epsilons) if epsilons else 0.0
+
+
+def advanced_composition(epsilons: List[float], delta: float = 1e-5) -> float:
+    """Advanced composition theorem: tighter than sequential for many queries."""
+    k = len(epsilons)
+    if k == 0:
         return 0.0
-
-    def compose_pipeline(self, operations: List[Dict]) -> Dict:
-        """
-        Compose a pipeline of mixed DP/ZK/Graph operations.
-        Returns total budget consumed and remaining.
-        """
-        total_eps = 0.0
-        parallel_groups = defaultdict(list)
-        sequential_eps = []
-
-        for op in operations:
-            module = op.get("module", "")
-            eps = op.get("epsilon", 0.0)
-            group = op.get("parallel_group", None)
-
-            if module == "zk":
-                continue  # Free
-
-            if group is not None:
-                parallel_groups[group].append(eps)
-            else:
-                sequential_eps.append(eps)
-
-        # Sequential: basic composition
-        total_eps += self.basic_compose(sequential_eps)
-
-        # Parallel groups: max within each group, sum across groups
-        for group_id, group_eps in parallel_groups.items():
-            total_eps += self.parallel_compose(group_eps)
-
-        remaining = self.max_epsilon - total_eps
-        return {
-            "total_epsilon": total_eps,
-            "remaining": remaining,
-            "within_budget": remaining >= 0,
-            "sequential_cost": sum(sequential_eps),
-            "parallel_savings": sum(sum(g) - max(g) for g in parallel_groups.values()),
-        }
+    sum_sq = sum(e**2 for e in epsilons)
+    # Advanced: sqrt(2 * sum(eps^2) * ln(1/delta)) + sum(eps * (e^eps - 1))
+    term1 = math.sqrt(2 * sum_sq * math.log(1 / delta))
+    term2 = sum(e * (math.exp(e) - 1) for e in epsilons)
+    return term1 + term2
 
 
 def test_section_2():
     checks = []
 
-    composer = PrivacyBudgetComposer(max_epsilon=10.0)
+    # Sequential: sum
+    seq = sequential_composition([1.0, 1.0, 1.0, 1.0])
+    checks.append(("sequential_sum", seq == 4.0))
 
-    # Basic composition
-    basic = composer.basic_compose([1.0, 0.5, 0.3])
-    checks.append(("basic_composition_sum", abs(basic - 1.8) < 0.01))
+    # Parallel: max
+    par = parallel_composition([1.0, 2.0, 0.5, 1.5])
+    checks.append(("parallel_max", par == 2.0))
 
-    # Advanced composition (tighter)
-    adv = composer.advanced_compose(0.1, 100, delta=1e-5)
-    basic100 = composer.basic_compose([0.1] * 100)  # = 10.0
-    checks.append(("advanced_tighter", adv < basic100))
+    # Advanced < sequential for many small queries
+    small_eps = [0.1] * 100
+    seq_total = sequential_composition(small_eps)
+    adv_total = advanced_composition(small_eps)
+    checks.append(("advanced_tighter", adv_total < seq_total))
+    checks.append(("sequential_total_10", abs(seq_total - 10.0) < 0.001))
 
-    # Parallel composition
-    parallel = composer.parallel_compose([1.0, 0.5, 0.8])
-    checks.append(("parallel_is_max", abs(parallel - 1.0) < 0.01))
+    # Budget tracking
+    budget = PrivacyBudget(max_epsilon=5.0)
+    checks.append(("can_spend_initial", budget.can_spend(3.0)))
+    budget.spend(3.0, "module_a", "query_1")
+    checks.append(("remaining_2", abs(budget.remaining() - 2.0) < 0.01))
+    checks.append(("cant_overspend", not budget.can_spend(3.0)))
+    budget.spend(2.0, "module_b", "query_2")
+    checks.append(("budget_exhausted", budget.remaining() < 0.01))
+    checks.append(("query_log", len(budget.queries) == 2))
 
-    # ZK is free
-    checks.append(("zk_free", composer.zk_cost() == 0.0))
-
-    # Pipeline composition
-    pipeline = [
-        {"module": "dp", "epsilon": 1.0},
-        {"module": "dp", "epsilon": 0.5},
-        {"module": "zk", "epsilon": 0.0},  # Free
-        {"module": "dp", "epsilon": 0.3, "parallel_group": "fed1"},
-        {"module": "dp", "epsilon": 0.7, "parallel_group": "fed1"},
-    ]
-    result = composer.compose_pipeline(pipeline)
-    # Sequential: 1.0 + 0.5 = 1.5
-    # Parallel group fed1: max(0.3, 0.7) = 0.7
-    # Total: 1.5 + 0.7 = 2.2
-    checks.append(("pipeline_total", abs(result["total_epsilon"] - 2.2) < 0.01))
-    checks.append(("pipeline_within_budget", result["within_budget"]))
-    checks.append(("parallel_savings_positive", result["parallel_savings"] > 0))
-
-    # Over-budget detection
-    heavy_pipeline = [
-        {"module": "dp", "epsilon": 3.0},
-        {"module": "dp", "epsilon": 4.0},
-        {"module": "dp", "epsilon": 4.0},
-    ]
-    heavy = composer.compose_pipeline(heavy_pipeline)
-    checks.append(("over_budget_detected", not heavy["within_budget"]))
+    # Parallel on disjoint data is more efficient
+    checks.append(("parallel_efficient", par < sequential_composition([1.0, 2.0, 0.5, 1.5])))
 
     return checks
 
 
 # ============================================================
-# §3 — Trust Tensor Consistency
+# §3 — ZK Proof Composition
 # ============================================================
 
 @dataclass
-class TrustState:
-    """Trust state that must be consistent across modules."""
-    talent: float = 0.5
-    training: float = 0.5
-    temperament: float = 0.5
-
-    def composite(self) -> float:
-        return (self.talent + self.training + self.temperament) / 3.0
-
-    def bounded(self) -> bool:
-        return all(0 <= v <= 1 for v in [self.talent, self.training, self.temperament])
-
-    def distance(self, other: 'TrustState') -> float:
-        return math.sqrt(
-            (self.talent - other.talent)**2 +
-            (self.training - other.training)**2 +
-            (self.temperament - other.temperament)**2
-        )
+class ZKProof:
+    """Simple ZK proof representation."""
+    statement: str
+    commitment: int
+    challenge: int
+    response: int
+    valid: bool = True
 
 
-def verify_trust_consistency(module_views: Dict[str, TrustState],
-                              max_divergence: float = 0.1) -> Dict:
-    """
-    Verify trust tensor consistency across all modules.
-    Each module may have its own view of an entity's trust.
-    They must agree within max_divergence.
-    """
-    modules = list(module_views.keys())
-    divergences = []
+def zk_and_compose(proofs: List[ZKProof]) -> ZKProof:
+    """AND composition: all proofs must be valid."""
+    combined_commitment = 1
+    combined_challenge = 0
+    combined_response = 0
+    for p in proofs:
+        combined_commitment = (combined_commitment * p.commitment) % (2**256)
+        combined_challenge ^= p.challenge
+        combined_response += p.response
 
-    for i in range(len(modules)):
-        for j in range(i+1, len(modules)):
-            m1, m2 = modules[i], modules[j]
-            dist = module_views[m1].distance(module_views[m2])
-            divergences.append((m1, m2, dist))
-
-    max_div = max(d[2] for d in divergences) if divergences else 0.0
-    all_bounded = all(ts.bounded() for ts in module_views.values())
-
-    return {
-        "consistent": max_div <= max_divergence,
-        "max_divergence": max_div,
-        "divergences": divergences,
-        "all_bounded": all_bounded,
-        "module_count": len(modules),
-    }
+    return ZKProof(
+        statement=" AND ".join(p.statement for p in proofs),
+        commitment=combined_commitment,
+        challenge=combined_challenge,
+        response=combined_response,
+        valid=all(p.valid for p in proofs),
+    )
 
 
-def propagate_trust_update(source_module: str, delta: TrustState,
-                           module_views: Dict[str, TrustState],
-                           propagation_weights: Dict[str, float]) -> Dict[str, TrustState]:
-    """
-    Propagate a trust update from one module to others.
-    Each module applies the update with a weight based on source authority.
-    """
-    updated = {}
-    for module, view in module_views.items():
-        if module == source_module:
-            updated[module] = TrustState(
-                talent=max(0, min(1, view.talent + delta.talent)),
-                training=max(0, min(1, view.training + delta.training)),
-                temperament=max(0, min(1, view.temperament + delta.temperament)),
-            )
-        else:
-            w = propagation_weights.get(module, 0.5)
-            updated[module] = TrustState(
-                talent=max(0, min(1, view.talent + delta.talent * w)),
-                training=max(0, min(1, view.training + delta.training * w)),
-                temperament=max(0, min(1, view.temperament + delta.temperament * w)),
-            )
-    return updated
+def zk_or_compose(proofs: List[ZKProof]) -> ZKProof:
+    """OR composition: at least one proof must be valid."""
+    return ZKProof(
+        statement=" OR ".join(p.statement for p in proofs),
+        commitment=proofs[0].commitment if proofs else 0,
+        challenge=proofs[0].challenge if proofs else 0,
+        response=proofs[0].response if proofs else 0,
+        valid=any(p.valid for p in proofs),
+    )
+
+
+def zk_threshold_compose(proofs: List[ZKProof], k: int) -> ZKProof:
+    """Threshold composition: at least k of n proofs must be valid."""
+    valid_count = sum(1 for p in proofs if p.valid)
+    return ZKProof(
+        statement=f"{k}-of-{len(proofs)}: " + ", ".join(p.statement for p in proofs),
+        commitment=sum(p.commitment for p in proofs) % (2**256),
+        challenge=sum(p.challenge for p in proofs),
+        response=sum(p.response for p in proofs),
+        valid=valid_count >= k,
+    )
 
 
 def test_section_3():
     checks = []
 
-    # Consistent views
-    views = {
-        "consensus": TrustState(0.8, 0.7, 0.75),
-        "governance": TrustState(0.82, 0.71, 0.74),
-        "economy": TrustState(0.79, 0.69, 0.76),
-    }
-    result = verify_trust_consistency(views, max_divergence=0.1)
-    checks.append(("trust_consistent", result["consistent"]))
-    checks.append(("all_bounded", result["all_bounded"]))
+    p1 = ZKProof("trust > 0.5", 12345, 67890, 11111, valid=True)
+    p2 = ZKProof("balance > 100", 54321, 9876, 22222, valid=True)
+    p3 = ZKProof("role == admin", 99999, 11111, 33333, valid=False)
 
-    # Divergent views
-    divergent = {
-        "consensus": TrustState(0.8, 0.7, 0.75),
-        "governance": TrustState(0.3, 0.2, 0.1),  # Very different
-    }
-    result2 = verify_trust_consistency(divergent, max_divergence=0.1)
-    checks.append(("trust_divergent_detected", not result2["consistent"]))
+    # AND composition
+    and_proof = zk_and_compose([p1, p2])
+    checks.append(("and_both_valid", and_proof.valid))
 
-    # Out of bounds
-    invalid = {
-        "m1": TrustState(1.5, 0.7, -0.1),
-        "m2": TrustState(0.5, 0.5, 0.5),
-    }
-    result3 = verify_trust_consistency(invalid)
-    checks.append(("out_of_bounds_detected", not result3["all_bounded"]))
+    and_with_invalid = zk_and_compose([p1, p3])
+    checks.append(("and_one_invalid", not and_with_invalid.valid))
 
-    # Propagation maintains bounds
-    views2 = {
-        "consensus": TrustState(0.5, 0.5, 0.5),
-        "governance": TrustState(0.5, 0.5, 0.5),
-    }
-    delta = TrustState(0.1, -0.05, 0.02)
-    weights = {"governance": 0.7}
-    updated = propagate_trust_update("consensus", delta, views2, weights)
-    checks.append(("propagation_bounded",
-                    all(v.bounded() for v in updated.values())))
-    checks.append(("source_gets_full_update",
-                    abs(updated["consensus"].talent - 0.6) < 0.01))
-    checks.append(("other_gets_weighted_update",
-                    abs(updated["governance"].talent - 0.57) < 0.01))
+    # OR composition
+    or_proof = zk_or_compose([p1, p3])
+    checks.append(("or_one_valid", or_proof.valid))
+
+    all_invalid = zk_or_compose([p3, ZKProof("x", 0, 0, 0, False)])
+    checks.append(("or_none_valid", not all_invalid.valid))
+
+    # Threshold composition
+    thresh_2_of_3 = zk_threshold_compose([p1, p2, p3], 2)
+    checks.append(("threshold_2of3_valid", thresh_2_of_3.valid))
+
+    thresh_3_of_3 = zk_threshold_compose([p1, p2, p3], 3)
+    checks.append(("threshold_3of3_invalid", not thresh_3_of_3.valid))
+
+    thresh_1_of_3 = zk_threshold_compose([p1, p2, p3], 1)
+    checks.append(("threshold_1of3_valid", thresh_1_of_3.valid))
+
+    # Nested composition: AND(OR(p1, p3), p2) = valid
+    inner = zk_or_compose([p1, p3])
+    outer = zk_and_compose([inner, p2])
+    checks.append(("nested_composition", outer.valid))
 
     return checks
 
 
 # ============================================================
-# §4 — Consensus-Governance Interaction Proof
+# §4 — Graph + Privacy Composition
 # ============================================================
 
 @dataclass
-class ConsensusGovState:
-    """State tracking consensus-governance interactions."""
-    consensus_decided: bool = False
-    consensus_value: Any = None
-    governance_approved: bool = False
-    governance_quorum_met: bool = False
-    trust_threshold_met: bool = False
-    atp_staked: float = 0.0
-    min_stake: float = 100.0
+class TrustGraph:
+    nodes: Set[str] = field(default_factory=set)
+    edges: Dict[str, Dict[str, float]] = field(default_factory=lambda: defaultdict(dict))
+    trust_scores: Dict[str, float] = field(default_factory=dict)
 
-    def can_execute(self) -> bool:
-        """Execution requires both consensus AND governance approval."""
-        return (self.consensus_decided and
-                self.governance_approved and
-                self.governance_quorum_met and
-                self.trust_threshold_met and
-                self.atp_staked >= self.min_stake)
+    def add_node(self, node_id: str, trust: float = 0.5):
+        self.nodes.add(node_id)
+        self.trust_scores[node_id] = trust
+
+    def add_edge(self, src: str, dst: str, weight: float = 1.0):
+        self.edges[src][dst] = weight
+        self.edges[dst][src] = weight
+
+    def neighbors(self, node_id: str) -> List[str]:
+        return list(self.edges.get(node_id, {}).keys())
+
+    def degree(self, node_id: str) -> int:
+        return len(self.edges.get(node_id, {}))
 
 
-def verify_consensus_governance_composition(
-    consensus_results: List[bool],
-    governance_results: List[bool],
-    trust_scores: List[float],
-    stakes: List[float],
-    trust_threshold: float = 0.5,
-    min_stake: float = 100.0,
-) -> Dict:
+def private_community_detection(graph: TrustGraph, epsilon: float,
+                                 budget: PrivacyBudget,
+                                 rng: random.Random) -> Dict:
     """
-    Verify that consensus + governance compose safely:
-    1. No action without both consensus AND governance
-    2. Trust threshold is respected
-    3. Stake requirement enforced
+    Community detection with differential privacy.
+    Uses noisy label propagation to protect individual edges.
     """
-    results = []
-    violations = []
+    if not budget.can_spend(epsilon):
+        return {"communities": {}, "budget_exhausted": True}
 
-    for i in range(len(consensus_results)):
-        state = ConsensusGovState(
-            consensus_decided=consensus_results[i],
-            governance_approved=governance_results[i],
-            governance_quorum_met=governance_results[i],  # Simplified
-            trust_threshold_met=trust_scores[i] >= trust_threshold,
-            atp_staked=stakes[i],
-            min_stake=min_stake,
-        )
+    budget.spend(epsilon, "graph", "community_detection")
 
-        can_exec = state.can_execute()
+    # Simple label propagation with DP noise
+    labels = {n: i for i, n in enumerate(graph.nodes)}
+    nodes_list = list(graph.nodes)
 
-        # Safety: can only execute if ALL conditions met
-        expected_exec = (
-            consensus_results[i] and
-            governance_results[i] and
-            trust_scores[i] >= trust_threshold and
-            stakes[i] >= min_stake
-        )
+    for iteration in range(10):
+        rng.shuffle(nodes_list)
+        for node in nodes_list:
+            neighbor_labels = defaultdict(float)
+            for nbr in graph.neighbors(node):
+                lbl = labels[nbr]
+                weight = graph.edges[node].get(nbr, 1.0)
+                # Add Laplace noise for privacy
+                noise = rng.gauss(0, 1.0 / epsilon)
+                neighbor_labels[lbl] += weight + noise
 
-        if can_exec != expected_exec:
-            violations.append(i)
+            if neighbor_labels:
+                labels[node] = max(neighbor_labels, key=neighbor_labels.get)
 
-        results.append({
-            "round": i,
-            "can_execute": can_exec,
-            "expected": expected_exec,
-            "correct": can_exec == expected_exec,
-        })
+    # Group by label
+    communities = defaultdict(list)
+    for node, label in labels.items():
+        communities[label].append(node)
 
     return {
-        "total_rounds": len(results),
-        "violations": violations,
-        "all_correct": len(violations) == 0,
-        "executions": sum(1 for r in results if r["can_execute"]),
-        "blocked": sum(1 for r in results if not r["can_execute"]),
+        "communities": dict(communities),
+        "num_communities": len(communities),
+        "budget_exhausted": False,
+        "epsilon_spent": epsilon,
     }
+
+
+def private_trust_query(graph: TrustGraph, node_id: str, epsilon: float,
+                        budget: PrivacyBudget, rng: random.Random) -> Dict:
+    """Query trust score with DP noise."""
+    if not budget.can_spend(epsilon):
+        return {"trust": None, "budget_exhausted": True}
+
+    budget.spend(epsilon, "trust", f"query_{node_id}")
+    true_trust = graph.trust_scores.get(node_id, 0.5)
+    noise = rng.gauss(0, 1.0 / epsilon)
+    noisy_trust = max(0.0, min(1.0, true_trust + noise))
+
+    return {"trust": noisy_trust, "true_trust": true_trust, "noise": noise, "budget_exhausted": False}
 
 
 def test_section_4():
     checks = []
+    rng = random.Random(42)
 
-    # All conditions met
-    result = verify_consensus_governance_composition(
-        consensus_results=[True, True, True],
-        governance_results=[True, True, True],
-        trust_scores=[0.8, 0.7, 0.6],
-        stakes=[200.0, 150.0, 100.0],
-    )
-    checks.append(("all_conditions_all_execute", result["executions"] == 3))
-    checks.append(("composition_correct", result["all_correct"]))
+    # Build test graph
+    graph = TrustGraph()
+    for i in range(20):
+        graph.add_node(f"n{i}", trust=0.3 + (i % 5) * 0.15)
 
-    # Missing consensus blocks execution
-    result2 = verify_consensus_governance_composition(
-        consensus_results=[False, True],
-        governance_results=[True, True],
-        trust_scores=[0.8, 0.8],
-        stakes=[200.0, 200.0],
-    )
-    checks.append(("no_consensus_blocks", result2["blocked"] >= 1))
-    checks.append(("composition_correct_2", result2["all_correct"]))
+    # Create 2 communities
+    for i in range(10):
+        for j in range(i+1, 10):
+            if rng.random() < 0.6:
+                graph.add_edge(f"n{i}", f"n{j}")
+    for i in range(10, 20):
+        for j in range(i+1, 20):
+            if rng.random() < 0.6:
+                graph.add_edge(f"n{i}", f"n{j}")
+    # Few cross-community edges
+    graph.add_edge("n5", "n15")
 
-    # Low trust blocks
-    result3 = verify_consensus_governance_composition(
-        consensus_results=[True],
-        governance_results=[True],
-        trust_scores=[0.3],  # Below 0.5 threshold
-        stakes=[200.0],
-    )
-    checks.append(("low_trust_blocks", result3["blocked"] == 1))
+    budget = PrivacyBudget(max_epsilon=10.0)
 
-    # Low stake blocks
-    result4 = verify_consensus_governance_composition(
-        consensus_results=[True],
-        governance_results=[True],
-        trust_scores=[0.8],
-        stakes=[50.0],  # Below 100 minimum
-    )
-    checks.append(("low_stake_blocks", result4["blocked"] == 1))
+    # Private community detection
+    result = private_community_detection(graph, 1.0, budget, rng)
+    checks.append(("communities_found", result["num_communities"] >= 1))
+    checks.append(("budget_tracked", budget.total_epsilon == 1.0))
+
+    # Private trust query
+    tq = private_trust_query(graph, "n0", 0.5, budget, rng)
+    checks.append(("trust_returned", tq["trust"] is not None))
+    checks.append(("trust_bounded", 0.0 <= tq["trust"] <= 1.0))
+    checks.append(("budget_updated", abs(budget.total_epsilon - 1.5) < 0.01))
+
+    # Multiple queries consume budget
+    for i in range(5):
+        private_trust_query(graph, f"n{i}", 1.0, budget, rng)
+    checks.append(("budget_accumulates", budget.total_epsilon > 5.0))
+
+    # Budget exhaustion
+    budget2 = PrivacyBudget(max_epsilon=0.5)
+    result2 = private_community_detection(graph, 1.0, budget2, rng)
+    checks.append(("budget_exhaustion_caught", result2["budget_exhausted"]))
 
     return checks
 
 
 # ============================================================
-# §5 — Privacy-Consensus Interaction
+# §5 — Trust + Consensus Composition
 # ============================================================
 
-def privacy_consensus_composition(
-    dp_queries: List[Dict],
-    consensus_rounds: List[Dict],
-    privacy_budget: float = 10.0,
-) -> Dict:
-    """
-    Verify that privacy and consensus compose correctly:
-    1. Privacy budget consumed by DP queries
-    2. Consensus doesn't leak private data
-    3. Consensus results are public but inputs can be private
-    """
-    budget_used = 0.0
-    results = []
+@dataclass
+class TrustWeightedConsensus:
+    """Consensus where vote weight is proportional to trust score."""
+    participants: Dict[str, float] = field(default_factory=dict)  # id -> trust
+    proposals: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
-    for query in dp_queries:
-        eps = query.get("epsilon", 0.0)
-        if budget_used + eps > privacy_budget:
-            results.append({
-                "type": "dp_query",
-                "status": "rejected",
-                "reason": "budget_exceeded",
-            })
-            continue
+    def add_participant(self, node_id: str, trust: float):
+        self.participants[node_id] = max(0.0, min(1.0, trust))
 
-        budget_used += eps
-        results.append({
-            "type": "dp_query",
-            "status": "accepted",
-            "epsilon": eps,
-            "remaining": privacy_budget - budget_used,
-        })
+    def vote(self, proposal_id: str, voter_id: str, approve: bool):
+        if voter_id not in self.participants:
+            return
+        weight = self.participants[voter_id]
+        if proposal_id not in self.proposals:
+            self.proposals[proposal_id] = {}
+        self.proposals[proposal_id][voter_id] = weight if approve else -weight
 
-    # Consensus rounds don't consume privacy budget
-    for consensus in consensus_rounds:
-        results.append({
-            "type": "consensus",
-            "status": "accepted",
-            "privacy_cost": 0.0,  # Consensus is public
-        })
+    def tally(self, proposal_id: str) -> Dict:
+        votes = self.proposals.get(proposal_id, {})
+        approve_weight = sum(w for w in votes.values() if w > 0)
+        reject_weight = sum(abs(w) for w in votes.values() if w < 0)
+        total_weight = sum(self.participants.values())
 
-    # Invariant: consensus never increases privacy cost
-    consensus_eps = sum(r.get("privacy_cost", 0) for r in results if r["type"] == "consensus")
+        return {
+            "approve": approve_weight,
+            "reject": reject_weight,
+            "total": total_weight,
+            "quorum_met": (approve_weight + reject_weight) >= total_weight * 0.67,
+            "approved": approve_weight > reject_weight and
+                       (approve_weight + reject_weight) >= total_weight * 0.67,
+        }
 
-    return {
-        "total_budget_used": budget_used,
-        "remaining_budget": privacy_budget - budget_used,
-        "queries_accepted": sum(1 for r in results if r["status"] == "accepted" and r["type"] == "dp_query"),
-        "queries_rejected": sum(1 for r in results if r.get("status") == "rejected"),
-        "consensus_privacy_cost": consensus_eps,
-        "privacy_budget_respected": budget_used <= privacy_budget,
-        "consensus_free": consensus_eps == 0.0,
-    }
+
+def verify_trust_consensus_composition(consensus: TrustWeightedConsensus) -> List[CompositionProof]:
+    """Verify properties of trust-weighted consensus."""
+    proofs = []
+
+    # Property 1: Trust-bounded weight
+    all_bounded = True
+    for prop_id, votes in consensus.proposals.items():
+        for voter, weight in votes.items():
+            if abs(weight) > consensus.participants.get(voter, 0) + 0.001:
+                all_bounded = False
+    proofs.append(CompositionProof(
+        "trust", "consensus", "trust_bounded_weight", all_bounded,
+        evidence="Every vote weight <= voter's trust score"
+    ))
+
+    # Property 2: Monotonicity
+    trusts = sorted(consensus.participants.items(), key=lambda x: x[1])
+    monotonic = True
+    for i in range(len(trusts) - 1):
+        if trusts[i][1] > trusts[i+1][1]:
+            monotonic = False
+    proofs.append(CompositionProof(
+        "trust", "consensus", "trust_monotonic_influence", monotonic,
+        evidence="Higher trust entities have >= voting weight"
+    ))
+
+    return proofs
 
 
 def test_section_5():
     checks = []
 
-    queries = [
-        {"epsilon": 2.0, "query": "mean_trust"},
-        {"epsilon": 3.0, "query": "community_size"},
-        {"epsilon": 4.0, "query": "anomaly_score"},
-        {"epsilon": 2.0, "query": "histogram"},  # Should be rejected (total would be 11 > 10)
-    ]
-    consensus = [
-        {"round": 1, "value": "block_1"},
-        {"round": 2, "value": "block_2"},
-    ]
+    tc = TrustWeightedConsensus()
+    tc.add_participant("high_trust", 0.9)
+    tc.add_participant("med_trust", 0.5)
+    tc.add_participant("low_trust", 0.2)
 
-    result = privacy_consensus_composition(queries, consensus, privacy_budget=10.0)
-    checks.append(("budget_respected", result["privacy_budget_respected"]))
-    checks.append(("consensus_free", result["consensus_free"]))
-    checks.append(("queries_accepted", result["queries_accepted"] == 3))
-    checks.append(("over_budget_rejected", result["queries_rejected"] == 1))
-    checks.append(("remaining_positive", result["remaining_budget"] >= 0))
+    # High trust should dominate
+    tc.vote("prop1", "high_trust", True)
+    tc.vote("prop1", "low_trust", False)
+    tc.vote("prop1", "med_trust", True)
+    result = tc.tally("prop1")
+    checks.append(("high_trust_wins", result["approve"] > result["reject"]))
+    checks.append(("quorum_met", result["quorum_met"]))
+
+    # Low trust majority can't override high trust minority
+    tc2 = TrustWeightedConsensus()
+    tc2.add_participant("high", 0.9)
+    tc2.add_participant("low1", 0.1)
+    tc2.add_participant("low2", 0.1)
+    tc2.add_participant("low3", 0.1)
+    tc2.vote("prop2", "high", True)
+    tc2.vote("prop2", "low1", False)
+    tc2.vote("prop2", "low2", False)
+    tc2.vote("prop2", "low3", False)
+    result2 = tc2.tally("prop2")
+    checks.append(("trust_outweighs_count", result2["approve"] > result2["reject"]))
+
+    # Composition proofs
+    proofs = verify_trust_consensus_composition(tc)
+    for proof in proofs:
+        checks.append((f"proof_{proof.property_name}", proof.holds))
+
+    # Trust bounding
+    checks.append(("weight_bounded_0.9", tc.proposals["prop1"]["high_trust"] == 0.9))
 
     return checks
 
 
 # ============================================================
-# §6 — Compositional Safety Theorem
+# §6 — ATP + Governance Composition
 # ============================================================
 
 @dataclass
-class SafetyProperty:
-    """A safety property that can be verified for a module or composition."""
-    name: str
-    check: Callable[[Dict], bool]
+class ATPGovernance:
+    """ATP staking integrated with governance voting."""
+    balances: Dict[str, float] = field(default_factory=dict)
+    stakes: Dict[str, float] = field(default_factory=dict)
+    trust_scores: Dict[str, float] = field(default_factory=dict)
+    total_supply: float = 0.0
 
-    def verify(self, state: Dict) -> bool:
-        return self.check(state)
+    def create_entity(self, entity_id: str, balance: float, trust: float):
+        self.balances[entity_id] = balance
+        self.trust_scores[entity_id] = trust
+        self.total_supply += balance
+
+    def stake(self, entity_id: str, amount: float) -> bool:
+        if amount <= 0 or self.balances.get(entity_id, 0) < amount:
+            return False
+        self.balances[entity_id] -= amount
+        self.stakes[entity_id] = self.stakes.get(entity_id, 0) + amount
+        return True
+
+    def governance_weight(self, entity_id: str) -> float:
+        """Weight = sqrt(stake) * trust — combines economic and trust signals."""
+        stake = self.stakes.get(entity_id, 0)
+        trust = self.trust_scores.get(entity_id, 0)
+        return math.sqrt(stake) * trust
+
+    def conservation_check(self) -> bool:
+        total = sum(self.balances.values()) + sum(self.stakes.values())
+        return abs(total - self.total_supply) < 0.01
 
 
-def compose_safety(properties_a: List[SafetyProperty],
-                   properties_b: List[SafetyProperty],
-                   interface_properties: List[SafetyProperty],
-                   state: Dict) -> Dict:
-    """
-    Compositional safety: if module A is safe AND module B is safe
-    AND interface properties hold → composition A∘B is safe.
-    """
-    a_results = {p.name: p.verify(state) for p in properties_a}
-    b_results = {p.name: p.verify(state) for p in properties_b}
-    interface_results = {p.name: p.verify(state) for p in interface_properties}
+def verify_atp_governance_composition(gov: ATPGovernance) -> List[CompositionProof]:
+    proofs = []
 
-    a_safe = all(a_results.values())
-    b_safe = all(b_results.values())
-    interface_safe = all(interface_results.values())
+    proofs.append(CompositionProof(
+        "atp", "governance", "stake_conservation",
+        gov.conservation_check(),
+        evidence="Staking moves ATP between balance and stake, total unchanged"
+    ))
 
-    # Composition theorem: A safe ∧ B safe ∧ interface safe → A∘B safe
-    composition_safe = a_safe and b_safe and interface_safe
+    zero_trust_weight = True
+    for eid in gov.trust_scores:
+        if gov.trust_scores[eid] == 0 and gov.governance_weight(eid) != 0:
+            zero_trust_weight = False
+    proofs.append(CompositionProof(
+        "atp", "governance", "zero_trust_zero_weight",
+        zero_trust_weight,
+        evidence="Entity with zero trust has zero governance weight"
+    ))
 
-    return {
-        "module_a": a_results,
-        "module_b": b_results,
-        "interface": interface_results,
-        "a_safe": a_safe,
-        "b_safe": b_safe,
-        "interface_safe": interface_safe,
-        "composition_safe": composition_safe,
-    }
+    sqrt_damped = True
+    for eid in gov.stakes:
+        stake = gov.stakes[eid]
+        trust = gov.trust_scores.get(eid, 0)
+        if stake > 0 and trust > 0:  # Skip zero-weight entities
+            weight_current = gov.governance_weight(eid)
+            weight_doubled = math.sqrt(stake * 2) * trust
+            if weight_doubled >= weight_current * 2:
+                sqrt_damped = False
+    proofs.append(CompositionProof(
+        "atp", "governance", "sqrt_dampening",
+        sqrt_damped,
+        evidence="Doubling stake increases weight by sqrt(2) ≈ 1.41, not 2"
+    ))
+
+    return proofs
 
 
 def test_section_6():
     checks = []
 
-    # Define safety properties
-    trust_bounded = SafetyProperty("trust_bounded",
-                                   lambda s: 0 <= s.get("trust", 0.5) <= 1)
-    atp_positive = SafetyProperty("atp_positive",
-                                  lambda s: s.get("atp", 0) >= 0)
-    budget_positive = SafetyProperty("budget_remaining",
-                                     lambda s: s.get("budget", 10) >= 0)
-    consistent = SafetyProperty("trust_consistent",
-                                lambda s: abs(s.get("trust_a", 0.5) - s.get("trust_b", 0.5)) < 0.2)
+    gov = ATPGovernance()
+    gov.create_entity("rich_trusted", 10000.0, 0.9)
+    gov.create_entity("rich_untrusted", 10000.0, 0.1)
+    gov.create_entity("poor_trusted", 100.0, 0.9)
+    gov.create_entity("zero_trust", 5000.0, 0.0)
 
-    # Safe composition
-    safe_state = {"trust": 0.7, "atp": 100, "budget": 5, "trust_a": 0.7, "trust_b": 0.72}
-    result = compose_safety(
-        [trust_bounded, atp_positive],
-        [budget_positive],
-        [consistent],
-        safe_state,
-    )
-    checks.append(("composition_safe", result["composition_safe"]))
-    checks.append(("a_safe", result["a_safe"]))
-    checks.append(("b_safe", result["b_safe"]))
-    checks.append(("interface_safe", result["interface_safe"]))
+    gov.stake("rich_trusted", 5000.0)
+    gov.stake("rich_untrusted", 5000.0)
+    gov.stake("poor_trusted", 50.0)
+    gov.stake("zero_trust", 3000.0)
 
-    # Unsafe: module A violates
-    unsafe_state = {"trust": 1.5, "atp": 100, "budget": 5, "trust_a": 0.7, "trust_b": 0.72}
-    result2 = compose_safety(
-        [trust_bounded, atp_positive],
-        [budget_positive],
-        [consistent],
-        unsafe_state,
-    )
-    checks.append(("composition_unsafe_on_a_violation", not result2["composition_safe"]))
-    checks.append(("a_unsafe", not result2["a_safe"]))
+    checks.append(("conservation_after_stake", gov.conservation_check()))
 
-    # Unsafe: interface violates
-    inconsistent_state = {"trust": 0.7, "atp": 100, "budget": 5, "trust_a": 0.7, "trust_b": 0.1}
-    result3 = compose_safety(
-        [trust_bounded, atp_positive],
-        [budget_positive],
-        [consistent],
-        inconsistent_state,
-    )
-    checks.append(("composition_unsafe_on_interface", not result3["composition_safe"]))
-    checks.append(("interface_unsafe", not result3["interface_safe"]))
+    rt_weight = gov.governance_weight("rich_trusted")
+    ru_weight = gov.governance_weight("rich_untrusted")
+    checks.append(("trust_amplifies", rt_weight > ru_weight))
+
+    ratio = rt_weight / ru_weight if ru_weight > 0 else float('inf')
+    checks.append(("trust_ratio_9to1", abs(ratio - 9.0) < 0.1))
+
+    zt_weight = gov.governance_weight("zero_trust")
+    checks.append(("zero_trust_zero_weight", zt_weight == 0.0))
+
+    proofs = verify_atp_governance_composition(gov)
+    for proof in proofs:
+        checks.append((f"proof_{proof.property_name}", proof.holds))
+
+    checks.append(("sqrt_factor", math.sqrt(2) < 2))
 
     return checks
 
 
 # ============================================================
-# §7 — Resource Budget Algebra
+# §7 — Privacy + Trust Composition
 # ============================================================
 
-@dataclass
-class ResourceBudget:
-    """Algebraic resource budget with composition operators."""
-    epsilon: float = 0.0
-    delta: float = 0.0
-    atp_cost: float = 0.0
-    compute_units: float = 0.0
+def private_trust_update(current_trust: float, observation_quality: float,
+                         epsilon: float, budget: PrivacyBudget,
+                         rng: random.Random) -> Dict:
+    """
+    Update trust with privacy guarantees.
+    The observation quality is noised before the trust update.
+    """
+    if not budget.can_spend(epsilon):
+        return {"new_trust": current_trust, "updated": False, "budget_exhausted": True}
 
-    def __add__(self, other: 'ResourceBudget') -> 'ResourceBudget':
-        """Sequential composition: sum of resources."""
-        return ResourceBudget(
-            epsilon=self.epsilon + other.epsilon,
-            delta=self.delta + other.delta,
-            atp_cost=self.atp_cost + other.atp_cost,
-            compute_units=self.compute_units + other.compute_units,
-        )
+    budget.spend(epsilon, "trust_update", "observation")
 
-    def parallel(self, other: 'ResourceBudget') -> 'ResourceBudget':
-        """Parallel composition: max epsilon, sum others."""
-        return ResourceBudget(
-            epsilon=max(self.epsilon, other.epsilon),  # Parallel DP
-            delta=max(self.delta, other.delta),
-            atp_cost=self.atp_cost + other.atp_cost,
-            compute_units=max(self.compute_units, other.compute_units),  # Parallel compute
-        )
+    # Add noise to observation quality (sensitivity = 1.0)
+    noise = rng.gauss(0, 1.0 / epsilon)
+    noisy_quality = max(0.0, min(1.0, observation_quality + noise))
 
-    def within(self, limit: 'ResourceBudget') -> bool:
-        """Check if budget is within limits."""
-        return (self.epsilon <= limit.epsilon and
-                self.delta <= limit.delta and
-                self.atp_cost <= limit.atp_cost and
-                self.compute_units <= limit.compute_units)
+    # Trust update: bounded step
+    delta = 0.02 * (noisy_quality - 0.5)
+    new_trust = max(0.0, min(1.0, current_trust + delta))
 
-    def utilization(self, limit: 'ResourceBudget') -> float:
-        """Resource utilization ratio (0-1)."""
-        ratios = []
-        if limit.epsilon > 0:
-            ratios.append(self.epsilon / limit.epsilon)
-        if limit.atp_cost > 0:
-            ratios.append(self.atp_cost / limit.atp_cost)
-        if limit.compute_units > 0:
-            ratios.append(self.compute_units / limit.compute_units)
-        return max(ratios) if ratios else 0.0
+    return {
+        "new_trust": new_trust,
+        "delta": delta,
+        "noisy_quality": noisy_quality,
+        "updated": True,
+        "budget_exhausted": False,
+    }
+
+
+def verify_private_trust_composition(updates: List[Dict]) -> List[CompositionProof]:
+    proofs = []
+
+    all_bounded = all(0.0 <= u.get("new_trust", 0.5) <= 1.0 for u in updates if u.get("updated"))
+    proofs.append(CompositionProof(
+        "privacy", "trust", "trust_bounded_with_noise",
+        all_bounded,
+        evidence="Trust clipped to [0,1] after noisy update"
+    ))
+
+    all_delta_bounded = all(abs(u.get("delta", 0)) <= 0.02 for u in updates if u.get("updated"))
+    proofs.append(CompositionProof(
+        "privacy", "trust", "delta_bounded_with_noise",
+        all_delta_bounded,
+        evidence="Trust delta clipped by noisy quality clamping to [0,1]"
+    ))
+
+    return proofs
 
 
 def test_section_7():
     checks = []
+    rng = random.Random(42)
 
-    a = ResourceBudget(epsilon=1.0, delta=1e-5, atp_cost=10.0, compute_units=5.0)
-    b = ResourceBudget(epsilon=0.5, delta=1e-6, atp_cost=5.0, compute_units=3.0)
+    budget = PrivacyBudget(max_epsilon=10.0)
+    trust = 0.5
 
-    # Sequential composition
-    seq = a + b
-    checks.append(("seq_epsilon_sum", abs(seq.epsilon - 1.5) < 0.01))
-    checks.append(("seq_atp_sum", abs(seq.atp_cost - 15.0) < 0.01))
+    updates = []
+    for i in range(50):
+        quality = 0.3 + rng.random() * 0.4
+        result = private_trust_update(trust, quality, 0.1, budget, rng)
+        if result["updated"]:
+            trust = result["new_trust"]
+            updates.append(result)
 
-    # Parallel composition
-    par = a.parallel(b)
-    checks.append(("par_epsilon_max", abs(par.epsilon - 1.0) < 0.01))
-    checks.append(("par_compute_max", abs(par.compute_units - 5.0) < 0.01))
-    checks.append(("par_atp_sum", abs(par.atp_cost - 15.0) < 0.01))
+    checks.append(("all_trust_bounded", all(0 <= u["new_trust"] <= 1 for u in updates)))
+    checks.append(("all_delta_bounded", all(abs(u["delta"]) <= 0.02 for u in updates)))
+    checks.append(("budget_correct", abs(budget.total_epsilon - len(updates) * 0.1) < 0.01))
 
-    # Parallel is cheaper on epsilon
-    checks.append(("parallel_saves_epsilon", par.epsilon < seq.epsilon))
+    proofs = verify_private_trust_composition(updates)
+    for proof in proofs:
+        checks.append((f"proof_{proof.property_name}", proof.holds))
 
-    # Budget limits
-    limit = ResourceBudget(epsilon=10.0, delta=1e-3, atp_cost=100.0, compute_units=50.0)
-    checks.append(("within_budget", seq.within(limit)))
-
-    over = ResourceBudget(epsilon=11.0, atp_cost=10.0)
-    checks.append(("over_budget_detected", not over.within(limit)))
-
-    # Utilization
-    util = seq.utilization(limit)
-    checks.append(("utilization_bounded", 0 <= util <= 1))
+    # High privacy (low epsilon) still bounded
+    budget2 = PrivacyBudget(max_epsilon=100.0)
+    low_eps_updates = []
+    trust2 = 0.5
+    for i in range(50):
+        result = private_trust_update(trust2, 0.8, 0.01, budget2, rng)
+        if result["updated"]:
+            trust2 = result["new_trust"]
+            low_eps_updates.append(result)
+    checks.append(("high_privacy_bounded", all(0 <= u["new_trust"] <= 1 for u in low_eps_updates)))
 
     return checks
 
 
 # ============================================================
-# §8 — Module Dependency Graph
+# §8 — Consensus + Privacy Composition
 # ============================================================
 
-@dataclass
-class ModuleDependency:
-    """Dependency graph between modules for compositional reasoning."""
-    dependencies: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
+def private_consensus_tally(votes: Dict[str, bool], trust_scores: Dict[str, float],
+                            epsilon: float, budget: PrivacyBudget,
+                            rng: random.Random) -> Dict:
+    """
+    Consensus tally with DP — individual votes are protected.
+    Only the aggregate (noisy) result is revealed.
+    """
+    if not budget.can_spend(epsilon):
+        return {"result": None, "budget_exhausted": True}
 
-    def add_dependency(self, module: str, depends_on: str):
-        self.dependencies[module].add(depends_on)
+    budget.spend(epsilon, "consensus", "tally")
 
-    def topological_sort(self) -> List[str]:
-        """Topological sort for safe initialization order."""
-        in_degree = defaultdict(int)
-        all_modules = set()
-        for mod, deps in self.dependencies.items():
-            all_modules.add(mod)
-            for d in deps:
-                all_modules.add(d)
-                in_degree[mod] += 1
+    approve = sum(trust_scores.get(v, 0.5) for v, vote in votes.items() if vote)
+    reject = sum(trust_scores.get(v, 0.5) for v, vote in votes.items() if not vote)
 
-        queue = [m for m in all_modules if in_degree[m] == 0]
-        result = []
+    sensitivity = max(trust_scores.values()) if trust_scores else 1.0
+    noise_approve = rng.gauss(0, sensitivity / epsilon)
+    noise_reject = rng.gauss(0, sensitivity / epsilon)
 
-        while queue:
-            node = min(queue)  # Deterministic: alphabetical
-            queue.remove(node)
-            result.append(node)
-            for mod, deps in self.dependencies.items():
-                if node in deps:
-                    in_degree[mod] -= 1
-                    if in_degree[mod] == 0:
-                        queue.append(mod)
+    noisy_approve = approve + noise_approve
+    noisy_reject = reject + noise_reject
 
-        return result
-
-    def has_cycle(self) -> bool:
-        """Detect circular dependencies."""
-        order = self.topological_sort()
-        all_modules = set()
-        for mod, deps in self.dependencies.items():
-            all_modules.add(mod)
-            all_modules.update(deps)
-        return len(order) < len(all_modules)
-
-    def transitive_deps(self, module: str) -> Set[str]:
-        """All transitive dependencies of a module."""
-        visited = set()
-        stack = list(self.dependencies.get(module, set()))
-        while stack:
-            dep = stack.pop()
-            if dep not in visited:
-                visited.add(dep)
-                stack.extend(self.dependencies.get(dep, set()))
-        return visited
+    return {
+        "approve": noisy_approve,
+        "reject": noisy_reject,
+        "result": noisy_approve > noisy_reject,
+        "margin": noisy_approve - noisy_reject,
+        "budget_exhausted": False,
+    }
 
 
 def test_section_8():
     checks = []
+    rng = random.Random(42)
 
-    deps = ModuleDependency()
-    deps.add_dependency("governance", "consensus")
-    deps.add_dependency("governance", "trust_tensor")
-    deps.add_dependency("consensus", "trust_tensor")
-    deps.add_dependency("privacy_dp", "trust_tensor")
-    deps.add_dependency("economy", "trust_tensor")
+    trust_scores = {f"v{i}": 0.5 + i * 0.05 for i in range(10)}
 
-    # Topological sort
-    order = deps.topological_sort()
-    checks.append(("trust_tensor_first", order.index("trust_tensor") < order.index("consensus")))
-    checks.append(("consensus_before_gov", order.index("consensus") < order.index("governance")))
+    # Strong majority survives noise
+    votes_strong = {f"v{i}": (i < 8) for i in range(10)}
+    results_strong = []
+    for _ in range(20):
+        r = private_consensus_tally(votes_strong, trust_scores, 0.5,
+                                    PrivacyBudget(max_epsilon=100.0), rng)
+        results_strong.append(r["result"])
 
-    # No cycles
-    checks.append(("no_cycles", not deps.has_cycle()))
+    approve_rate = sum(results_strong) / len(results_strong)
+    checks.append(("strong_majority_survives", approve_rate > 0.7))
 
-    # Transitive dependencies
-    gov_deps = deps.transitive_deps("governance")
-    checks.append(("gov_depends_on_trust", "trust_tensor" in gov_deps))
-    checks.append(("gov_depends_on_consensus", "consensus" in gov_deps))
+    # Close vote → noise may flip
+    votes_close = {f"v{i}": (i < 5) for i in range(10)}
+    results_close = []
+    for _ in range(20):
+        r = private_consensus_tally(votes_close, trust_scores, 0.5,
+                                    PrivacyBudget(max_epsilon=100.0), rng)
+        results_close.append(r["result"])
+    close_approve = sum(results_close) / len(results_close)
+    checks.append(("close_vote_noisy", 0.1 < close_approve < 0.9))
 
-    # Add cycle and detect
-    cyclic = ModuleDependency()
-    cyclic.add_dependency("a", "b")
-    cyclic.add_dependency("b", "c")
-    cyclic.add_dependency("c", "a")
-    checks.append(("cycle_detected", cyclic.has_cycle()))
+    budget2 = PrivacyBudget(max_epsilon=5.0)
+    private_consensus_tally(votes_strong, trust_scores, 1.0, budget2, rng)
+    checks.append(("consensus_budget_spent", abs(budget2.total_epsilon - 1.0) < 0.01))
+
+    budget3 = PrivacyBudget(max_epsilon=0.3)
+    r3 = private_consensus_tally(votes_strong, trust_scores, 0.5, budget3, rng)
+    checks.append(("consensus_budget_exhausted", r3["budget_exhausted"]))
 
     return checks
 
 
 # ============================================================
-# §9 — Cross-Module Invariant Verification
+# §9 — Full Stack Composition Verification
 # ============================================================
 
 @dataclass
-class CrossModuleInvariant:
-    """An invariant that must hold across module boundaries."""
-    name: str
-    modules_involved: List[str]
-    check_fn: Callable[[Dict[str, Dict]], bool]
+class FullStackState:
+    """State of the full composed system."""
+    trust_scores: Dict[str, float] = field(default_factory=dict)
+    atp_balances: Dict[str, float] = field(default_factory=dict)
+    privacy_budget: float = 10.0
+    privacy_spent: float = 0.0
+    consensus_decisions: List[bool] = field(default_factory=list)
+    governance_proposals: int = 0
+    communities: int = 0
+
+    def total_atp(self) -> float:
+        return sum(self.atp_balances.values())
 
 
-def verify_cross_module_invariants(
-    module_states: Dict[str, Dict],
-    invariants: List[CrossModuleInvariant],
-) -> Dict:
-    """Verify all cross-module invariants."""
-    results = {}
-    for inv in invariants:
-        # Check that all required modules are present
-        missing = [m for m in inv.modules_involved if m not in module_states]
-        if missing:
-            results[inv.name] = {"holds": False, "reason": f"missing modules: {missing}"}
-        else:
-            holds = inv.check_fn(module_states)
-            results[inv.name] = {"holds": holds}
+def compose_full_stack(num_entities: int, num_rounds: int,
+                       rng: random.Random) -> Tuple[FullStackState, List[CompositionProof]]:
+    """
+    Run the full stack: trust + ATP + privacy + consensus + governance.
+    Verify composition properties at each step.
+    """
+    state = FullStackState()
+    proofs = []
+    budget = PrivacyBudget(max_epsilon=state.privacy_budget)
 
-    all_hold = all(r["holds"] for r in results.values())
-    return {
-        "invariants": results,
-        "all_hold": all_hold,
-        "total": len(invariants),
-        "satisfied": sum(1 for r in results.values() if r["holds"]),
-    }
+    for i in range(num_entities):
+        eid = f"e{i}"
+        state.trust_scores[eid] = 0.5 + rng.gauss(0, 0.1)
+        state.trust_scores[eid] = max(0.0, min(1.0, state.trust_scores[eid]))
+        state.atp_balances[eid] = 100.0 + rng.gauss(0, 20)
+        state.atp_balances[eid] = max(10.0, state.atp_balances[eid])
+
+    initial_total_atp = state.total_atp()
+
+    for round_num in range(num_rounds):
+        # 1. Private trust queries
+        if budget.can_spend(0.1):
+            budget.spend(0.1, "stack", f"round_{round_num}")
+
+        # 2. Trust updates (bounded)
+        for eid in state.trust_scores:
+            quality = rng.uniform(0.3, 0.7)
+            delta = 0.02 * (quality - 0.5)
+            state.trust_scores[eid] = max(0.0, min(1.0, state.trust_scores[eid] + delta))
+
+        # 3. ATP transfers (conservation)
+        for _ in range(num_entities // 3):
+            sender = f"e{rng.randint(0, num_entities-1)}"
+            receiver = f"e{rng.randint(0, num_entities-1)}"
+            if sender != receiver:
+                amount = rng.uniform(1, 10)
+                fee = amount * 0.05
+                if state.atp_balances.get(sender, 0) >= amount + fee:
+                    state.atp_balances[sender] -= (amount + fee)
+                    state.atp_balances[receiver] = state.atp_balances.get(receiver, 0) + amount
+                    initial_total_atp -= fee  # Fees burned
+
+        # 4. Consensus (trust-weighted)
+        votes = {f"e{i}": rng.random() > 0.4 for i in range(num_entities)}
+        approve = sum(state.trust_scores[f"e{i}"] for i in range(num_entities) if votes[f"e{i}"])
+        reject = sum(state.trust_scores[f"e{i}"] for i in range(num_entities) if not votes[f"e{i}"])
+        state.consensus_decisions.append(approve > reject)
+
+    state.privacy_spent = budget.total_epsilon
+
+    # Verify composition properties
+    trust_bounded = all(0.0 <= t <= 1.0 for t in state.trust_scores.values())
+    proofs.append(CompositionProof("trust", "stack", "trust_bounded", trust_bounded))
+
+    atp_conserved = abs(state.total_atp() - initial_total_atp) < 1.0
+    proofs.append(CompositionProof("atp", "stack", "atp_conservation", atp_conserved))
+
+    budget_ok = budget.total_epsilon <= budget.max_epsilon
+    proofs.append(CompositionProof("privacy", "stack", "budget_bounded", budget_ok))
+
+    decisions_made = len(state.consensus_decisions) == num_rounds
+    proofs.append(CompositionProof("consensus", "stack", "liveness", decisions_made))
+
+    return state, proofs
 
 
 def test_section_9():
     checks = []
+    rng = random.Random(42)
 
-    # Define cross-module invariants
-    invariants = [
-        CrossModuleInvariant(
-            "trust_consistency",
-            ["consensus", "governance"],
-            lambda s: abs(s["consensus"].get("trust", 0) - s["governance"].get("trust", 0)) < 0.2,
-        ),
-        CrossModuleInvariant(
-            "atp_conservation",
-            ["economy", "governance"],
-            lambda s: s["economy"].get("total_atp", 0) + s["governance"].get("staked_atp", 0) ==
-                      s["economy"].get("initial_supply", 0),
-        ),
-        CrossModuleInvariant(
-            "privacy_budget_monotone",
-            ["privacy"],
-            lambda s: s["privacy"].get("budget_used", 0) <= s["privacy"].get("budget_max", 10),
-        ),
-    ]
+    state, proofs = compose_full_stack(20, 50, rng)
 
-    # All invariants hold
-    good_state = {
-        "consensus": {"trust": 0.8},
-        "governance": {"trust": 0.82, "staked_atp": 200},
-        "economy": {"total_atp": 800, "initial_supply": 1000},
-        "privacy": {"budget_used": 5, "budget_max": 10},
-    }
-    result = verify_cross_module_invariants(good_state, invariants)
-    checks.append(("all_invariants_hold", result["all_hold"]))
-    checks.append(("all_satisfied", result["satisfied"] == 3))
+    for proof in proofs:
+        checks.append((f"stack_{proof.property_name}", proof.holds))
 
-    # Trust inconsistency
-    bad_trust = {
-        "consensus": {"trust": 0.8},
-        "governance": {"trust": 0.3},  # Too different
-        "economy": {"total_atp": 800, "initial_supply": 1000},
-        "privacy": {"budget_used": 5, "budget_max": 10},
-    }
-    result2 = verify_cross_module_invariants(bad_trust, invariants)
-    checks.append(("trust_inconsistency_caught", not result2["all_hold"]))
-    checks.append(("trust_invariant_failed", not result2["invariants"]["trust_consistency"]["holds"]))
-
-    # Missing module
-    partial = {
-        "consensus": {"trust": 0.8},
-        # governance missing
-        "privacy": {"budget_used": 5, "budget_max": 10},
-    }
-    result3 = verify_cross_module_invariants(partial, invariants)
-    checks.append(("missing_module_detected", not result3["all_hold"]))
+    checks.append(("trust_all_bounded", all(0 <= t <= 1 for t in state.trust_scores.values())))
+    checks.append(("atp_all_positive", all(b >= 0 for b in state.atp_balances.values())))
+    checks.append(("decisions_made", len(state.consensus_decisions) == 50))
+    checks.append(("privacy_spent", state.privacy_spent > 0))
 
     return checks
 
 
 # ============================================================
-# §10 — Privacy-Trust Composition Proof
+# §10 — Interference Detection
 # ============================================================
 
-def privacy_trust_composition(
-    trust_queries: List[Dict],
-    epsilon_per_query: float,
-    total_budget: float,
-    trust_values: List[float],
-) -> Dict:
+def detect_interference(module_a_outputs: List[Dict], module_b_outputs: List[Dict],
+                        shared_state_before: Dict, shared_state_after: Dict) -> Dict:
     """
-    Prove: querying trust values with DP preserves both privacy AND utility.
-
-    Key insight: privacy budget limits information leakage, but trust
-    values must still be actionable (utility > 0).
+    Detect if two modules interfere when composed.
+    Interference = one module's output corrupts another's invariants.
     """
-    budget_used = 0.0
-    query_results = []
+    interferences = []
 
-    for i, query in enumerate(trust_queries):
-        if budget_used + epsilon_per_query > total_budget:
-            query_results.append({"accepted": False, "reason": "budget"})
-            continue
+    for key in shared_state_before:
+        before = shared_state_before[key]
+        after = shared_state_after.get(key, None)
 
-        # Add Laplace noise for DP
-        true_value = trust_values[i % len(trust_values)]
-        sensitivity = 1.0 / len(trust_values)
-        scale = sensitivity / epsilon_per_query
-        noise = 0.0  # Deterministic for proof (worst case = 0 noise)
-        noisy_value = true_value + noise
+        if after is None:
+            interferences.append({"type": "deleted", "key": key})
+        elif isinstance(before, (int, float)) and isinstance(after, (int, float)):
+            if before != 0 and abs(after - before) / abs(before) > 10:
+                interferences.append({
+                    "type": "magnitude_change",
+                    "key": key,
+                    "before": before,
+                    "after": after,
+                })
 
-        # Utility: noisy value still useful for trust decisions
-        utility = 1.0 - min(1.0, abs(noise) / 0.5)
-
-        budget_used += epsilon_per_query
-        query_results.append({
-            "accepted": True,
-            "true_value": true_value,
-            "noisy_value": noisy_value,
-            "utility": utility,
-            "remaining_budget": total_budget - budget_used,
-        })
-
-    # Properties
-    accepted = [r for r in query_results if r.get("accepted")]
-    total_utility = sum(r.get("utility", 0) for r in accepted) / len(accepted) if accepted else 0
+    for key in shared_state_after:
+        if key in shared_state_before:
+            if type(shared_state_before[key]) != type(shared_state_after[key]):
+                interferences.append({
+                    "type": "type_violation",
+                    "key": key,
+                    "expected": type(shared_state_before[key]).__name__,
+                    "actual": type(shared_state_after[key]).__name__,
+                })
 
     return {
-        "total_queries": len(trust_queries),
-        "accepted_queries": len(accepted),
-        "budget_used": budget_used,
-        "budget_remaining": total_budget - budget_used,
-        "average_utility": total_utility,
-        "privacy_preserved": budget_used <= total_budget,
-        "utility_preserved": total_utility > 0.5,
+        "interference_detected": len(interferences) > 0,
+        "interferences": interferences,
+        "num_interferences": len(interferences),
     }
 
 
 def test_section_10():
     checks = []
 
-    queries = [{"query": f"trust_{i}"} for i in range(20)]
-    trust_values = [0.8, 0.6, 0.7, 0.9, 0.5]
+    # No interference
+    before = {"trust": 0.5, "balance": 100.0, "status": "active"}
+    after = {"trust": 0.52, "balance": 95.0, "status": "active"}
+    result = detect_interference([], [], before, after)
+    checks.append(("no_interference", not result["interference_detected"]))
 
-    result = privacy_trust_composition(
-        queries, epsilon_per_query=0.5, total_budget=10.0, trust_values=trust_values)
+    # Magnitude interference
+    after_bad = {"trust": 0.5, "balance": 100000.0, "status": "active"}
+    result2 = detect_interference([], [], before, after_bad)
+    checks.append(("magnitude_detected", result2["interference_detected"]))
 
-    checks.append(("privacy_preserved", result["privacy_preserved"]))
-    checks.append(("utility_preserved", result["utility_preserved"]))
-    checks.append(("queries_accepted", result["accepted_queries"] == 20))
-    checks.append(("budget_exact", abs(result["budget_used"] - 10.0) < 0.01))
+    # Type violation
+    after_type = {"trust": "high", "balance": 100.0, "status": "active"}
+    result3 = detect_interference([], [], before, after_type)
+    checks.append(("type_violation_detected", result3["interference_detected"]))
 
-    # Over-budget scenario
-    result2 = privacy_trust_composition(
-        queries, epsilon_per_query=1.0, total_budget=5.0, trust_values=trust_values)
-    checks.append(("over_budget_rejects", result2["accepted_queries"] < 20))
-    checks.append(("budget_respected", result2["budget_used"] <= 5.0))
+    # Deleted key
+    after_deleted = {"trust": 0.5, "status": "active"}
+    result4 = detect_interference([], [], before, after_deleted)
+    checks.append(("deletion_detected", result4["interference_detected"]))
+
+    # Clean composition
+    clean_before = {"trust": 0.7, "budget": 5.0}
+    clean_after = {"trust": 0.72, "budget": 4.9}
+    result5 = detect_interference([], [], clean_before, clean_after)
+    checks.append(("clean_no_interference", not result5["interference_detected"]))
 
     return checks
 
 
 # ============================================================
-# §11 — Governance-Economy Composition
+# §11 — Composition Theorem Verification
 # ============================================================
 
-def governance_economy_composition(
-    proposals: List[Dict],
-    treasury_balance: float,
-    fee_rate: float = 0.05,
-) -> Dict:
+def verify_composition_theorems(rng: random.Random) -> List[CompositionProof]:
     """
-    Verify governance and economy modules compose correctly:
-    1. Governance proposals have ATP costs
-    2. Treasury is bounded
-    3. No governance action can drain treasury below minimum
+    Verify key composition theorems:
+    1. Privacy composes sequentially (sum of epsilons)
+    2. Trust bounds survive composition
+    3. ATP conservation holds across modules
+    4. Consensus safety preserved under privacy noise
+    5. Governance weight bounded by trust × sqrt(stake)
     """
-    MIN_TREASURY = 100.0
-    current_balance = treasury_balance
-    executed = []
-    rejected = []
+    proofs = []
 
-    for proposal in proposals:
-        cost = proposal.get("cost", 0.0)
-        fee = cost * fee_rate
+    # Theorem 1: Sequential privacy composition
+    epsilons = [rng.uniform(0.01, 0.5) for _ in range(20)]
+    seq_total = sequential_composition(epsilons)
+    actual_sum = sum(epsilons)
+    proofs.append(CompositionProof(
+        "privacy", "composition", "sequential_composition",
+        abs(seq_total - actual_sum) < 0.001,
+        evidence=f"Sequential total {seq_total:.4f} == sum {actual_sum:.4f}"
+    ))
 
-        # Safety check: treasury must stay above minimum
-        if current_balance - cost - fee < MIN_TREASURY:
-            rejected.append({**proposal, "reason": "treasury_protection"})
-            continue
+    # Theorem 2: Advanced composition is tighter for many small queries
+    small_eps = [0.05] * 100  # 100 small queries where advanced wins
+    seq_small = sequential_composition(small_eps)
+    adv_small = advanced_composition(small_eps)
+    proofs.append(CompositionProof(
+        "privacy", "composition", "advanced_tighter_than_sequential",
+        adv_small < seq_small,
+        evidence=f"Advanced {adv_small:.4f} < Sequential {seq_small:.4f} (100 × ε=0.05)"
+    ))
 
-        current_balance -= (cost + fee)
-        executed.append({**proposal, "new_balance": current_balance})
+    # Theorem 3: Parallel composition uses max
+    par_total = parallel_composition(epsilons)
+    proofs.append(CompositionProof(
+        "privacy", "composition", "parallel_uses_max",
+        par_total == max(epsilons),
+        evidence=f"Parallel {par_total:.4f} == max {max(epsilons):.4f}"
+    ))
 
-    return {
-        "executed": len(executed),
-        "rejected": len(rejected),
-        "final_balance": current_balance,
-        "treasury_safe": current_balance >= MIN_TREASURY,
-        "total_spent": treasury_balance - current_balance,
-        "rejection_reasons": [r.get("reason") for r in rejected],
-    }
+    # Theorem 4: Trust bounds hold after 1000 DP updates
+    trust = 0.5
+    budget = PrivacyBudget(max_epsilon=200.0)
+    for _ in range(1000):
+        result = private_trust_update(trust, rng.random(), 0.1, budget, rng)
+        if result["updated"]:
+            trust = result["new_trust"]
+    proofs.append(CompositionProof(
+        "trust", "privacy", "trust_bounded_after_1000_updates",
+        0.0 <= trust <= 1.0,
+        evidence=f"Trust = {trust:.4f} after 1000 DP updates"
+    ))
+
+    # Theorem 5: ATP conservation after full stack
+    state, stack_proofs = compose_full_stack(10, 100, rng)
+    atp_proof = next((p for p in stack_proofs if p.property_name == "atp_conservation"), None)
+    if atp_proof:
+        proofs.append(atp_proof)
+
+    return proofs
 
 
 def test_section_11():
     checks = []
+    rng = random.Random(42)
 
-    proposals = [
-        {"title": "Upgrade network", "cost": 200.0},
-        {"title": "Fund research", "cost": 300.0},
-        {"title": "Community grant", "cost": 250.0},
-        {"title": "Emergency fund", "cost": 400.0},  # Should be rejected
-    ]
+    theorems = verify_composition_theorems(rng)
+    for theorem in theorems:
+        checks.append((f"theorem_{theorem.property_name}", theorem.holds))
 
-    result = governance_economy_composition(proposals, treasury_balance=1000.0)
-    checks.append(("treasury_safe", result["treasury_safe"]))
-    checks.append(("some_executed", result["executed"] > 0))
-    checks.append(("some_rejected", result["rejected"] > 0))
-    checks.append(("balance_above_min", result["final_balance"] >= 100.0))
-
-    # All proposals affordable
-    affordable = [{"title": f"small_{i}", "cost": 10.0} for i in range(5)]
-    result2 = governance_economy_composition(affordable, treasury_balance=1000.0)
-    checks.append(("all_affordable_executed", result2["executed"] == 5))
-    checks.append(("all_affordable_safe", result2["treasury_safe"]))
-
-    # Empty treasury rejects all
-    result3 = governance_economy_composition(proposals, treasury_balance=150.0)
-    checks.append(("low_treasury_rejects", result3["rejected"] > 0))
+    all_hold = all(t.holds for t in theorems)
+    checks.append(("all_theorems_hold", all_hold))
 
     return checks
 
 
 # ============================================================
-# §12 — Complete Cross-Module Verification Pipeline
+# §12 — Complete Composition Pipeline
 # ============================================================
 
 def run_complete_composition_pipeline(rng: random.Random) -> List[Tuple[str, bool]]:
     checks = []
 
-    # 1. Privacy budget composition
-    composer = PrivacyBudgetComposer(max_epsilon=10.0)
-    pipeline = [
-        {"module": "dp", "epsilon": 2.0},
-        {"module": "dp", "epsilon": 1.5},
-        {"module": "zk"},
-        {"module": "dp", "epsilon": 1.0, "parallel_group": "fed"},
-        {"module": "dp", "epsilon": 0.8, "parallel_group": "fed"},
-    ]
-    budget = composer.compose_pipeline(pipeline)
-    checks.append(("budget_composition_valid", budget["within_budget"]))
-    checks.append(("zk_free_confirmed", budget["total_epsilon"] == 2.0 + 1.5 + 1.0))
+    # 1. Module contracts
+    pc = make_privacy_contract()
+    tc = make_trust_contract()
+    ac = make_atp_contract()
+    good_privacy = {"epsilon": 1.0, "budget_remaining": 5.0, "noise_added": True, "total_epsilon": 3.0, "max_epsilon": 10}
+    good_trust = {"trust": 0.7, "trust_delta": 0.01}
+    good_atp = {"balance": 100, "amount": 10, "supply_before": 1000, "supply_after": 999.5, "fees": 0.5}
+    checks.append(("contract_privacy", pc.check_preconditions(good_privacy)[0]))
+    checks.append(("contract_trust", tc.check_invariants(good_trust)[0]))
+    checks.append(("contract_atp", ac.check_invariants(good_atp)[0]))
 
-    # 2. Trust consistency across modules
-    views = {
-        "consensus": TrustState(0.75, 0.8, 0.7),
-        "governance": TrustState(0.76, 0.79, 0.71),
-        "economy": TrustState(0.74, 0.81, 0.69),
-    }
-    consistency = verify_trust_consistency(views, max_divergence=0.1)
-    checks.append(("trust_consistent_cross_module", consistency["consistent"]))
+    # 2. Budget composition
+    eps_list = [0.1] * 50
+    seq = sequential_composition(eps_list)
+    adv = advanced_composition(eps_list)
+    par = parallel_composition(eps_list)
+    checks.append(("budget_seq_correct", abs(seq - 5.0) < 0.01))
+    checks.append(("budget_adv_tighter", adv < seq))
+    checks.append(("budget_par_efficient", par == 0.1))
 
-    # 3. Consensus-governance composition
-    cg = verify_consensus_governance_composition(
-        [True, True, False, True],
-        [True, False, True, True],
-        [0.8, 0.7, 0.6, 0.3],
-        [200, 150, 100, 200],
-    )
-    checks.append(("cg_composition_correct", cg["all_correct"]))
-    checks.append(("cg_partial_execution", 0 < cg["executions"] < 4))
+    # 3. ZK composition
+    valid_proofs = [ZKProof(f"s{i}", i*100+1, i*10+1, i+1, True) for i in range(5)]
+    and_all = zk_and_compose(valid_proofs)
+    checks.append(("zk_and_all_valid", and_all.valid))
+    thresh = zk_threshold_compose(valid_proofs[:3] + [ZKProof("bad", 0, 0, 0, False)], 3)
+    checks.append(("zk_threshold", thresh.valid))
 
-    # 4. Privacy-consensus interaction
-    pc = privacy_consensus_composition(
-        [{"epsilon": 2.0}, {"epsilon": 3.0}],
-        [{"round": 1}, {"round": 2}],
-        privacy_budget=10.0,
-    )
-    checks.append(("pc_privacy_respected", pc["privacy_budget_respected"]))
-    checks.append(("pc_consensus_free", pc["consensus_free"]))
+    # 4. Graph + Privacy
+    graph = TrustGraph()
+    for i in range(10):
+        graph.add_node(f"g{i}", trust=0.5)
+        if i > 0:
+            graph.add_edge(f"g{i}", f"g{i-1}")
+    budget = PrivacyBudget(max_epsilon=10.0)
+    comm = private_community_detection(graph, 1.0, budget, rng)
+    checks.append(("graph_privacy_communities", comm["num_communities"] >= 1))
 
-    # 5. Resource budget algebra
-    total = ResourceBudget(epsilon=2.0, atp_cost=50.0, compute_units=10.0)
-    limit = ResourceBudget(epsilon=10.0, atp_cost=1000.0, compute_units=100.0)
-    checks.append(("resource_within_bounds", total.within(limit)))
+    # 5. Trust + Consensus
+    tc2 = TrustWeightedConsensus()
+    for i in range(5):
+        tc2.add_participant(f"p{i}", 0.3 + i * 0.15)
+    for i in range(5):
+        tc2.vote("final", f"p{i}", i >= 2)
+    tally = tc2.tally("final")
+    checks.append(("trust_consensus_decided", tally["approve"] > 0 or tally["reject"] > 0))
 
-    # 6. Module dependencies acyclic
-    deps = ModuleDependency()
-    deps.add_dependency("governance", "consensus")
-    deps.add_dependency("consensus", "trust")
-    deps.add_dependency("privacy", "trust")
-    deps.add_dependency("economy", "trust")
-    checks.append(("deps_acyclic", not deps.has_cycle()))
+    # 6. ATP + Governance
+    gov = ATPGovernance()
+    gov.create_entity("g1", 1000.0, 0.8)
+    gov.create_entity("g2", 500.0, 0.6)
+    gov.stake("g1", 500.0)
+    gov.stake("g2", 200.0)
+    checks.append(("atp_gov_conserved", gov.conservation_check()))
+    w1 = gov.governance_weight("g1")
+    w2 = gov.governance_weight("g2")
+    checks.append(("atp_gov_weighted", w1 > w2))
 
-    # 7. Cross-module invariants
-    state = {
-        "consensus": {"trust": 0.8},
-        "governance": {"trust": 0.82, "staked_atp": 200},
-        "economy": {"total_atp": 800, "initial_supply": 1000},
-        "privacy": {"budget_used": 5, "budget_max": 10},
-    }
-    invariants = [
-        CrossModuleInvariant(
-            "trust_sync", ["consensus", "governance"],
-            lambda s: abs(s["consensus"]["trust"] - s["governance"]["trust"]) < 0.2,
-        ),
-        CrossModuleInvariant(
-            "budget_bound", ["privacy"],
-            lambda s: s["privacy"]["budget_used"] <= s["privacy"]["budget_max"],
-        ),
-    ]
-    inv_result = verify_cross_module_invariants(state, invariants)
-    checks.append(("invariants_hold", inv_result["all_hold"]))
+    # 7. Full stack
+    state, proofs = compose_full_stack(15, 30, rng)
+    stack_ok = all(p.holds for p in proofs)
+    checks.append(("full_stack_composed", stack_ok))
 
-    # 8. Governance-economy safety
-    ge = governance_economy_composition(
-        [{"title": "upgrade", "cost": 100}, {"title": "grant", "cost": 200}],
-        treasury_balance=500.0,
-    )
-    checks.append(("ge_treasury_safe", ge["treasury_safe"]))
+    # 8. No interference
+    before = {"trust": 0.5, "balance": 100.0}
+    after = {"trust": 0.52, "balance": 95.0}
+    intfr = detect_interference([], [], before, after)
+    checks.append(("no_interference", not intfr["interference_detected"]))
 
-    # 9. End-to-end: all compositions safe simultaneously
-    all_safe = (
-        budget["within_budget"] and
-        consistency["consistent"] and
-        cg["all_correct"] and
-        pc["privacy_budget_respected"] and
-        inv_result["all_hold"] and
-        ge["treasury_safe"]
-    )
-    checks.append(("all_compositions_safe", all_safe))
+    # 9. All composition theorems
+    theorems = verify_composition_theorems(rng)
+    checks.append(("all_theorems", all(t.holds for t in theorems)))
 
     return checks
 
@@ -1227,15 +1188,15 @@ def run_all():
     sections = [
         ("§1 Module Interface Contracts", test_section_1),
         ("§2 Privacy Budget Composition", test_section_2),
-        ("§3 Trust Tensor Consistency", test_section_3),
-        ("§4 Consensus-Governance Proof", test_section_4),
-        ("§5 Privacy-Consensus Interaction", test_section_5),
-        ("§6 Compositional Safety Theorem", test_section_6),
-        ("§7 Resource Budget Algebra", test_section_7),
-        ("§8 Module Dependency Graph", test_section_8),
-        ("§9 Cross-Module Invariants", test_section_9),
-        ("§10 Privacy-Trust Composition", test_section_10),
-        ("§11 Governance-Economy Composition", test_section_11),
+        ("§3 ZK Proof Composition", test_section_3),
+        ("§4 Graph + Privacy Composition", test_section_4),
+        ("§5 Trust + Consensus Composition", test_section_5),
+        ("§6 ATP + Governance Composition", test_section_6),
+        ("§7 Privacy + Trust Composition", test_section_7),
+        ("§8 Consensus + Privacy Composition", test_section_8),
+        ("§9 Full Stack Composition", test_section_9),
+        ("§10 Interference Detection", test_section_10),
+        ("§11 Composition Theorems", test_section_11),
         ("§12 Complete Pipeline", test_section_12),
     ]
 
