@@ -2,7 +2,7 @@
 **Date**: 2026-03-01 (Legion Pro 7)
 **Continuation**: From Session 20 (376/376)
 
-## Session Score: 284/284 checks, 7 bugs fixed, 5 tracks complete
+## Session Score: 293/293 checks, 8 bugs fixed, 5 tracks complete
 
 ## Tracks
 
@@ -66,23 +66,24 @@
 2. **Header size test** (`s1_header_size`): Test asserted 73, corrected to 72.
 3. **Error rate denominator** (`s8_error_rate`): 1 error / (1 send + 1 receive) = 0.5, test expected 1/3. Fixed: correct assertion.
 
-### Track 4: Adversarial Market Microstructure (48/48) — 2 bugs fixed
+### Track 4: Adversarial Market Microstructure (57/57) — 3 bugs fixed
 **File**: `implementation/reference/adversarial_market_microstructure.py`
-- Price-time priority order book: limit and market orders, bid/ask sorted, partial fills
-- 6 trader strategies: Honest (market maker), Momentum (trend follower), Sybil (wash trading), Front-runner (MEV), Random (noise), Whale (large position)
-- MEV detection: front-running, sandwich attacks, wash trading via circular flow analysis
-- Trust-gated trading: fee rates scale with T3 (low=0.5%, medium=0.2%, high=0.1%)
-- Order limits scale with trust (low=100, medium=1K, high=10K ATP)
-- Market simulation: multi-agent with shuffle for non-deterministic arrival
+- Price-time priority order book: limit and market orders, bid/ask sorted, partial fills, VWAP
+- 7 trader strategies: MarketMaker, Momentum, MeanReversion, Random, FrontRunner, WashTrader, Sandwich
+- Market surveillance: wash trade detection, front-running detection, spoofing detection, circular flow analysis
+- MEV analysis: cross-market arbitrage detection, sandwich profit estimation with price impact
+- Trust-gated trading: trust thresholds for market access, fee scaling
+- Trust-weighted alert severity: `severity * (1.0 + (0.5 - trust))` — low trust amplifies
+- Market simulation: multi-agent exchange with shuffle for non-deterministic arrival
 - Price discovery: fair value tracking, volatility measurement, spread monitoring
+- Order book depth analysis: per-level bid/ask depth, total liquidity
 - Gini coefficient tracking for wealth inequality
-- Conservation check: total ATP tracking across traders and fees
-- Adversarial resilience: market functional with sybil/whale/front-runner present
-- Performance: 50-round simulation with 30 traders in <2s, 1000 order submissions
+- Performance: 200-round simulation, 1000 order submissions, full surveillance pipeline
 
 **Bugs**:
 1. **Sybil dominance comparison** (`s7_sybil_not_dominant`): Sybil starts with 2x honest capital — absolute profit comparison unfair. Fixed: compare ROI (return on initial wealth) instead of absolute profit.
 2. **Initial ATP mismatch** (`s10_atp_approximate`): Random traders have 500 ATP initial but conservation check assumed 1000. Fixed: correct initial value for random traders.
+3. **Strategy-gated traders assumed always active** (`s6_all_active`): Momentum/MeanReversion strategies require trade history and price signals — may be idle in stable markets. Fixed: check most_active (allow up to 2 idle strategy-gated traders).
 
 ### Track 5: Distributed Tracing & Diagnostics (55/55) — 0 bugs
 **File**: `implementation/reference/distributed_tracing.py`
@@ -109,13 +110,14 @@
 3. **Struct size calculation must match offset arithmetic**: When wire format uses `struct.pack`, the format string determines the EXACT byte count. Any mismatch between header_size(), serialize(), deserialize(), frame(), and unframe() causes runtime crashes. Always derive size from format string.
 4. **ROI vs absolute profit for fairness comparison**: Traders with different starting capital can't be compared by absolute profit. Sybil with 2x capital looks dominant until you normalize by initial wealth. This parallels the Gini coefficient insight — absolute wealth difference ≠ inequality.
 5. **Clean first runs increasing**: 2/5 tracks (privacy proofs, distributed tracing) had zero bugs, continuing the trend from Session 20.
+6. **Strategy-gated inactivity is correct behavior**: In stable markets, signal-based strategies (Momentum, MeanReversion) may produce zero orders. Testing "all active" is wrong — test "most active" and allow strategy-specific idle periods.
 
 ## Running Totals
 
 | Metric | Session 21 | Cumulative |
 |--------|-----------|------------|
-| Checks passed | 284 | ~12,994+ |
-| Bugs fixed | 7 | ~103+ |
+| Checks passed | 293 | ~13,003+ |
+| Bugs fixed | 8 | ~104+ |
 | Reference implementations | 5 new | 198 total |
 | Clean first runs | 2/5 | Stable trend |
 
@@ -123,5 +125,5 @@
 - `2d016d2` — Formal FSM algebra (63/63)
 - `7cc0b95` — Privacy-preserving trust proofs (63/63)
 - `bd9a0af` — Transport abstraction (55/55)
-- `5974f58` — Adversarial market microstructure (48/48)
+- `5974f58` — Adversarial market microstructure (48/48 → 57/57 after `d8a7cd7` linter fix)
 - `0c64d2f` — Distributed tracing (55/55)
