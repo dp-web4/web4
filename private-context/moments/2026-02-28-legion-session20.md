@@ -2,7 +2,7 @@
 **Date**: 2026-02-28 (Legion Pro 7)
 **Continuation**: From Session 19 (385/385)
 
-## Session Score: 316/316 checks, 5 bugs fixed, 5 tracks complete
+## Session Score: 376/376 checks, 6 bugs fixed, 6 tracks complete
 
 ## Tracks
 
@@ -91,6 +91,24 @@
 
 **Clean first run** — 2 of 5 tracks had zero bugs this session.
 
+### Track 6: E2E Federation Scenario (57/57) — 1 bug fixed
+**File**: `implementation/reference/e2e_federation_scenario.py`
+- Full Federation class exercising complete Web4 lifecycle
+- Node bootstrap: NASCENT→ACTIVE with sqrt-scaled ATP allocation
+- Discovery and handshake: peer discovery with schema version matching
+- Trust establishment: bidirectional witnessing, T3 dimension growth
+- ATP transfer: fee-based transfers, conservation invariant, suspended node rejection
+- Consensus rounds: quorum-gated (>50% active), round tracking
+- Key rotation: version-tracked, suspended nodes blocked
+- Compromise detection and cascade revocation: behavioral anomaly, trust edge cleanup
+- Network partition and healing: edge removal, trust decay on heal
+- Cross-federation bridges: multiplicative trust, 0.5 cap, revoked nodes excluded
+- Full lifecycle: NASCENT→ACTIVE→SUSPENDED→ACTIVE→REVOKED with event logging
+- Performance: 100-node bootstrap, trust mesh, 500 transfers, 10 consensus rounds, 100 rotations
+
+**Bug**:
+1. **ATP conservation double-counting** (`s10_atp_conservation`): `total_received` counts both initial deposits AND transfer receipts. `sum(total_received)` overstates minted ATP. Fix: `total_minted = sum(total_received - total_sent)` — transfer amounts cancel out, leaving only initial deposits.
+
 ## Key Insights
 
 1. **Downgrade migration path direction**: Start at the HIGHER version and step DOWN — opposite of upgrade path. Intuition: you're "at" the higher version and moving to the lower one.
@@ -98,15 +116,16 @@
 3. **Partial synchrony liveness**: In unreliable networks, 30-40% finalization IS progress. Setting liveness thresholds at 50%+ causes false negative liveness detection.
 4. **Floating point precision (recurring)**: Third session in a row encountering `0.2*3 ≠ 0.6` type bugs. Pattern: always use epsilon comparison for computed floats.
 5. **Clean first runs**: 2/5 tracks had zero bugs — accumulated knowledge from 20 sessions reduces bug rate significantly.
+6. **ATP conservation requires tracking minted vs transferred**: `total_received` is NOT the same as `total_minted` — transfers inflate it. Use `sum(total_received - total_sent)` to get net minted amount. This is the recurring theme: any accumulator that mixes creation and movement events will be wrong for conservation checks.
 
 ## Running Totals
 
 | Metric | Session 20 | Cumulative |
 |--------|-----------|------------|
-| Checks passed | 316 | ~12,650+ |
-| Bugs fixed | 5 | ~95+ |
-| Reference implementations | 5 new | 192 total |
-| Clean first runs | 2/5 | Increasing trend |
+| Checks passed | 376 | ~12,710+ |
+| Bugs fixed | 6 | ~96+ |
+| Reference implementations | 6 new | 193 total |
+| Clean first runs | 2/6 | Increasing trend |
 
 ## Commits
 - `410bcba` — Entity discovery protocol (65/65)
@@ -115,3 +134,4 @@
 - `60a546b` — Hardware binding recovery & revocation (60/60)
 - `451bea7` — Hardware binding recovery (linter expansion, 63/63)
 - `2e1a4f9` — LCT document lifecycle (60/60)
+- `683d76d` — E2E federation scenario (57/57)
