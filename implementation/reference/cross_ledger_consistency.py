@@ -1,24 +1,29 @@
 """
 Cross-Ledger Consistency Protocol — Reference Implementation
 
-When multiple federations maintain independent ledgers, they must
-periodically verify consistency for shared state (dual-citizenship
-entities, cross-federation treaties, ATP transfers). This implements:
+Closes Gap #1 from FEDERATION_DOCUMENTATION_GAPS.md.
 
-1. **Ledger Anchor Points**: Periodic checkpoints with Merkle roots
-2. **Fork Detection**: Compare anchor hashes to detect divergence
-3. **Reconciliation FSM**: SYNCED → CHECKING → DIVERGED → RECONCILING → SYNCED
-4. **Federation Governance Quorum**: Cross-federation votes for state changes
-5. **Ledger Merge Protocol**: Conflict resolution for diverged entries
+When multiple societies in a federation maintain independent ledgers,
+this protocol ensures:
+1. Fork detection: Divergent block histories identified via anchor comparison
+2. ATP-safe reconciliation: Conservation-preserving balance sync (NOT CRDTs)
+3. Cross-ledger atomicity: Two-phase commit spanning ledger boundaries
+4. Epoch-based anchoring: Agreed-upon snapshot intervals for comparison
+5. Federation governance quorum: N-party consensus for cross-ledger decisions
 
-Key insight: Cross-ledger consistency is harder than intra-partition
-recovery because the two federations may have *intentionally different*
-state for non-shared entities. Only shared-entity state must be consistent.
+Key design tension resolved:
+- CRDTs work for trust (monotonic merge). ATP requires conservation.
+- This protocol uses epoch-anchored bilateral proofs aggregated into
+  a federation-wide consistency certificate, NOT CRDTs for ATP.
 
-Builds on: network_partition_recovery.py, gossip_protocol_federation.py
-Addresses: FEDERATION_DOCUMENTATION_GAPS.md #1 gap
+Builds on:
+- federation_consensus_atp.py (ATPLedger, 2PC, FBPBFT)
+- cross_society_atp_sync.py (BalanceProof, BilateralStatement)
+- network_partition_recovery.py (LedgerAnchor, vector clocks)
+- gossip_protocol_federation.py (gossip dissemination)
+- adaptive_consensus_protocol.py (consensus switching)
 
-Checks: 70
+Checks: 72
 """
 from __future__ import annotations
 import hashlib
@@ -33,698 +38,783 @@ from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 
 # ─── Core Types ───────────────────────────────────────────────────────────────
 
-class ConsistencyState(Enum):
-    SYNCED = auto()        # Ledgers are consistent
-    CHECKING = auto()      # Verification in progress
-    DIVERGED = auto()      # Divergence detected
-    RECONCILING = auto()   # Active reconciliation
-    FAILED = auto()        # Reconciliation failed — manual intervention
+class LedgerStatus(Enum):
+    CONSISTENT = auto()     # Matches federation anchor
+    DIVERGED = auto()       # Hash mismatch at epoch boundary
+    PARTITIONED = auto()    # Unreachable for anchor exchange
+    RECOVERING = auto()     # Reconciliation in progress
+    FORKED = auto()         # Incompatible histories detected
 
-class EntryType(Enum):
-    TRUST_UPDATE = auto()
-    ATP_TRANSFER = auto()
+
+class ReconciliationStrategy(Enum):
+    CONSERVATIVE = auto()   # Use minimum balances (safe for ATP)
+    AUTHORITATIVE = auto()  # Higher-trust ledger wins
+    BILATERAL = auto()      # Negotiated reconciliation
+    ROLLBACK = auto()       # Roll back to last consistent anchor
+
+
+class CrossLedgerTxPhase(Enum):
+    INITIATED = auto()
+    SOURCE_LOCKED = auto()
+    TARGET_PREPARED = auto()
+    COMMITTED = auto()
+    ROLLED_BACK = auto()
+    TIMED_OUT = auto()
+
+
+class GovernanceDecisionType(Enum):
+    PARAMETER_CHANGE = auto()
     MEMBERSHIP_CHANGE = auto()
     POLICY_UPDATE = auto()
-    TREATY_CHANGE = auto()
-    KEY_ROTATION = auto()
-
-class MergeStrategy(Enum):
-    LATEST_WINS = auto()        # Most recent timestamp wins
-    HIGHER_TRUST_WINS = auto()  # Federation with higher trust wins
-    QUORUM_DECIDES = auto()     # Cross-federation vote
-    CONSERVATIVE = auto()       # Most restrictive interpretation
+    EMERGENCY_FREEZE = auto()
+    TREATY_RATIFICATION = auto()
 
 
-# ─── Ledger Entries ──────────────────────────────────────────────────────────
+# ─── Ledger Model ────────────────────────────────────────────────────────────
 
 @dataclass
 class LedgerEntry:
-    """A single entry in a federation ledger."""
-    entry_id: str
-    federation_id: str
-    entity_id: str
-    entry_type: EntryType
+    """A single ledger entry with hash chain."""
+    sequence: int
+    entry_type: str  # "transfer", "lock", "commit", "rollback", "governance"
     data: Dict[str, Any]
     timestamp: float
-    sequence: int
     prev_hash: str
     entry_hash: str = ""
 
     def compute_hash(self) -> str:
-        content = f"{self.entry_id}:{self.federation_id}:{self.entity_id}:" \
-                  f"{self.entry_type.name}:{self.data}:{self.timestamp}:" \
-                  f"{self.sequence}:{self.prev_hash}"
+        content = f"{self.sequence}:{self.entry_type}:{self.data}:{self.prev_hash}"
         self.entry_hash = hashlib.sha256(content.encode()).hexdigest()[:32]
         return self.entry_hash
 
 
 @dataclass
-class LedgerAnchor:
-    """Periodic checkpoint for consistency verification."""
-    anchor_id: str
-    federation_id: str
-    sequence_start: int
-    sequence_end: int
-    merkle_root: str
-    entry_count: int
-    timestamp: float
-    shared_entity_hashes: Dict[str, str] = field(default_factory=dict)
+class SocietyLedger:
+    """A society's local ledger with hash-chained entries."""
+    society_id: str
+    entries: List[LedgerEntry] = field(default_factory=list)
+    balances: Dict[str, float] = field(default_factory=dict)  # entity_id -> ATP balance
+    total_supply: float = 10000.0
+    total_fees: float = 0.0
+    cross_ledger_outflow: float = 0.0   # ATP sent to other ledgers (net)
+    cross_ledger_inflow: float = 0.0    # ATP received from other ledgers (net)
+    sequence: int = 0
 
+    @property
+    def head_hash(self) -> str:
+        return self.entries[-1].entry_hash if self.entries else "genesis"
 
-# ─── Federation Ledger ───────────────────────────────────────────────────────
+    @property
+    def conservation_check(self) -> float:
+        """Sum of all balances + fees + outflow - inflow should equal total_supply."""
+        return sum(self.balances.values()) + self.total_fees + self.cross_ledger_outflow - self.cross_ledger_inflow
 
-class FederationLedger:
-    """A federation's append-only ledger with anchoring support."""
-
-    def __init__(self, federation_id: str):
-        self.federation_id = federation_id
-        self.entries: List[LedgerEntry] = []
-        self.anchors: List[LedgerAnchor] = []
-        self.sequence_counter = 0
-        self.entity_index: Dict[str, List[int]] = defaultdict(list)  # entity → entry indices
-
-    def append(self, entity_id: str, entry_type: EntryType,
-               data: Dict[str, Any]) -> LedgerEntry:
-        """Append a new entry to the ledger."""
-        prev_hash = self.entries[-1].entry_hash if self.entries else "genesis"
-        self.sequence_counter += 1
-
+    def append_entry(self, entry_type: str, data: Dict[str, Any]) -> LedgerEntry:
+        self.sequence += 1
         entry = LedgerEntry(
-            entry_id=secrets.token_hex(8),
-            federation_id=self.federation_id,
-            entity_id=entity_id,
+            sequence=self.sequence,
             entry_type=entry_type,
             data=data,
             timestamp=time.time(),
-            sequence=self.sequence_counter,
-            prev_hash=prev_hash,
+            prev_hash=self.head_hash,
         )
         entry.compute_hash()
         self.entries.append(entry)
-        self.entity_index[entity_id].append(len(self.entries) - 1)
         return entry
 
-    def get_entries_for_entity(self, entity_id: str) -> List[LedgerEntry]:
-        """Get all entries for a specific entity."""
-        indices = self.entity_index.get(entity_id, [])
-        return [self.entries[i] for i in indices]
+    def transfer(self, source: str, target: str, amount: float,
+                  fee_rate: float = 0.05) -> Optional[LedgerEntry]:
+        """Execute a local transfer with fee."""
+        if amount <= 0 or math.isnan(amount):
+            return None
+        if self.balances.get(source, 0) < amount:
+            return None
 
-    def get_entries_range(self, start_seq: int, end_seq: int) -> List[LedgerEntry]:
-        """Get entries within a sequence range."""
-        return [e for e in self.entries if start_seq <= e.sequence <= end_seq]
+        fee = amount * fee_rate
+        net_amount = amount - fee
 
-    def compute_merkle_root(self, entries: Optional[List[LedgerEntry]] = None) -> str:
-        """Compute Merkle root of entries."""
-        if entries is None:
-            entries = self.entries
+        self.balances[source] -= amount
+        self.balances[target] = self.balances.get(target, 0) + net_amount
+        self.total_fees += fee
 
-        if not entries:
-            return hashlib.sha256(b"empty").hexdigest()[:32]
+        return self.append_entry("transfer", {
+            "source": source, "target": target,
+            "amount": amount, "fee": fee, "net": net_amount,
+        })
 
-        hashes = [e.entry_hash for e in entries]
-
-        while len(hashes) > 1:
-            next_level = []
-            for i in range(0, len(hashes), 2):
-                if i + 1 < len(hashes):
-                    combined = hashes[i] + hashes[i + 1]
-                else:
-                    combined = hashes[i] + hashes[i]
-                next_level.append(hashlib.sha256(combined.encode()).hexdigest()[:32])
-            hashes = next_level
-
-        return hashes[0]
-
-    def create_anchor(self, shared_entities: Set[str]) -> LedgerAnchor:
-        """Create a checkpoint anchor."""
-        start_seq = self.anchors[-1].sequence_end + 1 if self.anchors else 1
-        end_seq = self.sequence_counter
-
-        range_entries = self.get_entries_range(start_seq, end_seq)
-        merkle_root = self.compute_merkle_root(range_entries)
-
-        # Compute per-entity content hashes for shared entities
-        # Uses data content only (not entry_id/federation_id) for cross-federation comparison
-        entity_hashes = {}
-        for eid in shared_entities:
-            entity_entries = [e for e in range_entries if e.entity_id == eid]
-            if entity_entries:
-                content_parts = []
-                for e in entity_entries:
-                    content = f"{e.entity_id}:{e.entry_type.name}:{sorted(e.data.items())}"
-                    content_parts.append(hashlib.sha256(content.encode()).hexdigest()[:32])
-                # Merkle-like combination of content hashes
-                combined = ":".join(sorted(content_parts))
-                entity_hashes[eid] = hashlib.sha256(combined.encode()).hexdigest()[:32]
-
-        anchor = LedgerAnchor(
-            anchor_id=secrets.token_hex(8),
-            federation_id=self.federation_id,
-            sequence_start=start_seq,
-            sequence_end=end_seq,
-            merkle_root=merkle_root,
-            entry_count=len(range_entries),
-            timestamp=time.time(),
-            shared_entity_hashes=entity_hashes,
-        )
-        self.anchors.append(anchor)
-        return anchor
-
-    def verify_chain(self) -> bool:
-        """Verify hash chain integrity."""
-        for i, entry in enumerate(self.entries):
-            expected_prev = self.entries[i - 1].entry_hash if i > 0 else "genesis"
-            if entry.prev_hash != expected_prev:
-                return False
-        return True
+    def state_hash(self) -> str:
+        """Deterministic hash of current balance state."""
+        sorted_balances = sorted(self.balances.items())
+        state = f"{self.society_id}:{sorted_balances}:{self.total_fees}"
+        return hashlib.sha256(state.encode()).hexdigest()[:32]
 
 
-# ─── Fork Detection ──────────────────────────────────────────────────────────
+# ─── Epoch Anchoring ─────────────────────────────────────────────────────────
 
 @dataclass
-class DivergenceReport:
-    """Report of detected divergence between two ledgers."""
+class EpochAnchor:
+    """A snapshot of ledger state at an epoch boundary."""
+    epoch: int
+    society_id: str
+    sequence_at_epoch: int
+    state_hash: str           # Hash of balance state
+    head_entry_hash: str      # Hash chain head
+    total_supply: float
+    total_fees: float
+    balance_count: int
+    timestamp: float = field(default_factory=time.time)
+    signature: str = ""       # Society's signature
+
+    def sign(self, society_id: str) -> str:
+        data = f"{self.epoch}:{self.society_id}:{self.state_hash}:{self.head_entry_hash}"
+        self.signature = hashlib.sha256(f"{data}:{society_id}".encode()).hexdigest()[:16]
+        return self.signature
+
+
+class EpochManager:
+    """Manage epoch boundaries and anchor creation."""
+
+    def __init__(self, epoch_interval: int = 100):
+        self.epoch_interval = epoch_interval
+        self.current_epoch: int = 0
+        self.anchors: Dict[Tuple[int, str], EpochAnchor] = {}  # (epoch, society) -> anchor
+
+    def should_anchor(self, ledger: SocietyLedger) -> bool:
+        """Check if it's time for a new anchor."""
+        return ledger.sequence > 0 and ledger.sequence % self.epoch_interval == 0
+
+    def create_anchor(self, ledger: SocietyLedger, epoch: int) -> EpochAnchor:
+        """Create an anchor from current ledger state."""
+        anchor = EpochAnchor(
+            epoch=epoch,
+            society_id=ledger.society_id,
+            sequence_at_epoch=ledger.sequence,
+            state_hash=ledger.state_hash(),
+            head_entry_hash=ledger.head_hash,
+            total_supply=ledger.total_supply,
+            total_fees=ledger.total_fees,
+            balance_count=len(ledger.balances),
+        )
+        anchor.sign(ledger.society_id)
+        self.anchors[(epoch, ledger.society_id)] = anchor
+        return anchor
+
+    def advance_epoch(self) -> int:
+        self.current_epoch += 1
+        return self.current_epoch
+
+    def get_anchor(self, epoch: int, society_id: str) -> Optional[EpochAnchor]:
+        return self.anchors.get((epoch, society_id))
+
+
+# ─── Fork Detection ─────────────────────────────────────────────────────────
+
+@dataclass
+class ForkReport:
+    """Report of a detected fork between ledgers."""
     report_id: str
-    federation_a_id: str
-    federation_b_id: str
-    diverged_entities: Set[str]
-    first_divergence_seq: int
-    anchor_a_id: str
-    anchor_b_id: str
-    severity: float  # 0-1: fraction of shared entities diverged
+    epoch: int
+    society_a: str
+    society_b: str
+    divergence_type: str    # "state_hash", "supply_mismatch", "sequence_gap"
+    severity: float         # 0-1
+    details: Dict[str, Any]
     timestamp: float = field(default_factory=time.time)
 
 
 class ForkDetector:
-    """Detect ledger forks between federations via anchor comparison."""
+    """Detect forks and divergences between society ledgers."""
 
-    def compare_anchors(self, anchor_a: LedgerAnchor,
-                         anchor_b: LedgerAnchor) -> Optional[DivergenceReport]:
-        """Compare two anchors to detect divergence."""
-        # Check if any shared entity hashes differ
-        diverged = set()
-        all_shared = set(anchor_a.shared_entity_hashes.keys()) | \
-                     set(anchor_b.shared_entity_hashes.keys())
+    def __init__(self, supply_tolerance: float = 0.001):
+        self.supply_tolerance = supply_tolerance
 
-        for eid in all_shared:
-            hash_a = anchor_a.shared_entity_hashes.get(eid)
-            hash_b = anchor_b.shared_entity_hashes.get(eid)
-
-            if hash_a != hash_b:
-                diverged.add(eid)
-
-        if not diverged:
+    def compare_anchors(self, anchor_a: EpochAnchor,
+                         anchor_b: EpochAnchor) -> Optional[ForkReport]:
+        """Compare two anchors from the same epoch for consistency."""
+        if anchor_a.epoch != anchor_b.epoch:
             return None
 
-        severity = len(diverged) / max(len(all_shared), 1)
+        details: Dict[str, Any] = {
+            "a_state_hash": anchor_a.state_hash,
+            "b_state_hash": anchor_b.state_hash,
+            "a_supply": anchor_a.total_supply,
+            "b_supply": anchor_b.total_supply,
+        }
 
-        return DivergenceReport(
-            report_id=secrets.token_hex(8),
-            federation_a_id=anchor_a.federation_id,
-            federation_b_id=anchor_b.federation_id,
-            diverged_entities=diverged,
-            first_divergence_seq=min(anchor_a.sequence_start, anchor_b.sequence_start),
-            anchor_a_id=anchor_a.anchor_id,
-            anchor_b_id=anchor_b.anchor_id,
-            severity=severity,
-        )
+        # Cross-ledger supply conservation check
+        a_total = anchor_a.total_supply
+        b_total = anchor_b.total_supply
+        supply_diff = abs(a_total - b_total) / max(a_total, b_total, 1)
 
-    def detect_sequence_gap(self, anchor_a: LedgerAnchor,
-                              anchor_b: LedgerAnchor) -> int:
-        """Detect sequence number gaps between anchors."""
-        return abs(anchor_a.sequence_end - anchor_b.sequence_end)
+        if supply_diff > self.supply_tolerance:
+            return ForkReport(
+                report_id=secrets.token_hex(8),
+                epoch=anchor_a.epoch,
+                society_a=anchor_a.society_id,
+                society_b=anchor_b.society_id,
+                divergence_type="supply_mismatch",
+                severity=min(supply_diff * 10, 1.0),
+                details=details,
+            )
 
-    def detect_entry_count_drift(self, anchor_a: LedgerAnchor,
-                                   anchor_b: LedgerAnchor) -> float:
-        """Detect drift in entry counts (may indicate missed entries)."""
-        max_count = max(anchor_a.entry_count, anchor_b.entry_count)
-        if max_count == 0:
-            return 0.0
-        return abs(anchor_a.entry_count - anchor_b.entry_count) / max_count
+        # Sequence gap detection
+        seq_gap = abs(anchor_a.sequence_at_epoch - anchor_b.sequence_at_epoch)
+        if seq_gap > 50:
+            details["sequence_gap"] = seq_gap
+            return ForkReport(
+                report_id=secrets.token_hex(8),
+                epoch=anchor_a.epoch,
+                society_a=anchor_a.society_id,
+                society_b=anchor_b.society_id,
+                divergence_type="sequence_gap",
+                severity=min(seq_gap / 200, 1.0),
+                details=details,
+            )
+
+        return None
+
+    def detect_internal_fork(self, ledger: SocietyLedger) -> Optional[ForkReport]:
+        """Check a single ledger for internal consistency issues."""
+        # Conservation check
+        actual = ledger.conservation_check
+        diff = abs(actual - ledger.total_supply)
+
+        if diff > self.supply_tolerance:
+            return ForkReport(
+                report_id=secrets.token_hex(8),
+                epoch=0,
+                society_a=ledger.society_id,
+                society_b=ledger.society_id,
+                divergence_type="conservation_violation",
+                severity=min(diff / ledger.total_supply, 1.0),
+                details={"expected": ledger.total_supply, "actual": actual, "diff": diff},
+            )
+
+        # Hash chain integrity
+        for i in range(1, len(ledger.entries)):
+            if ledger.entries[i].prev_hash != ledger.entries[i - 1].entry_hash:
+                return ForkReport(
+                    report_id=secrets.token_hex(8),
+                    epoch=0,
+                    society_a=ledger.society_id,
+                    society_b=ledger.society_id,
+                    divergence_type="hash_chain_broken",
+                    severity=1.0,
+                    details={"broken_at_seq": ledger.entries[i].sequence},
+                )
+
+        return None
 
 
-# ─── Reconciliation FSM ─────────────────────────────────────────────────────
+# ─── Cross-Ledger Atomic Transaction ────────────────────────────────────────
 
 @dataclass
-class ReconciliationState:
-    """State of the reconciliation process between two federations."""
-    state: ConsistencyState = ConsistencyState.SYNCED
-    divergence_report: Optional[DivergenceReport] = None
-    resolved_entities: Set[str] = field(default_factory=set)
-    failed_entities: Set[str] = field(default_factory=set)
-    merge_decisions: Dict[str, str] = field(default_factory=dict)  # entity → decision
-    history: List[Tuple[ConsistencyState, float]] = field(default_factory=list)
+class CrossLedgerTransaction:
+    """A two-phase commit transaction spanning two ledgers."""
+    tx_id: str
+    source_society: str
+    target_society: str
+    source_entity: str
+    target_entity: str
+    amount: float
+    fee_rate: float = 0.05
+    phase: CrossLedgerTxPhase = CrossLedgerTxPhase.INITIATED
+    lock_entry_seq: int = 0
+    prepare_entry_seq: int = 0
+    commit_entry_seq: int = 0
+    timeout: float = 30.0
+    created_at: float = field(default_factory=time.time)
 
-    def transition(self, new_state: ConsistencyState):
-        self.history.append((self.state, time.time()))
-        self.state = new_state
+    @property
+    def is_timed_out(self) -> bool:
+        return time.time() - self.created_at > self.timeout
 
 
-class ReconciliationFSM:
+class CrossLedgerCommitProtocol:
     """
-    State machine for cross-ledger reconciliation.
-    SYNCED → CHECKING → DIVERGED → RECONCILING → SYNCED (or FAILED)
+    Two-phase commit for cross-ledger transactions.
+
+    Phase 1: Lock on source ledger (debit + lock entry)
+    Phase 2: Prepare on target ledger (credit reserve entry)
+    Phase 3: Commit on both (finalize entries)
+
+    If any phase fails: rollback all changes.
     """
 
-    def __init__(self, max_reconciliation_attempts: int = 3):
-        self.max_attempts = max_reconciliation_attempts
-        self.state = ReconciliationState()
-        self.attempts = 0
+    def __init__(self):
+        self.pending: Dict[str, CrossLedgerTransaction] = {}
+        self.completed: List[CrossLedgerTransaction] = []
 
-    def begin_check(self) -> ConsistencyState:
-        """Start consistency checking."""
-        if self.state.state != ConsistencyState.SYNCED:
-            return self.state.state
-        self.state.transition(ConsistencyState.CHECKING)
-        return ConsistencyState.CHECKING
+    def initiate(self, source_ledger: SocietyLedger,
+                  target_ledger: SocietyLedger,
+                  source_entity: str, target_entity: str,
+                  amount: float) -> CrossLedgerTransaction:
+        """Start a cross-ledger transaction."""
+        tx = CrossLedgerTransaction(
+            tx_id=secrets.token_hex(8),
+            source_society=source_ledger.society_id,
+            target_society=target_ledger.society_id,
+            source_entity=source_entity,
+            target_entity=target_entity,
+            amount=amount,
+        )
+        self.pending[tx.tx_id] = tx
+        return tx
 
-    def report_divergence(self, report: DivergenceReport) -> ConsistencyState:
-        """Report detected divergence."""
-        if self.state.state != ConsistencyState.CHECKING:
-            return self.state.state
-        self.state.divergence_report = report
-        self.state.transition(ConsistencyState.DIVERGED)
-        return ConsistencyState.DIVERGED
-
-    def report_consistent(self) -> ConsistencyState:
-        """Report no divergence found."""
-        if self.state.state != ConsistencyState.CHECKING:
-            return self.state.state
-        self.state.transition(ConsistencyState.SYNCED)
-        return ConsistencyState.SYNCED
-
-    def begin_reconciliation(self) -> ConsistencyState:
-        """Start reconciliation process."""
-        if self.state.state != ConsistencyState.DIVERGED:
-            return self.state.state
-        self.attempts += 1
-        if self.attempts > self.max_attempts:
-            self.state.transition(ConsistencyState.FAILED)
-            return ConsistencyState.FAILED
-        self.state.transition(ConsistencyState.RECONCILING)
-        return ConsistencyState.RECONCILING
-
-    def resolve_entity(self, entity_id: str, decision: str) -> bool:
-        """Mark an entity as resolved during reconciliation."""
-        if self.state.state != ConsistencyState.RECONCILING:
+    def phase1_lock(self, tx: CrossLedgerTransaction,
+                     source_ledger: SocietyLedger) -> bool:
+        """Phase 1: Lock funds on source ledger."""
+        if source_ledger.balances.get(tx.source_entity, 0) < tx.amount:
+            tx.phase = CrossLedgerTxPhase.ROLLED_BACK
             return False
-        self.state.resolved_entities.add(entity_id)
-        self.state.merge_decisions[entity_id] = decision
+
+        # Debit source
+        source_ledger.balances[tx.source_entity] -= tx.amount
+        fee = tx.amount * tx.fee_rate
+        net_amount = tx.amount - fee
+        source_ledger.total_fees += fee
+        source_ledger.cross_ledger_outflow += net_amount  # Track outflow
+
+        entry = source_ledger.append_entry("cross_lock", {
+            "tx_id": tx.tx_id,
+            "source": tx.source_entity,
+            "amount": tx.amount,
+            "fee": fee,
+            "target_society": tx.target_society,
+        })
+        tx.lock_entry_seq = entry.sequence
+        tx.phase = CrossLedgerTxPhase.SOURCE_LOCKED
         return True
 
-    def fail_entity(self, entity_id: str) -> bool:
-        """Mark an entity reconciliation as failed."""
-        if self.state.state != ConsistencyState.RECONCILING:
+    def phase2_prepare(self, tx: CrossLedgerTransaction,
+                        target_ledger: SocietyLedger) -> bool:
+        """Phase 2: Prepare credit on target ledger."""
+        if tx.phase != CrossLedgerTxPhase.SOURCE_LOCKED:
             return False
-        self.state.failed_entities.add(entity_id)
+
+        net_amount = tx.amount * (1 - tx.fee_rate)
+        target_ledger.balances[tx.target_entity] = (
+            target_ledger.balances.get(tx.target_entity, 0) + net_amount
+        )
+        target_ledger.cross_ledger_inflow += net_amount  # Track inflow
+
+        entry = target_ledger.append_entry("cross_prepare", {
+            "tx_id": tx.tx_id,
+            "target": tx.target_entity,
+            "net_amount": net_amount,
+            "source_society": tx.source_society,
+        })
+        tx.prepare_entry_seq = entry.sequence
+        tx.phase = CrossLedgerTxPhase.TARGET_PREPARED
         return True
 
-    def complete_reconciliation(self) -> ConsistencyState:
-        """Complete the reconciliation process."""
-        if self.state.state != ConsistencyState.RECONCILING:
-            return self.state.state
+    def phase3_commit(self, tx: CrossLedgerTransaction,
+                       source_ledger: SocietyLedger,
+                       target_ledger: SocietyLedger) -> bool:
+        """Phase 3: Commit on both ledgers."""
+        if tx.phase != CrossLedgerTxPhase.TARGET_PREPARED:
+            return False
 
-        if self.state.failed_entities:
-            self.state.transition(ConsistencyState.FAILED)
-        else:
-            self.state.transition(ConsistencyState.SYNCED)
-            self.attempts = 0
-        return self.state.state
+        source_ledger.append_entry("cross_commit", {
+            "tx_id": tx.tx_id, "role": "source"})
+        target_ledger.append_entry("cross_commit", {
+            "tx_id": tx.tx_id, "role": "target"})
+
+        tx.phase = CrossLedgerTxPhase.COMMITTED
+        del self.pending[tx.tx_id]
+        self.completed.append(tx)
+        return True
+
+    def rollback(self, tx: CrossLedgerTransaction,
+                  source_ledger: SocietyLedger,
+                  target_ledger: SocietyLedger) -> bool:
+        """Rollback a failed transaction."""
+        if tx.phase == CrossLedgerTxPhase.COMMITTED:
+            return False
+
+        if tx.phase in (CrossLedgerTxPhase.SOURCE_LOCKED,
+                         CrossLedgerTxPhase.TARGET_PREPARED):
+            source_ledger.balances[tx.source_entity] = (
+                source_ledger.balances.get(tx.source_entity, 0) + tx.amount
+            )
+            fee = tx.amount * tx.fee_rate
+            net_amount_src = tx.amount - fee
+            source_ledger.total_fees -= fee
+            source_ledger.cross_ledger_outflow -= net_amount_src  # Reverse outflow
+            source_ledger.append_entry("cross_rollback", {
+                "tx_id": tx.tx_id, "role": "source", "restored": tx.amount})
+
+        if tx.phase == CrossLedgerTxPhase.TARGET_PREPARED:
+            net_amount = tx.amount * (1 - tx.fee_rate)
+            target_ledger.balances[tx.target_entity] = (
+                target_ledger.balances.get(tx.target_entity, 0) - net_amount
+            )
+            target_ledger.cross_ledger_inflow -= net_amount  # Reverse inflow
+            target_ledger.append_entry("cross_rollback", {
+                "tx_id": tx.tx_id, "role": "target", "removed": net_amount})
+
+        tx.phase = CrossLedgerTxPhase.ROLLED_BACK
+        if tx.tx_id in self.pending:
+            del self.pending[tx.tx_id]
+        return True
+
+    def execute_atomic(self, source_ledger: SocietyLedger,
+                        target_ledger: SocietyLedger,
+                        source_entity: str, target_entity: str,
+                        amount: float) -> CrossLedgerTransaction:
+        """Execute a full atomic cross-ledger transaction."""
+        tx = self.initiate(source_ledger, target_ledger,
+                            source_entity, target_entity, amount)
+
+        if not self.phase1_lock(tx, source_ledger):
+            return tx
+
+        if not self.phase2_prepare(tx, target_ledger):
+            self.rollback(tx, source_ledger, target_ledger)
+            return tx
+
+        self.phase3_commit(tx, source_ledger, target_ledger)
+        return tx
+
+
+# ─── ATP-Safe Reconciliation ────────────────────────────────────────────────
+
+@dataclass
+class ReconciliationReport:
+    """Report of a cross-ledger reconciliation."""
+    report_id: str
+    epoch: int
+    societies: List[str]
+    strategy: ReconciliationStrategy
+    adjustments: Dict[str, Dict[str, float]]  # society -> {entity -> adjustment}
+    total_adjustment: float
+    conservation_before: Dict[str, float]
+    conservation_after: Dict[str, float]
+    success: bool
+    details: str = ""
+    timestamp: float = field(default_factory=time.time)
+
+
+class ATPSafeReconciler:
+    """
+    Reconcile ATP balances across ledgers while preserving conservation.
+
+    Key insight: CRDTs don't work for ATP because they allow value creation.
+    Instead, use conservative reconciliation:
+    - When in doubt, use the LOWER balance (prevents inflation)
+    - Differences go to fees (preserves conservation)
+    - Each ledger's total_supply is immutable; only balances shift
+    """
+
+    def __init__(self, tolerance: float = 0.01):
+        self.tolerance = tolerance
+
+    def reconcile_pair(self, ledger_a: SocietyLedger,
+                        ledger_b: SocietyLedger,
+                        shared_entities: Set[str],
+                        strategy: ReconciliationStrategy = ReconciliationStrategy.CONSERVATIVE
+                        ) -> ReconciliationReport:
+        """Reconcile shared entity balances between two ledgers."""
+        adjustments_a: Dict[str, float] = {}
+        adjustments_b: Dict[str, float] = {}
+        total_adj = 0.0
+
+        conservation_before = {
+            ledger_a.society_id: ledger_a.conservation_check,
+            ledger_b.society_id: ledger_b.conservation_check,
+        }
+
+        for entity_id in shared_entities:
+            bal_a = ledger_a.balances.get(entity_id, 0)
+            bal_b = ledger_b.balances.get(entity_id, 0)
+
+            if abs(bal_a - bal_b) <= self.tolerance:
+                continue
+
+            if strategy == ReconciliationStrategy.CONSERVATIVE:
+                agreed = min(bal_a, bal_b)
+            elif strategy == ReconciliationStrategy.AUTHORITATIVE:
+                if ledger_a.total_supply >= ledger_b.total_supply:
+                    agreed = bal_a
+                else:
+                    agreed = bal_b
+            elif strategy == ReconciliationStrategy.BILATERAL:
+                agreed = (bal_a + bal_b) / 2
+            else:
+                agreed = min(bal_a, bal_b)
+
+            diff_a = bal_a - agreed
+            diff_b = bal_b - agreed
+
+            if abs(diff_a) > self.tolerance:
+                adjustments_a[entity_id] = -diff_a
+                ledger_a.balances[entity_id] = agreed
+                ledger_a.total_fees += diff_a
+                total_adj += abs(diff_a)
+
+            if abs(diff_b) > self.tolerance:
+                adjustments_b[entity_id] = -diff_b
+                ledger_b.balances[entity_id] = agreed
+                ledger_b.total_fees += diff_b
+                total_adj += abs(diff_b)
+
+        conservation_after = {
+            ledger_a.society_id: ledger_a.conservation_check,
+            ledger_b.society_id: ledger_b.conservation_check,
+        }
+
+        success = all(
+            abs(conservation_after[s] - conservation_before[s]) < self.tolerance
+            for s in conservation_before
+        )
+
+        return ReconciliationReport(
+            report_id=secrets.token_hex(8),
+            epoch=0,
+            societies=[ledger_a.society_id, ledger_b.society_id],
+            strategy=strategy,
+            adjustments={ledger_a.society_id: adjustments_a,
+                          ledger_b.society_id: adjustments_b},
+            total_adjustment=total_adj,
+            conservation_before=conservation_before,
+            conservation_after=conservation_after,
+            success=success,
+        )
 
 
 # ─── Federation Governance Quorum ────────────────────────────────────────────
 
 @dataclass
 class GovernanceProposal:
-    """A cross-federation governance proposal requiring quorum."""
+    """A proposal requiring cross-ledger governance consensus."""
     proposal_id: str
-    proposer_federation: str
-    proposal_type: str  # "merge_entry", "accept_transfer", "policy_change"
-    subject_entity: str
-    proposed_value: Dict[str, Any]
-    votes: Dict[str, bool] = field(default_factory=dict)  # federation → vote
+    proposer_society: str
+    decision_type: GovernanceDecisionType
+    parameters: Dict[str, Any]
+    votes: Dict[str, bool] = field(default_factory=dict)
     required_quorum: float = 0.67
+    trust_weights: Dict[str, float] = field(default_factory=dict)
+    status: str = "PENDING"
     timestamp: float = field(default_factory=time.time)
-    resolved: bool = False
-    accepted: bool = False
 
     @property
-    def approval_ratio(self) -> float:
+    def weighted_approval(self) -> float:
         if not self.votes:
             return 0.0
-        return sum(1 for v in self.votes.values() if v) / len(self.votes)
+        total_weight = sum(self.trust_weights.get(s, 1.0) for s in self.votes)
+        if total_weight == 0:
+            return 0.0
+        approval_weight = sum(
+            self.trust_weights.get(s, 1.0)
+            for s, v in self.votes.items() if v
+        )
+        return approval_weight / total_weight
 
     @property
     def has_quorum(self) -> bool:
-        return self.approval_ratio >= self.required_quorum
+        return self.weighted_approval >= self.required_quorum
 
 
-class GovernanceQuorum:
-    """
-    Cross-federation governance requiring multi-federation agreement.
-    Each participating federation gets one vote, weighted equally.
-    """
+class FederationGovernance:
+    """N-party governance consensus for cross-ledger decisions."""
 
-    def __init__(self, quorum_threshold: float = 0.67):
-        self.quorum_threshold = quorum_threshold
+    def __init__(self, member_societies: List[str],
+                  trust_scores: Dict[str, float]):
+        self.members = member_societies
+        self.trust_scores = trust_scores
         self.proposals: List[GovernanceProposal] = []
+        self.decisions: List[GovernanceProposal] = []
 
-    def create_proposal(self, proposer: str, proposal_type: str,
-                         entity_id: str, value: Dict[str, Any]) -> GovernanceProposal:
-        """Create a new governance proposal."""
+    def propose(self, proposer: str,
+                 decision_type: GovernanceDecisionType,
+                 parameters: Dict[str, Any]) -> GovernanceProposal:
+        if proposer not in self.members:
+            raise ValueError(f"Non-member {proposer} cannot propose")
+
         proposal = GovernanceProposal(
             proposal_id=secrets.token_hex(8),
-            proposer_federation=proposer,
-            proposal_type=proposal_type,
-            subject_entity=entity_id,
-            proposed_value=value,
-            required_quorum=self.quorum_threshold,
+            proposer_society=proposer,
+            decision_type=decision_type,
+            parameters=parameters,
+            trust_weights={s: self.trust_scores.get(s, 1.0) for s in self.members},
         )
         self.proposals.append(proposal)
         return proposal
 
-    def cast_vote(self, proposal: GovernanceProposal,
-                   federation_id: str, approve: bool) -> None:
-        """Cast a federation's vote on a proposal."""
-        if not proposal.resolved:
-            proposal.votes[federation_id] = approve
-
-    def resolve_proposal(self, proposal: GovernanceProposal) -> bool:
-        """Resolve a proposal based on votes."""
-        proposal.resolved = True
-        proposal.accepted = proposal.has_quorum
-        return proposal.accepted
-
-
-# ─── Ledger Merge Protocol ───────────────────────────────────────────────────
-
-@dataclass
-class MergeDecision:
-    """Decision for how to merge a diverged entity's state."""
-    entity_id: str
-    strategy: MergeStrategy
-    chosen_value: Dict[str, Any]
-    source_federation: str
-    confidence: float
-    requires_governance: bool = False
-
-
-class LedgerMergeProtocol:
-    """
-    Merge diverged ledger entries using configurable strategies.
-
-    Entry types have default strategies:
-    - TRUST_UPDATE: HIGHER_TRUST_WINS (trust is earned, not assigned)
-    - ATP_TRANSFER: LATEST_WINS (transfers are timestamped events)
-    - MEMBERSHIP_CHANGE: QUORUM_DECIDES (requires cross-fed governance)
-    - POLICY_UPDATE: CONSERVATIVE (most restrictive interpretation)
-    """
-
-    DEFAULT_STRATEGIES = {
-        EntryType.TRUST_UPDATE: MergeStrategy.HIGHER_TRUST_WINS,
-        EntryType.ATP_TRANSFER: MergeStrategy.LATEST_WINS,
-        EntryType.MEMBERSHIP_CHANGE: MergeStrategy.QUORUM_DECIDES,
-        EntryType.POLICY_UPDATE: MergeStrategy.CONSERVATIVE,
-        EntryType.TREATY_CHANGE: MergeStrategy.QUORUM_DECIDES,
-        EntryType.KEY_ROTATION: MergeStrategy.LATEST_WINS,
-    }
-
-    def __init__(self, governance: GovernanceQuorum):
-        self.governance = governance
-
-    def resolve_divergence(self, entity_id: str,
-                             entries_a: List[LedgerEntry],
-                             entries_b: List[LedgerEntry],
-                             federation_trusts: Dict[str, float]) -> MergeDecision:
-        """Resolve a divergence for a specific entity."""
-        if not entries_a and not entries_b:
-            return MergeDecision(
-                entity_id=entity_id,
-                strategy=MergeStrategy.LATEST_WINS,
-                chosen_value={},
-                source_federation="none",
-                confidence=1.0,
-            )
-
-        # Determine primary entry type from most recent entries
-        latest_a = entries_a[-1] if entries_a else None
-        latest_b = entries_b[-1] if entries_b else None
-
-        if latest_a and not latest_b:
-            return MergeDecision(
-                entity_id=entity_id,
-                strategy=MergeStrategy.LATEST_WINS,
-                chosen_value=latest_a.data,
-                source_federation=latest_a.federation_id,
-                confidence=0.9,
-            )
-        if latest_b and not latest_a:
-            return MergeDecision(
-                entity_id=entity_id,
-                strategy=MergeStrategy.LATEST_WINS,
-                chosen_value=latest_b.data,
-                source_federation=latest_b.federation_id,
-                confidence=0.9,
-            )
-
-        # Both have entries — use strategy based on entry type
-        entry_type = latest_a.entry_type
-        strategy = self.DEFAULT_STRATEGIES.get(entry_type, MergeStrategy.LATEST_WINS)
-
-        if strategy == MergeStrategy.LATEST_WINS:
-            if latest_a.timestamp >= latest_b.timestamp:
-                return MergeDecision(
-                    entity_id=entity_id, strategy=strategy,
-                    chosen_value=latest_a.data,
-                    source_federation=latest_a.federation_id,
-                    confidence=0.8,
-                )
-            return MergeDecision(
-                entity_id=entity_id, strategy=strategy,
-                chosen_value=latest_b.data,
-                source_federation=latest_b.federation_id,
-                confidence=0.8,
-            )
-
-        elif strategy == MergeStrategy.HIGHER_TRUST_WINS:
-            trust_a = federation_trusts.get(latest_a.federation_id, 0.5)
-            trust_b = federation_trusts.get(latest_b.federation_id, 0.5)
-            if trust_a >= trust_b:
-                return MergeDecision(
-                    entity_id=entity_id, strategy=strategy,
-                    chosen_value=latest_a.data,
-                    source_federation=latest_a.federation_id,
-                    confidence=min(trust_a, 1.0),
-                )
-            return MergeDecision(
-                entity_id=entity_id, strategy=strategy,
-                chosen_value=latest_b.data,
-                source_federation=latest_b.federation_id,
-                confidence=min(trust_b, 1.0),
-            )
-
-        elif strategy == MergeStrategy.CONSERVATIVE:
-            # Take the most restrictive value (lower trust, stricter policy)
-            val_a = latest_a.data.get("value", 0)
-            val_b = latest_b.data.get("value", 0)
-            if isinstance(val_a, (int, float)) and isinstance(val_b, (int, float)):
-                if val_a <= val_b:
-                    return MergeDecision(
-                        entity_id=entity_id, strategy=strategy,
-                        chosen_value=latest_a.data,
-                        source_federation=latest_a.federation_id,
-                        confidence=0.7,
-                    )
-                return MergeDecision(
-                    entity_id=entity_id, strategy=strategy,
-                    chosen_value=latest_b.data,
-                    source_federation=latest_b.federation_id,
-                    confidence=0.7,
-                )
-            # Non-numeric: default to latest
-            if latest_a.timestamp >= latest_b.timestamp:
-                return MergeDecision(
-                    entity_id=entity_id, strategy=strategy,
-                    chosen_value=latest_a.data,
-                    source_federation=latest_a.federation_id,
-                    confidence=0.6,
-                )
-            return MergeDecision(
-                entity_id=entity_id, strategy=strategy,
-                chosen_value=latest_b.data,
-                source_federation=latest_b.federation_id,
-                confidence=0.6,
-            )
-
-        else:
-            # QUORUM_DECIDES — needs governance
-            return MergeDecision(
-                entity_id=entity_id, strategy=strategy,
-                chosen_value=latest_a.data,
-                source_federation=latest_a.federation_id,
-                confidence=0.5,
-                requires_governance=True,
-            )
-
-
-# ─── Cross-Ledger Consistency Engine ────────────────────────────────────────
-
-class ConsistencyEngine:
-    """
-    Orchestrates cross-ledger consistency verification and reconciliation.
-
-    Flow:
-    1. Both federations create anchors at regular intervals
-    2. Anchors are compared via fork detection
-    3. Divergences trigger reconciliation FSM
-    4. Merge protocol resolves individual entities
-    5. Governance quorum handles membership/policy changes
-    """
-
-    def __init__(self, quorum_threshold: float = 0.67):
-        self.fork_detector = ForkDetector()
-        self.governance = GovernanceQuorum(quorum_threshold)
-        self.merge_protocol = LedgerMergeProtocol(self.governance)
-        self.fsm = ReconciliationFSM()
-        self.reconciliation_history: List[Dict[str, Any]] = []
-
-    def verify_consistency(self, ledger_a: FederationLedger,
-                             ledger_b: FederationLedger,
-                             shared_entities: Set[str]) -> Optional[DivergenceReport]:
-        """Check consistency between two ledgers for shared entities."""
-        self.fsm.begin_check()
-
-        # Create anchors
-        anchor_a = ledger_a.create_anchor(shared_entities)
-        anchor_b = ledger_b.create_anchor(shared_entities)
-
-        # Compare
-        report = self.fork_detector.compare_anchors(anchor_a, anchor_b)
-
-        if report is None:
-            self.fsm.report_consistent()
-            return None
-
-        self.fsm.report_divergence(report)
-        return report
-
-    def reconcile(self, ledger_a: FederationLedger,
-                    ledger_b: FederationLedger,
-                    report: DivergenceReport,
-                    federation_trusts: Dict[str, float],
-                    voting_federations: Optional[List[str]] = None) -> Dict[str, MergeDecision]:
-        """Reconcile diverged entities."""
-        state = self.fsm.begin_reconciliation()
-        if state == ConsistencyState.FAILED:
-            return {}
-
-        decisions = {}
-
-        for entity_id in report.diverged_entities:
-            entries_a = ledger_a.get_entries_for_entity(entity_id)
-            entries_b = ledger_b.get_entries_for_entity(entity_id)
-
-            decision = self.merge_protocol.resolve_divergence(
-                entity_id, entries_a, entries_b, federation_trusts)
-
-            if decision.requires_governance and voting_federations:
-                # Create governance proposal
-                proposal = self.governance.create_proposal(
-                    proposer=decision.source_federation,
-                    proposal_type="merge_entry",
-                    entity_id=entity_id,
-                    value=decision.chosen_value,
-                )
-                # Collect votes
-                for fed_id in voting_federations:
-                    # Simple heuristic: vote yes if trust > 0.5
-                    approve = federation_trusts.get(fed_id, 0.5) > 0.4
-                    self.governance.cast_vote(proposal, fed_id, approve)
-
-                accepted = self.governance.resolve_proposal(proposal)
-                if not accepted:
-                    self.fsm.fail_entity(entity_id)
-                    continue
-
-            self.fsm.resolve_entity(entity_id, decision.strategy.name)
-            decisions[entity_id] = decision
-
-        final_state = self.fsm.complete_reconciliation()
-
-        self.reconciliation_history.append({
-            "report_id": report.report_id,
-            "diverged_count": len(report.diverged_entities),
-            "resolved_count": len(decisions),
-            "final_state": final_state.name,
-            "timestamp": time.time(),
-        })
-
-        return decisions
-
-    def full_cycle(self, ledger_a: FederationLedger,
-                     ledger_b: FederationLedger,
-                     shared_entities: Set[str],
-                     federation_trusts: Dict[str, float],
-                     voting_federations: Optional[List[str]] = None) -> Tuple[
-                         ConsistencyState, Dict[str, MergeDecision]]:
-        """Run a complete verify → reconcile cycle."""
-        report = self.verify_consistency(ledger_a, ledger_b, shared_entities)
-
-        if report is None:
-            return ConsistencyState.SYNCED, {}
-
-        decisions = self.reconcile(
-            ledger_a, ledger_b, report, federation_trusts, voting_federations)
-
-        return self.fsm.state.state, decisions
-
-
-# ─── Hash-Chained Audit Trail ────────────────────────────────────────────────
-
-@dataclass
-class ConsistencyAuditEntry:
-    entry_id: str
-    action: str
-    federations: Tuple[str, str]
-    details: Dict[str, Any]
-    timestamp: float
-    prev_hash: str
-    entry_hash: str = ""
-
-    def compute_hash(self) -> str:
-        content = f"{self.entry_id}:{self.action}:{self.federations}:" \
-                  f"{self.details}:{self.prev_hash}"
-        self.entry_hash = hashlib.sha256(content.encode()).hexdigest()[:32]
-        return self.entry_hash
-
-
-class ConsistencyAuditTrail:
-    """Audit trail for cross-ledger consistency operations."""
-
-    def __init__(self):
-        self.entries: List[ConsistencyAuditEntry] = []
-
-    def record(self, action: str, fed_a: str, fed_b: str,
-               details: Dict[str, Any]) -> ConsistencyAuditEntry:
-        prev_hash = self.entries[-1].entry_hash if self.entries else "genesis"
-        entry = ConsistencyAuditEntry(
-            entry_id=secrets.token_hex(8),
-            action=action,
-            federations=(fed_a, fed_b),
-            details=details,
-            timestamp=time.time(),
-            prev_hash=prev_hash,
-        )
-        entry.compute_hash()
-        self.entries.append(entry)
-        return entry
-
-    def verify_chain(self) -> bool:
-        for i, entry in enumerate(self.entries):
-            expected_prev = self.entries[i - 1].entry_hash if i > 0 else "genesis"
-            if entry.prev_hash != expected_prev:
-                return False
+    def vote(self, proposal: GovernanceProposal,
+              society: str, approve: bool) -> bool:
+        if society not in self.members:
+            return False
+        if proposal.status != "PENDING":
+            return False
+        proposal.votes[society] = approve
         return True
+
+    def finalize(self, proposal: GovernanceProposal) -> str:
+        if proposal.has_quorum:
+            proposal.status = "APPROVED"
+        elif len(proposal.votes) >= len(self.members):
+            proposal.status = "REJECTED"
+
+        if proposal.status in ("APPROVED", "REJECTED"):
+            self.decisions.append(proposal)
+
+        return proposal.status
+
+    def emergency_freeze(self, proposer: str,
+                           reason: str) -> GovernanceProposal:
+        proposal = self.propose(proposer, GovernanceDecisionType.EMERGENCY_FREEZE,
+                                 {"reason": reason})
+        self.vote(proposal, proposer, True)
+        return proposal
+
+
+# ─── Consistency Certificate ─────────────────────────────────────────────────
+
+@dataclass
+class ConsistencyCertificate:
+    """Federation-wide consistency certificate."""
+    cert_id: str
+    epoch: int
+    society_anchors: Dict[str, EpochAnchor]
+    federation_hash: str
+    total_federation_supply: float
+    total_federation_fees: float
+    all_consistent: bool
+    fork_reports: List[ForkReport]
+    timestamp: float = field(default_factory=time.time)
+    signatures: Dict[str, str] = field(default_factory=dict)
+
+    @property
+    def society_count(self) -> int:
+        return len(self.society_anchors)
+
+
+class ConsistencyCertifier:
+    """Generate federation-wide consistency certificates."""
+
+    def __init__(self, fork_detector: ForkDetector):
+        self.fork_detector = fork_detector
+        self.certificates: List[ConsistencyCertificate] = []
+
+    def certify_epoch(self, epoch: int,
+                       anchors: Dict[str, EpochAnchor]) -> ConsistencyCertificate:
+        fork_reports = []
+
+        society_ids = list(anchors.keys())
+        for i in range(len(society_ids)):
+            for j in range(i + 1, len(society_ids)):
+                report = self.fork_detector.compare_anchors(
+                    anchors[society_ids[i]], anchors[society_ids[j]])
+                if report:
+                    fork_reports.append(report)
+
+        sorted_hashes = sorted(
+            f"{sid}:{a.state_hash}" for sid, a in anchors.items())
+        federation_hash = hashlib.sha256(
+            ":".join(sorted_hashes).encode()).hexdigest()[:32]
+
+        total_supply = sum(a.total_supply for a in anchors.values())
+        total_fees = sum(a.total_fees for a in anchors.values())
+
+        cert = ConsistencyCertificate(
+            cert_id=secrets.token_hex(8),
+            epoch=epoch,
+            society_anchors=anchors,
+            federation_hash=federation_hash,
+            total_federation_supply=total_supply,
+            total_federation_fees=total_fees,
+            all_consistent=len(fork_reports) == 0,
+            fork_reports=fork_reports,
+        )
+
+        for sid in anchors:
+            cert.signatures[sid] = hashlib.sha256(
+                f"{cert.cert_id}:{sid}:{federation_hash}".encode()
+            ).hexdigest()[:16]
+
+        self.certificates.append(cert)
+        return cert
+
+
+# ─── Full Protocol Orchestrator ──────────────────────────────────────────────
+
+class CrossLedgerProtocol:
+    """
+    Orchestrates the complete cross-ledger consistency protocol.
+
+    Workflow:
+    1. Each society operates its own ledger
+    2. Cross-ledger transactions use 2PC
+    3. At epoch boundaries, anchors are created and compared
+    4. Forks trigger reconciliation
+    5. Federation governance uses N-party consensus
+    """
+
+    def __init__(self, epoch_interval: int = 10):
+        self.epoch_manager = EpochManager(epoch_interval)
+        self.fork_detector = ForkDetector()
+        self.commit_protocol = CrossLedgerCommitProtocol()
+        self.reconciler = ATPSafeReconciler()
+        self.certifier = ConsistencyCertifier(self.fork_detector)
+        self.ledgers: Dict[str, SocietyLedger] = {}
+        self.governance: Optional[FederationGovernance] = None
+
+    def register_society(self, society_id: str, initial_supply: float = 10000.0,
+                           initial_entities: Optional[Dict[str, float]] = None) -> SocietyLedger:
+        ledger = SocietyLedger(
+            society_id=society_id,
+            total_supply=initial_supply,
+        )
+        if initial_entities:
+            for eid, balance in initial_entities.items():
+                ledger.balances[eid] = balance
+        allocated = sum(ledger.balances.values())
+        if allocated < initial_supply:
+            ledger.balances[f"{society_id}_reserve"] = initial_supply - allocated
+
+        self.ledgers[society_id] = ledger
+        return ledger
+
+    def setup_governance(self, trust_scores: Dict[str, float]):
+        self.governance = FederationGovernance(
+            list(self.ledgers.keys()), trust_scores)
+
+    def cross_transfer(self, source_society: str, target_society: str,
+                        source_entity: str, target_entity: str,
+                        amount: float) -> CrossLedgerTransaction:
+        source_ledger = self.ledgers[source_society]
+        target_ledger = self.ledgers[target_society]
+        return self.commit_protocol.execute_atomic(
+            source_ledger, target_ledger,
+            source_entity, target_entity, amount)
+
+    def epoch_checkpoint(self) -> Optional[ConsistencyCertificate]:
+        epoch = self.epoch_manager.advance_epoch()
+        anchors = {}
+        for sid, ledger in self.ledgers.items():
+            anchor = self.epoch_manager.create_anchor(ledger, epoch)
+            anchors[sid] = anchor
+        return self.certifier.certify_epoch(epoch, anchors)
+
+    def full_consistency_check(self) -> Dict[str, Any]:
+        results: Dict[str, Any] = {
+            "internal_forks": [],
+            "cross_forks": [],
+            "conservation": {},
+        }
+
+        for sid, ledger in self.ledgers.items():
+            report = self.fork_detector.detect_internal_fork(ledger)
+            if report:
+                results["internal_forks"].append(report)
+            results["conservation"][sid] = {
+                "expected": ledger.total_supply,
+                "actual": ledger.conservation_check,
+                "diff": abs(ledger.conservation_check - ledger.total_supply),
+            }
+
+        return results
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -746,438 +836,374 @@ def run_checks():
             results[name] = f"FAIL: {detail}"
             print(f"  FAIL: {name}: {detail}")
 
-    # ── Section 1: Federation Ledger ─────────────────────────────────────────
+    # ── Section 1: Ledger Basics ─────────────────────────────────────────────
 
-    ledger = FederationLedger("fed_alpha")
+    ledger = SocietyLedger(society_id="alpha", total_supply=10000.0)
+    ledger.balances = {"alice": 5000.0, "bob": 3000.0, "alpha_reserve": 2000.0}
 
-    e1 = ledger.append("entity_1", EntryType.TRUST_UPDATE, {"trust": 0.7})
-    e2 = ledger.append("entity_1", EntryType.ATP_TRANSFER, {"amount": 50})
-    e3 = ledger.append("entity_2", EntryType.MEMBERSHIP_CHANGE, {"action": "join"})
+    check("s1_conservation", abs(ledger.conservation_check - 10000.0) < 0.001,
+          f"check={ledger.conservation_check}")
+    check("s1_head_hash_genesis", ledger.head_hash == "genesis")
 
-    check("s1_ledger_count", len(ledger.entries) == 3)
-    check("s1_sequence", e3.sequence == 3)
-    check("s1_hash_computed", len(e1.entry_hash) == 32)
-    check("s1_chain_linked", e2.prev_hash == e1.entry_hash)
-    check("s1_genesis", e1.prev_hash == "genesis")
-    check("s1_entity_index", len(ledger.entity_index["entity_1"]) == 2)
+    entry = ledger.transfer("alice", "bob", 100.0, fee_rate=0.05)
+    check("s1_transfer_success", entry is not None)
+    check("s1_alice_debited", ledger.balances["alice"] == 4900.0,
+          f"bal={ledger.balances['alice']}")
+    check("s1_bob_credited", ledger.balances["bob"] == 3095.0,
+          f"bal={ledger.balances['bob']}")
+    check("s1_fee_collected", abs(ledger.total_fees - 5.0) < 0.001,
+          f"fees={ledger.total_fees}")
+    check("s1_conservation_after", abs(ledger.conservation_check - 10000.0) < 0.001)
+    check("s1_hash_chain", ledger.head_hash != "genesis")
+    check("s1_sequence", ledger.sequence == 1)
 
-    # ── Section 2: Ledger Chain Integrity ────────────────────────────────────
+    check("s1_insufficient_funds", ledger.transfer("alice", "bob", 99999) is None)
+    check("s1_negative_amount", ledger.transfer("alice", "bob", -100) is None)
+    check("s1_nan_amount", ledger.transfer("alice", "bob", float('nan')) is None)
 
-    check("s2_chain_valid", ledger.verify_chain())
+    # ── Section 2: State Hash ────────────────────────────────────────────────
 
-    # Tamper and detect
-    original_hash = ledger.entries[1].prev_hash
-    ledger.entries[1].prev_hash = "tampered"
-    check("s2_tamper_detected", not ledger.verify_chain())
-    ledger.entries[1].prev_hash = original_hash
-    check("s2_restored", ledger.verify_chain())
+    hash1 = ledger.state_hash()
+    check("s2_state_hash_nonempty", len(hash1) == 32)
+    hash2 = ledger.state_hash()
+    check("s2_deterministic", hash1 == hash2)
+    ledger.transfer("alice", "bob", 10.0)
+    hash3 = ledger.state_hash()
+    check("s2_changes_on_transfer", hash3 != hash1)
 
-    # ── Section 3: Merkle Root ───────────────────────────────────────────────
+    # ── Section 3: Epoch Anchoring ───────────────────────────────────────────
 
-    root1 = ledger.compute_merkle_root()
-    check("s3_merkle_root", len(root1) == 32)
+    em = EpochManager(epoch_interval=5)
+    test_ledger = SocietyLedger(society_id="beta", total_supply=5000.0)
+    test_ledger.balances = {"carol": 3000.0, "dave": 2000.0}
 
-    # Same entries → same root
-    root2 = ledger.compute_merkle_root()
-    check("s3_deterministic", root1 == root2)
+    check("s3_no_anchor_at_0", not em.should_anchor(test_ledger))
 
-    # Different entries → different root
-    ledger.append("entity_3", EntryType.TRUST_UPDATE, {"trust": 0.5})
-    root3 = ledger.compute_merkle_root()
-    check("s3_changed_root", root3 != root1)
+    for i in range(5):
+        test_ledger.transfer("carol", "dave", 10.0)
+    check("s3_anchor_at_5", em.should_anchor(test_ledger))
 
-    # ── Section 4: Ledger Anchors ────────────────────────────────────────────
+    epoch = em.advance_epoch()
+    anchor = em.create_anchor(test_ledger, epoch)
+    check("s3_anchor_epoch", anchor.epoch == 1)
+    check("s3_anchor_society", anchor.society_id == "beta")
+    check("s3_anchor_signed", len(anchor.signature) == 16)
+    check("s3_anchor_state_hash", len(anchor.state_hash) == 32)
+    check("s3_anchor_stored", em.get_anchor(1, "beta") is anchor)
 
-    shared = {"entity_1", "entity_2"}
-    anchor = ledger.create_anchor(shared)
+    # ── Section 4: Fork Detection — Internal ─────────────────────────────────
 
-    check("s4_anchor_created", anchor.federation_id == "fed_alpha")
-    check("s4_anchor_merkle", len(anchor.merkle_root) == 32)
-    check("s4_entity_hashes", len(anchor.shared_entity_hashes) > 0)
-    check("s4_anchor_count", anchor.entry_count >= 0)
+    fd = ForkDetector()
 
-    # ── Section 5: Fork Detection — No Divergence ────────────────────────────
+    healthy = SocietyLedger(society_id="healthy", total_supply=1000.0)
+    healthy.balances = {"x": 500.0, "y": 500.0}
+    check("s4_no_internal_fork", fd.detect_internal_fork(healthy) is None)
 
-    # Two identical ledgers
-    la = FederationLedger("fed_a")
-    lb = FederationLedger("fed_b")
-    shared_ents = {"shared_1", "shared_2"}
+    violated = SocietyLedger(society_id="violated", total_supply=1000.0)
+    violated.balances = {"x": 600.0, "y": 500.0}
+    report = fd.detect_internal_fork(violated)
+    check("s4_conservation_fork", report is not None)
+    check("s4_fork_type", report.divergence_type == "conservation_violation"
+          if report else False)
 
-    la.append("shared_1", EntryType.TRUST_UPDATE, {"trust": 0.7})
-    lb.append("shared_1", EntryType.TRUST_UPDATE, {"trust": 0.7})
-    la.append("shared_2", EntryType.ATP_TRANSFER, {"amount": 50})
-    lb.append("shared_2", EntryType.ATP_TRANSFER, {"amount": 50})
+    broken = SocietyLedger(society_id="broken", total_supply=1000.0)
+    broken.balances = {"x": 500.0, "y": 500.0}
+    broken.transfer("x", "y", 10.0)
+    broken.transfer("x", "y", 10.0)
+    broken.entries[1].prev_hash = "tampered"
+    report2 = fd.detect_internal_fork(broken)
+    check("s4_hash_chain_fork", report2 is not None)
+    check("s4_hash_chain_type", report2.divergence_type == "hash_chain_broken"
+          if report2 else False)
 
-    anchor_a = la.create_anchor(shared_ents)
-    anchor_b = lb.create_anchor(shared_ents)
+    # ── Section 5: Fork Detection — Cross-Ledger ─────────────────────────────
 
-    detector = ForkDetector()
-    report = detector.compare_anchors(anchor_a, anchor_b)
-    check("s5_no_divergence", report is None)
+    anchor_a = EpochAnchor(epoch=1, society_id="a", sequence_at_epoch=100,
+                            state_hash="abc123", head_entry_hash="h1",
+                            total_supply=10000.0, total_fees=50.0, balance_count=10)
+    anchor_b = EpochAnchor(epoch=1, society_id="b", sequence_at_epoch=100,
+                            state_hash="def456", head_entry_hash="h2",
+                            total_supply=10000.0, total_fees=60.0, balance_count=10)
 
-    # ── Section 6: Fork Detection — With Divergence ──────────────────────────
+    cross_report = fd.compare_anchors(anchor_a, anchor_b)
+    check("s5_no_supply_fork", cross_report is None)
 
-    lc = FederationLedger("fed_c")
-    ld = FederationLedger("fed_d")
+    anchor_c = EpochAnchor(epoch=1, society_id="c", sequence_at_epoch=100,
+                            state_hash="ghi789", head_entry_hash="h3",
+                            total_supply=15000.0, total_fees=0, balance_count=10)
+    supply_report = fd.compare_anchors(anchor_a, anchor_c)
+    check("s5_supply_fork_detected", supply_report is not None)
+    check("s5_supply_fork_type", supply_report.divergence_type == "supply_mismatch"
+          if supply_report else False)
 
-    lc.append("shared_1", EntryType.TRUST_UPDATE, {"trust": 0.7})
-    ld.append("shared_1", EntryType.TRUST_UPDATE, {"trust": 0.3})  # Different!
+    anchor_d = EpochAnchor(epoch=1, society_id="d", sequence_at_epoch=200,
+                            state_hash="jkl012", head_entry_hash="h4",
+                            total_supply=10000.0, total_fees=0, balance_count=10)
+    gap_report = fd.compare_anchors(anchor_a, anchor_d)
+    check("s5_sequence_gap", gap_report is not None)
+    check("s5_gap_type", gap_report.divergence_type == "sequence_gap"
+          if gap_report else False)
 
-    lc.append("shared_2", EntryType.ATP_TRANSFER, {"amount": 50})
-    ld.append("shared_2", EntryType.ATP_TRANSFER, {"amount": 50})
+    # ── Section 6: Cross-Ledger 2PC — Success ───────────────────────────────
 
-    anchor_c = lc.create_anchor(shared_ents)
-    anchor_d = ld.create_anchor(shared_ents)
+    source = SocietyLedger(society_id="source", total_supply=5000.0)
+    source.balances = {"alice": 2500.0, "source_reserve": 2500.0}
+    target = SocietyLedger(society_id="target", total_supply=5000.0)
+    target.balances = {"bob": 2000.0, "target_reserve": 3000.0}
 
-    div_report = detector.compare_anchors(anchor_c, anchor_d)
-    check("s6_divergence_detected", div_report is not None)
-    check("s6_diverged_entity", "shared_1" in div_report.diverged_entities
-          if div_report else False)
-    check("s6_severity", 0 < div_report.severity <= 1.0 if div_report else False,
-          f"severity={div_report.severity if div_report else 0}")
+    clcp = CrossLedgerCommitProtocol()
+    tx = clcp.execute_atomic(source, target, "alice", "bob", 100.0)
 
-    # ── Section 7: Sequence Gap Detection ────────────────────────────────────
+    check("s6_tx_committed", tx.phase == CrossLedgerTxPhase.COMMITTED,
+          f"phase={tx.phase}")
+    check("s6_alice_debited", source.balances["alice"] == 2400.0,
+          f"bal={source.balances['alice']}")
+    check("s6_bob_credited", target.balances["bob"] == 2095.0,
+          f"bal={target.balances['bob']}")
+    check("s6_source_fee", abs(source.total_fees - 5.0) < 0.001)
+    check("s6_source_conservation",
+          abs(source.conservation_check - 5000.0) < 0.001,
+          f"check={source.conservation_check}")
 
-    gap = detector.detect_sequence_gap(anchor_c, anchor_d)
-    check("s7_no_gap", gap == 0)  # Both have same count
+    # ── Section 7: Cross-Ledger 2PC — Insufficient Funds ────────────────────
 
-    # Create asymmetric ledgers — add more entries to lc only
-    lc.append("local_only", EntryType.TRUST_UPDATE, {"trust": 0.5})
-    lc.append("local_only", EntryType.TRUST_UPDATE, {"trust": 0.6})
-    lc.append("local_only2", EntryType.TRUST_UPDATE, {"trust": 0.4})
-    anchor_c2 = lc.create_anchor(shared_ents)  # 3 entries in this anchor
-    # ld has no new entries, create a fresh anchor with 0 new entries
-    ld.append("local_d", EntryType.TRUST_UPDATE, {"trust": 0.5})
-    anchor_d2 = ld.create_anchor(shared_ents)  # 1 entry in this anchor
-    gap2 = detector.detect_sequence_gap(anchor_c2, anchor_d2)
-    check("s7_gap_detected", gap2 > 0, f"gap={gap2}")
+    tx_fail = clcp.execute_atomic(source, target, "alice", "bob", 99999.0)
+    check("s7_insufficient_rollback",
+          tx_fail.phase == CrossLedgerTxPhase.ROLLED_BACK,
+          f"phase={tx_fail.phase}")
+    check("s7_alice_unchanged", source.balances["alice"] == 2400.0)
 
-    drift = detector.detect_entry_count_drift(anchor_c2, anchor_d2)
-    check("s7_drift_positive", drift > 0, f"drift={drift}")
+    # ── Section 8: Cross-Ledger 2PC — Explicit Rollback ─────────────────────
 
-    # ── Section 8: Reconciliation FSM ────────────────────────────────────────
+    tx_rb = clcp.initiate(source, target, "alice", "bob", 50.0)
+    clcp.phase1_lock(tx_rb, source)
+    check("s8_locked", tx_rb.phase == CrossLedgerTxPhase.SOURCE_LOCKED)
+    check("s8_alice_after_lock", source.balances["alice"] == 2350.0)
 
-    fsm = ReconciliationFSM()
-    check("s8_initial_synced", fsm.state.state == ConsistencyState.SYNCED)
+    clcp.phase2_prepare(tx_rb, target)
+    check("s8_prepared", tx_rb.phase == CrossLedgerTxPhase.TARGET_PREPARED)
 
-    fsm.begin_check()
-    check("s8_checking", fsm.state.state == ConsistencyState.CHECKING)
+    clcp.rollback(tx_rb, source, target)
+    check("s8_rolled_back", tx_rb.phase == CrossLedgerTxPhase.ROLLED_BACK)
+    check("s8_alice_restored", source.balances["alice"] == 2400.0,
+          f"bal={source.balances['alice']}")
 
-    fsm.report_divergence(div_report)
-    check("s8_diverged", fsm.state.state == ConsistencyState.DIVERGED)
+    # ── Section 9: ATP-Safe Reconciliation ───────────────────────────────────
 
-    fsm.begin_reconciliation()
-    check("s8_reconciling", fsm.state.state == ConsistencyState.RECONCILING)
+    rec = ATPSafeReconciler()
 
-    fsm.resolve_entity("shared_1", "HIGHER_TRUST_WINS")
-    check("s8_entity_resolved", "shared_1" in fsm.state.resolved_entities)
+    ledger_x = SocietyLedger(society_id="x", total_supply=1000.0)
+    ledger_x.balances = {"shared1": 300.0, "shared2": 200.0, "x_only": 500.0}
+    ledger_y = SocietyLedger(society_id="y", total_supply=1000.0)
+    ledger_y.balances = {"shared1": 250.0, "shared2": 220.0, "y_only": 530.0}
 
-    fsm.complete_reconciliation()
-    check("s8_completed_synced", fsm.state.state == ConsistencyState.SYNCED)
+    report = rec.reconcile_pair(ledger_x, ledger_y, {"shared1", "shared2"},
+                                  ReconciliationStrategy.CONSERVATIVE)
+    check("s9_reconciliation_success", report.success)
+    check("s9_shared1_conservative", ledger_x.balances["shared1"] == 250.0,
+          f"bal={ledger_x.balances['shared1']}")
+    check("s9_shared2_conservative", ledger_y.balances["shared2"] == 200.0,
+          f"bal={ledger_y.balances['shared2']}")
+    check("s9_x_conservation",
+          abs(ledger_x.conservation_check - 1000.0) < 0.01,
+          f"check={ledger_x.conservation_check}")
+    check("s9_y_conservation",
+          abs(ledger_y.conservation_check - 1000.0) < 0.01,
+          f"check={ledger_y.conservation_check}")
 
-    check("s8_history", len(fsm.state.history) == 4,
-          f"history={len(fsm.state.history)}")
+    # ── Section 10: Federation Governance ────────────────────────────────────
 
-    # ── Section 9: FSM — Failure Path ────────────────────────────────────────
-
-    fsm2 = ReconciliationFSM()
-    fsm2.begin_check()
-    fsm2.report_divergence(div_report)
-    fsm2.begin_reconciliation()
-    fsm2.fail_entity("shared_1")
-    fsm2.complete_reconciliation()
-    check("s9_failed_state", fsm2.state.state == ConsistencyState.FAILED)
-    check("s9_failed_entities", "shared_1" in fsm2.state.failed_entities)
-
-    # ── Section 10: FSM — Max Attempts ───────────────────────────────────────
-
-    fsm3 = ReconciliationFSM(max_reconciliation_attempts=2)
-    # Attempt 1
-    fsm3.begin_check()
-    fsm3.report_divergence(div_report)
-    fsm3.begin_reconciliation()
-    fsm3.fail_entity("x")
-    fsm3.complete_reconciliation()
-    check("s10_attempt_1_failed", fsm3.state.state == ConsistencyState.FAILED)
-
-    # Reset for attempt 2
-    fsm3.state.state = ConsistencyState.SYNCED
-    fsm3.state.failed_entities.clear()
-    fsm3.begin_check()
-    fsm3.report_divergence(div_report)
-    fsm3.begin_reconciliation()
-    fsm3.fail_entity("y")
-    fsm3.complete_reconciliation()
-    check("s10_attempt_2_failed", fsm3.state.state == ConsistencyState.FAILED)
-
-    # Attempt 3 should hit max
-    fsm3.state.state = ConsistencyState.SYNCED
-    fsm3.state.failed_entities.clear()
-    fsm3.begin_check()
-    fsm3.report_divergence(div_report)
-    result = fsm3.begin_reconciliation()
-    check("s10_max_attempts", result == ConsistencyState.FAILED)
-
-    # ── Section 11: Governance Quorum ────────────────────────────────────────
-
-    gov = GovernanceQuorum(quorum_threshold=0.6)
-    proposal = gov.create_proposal("fed_a", "merge_entry", "entity_1", {"trust": 0.7})
-
-    gov.cast_vote(proposal, "fed_a", True)
-    gov.cast_vote(proposal, "fed_b", True)
-    gov.cast_vote(proposal, "fed_c", False)
-
-    check("s11_approval_ratio", abs(proposal.approval_ratio - 0.667) < 0.01,
-          f"ratio={proposal.approval_ratio}")
-    check("s11_has_quorum", proposal.has_quorum)
-
-    accepted = gov.resolve_proposal(proposal)
-    check("s11_accepted", accepted)
-    check("s11_resolved", proposal.resolved)
-
-    # ── Section 12: Governance — Rejected ────────────────────────────────────
-
-    proposal2 = gov.create_proposal("fed_a", "policy_change", "entity_2", {"action": "deny"})
-    gov.cast_vote(proposal2, "fed_a", True)
-    gov.cast_vote(proposal2, "fed_b", False)
-    gov.cast_vote(proposal2, "fed_c", False)
-
-    check("s12_no_quorum", not proposal2.has_quorum)
-    rejected = gov.resolve_proposal(proposal2)
-    check("s12_rejected", not rejected)
-
-    # ── Section 13: Merge Protocol — Trust Updates ───────────────────────────
-
-    merge = LedgerMergeProtocol(gov)
-    fed_trusts = {"fed_c": 0.8, "fed_d": 0.5}
-
-    entries_c = lc.get_entries_for_entity("shared_1")
-    entries_d = ld.get_entries_for_entity("shared_1")
-
-    decision = merge.resolve_divergence("shared_1", entries_c, entries_d, fed_trusts)
-    check("s13_trust_strategy", decision.strategy == MergeStrategy.HIGHER_TRUST_WINS)
-    check("s13_higher_trust_wins", decision.source_federation == "fed_c",
-          f"source={decision.source_federation}")
-    check("s13_confidence", decision.confidence > 0)
-
-    # ── Section 14: Merge Protocol — One-Sided ───────────────────────────────
-
-    decision_one = merge.resolve_divergence("one_sided", entries_c, [], fed_trusts)
-    check("s14_one_sided_a", decision_one.source_federation == "fed_c")
-
-    decision_other = merge.resolve_divergence("other_sided", [], entries_d, fed_trusts)
-    check("s14_one_sided_b", decision_other.source_federation == "fed_d")
-
-    # ── Section 15: Merge Protocol — Conservative ────────────────────────────
-
-    # Create policy entries
-    le = FederationLedger("fed_e")
-    lf = FederationLedger("fed_f")
-    le.append("policy_ent", EntryType.POLICY_UPDATE, {"value": 0.3, "action": "limit"})
-    lf.append("policy_ent", EntryType.POLICY_UPDATE, {"value": 0.7, "action": "allow"})
-
-    pol_dec = merge.resolve_divergence(
-        "policy_ent",
-        le.get_entries_for_entity("policy_ent"),
-        lf.get_entries_for_entity("policy_ent"),
-        {"fed_e": 0.6, "fed_f": 0.6},
+    gov = FederationGovernance(
+        ["soc_a", "soc_b", "soc_c"],
+        {"soc_a": 0.8, "soc_b": 0.6, "soc_c": 0.7},
     )
-    check("s15_conservative", pol_dec.strategy == MergeStrategy.CONSERVATIVE)
-    check("s15_lower_wins", pol_dec.chosen_value.get("value") == 0.3,
-          f"value={pol_dec.chosen_value}")
 
-    # ── Section 16: Merge Protocol — Governance Required ─────────────────────
+    proposal = gov.propose("soc_a", GovernanceDecisionType.PARAMETER_CHANGE,
+                             {"param": "epoch_interval", "value": 50})
+    check("s10_proposal_created", proposal.status == "PENDING")
 
-    lg = FederationLedger("fed_g")
-    lh = FederationLedger("fed_h")
-    lg.append("member_ent", EntryType.MEMBERSHIP_CHANGE, {"action": "join"})
-    lh.append("member_ent", EntryType.MEMBERSHIP_CHANGE, {"action": "leave"})
+    gov.vote(proposal, "soc_a", True)
+    gov.vote(proposal, "soc_b", True)
+    check("s10_two_votes", len(proposal.votes) == 2)
+    check("s10_weighted_approval", proposal.weighted_approval > 0.5,
+          f"approval={proposal.weighted_approval}")
 
-    mem_dec = merge.resolve_divergence(
-        "member_ent",
-        lg.get_entries_for_entity("member_ent"),
-        lh.get_entries_for_entity("member_ent"),
-        {"fed_g": 0.7, "fed_h": 0.6},
-    )
-    check("s16_governance_required", mem_dec.requires_governance)
-    check("s16_quorum_strategy", mem_dec.strategy == MergeStrategy.QUORUM_DECIDES)
+    check("s10_non_member_rejected", not gov.vote(proposal, "outsider", True))
 
-    # ── Section 17: Consistency Engine — Full Cycle (No Divergence) ──────────
+    gov.vote(proposal, "soc_c", True)
+    status = gov.finalize(proposal)
+    check("s10_approved", status == "APPROVED")
 
-    engine = ConsistencyEngine()
+    p2 = gov.propose("soc_b", GovernanceDecisionType.POLICY_UPDATE,
+                       {"policy": "data_sharing"})
+    gov.vote(p2, "soc_a", False)
+    gov.vote(p2, "soc_b", True)
+    gov.vote(p2, "soc_c", False)
+    status2 = gov.finalize(p2)
+    check("s10_rejected", status2 == "REJECTED")
 
-    li = FederationLedger("fed_i")
-    lj = FederationLedger("fed_j")
-    shared_17 = {"s_ent_1"}
+    # ── Section 11: Emergency Freeze ─────────────────────────────────────────
 
-    li.append("s_ent_1", EntryType.TRUST_UPDATE, {"trust": 0.7})
-    lj.append("s_ent_1", EntryType.TRUST_UPDATE, {"trust": 0.7})
+    freeze = gov.emergency_freeze("soc_a", "Suspicious cross-ledger activity")
+    check("s11_freeze_created",
+          freeze.decision_type == GovernanceDecisionType.EMERGENCY_FREEZE)
+    check("s11_auto_voted", "soc_a" in freeze.votes)
+    check("s11_pending", freeze.status == "PENDING")
 
-    state, decisions = engine.full_cycle(li, lj, shared_17, {"fed_i": 0.7, "fed_j": 0.7})
-    check("s17_synced", state == ConsistencyState.SYNCED)
-    check("s17_no_decisions", len(decisions) == 0)
+    gov.vote(freeze, "soc_b", True)
+    gov.vote(freeze, "soc_c", True)
+    status3 = gov.finalize(freeze)
+    check("s11_freeze_approved", status3 == "APPROVED")
 
-    # ── Section 18: Consistency Engine — Full Cycle (With Divergence) ────────
+    # ── Section 12: Consistency Certificate ──────────────────────────────────
 
-    engine2 = ConsistencyEngine()
+    certifier = ConsistencyCertifier(ForkDetector())
+    anchors = {
+        "soc1": EpochAnchor(epoch=5, society_id="soc1", sequence_at_epoch=50,
+                             state_hash="aaa", head_entry_hash="h1",
+                             total_supply=10000, total_fees=100, balance_count=5),
+        "soc2": EpochAnchor(epoch=5, society_id="soc2", sequence_at_epoch=50,
+                             state_hash="bbb", head_entry_hash="h2",
+                             total_supply=10000, total_fees=120, balance_count=5),
+    }
 
-    lk = FederationLedger("fed_k")
-    ll = FederationLedger("fed_l")
-    shared_18 = {"s_ent_2", "s_ent_3"}
+    cert = certifier.certify_epoch(5, anchors)
+    check("s12_cert_created", cert.cert_id != "")
+    check("s12_all_consistent", cert.all_consistent)
+    check("s12_no_forks", len(cert.fork_reports) == 0)
+    check("s12_federation_hash", len(cert.federation_hash) == 32)
+    check("s12_total_supply", cert.total_federation_supply == 20000)
+    check("s12_signatures", len(cert.signatures) == 2)
+    check("s12_society_count", cert.society_count == 2)
 
-    lk.append("s_ent_2", EntryType.TRUST_UPDATE, {"trust": 0.8})
-    ll.append("s_ent_2", EntryType.TRUST_UPDATE, {"trust": 0.4})
-    lk.append("s_ent_3", EntryType.ATP_TRANSFER, {"amount": 100})
-    ll.append("s_ent_3", EntryType.ATP_TRANSFER, {"amount": 200})
+    anchors_forked = {
+        "soc1": EpochAnchor(epoch=6, society_id="soc1", sequence_at_epoch=60,
+                             state_hash="x", head_entry_hash="h1",
+                             total_supply=10000, total_fees=0, balance_count=5),
+        "soc3": EpochAnchor(epoch=6, society_id="soc3", sequence_at_epoch=60,
+                             state_hash="y", head_entry_hash="h3",
+                             total_supply=15000, total_fees=0, balance_count=5),
+    }
+    cert_fork = certifier.certify_epoch(6, anchors_forked)
+    check("s12_fork_detected", not cert_fork.all_consistent)
+    check("s12_fork_report", len(cert_fork.fork_reports) > 0)
 
-    fed_trusts_18 = {"fed_k": 0.8, "fed_l": 0.6}
-    state2, decisions2 = engine2.full_cycle(
-        lk, ll, shared_18, fed_trusts_18, ["fed_k", "fed_l"])
-    check("s18_resolved", state2 == ConsistencyState.SYNCED,
-          f"state={state2}")
-    check("s18_decisions_made", len(decisions2) == 2,
-          f"decisions={len(decisions2)}")
-    check("s18_ent2_higher_trust", decisions2.get("s_ent_2") is not None and
-          decisions2["s_ent_2"].source_federation == "fed_k" if "s_ent_2" in decisions2 else False)
+    # ── Section 13: Full Protocol Orchestrator ───────────────────────────────
 
-    # ── Section 19: Consistency Engine — History ─────────────────────────────
+    proto = CrossLedgerProtocol(epoch_interval=5)
+    proto.register_society("alpha", 10000.0, {"alice": 5000, "bob": 3000})
+    proto.register_society("beta", 8000.0, {"carol": 4000, "dave": 2000})
 
-    check("s19_history_recorded", len(engine2.reconciliation_history) > 0)
-    last_hist = engine2.reconciliation_history[-1]
-    check("s19_history_fields", "diverged_count" in last_hist and
-          "resolved_count" in last_hist)
+    check("s13_societies_registered", len(proto.ledgers) == 2)
+    check("s13_alpha_conservation",
+          abs(proto.ledgers["alpha"].conservation_check - 10000) < 0.01)
+    check("s13_beta_conservation",
+          abs(proto.ledgers["beta"].conservation_check - 8000) < 0.01)
 
-    # ── Section 20: Audit Trail ──────────────────────────────────────────────
+    tx = proto.cross_transfer("alpha", "beta", "alice", "carol", 200.0)
+    check("s13_cross_transfer_committed",
+          tx.phase == CrossLedgerTxPhase.COMMITTED)
 
-    audit = ConsistencyAuditTrail()
-    audit.record("verify", "fed_k", "fed_l", {"diverged": 2})
-    audit.record("reconcile", "fed_k", "fed_l", {"resolved": 2})
-    audit.record("complete", "fed_k", "fed_l", {"state": "SYNCED"})
+    cert = proto.epoch_checkpoint()
+    check("s13_cert_generated", cert is not None)
+    check("s13_cert_societies", cert.society_count == 2 if cert else False)
 
-    check("s20_audit_entries", len(audit.entries) == 3)
-    check("s20_chain_valid", audit.verify_chain())
-    check("s20_genesis", audit.entries[0].prev_hash == "genesis")
-    check("s20_chain_linked", audit.entries[1].prev_hash == audit.entries[0].entry_hash)
+    consistency = proto.full_consistency_check()
+    check("s13_no_internal_forks", len(consistency["internal_forks"]) == 0)
 
-    # Tamper
-    orig = audit.entries[1].prev_hash
-    audit.entries[1].prev_hash = "bad"
-    check("s20_tamper_caught", not audit.verify_chain())
-    audit.entries[1].prev_hash = orig
-    check("s20_restored", audit.verify_chain())
+    # ── Section 14: Multiple Cross-Transfers ─────────────────────────────────
 
-    # ── Section 21: Multi-Federation Scenario ────────────────────────────────
+    for i in range(5):
+        proto.cross_transfer("alpha", "beta", "alice", "dave", 50.0)
 
-    # 4 federations, 3 shared entities
-    feds = {}
-    for name in ["alpha", "beta", "gamma", "delta"]:
-        feds[name] = FederationLedger(name)
+    alpha_cons = proto.ledgers["alpha"].conservation_check
+    beta_cons = proto.ledgers["beta"].conservation_check
+    check("s14_alpha_conserved", abs(alpha_cons - 10000) < 0.01,
+          f"check={alpha_cons}")
+    check("s14_beta_conserved", abs(beta_cons - 8000) < 0.01,
+          f"check={beta_cons}")
 
-    shared_21 = {"citizen_1", "citizen_2", "citizen_3"}
-    fed_trusts_21 = {"alpha": 0.9, "beta": 0.7, "gamma": 0.6, "delta": 0.5}
+    # ── Section 15: Governance via Protocol ──────────────────────────────────
 
-    # Alpha and beta agree
-    feds["alpha"].append("citizen_1", EntryType.TRUST_UPDATE, {"trust": 0.8})
-    feds["beta"].append("citizen_1", EntryType.TRUST_UPDATE, {"trust": 0.8})
+    proto.setup_governance({"alpha": 0.8, "beta": 0.7})
+    p = proto.governance.propose("alpha", GovernanceDecisionType.PARAMETER_CHANGE,
+                                   {"param": "fee_rate", "value": 0.03})
+    proto.governance.vote(p, "alpha", True)
+    proto.governance.vote(p, "beta", True)
+    status = proto.governance.finalize(p)
+    check("s15_governance_works", status == "APPROVED")
 
-    # Gamma and delta disagree
-    feds["gamma"].append("citizen_2", EntryType.TRUST_UPDATE, {"trust": 0.9})
-    feds["delta"].append("citizen_2", EntryType.TRUST_UPDATE, {"trust": 0.3})
+    # ── Section 16: 3-Society Federation ─────────────────────────────────────
 
-    # Check alpha-beta consistency
-    eng_ab = ConsistencyEngine()
-    state_ab, dec_ab = eng_ab.full_cycle(
-        feds["alpha"], feds["beta"], {"citizen_1"}, fed_trusts_21)
-    check("s21_ab_synced", state_ab == ConsistencyState.SYNCED)
+    proto3 = CrossLedgerProtocol(epoch_interval=5)
+    proto3.register_society("soc1", 5000.0, {"e1": 2500, "e2": 2500})
+    proto3.register_society("soc2", 5000.0, {"e3": 2500, "e4": 2500})
+    proto3.register_society("soc3", 5000.0, {"e5": 2500, "e6": 2500})
 
-    # Check gamma-delta divergence
-    eng_gd = ConsistencyEngine()
-    state_gd, dec_gd = eng_gd.full_cycle(
-        feds["gamma"], feds["delta"], {"citizen_2"}, fed_trusts_21,
-        list(fed_trusts_21.keys()))
-    check("s21_gd_diverged_resolved", state_gd == ConsistencyState.SYNCED)
-    check("s21_citizen_2_resolved", "citizen_2" in dec_gd)
+    proto3.cross_transfer("soc1", "soc2", "e1", "e3", 100)
+    proto3.cross_transfer("soc2", "soc3", "e3", "e5", 100)
+    proto3.cross_transfer("soc3", "soc1", "e5", "e1", 100)
 
-    # ── Section 22: Performance — Large Ledger (Identical) ──────────────────
+    for sid in ["soc1", "soc2", "soc3"]:
+        cons = proto3.ledgers[sid].conservation_check
+        check(f"s16_{sid}_conserved", abs(cons - 5000) < 0.01,
+              f"check={cons}")
 
-    big_a = FederationLedger("perf_a")
-    big_b = FederationLedger("perf_b")
-    shared_perf = set()
+    cert3 = proto3.epoch_checkpoint()
+    check("s16_3society_cert", cert3 is not None)
+    check("s16_3society_consistent", cert3.all_consistent if cert3 else False)
+
+    # ── Section 17: Reconciliation Strategies ────────────────────────────────
+
+    lx = SocietyLedger(society_id="rx", total_supply=1000.0)
+    lx.balances = {"shared": 400.0, "rx_own": 600.0}
+    ly = SocietyLedger(society_id="ry", total_supply=1000.0)
+    ly.balances = {"shared": 300.0, "ry_own": 700.0}
+
+    rec_bilateral = ATPSafeReconciler()
+    report_bi = rec_bilateral.reconcile_pair(lx, ly, {"shared"},
+                                               ReconciliationStrategy.BILATERAL)
+    check("s17_bilateral_success", report_bi.success)
+    check("s17_bilateral_averaged",
+          abs(lx.balances["shared"] - 350.0) < 0.01,
+          f"bal={lx.balances['shared']}")
+
+    la = SocietyLedger(society_id="ra", total_supply=2000.0)
+    la.balances = {"shared2": 800.0, "ra_own": 1200.0}
+    lb = SocietyLedger(society_id="rb", total_supply=1000.0)
+    lb.balances = {"shared2": 600.0, "rb_own": 400.0}
+
+    report_auth = rec_bilateral.reconcile_pair(la, lb, {"shared2"},
+                                                 ReconciliationStrategy.AUTHORITATIVE)
+    check("s17_authoritative_success", report_auth.success)
+    check("s17_authoritative_a_wins",
+          abs(la.balances["shared2"] - 800.0) < 0.01,
+          f"bal={la.balances['shared2']}")
+
+    # ── Section 18: Performance ──────────────────────────────────────────────
+
+    perf_proto = CrossLedgerProtocol(epoch_interval=100)
+    perf_proto.register_society("perf_a", 100000.0,
+                                  {f"ea_{i}": 100.0 for i in range(100)})
+    perf_proto.register_society("perf_b", 100000.0,
+                                  {f"eb_{i}": 100.0 for i in range(100)})
 
     t0 = time.time()
-    for i in range(200):
-        eid = f"ent_{i}"
-        big_a.append(eid, EntryType.TRUST_UPDATE, {"trust": 0.5 + (i % 10) * 0.05})
-        big_b.append(eid, EntryType.TRUST_UPDATE, {"trust": 0.5 + (i % 10) * 0.05})
-        if i < 50:
-            shared_perf.add(eid)
+    for i in range(100):
+        perf_proto.cross_transfer("perf_a", "perf_b",
+                                    f"ea_{i}", f"eb_{i}", 10.0)
     elapsed = time.time() - t0
-    check("s22_200_entries_fast", elapsed < 5.0, f"elapsed={elapsed:.2f}s")
+    check("s18_100_transfers_fast", elapsed < 2.0, f"elapsed={elapsed:.2f}s")
 
-    eng_22 = ConsistencyEngine()
-    state_22, dec_22 = eng_22.full_cycle(big_a, big_b, shared_perf, {})
-    check("s22_identical_no_div", state_22 == ConsistencyState.SYNCED)
-
-    # ── Section 23: Performance — Diverged Reconciliation ────────────────────
-
-    # Create fresh ledgers with known divergence in 20 of 50 shared entities
-    big_c = FederationLedger("perf_c")
-    big_d = FederationLedger("perf_d")
-    shared_23 = set()
-
-    for i in range(50):
-        eid = f"shared_{i}"
-        shared_23.add(eid)
-        if i < 20:
-            # Divergent: different trust values
-            big_c.append(eid, EntryType.TRUST_UPDATE, {"trust": 0.8})
-            big_d.append(eid, EntryType.TRUST_UPDATE, {"trust": 0.3})
-        else:
-            # Identical
-            big_c.append(eid, EntryType.TRUST_UPDATE, {"trust": 0.7})
-            big_d.append(eid, EntryType.TRUST_UPDATE, {"trust": 0.7})
+    pa_cons = perf_proto.ledgers["perf_a"].conservation_check
+    check("s18_perf_a_conserved", abs(pa_cons - 100000) < 0.01,
+          f"check={pa_cons}")
 
     t0 = time.time()
-    eng_23 = ConsistencyEngine()
-    fed_t = {"perf_c": 0.8, "perf_d": 0.6}
-    state_23, dec_23 = eng_23.full_cycle(
-        big_c, big_d, shared_23, fed_t, ["perf_c", "perf_d"])
-    elapsed_rec = time.time() - t0
-
-    check("s23_divergence_found", len(dec_23) > 0)
-    check("s23_reconciled", state_23 == ConsistencyState.SYNCED,
-          f"state={state_23}")
-    check("s23_20_resolved", len(dec_23) == 20,
-          f"resolved={len(dec_23)}")
-    check("s23_reconciliation_fast", elapsed_rec < 5.0,
-          f"elapsed={elapsed_rec:.2f}s")
-
-    # ── Section 24: Edge Cases ───────────────────────────────────────────────
-
-    # Empty ledgers
-    empty_a = FederationLedger("empty_a")
-    empty_b = FederationLedger("empty_b")
-    eng_empty = ConsistencyEngine()
-    state_empty, _ = eng_empty.full_cycle(empty_a, empty_b, set(), {})
-    check("s24_empty_synced", state_empty == ConsistencyState.SYNCED)
-
-    # No shared entities
-    la_ns = FederationLedger("ns_a")
-    lb_ns = FederationLedger("ns_b")
-    la_ns.append("local_1", EntryType.TRUST_UPDATE, {"trust": 0.5})
-    lb_ns.append("local_2", EntryType.TRUST_UPDATE, {"trust": 0.6})
-    eng_ns = ConsistencyEngine()
-    state_ns, _ = eng_ns.full_cycle(la_ns, lb_ns, set(), {})
-    check("s24_no_shared_synced", state_ns == ConsistencyState.SYNCED)
-
-    # Single shared entity, same data
-    la_1 = FederationLedger("one_a")
-    lb_1 = FederationLedger("one_b")
-    la_1.append("only_one", EntryType.ATP_TRANSFER, {"amount": 42})
-    lb_1.append("only_one", EntryType.ATP_TRANSFER, {"amount": 42})
-    eng_1 = ConsistencyEngine()
-    state_1, _ = eng_1.full_cycle(la_1, lb_1, {"only_one"}, {})
-    check("s24_single_shared_synced", state_1 == ConsistencyState.SYNCED)
+    for _ in range(10):
+        perf_proto.epoch_checkpoint()
+    elapsed = time.time() - t0
+    check("s18_10_epochs_fast", elapsed < 2.0, f"elapsed={elapsed:.2f}s")
 
     # ═══════════════════════════════════════════════════════════════════════════
     print(f"\n{'='*60}")
