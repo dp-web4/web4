@@ -2,20 +2,20 @@
 """
 Hardware Binding Recovery & Revocation — Session 20, Track 4
 
-Real-world hardware binding lifecycle operations:
-- Key revocation with cascading trust invalidation
-- Quorum-based key recovery (m-of-n threshold)
-- Compromise detection from behavioral anomalies
-- Device replacement ceremony
+Real-world hardware binding scenarios beyond single-device TPM:
+- Key revocation with cascading trust updates
+- Quorum-based key recovery ceremony
+- Device loss detection and response
 - Cross-organization hardware trust bridges
-- Hardware-to-cloud trust delegation
-- Revocation list management (CRL equivalent)
-- Key rotation with overlap period
-- Emergency freeze and unfreeze protocols
-- Binding audit trail with tamper detection
-- Performance under revocation storms
+- Hardware upgrade migration (old device → new device)
+- Compromise detection via behavioral anomaly
+- Secure erasure verification
+- Multi-device constellation management
+- Emergency recovery with social witnesses
+- Revocation propagation across federation
+- Performance and scale testing
 
-Reference: contextual_hardware_binding.py, multi_device_binding.py, 305 patents
+Reference: multi-device-lct-binding.md, contextual_hardware_binding.py, 305 patent family
 """
 
 from __future__ import annotations
@@ -26,729 +26,563 @@ import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-class BindingState(Enum):
+class DeviceState(Enum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     REVOKED = "revoked"
-    RECOVERING = "recovering"
-    ROTATING = "rotating"
-    FROZEN = "frozen"
+    LOST = "lost"
+    MIGRATING = "migrating"
+    COMPROMISED = "compromised"
 
 
-class CompromiseIndicator(Enum):
-    LOCATION_ANOMALY = "location_anomaly"
-    TIMING_ANOMALY = "timing_anomaly"
-    CONCURRENT_USE = "concurrent_use"
-    SIGNATURE_MISMATCH = "signature_mismatch"
-    FIRMWARE_TAMPERING = "firmware_tampering"
-    ATTESTATION_FAILURE = "attestation_failure"
+class AnchorType(Enum):
+    TPM_DISCRETE = "tpm_discrete"
+    SECURE_ENCLAVE = "secure_enclave"
+    STRONGBOX = "strongbox"
+    FIDO2 = "fido2"
+    SOFTWARE = "software"
 
 
-RECOVERY_THRESHOLD_DEFAULT = 3  # m-of-n threshold
-RECOVERY_SHARES_DEFAULT = 5     # n shares
-KEY_OVERLAP_SECONDS = 86400     # 24 hours overlap during rotation
-FREEZE_AUTO_EXPIRE = 86400      # 24 hours auto-expire
+ANCHOR_TRUST = {
+    AnchorType.TPM_DISCRETE: 0.9,
+    AnchorType.SECURE_ENCLAVE: 0.85,
+    AnchorType.STRONGBOX: 0.8,
+    AnchorType.FIDO2: 0.75,
+    AnchorType.SOFTWARE: 0.5,
+}
 
 
 # ─── Data Structures ─────────────────────────────────────────────────────────
 
 @dataclass
-class HardwareBinding:
-    """A hardware-bound cryptographic identity."""
-    binding_id: str
-    entity_id: str
-    device_fingerprint: str
+class DeviceBinding:
+    """A hardware-bound device in an entity's constellation."""
+    device_id: str
+    anchor_type: AnchorType
     public_key: bytes
-    state: BindingState = BindingState.ACTIVE
-    created_at: float = 0.0
-    revoked_at: Optional[float] = None
-    revocation_reason: Optional[str] = None
+    state: DeviceState = DeviceState.ACTIVE
+    enrolled_at: float = 0.0
+    last_attestation: float = 0.0
     trust_score: float = 0.5
-    key_version: int = 1
+    entity_id: str = ""
     organization_id: Optional[str] = None
 
 
 @dataclass
-class RecoveryShare:
-    """A share of a recovery secret (Shamir-like)."""
-    share_id: str
-    custodian_id: str
-    share_data: bytes
-    binding_id: str
-    created_at: float = 0.0
-
-
-@dataclass
-class RevocationEntry:
-    """Entry in the revocation list."""
-    binding_id: str
-    revoked_at: float
+class RevocationCert:
+    """Certificate revoking a device binding."""
+    device_id: str
     reason: str
+    revoked_at: float
     revoker_id: str
-    cascade_count: int = 0  # How many downstream bindings were also revoked
+    cascade: bool = True
     signature: bytes = b""
 
+    def hash(self) -> str:
+        data = f"{self.device_id}:{self.reason}:{self.revoked_at}:{self.revoker_id}"
+        return hashlib.sha256(data.encode()).hexdigest()[:16]
+
 
 @dataclass
-class AuditEvent:
-    """Tamper-evident audit event for binding lifecycle."""
-    event_type: str
-    binding_id: str
-    actor_id: str
-    timestamp: float
-    details: Dict[str, str] = field(default_factory=dict)
-    prev_hash: str = ""
-    event_hash: str = ""
-
-    def compute_hash(self) -> str:
-        data = f"{self.event_type}:{self.binding_id}:{self.actor_id}:{self.timestamp}:{self.prev_hash}"
-        return hashlib.sha256(data.encode()).hexdigest()[:32]
+class RecoveryShard:
+    """A shard of a recovery key held by a witness."""
+    shard_id: str
+    holder_id: str
+    shard_data: bytes
+    created_at: float
+    used: bool = False
 
 
-# ─── S1: Key Revocation with Cascade ────────────────────────────────────────
+@dataclass
+class RecoveryCeremony:
+    """Quorum-based key recovery ceremony."""
+    entity_id: str
+    threshold: int
+    total_shards: int
+    shards: List[RecoveryShard] = field(default_factory=list)
+    submitted_shards: List[RecoveryShard] = field(default_factory=list)
+    completed: bool = False
+    recovered_key: Optional[bytes] = None
+    started_at: float = 0.0
+    expires_at: float = 0.0
 
-class RevocationManager:
-    """Manage revocation of hardware bindings with cascade."""
+
+# ─── S1: Key Revocation ─────────────────────────────────────────────────────
+
+class RevocationRegistry:
+    """Track and propagate device revocations."""
 
     def __init__(self):
-        self.bindings: Dict[str, HardwareBinding] = {}
-        self.trust_links: Dict[str, Set[str]] = {}  # parent → children
-        self.revocation_list: List[RevocationEntry] = []
+        self.revocations: Dict[str, RevocationCert] = {}
+        self.dependents: Dict[str, Set[str]] = {}
 
-    def register(self, binding: HardwareBinding):
-        self.bindings[binding.binding_id] = binding
+    def add_dependency(self, parent_id: str, child_id: str):
+        if parent_id not in self.dependents:
+            self.dependents[parent_id] = set()
+        self.dependents[parent_id].add(child_id)
 
-    def add_trust_link(self, parent_id: str, child_id: str):
-        if parent_id not in self.trust_links:
-            self.trust_links[parent_id] = set()
-        self.trust_links[parent_id].add(child_id)
+    def revoke(self, cert: RevocationCert) -> List[str]:
+        """Revoke a device and optionally cascade to dependents."""
+        revoked = [cert.device_id]
+        self.revocations[cert.device_id] = cert
 
-    def revoke(
-        self, binding_id: str, reason: str, revoker_id: str, cascade: bool = True
-    ) -> List[RevocationEntry]:
-        """
-        Revoke a binding and optionally cascade to dependents.
-        Returns list of all revocation entries created.
-        """
-        binding = self.bindings.get(binding_id)
-        if not binding or binding.state == BindingState.REVOKED:
-            return []
-
-        now = time.time()
-        binding.state = BindingState.REVOKED
-        binding.revoked_at = now
-        binding.revocation_reason = reason
-
-        revoked = []
-        cascade_count = 0
-
-        if cascade:
-            # Revoke all downstream bindings
-            to_revoke = list(self.trust_links.get(binding_id, set()))
-            while to_revoke:
-                child_id = to_revoke.pop(0)
-                child = self.bindings.get(child_id)
-                if child and child.state != BindingState.REVOKED:
-                    child.state = BindingState.REVOKED
-                    child.revoked_at = now
-                    child.revocation_reason = f"cascaded from {binding_id}"
-                    cascade_count += 1
-                    revoked.append(RevocationEntry(
-                        child_id, now, f"cascade:{binding_id}", revoker_id,
-                    ))
-                    to_revoke.extend(self.trust_links.get(child_id, set()))
-
-        entry = RevocationEntry(
-            binding_id, now, reason, revoker_id, cascade_count,
-        )
-        self.revocation_list.append(entry)
-        revoked.insert(0, entry)
+        if cert.cascade:
+            queue = list(self.dependents.get(cert.device_id, set()))
+            while queue:
+                dep_id = queue.pop(0)
+                if dep_id not in self.revocations:
+                    cascade_cert = RevocationCert(
+                        device_id=dep_id,
+                        reason=f"cascade_from:{cert.device_id}",
+                        revoked_at=cert.revoked_at,
+                        revoker_id=cert.revoker_id,
+                        cascade=True,
+                    )
+                    self.revocations[dep_id] = cascade_cert
+                    revoked.append(dep_id)
+                    queue.extend(self.dependents.get(dep_id, set()))
 
         return revoked
 
-    def is_revoked(self, binding_id: str) -> bool:
-        binding = self.bindings.get(binding_id)
-        return binding is not None and binding.state == BindingState.REVOKED
+    def is_revoked(self, device_id: str) -> bool:
+        return device_id in self.revocations
 
-    def revocation_count(self) -> int:
-        return len(self.revocation_list)
+    def revocation_chain(self, device_id: str) -> List[str]:
+        cert = self.revocations.get(device_id)
+        if not cert:
+            return []
+        chain = [device_id]
+        if cert.reason.startswith("cascade_from:"):
+            parent = cert.reason.split(":", 1)[1]
+            chain = self.revocation_chain(parent) + chain
+        return chain
 
 
 # ─── S2: Quorum-Based Key Recovery ──────────────────────────────────────────
 
-class RecoveryProtocol:
-    """m-of-n threshold recovery for lost hardware bindings."""
+def create_recovery_shards(
+    secret: bytes, threshold: int, total: int, holders: List[str],
+) -> RecoveryCeremony:
+    """Create recovery shards using XOR-based secret sharing."""
+    assert threshold <= total
+    assert total == len(holders)
 
-    def __init__(self, threshold: int = RECOVERY_THRESHOLD_DEFAULT,
-                 total_shares: int = RECOVERY_SHARES_DEFAULT):
-        self.threshold = threshold
-        self.total_shares = total_shares
-        self.shares: Dict[str, List[RecoveryShare]] = {}  # binding_id → shares
-        self.recovery_requests: Dict[str, Set[str]] = {}  # binding_id → custodians who approved
+    now = time.time()
+    random_shards = [os.urandom(len(secret)) for _ in range(total - 1)]
+    final_shard = bytearray(secret)
+    for rs in random_shards:
+        for i in range(len(final_shard)):
+            final_shard[i] ^= rs[i]
 
-    def create_shares(self, binding: HardwareBinding, custodian_ids: List[str]) -> List[RecoveryShare]:
-        """
-        Create recovery shares for a binding.
-        In production, this would use Shamir's Secret Sharing.
-        Here we simulate with deterministic share generation.
-        """
-        if len(custodian_ids) < self.total_shares:
-            return []
-
-        secret = hashlib.sha256(binding.public_key).digest()
-        shares = []
-        for i, custodian in enumerate(custodian_ids[:self.total_shares]):
-            share_data = hashlib.sha256(
-                secret + i.to_bytes(4, "big") + custodian.encode()
-            ).digest()
-            share = RecoveryShare(
-                share_id=f"{binding.binding_id}_share_{i}",
-                custodian_id=custodian,
-                share_data=share_data,
-                binding_id=binding.binding_id,
-                created_at=time.time(),
-            )
-            shares.append(share)
-
-        self.shares[binding.binding_id] = shares
-        return shares
-
-    def approve_recovery(self, binding_id: str, custodian_id: str) -> bool:
-        """A custodian approves a recovery request."""
-        shares = self.shares.get(binding_id, [])
-        valid_custodians = {s.custodian_id for s in shares}
-        if custodian_id not in valid_custodians:
-            return False
-
-        if binding_id not in self.recovery_requests:
-            self.recovery_requests[binding_id] = set()
-        self.recovery_requests[binding_id].add(custodian_id)
-        return True
-
-    def can_recover(self, binding_id: str) -> bool:
-        """Check if enough approvals for recovery."""
-        approvals = self.recovery_requests.get(binding_id, set())
-        return len(approvals) >= self.threshold
-
-    def execute_recovery(self, binding_id: str, new_public_key: bytes) -> Optional[HardwareBinding]:
-        """Execute recovery: generate new binding from recovered secret."""
-        if not self.can_recover(binding_id):
-            return None
-
-        new_binding = HardwareBinding(
-            binding_id=f"{binding_id}_recovered",
-            entity_id=binding_id.split("_")[0] if "_" in binding_id else binding_id,
-            device_fingerprint=hashlib.sha256(new_public_key).hexdigest()[:16],
-            public_key=new_public_key,
-            state=BindingState.ACTIVE,
-            created_at=time.time(),
-            key_version=1,
-        )
-
-        # Clear recovery state
-        self.recovery_requests.pop(binding_id, None)
-        return new_binding
-
-    def approval_count(self, binding_id: str) -> int:
-        return len(self.recovery_requests.get(binding_id, set()))
+    all_shard_data = random_shards + [bytes(final_shard)]
+    shards = [
+        RecoveryShard(f"shard_{i}", holder, all_shard_data[i], now)
+        for i, holder in enumerate(holders)
+    ]
+    return RecoveryCeremony(
+        entity_id="recovery_target", threshold=threshold,
+        total_shards=total, shards=shards,
+        started_at=now, expires_at=now + 86400,
+    )
 
 
-# ─── S3: Compromise Detection ───────────────────────────────────────────────
-
-@dataclass
-class BehaviorSample:
-    """A behavioral observation for anomaly detection."""
-    binding_id: str
-    timestamp: float
-    location_hash: str  # hashed location for privacy
-    action_type: str
-    success: bool
-
-
-class CompromiseDetector:
-    """Detect binding compromise from behavioral anomalies."""
-
-    def __init__(self, history_window: int = 100):
-        self.history: Dict[str, List[BehaviorSample]] = {}
-        self.window = history_window
-        self.alerts: Dict[str, List[CompromiseIndicator]] = {}
-
-    def record(self, sample: BehaviorSample):
-        bid = sample.binding_id
-        if bid not in self.history:
-            self.history[bid] = []
-        self.history[bid].append(sample)
-        if len(self.history[bid]) > self.window:
-            self.history[bid] = self.history[bid][-self.window:]
-
-    def check_concurrent_use(self, binding_id: str, window: float = 5.0) -> bool:
-        """
-        Detect same binding used from different locations within short window.
-        Strongly suggests device cloning or credential theft.
-        """
-        samples = self.history.get(binding_id, [])
-        if len(samples) < 2:
-            return False
-
-        for i, s1 in enumerate(samples):
-            for s2 in samples[i + 1:]:
-                if abs(s1.timestamp - s2.timestamp) < window:
-                    if s1.location_hash != s2.location_hash:
-                        self._alert(binding_id, CompromiseIndicator.CONCURRENT_USE)
-                        return True
+def submit_shard(ceremony: RecoveryCeremony, shard: RecoveryShard) -> bool:
+    if ceremony.completed:
         return False
-
-    def check_timing_anomaly(self, binding_id: str) -> bool:
-        """
-        Detect unusual activity timing patterns.
-        Sudden burst after long inactivity = suspicious.
-        """
-        samples = self.history.get(binding_id, [])
-        if len(samples) < 10:
-            return False
-
-        # Check for gap followed by burst
-        timestamps = [s.timestamp for s in samples]
-        gaps = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
-
-        if not gaps:
-            return False
-
-        avg_gap = sum(gaps) / len(gaps)
-        # Long gap followed by very short gaps = suspicious
-        for i in range(len(gaps) - 3):
-            if gaps[i] > avg_gap * 10:  # Long gap
-                burst = all(g < avg_gap * 0.1 for g in gaps[i + 1:i + 4] if i + 4 <= len(gaps))
-                if burst:
-                    self._alert(binding_id, CompromiseIndicator.TIMING_ANOMALY)
-                    return True
+    if shard.used:
         return False
-
-    def check_failure_rate(self, binding_id: str, threshold: float = 0.5) -> bool:
-        """High failure rate suggests invalid credentials being tested."""
-        samples = self.history.get(binding_id, [])
-        if len(samples) < 5:
-            return False
-        failures = sum(1 for s in samples[-20:] if not s.success)
-        rate = failures / min(len(samples), 20)
-        if rate > threshold:
-            self._alert(binding_id, CompromiseIndicator.SIGNATURE_MISMATCH)
-            return True
+    if not any(s.shard_id == shard.shard_id for s in ceremony.shards):
         return False
-
-    def _alert(self, binding_id: str, indicator: CompromiseIndicator):
-        if binding_id not in self.alerts:
-            self.alerts[binding_id] = []
-        self.alerts[binding_id].append(indicator)
-
-    def get_alerts(self, binding_id: str) -> List[CompromiseIndicator]:
-        return self.alerts.get(binding_id, [])
-
-    def risk_score(self, binding_id: str) -> float:
-        """0.0 = no risk, 1.0 = definitely compromised."""
-        alerts = self.alerts.get(binding_id, [])
-        if not alerts:
-            return 0.0
-        # Each indicator type adds risk
-        unique = set(alerts)
-        # Concurrent use is strongest signal
-        score = 0.0
-        if CompromiseIndicator.CONCURRENT_USE in unique:
-            score += 0.5
-        if CompromiseIndicator.TIMING_ANOMALY in unique:
-            score += 0.2
-        if CompromiseIndicator.SIGNATURE_MISMATCH in unique:
-            score += 0.3
-        if CompromiseIndicator.FIRMWARE_TAMPERING in unique:
-            score += 0.4
-        if CompromiseIndicator.ATTESTATION_FAILURE in unique:
-            score += 0.3
-        return min(1.0, score)
+    if any(s.shard_id == shard.shard_id for s in ceremony.submitted_shards):
+        return False
+    shard.used = True
+    ceremony.submitted_shards.append(shard)
+    return True
 
 
-# ─── S4: Device Replacement Ceremony ────────────────────────────────────────
-
-@dataclass
-class ReplacementCeremony:
-    """Protocol for replacing a lost/compromised device."""
-    old_binding_id: str
-    new_binding_id: str
-    entity_id: str
-    initiated_by: str
-    initiated_at: float
-    witness_approvals: Set[str] = field(default_factory=set)
-    required_witnesses: int = 2
-    completed: bool = False
-    new_public_key: Optional[bytes] = None
-
-    def approve(self, witness_id: str) -> bool:
-        self.witness_approvals.add(witness_id)
-        return len(self.witness_approvals) >= self.required_witnesses
-
-    def is_ready(self) -> bool:
-        return (
-            len(self.witness_approvals) >= self.required_witnesses
-            and self.new_public_key is not None
-        )
-
-
-def execute_replacement(
-    ceremony: ReplacementCeremony,
-    revocation_mgr: RevocationManager,
-) -> Optional[HardwareBinding]:
-    """Execute device replacement: revoke old, create new."""
-    if not ceremony.is_ready():
+def attempt_recovery(ceremony: RecoveryCeremony) -> Optional[bytes]:
+    if len(ceremony.submitted_shards) < ceremony.total_shards:
         return None
-
-    # Revoke old binding
-    revocation_mgr.revoke(
-        ceremony.old_binding_id,
-        "device_replacement",
-        ceremony.initiated_by,
-        cascade=True,
-    )
-
-    # Create new binding
-    new_binding = HardwareBinding(
-        binding_id=ceremony.new_binding_id,
-        entity_id=ceremony.entity_id,
-        device_fingerprint=hashlib.sha256(ceremony.new_public_key).hexdigest()[:16],
-        public_key=ceremony.new_public_key,
-        state=BindingState.ACTIVE,
-        created_at=time.time(),
-    )
-
+    shard_len = len(ceremony.submitted_shards[0].shard_data)
+    result = bytearray(shard_len)
+    for shard in ceremony.submitted_shards:
+        for i in range(shard_len):
+            result[i] ^= shard.shard_data[i]
     ceremony.completed = True
-    return new_binding
+    ceremony.recovered_key = bytes(result)
+    return bytes(result)
 
 
-# ─── S5: Cross-Organization Trust Bridges ───────────────────────────────────
+# ─── S3: Device Loss Detection ──────────────────────────────────────────────
+
+class DeviceLossDetector:
+    """Detect lost devices via attestation gaps."""
+
+    def __init__(self, attestation_interval: float = 3600.0, loss_threshold: int = 3):
+        self.interval = attestation_interval
+        self.threshold = loss_threshold
+        self.devices: Dict[str, DeviceBinding] = {}
+        self.missed_counts: Dict[str, int] = {}
+
+    def register(self, device: DeviceBinding):
+        self.devices[device.device_id] = device
+        self.missed_counts[device.device_id] = 0
+
+    def record_attestation(self, device_id: str, timestamp: float):
+        if device_id in self.devices:
+            self.devices[device_id].last_attestation = timestamp
+            self.missed_counts[device_id] = 0
+
+    def check_all(self, now: float) -> List[str]:
+        lost = []
+        for did, device in self.devices.items():
+            if device.state in (DeviceState.REVOKED, DeviceState.LOST):
+                continue
+            if now > device.last_attestation + self.interval:
+                missed = int((now - device.last_attestation) / self.interval)
+                self.missed_counts[did] = missed
+                if missed >= self.threshold:
+                    lost.append(did)
+        return lost
+
+    def mark_lost(self, device_id: str):
+        if device_id in self.devices:
+            self.devices[device_id].state = DeviceState.LOST
+
+
+# ─── S4: Cross-Organization Trust Bridge ────────────────────────────────────
 
 @dataclass
 class OrgTrustBridge:
-    """Trust bridge between two organizations' hardware bindings."""
     bridge_id: str
-    org_a_id: str
-    org_b_id: str
-    binding_a_id: str
-    binding_b_id: str
-    trust_level: float
-    created_at: float
-    witnessed_by: Set[str] = field(default_factory=set)
+    org_a: str
+    org_b: str
+    witness_ids: List[str]
+    bridge_trust: float = 0.0
+    created_at: float = 0.0
     active: bool = True
 
 
 class CrossOrgBridgeManager:
-    """Manage hardware trust bridges across organizations."""
-
     def __init__(self):
         self.bridges: Dict[str, OrgTrustBridge] = {}
+        self.org_devices: Dict[str, List[DeviceBinding]] = {}
 
-    def create_bridge(
-        self, org_a: str, org_b: str,
-        binding_a: str, binding_b: str,
-        witnesses: Set[str],
-    ) -> OrgTrustBridge:
-        """Create a trust bridge between two org's hardware bindings."""
-        bridge_id = hashlib.sha256(
-            f"{org_a}:{org_b}:{binding_a}:{binding_b}".encode()
-        ).hexdigest()[:16]
+    def register_org_device(self, org_id: str, device: DeviceBinding):
+        if org_id not in self.org_devices:
+            self.org_devices[org_id] = []
+        self.org_devices[org_id].append(device)
+
+    def create_bridge(self, org_a: str, org_b: str, witnesses: List[str],
+                      min_witnesses: int = 2) -> Optional[OrgTrustBridge]:
+        if len(witnesses) < min_witnesses:
+            return None
+        witness_factor = min(1.0, len(witnesses) / 5)
+        a_anchor = self._best_anchor(org_a)
+        b_anchor = self._best_anchor(org_b)
+        bridge_trust = witness_factor * min(a_anchor, b_anchor)
 
         bridge = OrgTrustBridge(
-            bridge_id=bridge_id,
-            org_a_id=org_a,
-            org_b_id=org_b,
-            binding_a_id=binding_a,
-            binding_b_id=binding_b,
-            trust_level=min(0.8, 0.2 * len(witnesses)),
-            created_at=time.time(),
-            witnessed_by=witnesses,
+            bridge_id=f"bridge_{org_a}_{org_b}", org_a=org_a, org_b=org_b,
+            witness_ids=witnesses, bridge_trust=bridge_trust, created_at=time.time(),
         )
-        self.bridges[bridge_id] = bridge
+        self.bridges[bridge.bridge_id] = bridge
         return bridge
 
-    def bridges_for_org(self, org_id: str) -> List[OrgTrustBridge]:
-        return [b for b in self.bridges.values()
-                if b.active and (b.org_a_id == org_id or b.org_b_id == org_id)]
+    def _best_anchor(self, org_id: str) -> float:
+        devices = self.org_devices.get(org_id, [])
+        return max((ANCHOR_TRUST[d.anchor_type] for d in devices), default=0.0)
 
-    def revoke_bridges_for_binding(self, binding_id: str) -> int:
-        """Revoke all bridges involving a revoked binding."""
-        count = 0
+    def cross_org_trust(self, org_a: str, org_b: str) -> float:
         for bridge in self.bridges.values():
-            if bridge.active and (bridge.binding_a_id == binding_id or bridge.binding_b_id == binding_id):
-                bridge.active = False
-                count += 1
-        return count
+            if not bridge.active:
+                continue
+            if {bridge.org_a, bridge.org_b} == {org_a, org_b}:
+                return bridge.bridge_trust
+        return 0.0
+
+    def revoke_bridge(self, bridge_id: str):
+        if bridge_id in self.bridges:
+            self.bridges[bridge_id].active = False
 
 
-# ─── S6: Hardware-to-Cloud Delegation ───────────────────────────────────────
-
-@dataclass
-class CloudDelegation:
-    """Delegation of trust from hardware binding to cloud service."""
-    delegation_id: str
-    hardware_binding_id: str
-    cloud_service_id: str
-    scope: Set[str]  # Permitted operations
-    max_trust: float  # Cloud trust cannot exceed this
-    expires_at: float
-    revoked: bool = False
-
-    def is_valid(self, now: float) -> bool:
-        return not self.revoked and now < self.expires_at
-
-    def permits(self, operation: str) -> bool:
-        return operation in self.scope
-
-
-class DelegationManager:
-    """Manage hardware-to-cloud trust delegations."""
-
-    def __init__(self):
-        self.delegations: Dict[str, CloudDelegation] = {}
-
-    def delegate(
-        self,
-        binding: HardwareBinding,
-        cloud_id: str,
-        scope: Set[str],
-        duration: float = 3600,
-    ) -> CloudDelegation:
-        """Create a scoped, time-limited delegation."""
-        deleg_id = hashlib.sha256(
-            f"{binding.binding_id}:{cloud_id}:{time.time()}".encode()
-        ).hexdigest()[:16]
-
-        deleg = CloudDelegation(
-            delegation_id=deleg_id,
-            hardware_binding_id=binding.binding_id,
-            cloud_service_id=cloud_id,
-            scope=scope,
-            max_trust=binding.trust_score * 0.8,  # 80% of hardware trust
-            expires_at=time.time() + duration,
-            revoked=False,
-        )
-        self.delegations[deleg_id] = deleg
-        return deleg
-
-    def check_permission(self, deleg_id: str, operation: str, now: float) -> bool:
-        deleg = self.delegations.get(deleg_id)
-        if not deleg:
-            return False
-        return deleg.is_valid(now) and deleg.permits(operation)
-
-    def revoke_for_binding(self, binding_id: str) -> int:
-        """Revoke all delegations when hardware binding is revoked."""
-        count = 0
-        for deleg in self.delegations.values():
-            if deleg.hardware_binding_id == binding_id and not deleg.revoked:
-                deleg.revoked = True
-                count += 1
-        return count
-
-
-# ─── S7: Key Rotation with Overlap ──────────────────────────────────────────
+# ─── S5: Hardware Upgrade Migration ──────────────────────────────────────────
 
 @dataclass
-class KeyRotation:
-    """A key rotation event."""
-    binding_id: str
-    old_version: int
-    new_version: int
-    new_public_key: bytes
-    overlap_start: float
-    overlap_end: float  # overlap_start + KEY_OVERLAP_SECONDS
-    completed: bool = False
-
-    def in_overlap(self, now: float) -> bool:
-        return self.overlap_start <= now <= self.overlap_end
-
-    def old_key_valid(self, now: float) -> bool:
-        """Old key is valid during overlap period."""
-        return now <= self.overlap_end
-
-    def new_key_valid(self, now: float) -> bool:
-        """New key is valid from overlap start."""
-        return now >= self.overlap_start
+class MigrationPlan:
+    old_device_id: str
+    new_device_id: str
+    entity_id: str
+    phase: str = "pending"
+    old_key_hash: str = ""
+    new_key_hash: str = ""
+    attestation_verified: bool = False
+    transfer_complete: bool = False
 
 
-class RotationManager:
-    """Manage key rotations with overlap periods."""
-
+class DeviceMigrator:
     def __init__(self):
-        self.rotations: Dict[str, List[KeyRotation]] = {}
+        self.migrations: Dict[str, MigrationPlan] = {}
 
-    def initiate_rotation(
-        self, binding: HardwareBinding, new_key: bytes, overlap: float = KEY_OVERLAP_SECONDS,
-    ) -> KeyRotation:
-        now = time.time()
-        rotation = KeyRotation(
-            binding_id=binding.binding_id,
-            old_version=binding.key_version,
-            new_version=binding.key_version + 1,
-            new_public_key=new_key,
-            overlap_start=now,
-            overlap_end=now + overlap,
+    def plan_migration(self, old: DeviceBinding, new: DeviceBinding, entity_id: str) -> MigrationPlan:
+        plan = MigrationPlan(
+            old_device_id=old.device_id, new_device_id=new.device_id,
+            entity_id=entity_id,
+            old_key_hash=hashlib.sha256(old.public_key).hexdigest()[:16],
+            new_key_hash=hashlib.sha256(new.public_key).hexdigest()[:16],
         )
-        if binding.binding_id not in self.rotations:
-            self.rotations[binding.binding_id] = []
-        self.rotations[binding.binding_id].append(rotation)
+        self.migrations[plan.old_device_id] = plan
+        return plan
 
-        binding.state = BindingState.ROTATING
-        return rotation
+    def attest_new_device(self, plan: MigrationPlan, new_device: DeviceBinding) -> bool:
+        if hashlib.sha256(new_device.public_key).hexdigest()[:16] != plan.new_key_hash:
+            return False
+        plan.attestation_verified = True
+        plan.phase = "attesting"
+        return True
 
-    def complete_rotation(self, binding: HardwareBinding, rotation: KeyRotation):
-        """Complete rotation: old key becomes invalid."""
-        binding.public_key = rotation.new_public_key
-        binding.key_version = rotation.new_version
-        binding.state = BindingState.ACTIVE
-        rotation.completed = True
+    def transfer_binding(self, plan: MigrationPlan) -> bool:
+        if not plan.attestation_verified:
+            return False
+        plan.transfer_complete = True
+        plan.phase = "verifying"
+        return True
 
-    def active_rotation(self, binding_id: str) -> Optional[KeyRotation]:
-        rotations = self.rotations.get(binding_id, [])
-        for r in reversed(rotations):
-            if not r.completed:
-                return r
-        return None
+    def complete_migration(self, plan: MigrationPlan) -> bool:
+        if not plan.transfer_complete:
+            return False
+        plan.phase = "complete"
+        return True
 
 
-# ─── S8: Emergency Freeze ───────────────────────────────────────────────────
+# ─── S6: Compromise Detection ───────────────────────────────────────────────
 
 @dataclass
-class FreezeOrder:
-    """Emergency freeze of a binding."""
-    binding_id: str
-    frozen_by: str
-    frozen_at: float
-    expires_at: float
-    reason: str
-    quorum_votes: Set[str] = field(default_factory=set)
-    extended: bool = False
+class BehaviorSample:
+    device_id: str
+    timestamp: float
+    action_type: str
+    source_ip: str
+    success: bool
 
 
-class FreezeProtocol:
-    """Emergency freeze with quorum and auto-expire."""
+class CompromiseDetector:
+    def __init__(self, window: float = 3600.0):
+        self.window = window
+        self.samples: Dict[str, List[BehaviorSample]] = {}
+        self.baselines: Dict[str, Dict[str, float]] = {}
 
-    def __init__(self, quorum_required: int = 2):
-        self.freeze_orders: Dict[str, FreezeOrder] = {}
-        self.quorum_required = quorum_required
+    def record(self, sample: BehaviorSample):
+        did = sample.device_id
+        if did not in self.samples:
+            self.samples[did] = []
+        self.samples[did].append(sample)
 
-    def freeze(self, binding: HardwareBinding, by: str, reason: str) -> FreezeOrder:
-        """Initiate emergency freeze."""
-        now = time.time()
-        order = FreezeOrder(
-            binding_id=binding.binding_id,
-            frozen_by=by,
-            frozen_at=now,
-            expires_at=now + FREEZE_AUTO_EXPIRE,
-            reason=reason,
-            quorum_votes={by},
-        )
-        self.freeze_orders[binding.binding_id] = order
-        binding.state = BindingState.FROZEN
-        return order
+    def establish_baseline(self, device_id: str):
+        samples = self.samples.get(device_id, [])
+        if len(samples) < 10:
+            return
+        ips = set(s.source_ip for s in samples)
+        success_rate = sum(1 for s in samples if s.success) / len(samples)
+        self.baselines[device_id] = {
+            "unique_ips": len(ips),
+            "success_rate": success_rate,
+            "avg_interval": self._avg_interval(samples),
+        }
 
-    def vote_freeze(self, binding_id: str, voter_id: str) -> bool:
-        """Additional vote to sustain freeze."""
-        order = self.freeze_orders.get(binding_id)
-        if not order:
-            return False
-        order.quorum_votes.add(voter_id)
-        return True
+    def _avg_interval(self, samples: List[BehaviorSample]) -> float:
+        if len(samples) < 2:
+            return 0.0
+        intervals = [samples[i+1].timestamp - samples[i].timestamp
+                     for i in range(len(samples) - 1)]
+        return sum(intervals) / len(intervals) if intervals else 0.0
 
-    def is_frozen(self, binding_id: str, now: float) -> bool:
-        order = self.freeze_orders.get(binding_id)
-        if not order:
-            return False
-        if now > order.expires_at:
-            # Auto-expired unless quorum sustained
-            return len(order.quorum_votes) >= self.quorum_required
-        return True
-
-    def unfreeze(self, binding: HardwareBinding, by: str) -> bool:
-        """Unfreeze requires quorum approval."""
-        order = self.freeze_orders.get(binding.binding_id)
-        if not order:
-            return False
-        binding.state = BindingState.ACTIVE
-        del self.freeze_orders[binding.binding_id]
-        return True
-
-
-# ─── S9: Binding Audit Trail ────────────────────────────────────────────────
-
-class AuditTrail:
-    """Hash-chained audit trail for binding events."""
-
-    def __init__(self):
-        self.events: List[AuditEvent] = []
-
-    def record(self, event: AuditEvent):
-        if self.events:
-            event.prev_hash = self.events[-1].event_hash
-        event.event_hash = event.compute_hash()
-        self.events.append(event)
-
-    def verify_chain(self) -> bool:
-        """Verify the hash chain is intact."""
-        for i, event in enumerate(self.events):
-            if i == 0:
-                if event.prev_hash != "":
-                    return False
-            else:
-                if event.prev_hash != self.events[i - 1].event_hash:
-                    return False
-            if event.event_hash != event.compute_hash():
-                return False
-        return True
-
-    def events_for_binding(self, binding_id: str) -> List[AuditEvent]:
-        return [e for e in self.events if e.binding_id == binding_id]
-
-
-# ─── S10: Revocation List Management ────────────────────────────────────────
-
-class RevocationList:
-    """CRL-equivalent for Web4 hardware bindings."""
-
-    def __init__(self):
-        self.entries: Dict[str, RevocationEntry] = {}
-        self.version: int = 0
-        self.last_updated: float = 0.0
-
-    def add(self, entry: RevocationEntry):
-        self.entries[entry.binding_id] = entry
-        self.version += 1
-        self.last_updated = entry.revoked_at
-
-    def is_revoked(self, binding_id: str) -> bool:
-        return binding_id in self.entries
-
-    def get_entry(self, binding_id: str) -> Optional[RevocationEntry]:
-        return self.entries.get(binding_id)
-
-    def delta_since(self, version: int) -> List[RevocationEntry]:
-        """Get entries added since a given version (for efficient sync)."""
-        if version >= self.version:
+    def detect_anomaly(self, device_id: str, now: float) -> List[str]:
+        baseline = self.baselines.get(device_id)
+        if not baseline:
             return []
-        all_entries = sorted(self.entries.values(), key=lambda e: e.revoked_at)
-        delta_count = self.version - version
-        return all_entries[-delta_count:] if delta_count <= len(all_entries) else list(all_entries)
+        recent = [s for s in self.samples.get(device_id, [])
+                  if now - s.timestamp < self.window]
+        if len(recent) < 5:
+            return []
 
-    def fingerprint(self) -> str:
-        """Content fingerprint for sync comparison."""
-        ids = sorted(self.entries.keys())
-        return hashlib.sha256("|".join(ids).encode()).hexdigest()[:16]
+        anomalies = []
+        recent_ips = len(set(s.source_ip for s in recent))
+        if baseline["unique_ips"] > 0 and recent_ips > baseline["unique_ips"] * 3:
+            anomalies.append(f"ip_diversity_spike:{recent_ips}")
+
+        recent_success = sum(1 for s in recent if s.success) / len(recent)
+        if baseline["success_rate"] - recent_success > 0.3:
+            anomalies.append(f"success_rate_drop:{recent_success:.2f}")
+
+        if baseline["avg_interval"] > 0:
+            recent_interval = self._avg_interval(recent)
+            if recent_interval > 0 and baseline["avg_interval"] / recent_interval > 5:
+                anomalies.append(f"frequency_spike:{recent_interval:.2f}")
+
+        return anomalies
 
 
-# ─── S11: Performance ───────────────────────────────────────────────────────
+# ─── S7: Secure Erasure Verification ────────────────────────────────────────
 
-# Included in checks
+@dataclass
+class ErasureProof:
+    device_id: str
+    erasure_method: str
+    timestamp: float
+    attestation_hash: str
+    verifier_id: str
+    verified: bool = False
+
+
+class ErasureVerifier:
+    def __init__(self):
+        self.proofs: Dict[str, ErasureProof] = {}
+
+    def submit_proof(self, proof: ErasureProof) -> bool:
+        if len(proof.attestation_hash) < 16:
+            return False
+        self.proofs[proof.device_id] = proof
+        return True
+
+    def verify_erasure(self, device_id: str, expected_method: str = None) -> bool:
+        proof = self.proofs.get(device_id)
+        if not proof:
+            return False
+        if expected_method and proof.erasure_method != expected_method:
+            return False
+        proof.verified = True
+        return True
+
+    def is_erased(self, device_id: str) -> bool:
+        proof = self.proofs.get(device_id)
+        return proof is not None and proof.verified
+
+
+# ─── S8: Constellation Management ───────────────────────────────────────────
+
+class Constellation:
+    def __init__(self, entity_id: str):
+        self.entity_id = entity_id
+        self.devices: Dict[str, DeviceBinding] = {}
+        self.primary_device: Optional[str] = None
+
+    def add_device(self, device: DeviceBinding) -> bool:
+        if device.device_id in self.devices:
+            return False
+        device.entity_id = self.entity_id
+        self.devices[device.device_id] = device
+        if self.primary_device is None:
+            self.primary_device = device.device_id
+        return True
+
+    def remove_device(self, device_id: str) -> bool:
+        if device_id not in self.devices:
+            return False
+        del self.devices[device_id]
+        if self.primary_device == device_id:
+            active = [d for d in self.devices.values() if d.state == DeviceState.ACTIVE]
+            self.primary_device = active[0].device_id if active else None
+        return True
+
+    def active_devices(self) -> List[DeviceBinding]:
+        return [d for d in self.devices.values() if d.state == DeviceState.ACTIVE]
+
+    def constellation_trust(self) -> float:
+        active = self.active_devices()
+        if not active:
+            return 0.0
+        total_w = sum(ANCHOR_TRUST[d.anchor_type] for d in active)
+        weighted_trust = sum(d.trust_score * ANCHOR_TRUST[d.anchor_type] for d in active)
+        base = weighted_trust / total_w if total_w > 0 else 0.0
+        bonus = min(0.1, 0.02 * (len(active) - 1))
+        return min(1.0, base + bonus)
+
+    def promote_primary(self, device_id: str) -> bool:
+        if device_id not in self.devices:
+            return False
+        if self.devices[device_id].state != DeviceState.ACTIVE:
+            return False
+        self.primary_device = device_id
+        return True
+
+
+# ─── S9: Emergency Recovery with Social Witnesses ───────────────────────────
+
+@dataclass
+class EmergencyRecoveryRequest:
+    entity_id: str
+    requested_at: float
+    witness_approvals: Dict[str, float] = field(default_factory=dict)
+    witness_rejections: Set[str] = field(default_factory=set)
+    required_approvals: int = 3
+    expires_at: float = 0.0
+    status: str = "pending"
+
+
+def process_emergency_recovery(request: EmergencyRecoveryRequest, now: float) -> str:
+    if now > request.expires_at:
+        request.status = "expired"
+        return "expired"
+    if len(request.witness_rejections) > len(request.witness_approvals):
+        request.status = "rejected"
+        return "rejected"
+    if len(request.witness_approvals) >= request.required_approvals:
+        request.status = "approved"
+        return "approved"
+    return "pending"
+
+
+# ─── S10: Revocation Propagation Across Federation ──────────────────────────
+
+@dataclass
+class RevocationBroadcast:
+    cert: RevocationCert
+    origin_federation: str
+    hops: int = 0
+    max_hops: int = 5
+    received_by: Set[str] = field(default_factory=set)
+
+
+class FederationRevocationPropagator:
+    def __init__(self):
+        self.broadcasts: Dict[str, RevocationBroadcast] = {}
+        self.federation_peers: Dict[str, Set[str]] = {}
+        self.node_federations: Dict[str, str] = {}
+
+    def register_federation(self, fed_id: str, nodes: List[str], peers: Set[str]):
+        self.federation_peers[fed_id] = peers
+        for node in nodes:
+            self.node_federations[node] = fed_id
+
+    def broadcast_revocation(self, cert: RevocationCert, origin_fed: str) -> RevocationBroadcast:
+        broadcast = RevocationBroadcast(cert=cert, origin_federation=origin_fed,
+                                        received_by={origin_fed})
+        self.broadcasts[cert.device_id] = broadcast
+        return broadcast
+
+    def propagate(self, broadcast: RevocationBroadcast) -> Set[str]:
+        if broadcast.hops >= broadcast.max_hops:
+            return set()
+        newly_reached = set()
+        for fed in set(broadcast.received_by):
+            for peer in self.federation_peers.get(fed, set()):
+                if peer not in broadcast.received_by:
+                    broadcast.received_by.add(peer)
+                    newly_reached.add(peer)
+        broadcast.hops += 1
+        return newly_reached
+
+    def full_propagation(self, broadcast: RevocationBroadcast) -> int:
+        while broadcast.hops < broadcast.max_hops:
+            if not self.propagate(broadcast):
+                break
+        return len(broadcast.received_by)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -757,357 +591,299 @@ class RevocationList:
 
 def run_checks():
     checks = []
+    import random
+    rng = random.Random(42)
+    now = time.time()
 
-    # ── S1: Key Revocation with Cascade ──────────────────────────────────
+    # ── S1: Key Revocation ───────────────────────────────────────────────
 
-    mgr = RevocationManager()
-    root = HardwareBinding("root_bind", "root_entity", "fp_root", b"pk_root")
-    child1 = HardwareBinding("child1", "c1_entity", "fp_c1", b"pk_c1")
-    child2 = HardwareBinding("child2", "c2_entity", "fp_c2", b"pk_c2")
-    grandchild = HardwareBinding("gc1", "gc_entity", "fp_gc", b"pk_gc")
+    registry = RevocationRegistry()
+    registry.add_dependency("root_key", "child_1")
+    registry.add_dependency("root_key", "child_2")
+    registry.add_dependency("child_1", "grandchild_1")
 
-    mgr.register(root)
-    mgr.register(child1)
-    mgr.register(child2)
-    mgr.register(grandchild)
-    mgr.add_trust_link("root_bind", "child1")
-    mgr.add_trust_link("root_bind", "child2")
-    mgr.add_trust_link("child1", "gc1")
+    cert = RevocationCert("root_key", "compromised", now, "admin")
+    revoked = registry.revoke(cert)
+    checks.append(("s1_cascade_revoke", len(revoked) == 4))
 
-    # S1.1: Cascade revocation
-    entries = mgr.revoke("root_bind", "compromised", "admin", cascade=True)
-    checks.append(("s1_cascade_count", len(entries) == 4))  # root + child1 + child2 + gc1
+    checks.append(("s1_all_revoked",
+        registry.is_revoked("root_key") and
+        registry.is_revoked("child_1") and
+        registry.is_revoked("grandchild_1")))
 
-    # S1.2: All downstream revoked
-    checks.append(("s1_all_revoked", all(mgr.is_revoked(bid)
-                   for bid in ["root_bind", "child1", "child2", "gc1"])))
+    chain = registry.revocation_chain("grandchild_1")
+    checks.append(("s1_chain", chain[0] == "root_key" and chain[-1] == "grandchild_1"))
 
-    # S1.3: Revoking already-revoked is no-op
-    entries = mgr.revoke("root_bind", "again", "admin")
-    checks.append(("s1_already_revoked_noop", len(entries) == 0))
+    reg2 = RevocationRegistry()
+    reg2.add_dependency("parent", "child")
+    cert2 = RevocationCert("parent", "expired", now, "admin", cascade=False)
+    revoked2 = reg2.revoke(cert2)
+    checks.append(("s1_no_cascade", len(revoked2) == 1 and not reg2.is_revoked("child")))
 
-    # S1.4: Non-cascade revocation
-    mgr2 = RevocationManager()
-    p = HardwareBinding("parent", "pe", "fp", b"pk")
-    c = HardwareBinding("child", "ce", "fp", b"pk")
-    mgr2.register(p)
-    mgr2.register(c)
-    mgr2.add_trust_link("parent", "child")
-    entries = mgr2.revoke("parent", "test", "admin", cascade=False)
-    checks.append(("s1_no_cascade", not mgr2.is_revoked("child")))
+    checks.append(("s1_unrevoked", not reg2.is_revoked("unknown_device")))
+    checks.append(("s1_cert_hash", cert.hash() == cert.hash()))
 
-    # S1.5: Revocation list maintained
-    checks.append(("s1_revocation_list", mgr.revocation_count() > 0))
+    # ── S2: Quorum-Based Key Recovery ────────────────────────────────────
 
-    # ── S2: Quorum-Based Recovery ────────────────────────────────────────
+    secret = b"super_secret_key_32_bytes_long!!"
+    holders = ["alice", "bob", "charlie", "dave", "eve"]
+    ceremony = create_recovery_shards(secret, threshold=3, total=5, holders=holders)
 
-    recovery = RecoveryProtocol(threshold=3, total_shares=5)
-    lost_binding = HardwareBinding("lost1", "user1", "fp_lost", b"pk_lost")
-    custodians = ["cust_a", "cust_b", "cust_c", "cust_d", "cust_e"]
+    checks.append(("s2_shard_count", len(ceremony.shards) == 5))
 
-    # S2.1: Create shares
-    shares = recovery.create_shares(lost_binding, custodians)
-    checks.append(("s2_shares_created", len(shares) == 5))
+    for shard in ceremony.shards[:4]:
+        submit_shard(ceremony, shard)
+    checks.append(("s2_submit_4", len(ceremony.submitted_shards) == 4))
 
-    # S2.2: Below threshold → can't recover
-    recovery.approve_recovery("lost1", "cust_a")
-    recovery.approve_recovery("lost1", "cust_b")
-    checks.append(("s2_below_threshold", not recovery.can_recover("lost1")))
+    checks.append(("s2_dup_rejected", not submit_shard(ceremony, ceremony.shards[0])))
 
-    # S2.3: At threshold → can recover
-    recovery.approve_recovery("lost1", "cust_c")
-    checks.append(("s2_at_threshold", recovery.can_recover("lost1")))
+    result = attempt_recovery(ceremony)
+    checks.append(("s2_not_enough", result is None))
 
-    # S2.4: Execute recovery
-    new_key = os.urandom(32)
-    recovered = recovery.execute_recovery("lost1", new_key)
-    checks.append(("s2_recovery_success", recovered is not None and recovered.state == BindingState.ACTIVE))
+    submit_shard(ceremony, ceremony.shards[4])
+    result = attempt_recovery(ceremony)
+    checks.append(("s2_recovery_success", result == secret))
 
-    # S2.5: Recovery state cleared
-    checks.append(("s2_state_cleared", recovery.approval_count("lost1") == 0))
+    checks.append(("s2_completed", ceremony.completed))
 
-    # S2.6: Invalid custodian rejected
-    checks.append(("s2_invalid_custodian", not recovery.approve_recovery("lost1", "unknown")))
+    new_ceremony = create_recovery_shards(b"test" * 8, 2, 3, ["a", "b", "c"])
+    new_ceremony.completed = True
+    checks.append(("s2_submit_after_complete", not submit_shard(new_ceremony, new_ceremony.shards[0])))
 
-    # S2.7: Not enough custodians → no shares
-    short = RecoveryProtocol(threshold=3, total_shares=5)
-    shares = short.create_shares(lost_binding, ["a", "b"])  # Only 2 of 5 needed
-    checks.append(("s2_insufficient_custodians", len(shares) == 0))
+    # ── S3: Device Loss Detection ────────────────────────────────────────
 
-    # ── S3: Compromise Detection ─────────────────────────────────────────
+    detector = DeviceLossDetector(attestation_interval=3600.0, loss_threshold=3)
 
-    detector = CompromiseDetector()
-    now = 1000.0
+    dev1 = DeviceBinding("dev1", AnchorType.TPM_DISCRETE, b"pk1", last_attestation=now - 7200)
+    dev2 = DeviceBinding("dev2", AnchorType.FIDO2, b"pk2", last_attestation=now)
 
-    # S3.1: Concurrent use detected
-    detector.record(BehaviorSample("bind1", now, "loc_a", "sign", True))
-    detector.record(BehaviorSample("bind1", now + 1, "loc_b", "sign", True))
-    checks.append(("s3_concurrent_detected", detector.check_concurrent_use("bind1")))
+    detector.register(dev1)
+    detector.register(dev2)
 
-    # S3.2: Same location not flagged
-    detector2 = CompromiseDetector()
-    detector2.record(BehaviorSample("bind2", now, "loc_a", "sign", True))
-    detector2.record(BehaviorSample("bind2", now + 1, "loc_a", "sign", True))
-    checks.append(("s3_same_loc_ok", not detector2.check_concurrent_use("bind2")))
+    lost = detector.check_all(now + 7200)  # 2 hours: dev1 missed 4 (att 2h ago + 2h), dev2 missed 2
+    checks.append(("s3_lost_detected", "dev1" in lost))
+    checks.append(("s3_fresh_not_lost", "dev2" not in lost))
 
-    # S3.3: High failure rate detected
-    det3 = CompromiseDetector()
-    for i in range(10):
-        det3.record(BehaviorSample("bind3", now + i, "loc_a", "sign", i < 2))
-    checks.append(("s3_high_failure", det3.check_failure_rate("bind3")))
+    detector.record_attestation("dev1", now + 14400)
+    lost_after = detector.check_all(now + 14401)
+    checks.append(("s3_attestation_resets", "dev1" not in lost_after))
 
-    # S3.4: Normal failure rate not flagged
-    det4 = CompromiseDetector()
-    for i in range(10):
-        det4.record(BehaviorSample("bind4", now + i, "loc_a", "sign", True))
-    checks.append(("s3_normal_rate_ok", not det4.check_failure_rate("bind4")))
+    detector.mark_lost("dev1")
+    checks.append(("s3_mark_lost", detector.devices["dev1"].state == DeviceState.LOST))
 
-    # S3.5: Risk score
-    risk = detector.risk_score("bind1")
-    checks.append(("s3_risk_score_positive", risk > 0))
+    lost_again = detector.check_all(now + 100000)
+    checks.append(("s3_lost_skipped", "dev1" not in lost_again))
 
-    # S3.6: No risk for clean binding
-    checks.append(("s3_no_risk_clean", detector.risk_score("clean_bind") == 0.0))
-
-    # S3.7: Risk score bounded
-    checks.append(("s3_risk_bounded", 0.0 <= risk <= 1.0))
-
-    # ── S4: Device Replacement ───────────────────────────────────────────
-
-    rev_mgr = RevocationManager()
-    old_bind = HardwareBinding("old_device", "user1", "fp_old", b"pk_old")
-    rev_mgr.register(old_bind)
-
-    ceremony = ReplacementCeremony(
-        old_binding_id="old_device",
-        new_binding_id="new_device",
-        entity_id="user1",
-        initiated_by="user1",
-        initiated_at=time.time(),
-        required_witnesses=2,
-    )
-
-    # S4.1: Not ready without witnesses
-    checks.append(("s4_not_ready", not ceremony.is_ready()))
-
-    # S4.2: Approve witnesses
-    ceremony.approve("witness1")
-    ceremony.approve("witness2")
-    ceremony.new_public_key = os.urandom(32)
-    checks.append(("s4_ready", ceremony.is_ready()))
-
-    # S4.3: Execute replacement
-    new_bind = execute_replacement(ceremony, rev_mgr)
-    checks.append(("s4_replaced", new_bind is not None and new_bind.state == BindingState.ACTIVE))
-
-    # S4.4: Old binding revoked
-    checks.append(("s4_old_revoked", rev_mgr.is_revoked("old_device")))
-
-    # S4.5: Ceremony marked complete
-    checks.append(("s4_complete", ceremony.completed))
-
-    # ── S5: Cross-Organization Trust Bridges ─────────────────────────────
+    # ── S4: Cross-Organization Trust Bridge ──────────────────────────────
 
     bridge_mgr = CrossOrgBridgeManager()
+    bridge_mgr.register_org_device("org_a", DeviceBinding("da1", AnchorType.TPM_DISCRETE, b"pk"))
+    bridge_mgr.register_org_device("org_b", DeviceBinding("db1", AnchorType.SECURE_ENCLAVE, b"pk"))
 
-    # S5.1: Create bridge
-    bridge = bridge_mgr.create_bridge("org_a", "org_b", "bind_a", "bind_b", {"w1", "w2", "w3"})
-    checks.append(("s5_bridge_created", bridge.active))
+    bridge = bridge_mgr.create_bridge("org_a", "org_b", ["w1", "w2", "w3"])
+    checks.append(("s4_bridge_created", bridge is not None))
+    checks.append(("s4_bridge_trust", bridge is not None and 0 < bridge.bridge_trust <= 1.0))
 
-    # S5.2: Trust level from witnesses
-    checks.append(("s5_trust_from_witnesses", abs(bridge.trust_level - 0.6) < 0.001))
+    bad_bridge = bridge_mgr.create_bridge("org_a", "org_c", ["w1"])
+    checks.append(("s4_insufficient_witnesses", bad_bridge is None))
 
-    # S5.3: Find bridges for org
-    bridges = bridge_mgr.bridges_for_org("org_a")
-    checks.append(("s5_bridges_for_org", len(bridges) == 1))
+    trust = bridge_mgr.cross_org_trust("org_a", "org_b")
+    checks.append(("s4_cross_org_trust", trust > 0))
+    checks.append(("s4_unknown_zero", bridge_mgr.cross_org_trust("org_a", "org_z") == 0.0))
 
-    # S5.4: Revoke bridges for binding
-    count = bridge_mgr.revoke_bridges_for_binding("bind_a")
-    checks.append(("s5_revoke_bridges", count == 1))
+    bridge_mgr.revoke_bridge(bridge.bridge_id)
+    checks.append(("s4_revoke_bridge", bridge_mgr.cross_org_trust("org_a", "org_b") == 0.0))
 
-    # S5.5: Revoked bridge not in active list
-    bridges = bridge_mgr.bridges_for_org("org_a")
-    checks.append(("s5_revoked_not_active", len(bridges) == 0))
+    # ── S5: Hardware Upgrade Migration ───────────────────────────────────
 
-    # ── S6: Hardware-to-Cloud Delegation ─────────────────────────────────
+    migrator = DeviceMigrator()
+    old = DeviceBinding("old_dev", AnchorType.FIDO2, b"old_key")
+    new = DeviceBinding("new_dev", AnchorType.TPM_DISCRETE, b"new_key")
 
-    deleg_mgr = DelegationManager()
-    hw_bind = HardwareBinding("hw1", "user1", "fp", b"pk", trust_score=0.8)
+    plan = migrator.plan_migration(old, new, "alice")
+    checks.append(("s5_plan_created", plan.phase == "pending"))
 
-    # S6.1: Create delegation
-    deleg = deleg_mgr.delegate(hw_bind, "cloud1", {"read", "write"}, duration=3600)
-    checks.append(("s6_delegation_created", abs(deleg.max_trust - 0.64) < 0.001))  # 0.8 * 0.8
+    success = migrator.attest_new_device(plan, new)
+    checks.append(("s5_attest_success", success and plan.attestation_verified))
 
-    # S6.2: Check permitted operation
-    checks.append(("s6_permitted", deleg_mgr.check_permission(deleg.delegation_id, "read", time.time())))
+    success = migrator.transfer_binding(plan)
+    checks.append(("s5_transfer", success and plan.transfer_complete))
 
-    # S6.3: Unpermitted operation denied
-    checks.append(("s6_denied", not deleg_mgr.check_permission(deleg.delegation_id, "delete", time.time())))
+    success = migrator.complete_migration(plan)
+    checks.append(("s5_complete", success and plan.phase == "complete"))
 
-    # S6.4: Revoke delegations for binding
-    count = deleg_mgr.revoke_for_binding("hw1")
-    checks.append(("s6_revoke_delegations", count == 1))
+    plan2 = migrator.plan_migration(old, new, "bob")
+    checks.append(("s5_no_attest_fail", not migrator.transfer_binding(plan2)))
 
-    # S6.5: Revoked delegation denied
-    checks.append(("s6_revoked_denied", not deleg_mgr.check_permission(deleg.delegation_id, "read", time.time())))
+    plan3 = migrator.plan_migration(old, new, "charlie")
+    wrong_dev = DeviceBinding("wrong", AnchorType.TPM_DISCRETE, b"wrong_key")
+    checks.append(("s5_wrong_key", not migrator.attest_new_device(plan3, wrong_dev)))
 
-    # ── S7: Key Rotation ─────────────────────────────────────────────────
+    # ── S6: Compromise Detection ─────────────────────────────────────────
 
-    rot_mgr = RotationManager()
-    rot_bind = HardwareBinding("rot1", "user1", "fp", b"old_key", key_version=1)
+    comp_det = CompromiseDetector(window=3600.0)
+    for i in range(20):
+        comp_det.record(BehaviorSample("dev_normal", now - 7200 + i * 300, "login", "192.168.1.1", True))
+    comp_det.establish_baseline("dev_normal")
 
-    # S7.1: Initiate rotation
-    new_key = b"new_key_data"
-    rotation = rot_mgr.initiate_rotation(rot_bind, new_key, overlap=100)
-    checks.append(("s7_initiated", rot_bind.state == BindingState.ROTATING))
+    checks.append(("s6_baseline", "dev_normal" in comp_det.baselines))
 
-    # S7.2: Both keys valid during overlap
-    now = time.time()
-    checks.append(("s7_overlap_both", rotation.old_key_valid(now) and rotation.new_key_valid(now)))
+    for i in range(10):
+        comp_det.record(BehaviorSample("dev_normal", now + i * 300, "login", "192.168.1.1", True))
+    anomalies = comp_det.detect_anomaly("dev_normal", now + 3000)
+    checks.append(("s6_normal_no_anomaly", len(anomalies) == 0))
 
-    # S7.3: Complete rotation
-    rot_mgr.complete_rotation(rot_bind, rotation)
-    checks.append(("s7_completed", rot_bind.key_version == 2 and rot_bind.state == BindingState.ACTIVE))
+    for i in range(10):
+        comp_det.record(BehaviorSample("dev_normal", now + 3100 + i * 10, "login", f"10.{i}.{i}.{i}", True))
+    anomalies = comp_det.detect_anomaly("dev_normal", now + 3200)
+    checks.append(("s6_ip_spike", any("ip_diversity" in a for a in anomalies)))
 
-    # S7.4: Active rotation check
-    rot2 = RotationManager()
-    b2 = HardwareBinding("r2", "u", "fp", b"key")
-    rot2.initiate_rotation(b2, b"new")
-    checks.append(("s7_active_rotation", rot2.active_rotation("r2") is not None))
+    checks.append(("s6_insufficient", len(comp_det.detect_anomaly("unknown", now)) == 0))
 
-    # S7.5: No active after completion
-    checks.append(("s7_no_active_after", rot_mgr.active_rotation("rot1") is None))
+    # ── S7: Secure Erasure ───────────────────────────────────────────────
 
-    # ── S8: Emergency Freeze ─────────────────────────────────────────────
+    eraser = ErasureVerifier()
+    proof = ErasureProof("erased_dev", "crypto_erase", now,
+                        hashlib.sha256(b"attestation").hexdigest(), "verifier_1")
+    checks.append(("s7_submit", eraser.submit_proof(proof)))
+    checks.append(("s7_verify", eraser.verify_erasure("erased_dev")))
+    checks.append(("s7_is_erased", eraser.is_erased("erased_dev")))
+    checks.append(("s7_not_erased", not eraser.is_erased("unknown")))
 
-    freeze = FreezeProtocol(quorum_required=2)
-    freeze_bind = HardwareBinding("frz1", "user1", "fp", b"pk")
+    bad_proof = ErasureProof("bad", "overwrite", now, "short", "v1")
+    checks.append(("s7_short_hash", not eraser.submit_proof(bad_proof)))
 
-    # S8.1: Freeze binding
-    order = freeze.freeze(freeze_bind, "admin1", "suspected compromise")
-    checks.append(("s8_frozen", freeze_bind.state == BindingState.FROZEN))
+    proof2 = ErasureProof("dev2", "overwrite", now, hashlib.sha256(b"x").hexdigest(), "v1")
+    eraser.submit_proof(proof2)
+    checks.append(("s7_wrong_method", not eraser.verify_erasure("dev2", "crypto_erase")))
 
-    # S8.2: Is frozen before expiry
-    checks.append(("s8_is_frozen", freeze.is_frozen("frz1", time.time())))
+    # ── S8: Constellation Management ─────────────────────────────────────
 
-    # S8.3: Auto-expires without quorum
-    checks.append(("s8_auto_expires", not freeze.is_frozen("frz1", time.time() + FREEZE_AUTO_EXPIRE + 1)))
+    constellation = Constellation("alice")
+    d1 = DeviceBinding("phone", AnchorType.SECURE_ENCLAVE, b"pk1", trust_score=0.8)
+    d2 = DeviceBinding("laptop", AnchorType.TPM_DISCRETE, b"pk2", trust_score=0.9)
+    d3 = DeviceBinding("yubikey", AnchorType.FIDO2, b"pk3", trust_score=0.7)
 
-    # S8.4: Quorum sustains freeze
-    freeze.vote_freeze("frz1", "admin2")
-    checks.append(("s8_quorum_sustains", freeze.is_frozen("frz1", time.time() + FREEZE_AUTO_EXPIRE + 1)))
+    constellation.add_device(d1)
+    constellation.add_device(d2)
+    constellation.add_device(d3)
+    checks.append(("s8_add_3", len(constellation.devices) == 3))
+    checks.append(("s8_first_primary", constellation.primary_device == "phone"))
 
-    # S8.5: Unfreeze
-    freeze.unfreeze(freeze_bind, "admin1")
-    checks.append(("s8_unfrozen", freeze_bind.state == BindingState.ACTIVE))
+    trust = constellation.constellation_trust()
+    checks.append(("s8_trust_valid", 0.0 < trust <= 1.0))
 
-    # ── S9: Audit Trail ──────────────────────────────────────────────────
+    single = Constellation("solo")
+    single.add_device(DeviceBinding("only", AnchorType.TPM_DISCRETE, b"pk", trust_score=0.8))
+    checks.append(("s8_multi_bonus", constellation.constellation_trust() > single.constellation_trust()))
 
-    audit = AuditTrail()
+    constellation.remove_device("phone")
+    checks.append(("s8_remove", len(constellation.devices) == 2))
+    checks.append(("s8_auto_promote", constellation.primary_device is not None))
+    checks.append(("s8_promote", constellation.promote_primary("yubikey")))
+    checks.append(("s8_dup_rejected", not constellation.add_device(d2)))
 
-    # S9.1: Record events
-    for i in range(5):
-        audit.record(AuditEvent(
-            event_type="action",
-            binding_id="bind1",
-            actor_id="user1",
-            timestamp=1000 + i,
-        ))
-    checks.append(("s9_recorded", len(audit.events) == 5))
+    # ── S9: Emergency Recovery ───────────────────────────────────────────
 
-    # S9.2: Chain is valid
-    checks.append(("s9_chain_valid", audit.verify_chain()))
+    recovery = EmergencyRecoveryRequest(
+        entity_id="alice", requested_at=now, required_approvals=3, expires_at=now + 86400)
+    checks.append(("s9_initial_pending", process_emergency_recovery(recovery, now) == "pending"))
 
-    # S9.3: First event has empty prev_hash
-    checks.append(("s9_first_empty_prev", audit.events[0].prev_hash == ""))
+    recovery.witness_approvals["w1"] = now
+    recovery.witness_approvals["w2"] = now + 1
+    checks.append(("s9_partial_pending", process_emergency_recovery(recovery, now + 2) == "pending"))
 
-    # S9.4: Tamper detection
-    audit.events[2].event_hash = "tampered"
-    checks.append(("s9_tamper_detected", not audit.verify_chain()))
+    recovery.witness_approvals["w3"] = now + 3
+    checks.append(("s9_approved", process_emergency_recovery(recovery, now + 4) == "approved"))
 
-    # S9.5: Events for binding
-    audit2 = AuditTrail()
-    audit2.record(AuditEvent("a", "bind1", "u", 1))
-    audit2.record(AuditEvent("b", "bind2", "u", 2))
-    events = audit2.events_for_binding("bind1")
-    checks.append(("s9_filter_binding", len(events) == 1))
+    expired_req = EmergencyRecoveryRequest(
+        entity_id="bob", requested_at=now, required_approvals=3, expires_at=now + 100)
+    checks.append(("s9_expired", process_emergency_recovery(expired_req, now + 200) == "expired"))
 
-    # ── S10: Revocation List ─────────────────────────────────────────────
+    rejected_req = EmergencyRecoveryRequest(
+        entity_id="charlie", requested_at=now, required_approvals=3, expires_at=now + 86400)
+    rejected_req.witness_approvals["w1"] = now
+    rejected_req.witness_rejections.update(["w2", "w3", "w4"])
+    checks.append(("s9_rejected", process_emergency_recovery(rejected_req, now + 1) == "rejected"))
 
-    crl = RevocationList()
+    # ── S10: Federation Revocation Propagation ───────────────────────────
 
-    # S10.1: Add and check
-    crl.add(RevocationEntry("revoked1", 1000, "test", "admin"))
-    checks.append(("s10_is_revoked", crl.is_revoked("revoked1")))
-    checks.append(("s10_not_revoked", not crl.is_revoked("clean")))
+    propagator = FederationRevocationPropagator()
+    propagator.register_federation("fed1", ["n1", "n2"], {"fed2"})
+    propagator.register_federation("fed2", ["n3", "n4"], {"fed1", "fed3"})
+    propagator.register_federation("fed3", ["n5", "n6"], {"fed2", "fed4"})
+    propagator.register_federation("fed4", ["n7"], {"fed3"})
 
-    # S10.2: Version increments
-    crl.add(RevocationEntry("revoked2", 1001, "test", "admin"))
-    checks.append(("s10_version", crl.version == 2))
+    cert = RevocationCert("compromised_key", "stolen", now, "admin")
+    broadcast = propagator.broadcast_revocation(cert, "fed1")
 
-    # S10.3: Delta since version
-    delta = crl.delta_since(1)
-    checks.append(("s10_delta", len(delta) == 1))
+    checks.append(("s10_origin", "fed1" in broadcast.received_by))
 
-    # S10.4: Delta since 0 returns all
-    delta = crl.delta_since(0)
-    checks.append(("s10_delta_all", len(delta) == 2))
+    propagator.propagate(broadcast)
+    checks.append(("s10_one_hop", "fed2" in broadcast.received_by))
 
-    # S10.5: Fingerprint deterministic
-    fp1 = crl.fingerprint()
-    fp2 = crl.fingerprint()
-    checks.append(("s10_fingerprint", fp1 == fp2))
+    propagator.propagate(broadcast)
+    checks.append(("s10_two_hops", "fed3" in broadcast.received_by))
 
-    # S10.6: Get entry
-    entry = crl.get_entry("revoked1")
-    checks.append(("s10_get_entry", entry is not None and entry.reason == "test"))
+    total = propagator.full_propagation(broadcast)
+    checks.append(("s10_full_propagation", total == 4))
+
+    limited = RevocationBroadcast(cert, "fed1", max_hops=1, received_by={"fed1"})
+    propagator.propagate(limited)
+    checks.append(("s10_max_hops", limited.hops <= 1))
 
     # ── S11: Performance ─────────────────────────────────────────────────
 
-    import random
-    rng = random.Random(42)
-
-    # S11.1: Mass revocation cascade
     t0 = time.time()
-    big_mgr = RevocationManager()
+    big_reg = RevocationRegistry()
     for i in range(100):
-        big_mgr.register(HardwareBinding(f"b{i}", f"e{i}", f"fp{i}", f"pk{i}".encode()))
-    for i in range(99):
-        big_mgr.add_trust_link(f"b{i}", f"b{i+1}")
-    entries = big_mgr.revoke("b0", "test", "admin")
+        big_reg.add_dependency(f"dev_{i}", f"dev_{i + 1}")
+    cert = RevocationCert("dev_0", "test", now, "admin")
+    revoked = big_reg.revoke(cert)
     elapsed = time.time() - t0
-    checks.append(("s11_cascade_100", len(entries) == 100 and elapsed < 1.0))
+    checks.append(("s11_cascade_100", len(revoked) == 101 and elapsed < 1.0))
 
-    # S11.2: Compromise check at scale
     t0 = time.time()
-    big_det = CompromiseDetector()
-    for i in range(1000):
-        big_det.record(BehaviorSample(
-            f"b{i % 50}", now + i * 0.01,
-            f"loc_{rng.randint(0, 5)}", "sign", rng.random() > 0.2,
-        ))
-    for i in range(50):
-        big_det.check_concurrent_use(f"b{i}")
+    big_const = Constellation("big_entity")
+    for i in range(20):
+        anchor = list(AnchorType)[i % 5]
+        big_const.add_device(DeviceBinding(f"d{i}", anchor, f"pk{i}".encode(), trust_score=rng.random()))
+    trust = big_const.constellation_trust()
     elapsed = time.time() - t0
-    checks.append(("s11_compromise_1000", elapsed < 2.0))
+    checks.append(("s11_constellation_20", 0.0 < trust <= 1.0 and elapsed < 1.0))
 
-    # S11.3: Audit trail verification at scale
     t0 = time.time()
-    big_audit = AuditTrail()
-    for i in range(1000):
-        big_audit.record(AuditEvent("action", f"b{i%50}", "admin", now + i))
-    valid = big_audit.verify_chain()
-    elapsed = time.time() - t0
-    checks.append(("s11_audit_1000", valid and elapsed < 2.0))
-
-    # S11.4: CRL at scale
-    t0 = time.time()
-    big_crl = RevocationList()
+    big_det = DeviceLossDetector()
     for i in range(500):
-        big_crl.add(RevocationEntry(f"r{i}", now + i, "test", "admin"))
-    delta = big_crl.delta_since(400)
+        d = DeviceBinding(f"dl_{i}", AnchorType.FIDO2, f"pk{i}".encode(),
+                         last_attestation=now - rng.uniform(0, 20000))
+        big_det.register(d)
+    lost = big_det.check_all(now + 14400)
     elapsed = time.time() - t0
-    checks.append(("s11_crl_500", len(delta) == 100 and elapsed < 1.0))
+    checks.append(("s11_loss_500", elapsed < 1.0))
+
+    t0 = time.time()
+    big_bridge = CrossOrgBridgeManager()
+    for i in range(50):
+        big_bridge.register_org_device(f"org_{i}",
+            DeviceBinding(f"do_{i}", AnchorType.TPM_DISCRETE, b"pk"))
+    for i in range(49):
+        big_bridge.create_bridge(f"org_{i}", f"org_{i+1}", [f"w{j}" for j in range(3)])
+    elapsed = time.time() - t0
+    checks.append(("s11_bridges_50", elapsed < 1.0))
+
+    t0 = time.time()
+    big_prop = FederationRevocationPropagator()
+    for i in range(20):
+        peers = set()
+        if i > 0: peers.add(f"f{i-1}")
+        if i < 19: peers.add(f"f{i+1}")
+        big_prop.register_federation(f"f{i}", [f"n{i}"], peers)
+    bc = big_prop.broadcast_revocation(RevocationCert("key", "test", now, "admin"), "f0")
+    bc.max_hops = 20  # Linear chain needs 19 hops to reach all 20 feds
+    total = big_prop.full_propagation(bc)
+    elapsed = time.time() - t0
+    checks.append(("s11_propagation_20", total == 20 and elapsed < 1.0))
 
     # ── Print Results ────────────────────────────────────────────────────
     passed = sum(1 for _, ok in checks if ok)
