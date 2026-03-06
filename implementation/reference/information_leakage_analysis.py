@@ -383,8 +383,9 @@ class GraphStructureInference:
         avg_degree = sum(degrees.values()) / len(degrees) if degrees else 0
 
         # High-degree nodes are identifiable as authorities
-        # Use 1.5x average — in real networks, authorities are clearly distinguishable
-        authority_candidates = [n for n, d in degrees.items() if d > avg_degree * 1.5]
+        # Nodes with degree significantly above average are authority candidates
+        authority_threshold = max(avg_degree * 1.5, avg_degree + 2)
+        authority_candidates = [n for n, d in degrees.items() if d > authority_threshold]
         leakage.append({
             "category": "authority_identification",
             "entities_identifiable": len(authority_candidates),
