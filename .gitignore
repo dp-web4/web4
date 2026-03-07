@@ -19,6 +19,10 @@ web4-standard/implementation/reference/tpm_cli_keys/
 .hardbound/signing.key
 .hardbound/actors/claude/signing.key
 
+# Hardbound live chain state (updated by running daemon)
+.hardbound/actors/claude/chain-head.json
+.hardbound/session-report-*.txt
+
 # Hardbound generated bundles (demo artifacts)
 .hardbound/bundles/
 
