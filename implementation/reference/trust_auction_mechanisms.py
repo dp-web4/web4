@@ -120,7 +120,8 @@ def vickrey_trust_auction(bidders: List[Bidder],
 
     return AuctionResult(
         winner=winner_id, winning_bid=winning_bid,
-        payment=payment, revenue=payment, bids=bids
+        payment=payment, revenue=payment,
+        efficiency=efficiency, bids=bids
     )
 
 
