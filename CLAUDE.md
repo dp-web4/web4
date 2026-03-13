@@ -41,6 +41,34 @@ Documents:
 - SOIA-SAGE mapping: `github.com/dp-web4/HRM/sage/docs/SOIA_IRP_MAPPING.md`
 - Convergence insight: `github.com/dp-web4/HRM/forum/insights/soia-sage-convergence.md`
 
+## MRH-Specific Policy — Phase-Aware Governance (March 2026)
+
+**Policies are MRH-specific, not universal.** The same instruction produces different
+outcomes depending on project phase. This was proven empirically when autonomous
+sessions with research-oriented primers ("follow the interesting", "surprise is prize")
+drifted proportionally to the phase mismatch:
+
+| Actual Phase | Primer Phase | Drift Severity |
+|-------------|-------------|----------------|
+| Research | Research | None (exploration IS the deliverable) |
+| Development (web4) | Research | Moderate (36% academic sprawl) |
+| Implementation (hardbound) | Research | Catastrophic (70% junk files) |
+
+**What this means for web4:**
+- Web4 is in **development** — the ontology is mature, the work is reusable libraries
+  and standard refinement, not open-ended exploration
+- Autonomous sessions must have sprint plans with bounded tasks
+- "Reference implementations" that are standalone scripts reimplementing generic CS
+  concepts with a "trust_" prefix are not web4 development — they're research drift
+- The policy engine being designed for hardbound must carry `phase`/`context` tags
+  on every rule, because the same behavior gets different T3 evaluations in different phases
+
+**Key insight**: A researcher who follows tangents has high temperament (appropriate).
+An implementer who follows tangents has low temperament (drift). Same behavior,
+different trust score, because different MRH context.
+
+See: `private-context/insights/2026-03-13-mrh-policy-phase-mismatch.md`
+
 ## Cross-Model Strategic Review (February 2026)
 
 Three independent AI models (Grok, Nova, Claude) reviewed Web4 and converged on the same assessment. Key takeaways:
