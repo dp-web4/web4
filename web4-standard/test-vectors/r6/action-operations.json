@@ -1,0 +1,109 @@
+{
+  "description": "R7 action framework test vectors — canonical operations for cross-language interop",
+  "spec": "web4-standard/core-spec/r7-framework.md",
+  "version": "0.1.0",
+  "vectors": [
+    {
+      "id": "r6-001",
+      "name": "Action construction and validation",
+      "description": "Build a valid R7 action with actor, role, action verb, and sufficient ATP",
+      "input": {
+        "actor": "lct:web4:entity:alice",
+        "role_lct": "lct:web4:role:analyst:abc123",
+        "action": "analyze_dataset",
+        "target": "resource:web4:dataset:quarterly",
+        "atp_stake": 100,
+        "available_atp": 500
+      },
+      "expected": {
+        "is_valid": true,
+        "action_id_prefix": "r7:",
+        "has_nonce": true
+      },
+      "tolerance": 0.0001
+    },
+    {
+      "id": "r6-002",
+      "name": "Reputation from positive outcome",
+      "description": "High quality (0.9) outcome produces positive T3/V3 deltas via canonical update",
+      "input": {
+        "actor": "lct:web4:entity:alice",
+        "role_lct": "lct:web4:role:analyst:abc123",
+        "action": "analyze_dataset",
+        "t3": {"talent": 0.85, "training": 0.90, "temperament": 0.88},
+        "quality": 0.9
+      },
+      "expected": {
+        "net_trust_change": 0.0192,
+        "t3_deltas": {
+          "talent": {"change": 0.008, "from": 0.85, "to": 0.858},
+          "training": {"change": 0.0064, "from": 0.90, "to": 0.9064},
+          "temperament": {"change": 0.0048, "from": 0.88, "to": 0.8848}
+        },
+        "net_value_change_positive": true
+      },
+      "tolerance": 0.0001,
+      "notes": "base_delta = 0.02 * (0.9 - 0.5) = 0.008. talent: 0.008*1.0, training: 0.008*0.8, temperament: 0.008*0.6"
+    },
+    {
+      "id": "r6-003",
+      "name": "Reputation from negative outcome",
+      "description": "Low quality (0.2) outcome produces negative T3/V3 deltas",
+      "input": {
+        "actor": "lct:web4:entity:bob",
+        "role_lct": "lct:web4:role:engineer:xyz",
+        "action": "deploy",
+        "t3": {"talent": 0.70, "training": 0.75, "temperament": 0.60},
+        "quality": 0.2
+      },
+      "expected": {
+        "net_trust_change": -0.0144,
+        "t3_deltas": {
+          "talent": {"change": -0.006, "from": 0.70, "to": 0.694},
+          "training": {"change": -0.0048, "from": 0.75, "to": 0.7452},
+          "temperament": {"change": -0.0036, "from": 0.60, "to": 0.5964}
+        },
+        "net_value_change_positive": false
+      },
+      "tolerance": 0.0001,
+      "notes": "base_delta = 0.02 * (0.2 - 0.5) = -0.006. talent: -0.006*1.0, training: -0.006*0.8, temperament: -0.006*0.6"
+    },
+    {
+      "id": "r6-004",
+      "name": "Hash chain integrity",
+      "description": "A chain of 3 actions linked by canonical hashes must verify",
+      "input": {
+        "actions": [
+          {
+            "actor": "lct:web4:entity:alice",
+            "role_lct": "lct:web4:role:reader:abc",
+            "action": "read",
+            "nonce": "n1",
+            "timestamp": "2025-01-01T00:00:00Z"
+          },
+          {
+            "actor": "lct:web4:entity:alice",
+            "role_lct": "lct:web4:role:writer:abc",
+            "action": "write",
+            "nonce": "n2",
+            "timestamp": "2025-01-01T00:01:00Z"
+          },
+          {
+            "actor": "lct:web4:entity:alice",
+            "role_lct": "lct:web4:role:analyst:abc",
+            "action": "analyze",
+            "nonce": "n3",
+            "timestamp": "2025-01-01T00:02:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "chain_valid": true,
+        "length": 3,
+        "each_has_prev_hash": [false, true, true]
+      },
+      "tolerance": 0.0001,
+      "notes": "First action has empty prev_hash. Each subsequent links to predecessor's canonical_hash()."
+    }
+  ]
+}

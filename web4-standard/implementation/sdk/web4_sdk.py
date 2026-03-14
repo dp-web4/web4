@@ -77,6 +77,12 @@ except ImportError:
 from web4.trust import T3, V3, TrustProfile, coherence, is_coherent
 from web4.lct import LCT, EntityType, RevocationStatus, BirthCertificate
 from web4.atp import ATPAccount, energy_ratio as atp_energy_ratio
+from web4.federation import Society, LawDataset, Delegation, RoleType
+from web4.r6 import (
+    R7Action, ActionChain, ActionStatus, ReputationDelta,
+    Rules, Role, Request, ResourceRequirements, Result,
+    build_action,
+)
 
 
 # =============================================================================
@@ -1166,4 +1172,15 @@ __all__ = [
     'EntityType',
     'RevocationStatus',
     'ATPAccount',
+    # Federation (SAL)
+    'Society',
+    'LawDataset',
+    'Delegation',
+    'RoleType',
+    # R7 Action Framework
+    'R7Action',
+    'ActionChain',
+    'ActionStatus',
+    'ReputationDelta',
+    'build_action',
 ]
