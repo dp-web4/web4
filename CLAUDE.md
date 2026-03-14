@@ -369,3 +369,22 @@ Web4 isn't infrastructure — it's an ontology. RDF is its nervous system; trust
 ---
 
 *"In Web4, you don't just have an account. You have presence. You don't just perform roles. You inhabit them. You don't just interact. You leave footprints in the fabric of digital reality itself."*
+
+<!-- gitnexus:start -->
+# GitNexus — Code Knowledge Graph
+
+web4 is indexed by GitNexus (28,414 symbols, 73,522 edges, 300 execution flows). MCP tools available via `mcp__gitnexus__*`. Use when exploring unfamiliar code, assessing blast radius before refactors, or tracing execution flows.
+
+Re-index after significant changes: `node /home/dp/ai-workspace/gitnexus/gitnexus/dist/cli/index.js analyze`
+
+| Tool | Use for |
+|------|---------|
+| `query` | Find execution flows by concept |
+| `context` | 360-degree view of a symbol (callers, callees, processes) |
+| `impact` | Blast radius before editing (upstream/downstream) |
+| `detect_changes` | Map git diff to affected symbols and flows |
+| `rename` | Graph-aware multi-file rename (dry_run first) |
+| `cypher` | Raw Cypher queries against the graph |
+
+Resources: `gitnexus://repo/web4/context`, `clusters`, `processes`, `process/{name}`
+<!-- gitnexus:end -->
