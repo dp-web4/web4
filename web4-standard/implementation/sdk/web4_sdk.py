@@ -73,6 +73,11 @@ except ImportError:
     import warnings
     warnings.warn("PyNaCl not installed. Cryptographic signing will not work. Install with: pip install pynacl")
 
+# Import canonical web4 types (v0.1.0+)
+from web4.trust import T3, V3, TrustProfile, coherence, is_coherent
+from web4.lct import LCT, EntityType, RevocationStatus, BirthCertificate
+from web4.atp import ATPAccount, energy_ratio as atp_energy_ratio
+
 
 # =============================================================================
 # Enums and Data Classes
@@ -121,14 +126,35 @@ class AuthorizationResult:
 
 @dataclass
 class ReputationScore:
-    """Reputation scores for an entity"""
+    """Reputation scores for an entity.
+
+    t3_score/v3_score are composite floats for backward compatibility.
+    t3/v3 are canonical web4.trust tensor objects when available.
+    """
     entity_id: str
     role: str
-    t3_score: float  # Trustworthiness
-    v3_score: float  # Value creation
+    t3_score: float  # Composite trustworthiness (backward-compat)
+    v3_score: float  # Composite value creation (backward-compat)
     action_count: int
     last_updated: str
     metadata: Optional[Dict[str, Any]] = None
+    t3: Optional[T3] = None  # Canonical T3 tensor (when detailed scores available)
+    v3: Optional[V3] = None  # Canonical V3 tensor (when detailed scores available)
+
+    @property
+    def energy_ratio(self) -> Optional[float]:
+        """Energy ratio from metadata if ATP/ADP data available."""
+        if self.metadata and "atp" in self.metadata and "adp" in self.metadata:
+            return atp_energy_ratio(self.metadata["atp"], self.metadata["adp"])
+        return None
+
+    @property
+    def coherence_score(self) -> Optional[float]:
+        """Coherence score if all components available."""
+        er = self.energy_ratio
+        if er is not None:
+            return coherence(self.t3_score, self.v3_score, er)
+        return None
 
 
 @dataclass
@@ -146,9 +172,13 @@ class ResourceAllocation:
 
 @dataclass
 class LCTInfo:
-    """LCT identity information"""
+    """LCT identity information from the identity service.
+
+    entity_type_str preserves the raw string for backward compatibility.
+    entity_type_enum provides the canonical EntityType when parseable.
+    """
     lct_id: str
-    entity_type: str
+    entity_type: str  # Raw string (backward-compat)
     entity_identifier: str
     society: str
     public_key: str
@@ -156,6 +186,43 @@ class LCTInfo:
     witnesses: List[str]
     created_at: str
     status: str = "active"
+
+    @property
+    def entity_type_enum(self) -> Optional[EntityType]:
+        """Canonical EntityType enum, or None if not a recognized type."""
+        try:
+            return EntityType(self.entity_type)
+        except ValueError:
+            return None
+
+    @property
+    def revocation_status(self) -> RevocationStatus:
+        """Canonical revocation status."""
+        try:
+            return RevocationStatus(self.status)
+        except ValueError:
+            return RevocationStatus.ACTIVE
+
+    def to_lct(self, t3: Optional[T3] = None, v3: Optional[V3] = None) -> Optional[LCT]:
+        """Convert to a canonical LCT object.
+
+        Creates an LCT from service response data. Requires a recognized
+        entity type. T3/V3 default to (0.5, 0.5, 0.5) if not provided.
+        """
+        et = self.entity_type_enum
+        if et is None:
+            return None
+        return LCT.create(
+            entity_type=et,
+            public_key=self.public_key,
+            society=self.society,
+            witnesses=self.witnesses,
+            timestamp=self.created_at,
+            lct_id=self.lct_id,
+            subject=f"did:web4:key:{self.public_key[:20]}",
+            t3=t3,
+            v3=v3,
+        )
 
 
 # =============================================================================
@@ -581,6 +648,21 @@ class Web4Client:
             raise Web4Error(f"Failed to retrieve reputation: {response.get('error')}")
 
         data = response['data']
+
+        # Build canonical T3/V3 if dimensional scores available
+        t3 = None
+        v3 = None
+        if 't3_tensor' in data:
+            td = data['t3_tensor']
+            t3 = T3(talent=td.get('talent', 0.5),
+                     training=td.get('training', 0.5),
+                     temperament=td.get('temperament', 0.5))
+        if 'v3_tensor' in data:
+            vd = data['v3_tensor']
+            v3 = V3(valuation=vd.get('valuation', 0.5),
+                     veracity=vd.get('veracity', 0.5),
+                     validity=vd.get('validity', 0.5))
+
         return ReputationScore(
             entity_id=data['entity_id'],
             role=data['role'],
@@ -588,7 +670,9 @@ class Web4Client:
             v3_score=data['v3_score'],
             action_count=data['action_count'],
             last_updated=data['last_updated'],
-            metadata=data.get('metadata')
+            metadata=data.get('metadata'),
+            t3=t3,
+            v3=v3,
         )
 
     async def report_outcome(
