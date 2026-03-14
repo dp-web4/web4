@@ -1142,6 +1142,7 @@ def create_client_from_env() -> Web4Client:
 
 
 __all__ = [
+    # Client SDK
     'Web4Client',
     'Web4Workflow',
     'Action',
@@ -1156,5 +1157,13 @@ __all__ = [
     'InsufficientATP',
     'InvalidSignature',
     'ServiceUnavailable',
-    'create_client_from_env'
+    'create_client_from_env',
+    # Re-exported canonical types (from web4.*)
+    'T3',
+    'V3',
+    'TrustProfile',
+    'LCT',
+    'EntityType',
+    'RevocationStatus',
+    'ATPAccount',
 ]
