@@ -67,7 +67,14 @@ drifted proportionally to the phase mismatch:
 An implementer who follows tangents has low temperament (drift). Same behavior,
 different trust score, because different MRH context.
 
+**Corollary — fresh context over inherited context**: Autonomous sessions originally
+used `-c` (continue) for conversation continuity. This preserved stale drift patterns
+across sessions, overriding governance updates. Fix: use `-p` (fresh) mode. The
+principle extends to policy engines — policies must be authoritative, not competing
+with cached state. Known explicit context beats inherited context with baggage.
+
 See: `private-context/insights/2026-03-13-mrh-policy-phase-mismatch.md`
+See: `private-context/insights/2026-03-13-autonomous-drift-governance-systemic-fix.md`
 
 ## Cross-Model Strategic Review (February 2026)
 
