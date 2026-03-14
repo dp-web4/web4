@@ -1,0 +1,92 @@
+{
+  "name": "MRH Graph Operations",
+  "version": "1.0.0",
+  "description": "Canonical test vectors for MRH horizon traversal, trust propagation, and context analysis",
+  "vectors": [
+    {
+      "id": "mrh-001",
+      "description": "Horizon traversal — BFS with depth limit",
+      "input": {
+        "nodes": [
+          {"lctId": "lct:alice", "entityType": "human"},
+          {"lctId": "lct:bob", "entityType": "human"},
+          {"lctId": "lct:hw1", "entityType": "device"},
+          {"lctId": "lct:timeserver", "entityType": "oracle"},
+          {"lctId": "lct:carol", "entityType": "human"}
+        ],
+        "edges": [
+          {"source": "lct:alice", "target": "lct:bob", "relation": "pairedWith", "weight": 0.9},
+          {"source": "lct:alice", "target": "lct:hw1", "relation": "boundTo", "weight": 1.0},
+          {"source": "lct:bob", "target": "lct:timeserver", "relation": "witnessedBy", "weight": 0.8},
+          {"source": "lct:bob", "target": "lct:carol", "relation": "pairedWith", "weight": 0.7}
+        ],
+        "origin": "lct:alice",
+        "horizonDepth": 2
+      },
+      "expected": {
+        "distances": {
+          "lct:alice": 0,
+          "lct:bob": 1,
+          "lct:hw1": 1,
+          "lct:timeserver": 2,
+          "lct:carol": 2
+        },
+        "zones": {
+          "SELF": ["lct:alice"],
+          "DIRECT": ["lct:bob", "lct:hw1"],
+          "INDIRECT": ["lct:timeserver", "lct:carol"]
+        }
+      }
+    },
+    {
+      "id": "mrh-002",
+      "description": "Trust propagation — multiplicative decay along path",
+      "input": {
+        "nodes": [
+          {"lctId": "lct:alice"},
+          {"lctId": "lct:bob"},
+          {"lctId": "lct:carol"}
+        ],
+        "edges": [
+          {"source": "lct:alice", "target": "lct:bob", "relation": "pairedWith", "weight": 0.9},
+          {"source": "lct:bob", "target": "lct:carol", "relation": "pairedWith", "weight": 0.7}
+        ],
+        "source": "lct:alice",
+        "target": "lct:carol",
+        "strategy": "probabilistic",
+        "decayFactor": 0.7
+      },
+      "expected": {
+        "trust": 0.21609,
+        "tolerance": 0.001,
+        "explanation": "Path alice->bob->carol: hop1 = 0.9*0.7 = 0.63, hop2 = 0.63*0.7*0.49 = 0.21609"
+      }
+    },
+    {
+      "id": "mrh-003",
+      "description": "Relationship summary — count by category",
+      "input": {
+        "nodes": [
+          {"lctId": "lct:alice"},
+          {"lctId": "lct:bob"},
+          {"lctId": "lct:hw1"},
+          {"lctId": "lct:timeserver"}
+        ],
+        "edges": [
+          {"source": "lct:alice", "target": "lct:hw1", "relation": "boundTo", "weight": 1.0},
+          {"source": "lct:alice", "target": "lct:bob", "relation": "pairedWith", "weight": 0.9},
+          {"source": "lct:bob", "target": "lct:timeserver", "relation": "witnessedBy", "weight": 0.8}
+        ],
+        "entity": "lct:bob"
+      },
+      "expected": {
+        "summary": {
+          "binding": 0,
+          "pairing": 1,
+          "witness": 1
+        },
+        "explanation": "bob has 1 pairing (from alice) and 1 witness (to timeserver)"
+      }
+    }
+  ]
+}
