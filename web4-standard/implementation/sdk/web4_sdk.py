@@ -6,6 +6,10 @@ Research prototype Python SDK for integrating with Web4 infrastructure.
 
 This SDK provides high-level abstractions for:
 - Identity management (LCT)
+- Trust and value assessment (T3/V3)
+- ATP/ADP lifecycle (energy metabolism)
+- Federation governance (SAL)
+- R7 action framework (Rules+Role+Request+Reference+Resource→Result+Reputation)
 - Authorization requests
 - Resource allocation
 - Reputation tracking
@@ -1182,5 +1186,10 @@ __all__ = [
     'ActionChain',
     'ActionStatus',
     'ReputationDelta',
+    'Rules',
+    'Role',
+    'Request',
+    'ResourceRequirements',
+    'Result',
     'build_action',
 ]
