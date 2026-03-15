@@ -373,9 +373,9 @@ Web4 isn't infrastructure — it's an ontology. RDF is its nervous system; trust
 <!-- gitnexus:start -->
 # GitNexus — Code Knowledge Graph
 
-web4 is indexed by GitNexus (28,414 symbols, 73,522 edges, 300 execution flows). MCP tools available via `mcp__gitnexus__*`. Use when exploring unfamiliar code, assessing blast radius before refactors, or tracing execution flows.
+Indexed as **web4** (28,411 nodes, 74,198 edges, 300 flows). MCP tools available via `mcp__gitnexus__*`.
 
-Re-index after significant changes: `node /home/dp/ai-workspace/gitnexus/gitnexus/dist/cli/index.js analyze`
+Re-index: `node /mnt/c/exe/projects/ai-agents/GitNexus/gitnexus/dist/cli/index.js analyze`
 
 | Tool | Use for |
 |------|---------|
@@ -387,4 +387,6 @@ Re-index after significant changes: `node /home/dp/ai-workspace/gitnexus/gitnexu
 | `cypher` | Raw Cypher queries against the graph |
 
 Resources: `gitnexus://repo/web4/context`, `clusters`, `processes`, `process/{name}`
+
+**Experiment**: T3/V3×MRH applied to this codebase — see `docs/history/research/CODE-GRAPH-T3-V3-MRH-EXPERIMENT.md` and GitNexus branch `dp-web4/web4-graph-experiment`.
 <!-- gitnexus:end -->

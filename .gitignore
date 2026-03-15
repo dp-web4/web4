@@ -34,4 +34,11 @@ implementation/reference/.hardbound/
 
 # E2E demo results
 implementation/reference/e2e_results.json
+
+.hardbound/actors/dp/signing.key
+
+.hardbound/actors/cbp-claude/signing.key
+
+.hardbound/actors/legion-claude/signing.key
+.hardbound/actors/*/signing.key
 .gitnexus
