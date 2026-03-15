@@ -39,10 +39,10 @@ Patent-covered (305 family). Requires TPM2 integration design.
 **Description**: Audit found 4 divergences and 3 gaps between whitepaper and SDK.
 Two sub-tasks:
 
-**U3a: SDK coherence naming fix** — Rename `coherence()`/`is_coherent()` in trust.py
-to `operational_health()`/`is_healthy()` (or similar) to avoid collision with the
-whitepaper's identity coherence framework (C×S×Phi×R). Add docstring noting the
-distinction. Update test references. ~1 file modified + tests.
+**U3a: SDK coherence naming fix** — DONE (2026-03-15). Renamed `coherence()`→`operational_health()`,
+`is_coherent()`→`is_healthy()`, constants `COHERENCE_WEIGHTS`→`HEALTH_WEIGHTS`,
+`COHERENCE_THRESHOLD`→`HEALTH_THRESHOLD`, `ReputationScore.coherence_score`→`health_score`.
+All 70 tests passing. Docstring explains distinction from whitepaper identity coherence.
 
 **U3b: Whitepaper section updates** — Update whitepaper §2.4 to reference R7 evolution
 (Reputation as 7th component), §2.5 to reconcile 5-dimension conceptual model vs
@@ -87,6 +87,12 @@ v0.1.0 (4 core modules) and v0.2.0 (3 new modules + full re-exports).
 **Completed**: 2026-03-15 (PR #10, merged as commit df1fca7)
 **Result**: `web4.dictionary` module — 320 lines, 33 tests, 5 test vectors.
 
+### U3a: SDK coherence naming fix
+**Completed**: 2026-03-15
+**Result**: Renamed `coherence()`→`operational_health()`, `is_coherent()`→`is_healthy()`,
+plus constants and `ReputationScore.coherence_score`→`health_score`. Resolves naming
+collision with whitepaper identity coherence (C×S×Phi×R). 70 tests passing.
+
 ---
 
 ## Task ID Reference
@@ -102,4 +108,4 @@ v0.1.0 (4 core modules) and v0.2.0 (3 new modules + full re-exports).
 | S7 | SDK version bump + changelog | DONE |
 | U1 | Dictionary entities module | DONE |
 | U2 | Multi-device binding | UNSCOPED |
-| U3 | Whitepaper-SDK coherence fixes | SCOPED (audit done) |
+| U3 | Whitepaper-SDK coherence fixes | U3a DONE, U3b TODO |

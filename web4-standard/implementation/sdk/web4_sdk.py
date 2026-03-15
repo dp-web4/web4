@@ -81,7 +81,7 @@ except ImportError:
     warnings.warn("PyNaCl not installed. Cryptographic signing will not work. Install with: pip install pynacl")
 
 # Import canonical web4 types (v0.1.0+)
-from web4.trust import T3, V3, TrustProfile, coherence, is_coherent
+from web4.trust import T3, V3, TrustProfile, operational_health, is_healthy
 from web4.lct import LCT, EntityType, RevocationStatus, BirthCertificate
 from web4.atp import ATPAccount, energy_ratio as atp_energy_ratio
 from web4.federation import Society, LawDataset, Delegation, RoleType
@@ -180,11 +180,11 @@ class ReputationScore:
         return None
 
     @property
-    def coherence_score(self) -> Optional[float]:
-        """Coherence score if all components available."""
+    def health_score(self) -> Optional[float]:
+        """Operational health score if all components available."""
         er = self.energy_ratio
         if er is not None:
-            return coherence(self.t3_score, self.v3_score, er)
+            return operational_health(self.t3_score, self.v3_score, er)
         return None
 
 

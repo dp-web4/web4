@@ -37,9 +37,12 @@ BRIDGE_SECONDARY_WEIGHT_EACH = 1 / 3  # of remaining 0.4
 # MRH decay (test vector t3v3-009)
 MRH_MAX_HOPS = 4  # 5+ hops = BEYOND = zero trust
 
-# Coherence weights (test vector t3v3-010)
-COHERENCE_WEIGHTS = {"t3": 0.4, "v3": 0.3, "energy": 0.3}
-COHERENCE_THRESHOLD = 0.7
+# Operational health weights (test vector t3v3-010)
+# NOTE: The whitepaper uses "coherence" for identity coherence (C×S×Phi×R),
+# a distinct concept measuring pattern stability and self-reference.
+# This SDK metric measures operational health (trust + value + energy).
+HEALTH_WEIGHTS = {"t3": 0.4, "v3": 0.3, "energy": 0.3}
+HEALTH_THRESHOLD = 0.7
 
 # Diminishing returns (test vector t3v3-007)
 DIMINISHING_BASE = 0.8
@@ -223,22 +226,25 @@ def mrh_zone(hops: int) -> str:
         return "BEYOND"
 
 
-def coherence(t3_composite: float, v3_composite: float, energy_ratio: float) -> float:
+def operational_health(t3_composite: float, v3_composite: float, energy_ratio: float) -> float:
     """
-    Coherence score (test vector t3v3-010).
+    Operational health score (test vector t3v3-010).
 
-    Returns weighted combination of T3, V3, and energy ratio.
+    Returns weighted combination of T3 composite, V3 composite, and ATP energy ratio.
+    This measures an entity's operational readiness — distinct from the whitepaper's
+    "identity coherence" (C×S×Phi×R) which measures pattern stability, self-reference,
+    integration, and role consistency.
     """
     return (
-        t3_composite * COHERENCE_WEIGHTS["t3"]
-        + v3_composite * COHERENCE_WEIGHTS["v3"]
-        + energy_ratio * COHERENCE_WEIGHTS["energy"]
+        t3_composite * HEALTH_WEIGHTS["t3"]
+        + v3_composite * HEALTH_WEIGHTS["v3"]
+        + energy_ratio * HEALTH_WEIGHTS["energy"]
     )
 
 
-def is_coherent(t3_composite: float, v3_composite: float, energy_ratio: float) -> bool:
-    """Check if entity meets coherence threshold."""
-    return coherence(t3_composite, v3_composite, energy_ratio) >= COHERENCE_THRESHOLD
+def is_healthy(t3_composite: float, v3_composite: float, energy_ratio: float) -> bool:
+    """Check if entity meets operational health threshold."""
+    return operational_health(t3_composite, v3_composite, energy_ratio) >= HEALTH_THRESHOLD
 
 
 def diminishing_returns(repeat_count: int, base_factor: float = DIMINISHING_BASE) -> float:

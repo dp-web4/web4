@@ -25,13 +25,20 @@ Added three new SDK modules and completed re-exports in `web4_sdk.py`.
 
 ### Changed
 - Version bumped from 0.1.0 to 0.2.0 in `web4/__init__.py`.
+- **web4.trust**: Renamed `coherence()`→`operational_health()` and
+  `is_coherent()`→`is_healthy()` to avoid naming collision with the
+  whitepaper's identity coherence framework (C×S×Phi×R). Constants
+  `COHERENCE_WEIGHTS`/`COHERENCE_THRESHOLD` renamed to
+  `HEALTH_WEIGHTS`/`HEALTH_THRESHOLD`. Behavior unchanged.
+- **web4_sdk.py**: `ReputationScore.coherence_score` renamed to
+  `ReputationScore.health_score`.
 
 ## [0.1.0] - 2026-03-13
 
 Initial SDK release with four core modules.
 
 ### Added
-- **web4.trust** — T3/V3 trust and value tensors, coherence scoring,
+- **web4.trust** — T3/V3 trust and value tensors, operational health scoring,
   trust profiles, composite calculations.
 - **web4.lct** — Linked Context Tokens: `LCT`, `EntityType` (16 canonical
   types with alias map), `BirthCertificate`, `RevocationStatus`.

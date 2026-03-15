@@ -10,17 +10,17 @@ Sprint task: S2
 
 import pytest
 
-from web4.trust import T3, V3, TrustProfile, coherence, is_coherent, mrh_trust_decay, mrh_zone
+from web4.trust import T3, V3, TrustProfile, operational_health, is_healthy, mrh_trust_decay, mrh_zone
 from web4.lct import LCT, EntityType, RevocationStatus
 from web4.atp import ATPAccount, transfer, sliding_scale, check_conservation, energy_ratio
 from web4.federation import Society, LawDataset, Norm, Procedure, Delegation
 
 
 class TestEntityLifecycle:
-    """Workflow: society issues citizen → assign trust → check coherence."""
+    """Workflow: society issues citizen → assign trust → check operational health."""
 
     def test_birth_to_trust_assessment(self):
-        """Create entity via society, assign role trust, compute coherence."""
+        """Create entity via society, assign role trust, compute operational health."""
         # Society with law
         society = Society("lct:web4:society:acme", "ACME")
         law = LawDataset(
@@ -48,14 +48,14 @@ class TestEntityLifecycle:
         # Birth certificate references the society
         assert alice.birth_certificate.issuing_society == society.society_id
 
-        # Coherence check using T3/V3 composites + energy ratio
+        # Operational health check using T3/V3 composites + energy ratio
         account = ATPAccount(available=80.0)
         account.adp = 20.0  # spent some energy
-        coh = coherence(alice.t3.composite, alice.v3.composite, account.energy_ratio)
-        assert 0.0 <= coh <= 1.0
-        assert is_coherent(alice.t3.composite, alice.v3.composite, account.energy_ratio)
+        health = operational_health(alice.t3.composite, alice.v3.composite, account.energy_ratio)
+        assert 0.0 <= health <= 1.0
+        assert is_healthy(alice.t3.composite, alice.v3.composite, account.energy_ratio)
 
-    def test_revoked_entity_loses_coherence(self):
+    def test_revoked_entity_loses_status(self):
         """Revoked LCT should still have tensors but is_active is False."""
         society = Society("lct:web4:society:test", "Test")
         lct = society.issue_citizenship(
@@ -387,7 +387,7 @@ class TestEndToEndWorkflow:
     def test_complete_entity_economic_lifecycle(self):
         """
         End-to-end: society setup → citizenship → trust assignment →
-        authority delegation → ATP transfer governed by law → coherence check.
+        authority delegation → ATP transfer governed by law → health check.
         """
         # 1. Create society with law
         society = Society("lct:web4:society:demo", "Demo")
@@ -449,14 +449,14 @@ class TestEndToEndWorkflow:
         alice_t3_updated = alice.t3.update(quality=0.85, success=True)
         assert alice_t3_updated.talent > alice.t3.talent  # trust grew slightly
 
-        # 9. Coherence check
-        coh = coherence(
+        # 9. Operational health check
+        health = operational_health(
             alice_t3_updated.composite,
             alice.v3.composite,
             alice_atp.energy_ratio,
         )
-        assert coh > 0.5  # entity is coherent
-        assert is_coherent(
+        assert health > 0.5  # entity is healthy
+        assert is_healthy(
             alice_t3_updated.composite,
             alice.v3.composite,
             alice_atp.energy_ratio,
