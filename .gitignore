@@ -42,3 +42,6 @@ implementation/reference/e2e_results.json
 .hardbound/actors/legion-claude/signing.key
 .hardbound/actors/*/signing.key
 .gitnexus
+
+# GitNexus auto-generated skill files (prevent PR contamination)
+.claude/skills/gitnexus/
