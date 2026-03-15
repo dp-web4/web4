@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-14
+**Updated**: 2026-03-15
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -79,9 +79,26 @@ DictionaryEntity, DictionaryVersion, and dictionary selection scoring.
 Hardware binding hierarchy (API-Bridge → App → Pack Controller → Battery Module).
 Patent-covered (305 family). Requires TPM2 integration design.
 
-### U3: Whitepaper sync
-Whitepaper sections may have drifted from SDK implementation. Requires
-cross-reference audit between spec docs and SDK modules.
+### U3: Whitepaper-SDK coherence fixes
+
+**Status**: SCOPED (audit complete 2026-03-15)
+**Depends on**: None (can proceed independently of S1)
+**Audit**: `docs/audits/whitepaper-sdk-coherence-2026-03-15.md`
+**Description**: Audit found 4 divergences and 3 gaps between whitepaper and SDK.
+Two sub-tasks:
+
+**U3a: SDK coherence naming fix** — Rename `coherence()`/`is_coherent()` in trust.py
+to `operational_health()`/`is_healthy()` (or similar) to avoid collision with the
+whitepaper's identity coherence framework (C×S×Phi×R). Add docstring noting the
+distinction. Update test references. ~1 file modified + tests.
+
+**U3b: Whitepaper section updates** — Update whitepaper §2.4 to reference R7 evolution
+(Reputation as 7th component), §2.5 to reconcile 5-dimension conceptual model vs
+graph implementation model, and §2.2 to expand entity type examples. ~2-3 files modified.
+
+**Acceptance**: (a) No naming collision between SDK coherence function and whitepaper
+identity coherence concept. (b) Whitepaper §2.4 references R7. (c) Whitepaper §2.5
+acknowledges graph-based MRH implementation.
 
 ---
 
@@ -115,4 +132,4 @@ MANIFEST.md documents triage rationale.
 | S7 | SDK version bump + changelog | PLANNED |
 | U1 | Dictionary entities module | IN PROGRESS (PR #10) |
 | U2 | Multi-device binding | UNSCOPED |
-| U3 | Whitepaper sync audit | UNSCOPED |
+| U3 | Whitepaper-SDK coherence fixes | SCOPED (audit done) |
