@@ -1,0 +1,107 @@
+{
+  "test_suite": "dictionary-operations",
+  "version": "1.0.0",
+  "spec_ref": "web4-standard/core-spec/dictionary-entities.md",
+  "vectors": [
+    {
+      "id": "dict-001",
+      "name": "Translation chain cumulative degradation",
+      "description": "Multi-hop translation: medical→legal→insurance. Trust degrades multiplicatively.",
+      "spec_section": "§4.3",
+      "input": {
+        "steps": [
+          {"source": "medical", "target": "legal", "confidence": 0.95},
+          {"source": "legal", "target": "insurance", "confidence": 0.92}
+        ]
+      },
+      "expected": {
+        "cumulative_confidence": 0.874,
+        "cumulative_degradation": 0.126,
+        "length": 2
+      },
+      "tolerance": 0.001
+    },
+    {
+      "id": "dict-002",
+      "name": "Dictionary selection scoring",
+      "description": "Score a dictionary candidate using weighted criteria (trust, coverage, recency, cost).",
+      "spec_section": "§6.2",
+      "input": {
+        "trust_composite": 0.85,
+        "coverage_ratio": 0.90,
+        "recency_score": 0.75,
+        "cost_score": 1.0
+      },
+      "expected": {
+        "selection_score": 0.86,
+        "weights": {
+          "trust": 0.4,
+          "coverage": 0.3,
+          "recency": 0.2,
+          "cost": 0.1
+        },
+        "calculation": "0.4*0.85 + 0.3*0.90 + 0.2*0.75 + 0.1*1.0 = 0.34 + 0.27 + 0.15 + 0.10 = 0.86"
+      },
+      "tolerance": 0.001
+    },
+    {
+      "id": "dict-003",
+      "name": "Three-hop chain with threshold check",
+      "description": "Three-hop translation: medical→legal→insurance→regulatory. Cumulative below 0.8 threshold.",
+      "spec_section": "§4.3",
+      "input": {
+        "steps": [
+          {"source": "medical", "target": "legal", "confidence": 0.95},
+          {"source": "legal", "target": "insurance", "confidence": 0.92},
+          {"source": "insurance", "target": "regulatory", "confidence": 0.90}
+        ],
+        "minimum_confidence": 0.8
+      },
+      "expected": {
+        "cumulative_confidence": 0.7866,
+        "cumulative_degradation": 0.2134,
+        "length": 3,
+        "is_acceptable": false
+      },
+      "tolerance": 0.001
+    },
+    {
+      "id": "dict-004",
+      "name": "Dictionary entity creation with domain binding",
+      "description": "Create a dictionary entity and verify LCT properties.",
+      "spec_section": "§2.1, §2.2",
+      "input": {
+        "source_domain": "medical",
+        "target_domain": "legal",
+        "public_key": "mb64testkey",
+        "bidirectional": true,
+        "version": "2.3.1"
+      },
+      "expected": {
+        "entity_type": "dictionary",
+        "mrh_bound_contains": ["lct:web4:domain:medical", "lct:web4:domain:legal"],
+        "capabilities_contains": ["translate", "evolve", "witness_translations"],
+        "spec_covers_forward": true,
+        "spec_covers_reverse": true,
+        "spec_covers_unrelated": false,
+        "initial_version": "2.3.1"
+      }
+    },
+    {
+      "id": "dict-005",
+      "name": "Feedback updates trust tensors",
+      "description": "Corrections lower trust, validations raise it.",
+      "spec_section": "§5.1",
+      "input": {
+        "initial_t3": {"talent": 0.5, "training": 0.5, "temperament": 0.5},
+        "correction_quality": 0.3,
+        "validation_quality": 0.7
+      },
+      "expected": {
+        "after_correction_composite_decreases": true,
+        "after_validation_composite_increases": true
+      },
+      "note": "Exact values depend on T3 update mechanics (update rate 0.02, dimension factors)."
+    }
+  ]
+}

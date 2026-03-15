@@ -9,6 +9,7 @@ Provides offline-capable primitives for:
 - R7 Action Framework — Rules+Role+Request+Reference+Resource→Result+Reputation
 - MRH graph — Markov Relevancy Horizon context traversal
 - ACP — Agentic Context Protocol for autonomous agent workflows
+- Dictionary entities — semantic bridges with trust-tracked translation
 
 These modules define the canonical data types and algorithms specified
 in the web4-standard. They work offline (no network services required)
