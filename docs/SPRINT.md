@@ -11,7 +11,7 @@
 
 ### S6: Post-merge integration tests (all 8 modules)
 
-**Status**: PLANNED (now unblocked)
+**Status**: IN PROGRESS (PR #14)
 **Depends on**: S1, S2
 **Description**: Extend integration tests to cover cross-module workflows
 using all 8 SDK modules (trust, lct, atp, federation, r6, mrh, acp,
@@ -104,7 +104,7 @@ collision with whitepaper identity coherence (C×S×Phi×R). 70 tests passing.
 | S3 | Update web4_sdk.py re-exports | DONE |
 | S4 | Archive reference sprawl | DONE |
 | S5 | Close stale PR #4 | DONE |
-| S6 | Post-merge integration tests (all 8) | PLANNED |
+| S6 | Post-merge integration tests (all 8) | IN PROGRESS (PR #14) |
 | S7 | SDK version bump + changelog | DONE |
 | U1 | Dictionary entities module | DONE |
 | U2 | Multi-device binding | UNSCOPED |
