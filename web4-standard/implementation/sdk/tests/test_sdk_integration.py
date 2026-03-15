@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-from web4.trust import T3, V3, coherence
+from web4.trust import T3, V3, operational_health
 from web4.lct import LCT, EntityType, RevocationStatus
 from web4.atp import ATPAccount, energy_ratio
 
@@ -150,7 +150,7 @@ class TestReputationScoreIntegration:
         )
         assert abs(score.energy_ratio - 0.8) < 0.001
 
-    def test_coherence_score(self):
+    def test_health_score(self):
         from web4_sdk import ReputationScore
         score = ReputationScore(
             entity_id="lct:dave",
@@ -161,8 +161,8 @@ class TestReputationScoreIntegration:
             last_updated="now",
             metadata={"atp": 70.0, "adp": 30.0},
         )
-        expected = coherence(0.8, 0.6, 0.7)
-        assert abs(score.coherence_score - expected) < 0.001
+        expected = operational_health(0.8, 0.6, 0.7)
+        assert abs(score.health_score - expected) < 0.001
 
     def test_no_energy_data(self):
         from web4_sdk import ReputationScore
@@ -171,7 +171,7 @@ class TestReputationScoreIntegration:
             action_count=0, last_updated="now",
         )
         assert score.energy_ratio is None
-        assert score.coherence_score is None
+        assert score.health_score is None
 
 
 class TestAllEntityTypes:

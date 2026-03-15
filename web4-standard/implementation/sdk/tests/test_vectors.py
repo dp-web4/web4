@@ -13,7 +13,7 @@ import pytest
 from web4.trust import (
     T3, V3, TrustProfile,
     trust_bridge, mrh_trust_decay, mrh_zone,
-    coherence, is_coherent, diminishing_returns,
+    operational_health, is_healthy, diminishing_returns,
 )
 from web4.atp import (
     ATPAccount, transfer, sliding_scale,
@@ -136,14 +136,15 @@ class TestT3V3Vectors:
             assert abs(actual_trust - exp_trust) < v["tolerance"], f"hop {hop}: trust {actual_trust} != {exp_trust}"
             assert actual_zone == exp_zone, f"hop {hop}: zone {actual_zone} != {exp_zone}"
 
-    # t3v3-010: Coherence
-    def test_coherence(self):
+    # t3v3-010: Operational health (formerly "coherence" — renamed to avoid collision
+    # with whitepaper's identity coherence C×S×Phi×R)
+    def test_operational_health(self):
         v = self._vec("t3v3-010")
         inp = v["input"]
-        c = coherence(inp["t3_composite"], inp["v3_composite"], inp["energy_ratio"])
+        h = operational_health(inp["t3_composite"], inp["v3_composite"], inp["energy_ratio"])
         expected = v["expected"]
-        assert abs(c - expected["coherence"]) < v["tolerance"]
-        assert is_coherent(inp["t3_composite"], inp["v3_composite"], inp["energy_ratio"]) == expected["above_threshold"]
+        assert abs(h - expected["coherence"]) < v["tolerance"]
+        assert is_healthy(inp["t3_composite"], inp["v3_composite"], inp["energy_ratio"]) == expected["above_threshold"]
 
 
 # ══════════════════════════════════════════════════════════════════
