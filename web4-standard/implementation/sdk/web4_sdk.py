@@ -10,6 +10,9 @@ This SDK provides high-level abstractions for:
 - ATP/ADP lifecycle (energy metabolism)
 - Federation governance (SAL)
 - R7 action framework (Rules+Role+Request+Reference+Resource→Result+Reputation)
+- MRH graph (Markov Relevancy Horizon context traversal)
+- ACP (Agentic Context Protocol for autonomous agent workflows)
+- Dictionary entities (semantic bridges with trust-tracked translation)
 - Authorization requests
 - Resource allocation
 - Reputation tracking
@@ -86,6 +89,24 @@ from web4.r6 import (
     R7Action, ActionChain, ActionStatus, ReputationDelta,
     Rules, Role, Request, ResourceRequirements, Result,
     build_action,
+)
+from web4.mrh import (
+    MRHGraph, MRHNode, MRHEdge, RelationType,
+    mrh_trust_decay, mrh_zone,
+    propagate_multiplicative, propagate_probabilistic, propagate_maximal,
+)
+from web4.acp import (
+    ACPStateMachine, ACPState, ACPError,
+    AgentPlan, PlanStep, Intent, Decision, DecisionType,
+    ProofOfAgency, ExecutionRecord,
+    ApprovalMode, ResourceCaps, Guards, Trigger, TriggerKind,
+    build_intent, validate_plan,
+)
+from web4.dictionary import (
+    DictionaryEntity, DictionarySpec, DictionaryType, DictionaryVersion,
+    CompressionProfile, DomainCoverage,
+    TranslationRequest, TranslationResult, TranslationChain,
+    dictionary_selection_score, select_best_dictionary,
 )
 
 
@@ -1192,4 +1213,44 @@ __all__ = [
     'ResourceRequirements',
     'Result',
     'build_action',
+    # MRH (Markov Relevancy Horizon)
+    'MRHGraph',
+    'MRHNode',
+    'MRHEdge',
+    'RelationType',
+    'mrh_trust_decay',
+    'mrh_zone',
+    'propagate_multiplicative',
+    'propagate_probabilistic',
+    'propagate_maximal',
+    # ACP (Agentic Context Protocol)
+    'ACPStateMachine',
+    'ACPState',
+    'ACPError',
+    'AgentPlan',
+    'PlanStep',
+    'Intent',
+    'Decision',
+    'DecisionType',
+    'ProofOfAgency',
+    'ExecutionRecord',
+    'ApprovalMode',
+    'ResourceCaps',
+    'Guards',
+    'Trigger',
+    'TriggerKind',
+    'build_intent',
+    'validate_plan',
+    # Dictionary Entities
+    'DictionaryEntity',
+    'DictionarySpec',
+    'DictionaryType',
+    'DictionaryVersion',
+    'CompressionProfile',
+    'DomainCoverage',
+    'TranslationRequest',
+    'TranslationResult',
+    'TranslationChain',
+    'dictionary_selection_score',
+    'select_best_dictionary',
 ]
