@@ -1,0 +1,47 @@
+# Changelog
+
+All notable changes to the Web4 Python SDK.
+
+## [0.2.0] - 2026-03-15
+
+Added three new SDK modules and completed re-exports in `web4_sdk.py`.
+
+### Added
+- **web4.mrh** — Markov Relevancy Horizon graph: `MRHGraph`, `MRHNode`,
+  `MRHEdge`, `RelationType`, trust decay and propagation functions.
+  Validated against `test-vectors/mrh/graph-operations.json`.
+- **web4.acp** — Agentic Context Protocol: `ACPStateMachine`, `AgentPlan`,
+  `Intent`, `Decision`, `ExecutionRecord`, `ProofOfAgency`, approval modes,
+  resource caps, guards, and plan validation.
+  Validated against `test-vectors/acp/plan-operations.json`.
+- **web4.dictionary** — Dictionary Entities: `DictionaryEntity`,
+  `DictionarySpec`, `CompressionProfile`, `TranslationRequest`/`Result`/`Chain`,
+  versioned evolution, and dictionary selection scoring.
+  Validated against `test-vectors/dictionary/dictionary-operations.json`.
+- `web4_sdk.py` now re-exports canonical types from all 8 modules
+  (trust, lct, atp, federation, r6, mrh, acp, dictionary).
+- Cross-module integration tests covering trust+lct+atp+federation workflows.
+- Cross-language test vectors: 40 vectors across all modules.
+
+### Changed
+- Version bumped from 0.1.0 to 0.2.0 in `web4/__init__.py`.
+
+## [0.1.0] - 2026-03-13
+
+Initial SDK release with four core modules.
+
+### Added
+- **web4.trust** — T3/V3 trust and value tensors, coherence scoring,
+  trust profiles, composite calculations.
+- **web4.lct** — Linked Context Tokens: `LCT`, `EntityType` (16 canonical
+  types with alias map), `BirthCertificate`, `RevocationStatus`.
+- **web4.atp** — ATP/ADP lifecycle: `ATPAccount`, energy ratio, transfer,
+  discharge, and conservation verification.
+- **web4.federation** — Federation governance (SAL): `Society`, `LawDataset`,
+  `Delegation`, `RoleType`.
+- **web4.r6** — R7 action framework: `R7Action`, `ActionChain`, `Rules`,
+  `Role`, `Request`, `ResourceRequirements`, `Result`, `ReputationDelta`.
+- `web4_sdk.py` REST client with re-exports for trust, lct, atp, federation,
+  and r6 modules.
+- 5 Turtle ontologies (T3V3, ACP, AGY, SAL, Core) defining 25 classes and
+  60 properties.

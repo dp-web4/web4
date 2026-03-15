@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-14
+**Updated**: 2026-03-15
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -9,56 +9,16 @@
 
 ## Active Tasks
 
-### S1: Merge SDK module PRs
+### S6: Post-merge integration tests (all 8 modules)
 
-**Status**: IN PROGRESS (1/3 merged)
-**Depends on**: None
-**PRs**: ~~#5 (R6)~~ merged, #6 (MRH) awaiting review, #7 (ACP) awaiting review
-**Description**: Review and merge the three SDK module PRs. Each adds a
-canonical equation component to the Python SDK.
-
-Merge order: ~~#5 (R6)~~ → #6 (MRH) → #7 (ACP) — each may need rebase on
-the previous.
-
-**Acceptance**: All 3 PRs merged to main, tests passing.
-
----
-
-### S3: Update web4_sdk.py re-exports
-
-**Status**: IN PROGRESS (R6 done, MRH/ACP pending S1)
-**Depends on**: S1 (for MRH + ACP)
-**Description**: web4_sdk.py re-exports canonical types from web4 modules.
-R6 re-exports added. After S1 completes, add re-exports for web4.mrh and
-web4.acp types.
-
-**Acceptance**: web4_sdk.py imports and re-exports all 7 module types.
-
----
-
-## Planned Tasks (Scoped)
-
-### S6: Post-merge integration tests (all 7 modules)
-
-**Status**: PLANNED
+**Status**: PLANNED (now unblocked)
 **Depends on**: S1, S2
-**Description**: After all PRs merge, extend integration tests to cover
-cross-module workflows using all 7 SDK modules (trust, lct, atp, federation,
-r6, mrh, acp). E.g., create entity → build agent plan → execute action →
-record in MRH graph → check federation compliance.
+**Description**: Extend integration tests to cover cross-module workflows
+using all 8 SDK modules (trust, lct, atp, federation, r6, mrh, acp,
+dictionary). E.g., create entity → build agent plan → execute action →
+record in MRH graph → translate via dictionary → check federation compliance.
 
 **Acceptance**: Integration tests cover at least 2 workflows spanning 5+ modules.
-
----
-
-### S7: SDK version bump and changelog
-
-**Status**: PLANNED
-**Depends on**: S1
-**Description**: After merging all module PRs, update __init__.py to v0.2.0,
-write a CHANGELOG.md documenting what each version added.
-
-**Acceptance**: Version 0.2.0, changelog covers v0.1.0 and v0.2.0.
 
 ---
 
@@ -66,14 +26,6 @@ write a CHANGELOG.md documenting what each version added.
 
 These are known needs without implementation details. Each requires its own
 scoping session before work begins.
-
-### U1: Dictionary entities module
-
-**Status**: IN PROGRESS (PR #10 awaiting review)
-**Description**: Web4 dictionaries elevated to foundational entities (§2.6 in whitepaper).
-SDK module implemented as `web4.dictionary` — 320 lines, 33 tests, 5 test vectors.
-Covers DictionarySpec, CompressionProfile, TranslationRequest/Result, TranslationChain,
-DictionaryEntity, DictionaryVersion, and dictionary selection scoring.
 
 ### U2: Multi-device binding
 Hardware binding hierarchy (API-Bridge → App → Pack Controller → Battery Module).
@@ -87,9 +39,18 @@ cross-reference audit between spec docs and SDK modules.
 
 ## Completed Tasks
 
+### S1: Merge SDK module PRs
+**Completed**: 2026-03-15 (all 3 PRs merged)
+**Result**: PRs #5 (R6), #6 (MRH), #7 (ACP) merged to main. All tests passing.
+
 ### S2: Cross-module integration tests
 **Completed**: 2026-03-14 (PR #8, merged as commit 099e524)
 **Result**: 19 integration tests covering trust+lct+atp+federation cross-module workflows.
+
+### S3: Update web4_sdk.py re-exports
+**Completed**: 2026-03-15
+**Result**: web4_sdk.py imports and re-exports canonical types from all 8 modules
+(trust, lct, atp, federation, r6, mrh, acp, dictionary). 51 re-exported symbols.
 
 ### S4: Archive reference implementation sprawl
 **Completed**: 2026-03-14 (PR #9, merged as commit 0a514e6)
@@ -100,19 +61,28 @@ MANIFEST.md documents triage rationale.
 **Completed**: 2026-03-14
 **Result**: PR #4 closed (duplicate of #5, superseded).
 
+### S7: SDK version bump and changelog
+**Completed**: 2026-03-15
+**Result**: Version 0.2.0 (set during module PR merges). CHANGELOG.md covers
+v0.1.0 (4 core modules) and v0.2.0 (3 new modules + full re-exports).
+
+### U1: Dictionary entities module
+**Completed**: 2026-03-15 (PR #10, merged as commit df1fca7)
+**Result**: `web4.dictionary` module — 320 lines, 33 tests, 5 test vectors.
+
 ---
 
 ## Task ID Reference
 
 | ID | Summary | Status |
 |----|---------|--------|
-| S1 | Merge SDK module PRs (#5, #6, #7) | IN PROGRESS (1/3) |
+| S1 | Merge SDK module PRs (#5, #6, #7) | DONE |
 | S2 | Cross-module integration tests (main) | DONE |
-| S3 | Update web4_sdk.py re-exports | IN PROGRESS (R6 done) |
+| S3 | Update web4_sdk.py re-exports | DONE |
 | S4 | Archive reference sprawl | DONE |
 | S5 | Close stale PR #4 | DONE |
-| S6 | Post-merge integration tests (all 7) | PLANNED |
-| S7 | SDK version bump + changelog | PLANNED |
-| U1 | Dictionary entities module | IN PROGRESS (PR #10) |
+| S6 | Post-merge integration tests (all 8) | PLANNED |
+| S7 | SDK version bump + changelog | DONE |
+| U1 | Dictionary entities module | DONE |
 | U2 | Multi-device binding | UNSCOPED |
 | U3 | Whitepaper sync audit | UNSCOPED |
