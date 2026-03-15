@@ -38,16 +38,16 @@ web4.acp types.
 
 ## Planned Tasks (Scoped)
 
-### S6: Post-merge integration tests (all 7 modules)
+### S6: Post-merge integration tests (all 8 modules)
 
-**Status**: PLANNED
+**Status**: DONE
 **Depends on**: S1, S2
-**Description**: After all PRs merge, extend integration tests to cover
-cross-module workflows using all 7 SDK modules (trust, lct, atp, federation,
-r6, mrh, acp). E.g., create entity → build agent plan → execute action →
-record in MRH graph → check federation compliance.
+**Description**: Extended integration tests to cover cross-module workflows
+using all 8 SDK modules (trust, lct, atp, federation, r6, mrh, acp, dictionary).
+Two new test classes: `TestAgentActionWorkflow` (3 tests, 7 modules) and
+`TestDictionaryTranslationWorkflow` (3 tests, 7 modules). Total: 25 integration tests.
 
-**Acceptance**: Integration tests cover at least 2 workflows spanning 5+ modules.
+**Acceptance**: ✅ 6 new tests covering 2 workflows, each spanning 7 modules.
 
 ---
 
@@ -111,7 +111,7 @@ MANIFEST.md documents triage rationale.
 | S3 | Update web4_sdk.py re-exports | IN PROGRESS (R6 done) |
 | S4 | Archive reference sprawl | DONE |
 | S5 | Close stale PR #4 | DONE |
-| S6 | Post-merge integration tests (all 7) | PLANNED |
+| S6 | Post-merge integration tests (all 8) | DONE |
 | S7 | SDK version bump + changelog | PLANNED |
 | U1 | Dictionary entities module | IN PROGRESS (PR #10) |
 | U2 | Multi-device binding | UNSCOPED |
