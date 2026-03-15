@@ -1,6 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
+**Updated**: 2026-03-14
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -10,66 +11,28 @@
 
 ### S1: Merge SDK module PRs
 
-**Status**: READY
+**Status**: IN PROGRESS (1/3 merged)
 **Depends on**: None
-**PRs**: #5 (R6), #6 (MRH), #7 (ACP)
+**PRs**: ~~#5 (R6)~~ merged, #6 (MRH) awaiting review, #7 (ACP) awaiting review
 **Description**: Review and merge the three SDK module PRs. Each adds a
-canonical equation component to the Python SDK. PR #4 is a stale duplicate
-of #5 and should be closed.
+canonical equation component to the Python SDK.
 
-Merge order: #5 (R6) → #6 (MRH) → #7 (ACP) — each may need rebase on
+Merge order: ~~#5 (R6)~~ → #6 (MRH) → #7 (ACP) — each may need rebase on
 the previous.
 
-**Acceptance**: All 3 PRs merged to main, #4 closed, tests passing.
-
----
-
-### S2: Cross-module integration tests
-
-**Status**: IN PROGRESS (this session)
-**Depends on**: None (tests main-branch modules)
-**Description**: Integration tests proving trust+lct+atp+federation compose
-correctly. Workflow scenarios, not unit tests.
-
-**Acceptance**: test_integration.py passing, covers at least 3 cross-module
-workflows.
+**Acceptance**: All 3 PRs merged to main, tests passing.
 
 ---
 
 ### S3: Update web4_sdk.py re-exports
 
-**Status**: BLOCKED (waiting on S1)
-**Depends on**: S1
-**Description**: web4_sdk.py currently imports from web4.trust, web4.lct,
-web4.atp, web4.federation. After S1, add re-exports for web4.r6, web4.mrh,
+**Status**: IN PROGRESS (R6 done, MRH/ACP pending S1)
+**Depends on**: S1 (for MRH + ACP)
+**Description**: web4_sdk.py re-exports canonical types from web4 modules.
+R6 re-exports added. After S1 completes, add re-exports for web4.mrh and
 web4.acp types.
 
 **Acceptance**: web4_sdk.py imports and re-exports all 7 module types.
-
----
-
-### S4: Archive reference implementation sprawl
-
-**Status**: READY
-**Depends on**: None
-**Description**: 189 files in `implementation/reference/` — many are standalone
-scripts reimplementing generic CS concepts with a "trust_" prefix. Move
-academic sprawl to `archive/reference-implementations/` and document what
-was kept vs archived and why.
-
-**Acceptance**: reference/ contains only files that import from or are imported
-by the SDK. Archived files are in archive/ with a manifest.
-
----
-
-### S5: Close stale PR #4
-
-**Status**: READY (can be done immediately)
-**Depends on**: None
-**Description**: PR #4 is a duplicate of PR #5 (both R6 module). Close #4
-with a comment explaining it was superseded by #5.
-
-**Acceptance**: PR #4 closed.
 
 ---
 
@@ -105,8 +68,12 @@ These are known needs without implementation details. Each requires its own
 scoping session before work begins.
 
 ### U1: Dictionary entities module
-Web4 dictionaries are elevated to foundational entities (§2.6 in whitepaper).
-No SDK module exists yet. Requires spec review to determine data structures.
+
+**Status**: IN PROGRESS (PR #10 awaiting review)
+**Description**: Web4 dictionaries elevated to foundational entities (§2.6 in whitepaper).
+SDK module implemented as `web4.dictionary` — 320 lines, 33 tests, 5 test vectors.
+Covers DictionarySpec, CompressionProfile, TranslationRequest/Result, TranslationChain,
+DictionaryEntity, DictionaryVersion, and dictionary selection scoring.
 
 ### U2: Multi-device binding
 Hardware binding hierarchy (API-Bridge → App → Pack Controller → Battery Module).
@@ -120,7 +87,18 @@ cross-reference audit between spec docs and SDK modules.
 
 ## Completed Tasks
 
-(None yet — this sprint plan is new.)
+### S2: Cross-module integration tests
+**Completed**: 2026-03-14 (PR #8, merged as commit 099e524)
+**Result**: 19 integration tests covering trust+lct+atp+federation cross-module workflows.
+
+### S4: Archive reference implementation sprawl
+**Completed**: 2026-03-14 (PR #9, merged as commit 0a514e6)
+**Result**: 149 files archived to `archive/reference-implementations/`, 39 kept.
+MANIFEST.md documents triage rationale.
+
+### S5: Close stale PR #4
+**Completed**: 2026-03-14
+**Result**: PR #4 closed (duplicate of #5, superseded).
 
 ---
 
@@ -128,13 +106,13 @@ cross-reference audit between spec docs and SDK modules.
 
 | ID | Summary | Status |
 |----|---------|--------|
-| S1 | Merge SDK module PRs (#5, #6, #7) | READY |
-| S2 | Cross-module integration tests (main) | IN PROGRESS |
-| S3 | Update web4_sdk.py re-exports | BLOCKED on S1 |
-| S4 | Archive reference sprawl | READY |
-| S5 | Close stale PR #4 | READY |
+| S1 | Merge SDK module PRs (#5, #6, #7) | IN PROGRESS (1/3) |
+| S2 | Cross-module integration tests (main) | DONE |
+| S3 | Update web4_sdk.py re-exports | IN PROGRESS (R6 done) |
+| S4 | Archive reference sprawl | DONE |
+| S5 | Close stale PR #4 | DONE |
 | S6 | Post-merge integration tests (all 7) | PLANNED |
 | S7 | SDK version bump + changelog | PLANNED |
-| U1 | Dictionary entities module | UNSCOPED |
+| U1 | Dictionary entities module | IN PROGRESS (PR #10) |
 | U2 | Multi-device binding | UNSCOPED |
 | U3 | Whitepaper sync audit | UNSCOPED |
