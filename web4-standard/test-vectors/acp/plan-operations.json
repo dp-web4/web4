@@ -1,0 +1,106 @@
+{
+  "description": "Canonical test vectors for web4 ACP (Agentic Context Protocol)",
+  "version": "1.0.0",
+  "spec": "web4-standard/core-spec/acp-framework.md",
+  "vectors": [
+    {
+      "id": "acp-001",
+      "description": "Plan canonical hash — deterministic content-addressed hash",
+      "input": {
+        "planId": "acp:plan:invoice-processor",
+        "principal": "lct:web4:human:cfo",
+        "agent": "lct:web4:ai:invoice-bot",
+        "grantId": "agy:grant:invoice-authority",
+        "steps": [
+          {"id": "fetch", "mcp": "invoice.search", "args": {"status": "ready", "limit": 100}},
+          {"id": "validate", "mcp": "invoice.validate", "args": {"rules": "standard"}, "dependsOn": ["fetch"]},
+          {"id": "approve", "mcp": "invoice.approve", "args": {}, "dependsOn": ["validate"]}
+        ],
+        "guards": {
+          "lawHash": "sha256:deadbeef",
+          "witnessLevel": 2,
+          "resourceCaps": {
+            "maxAtp": 25.0,
+            "maxExecutions": 100
+          }
+        }
+      },
+      "expected": {
+        "hash": "4a24e922e692c694ee76310b949a7d1107233c50232868d642bddbc4c3c95fda"
+      }
+    },
+    {
+      "id": "acp-002",
+      "description": "State machine — valid transition count and state count",
+      "input": {
+        "states": ["idle", "planning", "intent_created", "approval_gate", "executing", "recording", "complete", "failed"]
+      },
+      "expected": {
+        "totalStates": 8,
+        "totalValidTransitions": 13
+      }
+    },
+    {
+      "id": "acp-003",
+      "description": "Plan validation — structural error detection",
+      "input": {
+        "cases": [
+          {
+            "name": "valid plan",
+            "planId": "acp:plan:valid",
+            "principal": "lct:alice",
+            "agent": "lct:bot",
+            "grantId": "agy:grant:valid",
+            "steps": [
+              {"id": "s1", "mcp": "tool.action"}
+            ],
+            "expectErrors": false
+          },
+          {
+            "name": "missing plan_id",
+            "planId": "",
+            "principal": "lct:alice",
+            "agent": "lct:bot",
+            "grantId": "agy:grant:valid",
+            "steps": [
+              {"id": "s1", "mcp": "tool.action"}
+            ],
+            "expectErrors": true
+          },
+          {
+            "name": "empty steps",
+            "planId": "acp:plan:empty",
+            "principal": "lct:alice",
+            "agent": "lct:bot",
+            "grantId": "agy:grant:valid",
+            "steps": [],
+            "expectErrors": true
+          },
+          {
+            "name": "unknown dependency",
+            "planId": "acp:plan:bad-dep",
+            "principal": "lct:alice",
+            "agent": "lct:bot",
+            "grantId": "agy:grant:valid",
+            "steps": [
+              {"id": "s1", "mcp": "tool.action", "dependsOn": ["nonexistent"]}
+            ],
+            "expectErrors": true
+          },
+          {
+            "name": "dependency cycle",
+            "planId": "acp:plan:cycle",
+            "principal": "lct:alice",
+            "agent": "lct:bot",
+            "grantId": "agy:grant:valid",
+            "steps": [
+              {"id": "a", "mcp": "x", "dependsOn": ["b"]},
+              {"id": "b", "mcp": "y", "dependsOn": ["a"]}
+            ],
+            "expectErrors": true
+          }
+        ]
+      }
+    }
+  ]
+}
