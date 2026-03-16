@@ -2,6 +2,18 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.3.0] - 2026-03-16
+
+### Added
+- **web4.reputation** — Rule-based reputation computation engine:
+  `ReputationRule`, `ReputationEngine`, `ReputationStore`, `Modifier`,
+  `DimensionImpact`, `analyze_factors`. Implements rule-triggered reputation
+  changes with conditional modifiers, time-weighted aggregation with
+  exponential recency weighting, and inactivity decay with grace period
+  and acceleration. Validated against `test-vectors/reputation/reputation-operations.json`.
+- `web4_sdk.py` re-exports reputation module types (9 modules total).
+- 5 cross-language test vectors for reputation computation.
+
 ## [0.2.0] - 2026-03-15
 
 Added three new SDK modules and completed re-exports in `web4_sdk.py`.

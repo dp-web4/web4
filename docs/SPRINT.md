@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-15
+**Updated**: 2026-03-16
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -9,29 +9,7 @@
 
 ## Active Tasks
 
-### S6: Post-merge integration tests (all 8 modules)
-
-**Status**: IN PROGRESS (PR #14)
-**Depends on**: S1, S2
-**Description**: Extend integration tests to cover cross-module workflows
-using all 8 SDK modules (trust, lct, atp, federation, r6, mrh, acp,
-dictionary). E.g., create entity → build agent plan → execute action →
-record in MRH graph → translate via dictionary → check federation compliance.
-
-**Acceptance**: Integration tests cover at least 2 workflows spanning 5+ modules.
-
----
-
-### U4: Reputation computation module (`web4.reputation`)
-
-**Status**: IN PROGRESS
-**Depends on**: None (uses existing web4.r6 and web4.trust types)
-**Description**: Implement the reputation computation spec (`core-spec/reputation-computation.md`)
-as a reusable SDK module. Three components: ReputationRule (rule definitions with trigger
-conditions and modifiers), ReputationEngine (matches rules against R7Action outcomes, computes
-multi-factor T3/V3 deltas), ReputationStore (time-weighted aggregation and inactivity decay).
-
-**Acceptance**: Module with 41+ tests, 5 test vectors, re-exported via web4_sdk.py.
+_No active tasks. Sprint v0.2 complete. See below for next sprint candidates._
 
 ---
 
@@ -68,6 +46,17 @@ acknowledges graph-based MRH implementation.
 ---
 
 ## Completed Tasks
+
+### S6: Post-merge integration tests (all 8 modules)
+**Completed**: 2026-03-15 (PR #14, merged as commit 8453df6)
+**Result**: Extended integration tests covering cross-module workflows using all 8 SDK modules.
+Workflows span trust→lct→atp→federation→r6→mrh→acp→dictionary. 298 total tests passing.
+
+### U4: Reputation computation module
+**Completed**: 2026-03-16
+**Result**: `web4.reputation` module — 451 lines, 41 tests, 5 test vectors.
+ReputationRule (trigger matching with modifiers), ReputationEngine (multi-rule evaluation),
+ReputationStore (time-weighted aggregation + inactivity decay). SDK bumped to v0.3.0.
 
 ### S1: Merge SDK module PRs
 **Completed**: 2026-03-15 (all 3 PRs merged)
@@ -123,9 +112,9 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | S3 | Update web4_sdk.py re-exports | DONE |
 | S4 | Archive reference sprawl | DONE |
 | S5 | Close stale PR #4 | DONE |
-| S6 | Post-merge integration tests (all 8) | IN PROGRESS (PR #14) |
+| S6 | Post-merge integration tests (all 8) | DONE |
 | S7 | SDK version bump + changelog | DONE |
 | U1 | Dictionary entities module | DONE |
 | U2 | Multi-device binding | UNSCOPED |
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
-| U4 | Reputation computation module | IN PROGRESS |
+| U4 | Reputation computation module | DONE |
