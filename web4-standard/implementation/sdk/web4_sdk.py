@@ -108,6 +108,11 @@ from web4.dictionary import (
     TranslationRequest, TranslationResult, TranslationChain,
     dictionary_selection_score, select_best_dictionary,
 )
+from web4.reputation import (
+    ReputationRule, DimensionImpact, Modifier,
+    ReputationEngine, ReputationStore,
+    analyze_factors,
+)
 
 
 # =============================================================================

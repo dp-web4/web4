@@ -22,6 +22,19 @@ record in MRH graph → translate via dictionary → check federation compliance
 
 ---
 
+### U4: Reputation computation module (`web4.reputation`)
+
+**Status**: IN PROGRESS
+**Depends on**: None (uses existing web4.r6 and web4.trust types)
+**Description**: Implement the reputation computation spec (`core-spec/reputation-computation.md`)
+as a reusable SDK module. Three components: ReputationRule (rule definitions with trigger
+conditions and modifiers), ReputationEngine (matches rules against R7Action outcomes, computes
+multi-factor T3/V3 deltas), ReputationStore (time-weighted aggregation and inactivity decay).
+
+**Acceptance**: Module with 41+ tests, 5 test vectors, re-exported via web4_sdk.py.
+
+---
+
 ## Unscoped Tasks
 
 These are known needs without implementation details. Each requires its own
@@ -115,3 +128,4 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U1 | Dictionary entities module | DONE |
 | U2 | Multi-device binding | UNSCOPED |
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
+| U4 | Reputation computation module | IN PROGRESS |
