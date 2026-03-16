@@ -9,13 +9,13 @@
 
 ## Active Tasks
 
-### U6: LCT capability levels module
+### U7: Error taxonomy module
 **Status**: IN PROGRESS
-**Description**: Implement `web4.capability` module from `core-spec/lct-capability-levels.md` §2-§7.
-CapabilityLevel enum (0-5), TrustTier mapping, entity-level ranges, level assessment
-(assess_level), validation (validate_level), upgrade paths (can_upgrade), cross-domain
-common ground. Extends web4.lct with capability classification.
-**Deliverables**: `web4/capability.py`, `tests/test_capability.py`, `test-vectors/capability/capability-levels.json`
+**Description**: Implement `web4.errors` module from `core-spec/errors.md` §2.1-2.6.
+RFC 9457 Problem Details error types: 24 error codes across 6 categories (Binding,
+Pairing, Witness, Authorization, Cryptographic, Protocol). Web4Error base exception
+with serialization, category subclasses, error registry.
+**Deliverables**: `web4/errors.py`, `tests/test_errors.py`, `test-vectors/errors/error-taxonomy.json`
 
 ---
 
@@ -52,6 +52,11 @@ acknowledges graph-based MRH implementation.
 ---
 
 ## Completed Tasks
+
+### U6: LCT capability levels module
+**Completed**: 2026-03-16
+**Result**: `web4.capability` module — CapabilityLevel enum (0-5), TrustTier mapping,
+entity-level ranges, level assessment, validation, upgrade paths, cross-domain common ground.
 
 ### U5: Entity type taxonomy module
 **Completed**: 2026-03-16
@@ -132,4 +137,5 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
 | U5 | Entity type taxonomy module | DONE |
-| U6 | LCT capability levels module | IN PROGRESS |
+| U6 | LCT capability levels module | DONE |
+| U7 | Error taxonomy module | IN PROGRESS |

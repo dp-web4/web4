@@ -1,0 +1,76 @@
+{
+  "description": "Web4 error taxonomy test vectors — RFC 9457 Problem Details round-trip",
+  "spec": "web4-standard/core-spec/errors.md",
+  "vectors": [
+    {
+      "name": "authz_denied_with_detail",
+      "description": "Authorization error with custom detail (spec §3.1 example)",
+      "problem_json": {
+        "type": "about:blank",
+        "title": "Authorization Denied",
+        "status": 401,
+        "code": "W4_ERR_AUTHZ_DENIED",
+        "detail": "Credential lacks scope write:lct",
+        "instance": "web4://w4idp-ABCD/messages/123"
+      },
+      "expected_category": "AUTHZ",
+      "expected_subclass": "AuthzError"
+    },
+    {
+      "name": "witness_quorum_failure",
+      "description": "Witness quorum not met (spec §3.2 example)",
+      "problem_json": {
+        "type": "about:blank",
+        "title": "Quorum Not Met",
+        "status": 409,
+        "code": "W4_ERR_WITNESS_QUORUM",
+        "detail": "Only 2 of 3 required witnesses responded",
+        "instance": "web4://w4idp-EFGH/attestations/456"
+      },
+      "expected_category": "WITNESS",
+      "expected_subclass": "WitnessError"
+    },
+    {
+      "name": "rate_limit_exceeded",
+      "description": "Rate limit error (spec §3.3 example)",
+      "problem_json": {
+        "type": "about:blank",
+        "title": "Rate Limit Exceeded",
+        "status": 429,
+        "code": "W4_ERR_AUTHZ_RATE",
+        "detail": "Request rate 5001/min exceeds limit 5000/min",
+        "instance": "web4://w4idp-IJKL/api/v1/query"
+      },
+      "expected_category": "AUTHZ",
+      "expected_subclass": "AuthzError"
+    },
+    {
+      "name": "binding_exists_conflict",
+      "description": "Binding already exists for entity",
+      "problem_json": {
+        "type": "about:blank",
+        "title": "Binding Already Exists",
+        "status": 409,
+        "code": "W4_ERR_BINDING_EXISTS",
+        "detail": "Entity already has an active binding for device-12345",
+        "instance": "web4://w4idp-ABCD/bindings/12345"
+      },
+      "expected_category": "BINDING",
+      "expected_subclass": "BindingError"
+    },
+    {
+      "name": "protocol_replay_detected",
+      "description": "Protocol replay attack detected",
+      "problem_json": {
+        "type": "about:blank",
+        "title": "Replay Detected",
+        "status": 409,
+        "code": "W4_ERR_PROTO_REPLAY",
+        "detail": "Message nonce 0xDEADBEEF already seen in session",
+        "instance": "web4://node-1/handshake/42"
+      },
+      "expected_category": "PROTO",
+      "expected_subclass": "ProtoError"
+    }
+  ]
+}

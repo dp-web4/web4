@@ -128,6 +128,13 @@ from web4.capability import (
     level_requirements, trust_tier,
     entity_level_range, is_level_typical, common_ground,
 )
+from web4.errors import (
+    ErrorCode, ErrorCategory, ErrorMeta,
+    Web4Error as Web4ProtocolError,  # alias: avoids collision with legacy Web4Error above
+    BindingError, PairingError, WitnessError,
+    AuthzError, CryptoError, ProtoError,
+    get_error_meta, codes_for_category, make_error,
+)
 
 
 # =============================================================================
@@ -1300,4 +1307,18 @@ __all__ = [
     'entity_level_range',
     'is_level_typical',
     'common_ground',
+    # Error Taxonomy (RFC 9457)
+    'ErrorCode',
+    'ErrorCategory',
+    'ErrorMeta',
+    'Web4ProtocolError',  # web4.errors.Web4Error aliased to avoid collision with legacy Web4Error
+    'BindingError',
+    'PairingError',
+    'WitnessError',
+    'AuthzError',
+    'CryptoError',
+    'ProtoError',
+    'get_error_meta',
+    'codes_for_category',
+    'make_error',
 ]
