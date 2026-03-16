@@ -120,6 +120,14 @@ from web4.entity import (
     is_agentic, can_initiate, can_delegate, can_process_r6,
     valid_interaction, all_entity_types,
 )
+from web4.capability import (
+    CapabilityLevel, TrustTier,
+    ENTITY_LEVEL_RANGES,
+    LevelRequirement,
+    assess_level, validate_level, can_upgrade,
+    level_requirements, trust_tier,
+    entity_level_range, is_level_typical, common_ground,
+)
 
 
 # =============================================================================
@@ -1279,4 +1287,17 @@ __all__ = [
     'can_process_r6',
     'valid_interaction',
     'all_entity_types',
+    # Capability Levels
+    'CapabilityLevel',
+    'TrustTier',
+    'ENTITY_LEVEL_RANGES',
+    'LevelRequirement',
+    'assess_level',
+    'validate_level',
+    'can_upgrade',
+    'level_requirements',
+    'trust_tier',
+    'entity_level_range',
+    'is_level_typical',
+    'common_ground',
 ]

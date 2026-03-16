@@ -1,0 +1,170 @@
+{
+  "description": "Cross-language test vectors for web4.capability — LCT capability level assessment",
+  "spec": "core-spec/lct-capability-levels.md",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "stub_no_binding",
+      "description": "Level 0: no public key → Stub",
+      "input": {
+        "lct_id": "lct:web4:pending:placeholder123",
+        "entity_type": "ai",
+        "public_key": "",
+        "t3": {"talent": 0.0, "training": 0.0, "temperament": 0.0},
+        "v3": {"valuation": 0.0, "veracity": 0.0, "validity": 0.0}
+      },
+      "expected": {
+        "expected_level": 0,
+        "trust_tier": "untrusted",
+        "is_typical": false
+      }
+    },
+    {
+      "name": "minimal_self_issued",
+      "description": "Level 1: binding present, no relationships",
+      "input": {
+        "lct_id": "lct:web4:plugin:vision-abc123",
+        "entity_type": "role",
+        "public_key": "mb64:ed25519:abc123",
+        "binding_proof": "cose:ES256:proof",
+        "t3": {"talent": 0.1, "training": 0.1, "temperament": 0.1},
+        "v3": {"valuation": 0.0, "veracity": 0.0, "validity": 0.0}
+      },
+      "expected": {
+        "expected_level": 1,
+        "trust_tier": "low",
+        "is_typical": true
+      }
+    },
+    {
+      "name": "basic_with_relationships",
+      "description": "Level 2: MRH paired + non-zero T3 + capability",
+      "input": {
+        "lct_id": "lct:web4:ai:basic-agent",
+        "entity_type": "ai",
+        "public_key": "mb64:ed25519:basic123",
+        "binding_proof": "cose:ES256:proof",
+        "paired": [
+          {
+            "lct_id": "lct:web4:ai:orchestrator",
+            "pairing_type": "deployment",
+            "permanent": false,
+            "ts": "2026-01-01T00:00:00Z"
+          }
+        ],
+        "capabilities": ["execute:irp", "read:patterns"],
+        "t3": {"talent": 0.5, "training": 0.4, "temperament": 0.3},
+        "v3": {"valuation": 0.0, "veracity": 0.0, "validity": 0.0}
+      },
+      "expected": {
+        "expected_level": 2,
+        "trust_tier": "moderate",
+        "is_typical": true
+      }
+    },
+    {
+      "name": "standard_with_witnessing",
+      "description": "Level 3: witnessing + non-zero V3 + all lower requirements",
+      "input": {
+        "lct_id": "lct:web4:ai:standard-agent",
+        "entity_type": "ai",
+        "public_key": "mb64:ed25519:std123",
+        "binding_proof": "cose:ES256:proof",
+        "paired": [
+          {
+            "lct_id": "lct:web4:role:citizen:platform",
+            "pairing_type": "deployment",
+            "permanent": false,
+            "ts": "2026-01-01T00:00:00Z"
+          }
+        ],
+        "witnessing": ["lct:web4:oracle:time:global"],
+        "capabilities": ["execute:irp"],
+        "t3": {"talent": 0.7, "training": 0.6, "temperament": 0.65},
+        "v3": {"valuation": 0.5, "veracity": 0.6, "validity": 0.4}
+      },
+      "expected": {
+        "expected_level": 3,
+        "trust_tier": "medium",
+        "is_typical": true
+      }
+    },
+    {
+      "name": "full_society_issued",
+      "description": "Level 4: birth certificate with 3 witnesses + permanent citizen pairing",
+      "input": {
+        "lct_id": "lct:web4:human:full-identity",
+        "entity_type": "human",
+        "public_key": "mb64:ed25519:full123",
+        "binding_proof": "cose:ES256:proof",
+        "paired": [
+          {
+            "lct_id": "lct:web4:role:citizen:researcher",
+            "pairing_type": "birth_certificate",
+            "permanent": true,
+            "ts": "2026-01-01T00:00:00Z"
+          }
+        ],
+        "witnessing": ["lct:web4:oracle:trust:federation"],
+        "capabilities": ["exist", "interact", "accumulate_reputation"],
+        "t3": {"talent": 0.8, "training": 0.7, "temperament": 0.75},
+        "v3": {"valuation": 0.6, "veracity": 0.7, "validity": 0.5},
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society:web4-foundation",
+          "citizen_role": "lct:web4:role:citizen:researcher",
+          "birth_timestamp": "2026-01-01T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness:1",
+            "lct:web4:witness:2",
+            "lct:web4:witness:3"
+          ],
+          "context": "federation"
+        }
+      },
+      "expected": {
+        "expected_level": 4,
+        "trust_tier": "high",
+        "is_typical": true
+      }
+    },
+    {
+      "name": "hardware_bound_device",
+      "description": "Level 5: hardware anchor + all Level 4 requirements",
+      "input": {
+        "lct_id": "lct:web4:device:hw-bound",
+        "entity_type": "device",
+        "public_key": "mb64:coseKey:hw123",
+        "binding_proof": "cose:ES256:proof",
+        "hardware_anchor": "eat:mb64:hw:tpm2-attestation",
+        "paired": [
+          {
+            "lct_id": "lct:web4:role:citizen:infrastructure",
+            "pairing_type": "birth_certificate",
+            "permanent": true,
+            "ts": "2026-01-01T00:00:00Z"
+          }
+        ],
+        "witnessing": ["lct:web4:oracle:trust:federation"],
+        "capabilities": ["exist", "interact"],
+        "t3": {"talent": 0.9, "training": 0.85, "temperament": 0.9},
+        "v3": {"valuation": 0.8, "veracity": 0.9, "validity": 0.7},
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society:web4-foundation",
+          "citizen_role": "lct:web4:role:citizen:infrastructure",
+          "birth_timestamp": "2026-01-01T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness:1",
+            "lct:web4:witness:2",
+            "lct:web4:witness:3"
+          ],
+          "context": "infrastructure"
+        }
+      },
+      "expected": {
+        "expected_level": 5,
+        "trust_tier": "maximum",
+        "is_typical": true
+      }
+    }
+  ]
+}

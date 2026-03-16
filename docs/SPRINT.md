@@ -9,12 +9,13 @@
 
 ## Active Tasks
 
-### U5: Entity type taxonomy module
+### U6: LCT capability levels module
 **Status**: IN PROGRESS
-**Description**: Implement `web4.entity` module from `core-spec/entity-types.md` §2.1-2.3.
-BehavioralMode (Agentic/Responsive/Delegative), EnergyPattern (Active/Passive),
-EntityTypeInfo registry for all 15 entity types, interaction validation helpers.
-**Deliverables**: `web4/entity.py`, `tests/test_entity.py`, `test-vectors/entity/entity-taxonomy.json`
+**Description**: Implement `web4.capability` module from `core-spec/lct-capability-levels.md` §2-§7.
+CapabilityLevel enum (0-5), TrustTier mapping, entity-level ranges, level assessment
+(assess_level), validation (validate_level), upgrade paths (can_upgrade), cross-domain
+common ground. Extends web4.lct with capability classification.
+**Deliverables**: `web4/capability.py`, `tests/test_capability.py`, `test-vectors/capability/capability-levels.json`
 
 ---
 
@@ -51,6 +52,13 @@ acknowledges graph-based MRH implementation.
 ---
 
 ## Completed Tasks
+
+### U5: Entity type taxonomy module
+**Completed**: 2026-03-16
+**Result**: `web4.entity` module — 230 lines, 48 tests, 5 test vectors.
+BehavioralMode (Agentic/Responsive/Delegative), EnergyPattern (Active/Passive),
+EntityTypeInfo registry for all 15 entity types, interaction validation helpers.
+SDK bumped to v0.3.0 (with reputation).
 
 ### S6: Post-merge integration tests (all 8 modules)
 **Completed**: 2026-03-15 (PR #14, merged as commit 8453df6)
@@ -123,4 +131,5 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U2 | Multi-device binding | UNSCOPED |
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
-| U5 | Entity type taxonomy module | IN PROGRESS |
+| U5 | Entity type taxonomy module | DONE |
+| U6 | LCT capability levels module | IN PROGRESS |
