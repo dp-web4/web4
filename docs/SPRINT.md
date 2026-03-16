@@ -9,7 +9,12 @@
 
 ## Active Tasks
 
-_No active tasks. Sprint v0.2 complete. See below for next sprint candidates._
+### U5: Entity type taxonomy module
+**Status**: IN PROGRESS
+**Description**: Implement `web4.entity` module from `core-spec/entity-types.md` §2.1-2.3.
+BehavioralMode (Agentic/Responsive/Delegative), EnergyPattern (Active/Passive),
+EntityTypeInfo registry for all 15 entity types, interaction validation helpers.
+**Deliverables**: `web4/entity.py`, `tests/test_entity.py`, `test-vectors/entity/entity-taxonomy.json`
 
 ---
 
@@ -118,3 +123,4 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U2 | Multi-device binding | UNSCOPED |
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
+| U5 | Entity type taxonomy module | IN PROGRESS |
