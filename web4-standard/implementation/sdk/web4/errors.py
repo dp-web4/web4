@@ -285,18 +285,13 @@ class Web4Error(Exception):
         """
         code = ErrorCode(data["code"])
         meta = get_error_meta(code)
-        # Pick the right subclass based on category
         subclass = _CATEGORY_SUBCLASS.get(meta.category, cls)
-        err = object.__new__(subclass)
-        err.code = code
-        err.category = meta.category
-        err.title = data.get("title", meta.title)
-        err.status = data.get("status", meta.status)
-        err.detail = data.get("detail")
-        err.instance = data.get("instance")
-        err.error_type = data.get("type", "about:blank")
-        Exception.__init__(err, err.detail or meta.description)
-        return err
+        return subclass(
+            code,
+            detail=data.get("detail"),
+            instance=data.get("instance"),
+            error_type=data.get("type", "about:blank"),
+        )
 
 
 # ── Category Subclasses ────────────────────────────────────────
