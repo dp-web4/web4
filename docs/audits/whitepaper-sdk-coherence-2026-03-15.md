@@ -36,6 +36,9 @@ metric. These are fundamentally different quantities using the same name.
 renamed (e.g., `entity_health()` or `operational_coherence()`) or the identity coherence
 framework should be implemented separately.
 
+**Resolution** (U3a, 2026-03-15): Renamed to `operational_health()`/`is_healthy()` with
+docstring explaining the distinction from whitepaper identity coherence (C×S×Phi×R).
+
 ### D2: R6 vs R7 Naming Inconsistency
 
 | Source | Name | Components |
@@ -53,6 +56,9 @@ component.
 note the evolution. The `r6-framework-legacy.md` core-spec exists but the whitepaper
 doesn't reference it. Module name `r6` is fine (acronym protection per CLAUDE.md).
 
+**Resolution** (U3b, 2026-03-15): §2.4.4 updated to name Reputation as the 7th component
+and explain the R6→R7 evolution, preserving R6 as the protected acronym.
+
 ### D3: MRH — Five Dimensions vs Graph Model
 
 | Source | MRH Model |
@@ -69,6 +75,10 @@ and SDK implement it as a relationship graph. These are complementary but differ
 past the 5-dimension view. The whitepaper should either be updated to describe the graph
 model or explicitly note that the 5-dimension view is the conceptual frame while the
 graph is the implementation.
+
+**Resolution** (U3b, 2026-03-15): Added §2.5.4 "From Conceptual Dimensions to Relationship
+Graphs" reconciling the 5-dimension conceptual model with the graph-based implementation.
+Explains how each dimension maps to graph properties and why the graph model is more expressive.
 
 ### D4: Entity Types — Whitepaper vs SDK Taxonomy
 
@@ -205,29 +215,31 @@ appropriately NOT in a data structures SDK:
 
 ## Priority Summary
 
-| ID | Finding | Priority | Action |
+| ID | Finding | Priority | Status |
 |----|---------|----------|--------|
-| D1 | `coherence()` naming collision | HIGH | Rename SDK function or add identity coherence module |
-| G1 | Identity coherence not implemented | HIGH | Add data structures or document as runtime concern |
-| D2 | R6 vs R7 naming | MEDIUM | Update whitepaper to reference R7 evolution |
-| D3 | MRH 5-dim vs graph model | MEDIUM | Update whitepaper or add reconciliation note |
-| G2 | No fractal sub-dimensions | MEDIUM | Track for v0.3.0+ |
-| D4 | Entity type taxonomy mismatch | LOW | No action needed (whitepaper is illustrative) |
-| G3 | VCM not explicit | LOW | Protocol-layer concern |
+| D1 | `coherence()` naming collision | HIGH | **RESOLVED** (U3a) — renamed to `operational_health()`/`is_healthy()` |
+| G1 | Identity coherence not implemented | HIGH | OPEN — runtime concern (SAGE/HRM scope, not SDK) |
+| D2 | R6 vs R7 naming | MEDIUM | **RESOLVED** (U3b) — §2.4.4 names Reputation as 7th component |
+| D3 | MRH 5-dim vs graph model | MEDIUM | **RESOLVED** (U3b) — §2.5.4 reconciles conceptual vs implementation model |
+| G2 | No fractal sub-dimensions | MEDIUM | OPEN — tracked for v0.3.0+ |
+| D4 | Entity type taxonomy mismatch | LOW | OPEN — no action needed (whitepaper is illustrative) |
+| G3 | VCM not explicit | LOW | OPEN — protocol-layer concern |
 
 ---
 
-## Recommendations for U3 Task Scoping
+## U3 Resolution Summary
 
-Based on this audit, U3 should be scoped as two sub-tasks:
+Both U3 sub-tasks are now complete:
 
-1. **U3a: SDK coherence naming fix** — Rename `coherence()`/`is_coherent()` in trust.py
-   to avoid collision with the whitepaper's identity coherence framework. Add docstring
-   noting the distinction. ~30 min, 1 file modified.
+1. **U3a: SDK coherence naming fix** — DONE (2026-03-15, PR #17). Renamed
+   `coherence()`→`operational_health()`, `is_coherent()`→`is_healthy()`. All 292 tests passing.
 
-2. **U3b: Whitepaper section updates** — Update whitepaper §2.4 to reference R7 evolution,
-   §2.5 to reconcile 5-dimension vs graph model, and §2.2 to expand entity type list.
-   This is documentation work, not code. ~2 hours, 2-3 files modified.
+2. **U3b: Whitepaper section updates** — DONE (2026-03-15). Updated §2.4.4 (R7 evolution)
+   and added §2.5.4 (MRH graph reconciliation). §2.2 entity type expansion skipped (D4 rated LOW).
 
-Sub-dimensions (G2) and identity coherence implementation (G1) are larger efforts that
-should be separate sprint tasks, not part of U3.
+## Remaining Open Items
+
+- **G1**: Identity coherence (C×S×Phi×R) — runtime concern, belongs in SAGE/HRM, not SDK
+- **G2**: T3/V3 fractal sub-dimensions — tracked for SDK v0.3.0+
+- **D4**: Entity type taxonomy — no action needed (whitepaper list is illustrative)
+- **G3**: Value Confirmation Mechanism — protocol-layer concern
