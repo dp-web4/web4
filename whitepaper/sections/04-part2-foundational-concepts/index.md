@@ -159,7 +159,7 @@ Actions don't launch blindly. The R6 framework includes a confidence mechanism�
 
 Only when confidence exceeds threshold does action commence. This isn't hesitation—it's intelligence. The system learns to attempt what it can achieve, building trust through reliable execution.
 
-### 2.4.4. The Learning Loop
+### 2.4.4. The Learning Loop and the Seventh Component: Reputation
 
 > *"Every Result teaches. Every teaching improves future Results."*
 
@@ -174,6 +174,8 @@ The magic happens in the gap between Request and Result:
 **Exceeded Expectations**: Result surpasses Request → Amplified trust boost → Role expansion possibilities
 
 This isn't punishment and reward—it's evolution. Every action makes the system smarter, more capable, more aligned.
+
+This feedback loop is so fundamental that it earned its own name: **Reputation**—the seventh component. The original six components (Rules, Role, Request, Reference, Resource, Result) describe the anatomy of a single action. Reputation captures the longitudinal effect: how the delta between Request and Result feeds back into the entity's trust profile, shaping future confidence calculations and role eligibility. The framework is sometimes called **R7** to acknowledge this evolution, while the R6 acronym is preserved as the protected term for the six structural components (see §2.4.1).
 
 ### 2.4.5. Actions Leave Footprints
 
@@ -247,7 +249,15 @@ These dimensions create a unique relevance fingerprint for each entity, optimizi
 
 The MRH is not static. As entities evolve, their relevance horizons shift. A new AI agent starts with narrow scope, expanding as it demonstrates capability. A human expert's MRH in their domain far exceeds a novice's. This dynamic adjustment ensures the system remains adaptive and efficient.
 
-### 2.5.4. The Ontological Backbone: RDF
+### 2.5.4. From Conceptual Dimensions to Relationship Graphs
+
+The five dimensions above describe MRH's *conceptual model*—what relevance means. The *implementation model* expresses MRH as an RDF relationship graph: entities are nodes, and typed edges (binding, pairing, witnessing, delegation, and others) capture how entities relate. Relevance is determined by graph traversal with a configurable horizon depth, not by computing a 5-dimensional vector.
+
+This is not a contradiction but a natural evolution. The five dimensions informed the design; the graph model operationalizes it. Fractal scale maps to the depth of the traversal. Informational and action scope map to edge types (a witnessing edge carries different information than a delegation edge). Geographic and temporal scope emerge from node metadata and edge timestamps. The graph model is strictly more expressive: it can represent asymmetric relationships, multi-path trust propagation, and context-dependent relevance that a flat tensor cannot.
+
+The core specification (`mrh-tensors.md`) and the Python SDK (`web4.mrh`) implement the graph model with 12 typed relation kinds and BFS-based horizon traversal. When this whitepaper refers to "MRH dimensions," it describes the conceptual frame; when specs and code refer to "MRH graph," they describe the implementation.
+
+### 2.5.5. The Ontological Backbone: RDF
 
 So far, we have described relationships—binding, pairing, witnessing, relevance. But how are they actually expressed? In Web4, every relationship is a typed triple: "Alice is-bound-to Hardware1," "Bob is-paired-with Surgeon-Role," "Charlie witnessed DataAnalysis with Talent 0.92." This is RDF—the Resource Description Framework, a W3C standard that gives structure to relationships.
 

@@ -44,9 +44,9 @@ Two sub-tasks:
 `COHERENCE_THRESHOLD`→`HEALTH_THRESHOLD`, `ReputationScore.coherence_score`→`health_score`.
 All 70 tests passing. Docstring explains distinction from whitepaper identity coherence.
 
-**U3b: Whitepaper section updates** — Update whitepaper §2.4 to reference R7 evolution
-(Reputation as 7th component), §2.5 to reconcile 5-dimension conceptual model vs
-graph implementation model, and §2.2 to expand entity type examples. ~2-3 files modified.
+**U3b: Whitepaper section updates** — DONE (2026-03-15). Updated §2.4.4 to name Reputation
+as the 7th component (R7 evolution). Added §2.5.4 reconciling 5-dimension conceptual model
+vs graph implementation model. §2.2 entity type expansion skipped (audit rated LOW).
 
 **Acceptance**: (a) No naming collision between SDK coherence function and whitepaper
 identity coherence concept. (b) Whitepaper §2.4 references R7. (c) Whitepaper §2.5
@@ -93,6 +93,12 @@ v0.1.0 (4 core modules) and v0.2.0 (3 new modules + full re-exports).
 plus constants and `ReputationScore.coherence_score`→`health_score`. Resolves naming
 collision with whitepaper identity coherence (C×S×Phi×R). 70 tests passing.
 
+### U3b: Whitepaper section updates
+**Completed**: 2026-03-15
+**Result**: Updated §2.4.4 to name Reputation as the 7th component (R7 evolution).
+Added §2.5.4 reconciling 5-dimension conceptual model vs graph implementation model.
+Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
+
 ---
 
 ## Task ID Reference
@@ -108,4 +114,4 @@ collision with whitepaper identity coherence (C×S×Phi×R). 70 tests passing.
 | S7 | SDK version bump + changelog | DONE |
 | U1 | Dictionary entities module | DONE |
 | U2 | Multi-device binding | UNSCOPED |
-| U3 | Whitepaper-SDK coherence fixes | U3a DONE, U3b TODO |
+| U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
