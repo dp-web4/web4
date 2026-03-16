@@ -10,6 +10,7 @@ Provides offline-capable primitives for:
 - MRH graph — Markov Relevancy Horizon context traversal
 - ACP — Agentic Context Protocol for autonomous agent workflows
 - Dictionary entities — semantic bridges with trust-tracked translation
+- Reputation computation — rule-based reputation engine with aggregation and decay
 
 These modules define the canonical data types and algorithms specified
 in the web4-standard. They work offline (no network services required)
@@ -17,4 +18,4 @@ and are designed to be imported by applications, services, and other
 SDKs that build on web4.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

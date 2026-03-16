@@ -1,0 +1,165 @@
+{
+  "description": "Reputation computation test vectors — rule-triggered deltas, aggregation, decay",
+  "spec": "web4-standard/core-spec/reputation-computation.md",
+  "version": "0.1.0",
+  "vectors": [
+    {
+      "id": "rep-001",
+      "name": "Rule-triggered positive reputation with modifiers",
+      "description": "Successful analysis with high accuracy and deadline met triggers training and veracity gains with modifier multipliers",
+      "input": {
+        "actor": "lct:web4:entity:alice",
+        "role_lct": "lct:web4:role:analyst:abc123",
+        "action": "analyze_dataset",
+        "result_status": "success",
+        "result_output": {"quality": 0.97, "accuracy": 0.97},
+        "t3": {"talent": 0.85, "training": 0.90, "temperament": 0.88},
+        "v3": {"valuation": 0.5, "veracity": 0.80, "validity": 1.0},
+        "factors": [
+          {"factor": "high_accuracy", "weight": 0.4},
+          {"factor": "deadline_met", "weight": 0.3}
+        ],
+        "rule": {
+          "rule_id": "successful_analysis",
+          "trigger_conditions": {
+            "action_type": "analyze_dataset",
+            "result_status": "success",
+            "quality_threshold": 0.95
+          },
+          "t3_impacts": {
+            "training": {
+              "base_delta": 0.01,
+              "modifiers": [
+                {"condition": "deadline_met", "multiplier": 1.5},
+                {"condition": "high_accuracy", "multiplier": 1.2}
+              ]
+            },
+            "temperament": {
+              "base_delta": 0.005,
+              "modifiers": []
+            }
+          },
+          "v3_impacts": {
+            "veracity": {
+              "base_delta": 0.02,
+              "modifiers": [
+                {"condition": "high_accuracy", "multiplier": 1.1}
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "t3_deltas": {
+          "training": {"change": 0.018, "from": 0.90, "to": 0.918},
+          "temperament": {"change": 0.005, "from": 0.88, "to": 0.885}
+        },
+        "v3_deltas": {
+          "veracity": {"change": 0.022, "from": 0.80, "to": 0.822}
+        },
+        "net_trust_change_positive": true,
+        "net_value_change_positive": true
+      },
+      "tolerance": 0.001
+    },
+    {
+      "id": "rep-002",
+      "name": "No matching rules produces no change",
+      "description": "When no rules are registered, evaluation returns null (no reputation change)",
+      "input": {
+        "actor": "lct:web4:entity:bob",
+        "role_lct": "lct:web4:role:dev:xyz",
+        "action": "compile_code",
+        "result_status": "success"
+      },
+      "expected": {
+        "delta": null
+      },
+      "tolerance": 0.0
+    },
+    {
+      "id": "rep-003",
+      "name": "Time-weighted aggregation favors recent deltas",
+      "description": "Two training deltas: old negative (-0.1, 60 days ago) and recent positive (+0.1, today). Recency weighting makes result > 0.5.",
+      "input": {
+        "entity": "lct:web4:entity:carol",
+        "role": "lct:web4:role:analyst:def456",
+        "query_dimension": "training",
+        "now": "2026-03-15T00:00:00+00:00",
+        "deltas": [
+          {
+            "dimension": "training",
+            "change": -0.1,
+            "timestamp": "2026-01-14T00:00:00+00:00"
+          },
+          {
+            "dimension": "training",
+            "change": 0.1,
+            "timestamp": "2026-03-15T00:00:00+00:00"
+          }
+        ]
+      },
+      "expected": {
+        "score_above_neutral": true,
+        "score": 0.576
+      },
+      "tolerance": 0.01,
+      "notes": "Half-life 30 days. Old delta at 60 days has weight e^(-2) ≈ 0.135, recent delta has weight 1.0. Weighted avg ≈ (0.1*1.0 + (-0.1)*0.135) / (1.0+0.135) ≈ 0.076, so 0.5+0.076 ≈ 0.576"
+    },
+    {
+      "id": "rep-004",
+      "name": "Inactivity decay after grace period",
+      "description": "Entity inactive for 90 days (3 months). Per spec: -0.01/month * 3 = -0.03",
+      "input": {
+        "entity": "lct:web4:entity:dave",
+        "role": "lct:web4:role:reviewer:ghi789",
+        "last_action_timestamp": "2025-12-15T00:00:00+00:00",
+        "check_timestamp": "2026-03-15T00:00:00+00:00"
+      },
+      "expected": {
+        "decay": -0.03
+      },
+      "tolerance": 0.005,
+      "notes": "90 days / 30 = 3 months. 3 * -0.01 = -0.03. Below 6-month acceleration threshold."
+    },
+    {
+      "id": "rep-005",
+      "name": "Failure rule produces negative deltas",
+      "description": "Failed analysis triggers negative training and validity changes",
+      "input": {
+        "actor": "lct:web4:entity:eve",
+        "role_lct": "lct:web4:role:analyst:jkl012",
+        "action": "analyze_dataset",
+        "result_status": "failure",
+        "t3": {"talent": 0.7, "training": 0.7, "temperament": 0.7},
+        "v3": {"valuation": 0.5, "veracity": 0.7, "validity": 0.7},
+        "rule": {
+          "rule_id": "analysis_failure",
+          "trigger_conditions": {
+            "action_type": "analyze_dataset",
+            "result_status": "failure"
+          },
+          "t3_impacts": {
+            "training": {"base_delta": -0.005},
+            "temperament": {"base_delta": -0.01}
+          },
+          "v3_impacts": {
+            "validity": {"base_delta": -0.01}
+          }
+        }
+      },
+      "expected": {
+        "t3_deltas": {
+          "training": {"change": -0.005, "from": 0.7, "to": 0.695},
+          "temperament": {"change": -0.01, "from": 0.7, "to": 0.69}
+        },
+        "v3_deltas": {
+          "validity": {"change": -0.01, "from": 0.7, "to": 0.69}
+        },
+        "net_trust_change_negative": true,
+        "net_value_change_negative": true
+      },
+      "tolerance": 0.001
+    }
+  ]
+}
