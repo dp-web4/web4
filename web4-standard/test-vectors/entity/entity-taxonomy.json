@@ -1,0 +1,84 @@
+{
+  "description": "Entity type taxonomy test vectors — behavioral modes, energy patterns, interaction validity",
+  "spec": "web4-standard/core-spec/entity-types.md",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "id": "entity-human-agentic",
+      "description": "Human entity: agentic mode, active energy, full R6 capability",
+      "entity_type": "human",
+      "expected": {
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true
+      },
+      "interactions": [
+        {"target": "ai", "type": "pairing", "valid": true},
+        {"target": "role", "type": "binding", "valid": false},
+        {"target": "service", "type": "witnessing", "valid": true},
+        {"target": "ai", "type": "delegation", "valid": false}
+      ]
+    },
+    {
+      "id": "entity-society-delegative",
+      "description": "Society entity: delegative mode, active energy, can bind and delegate",
+      "entity_type": "society",
+      "expected": {
+        "modes": ["delegative"],
+        "energy": "active",
+        "can_r6": true
+      },
+      "interactions": [
+        {"target": "role", "type": "binding", "valid": true},
+        {"target": "human", "type": "delegation", "valid": true},
+        {"target": "ai", "type": "delegation", "valid": true},
+        {"target": "task", "type": "delegation", "valid": false}
+      ]
+    },
+    {
+      "id": "entity-device-dual-mode",
+      "description": "Device entity: responsive+agentic dual mode, active energy",
+      "entity_type": "device",
+      "expected": {
+        "modes": ["responsive", "agentic"],
+        "energy": "active",
+        "can_r6": true
+      },
+      "interactions": [
+        {"target": "service", "type": "pairing", "valid": true},
+        {"target": "human", "type": "pairing", "valid": true},
+        {"target": "infrastructure", "type": "binding", "valid": false}
+      ]
+    },
+    {
+      "id": "entity-infrastructure-passive",
+      "description": "Infrastructure entity: no behavioral mode, passive energy, no R6",
+      "entity_type": "infrastructure",
+      "expected": {
+        "modes": [],
+        "energy": "passive",
+        "can_r6": false
+      },
+      "interactions": [
+        {"target": "accumulator", "type": "pairing", "valid": false},
+        {"target": "human", "type": "witnessing", "valid": true},
+        {"target": "ai", "type": "delegation", "valid": false}
+      ]
+    },
+    {
+      "id": "entity-oracle-responsive-delegative",
+      "description": "Oracle entity: responsive+delegative dual mode, active energy",
+      "entity_type": "oracle",
+      "expected": {
+        "modes": ["responsive", "delegative"],
+        "energy": "active",
+        "can_r6": true
+      },
+      "interactions": [
+        {"target": "human", "type": "delegation", "valid": true},
+        {"target": "role", "type": "binding", "valid": true},
+        {"target": "service", "type": "pairing", "valid": true}
+      ]
+    }
+  ]
+}

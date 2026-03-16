@@ -9,7 +9,12 @@
 
 ## Active Tasks
 
-_No active tasks. Sprint v0.2 complete. See below for next sprint candidates._
+### U5: Entity type taxonomy module
+Implement `web4.entity` module with behavioral modes, energy patterns, and
+interaction validity rules per `core-spec/entity-types.md`. Adds `BehavioralMode`,
+`EnergyPattern`, `InteractionType` enums, `EntityTypeInfo` registry for all 15
+entity types, and query functions (`is_agentic`, `can_delegate`, `can_process_r6`,
+`valid_interaction`, etc.).
 
 ---
 
@@ -118,3 +123,4 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U2 | Multi-device binding | UNSCOPED |
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
+| U5 | Entity type taxonomy module | IN PROGRESS |

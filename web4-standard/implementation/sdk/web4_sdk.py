@@ -113,6 +113,13 @@ from web4.reputation import (
     ReputationEngine, ReputationStore,
     analyze_factors,
 )
+from web4.entity import (
+    BehavioralMode, EnergyPattern, InteractionType,
+    EntityTypeInfo, get_info as entity_get_info,
+    behavioral_modes, energy_pattern,
+    is_agentic, can_initiate, can_delegate, can_process_r6,
+    valid_interaction, all_entity_types,
+)
 
 
 # =============================================================================
@@ -1258,4 +1265,18 @@ __all__ = [
     'TranslationChain',
     'dictionary_selection_score',
     'select_best_dictionary',
+    # Entity Type Taxonomy
+    'BehavioralMode',
+    'EnergyPattern',
+    'InteractionType',
+    'EntityTypeInfo',
+    'entity_get_info',
+    'behavioral_modes',
+    'energy_pattern',
+    'is_agentic',
+    'can_initiate',
+    'can_delegate',
+    'can_process_r6',
+    'valid_interaction',
+    'all_entity_types',
 ]
