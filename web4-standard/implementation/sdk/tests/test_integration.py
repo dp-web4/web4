@@ -5,7 +5,7 @@ These tests verify that trust, lct, atp, and federation modules compose
 correctly in end-to-end workflows. Each test exercises a realistic scenario
 that spans multiple modules — not unit-level behavior of any single module.
 
-Sprint task: S2
+Sprint tasks: S2, S6
 """
 
 import pytest
@@ -14,6 +14,21 @@ from web4.trust import T3, V3, TrustProfile, operational_health, is_healthy, mrh
 from web4.lct import LCT, EntityType, RevocationStatus
 from web4.atp import ATPAccount, transfer, sliding_scale, check_conservation, energy_ratio
 from web4.federation import Society, LawDataset, Norm, Procedure, Delegation
+from web4.r6 import (
+    R7Action, ActionStatus, Rules, Role, Request, Reference, ResourceRequirements,
+    Result, ActionChain, build_action,
+)
+from web4.mrh import MRHGraph, MRHNode, MRHEdge, RelationType, propagate_multiplicative
+from web4.acp import (
+    ACPStateMachine, ACPState, AgentPlan, PlanStep, Intent, Decision,
+    DecisionType, ExecutionRecord, Guards, ResourceCaps, HumanApproval,
+    ApprovalMode, Trigger, TriggerKind, build_intent, validate_plan,
+)
+from web4.dictionary import (
+    DictionaryEntity, DictionarySpec, DictionaryType, TranslationRequest,
+    TranslationChain, CompressionProfile, DomainCoverage,
+    dictionary_selection_score, select_best_dictionary,
+)
 
 
 class TestEntityLifecycle:
@@ -473,3 +488,617 @@ class TestEndToEndWorkflow:
         assert society.is_citizen(bob.lct_id)
         assert len(alice.mrh.witnessing) == 1
         assert len(bob.mrh.paired) == 2  # birth cert + work relationship
+
+
+# ═══════════════════════════════════════════════════════════════════
+# S6: Post-merge integration tests — all 8 modules
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestAgentActionWorkflow:
+    """
+    Workflow: Society → citizen → R7 action → ACP plan → execute → MRH graph.
+
+    Modules exercised: trust, lct, atp, federation, r6, acp, mrh (7 of 8).
+
+    Scenario: A society issues an AI agent citizen, delegates authority to it,
+    the agent builds an ACP plan to perform a governed action, executes through
+    the state machine, records the result as an R7 action, and the relationships
+    are tracked in an MRH graph.
+    """
+
+    def _setup_society_with_agent(self):
+        """Create society, principal, and AI agent with delegation."""
+        society = Society("lct:web4:society:ops", "Operations")
+        law = LawDataset(
+            law_id="law:ops:v1", version="1.0",
+            society_id=society.society_id,
+            norms=[
+                Norm(norm_id="LAW-ATP-CAP", selector="atp.transfer",
+                     op="<=", value=500.0),
+            ],
+            procedures=[
+                Procedure(procedure_id="PROC-WITNESS", requires_witnesses=1),
+            ],
+        )
+        society.set_law(law)
+
+        # Principal (human) and agent (AI)
+        principal = society.issue_citizenship(
+            EntityType.HUMAN, "principal_key",
+            witnesses=["w1"],
+            t3=T3(0.9, 0.85, 0.88),
+            v3=V3(0.8, 0.9, 0.85),
+        )
+        agent = society.issue_citizenship(
+            EntityType.AI, "agent_key",
+            witnesses=["w1"],
+            t3=T3(0.75, 0.80, 0.70),
+            v3=V3(0.65, 0.75, 0.70),
+        )
+
+        # Delegate authority from principal to agent
+        deleg = society.delegate_authority(
+            agent.lct_id, scope="data_processing",
+            permissions=["query_data", "transform_data"],
+        )
+
+        return society, principal, agent, deleg
+
+    def test_agent_plans_and_executes_governed_action(self):
+        """Full ACP lifecycle: plan → intent → approve → execute → record → R7 action."""
+        society, principal, agent, deleg = self._setup_society_with_agent()
+
+        # Agent has required permissions
+        assert society.has_permission(agent.lct_id, "data_processing", "query_data")
+
+        # Build ACP plan
+        plan = AgentPlan(
+            plan_id="plan:data-query-001",
+            principal=principal.lct_id,
+            agent=agent.lct_id,
+            grant_id=deleg.delegation_id,
+            triggers=[Trigger(kind=TriggerKind.MANUAL, expr="user_request")],
+            steps=[
+                PlanStep(step_id="s1", mcp_tool="data.query",
+                         args={"table": "sensors", "limit": 100}),
+                PlanStep(step_id="s2", mcp_tool="data.transform",
+                         args={"format": "json"}, depends_on=["s1"]),
+            ],
+            guards=Guards(
+                law_hash="law:ops:v1",
+                resource_caps=ResourceCaps(max_atp=200.0, max_executions=10),
+                witness_level=1,
+                human_approval=HumanApproval(mode=ApprovalMode.CONDITIONAL,
+                                             auto_threshold=100.0),
+            ),
+        )
+        assert validate_plan(plan) == []  # Valid plan
+
+        # ACP state machine lifecycle
+        sm = ACPStateMachine(plan)
+        assert sm.state == ACPState.IDLE
+
+        sm.start_planning()
+        assert sm.state == ACPState.PLANNING
+
+        # Build intent for step s1
+        intent = build_intent(plan, "s1", explanation="Query sensor data")
+        sm.create_intent(intent)
+        assert sm.state == ACPState.INTENT_CREATED
+
+        # Approval gate — auto-approve (value within threshold)
+        sm.enter_approval_gate()
+        decision = Decision(
+            intent_id=intent.intent_id,
+            decision=DecisionType.APPROVE,
+            decided_by=principal.lct_id,
+            rationale="Within auto-approve threshold",
+            witnesses=[principal.lct_id],
+        )
+        sm.approve(decision)
+        assert sm.state == ACPState.EXECUTING
+
+        # Record execution
+        record = ExecutionRecord(
+            record_id="rec:001",
+            intent_id=intent.intent_id,
+            grant_id=plan.grant_id,
+            law_hash=plan.guards.law_hash,
+            mcp_call={"tool": "data.query", "args": {"table": "sensors"}},
+            result_status="success",
+            result_output={"rows": 42},
+            resources_consumed={"atp": 15.0},
+            witnesses=[principal.lct_id],
+        )
+        sm.record_execution(record)
+        assert sm.state == ACPState.RECORDING
+
+        sm.complete()
+        assert sm.state == ACPState.COMPLETE
+        assert sm.record.success
+
+        # Now create the corresponding R7 action
+        action = build_action(
+            actor=agent.lct_id,
+            role_lct="role:data-processor",
+            action="query_data",
+            target="sensors",
+            t3=agent.t3,
+            v3=agent.v3,
+            atp_stake=15.0,
+            available_atp=200.0,
+            permissions=["query_data", "transform_data"],
+            society=society.society_id,
+            law_hash="law:ops:v1",
+            parameters={"table": "sensors", "limit": 100},
+        )
+        assert action.is_valid
+
+        # Compute reputation delta for the successful action
+        rep = action.compute_reputation(quality=0.85, rule_triggered=False)
+        assert rep.net_trust_change > 0  # Success boosts trust
+        assert rep.subject_lct == agent.lct_id
+
+        # ATP conservation through the action
+        agent_atp = ATPAccount(available=200.0)
+        assert agent_atp.lock(15.0)
+        committed = agent_atp.commit(15.0)
+        assert committed == 15.0
+        assert agent_atp.adp == 15.0
+        assert agent_atp.energy_ratio < 1.0  # Work was done
+
+        # Operational health check after action
+        updated_t3 = agent.t3.update(quality=0.85, success=True)
+        coh = operational_health(updated_t3.composite, agent.v3.composite, agent_atp.energy_ratio)
+        assert is_healthy(updated_t3.composite, agent.v3.composite, agent_atp.energy_ratio)
+        assert coh > 0.5
+
+    def test_mrh_graph_tracks_agent_relationships(self):
+        """Build MRH graph from society relationships; verify trust propagation."""
+        society, principal, agent, _ = self._setup_society_with_agent()
+
+        # Build MRH graph representing the society's relationship structure
+        graph = MRHGraph(horizon_depth=3)
+
+        # Add nodes
+        graph.add_node(MRHNode(
+            lct_id=society.society_id,
+            entity_type="society",
+            trust_scores={"governance": 1.0},
+        ))
+        graph.add_node(MRHNode(
+            lct_id=principal.lct_id,
+            entity_type="human",
+            trust_scores={
+                "talent": principal.t3.talent,
+                "training": principal.t3.training,
+                "temperament": principal.t3.temperament,
+            },
+        ))
+        graph.add_node(MRHNode(
+            lct_id=agent.lct_id,
+            entity_type="ai",
+            trust_scores={
+                "talent": agent.t3.talent,
+                "training": agent.t3.training,
+                "temperament": agent.t3.temperament,
+            },
+        ))
+
+        # Add edges: society → principal (citizenship), principal → agent (delegation)
+        graph.add_edge(MRHEdge(
+            source=society.society_id,
+            target=principal.lct_id,
+            relation=RelationType.PARENT_BINDING,
+            weight=0.95,
+        ))
+        graph.add_edge(MRHEdge(
+            source=principal.lct_id,
+            target=agent.lct_id,
+            relation=RelationType.SERVICE_PAIRING,
+            weight=0.8,
+        ))
+        # Agent witnesses principal (trust-building observation)
+        graph.add_edge(MRHEdge(
+            source=agent.lct_id,
+            target=principal.lct_id,
+            relation=RelationType.WITNESSED_BY,
+            weight=0.85,
+        ))
+
+        assert graph.node_count == 3
+        assert graph.edge_count == 3
+
+        # Horizon from society: both principal and agent within 2 hops
+        zones = graph.horizon_zones(society.society_id, depth=2)
+        assert principal.lct_id in zones.get("DIRECT", [])  # 1 hop
+        assert agent.lct_id in zones.get("INDIRECT", [])  # 2 hops
+
+        # Trust propagation: society → principal → agent
+        trust = graph.trust_between(society.society_id, agent.lct_id)
+        assert 0.0 < trust < 0.95  # Attenuated through delegation chain
+
+        # Relationship summary
+        summary = graph.relationship_summary(principal.lct_id)
+        assert summary.get("pairing", 0) >= 1  # service pairing to agent
+
+        # Witness count for principal
+        assert graph.witness_count(principal.lct_id) >= 1  # agent witnesses principal
+
+    def test_action_chain_with_acp_lifecycle(self):
+        """Chain two R7 actions (query → transform) through ACP plan steps."""
+        society, principal, agent, deleg = self._setup_society_with_agent()
+
+        # Build the action chain
+        chain = ActionChain()
+
+        # Action 1: query
+        a1 = build_action(
+            actor=agent.lct_id,
+            role_lct="role:data-processor",
+            action="query_data",
+            target="sensors",
+            t3=agent.t3, v3=agent.v3,
+            atp_stake=10.0, available_atp=200.0,
+            permissions=["query_data"],
+            society=society.society_id,
+        )
+        a1.result = Result(
+            status=ActionStatus.SUCCESS,
+            output={"rows": 42},
+            atp_consumed=10.0,
+        )
+        chain.append(a1)
+
+        # Action 2: transform (depends on query)
+        a2 = build_action(
+            actor=agent.lct_id,
+            role_lct="role:data-processor",
+            action="transform_data",
+            target="sensors_output",
+            t3=agent.t3, v3=agent.v3,
+            atp_stake=5.0, available_atp=190.0,
+            permissions=["transform_data"],
+            society=society.society_id,
+        )
+        a2.result = Result(
+            status=ActionStatus.SUCCESS,
+            output={"format": "json", "records": 42},
+            atp_consumed=5.0,
+        )
+        chain.append(a2)
+
+        assert chain.length == 2
+        assert chain.verify_chain()  # Hash chain integrity
+
+        # Each action produces distinct hashes
+        assert a1.canonical_hash() != a2.canonical_hash()
+
+        # Total ATP consumed across chain
+        total_atp = sum(
+            a.result.atp_consumed for a in chain.actions
+            if a.result and a.result.atp_consumed
+        )
+        assert total_atp == 15.0
+
+
+class TestDictionaryTranslationWorkflow:
+    """
+    Workflow: Dictionary entities → translation → trust tracking → MRH graph.
+
+    Modules exercised: trust, lct, atp, federation, dictionary, r6, mrh (7 of 8).
+
+    Scenario: Two domain-specific dictionaries mediate translation between
+    medical and legal domains. Trust degrades across translation chains.
+    Actions and relationships are recorded.
+    """
+
+    def test_cross_domain_translation_with_trust_tracking(self):
+        """
+        Create dictionaries, translate across domains, track trust degradation,
+        record as R7 action, and map relationships in MRH graph.
+        """
+        # Create a society for dictionary governance
+        society = Society("lct:web4:society:standards", "Standards Body")
+        society.set_law(LawDataset(
+            law_id="law:standards:v1", version="1.0",
+            society_id=society.society_id,
+            norms=[
+                Norm(norm_id="LAW-FIDELITY", selector="translation.confidence",
+                     op=">=", value=0.7, description="Min translation fidelity"),
+            ],
+        ))
+
+        # Create medical→legal dictionary entity
+        med_legal = DictionaryEntity.create(
+            source_domain="medical",
+            target_domain="legal",
+            public_key="dict_med_legal_key",
+            bidirectional=False,
+            coverage=DomainCoverage(terms=500, concepts=120, relationships=80),
+            compression=CompressionProfile(average_ratio=0.6, lossy_threshold=0.1),
+            t3=T3(0.85, 0.90, 0.80),
+            v3=V3(0.80, 0.85, 0.75),
+        )
+        assert med_legal.can_translate("medical", "legal")
+        assert not med_legal.can_translate("legal", "medical")  # Not bidirectional
+
+        # Create legal→regulatory dictionary entity
+        legal_reg = DictionaryEntity.create(
+            source_domain="legal",
+            target_domain="regulatory",
+            public_key="dict_legal_reg_key",
+            bidirectional=True,
+            coverage=DomainCoverage(terms=300, concepts=90, relationships=60),
+            compression=CompressionProfile(average_ratio=0.7, lossy_threshold=0.05),
+            t3=T3(0.80, 0.85, 0.75),
+            v3=V3(0.75, 0.80, 0.70),
+        )
+
+        # Perform translation: medical → legal
+        request1 = TranslationRequest(
+            source_content="Patient exhibited acute myocardial infarction",
+            source_domain="medical",
+            target_domain="legal",
+            context={"case_type": "malpractice"},
+            minimum_fidelity=0.7,
+        )
+        result1 = med_legal.record_translation(
+            request=request1,
+            content="Subject suffered a heart attack (acute myocardial infarction)",
+            confidence=0.92,
+            witness_lct_ids=["w1"],
+        )
+        assert result1.confidence == 0.92
+        assert med_legal.translation_count == 1
+        assert med_legal.success_rate == 1.0
+
+        # Chain translation: legal → regulatory
+        request2 = TranslationRequest(
+            source_content=result1.content,
+            source_domain="legal",
+            target_domain="regulatory",
+            context={"regulation": "FDA"},
+            minimum_fidelity=0.7,
+        )
+        result2 = legal_reg.record_translation(
+            request=request2,
+            content="Adverse cardiac event: acute MI per ICD-10 I21",
+            confidence=0.88,
+        )
+
+        # Build translation chain — confidence degrades multiplicatively
+        chain = TranslationChain()
+        chain.add_step("medical", "legal", med_legal.lct_id, result1.confidence)
+        chain.add_step("legal", "regulatory", legal_reg.lct_id, result2.confidence)
+
+        assert chain.length == 2
+        # Cumulative confidence = 0.92 * 0.88 ≈ 0.8096
+        assert chain.cumulative_confidence == pytest.approx(0.92 * 0.88, abs=0.01)
+        assert chain.is_acceptable(minimum_confidence=0.7)
+        # Degradation increases with chain length
+        assert chain.cumulative_degradation > 0
+
+        # Dictionary selection: choose the best from candidates
+        score_med = dictionary_selection_score(
+            trust_composite=med_legal.t3.composite,
+            coverage_ratio=500 / 1000,  # 50% of a hypothetical full domain
+            recency_score=1.0,
+        )
+        score_leg = dictionary_selection_score(
+            trust_composite=legal_reg.t3.composite,
+            coverage_ratio=300 / 1000,
+            recency_score=0.9,
+        )
+        assert score_med > 0 and score_leg > 0
+
+        # Record the translation as an R7 action
+        action = build_action(
+            actor=med_legal.lct_id,
+            role_lct="role:translator",
+            action="translate",
+            target="medical→legal",
+            t3=med_legal.t3,
+            v3=med_legal.v3,
+            atp_stake=5.0,
+            available_atp=100.0,
+            society=society.society_id,
+            parameters={
+                "source_domain": "medical",
+                "target_domain": "legal",
+                "confidence": result1.confidence,
+            },
+        )
+        assert action.is_valid
+        rep = action.compute_reputation(quality=result1.confidence, rule_triggered=False)
+        assert rep.net_trust_change > 0  # High-quality translation boosts trust
+
+        # Build MRH graph of the translation relationship
+        graph = MRHGraph(horizon_depth=3)
+        graph.add_node(MRHNode(lct_id=med_legal.lct_id, entity_type="dictionary"))
+        graph.add_node(MRHNode(lct_id=legal_reg.lct_id, entity_type="dictionary"))
+        graph.add_node(MRHNode(
+            lct_id="lct:web4:domain:medical", entity_type="domain",
+        ))
+        graph.add_node(MRHNode(
+            lct_id="lct:web4:domain:legal", entity_type="domain",
+        ))
+        graph.add_node(MRHNode(
+            lct_id="lct:web4:domain:regulatory", entity_type="domain",
+        ))
+
+        # Dictionaries are bound to their domains
+        graph.add_edge(MRHEdge(
+            source=med_legal.lct_id, target="lct:web4:domain:medical",
+            relation=RelationType.BOUND_TO, weight=1.0,
+        ))
+        graph.add_edge(MRHEdge(
+            source=med_legal.lct_id, target="lct:web4:domain:legal",
+            relation=RelationType.BOUND_TO, weight=1.0,
+        ))
+        graph.add_edge(MRHEdge(
+            source=legal_reg.lct_id, target="lct:web4:domain:legal",
+            relation=RelationType.BOUND_TO, weight=1.0,
+        ))
+        graph.add_edge(MRHEdge(
+            source=legal_reg.lct_id, target="lct:web4:domain:regulatory",
+            relation=RelationType.BOUND_TO, weight=1.0,
+        ))
+        # Dictionaries witness each other through shared domain (legal)
+        graph.add_edge(MRHEdge(
+            source=med_legal.lct_id, target=legal_reg.lct_id,
+            relation=RelationType.DATA_PAIRING, weight=0.8,
+        ))
+
+        assert graph.node_count == 5
+        assert graph.edge_count == 5
+
+        # Medical domain reaches regulatory through dictionary chain
+        reachable = graph.horizon(med_legal.lct_id, depth=2)
+        assert legal_reg.lct_id in reachable
+
+        # Trust between dictionaries (through data pairing)
+        dict_trust = graph.trust_between(med_legal.lct_id, legal_reg.lct_id)
+        assert dict_trust > 0
+
+    def test_dictionary_feedback_updates_trust_and_actions(self):
+        """
+        Dictionary receives correction feedback → trust updates → new version →
+        action recorded.
+        """
+        from web4.dictionary import FeedbackRecord
+
+        # Create dictionary
+        tech_biz = DictionaryEntity.create(
+            source_domain="technical",
+            target_domain="business",
+            public_key="dict_tech_biz_key",
+            t3=T3(0.70, 0.75, 0.65),
+            v3=V3(0.60, 0.70, 0.65),
+        )
+        initial_t3 = tech_biz.t3.composite
+
+        # Record a translation
+        request = TranslationRequest(
+            source_content="API rate limiting exceeded",
+            source_domain="technical",
+            target_domain="business",
+        )
+        result = tech_biz.record_translation(
+            request=request,
+            content="Service usage cap reached",
+            confidence=0.75,
+        )
+
+        # Apply correction feedback — trust decreases
+        correction = FeedbackRecord(
+            feedback_type="correction",
+            mapping_id="map-001",
+            success=False,
+            corrector_lct_id="lct:web4:human:reviewer",
+            original_content="Service usage cap reached",
+            corrected_content="API request quota exceeded — temporary throttling in effect",
+        )
+        tech_biz.apply_feedback(correction)
+        assert tech_biz.t3.composite < initial_t3  # Trust decreased from correction
+
+        # Apply validation feedback — trust recovers
+        validation = FeedbackRecord(
+            feedback_type="validation",
+            mapping_id="map-002",
+            success=True,
+            corrector_lct_id="lct:web4:human:reviewer",
+        )
+        tech_biz.apply_feedback(validation)
+
+        # Create a new version after corrections
+        new_ver = tech_biz.create_new_version(
+            new_version="1.1.0",
+            changelog="Improved API terminology translations",
+        )
+        assert new_ver.version == "1.1.0"
+        assert tech_biz.current_version == "1.1.0"
+        assert len(tech_biz.versions) == 2
+
+        # Record this versioning as an R7 action
+        action = build_action(
+            actor=tech_biz.lct_id,
+            role_lct="role:dictionary-maintainer",
+            action="version_update",
+            target="technical→business",
+            t3=tech_biz.t3,
+            v3=tech_biz.v3,
+        )
+        assert action.is_valid
+
+        # ATP account for dictionary operations
+        dict_atp = ATPAccount(available=50.0)
+        assert dict_atp.lock(2.0)
+        dict_atp.commit(2.0)
+        er = energy_ratio(dict_atp.total, dict_atp.adp)
+        assert er < 1.0
+
+        # Operational health after feedback cycle
+        coh = operational_health(tech_biz.t3.composite, tech_biz.v3.composite, er)
+        assert 0.0 <= coh <= 1.0
+
+    def test_dictionary_selection_in_federation_context(self):
+        """
+        Multiple dictionaries in a society → select best → translate →
+        verify with MRH decay.
+        """
+        society = Society("lct:web4:society:translators", "Translator Guild")
+
+        # Create competing dictionaries
+        dict_a = DictionaryEntity.create(
+            source_domain="engineering", target_domain="finance",
+            public_key="dict_a_key",
+            coverage=DomainCoverage(terms=800, concepts=200, relationships=150),
+            t3=T3(0.90, 0.85, 0.88),
+        )
+        dict_b = DictionaryEntity.create(
+            source_domain="engineering", target_domain="finance",
+            public_key="dict_b_key",
+            coverage=DomainCoverage(terms=400, concepts=100, relationships=70),
+            t3=T3(0.75, 0.70, 0.80),
+        )
+
+        # Select best dictionary
+        best = select_best_dictionary(
+            candidates=[dict_a, dict_b],
+            source_domain="engineering",
+            target_domain="finance",
+            coverage_scores={dict_a.lct_id: 0.8, dict_b.lct_id: 0.4},
+            recency_scores={dict_a.lct_id: 0.9, dict_b.lct_id: 1.0},
+        )
+        assert best is not None
+        assert best.lct_id == dict_a.lct_id  # Higher trust + coverage wins
+
+        # Translate using the selected dictionary
+        request = TranslationRequest(
+            source_content="Load-bearing capacity exceeded design margin",
+            source_domain="engineering",
+            target_domain="finance",
+            context={"report_type": "risk_assessment"},
+        )
+        result = best.record_translation(
+            request=request,
+            content="Asset structural risk exceeds acceptable threshold",
+            confidence=0.88,
+        )
+
+        # Trust decays with MRH hops — translation at different distances
+        base_trust = best.t3.composite
+        trust_direct = mrh_trust_decay(base_trust, hops=0)
+        trust_1hop = mrh_trust_decay(base_trust, hops=1)
+        trust_2hop = mrh_trust_decay(base_trust, hops=2)
+
+        assert trust_direct == base_trust  # No decay at source
+        assert trust_1hop < trust_direct   # Decays at 1 hop
+        assert trust_2hop < trust_1hop     # Further decay
+
+        # Zone classification
+        assert mrh_zone(0) == "SELF"
+        assert mrh_zone(1) == "DIRECT"
+        assert mrh_zone(3) == "PERIPHERAL"
