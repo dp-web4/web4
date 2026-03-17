@@ -17,7 +17,8 @@ Validated against: web4-standard/test-vectors/t3v3/tensor-operations.json
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from enum import Enum
+from typing import Dict, List, Optional
 
 # ── Canonical weights (from test vectors) ────────────────────────
 
@@ -47,6 +48,33 @@ HEALTH_THRESHOLD = 0.7
 # Diminishing returns (test vector t3v3-007)
 DIMINISHING_BASE = 0.8
 DIMINISHING_FLOOR = 0.1
+
+# ── Outcome-based evolution (spec §2.3) ──────────────────────────
+
+
+class ActionOutcome(Enum):
+    """Categorized action outcomes per spec §2.3 evolution table."""
+    NOVEL_SUCCESS = "novel_success"
+    STANDARD_SUCCESS = "standard_success"
+    EXPECTED_FAILURE = "expected_failure"
+    UNEXPECTED_FAILURE = "unexpected_failure"
+    ETHICS_VIOLATION = "ethics_violation"
+
+
+# Per-dimension delta ranges: (talent, training, temperament)
+# Using midpoints of spec ranges for deterministic cross-language compatibility.
+OUTCOME_DELTAS: Dict[ActionOutcome, Dict[str, float]] = {
+    ActionOutcome.NOVEL_SUCCESS: {"talent": 0.035, "training": 0.015, "temperament": 0.01},
+    ActionOutcome.STANDARD_SUCCESS: {"talent": 0.0, "training": 0.0075, "temperament": 0.005},
+    ActionOutcome.EXPECTED_FAILURE: {"talent": -0.01, "training": 0.0, "temperament": 0.0},
+    ActionOutcome.UNEXPECTED_FAILURE: {"talent": -0.02, "training": -0.01, "temperament": -0.02},
+    ActionOutcome.ETHICS_VIOLATION: {"talent": -0.05, "training": 0.0, "temperament": -0.10},
+}
+
+# ── Decay/refresh rates (spec §2.3) ─────────────────────────────
+
+TRAINING_DECAY_PER_MONTH = 0.001
+TEMPERAMENT_RECOVERY_PER_MONTH = 0.01
 
 
 def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -92,6 +120,28 @@ class T3:
             temperament=_clamp(self.temperament + base_delta * T3_UPDATE_FACTORS["temperament"]),
         )
 
+    def evolve(self, outcome: ActionOutcome) -> T3:
+        """Apply outcome-based deltas per spec §2.3 table. Returns a NEW T3."""
+        deltas = OUTCOME_DELTAS[outcome]
+        return T3(
+            talent=_clamp(self.talent + deltas["talent"]),
+            training=_clamp(self.training + deltas["training"]),
+            temperament=_clamp(self.temperament + deltas["temperament"]),
+        )
+
+    def decay(self, months: float) -> T3:
+        """Apply time-based decay/refresh per spec §2.3.
+
+        - Training decays at TRAINING_DECAY_PER_MONTH without practice
+        - Temperament recovers at TEMPERAMENT_RECOVERY_PER_MONTH with good behavior
+        - Talent is stable (no decay)
+        """
+        return T3(
+            talent=self.talent,
+            training=_clamp(self.training - TRAINING_DECAY_PER_MONTH * months),
+            temperament=_clamp(self.temperament + TEMPERAMENT_RECOVERY_PER_MONTH * months),
+        )
+
     def as_dict(self) -> Dict[str, float]:
         return {"talent": self.talent, "training": self.training, "temperament": self.temperament}
 
@@ -118,6 +168,37 @@ class V3:
             self.valuation * V3_WEIGHTS["valuation"]
             + self.veracity * V3_WEIGHTS["veracity"]
             + self.validity * V3_WEIGHTS["validity"]
+        )
+
+    @classmethod
+    def calculate(
+        cls,
+        atp_earned: float,
+        atp_expected: float,
+        recipient_satisfaction: float,
+        verified_claims: int,
+        total_claims: int,
+        witness_confidence: float,
+        value_transferred: bool,
+    ) -> V3:
+        """Compute V3 from R6 action components per spec §3.3.
+
+        Args:
+            atp_earned: ATP actually earned from the action
+            atp_expected: ATP expected for this action type
+            recipient_satisfaction: 0-1 satisfaction score from recipient
+            verified_claims: number of claims independently verified
+            total_claims: total claims made
+            witness_confidence: 0-1 aggregate witness confidence
+            value_transferred: whether value was actually delivered
+        """
+        valuation = (atp_earned / atp_expected * recipient_satisfaction) if atp_expected > 0 else 0.0
+        veracity = (verified_claims / total_claims * witness_confidence) if total_claims > 0 else 0.0
+        validity = 1.0 if value_transferred else 0.0
+        return cls(
+            valuation=_clamp(valuation),
+            veracity=_clamp(veracity),
+            validity=validity,
         )
 
     def as_dict(self) -> Dict[str, float]:
@@ -171,6 +252,76 @@ class TrustProfile:
     @property
     def roles(self) -> list[str]:
         return list(self._roles.keys())
+
+
+# ── Role Requirements (spec §5.1) ────────────────────────────────
+
+@dataclass
+class RoleRequirement:
+    """Minimum T3 thresholds for a role per spec §5.1."""
+    role: str
+    min_talent: float = 0.0
+    min_training: float = 0.0
+    min_temperament: float = 0.0
+
+    def is_qualified(self, t3: T3) -> bool:
+        """Check if a T3 tensor meets all minimum thresholds."""
+        return (
+            t3.talent >= self.min_talent
+            and t3.training >= self.min_training
+            and t3.temperament >= self.min_temperament
+        )
+
+    def evaluate(self, t3: T3) -> Dict[str, object]:
+        """Evaluate a candidate against this role's requirements."""
+        qualified = self.is_qualified(t3)
+        return {
+            "role": self.role,
+            "qualified": qualified,
+            "trust_score": t3.composite if qualified else 0.0,
+            "gaps": {
+                "talent": max(0.0, self.min_talent - t3.talent),
+                "training": max(0.0, self.min_training - t3.training),
+                "temperament": max(0.0, self.min_temperament - t3.temperament),
+            },
+        }
+
+
+# ── Team Tensor Composition (spec §8.2) ──────────────────────────
+
+def compute_team_t3(
+    profiles: List[TrustProfile],
+    role: str,
+    weights: Optional[Dict[str, float]] = None,
+) -> Optional[T3]:
+    """Compute team T3 for a role as weighted average of qualified members.
+
+    Per spec §8.2: only members with the role contribute. Cannot average
+    trust across different roles. Returns None if no members have the role.
+
+    Args:
+        profiles: list of TrustProfile objects (team members)
+        role: the role to compute team trust for
+        weights: optional per-entity_id weights (defaults to equal weight)
+    """
+    qualified = [(p, p.get_t3(role)) for p in profiles if role in p.roles]
+    if not qualified:
+        return None
+
+    if weights:
+        total_w = sum(weights.get(p.entity_id, 1.0) for p, _ in qualified)
+        if total_w == 0:
+            return None
+        talent = sum(t.talent * weights.get(p.entity_id, 1.0) for p, t in qualified) / total_w
+        training = sum(t.training * weights.get(p.entity_id, 1.0) for p, t in qualified) / total_w
+        temperament = sum(t.temperament * weights.get(p.entity_id, 1.0) for p, t in qualified) / total_w
+    else:
+        n = len(qualified)
+        talent = sum(t.talent for _, t in qualified) / n
+        training = sum(t.training for _, t in qualified) / n
+        temperament = sum(t.temperament for _, t in qualified) / n
+
+    return T3(talent=talent, training=training, temperament=temperament)
 
 
 # ── Trust Operations ─────────────────────────────────────────────
