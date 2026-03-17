@@ -15,11 +15,14 @@
 **Result**: `web4.entity` module — 284 lines, 48 tests, 5 vectors. PR #20, merged.
 
 ### U9: Society metabolic states module
-**Status**: IN PROGRESS
-**Description**: Implement `web4.metabolic` module per `core-spec/SOCIETY_METABOLIC_STATES.md`.
-8 biological-inspired metabolic states (Active→Torpor), transition validation,
-energy cost calculation, wake penalty, metabolic reliability score, witness requirements.
-**Deliverables**: `metabolic.py`, `test_metabolic.py`, `test-vectors/metabolic/society-metabolic-states.json`
+**Status**: DONE
+**Completed**: 2026-03-17
+**Result**: `web4.metabolic` module — 300 lines, 71 tests, 12 vectors. PR #23, merged.
+
+### U10: T3/V3 tensor enhancements
+**Status**: DONE
+**Completed**: 2026-03-17
+**Result**: ActionOutcome enum, outcome-based T3 evolution, decay/refresh, RoleRequirement, V3.calculate(), compute_team_t3(). 51 new tests, 5 vectors. Extended trust.py.
 
 ---
 
@@ -136,4 +139,5 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U4 | Reputation computation module | DONE |
 | U5 | Entity type taxonomy module | DONE |
 | U8 | SAL governance extensions | DONE |
-| U9 | Society metabolic states module | IN PROGRESS |
+| U9 | Society metabolic states module | DONE |
+| U10 | T3/V3 tensor enhancements | DONE |

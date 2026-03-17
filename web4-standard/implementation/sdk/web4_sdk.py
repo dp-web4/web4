@@ -81,7 +81,10 @@ except ImportError:
     warnings.warn("PyNaCl not installed. Cryptographic signing will not work. Install with: pip install pynacl")
 
 # Import canonical web4 types (v0.1.0+)
-from web4.trust import T3, V3, TrustProfile, operational_health, is_healthy
+from web4.trust import (
+    T3, V3, TrustProfile, ActionOutcome, RoleRequirement,
+    compute_team_t3, operational_health, is_healthy,
+)
 from web4.lct import LCT, EntityType, RevocationStatus, BirthCertificate
 from web4.atp import ATPAccount, energy_ratio as atp_energy_ratio
 from web4.federation import (
@@ -126,16 +129,6 @@ from web4.entity import (
     behavioral_modes, energy_pattern,
     is_agentic, can_initiate, can_delegate, can_process_r6,
     valid_interaction, all_entity_types,
-)
-from web4.metabolic import (
-    MetabolicState, TrustEffect, Transition, ReliabilityFactors, MetabolicProfile,
-    ENERGY_MULTIPLIERS, TRUST_EFFECTS, WITNESS_REQUIREMENTS,
-    DORMANT_STATES, ACTIVE_STATES,
-    valid_transition as valid_metabolic_transition,
-    reachable_states, transition_trigger, all_transitions,
-    energy_cost, wake_penalty, metabolic_reliability,
-    required_witnesses, all_profiles,
-    is_dormant, accepts_transactions, accepts_new_citizens,
 )
 
 
@@ -1308,27 +1301,4 @@ __all__ = [
     'can_process_r6',
     'valid_interaction',
     'all_entity_types',
-    # Society Metabolic States
-    'MetabolicState',
-    'TrustEffect',
-    'Transition',
-    'ReliabilityFactors',
-    'MetabolicProfile',
-    'ENERGY_MULTIPLIERS',
-    'TRUST_EFFECTS',
-    'WITNESS_REQUIREMENTS',
-    'DORMANT_STATES',
-    'ACTIVE_STATES',
-    'valid_metabolic_transition',
-    'reachable_states',
-    'transition_trigger',
-    'all_transitions',
-    'energy_cost',
-    'wake_penalty',
-    'metabolic_reliability',
-    'required_witnesses',
-    'all_profiles',
-    'is_dormant',
-    'accepts_transactions',
-    'accepts_new_citizens',
 ]
