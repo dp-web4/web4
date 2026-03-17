@@ -13,6 +13,7 @@ Provides offline-capable primitives for:
 - Dictionary entities — semantic bridges with trust-tracked translation
 - Reputation computation — rule-based reputation engine with aggregation and decay
 - Entity taxonomy — behavioral modes, energy patterns, and interaction rules
+- Metabolic states — society operational modes with energy, trust, and witness effects
 
 These modules define the canonical data types and algorithms specified
 in the web4-standard. They work offline (no network services required)
