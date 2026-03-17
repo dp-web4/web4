@@ -24,6 +24,10 @@
 **Completed**: 2026-03-17
 **Result**: ActionOutcome enum, outcome-based T3 evolution, decay/refresh, RoleRequirement, V3.calculate(), compute_team_t3(). 51 new tests, 5 vectors. Extended trust.py.
 
+### U6: Capability levels module
+**Status**: IN PROGRESS
+**Description**: `web4.capability` module — 6-level LCT capability framework (Stub → Hardware) per lct-capability-levels.md spec. Split from PR #21 per reviewer feedback.
+
 ---
 
 ## Unscoped Tasks
@@ -143,6 +147,7 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
 | U5 | Entity type taxonomy module | DONE |
+| U6 | Capability levels module | IN PROGRESS |
 | U8 | SAL governance extensions | DONE |
 | U9 | Society metabolic states module | DONE |
 | U10 | T3/V3 tensor enhancements | DONE |

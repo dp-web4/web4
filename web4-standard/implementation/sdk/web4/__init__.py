@@ -13,6 +13,7 @@ Provides offline-capable primitives for:
 - Dictionary entities — semantic bridges with trust-tracked translation
 - Reputation computation — rule-based reputation engine with aggregation and decay
 - Entity taxonomy — behavioral modes, energy patterns, and interaction rules
+- Capability levels — 6-level LCT capability framework (Stub → Hardware)
 - Metabolic states — society operational modes with energy, trust, and witness effects
 
 These modules define the canonical data types and algorithms specified
