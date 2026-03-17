@@ -25,8 +25,9 @@
 **Result**: ActionOutcome enum, outcome-based T3 evolution, decay/refresh, RoleRequirement, V3.calculate(), compute_team_t3(). 51 new tests, 5 vectors. Extended trust.py.
 
 ### U6: Capability levels module
-**Status**: IN PROGRESS
-**Description**: `web4.capability` module — 6-level LCT capability framework (Stub → Hardware) per lct-capability-levels.md spec. Split from PR #21 per reviewer feedback.
+**Status**: DONE
+**Completed**: 2026-03-17
+**Result**: `web4.capability` module — 6-level LCT capability framework (Stub → Hardware) per lct-capability-levels.md spec. 42 tests, cross-language vectors. PR #26, merged.
 
 ---
 
@@ -36,13 +37,14 @@ These are known needs without implementation details. Each requires its own
 scoping session before work begins.
 
 ### U2: Multi-device binding
-**Status**: SCOPED (design complete 2026-03-17)
+**Status**: DONE
+**Completed**: 2026-03-17
 **Design**: `docs/designs/u2-multi-device-binding.md`
 **Spec**: `web4-standard/core-spec/multi-device-lct-binding.md`
-**Description**: `web4.binding` module — hardware anchor taxonomy, device constellation
-management, constellation trust computation, cross-device witnessing, recovery quorum.
-Patent-covered (305 family). ~350 lines, ~40 tests, 5-7 vectors. 3 new files.
-**Depends on**: None (uses existing `Binding.hardware_anchor` field from lct.py).
+**Result**: `web4.binding` module — AnchorType (4 types), DeviceStatus, HardwareAnchor,
+DeviceRecord, DeviceConstellation, constellation management (enroll/remove), trust
+computation (witness freshness, coherence bonus, cross-witness density, ceiling),
+cross-device witnessing, recovery quorum. 68 tests, 6 vectors. Patent-covered (305 family).
 
 ### U3: Whitepaper-SDK coherence fixes
 
@@ -143,11 +145,11 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | S6 | Post-merge integration tests (all 8) | DONE |
 | S7 | SDK version bump + changelog | DONE |
 | U1 | Dictionary entities module | DONE |
-| U2 | Multi-device binding | SCOPED |
+| U2 | Multi-device binding | DONE |
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
 | U5 | Entity type taxonomy module | DONE |
-| U6 | Capability levels module | IN PROGRESS |
+| U6 | Capability levels module | DONE |
 | U8 | SAL governance extensions | DONE |
 | U9 | Society metabolic states module | DONE |
 | U10 | T3/V3 tensor enhancements | DONE |
