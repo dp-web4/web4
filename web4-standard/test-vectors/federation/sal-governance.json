@@ -1,0 +1,111 @@
+{
+  "$schema": "https://web4.io/schemas/test-vectors/v1",
+  "module": "web4.federation",
+  "spec": "web4-standard/core-spec/web4-society-authority-law.md",
+  "description": "Cross-language test vectors for SAL governance primitives",
+  "vectors": [
+    {
+      "id": "citizenship-lifecycle",
+      "description": "Valid citizenship status transition sequence",
+      "input": {
+        "initial_status": "active",
+        "transitions": ["suspended", "active", "terminated"]
+      },
+      "expected": {
+        "all_valid": true,
+        "final_status": "terminated",
+        "terminal": true,
+        "post_terminal_transition_to_active": false
+      }
+    },
+    {
+      "id": "citizenship-invalid-transitions",
+      "description": "Invalid citizenship transitions are rejected",
+      "input": {
+        "transitions_from_terminated": ["active", "suspended", "provisional"],
+        "transitions_from_active": ["applied", "provisional"],
+        "transitions_from_applied": ["suspended"]
+      },
+      "expected": {
+        "all_invalid": true
+      }
+    },
+    {
+      "id": "quorum-policy-threshold",
+      "description": "Threshold quorum requires fixed witness count",
+      "input": {
+        "mode": "threshold",
+        "required": 3,
+        "checks": [
+          {"witness_count": 2, "total_registered": 10},
+          {"witness_count": 3, "total_registered": 10},
+          {"witness_count": 5, "total_registered": 10}
+        ]
+      },
+      "expected": {
+        "results": [false, true, true]
+      }
+    },
+    {
+      "id": "quorum-policy-majority",
+      "description": "Majority quorum requires >50% of registered witnesses",
+      "input": {
+        "mode": "majority",
+        "checks": [
+          {"witness_count": 2, "total_registered": 5},
+          {"witness_count": 3, "total_registered": 5},
+          {"witness_count": 5, "total_registered": 10},
+          {"witness_count": 0, "total_registered": 0}
+        ]
+      },
+      "expected": {
+        "results": [false, true, false, false]
+      }
+    },
+    {
+      "id": "law-merge-inheritance",
+      "description": "Child norms override parent; parent norms inherited when no conflict",
+      "input": {
+        "parent_norms": [
+          {"norm_id": "SHARED", "selector": "x", "op": "<=", "value": 100},
+          {"norm_id": "PARENT-ONLY", "selector": "y", "op": ">=", "value": 0}
+        ],
+        "child_norms": [
+          {"norm_id": "SHARED", "selector": "x", "op": "<=", "value": 50}
+        ]
+      },
+      "expected": {
+        "merged_norm_count": 2,
+        "shared_check_75": false,
+        "parent_only_check_1": true
+      }
+    },
+    {
+      "id": "audit-adjustment-validation",
+      "description": "Negative adjustments require appeal path per §5.5",
+      "input": {
+        "cases": [
+          {
+            "t3_deltas": {"training": 0.05},
+            "v3_deltas": {"validity": 0.03},
+            "appeal_path": null
+          },
+          {
+            "t3_deltas": {"temperament": -0.02},
+            "v3_deltas": {},
+            "appeal_path": null
+          },
+          {
+            "t3_deltas": {"temperament": -0.02},
+            "v3_deltas": {"veracity": -0.01},
+            "appeal_path": "soc:appeal:003"
+          }
+        ]
+      },
+      "expected": {
+        "has_negative": [false, true, true],
+        "is_valid": [true, false, true]
+      }
+    }
+  ]
+}

@@ -10,11 +10,18 @@
 ## Active Tasks
 
 ### U5: Entity type taxonomy module
+**Status**: DONE
+**Completed**: 2026-03-16
+**Result**: `web4.entity` module — 284 lines, 48 tests, 5 vectors. PR #20, merged.
+
+### U8: SAL governance extensions (federation module)
 **Status**: IN PROGRESS
-**Description**: Implement `web4.entity` module from `core-spec/entity-types.md` §2.1-2.3.
-BehavioralMode (Agentic/Responsive/Delegative), EnergyPattern (Active/Passive),
-EntityTypeInfo registry for all 15 entity types, interaction validation helpers.
-**Deliverables**: `web4/entity.py`, `tests/test_entity.py`, `test-vectors/entity/entity-taxonomy.json`
+**Description**: Extend `web4.federation` with SAL governance primitives from
+`core-spec/web4-society-authority-law.md` §2-§7 and `SOCIETY_SPECIFICATION.md` §2-§4.
+Adds citizenship lifecycle (CitizenshipStatus, CitizenshipRecord), QuorumPolicy
+(threshold/majority/unanimous), LedgerType (confined/witnessed/participatory),
+AuditRequest/AuditAdjustment (§5.5), and merge_law() for fractal law inheritance.
+**Deliverables**: Extended `federation.py`, extended `test_federation.py`, `test-vectors/federation/sal-governance.json`
 
 ---
 
@@ -123,4 +130,5 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U2 | Multi-device binding | UNSCOPED |
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
-| U5 | Entity type taxonomy module | IN PROGRESS |
+| U5 | Entity type taxonomy module | DONE |
+| U8 | SAL governance extensions | IN PROGRESS |
