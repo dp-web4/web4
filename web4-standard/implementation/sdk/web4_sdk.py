@@ -84,7 +84,14 @@ except ImportError:
 from web4.trust import T3, V3, TrustProfile, operational_health, is_healthy
 from web4.lct import LCT, EntityType, RevocationStatus, BirthCertificate
 from web4.atp import ATPAccount, energy_ratio as atp_energy_ratio
-from web4.federation import Society, LawDataset, Delegation, RoleType
+from web4.federation import (
+    Society, LawDataset, Delegation, RoleType,
+    CitizenshipStatus, CitizenshipRecord, valid_citizenship_transition,
+    QuorumMode, QuorumPolicy, LedgerType,
+    AuditRequest, AuditAdjustment,
+    Norm, Procedure, Interpretation,
+    merge_law,
+)
 from web4.r6 import (
     R7Action, ActionChain, ActionStatus, ReputationDelta,
     Rules, Role, Request, ResourceRequirements, Result,
@@ -1214,6 +1221,18 @@ __all__ = [
     'LawDataset',
     'Delegation',
     'RoleType',
+    'CitizenshipStatus',
+    'CitizenshipRecord',
+    'valid_citizenship_transition',
+    'QuorumMode',
+    'QuorumPolicy',
+    'LedgerType',
+    'AuditRequest',
+    'AuditAdjustment',
+    'Norm',
+    'Procedure',
+    'Interpretation',
+    'merge_law',
     # R7 Action Framework
     'R7Action',
     'ActionChain',

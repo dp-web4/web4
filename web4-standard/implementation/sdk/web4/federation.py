@@ -1,7 +1,8 @@
 """
 Web4 Federation — Society, Authority, Law (SAL)
 
-Canonical implementation per web4-standard/core-spec/web4-society-authority-law.md.
+Canonical implementation per web4-standard/core-spec/web4-society-authority-law.md
+and web4-standard/core-spec/SOCIETY_SPECIFICATION.md.
 
 SAL defines how entities are born into societies, how authority is delegated,
 and how law governs actions. Every entity is born with a Citizen role as its
@@ -13,9 +14,15 @@ Key concepts:
 - LawDataset: versioned norms, procedures, interpretations
 - Fractal citizenship: societies nest (team → org → network → ecosystem)
 - Law inheritance: child inherits parent law, may override with awareness
+- Citizenship lifecycle: application → provisional → active → suspended → terminated
+- Quorum policy: witness requirements with majority/threshold/unanimous modes
+- Ledger types: confined, witnessed, participatory (§4.1 of Society spec)
+- Audit: scoped T3/V3 adjustments with evidence and rate limits (§5.5)
 
 This module provides DATA STRUCTURES and simple operations, not a policy
 engine. Policy evaluation belongs in HRM/PolicyGate.
+
+Validated against: web4-standard/test-vectors/federation/
 """
 
 from __future__ import annotations
@@ -25,7 +32,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Optional, Set
+from typing import Dict, FrozenSet, List, Optional, Set
 
 from .lct import LCT, EntityType, BirthCertificate, MRHPairing
 from .trust import T3, V3
@@ -40,6 +47,178 @@ class RoleType(str, Enum):
     LAW_ORACLE = "law_oracle"  # Publishes/verifies law datasets
     WITNESS = "witness"        # Co-signs ledger entries, provides attestations
     AUDITOR = "auditor"        # Traverses MRH, validates/adjusts T3/V3
+
+
+# ── Citizenship Lifecycle (SOCIETY_SPECIFICATION §2.3) ───────────
+
+class CitizenshipStatus(str, Enum):
+    """Citizenship lifecycle states per SOCIETY_SPECIFICATION §2.3."""
+    APPLIED = "applied"          # Application submitted, pending review
+    PROVISIONAL = "provisional"  # Accepted with limited rights
+    ACTIVE = "active"            # Full citizenship
+    SUSPENDED = "suspended"      # Temporarily restricted
+    TERMINATED = "terminated"    # Permanently ended
+
+
+# Valid transitions: state → set of reachable states
+_CITIZENSHIP_TRANSITIONS: Dict[CitizenshipStatus, FrozenSet[CitizenshipStatus]] = {
+    CitizenshipStatus.APPLIED: frozenset({CitizenshipStatus.PROVISIONAL, CitizenshipStatus.ACTIVE}),
+    CitizenshipStatus.PROVISIONAL: frozenset({CitizenshipStatus.ACTIVE, CitizenshipStatus.TERMINATED}),
+    CitizenshipStatus.ACTIVE: frozenset({CitizenshipStatus.SUSPENDED, CitizenshipStatus.TERMINATED}),
+    CitizenshipStatus.SUSPENDED: frozenset({CitizenshipStatus.ACTIVE, CitizenshipStatus.TERMINATED}),
+    CitizenshipStatus.TERMINATED: frozenset(),  # Terminal state
+}
+
+
+def valid_citizenship_transition(from_status: CitizenshipStatus, to_status: CitizenshipStatus) -> bool:
+    """Check whether a citizenship status transition is allowed."""
+    return to_status in _CITIZENSHIP_TRANSITIONS.get(from_status, frozenset())
+
+
+@dataclass
+class CitizenshipRecord:
+    """
+    Formal citizenship record per SOCIETY_SPECIFICATION §2.4.
+
+    Tracks an entity's membership in a society with lifecycle state,
+    rights, obligations, and audit trail timestamps.
+    """
+    entity_lct: str
+    society_id: str
+    status: CitizenshipStatus = CitizenshipStatus.ACTIVE
+    rights: List[str] = field(default_factory=lambda: ["exist", "interact", "accumulate_reputation"])
+    obligations: List[str] = field(default_factory=lambda: ["abide_law", "respect_quorum"])
+    witnesses: List[str] = field(default_factory=list)
+    granted_at: str = ""
+    suspended_at: Optional[str] = None
+    terminated_at: Optional[str] = None
+
+    def __post_init__(self):
+        if not self.granted_at:
+            self.granted_at = datetime.now(timezone.utc).isoformat()
+
+    def transition(self, new_status: CitizenshipStatus) -> bool:
+        """Attempt a status transition. Returns True if valid, False otherwise."""
+        if not valid_citizenship_transition(self.status, new_status):
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        self.status = new_status
+        if new_status == CitizenshipStatus.SUSPENDED:
+            self.suspended_at = now
+        elif new_status == CitizenshipStatus.TERMINATED:
+            self.terminated_at = now
+        elif new_status == CitizenshipStatus.ACTIVE and self.suspended_at:
+            self.suspended_at = None  # Clear suspension on reinstatement
+        return True
+
+    @property
+    def is_active(self) -> bool:
+        return self.status == CitizenshipStatus.ACTIVE
+
+
+# ── Quorum Policy (SAL §3.1, §5.4) ──────────────────────────────
+
+class QuorumMode(str, Enum):
+    """How witness quorum is evaluated."""
+    MAJORITY = "majority"        # >50% of registered witnesses
+    THRESHOLD = "threshold"      # Fixed count required
+    UNANIMOUS = "unanimous"      # All registered witnesses must agree
+
+
+@dataclass(frozen=True)
+class QuorumPolicy:
+    """
+    Witness quorum requirements for SAL-critical events (§5.4).
+
+    mode=THRESHOLD + required=3 means "at least 3 witnesses must co-sign."
+    mode=MAJORITY means ">50% of registered witnesses."
+    mode=UNANIMOUS means "all registered witnesses."
+    """
+    mode: QuorumMode = QuorumMode.THRESHOLD
+    required: int = 2
+
+    def check(self, witness_count: int, total_registered: int = 0) -> bool:
+        """Check if a witness count satisfies this quorum policy."""
+        if self.mode == QuorumMode.THRESHOLD:
+            return witness_count >= self.required
+        elif self.mode == QuorumMode.MAJORITY:
+            if total_registered == 0:
+                return False
+            return witness_count > total_registered / 2
+        elif self.mode == QuorumMode.UNANIMOUS:
+            if total_registered == 0:
+                return False
+            return witness_count >= total_registered
+        return False
+
+
+# ── Ledger Types (SOCIETY_SPECIFICATION §4.1) ────────────────────
+
+class LedgerType(str, Enum):
+    """Classification of society ledgers by access model."""
+    CONFINED = "confined"            # Citizens only; internal consensus
+    WITNESSED = "witnessed"          # Citizens + external witnesses
+    PARTICIPATORY = "participatory"  # Participates in parent ledger
+
+
+# ── Audit (SAL §5.5) ────────────────────────────────────────────
+
+@dataclass
+class AuditRequest:
+    """
+    Request to adjust T3/V3 tensors via auditor role (§5.5).
+
+    The auditor traverses the society's MRH and proposes adjustments
+    based on verifiable evidence. All adjustments must go through
+    witness quorum and are recorded on the immutable ledger.
+    """
+    audit_id: str
+    society_id: str
+    auditor_lct: str
+    targets: List[str]            # LCT IDs of citizens being audited
+    scope: List[str]              # Context scopes (e.g., ["data_analysis"])
+    evidence: List[str]           # Evidence hashes
+    proposed_t3_deltas: Dict[str, float] = field(default_factory=dict)
+    proposed_v3_deltas: Dict[str, float] = field(default_factory=dict)
+    timestamp: str = ""
+
+    def __post_init__(self):
+        if not self.timestamp:
+            self.timestamp = datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class AuditAdjustment:
+    """
+    Result of an approved audit — applied T3/V3 deltas (§5.5).
+
+    Rate limits and caps are enforced by law: adjustments MUST reference
+    verifiable evidence, negative adjustments MUST include appeal path.
+    """
+    audit_id: str
+    target_lct: str
+    applied_t3_deltas: Dict[str, float]
+    applied_v3_deltas: Dict[str, float]
+    witnesses: List[str]
+    appeal_path: Optional[str] = None
+    timestamp: str = ""
+
+    def __post_init__(self):
+        if not self.timestamp:
+            self.timestamp = datetime.now(timezone.utc).isoformat()
+
+    def has_negative_adjustment(self) -> bool:
+        """Check if any adjustment is negative (requires appeal path per spec)."""
+        for v in list(self.applied_t3_deltas.values()) + list(self.applied_v3_deltas.values()):
+            if v < 0:
+                return True
+        return False
+
+    def is_valid(self) -> bool:
+        """Basic validity: negative adjustments require appeal path."""
+        if self.has_negative_adjustment() and not self.appeal_path:
+            return False
+        return True
 
 
 # ── Norms and Law ────────────────────────────────────────────────
@@ -57,8 +236,12 @@ class Norm:
     value: object         # threshold or allowed values
     description: str = ""
 
-    def check(self, actual_value: float) -> bool:
-        """Simple threshold check. Returns True if value satisfies the norm."""
+    def check(self, actual_value: object) -> bool:
+        """Check if a value satisfies the norm.
+
+        Supports numeric comparisons (<=, >=, ==, !=, <, >) and
+        membership tests (in, not_in) for collection-valued norms.
+        """
         if self.op == "<=":
             return actual_value <= self.value
         elif self.op == ">=":
@@ -71,6 +254,10 @@ class Norm:
             return actual_value < self.value
         elif self.op == ">":
             return actual_value > self.value
+        elif self.op == "in":
+            return actual_value in self.value
+        elif self.op == "not_in":
+            return actual_value not in self.value
         return False
 
 
@@ -139,6 +326,40 @@ class LawDataset:
         if norm is None:
             return None
         return norm.check(value)
+
+
+def merge_law(parent: LawDataset, child: LawDataset) -> LawDataset:
+    """
+    Merge parent and child law datasets per §3.5 inheritance rule.
+
+    effectiveLaw(child) = merge(parentLaw, childOverrides)
+
+    Child norms with the same norm_id override parent norms.
+    Parent norms not overridden by child are inherited.
+    Procedures and interpretations follow the same merge logic.
+    """
+    child_norm_ids = {n.norm_id for n in child.norms}
+    child_proc_ids = {p.procedure_id for p in child.procedures}
+    child_interp_ids = {i.interpretation_id for i in child.interpretations}
+
+    merged_norms = list(child.norms) + [
+        n for n in parent.norms if n.norm_id not in child_norm_ids
+    ]
+    merged_procs = list(child.procedures) + [
+        p for p in parent.procedures if p.procedure_id not in child_proc_ids
+    ]
+    merged_interps = list(child.interpretations) + [
+        i for i in parent.interpretations if i.interpretation_id not in child_interp_ids
+    ]
+
+    return LawDataset(
+        law_id=f"{child.law_id}+{parent.law_id}",
+        version=child.version,
+        society_id=child.society_id,
+        norms=merged_norms,
+        procedures=merged_procs,
+        interpretations=merged_interps,
+    )
 
 
 # ── Authority (Delegation) ───────────────────────────────────────
@@ -217,19 +438,32 @@ class Society:
         society.delegate_authority("lct:bob", scope="finance", permissions=["approve_atp"])
     """
 
-    def __init__(self, society_id: str, name: str, parent: Optional[Society] = None):
+    def __init__(
+        self,
+        society_id: str,
+        name: str,
+        parent: Optional[Society] = None,
+        quorum_policy: Optional[QuorumPolicy] = None,
+        ledger_type: LedgerType = LedgerType.CONFINED,
+    ):
         self.society_id = society_id
         self.name = name
         self.parent = parent
 
-        # Citizens (LCT IDs)
+        # Citizens (LCT IDs) — kept for backward compat
         self.citizens: Set[str] = set()
+        # Formal citizenship records
+        self.citizenship_records: Dict[str, CitizenshipRecord] = {}
         # Authority delegations
         self.delegations: List[Delegation] = []
         # Active law dataset
         self.law: Optional[LawDataset] = None
-        # Quorum requirements
-        self.witness_quorum: int = 2
+        # Quorum policy
+        self.quorum_policy = quorum_policy or QuorumPolicy()
+        # Backward compat
+        self.witness_quorum: int = self.quorum_policy.required
+        # Ledger type
+        self.ledger_type = ledger_type
         # Child societies
         self.children: List[Society] = []
 
@@ -240,17 +474,24 @@ class Society:
         """Publish a new law dataset for this society."""
         self.law = law
 
-    def effective_law(self) -> Optional[LawDataset]:
+    def effective_law(self, merge: bool = False) -> Optional[LawDataset]:
         """
         Get the effective law (§3.5).
 
-        Child inherits parent law if no local law is set.
-        If both exist, child law takes precedence (overrides parent).
+        With merge=False (default, backward compat):
+            Child law overrides parent law entirely.
+        With merge=True:
+            Child norms override parent norms with same ID;
+            parent norms not overridden are inherited.
         """
         if self.law is not None:
+            if merge and self.parent is not None:
+                parent_law = self.parent.effective_law(merge=True)
+                if parent_law is not None:
+                    return merge_law(parent_law, self.law)
             return self.law
         if self.parent is not None:
-            return self.parent.effective_law()
+            return self.parent.effective_law(merge=merge)
         return None
 
     def issue_citizenship(
@@ -291,11 +532,49 @@ class Society:
         )
 
         self.citizens.add(lct.lct_id)
+        self.citizenship_records[lct.lct_id] = CitizenshipRecord(
+            entity_lct=lct.lct_id,
+            society_id=self.society_id,
+            status=CitizenshipStatus.ACTIVE,
+            witnesses=witnesses,
+        )
         return lct
 
     def is_citizen(self, lct_id: str) -> bool:
-        """Check if an entity is a citizen of this society."""
+        """Check if an entity is an active citizen of this society."""
+        record = self.citizenship_records.get(lct_id)
+        if record is not None:
+            return record.is_active
+        # Backward compat: fall back to set membership
         return lct_id in self.citizens
+
+    def get_citizenship(self, lct_id: str) -> Optional[CitizenshipRecord]:
+        """Get the citizenship record for an entity."""
+        return self.citizenship_records.get(lct_id)
+
+    def suspend_citizen(self, lct_id: str) -> bool:
+        """Suspend a citizen's membership. Returns False if transition invalid."""
+        record = self.citizenship_records.get(lct_id)
+        if record is None:
+            return False
+        return record.transition(CitizenshipStatus.SUSPENDED)
+
+    def reinstate_citizen(self, lct_id: str) -> bool:
+        """Reinstate a suspended citizen. Returns False if transition invalid."""
+        record = self.citizenship_records.get(lct_id)
+        if record is None:
+            return False
+        return record.transition(CitizenshipStatus.ACTIVE)
+
+    def terminate_citizen(self, lct_id: str) -> bool:
+        """Permanently terminate citizenship. Returns False if transition invalid."""
+        record = self.citizenship_records.get(lct_id)
+        if record is None:
+            return False
+        if record.transition(CitizenshipStatus.TERMINATED):
+            self.citizens.discard(lct_id)
+            return True
+        return False
 
     def delegate_authority(
         self,

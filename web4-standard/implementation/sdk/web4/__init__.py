@@ -5,7 +5,8 @@ Provides offline-capable primitives for:
 - Trust tensors (T3/V3) — multi-dimensional trust and value assessment
 - Linked Context Tokens (LCT) — identity and presence substrate
 - ATP/ADP lifecycle — bio-inspired value metabolism
-- Federation (SAL) — Society, Authority, Law governance
+- Federation (SAL) — Society, Authority, Law governance with citizenship lifecycle,
+  quorum policy, ledger types, law merge, and audit adjustments
 - R7 Action Framework — Rules+Role+Request+Reference+Resource→Result+Reputation
 - MRH graph — Markov Relevancy Horizon context traversal
 - ACP — Agentic Context Protocol for autonomous agent workflows
