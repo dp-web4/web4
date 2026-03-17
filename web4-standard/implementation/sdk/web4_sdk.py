@@ -148,6 +148,13 @@ from web4.binding import (
     constellation_trust_ceiling, compute_constellation_trust,
     record_cross_witness, check_recovery_quorum, can_recover,
 )
+from web4.errors import (
+    ErrorCode, ErrorCategory, ErrorMeta,
+    Web4Error as Web4ProtocolError,  # alias: avoids collision with legacy Web4Error above
+    BindingError, PairingError, WitnessError,
+    AuthzError, CryptoError, ProtoError,
+    get_error_meta, codes_for_category, make_error,
+)
 
 
 # =============================================================================
@@ -1352,4 +1359,18 @@ __all__ = [
     'record_cross_witness',
     'check_recovery_quorum',
     'can_recover',
+    # Error Taxonomy (RFC 9457)
+    'ErrorCode',
+    'ErrorCategory',
+    'ErrorMeta',
+    'Web4ProtocolError',  # web4.errors.Web4Error aliased to avoid collision with legacy Web4Error
+    'BindingError',
+    'PairingError',
+    'WitnessError',
+    'AuthzError',
+    'CryptoError',
+    'ProtoError',
+    'get_error_meta',
+    'codes_for_category',
+    'make_error',
 ]
