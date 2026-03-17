@@ -13,16 +13,17 @@ Key concepts:
 - Authority: scoped delegation (domain-bounded, revocable)
 - LawDataset: versioned norms, procedures, interpretations
 - Fractal citizenship: societies nest (team → org → network → ecosystem)
-- Law inheritance: child inherits parent law, may override with awareness
+- Law inheritance: child inherits parent law, may override with awareness (merge_law)
 - Citizenship lifecycle: application → provisional → active → suspended → terminated
 - Quorum policy: witness requirements with majority/threshold/unanimous modes
 - Ledger types: confined, witnessed, participatory (§4.1 of Society spec)
 - Audit: scoped T3/V3 adjustments with evidence and rate limits (§5.5)
+- Norm operators: <=, >=, ==, !=, <, >, in, not_in
 
 This module provides DATA STRUCTURES and simple operations, not a policy
 engine. Policy evaluation belongs in HRM/PolicyGate.
 
-Validated against: web4-standard/test-vectors/federation/
+Validated against: web4-standard/test-vectors/federation/sal-governance.json
 """
 
 from __future__ import annotations
@@ -641,3 +642,141 @@ class Society:
     def find_child(self, society_id: str) -> Optional[Society]:
         """Find a child society by ID (direct children only)."""
         return next((c for c in self.children if c.society_id == society_id), None)
+
+
+# ── JSON Serialization ─────────────────────────────────────────
+# to_dict() / from_dict() for cross-language interoperability.
+# These are used by test vectors and wire formats.
+
+
+def norm_to_dict(norm: Norm) -> dict:
+    """Serialize a Norm to a JSON-compatible dict."""
+    d: dict = {
+        "norm_id": norm.norm_id,
+        "selector": norm.selector,
+        "op": norm.op,
+        "value": norm.value,
+    }
+    if norm.description:
+        d["description"] = norm.description
+    return d
+
+
+def norm_from_dict(d: dict) -> Norm:
+    """Deserialize a Norm from a dict."""
+    return Norm(
+        norm_id=d["norm_id"],
+        selector=d["selector"],
+        op=d["op"],
+        value=d["value"],
+        description=d.get("description", ""),
+    )
+
+
+def procedure_to_dict(proc: Procedure) -> dict:
+    """Serialize a Procedure to a JSON-compatible dict."""
+    d: dict = {
+        "procedure_id": proc.procedure_id,
+        "requires_witnesses": proc.requires_witnesses,
+    }
+    if proc.description:
+        d["description"] = proc.description
+    return d
+
+
+def procedure_from_dict(d: dict) -> Procedure:
+    """Deserialize a Procedure from a dict."""
+    return Procedure(
+        procedure_id=d["procedure_id"],
+        requires_witnesses=d.get("requires_witnesses", 0),
+        description=d.get("description", ""),
+    )
+
+
+def interpretation_to_dict(interp: Interpretation) -> dict:
+    """Serialize an Interpretation to a JSON-compatible dict."""
+    d: dict = {"interpretation_id": interp.interpretation_id}
+    if interp.replaces:
+        d["replaces"] = interp.replaces
+    if interp.reason:
+        d["reason"] = interp.reason
+    return d
+
+
+def interpretation_from_dict(d: dict) -> Interpretation:
+    """Deserialize an Interpretation from a dict."""
+    return Interpretation(
+        interpretation_id=d["interpretation_id"],
+        replaces=d.get("replaces"),
+        reason=d.get("reason", ""),
+    )
+
+
+def law_dataset_to_dict(law: LawDataset) -> dict:
+    """Serialize a LawDataset to a JSON-compatible dict."""
+    return {
+        "law_id": law.law_id,
+        "version": law.version,
+        "society_id": law.society_id,
+        "norms": [norm_to_dict(n) for n in law.norms],
+        "procedures": [procedure_to_dict(p) for p in law.procedures],
+        "interpretations": [interpretation_to_dict(i) for i in law.interpretations],
+        "hash": law.hash,
+    }
+
+
+def law_dataset_from_dict(d: dict) -> LawDataset:
+    """Deserialize a LawDataset from a dict."""
+    return LawDataset(
+        law_id=d["law_id"],
+        version=d["version"],
+        society_id=d["society_id"],
+        norms=[norm_from_dict(n) for n in d.get("norms", [])],
+        procedures=[procedure_from_dict(p) for p in d.get("procedures", [])],
+        interpretations=[interpretation_from_dict(i) for i in d.get("interpretations", [])],
+    )
+
+
+def delegation_to_dict(deleg: Delegation) -> dict:
+    """Serialize a Delegation to a JSON-compatible dict."""
+    d: dict = {
+        "delegation_id": deleg.delegation_id,
+        "delegator": deleg.delegator,
+        "delegate": deleg.delegate,
+        "scope": deleg.scope,
+        "permissions": deleg.permissions,
+        "active": deleg.active,
+        "max_depth": deleg.max_depth,
+    }
+    if deleg.expires_at:
+        d["expires_at"] = deleg.expires_at
+    return d
+
+
+def delegation_from_dict(d: dict) -> Delegation:
+    """Deserialize a Delegation from a dict."""
+    deleg = Delegation(
+        delegation_id=d["delegation_id"],
+        delegator=d["delegator"],
+        delegate=d["delegate"],
+        scope=d["scope"],
+        permissions=d["permissions"],
+        max_depth=d.get("max_depth", 1),
+    )
+    deleg.active = d.get("active", True)
+    if d.get("expires_at"):
+        deleg.expires_at = d["expires_at"]
+    return deleg
+
+
+def quorum_policy_to_dict(qp: QuorumPolicy) -> dict:
+    """Serialize a QuorumPolicy to a JSON-compatible dict."""
+    return {"mode": qp.mode.value, "required": qp.required}
+
+
+def quorum_policy_from_dict(d: dict) -> QuorumPolicy:
+    """Deserialize a QuorumPolicy from a dict."""
+    return QuorumPolicy(
+        mode=QuorumMode(d["mode"]),
+        required=d.get("required", 2),
+    )
