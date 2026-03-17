@@ -1,0 +1,128 @@
+{
+  "description": "Cross-language test vectors for web4.binding — multi-device LCT binding",
+  "spec": "core-spec/multi-device-lct-binding.md",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "witness_freshness_decay",
+      "description": "Witness freshness decay factor by days since last witness (spec §4.3)",
+      "cases": [
+        {"input_days": 0, "expected_factor": 1.0},
+        {"input_days": 5, "expected_factor": 1.0},
+        {"input_days": 7, "expected_factor": 1.0},
+        {"input_days": 8, "expected_factor": 0.9},
+        {"input_days": 30, "expected_factor": 0.9},
+        {"input_days": 60, "expected_factor": 0.7},
+        {"input_days": 90, "expected_factor": 0.7},
+        {"input_days": 100, "expected_factor": 0.5},
+        {"input_days": 180, "expected_factor": 0.5},
+        {"input_days": 365, "expected_factor": 0.3}
+      ]
+    },
+    {
+      "name": "recovery_quorum_calculation",
+      "description": "Default recovery quorum by device count (spec §5.2)",
+      "cases": [
+        {"input_device_count": 0, "expected_quorum": 0},
+        {"input_device_count": 1, "expected_quorum": 1},
+        {"input_device_count": 2, "expected_quorum": 2},
+        {"input_device_count": 3, "expected_quorum": 2},
+        {"input_device_count": 4, "expected_quorum": 2},
+        {"input_device_count": 5, "expected_quorum": 3},
+        {"input_device_count": 6, "expected_quorum": 3},
+        {"input_device_count": 10, "expected_quorum": 5}
+      ]
+    },
+    {
+      "name": "coherence_bonus_by_diversity",
+      "description": "Coherence bonus by anchor type diversity (spec §3.4)",
+      "cases": [
+        {
+          "input_anchor_types": ["phone_secure_element"],
+          "expected_bonus": 0.0
+        },
+        {
+          "input_anchor_types": ["phone_secure_element", "fido2"],
+          "expected_bonus": 0.08
+        },
+        {
+          "input_anchor_types": ["phone_secure_element", "fido2", "tpm2"],
+          "expected_bonus": 0.15
+        },
+        {
+          "input_anchor_types": ["phone_secure_element", "fido2", "tpm2", "software"],
+          "expected_bonus": 0.20
+        }
+      ]
+    },
+    {
+      "name": "trust_ceiling_by_config",
+      "description": "Trust ceiling by constellation composition (spec §4.2)",
+      "cases": [
+        {
+          "input_anchor_types": ["software"],
+          "expected_ceiling": 0.40
+        },
+        {
+          "input_anchor_types": ["phone_secure_element"],
+          "expected_ceiling": 0.75
+        },
+        {
+          "input_anchor_types": ["fido2"],
+          "expected_ceiling": 0.80
+        },
+        {
+          "input_anchor_types": ["phone_secure_element", "fido2"],
+          "expected_ceiling": 0.90
+        },
+        {
+          "input_anchor_types": ["phone_secure_element", "fido2", "tpm2"],
+          "expected_ceiling": 0.95
+        },
+        {
+          "input_anchor_types": ["phone_secure_element", "fido2", "tpm2", "software"],
+          "expected_ceiling": 0.98
+        }
+      ]
+    },
+    {
+      "name": "constellation_trust_single_device",
+      "description": "Trust computation for single phone SE, 0 days since witness",
+      "input": {
+        "anchor_type": "phone_secure_element",
+        "days_since_witness": 0
+      },
+      "expected": {
+        "trust": 0.75,
+        "reason": "0.95 base capped at 0.75 single_phone_se ceiling"
+      }
+    },
+    {
+      "name": "constellation_trust_multi_device",
+      "description": "Trust computation for phone + FIDO2 + TPM, full mesh, fresh witnesses",
+      "input": {
+        "devices": [
+          {
+            "anchor_type": "phone_secure_element",
+            "days_since_witness": 0,
+            "cross_witnesses": ["dev1", "dev2"]
+          },
+          {
+            "anchor_type": "fido2",
+            "days_since_witness": 0,
+            "cross_witnesses": ["dev0", "dev2"]
+          },
+          {
+            "anchor_type": "tpm2",
+            "days_since_witness": 0,
+            "cross_witnesses": ["dev0", "dev1"]
+          }
+        ]
+      },
+      "expected": {
+        "trust": 0.95,
+        "reason": "avg(0.95,0.98,0.93)=0.9533 * 1.15 coherence * 1.1 density = ~1.205, capped at 0.95 phone_fido2_tpm ceiling"
+      }
+    }
+  ]
+}

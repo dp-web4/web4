@@ -138,6 +138,16 @@ from web4.capability import (
     level_requirements, trust_tier,
     entity_level_range, is_level_typical, common_ground,
 )
+from web4.binding import (
+    AnchorType, DeviceStatus,
+    HardwareAnchor, DeviceRecord, DeviceConstellation,
+    ANCHOR_TRUST_WEIGHT, CONSTELLATION_TRUST_CEILING, WITNESS_DECAY_TABLE,
+    witness_freshness, default_recovery_quorum,
+    enroll_device, remove_device,
+    coherence_bonus, cross_witness_density,
+    constellation_trust_ceiling, compute_constellation_trust,
+    record_cross_witness, check_recovery_quorum, can_recover,
+)
 
 
 # =============================================================================
@@ -1322,4 +1332,24 @@ __all__ = [
     'entity_level_range',
     'is_level_typical',
     'common_ground',
+    # Multi-Device Binding
+    'AnchorType',
+    'DeviceStatus',
+    'HardwareAnchor',
+    'DeviceRecord',
+    'DeviceConstellation',
+    'ANCHOR_TRUST_WEIGHT',
+    'CONSTELLATION_TRUST_CEILING',
+    'WITNESS_DECAY_TABLE',
+    'witness_freshness',
+    'default_recovery_quorum',
+    'enroll_device',
+    'remove_device',
+    'coherence_bonus',
+    'cross_witness_density',
+    'constellation_trust_ceiling',
+    'compute_constellation_trust',
+    'record_cross_witness',
+    'check_recovery_quorum',
+    'can_recover',
 ]
