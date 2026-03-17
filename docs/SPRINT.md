@@ -32,8 +32,13 @@ These are known needs without implementation details. Each requires its own
 scoping session before work begins.
 
 ### U2: Multi-device binding
-Hardware binding hierarchy (API-Bridge → App → Pack Controller → Battery Module).
-Patent-covered (305 family). Requires TPM2 integration design.
+**Status**: SCOPED (design complete 2026-03-17)
+**Design**: `docs/designs/u2-multi-device-binding.md`
+**Spec**: `web4-standard/core-spec/multi-device-lct-binding.md`
+**Description**: `web4.binding` module — hardware anchor taxonomy, device constellation
+management, constellation trust computation, cross-device witnessing, recovery quorum.
+Patent-covered (305 family). ~350 lines, ~40 tests, 5-7 vectors. 3 new files.
+**Depends on**: None (uses existing `Binding.hardware_anchor` field from lct.py).
 
 ### U3: Whitepaper-SDK coherence fixes
 
@@ -134,7 +139,7 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | S6 | Post-merge integration tests (all 8) | DONE |
 | S7 | SDK version bump + changelog | DONE |
 | U1 | Dictionary entities module | DONE |
-| U2 | Multi-device binding | UNSCOPED |
+| U2 | Multi-device binding | SCOPED |
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
 | U5 | Entity type taxonomy module | DONE |
