@@ -1,0 +1,132 @@
+{
+  "description": "Society metabolic states test vectors — energy costs, wake penalties, transitions, reliability",
+  "spec": "web4-standard/core-spec/SOCIETY_METABOLIC_STATES.md",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "id": "metabolic-energy-active-baseline",
+      "description": "Active state energy cost: 100% of baseline * 10 members * 1 hour",
+      "state": "active",
+      "baseline": 100.0,
+      "society_size": 10,
+      "hours": 1.0,
+      "expected": {
+        "cost": 1000.0
+      }
+    },
+    {
+      "id": "metabolic-energy-rest-24h",
+      "description": "Rest state over 24 hours: 40% multiplier * 5 members * 24h",
+      "state": "rest",
+      "baseline": 50.0,
+      "society_size": 5,
+      "hours": 24.0,
+      "expected": {
+        "cost": 2400.0
+      }
+    },
+    {
+      "id": "metabolic-energy-torpor-minimal",
+      "description": "Torpor state: 2% of baseline, minimal cost for survival",
+      "state": "torpor",
+      "baseline": 100.0,
+      "society_size": 20,
+      "hours": 1.0,
+      "expected": {
+        "cost": 40.0
+      }
+    },
+    {
+      "id": "metabolic-wake-sleep-early",
+      "description": "Sleep early wake: multiplier 10 * incompleteness 0.5 = 5.0 penalty",
+      "state": "sleep",
+      "planned_hours": 8.0,
+      "actual_hours": 4.0,
+      "expected": {
+        "penalty": 5.0
+      }
+    },
+    {
+      "id": "metabolic-wake-hibernation-premature",
+      "description": "Hibernation premature wake: multiplier 100 * incompleteness 0.9 = 90.0",
+      "state": "hibernation",
+      "planned_hours": 1000.0,
+      "actual_hours": 100.0,
+      "expected": {
+        "penalty": 90.0
+      }
+    },
+    {
+      "id": "metabolic-wake-dreaming-interrupted",
+      "description": "Dreaming fully interrupted: multiplier 50 * incompleteness 1.0 = 50.0",
+      "state": "dreaming",
+      "planned_hours": 2.0,
+      "actual_hours": 0.0,
+      "expected": {
+        "penalty": 50.0
+      }
+    },
+    {
+      "id": "metabolic-transition-active-to-rest-valid",
+      "description": "Active→Rest is valid (1 hour no transactions)",
+      "from_state": "active",
+      "to_state": "rest",
+      "expected": {
+        "valid": true
+      }
+    },
+    {
+      "id": "metabolic-transition-active-to-hibernation-invalid",
+      "description": "Active→Hibernation is NOT valid (must go through Sleep first)",
+      "from_state": "active",
+      "to_state": "hibernation",
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "id": "metabolic-transition-sleep-to-hibernation-valid",
+      "description": "Sleep→Hibernation is valid (30 days no activity)",
+      "from_state": "sleep",
+      "to_state": "hibernation",
+      "expected": {
+        "valid": true
+      }
+    },
+    {
+      "id": "metabolic-transition-hibernation-self-invalid",
+      "description": "Self-transition is never valid",
+      "from_state": "hibernation",
+      "to_state": "hibernation",
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "id": "metabolic-reliability-perfect",
+      "description": "All reliability factors above threshold: score = 1.0",
+      "factors": {
+        "maintains_schedule": true,
+        "hibernation_recovery_rate": 0.95,
+        "energy_efficiency": 0.85,
+        "molt_success_rate": 0.96
+      },
+      "expected": {
+        "score": 1.0
+      }
+    },
+    {
+      "id": "metabolic-reliability-none",
+      "description": "No reliability factors met: score = 0.0",
+      "factors": {
+        "maintains_schedule": false,
+        "hibernation_recovery_rate": 0.5,
+        "energy_efficiency": 0.5,
+        "molt_success_rate": 0.5
+      },
+      "expected": {
+        "score": 0.0
+      }
+    }
+  ]
+}

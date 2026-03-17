@@ -127,6 +127,16 @@ from web4.entity import (
     is_agentic, can_initiate, can_delegate, can_process_r6,
     valid_interaction, all_entity_types,
 )
+from web4.metabolic import (
+    MetabolicState, TrustEffect, Transition, ReliabilityFactors, MetabolicProfile,
+    ENERGY_MULTIPLIERS, TRUST_EFFECTS, WITNESS_REQUIREMENTS,
+    DORMANT_STATES, ACTIVE_STATES,
+    valid_transition as valid_metabolic_transition,
+    reachable_states, transition_trigger, all_transitions,
+    energy_cost, wake_penalty, metabolic_reliability,
+    required_witnesses, all_profiles,
+    is_dormant, accepts_transactions, accepts_new_citizens,
+)
 
 
 # =============================================================================
@@ -1298,4 +1308,27 @@ __all__ = [
     'can_process_r6',
     'valid_interaction',
     'all_entity_types',
+    # Society Metabolic States
+    'MetabolicState',
+    'TrustEffect',
+    'Transition',
+    'ReliabilityFactors',
+    'MetabolicProfile',
+    'ENERGY_MULTIPLIERS',
+    'TRUST_EFFECTS',
+    'WITNESS_REQUIREMENTS',
+    'DORMANT_STATES',
+    'ACTIVE_STATES',
+    'valid_metabolic_transition',
+    'reachable_states',
+    'transition_trigger',
+    'all_transitions',
+    'energy_cost',
+    'wake_penalty',
+    'metabolic_reliability',
+    'required_witnesses',
+    'all_profiles',
+    'is_dormant',
+    'accepts_transactions',
+    'accepts_new_citizens',
 ]
