@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-16
+**Updated**: 2026-03-17
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -9,19 +9,19 @@
 
 ## Active Tasks
 
-### U5: Entity type taxonomy module
-**Status**: DONE
-**Completed**: 2026-03-16
-**Result**: `web4.entity` module — 284 lines, 48 tests, 5 vectors. PR #20, merged.
+### U9: Society metabolic states module
+**Status**: IN PROGRESS (PR #23)
+**Description**: Implement `web4.metabolic` module per `core-spec/SOCIETY_METABOLIC_STATES.md`.
+8 biological-inspired metabolic states (Active→Torpor), transition validation,
+energy cost calculation, wake penalty, metabolic reliability score, witness requirements.
+**Deliverables**: `metabolic.py`, `test_metabolic.py`, `test-vectors/metabolic/society-metabolic-states.json`
 
-### U8: SAL governance extensions (federation module)
+### U10: T3/V3 tensor enhancements
 **Status**: IN PROGRESS
-**Description**: Extend `web4.federation` with SAL governance primitives from
-`core-spec/web4-society-authority-law.md` §2-§7 and `SOCIETY_SPECIFICATION.md` §2-§4.
-Adds citizenship lifecycle (CitizenshipStatus, CitizenshipRecord), QuorumPolicy
-(threshold/majority/unanimous), LedgerType (confined/witnessed/participatory),
-AuditRequest/AuditAdjustment (§5.5), and merge_law() for fractal law inheritance.
-**Deliverables**: Extended `federation.py`, extended `test_federation.py`, `test-vectors/federation/sal-governance.json`
+**Description**: Extend `web4.trust` module with spec features from `core-spec/t3-v3-tensors.md`:
+outcome-based evolution (§2.3), decay/refresh mechanics (§2.3), role requirements matching (§5.1),
+V3 calculation from action components (§3.3), team tensor composition (§8.2).
+**Deliverables**: Extended `trust.py`, new `test_trust.py`, 5 new test vectors
 
 ---
 
@@ -58,6 +58,16 @@ acknowledges graph-based MRH implementation.
 ---
 
 ## Completed Tasks
+
+### U8: SAL governance extensions (federation module)
+**Completed**: 2026-03-16 (PR #22, merged as commit f00c35f)
+**Result**: Extended `web4.federation` with SAL governance primitives — CitizenshipStatus
+(5 lifecycle states), CitizenshipRecord, QuorumPolicy (3 modes), LedgerType, AuditRequest,
+AuditAdjustment, Norm, Procedure, Interpretation, merge_law(). 29 new tests, 6 vectors.
+
+### U5: Entity type taxonomy module
+**Completed**: 2026-03-16 (PR #20, merged as commit 0b7d3a9)
+**Result**: `web4.entity` module — 284 lines, 48 tests, 5 vectors.
 
 ### S6: Post-merge integration tests (all 8 modules)
 **Completed**: 2026-03-15 (PR #14, merged as commit 8453df6)
@@ -131,4 +141,7 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U3 | Whitepaper-SDK coherence fixes | DONE (U3a + U3b) |
 | U4 | Reputation computation module | DONE |
 | U5 | Entity type taxonomy module | DONE |
-| U8 | SAL governance extensions | IN PROGRESS |
+| U6+U7 | Capability levels + error taxonomy | IN PROGRESS (PR #21) |
+| U8 | SAL governance extensions | DONE |
+| U9 | Society metabolic states module | IN PROGRESS (PR #23) |
+| U10 | T3/V3 tensor enhancements | IN PROGRESS |

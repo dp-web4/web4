@@ -195,6 +195,111 @@
       },
       "tolerance": 0.01,
       "notes": "0.8*0.4 + 0.6*0.3 + 0.7*0.3 = 0.32 + 0.18 + 0.21 = 0.71"
+    },
+    {
+      "id": "t3v3-011",
+      "description": "Outcome-based T3 evolution (spec §2.3 — ethics violation)",
+      "operation": "t3_evolve",
+      "input": {
+        "initial": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
+        "outcome": "ethics_violation"
+      },
+      "expected": {
+        "talent": 0.65,
+        "training": 0.8,
+        "temperament": 0.8,
+        "deltas": {"talent": -0.05, "training": 0.0, "temperament": -0.10}
+      },
+      "tolerance": 0.0001,
+      "notes": "Ethics violation: talent -0.05, training 0, temperament -0.10 per spec §2.3"
+    },
+    {
+      "id": "t3v3-012",
+      "description": "T3 decay/refresh over 12 months (spec §2.3)",
+      "operation": "t3_decay",
+      "input": {
+        "initial": {"talent": 0.8, "training": 0.8, "temperament": 0.6},
+        "months": 12
+      },
+      "expected": {
+        "talent": 0.8,
+        "training": 0.788,
+        "temperament": 0.72,
+        "formulas": {
+          "training": "0.8 - 0.001*12 = 0.788",
+          "temperament": "0.6 + 0.01*12 = 0.72",
+          "talent": "unchanged"
+        }
+      },
+      "tolerance": 0.0001,
+      "notes": "Training decays -0.001/month, temperament recovers +0.01/month, talent stable"
+    },
+    {
+      "id": "t3v3-013",
+      "description": "Role requirement evaluation (spec §5.1 — surgeon)",
+      "operation": "role_requirement",
+      "input": {
+        "role": "web4:Surgeon",
+        "minimums": {"talent": 0.7, "training": 0.9, "temperament": 0.85},
+        "candidate": {"talent": 0.95, "training": 0.92, "temperament": 0.88}
+      },
+      "expected": {
+        "qualified": true,
+        "trust_score": 0.92,
+        "gaps": {"talent": 0.0, "training": 0.0, "temperament": 0.0}
+      },
+      "tolerance": 0.01,
+      "notes": "Candidate exceeds all minimums. Trust score = composite = 0.95*0.4+0.92*0.3+0.88*0.3 = 0.92"
+    },
+    {
+      "id": "t3v3-014",
+      "description": "V3 calculation from R6 action components (spec §3.3)",
+      "operation": "v3_calculate",
+      "input": {
+        "atp_earned": 50,
+        "atp_expected": 55,
+        "recipient_satisfaction": 0.95,
+        "verified_claims": 9,
+        "total_claims": 10,
+        "witness_confidence": 0.9,
+        "value_transferred": true
+      },
+      "expected": {
+        "valuation": 0.8636,
+        "veracity": 0.81,
+        "validity": 1.0,
+        "formulas": {
+          "valuation": "(50/55)*0.95 = 0.8636",
+          "veracity": "(9/10)*0.9 = 0.81",
+          "validity": "1.0 (value transferred)"
+        }
+      },
+      "tolerance": 0.001,
+      "notes": "Standard successful action with good but imperfect claims verification"
+    },
+    {
+      "id": "t3v3-015",
+      "description": "Team T3 composition (spec §8.2 — equal weight, 2 of 3 qualified)",
+      "operation": "team_t3",
+      "input": {
+        "role": "surgeon",
+        "members": [
+          {"entity_id": "alice", "t3": {"talent": 0.9, "training": 0.95, "temperament": 0.88}},
+          {"entity_id": "bob", "t3": {"talent": 0.8, "training": 0.85, "temperament": 0.90}}
+        ]
+      },
+      "expected": {
+        "talent": 0.85,
+        "training": 0.90,
+        "temperament": 0.89,
+        "formulas": {
+          "talent": "(0.9+0.8)/2 = 0.85",
+          "training": "(0.95+0.85)/2 = 0.90",
+          "temperament": "(0.88+0.90)/2 = 0.89"
+        }
+      },
+      "tolerance": 0.0001,
+      "notes": "Equal-weight average of two surgeon-qualified members. Non-surgeon members excluded per spec."
     }
   ]
 }

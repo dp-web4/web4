@@ -81,7 +81,10 @@ except ImportError:
     warnings.warn("PyNaCl not installed. Cryptographic signing will not work. Install with: pip install pynacl")
 
 # Import canonical web4 types (v0.1.0+)
-from web4.trust import T3, V3, TrustProfile, operational_health, is_healthy
+from web4.trust import (
+    T3, V3, TrustProfile, ActionOutcome, RoleRequirement,
+    compute_team_t3, operational_health, is_healthy,
+)
 from web4.lct import LCT, EntityType, RevocationStatus, BirthCertificate
 from web4.atp import ATPAccount, energy_ratio as atp_energy_ratio
 from web4.federation import (
