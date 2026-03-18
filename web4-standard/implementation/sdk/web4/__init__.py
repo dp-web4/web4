@@ -14,6 +14,7 @@ Provides offline-capable primitives for:
 - Reputation computation — rule-based reputation engine with aggregation and decay
 - Entity taxonomy — behavioral modes, energy patterns, and interaction rules
 - Capability levels — 6-level LCT capability framework (Stub → Hardware)
+- Error taxonomy — RFC 9457 error types for 6 Web4 protocol categories
 - Metabolic states — society operational modes with energy, trust, and witness effects
 - Multi-device binding — device constellation management, trust computation, and recovery
 

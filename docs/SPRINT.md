@@ -29,6 +29,10 @@
 **Completed**: 2026-03-17
 **Result**: `web4.capability` module — 6-level LCT capability framework (Stub → Hardware) per lct-capability-levels.md spec. 42 tests, cross-language vectors. PR #26, merged.
 
+### U7: Error taxonomy module
+**Status**: IN PROGRESS
+**Description**: `web4.errors` module — RFC 9457 error types for Web4 protocol (24 codes, 6 categories). Split from PR #21 per reviewer feedback.
+
 ---
 
 ## Unscoped Tasks
@@ -150,6 +154,7 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U4 | Reputation computation module | DONE |
 | U5 | Entity type taxonomy module | DONE |
 | U6 | Capability levels module | DONE |
+| U7 | Error taxonomy module | IN PROGRESS |
 | U8 | SAL governance extensions | DONE |
 | U9 | Society metabolic states module | DONE |
 | U10 | T3/V3 tensor enhancements | DONE |
