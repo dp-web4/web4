@@ -19,6 +19,7 @@ Provides offline-capable primitives for:
 - Multi-device binding — device constellation management, trust computation, and recovery
 - Society — core organizational primitive composing federation, treasury, ledger, and trust
 - Security primitives — crypto suite definitions, W4ID identifiers, key policies, VCs
+- Core protocol — handshake, transport, discovery, and Web4 URI types
 
 These modules define the canonical data types and algorithms specified
 in the web4-standard. They work offline (no network services required)
