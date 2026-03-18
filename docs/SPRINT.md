@@ -30,13 +30,20 @@
 **Result**: `web4.capability` module — 6-level LCT capability framework (Stub → Hardware) per lct-capability-levels.md spec. 42 tests, cross-language vectors. PR #26, merged.
 
 ### U7: Error taxonomy module
-**Status**: IN PROGRESS
-**Description**: `web4.errors` module — RFC 9457 error types for Web4 protocol (24 codes, 6 categories). Split from PR #21 per reviewer feedback.
+**Status**: DONE
+**Completed**: 2026-03-17
+**Result**: `web4.errors` module — 353 lines, 42 tests, 5 vectors. 24 error codes across 6 categories with RFC 9457 Problem Details serialization. PR #27, merged.
 
 ### U11: Society core module
-**Status**: IN PROGRESS
+**Status**: DONE
+**Completed**: 2026-03-17
 **Spec**: `web4-standard/core-spec/SOCIETY_SPECIFICATION.md`
-**Description**: `web4.society` module composing federation.Society with metabolic states, treasury management, ledger recording, aggregate trust computation, and fractal hierarchy. Imports from 6 existing modules (federation, metabolic, atp, lct, entity, trust).
+**Result**: `web4.society` module — 766 lines, 86 tests, 6 vectors. Composes federation, metabolic, atp, trust, lct, entity modules into society orchestration layer. PR #31, merged.
+
+### U12: SDK v0.4.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-03-18
+**Result**: Fixed missing metabolic module re-exports in web4_sdk.py (22 symbols), bumped version to 0.4.0, CHANGELOG.md documents 6 new + 2 enhanced modules since v0.3.0. SPRINT.md updated (U7/U11 → DONE).
 
 ---
 
@@ -159,8 +166,9 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U4 | Reputation computation module | DONE |
 | U5 | Entity type taxonomy module | DONE |
 | U6 | Capability levels module | DONE |
-| U7 | Error taxonomy module | IN PROGRESS |
+| U7 | Error taxonomy module | DONE |
 | U8 | SAL governance extensions | DONE |
 | U9 | Society metabolic states module | DONE |
 | U10 | T3/V3 tensor enhancements | DONE |
-| U11 | Society core module | IN PROGRESS |
+| U11 | Society core module | DONE |
+| U12 | SDK v0.4.0 release housekeeping | DONE |

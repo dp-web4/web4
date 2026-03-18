@@ -2,6 +2,50 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.4.0] - 2026-03-18
+
+Major release: six new modules, two enhanced modules, 15 modules total.
+
+### Added
+- **web4.entity** (U5) — Entity type taxonomy: `BehavioralMode`, `EnergyPattern`,
+  `InteractionType`, `EntityTypeInfo`, behavioral classification and interaction
+  validation for all 16 entity types. 48 tests, 5 vectors.
+- **web4.capability** (U6) — LCT capability levels: `CapabilityLevel` (6 levels
+  from Stub to Hardware), `TrustTier`, `LevelRequirement`, level assessment,
+  validation, upgrade eligibility, and entity-level range mapping. 42 tests, vectors.
+- **web4.errors** (U7) — RFC 9457 error taxonomy: `ErrorCode` (24 codes),
+  `ErrorCategory` (6 categories), `Web4Error` exception hierarchy with
+  `BindingError`, `PairingError`, `WitnessError`, `AuthzError`, `CryptoError`,
+  `ProtoError`. Problem Details serialization/deserialization. 42 tests, 5 vectors.
+- **web4.metabolic** (U9) — Society metabolic states: `MetabolicState` (8 states),
+  `Transition` (17 valid transitions), `TrustEffect`, `MetabolicProfile`,
+  `ReliabilityFactors`. Energy cost calculation, wake penalty, witness requirements,
+  dormancy classification. 71 tests, 12 vectors.
+- **web4.binding** (U2) — Multi-device LCT binding: `AnchorType` (4 types),
+  `DeviceStatus`, `HardwareAnchor`, `DeviceRecord`, `DeviceConstellation`.
+  Constellation management (enroll/remove), trust computation (witness freshness,
+  coherence bonus, cross-witness density, ceiling), recovery quorum. 68 tests, 6 vectors.
+- **web4.society** (U11) — Society composition: `SocietyPhase`, `SocietyState`,
+  `Treasury`, `SocietyLedger`, `LedgerEntry`. Composes federation, metabolic, atp,
+  trust, lct, entity modules. Citizenship CRUD, metabolic gating, treasury ops,
+  law recording, fractal hierarchy, aggregate trust. 86 tests, 6 vectors.
+- `web4_sdk.py` re-exports for all 15 modules (metabolic added in v0.4.0 — was
+  missing in prior releases). 22 new metabolic symbols, 21 society symbols.
+
+### Changed
+- **web4.trust** (U10) — T3/V3 tensor enhancements: `ActionOutcome` enum,
+  outcome-based T3 evolution, decay/refresh, `RoleRequirement`, `V3.calculate()`,
+  `compute_team_t3()`. 51 new tests, 5 vectors.
+- **web4.federation** (U8) — SAL governance extensions: `CitizenshipStatus`
+  (5 lifecycle states), `CitizenshipRecord`, `QuorumPolicy` (3 modes),
+  `LedgerType`, `AuditRequest`, `AuditAdjustment`, `Norm`, `Procedure`,
+  `Interpretation`, `merge_law()`. 29 new tests, 6 vectors.
+- Version bumped from 0.3.0 to 0.4.0 in `web4/__init__.py`.
+
+### Fixed
+- `web4_sdk.py` was missing metabolic module re-exports (MetabolicState,
+  energy_cost, etc.) despite the module being available since PR #23.
+
 ## [0.3.0] - 2026-03-16
 
 ### Added
