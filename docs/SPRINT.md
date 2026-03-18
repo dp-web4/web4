@@ -45,6 +45,11 @@
 **Completed**: 2026-03-18
 **Result**: Fixed missing metabolic module re-exports in web4_sdk.py (22 symbols), bumped version to 0.4.0, CHANGELOG.md documents 6 new + 2 enhanced modules since v0.3.0. SPRINT.md updated (U7/U11 → DONE).
 
+### U15: MCP protocol types module
+**Status**: IN PROGRESS
+**Spec**: `web4-standard/core-spec/mcp-protocol.md`
+**Description**: Implement `web4.mcp` module with Web4Context headers, CommunicationPattern enum, MCP resource types (tool/prompt/context), TrustRequirements, MCPSession with ATP tracking, SessionHandoff, ATP metering (calculate_mcp_cost), WitnessAttestation, MCPCapabilities/CapabilityBroadcast, MCPAuthority, MCPErrorContext. Types only — no networking or JSON-RPC.
+
 ---
 
 ## Unscoped Tasks
@@ -172,3 +177,4 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U10 | T3/V3 tensor enhancements | DONE |
 | U11 | Society core module | DONE |
 | U12 | SDK v0.4.0 release housekeeping | DONE |
+| U15 | MCP protocol types module | IN PROGRESS |

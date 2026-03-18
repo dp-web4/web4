@@ -177,6 +177,19 @@ from web4.society import (
     compute_society_t3, society_energy_cost, society_health,
     incorporate_child, society_depth, society_ancestry,
 )
+from web4.mcp import (
+    CommunicationPattern, TrustDimension, MCPResourceType,
+    ResourceRequirements as MCPResourceRequirements,
+    TrustRequirements as MCPTrustRequirements,
+    MCPToolResource, MCPPromptResource,
+    ProofOfAgency, TrustContext, Web4Context,
+    WitnessedInteraction, WitnessAttestation,
+    MCPCapabilities, CapabilityBroadcast,
+    MCPAuthority, MCPSession, SessionHandoff,
+    PricingModifiers, calculate_mcp_cost,
+    MCPErrorContext,
+    web4_context_to_json, web4_context_from_json,
+)
 
 
 # =============================================================================

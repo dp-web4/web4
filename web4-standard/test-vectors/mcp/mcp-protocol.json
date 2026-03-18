@@ -1,0 +1,227 @@
+{
+  "suite": "mcp-protocol",
+  "version": "1.0.0",
+  "spec": "web4-standard/core-spec/mcp-protocol.md",
+  "vectors": [
+    {
+      "id": "mcp-ctx-001",
+      "description": "Web4 context with full trust and agency proof",
+      "type": "web4_context",
+      "input": {
+        "sender_lct": "lct:web4:client:alice",
+        "sender_role": "web4:DataAnalyst",
+        "trust_context": {
+          "t3_in_role": {"talent": 0.85, "training": 0.90},
+          "atp_stake": 50
+        },
+        "mrh_depth": 2,
+        "society": "lct:web4:society:research",
+        "law_hash": "sha256:abc123",
+        "proof_of_agency": {
+          "grant_id": "agy:grant:001",
+          "scope": "data:analysis"
+        }
+      },
+      "expected": {
+        "sender_lct": "lct:web4:client:alice",
+        "sender_role": "web4:DataAnalyst",
+        "mrh_depth": 2,
+        "society": "lct:web4:society:research"
+      }
+    },
+    {
+      "id": "mcp-ctx-002",
+      "description": "Minimal Web4 context (sender LCT only)",
+      "type": "web4_context",
+      "input": {
+        "sender_lct": "lct:web4:client:bob"
+      },
+      "expected": {
+        "sender_lct": "lct:web4:client:bob",
+        "sender_role": "",
+        "mrh_depth": 1
+      }
+    },
+    {
+      "id": "mcp-trust-001",
+      "description": "Trust requirements met — all dimensions pass",
+      "type": "trust_requirements",
+      "input": {
+        "requirements": {
+          "minimum_t3": {"training": 0.7, "talent": 0.5},
+          "atp_stake": 10,
+          "role_required": "web4:DataAnalyst"
+        },
+        "provided": {
+          "t3": {"training": 0.8, "talent": 0.6},
+          "atp_available": 50,
+          "role": "web4:DataAnalyst"
+        }
+      },
+      "expected": {
+        "is_met": true
+      }
+    },
+    {
+      "id": "mcp-trust-002",
+      "description": "Trust requirements NOT met — training too low",
+      "type": "trust_requirements",
+      "input": {
+        "requirements": {
+          "minimum_t3": {"training": 0.7}
+        },
+        "provided": {
+          "t3": {"training": 0.5},
+          "atp_available": 100,
+          "role": null
+        }
+      },
+      "expected": {
+        "is_met": false
+      }
+    },
+    {
+      "id": "mcp-cost-001",
+      "description": "ATP cost with high trust (20% discount)",
+      "type": "mcp_cost",
+      "input": {
+        "base_cost": 100,
+        "trust_average": 1.0,
+        "complexity_factor": 1.0,
+        "atp_cap": null
+      },
+      "expected": {
+        "cost": 80
+      }
+    },
+    {
+      "id": "mcp-cost-002",
+      "description": "ATP cost with zero trust (no discount)",
+      "type": "mcp_cost",
+      "input": {
+        "base_cost": 100,
+        "trust_average": 0.0,
+        "complexity_factor": 1.0,
+        "atp_cap": null
+      },
+      "expected": {
+        "cost": 100
+      }
+    },
+    {
+      "id": "mcp-cost-003",
+      "description": "ATP cost with cap applied",
+      "type": "mcp_cost",
+      "input": {
+        "base_cost": 100,
+        "trust_average": 0.5,
+        "complexity_factor": 2.0,
+        "atp_cap": 50
+      },
+      "expected": {
+        "cost": 50
+      }
+    },
+    {
+      "id": "mcp-session-001",
+      "description": "Session ATP consumption tracking",
+      "type": "session",
+      "input": {
+        "session": {
+          "session_id": "mcp:session:001",
+          "client": "lct:web4:client:alice",
+          "server": "lct:web4:server:db",
+          "atp_consumed": 0,
+          "atp_remaining": 100,
+          "interaction_count": 0,
+          "active": true
+        },
+        "consume": [10, 20, 15]
+      },
+      "expected": {
+        "atp_consumed": 45,
+        "atp_remaining": 55,
+        "interaction_count": 3,
+        "all_succeeded": true
+      }
+    },
+    {
+      "id": "mcp-session-002",
+      "description": "Session ATP exhaustion — consumption fails",
+      "type": "session",
+      "input": {
+        "session": {
+          "session_id": "mcp:session:002",
+          "client": "lct:web4:client:bob",
+          "server": "lct:web4:server:compute",
+          "atp_consumed": 0,
+          "atp_remaining": 20,
+          "interaction_count": 0,
+          "active": true
+        },
+        "consume": [15, 10]
+      },
+      "expected": {
+        "atp_consumed": 15,
+        "atp_remaining": 5,
+        "interaction_count": 1,
+        "all_succeeded": false
+      }
+    },
+    {
+      "id": "mcp-handoff-001",
+      "description": "Session handoff between servers",
+      "type": "session_handoff",
+      "input": {
+        "session_id": "mcp:session:003",
+        "from_server": "lct:web4:server:A",
+        "to_server": "lct:web4:server:B",
+        "client_consent": "sig:consent:abc",
+        "trust_proofs": ["proof:1", "proof:2"]
+      },
+      "expected": {
+        "session_id": "mcp:session:003",
+        "from_server": "lct:web4:server:A",
+        "to_server": "lct:web4:server:B"
+      }
+    },
+    {
+      "id": "mcp-pattern-001",
+      "description": "Communication patterns map to Web4 relationships",
+      "type": "communication_patterns",
+      "input": {
+        "patterns": [
+          {"pattern": "request_response", "relationship": "pairing"},
+          {"pattern": "delegation", "relationship": "binding"},
+          {"pattern": "observation", "relationship": "witnessing"},
+          {"pattern": "broadcast", "relationship": "announcement"}
+        ]
+      },
+      "expected": {
+        "count": 4
+      }
+    },
+    {
+      "id": "mcp-witness-001",
+      "description": "Witness attestation for a successful interaction",
+      "type": "witness_attestation",
+      "input": {
+        "witnessed_interaction": {
+          "client": "lct:web4:client:alice",
+          "server": "lct:web4:server:db",
+          "action": "database_query",
+          "timestamp": "2025-09-15T12:00:00Z",
+          "success": true
+        },
+        "witness": "lct:web4:mcp:server:oracle",
+        "signature": "cose:attestation:001",
+        "mrh_updates": ["lct:web4:client:alice", "lct:web4:server:db"]
+      },
+      "expected": {
+        "witness": "lct:web4:mcp:server:oracle",
+        "success": true,
+        "mrh_update_count": 2
+      }
+    }
+  ]
+}
