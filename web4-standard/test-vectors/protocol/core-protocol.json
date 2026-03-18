@@ -1,0 +1,153 @@
+{
+  "description": "Cross-language test vectors for web4.protocol — handshake, transport, discovery, and Web4 URI types",
+  "spec": "core-spec/core-protocol.md",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "web4_uri_basic",
+      "description": "Basic Web4 URI with w4id and path",
+      "input": {
+        "uri": "web4://w4id:key:abc123/resources/data"
+      },
+      "expected": {
+        "valid": true,
+        "w4id": "w4id:key:abc123",
+        "path": "/resources/data",
+        "query": null,
+        "fragment": null,
+        "reconstructed": "web4://w4id:key:abc123/resources/data"
+      }
+    },
+    {
+      "name": "web4_uri_with_query_and_fragment",
+      "description": "Web4 URI with all components",
+      "input": {
+        "uri": "web4://w4id:web:example.com/api/trust?level=0.8&scope=finance#section2"
+      },
+      "expected": {
+        "valid": true,
+        "w4id": "w4id:web:example.com",
+        "path": "/api/trust",
+        "query": "level=0.8&scope=finance",
+        "fragment": "section2",
+        "reconstructed": "web4://w4id:web:example.com/api/trust?level=0.8&scope=finance#section2"
+      }
+    },
+    {
+      "name": "web4_uri_root_path",
+      "description": "Web4 URI with root path only",
+      "input": {
+        "uri": "web4://w4id:key:xyz789"
+      },
+      "expected": {
+        "valid": true,
+        "w4id": "w4id:key:xyz789",
+        "path": "/",
+        "query": null,
+        "fragment": null,
+        "reconstructed": "web4://w4id:key:xyz789/"
+      }
+    },
+    {
+      "name": "web4_uri_with_fragment_only",
+      "description": "Web4 URI with fragment but no query",
+      "input": {
+        "uri": "web4://w4id:key:node42/context#trust"
+      },
+      "expected": {
+        "valid": true,
+        "w4id": "w4id:key:node42",
+        "path": "/context",
+        "query": null,
+        "fragment": "trust",
+        "reconstructed": "web4://w4id:key:node42/context#trust"
+      }
+    },
+    {
+      "name": "web4_uri_invalid_scheme",
+      "description": "URI with wrong scheme should be invalid",
+      "input": {
+        "uri": "https://example.com/path"
+      },
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "name": "web4_uri_empty_w4id",
+      "description": "URI with empty authority should be invalid",
+      "input": {
+        "uri": "web4:///path"
+      },
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "name": "transport_required",
+      "description": "Required transports per spec §4.1",
+      "input": {},
+      "expected": {
+        "required_transports": ["tls_1.3", "quic"],
+        "constrained_transports": ["ble_gatt", "can_bus"]
+      }
+    },
+    {
+      "name": "transport_negotiate_mutual",
+      "description": "Transport negotiation: select highest client priority",
+      "input": {
+        "client_transports": ["quic", "web_transport", "tls_1.3"],
+        "server_transports": ["tls_1.3", "web_transport"]
+      },
+      "expected": {
+        "selected": "web_transport"
+      }
+    },
+    {
+      "name": "transport_negotiate_fallback",
+      "description": "Transport negotiation: fallback to TLS 1.3",
+      "input": {
+        "client_transports": ["web_rtc", "ble_gatt"],
+        "server_transports": ["tls_1.3", "quic"]
+      },
+      "expected": {
+        "selected": "tls_1.3"
+      }
+    },
+    {
+      "name": "transport_negotiate_no_match",
+      "description": "Transport negotiation: no mutual transport available",
+      "input": {
+        "client_transports": ["ble_gatt", "can_bus"],
+        "server_transports": ["web_rtc"]
+      },
+      "expected": {
+        "selected": null
+      }
+    },
+    {
+      "name": "discovery_required",
+      "description": "Required discovery methods per spec §4.2",
+      "input": {},
+      "expected": {
+        "required_methods": ["witness_relay"],
+        "high_privacy_methods": ["qr_code_oob"]
+      }
+    },
+    {
+      "name": "handshake_client_hello",
+      "description": "ClientHello message construction and serialization",
+      "input": {
+        "supported_suites": ["W4-BASE-1", "W4-FIPS-1"],
+        "client_public_key": "ed25519:pk_client_abc",
+        "client_w4id_ephemeral": "w4id:key:ephemeral_001",
+        "nonce": "a1b2c3d4e5f6"
+      },
+      "expected": {
+        "phase": "CLIENT_HELLO",
+        "suite_count": 2,
+        "has_nonce": true
+      }
+    }
+  ]
+}

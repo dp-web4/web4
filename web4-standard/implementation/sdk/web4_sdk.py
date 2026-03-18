@@ -177,6 +177,22 @@ from web4.society import (
     compute_society_t3, society_energy_cost, society_health,
     incorporate_child, society_depth, society_ancestry,
 )
+from web4.protocol import (
+    HandshakePhase,
+    ClientHello, ServerHello, ClientFinished, ServerFinished,
+    HandshakeMessage,
+    PairingMethod,
+    Transport, TransportCompliance, TransportProfile,
+    TRANSPORT_PROFILES,
+    get_transport_profile, required_transports, negotiate_transport,
+    DiscoveryMethod, PrivacyLevel,
+    DISCOVERY_METADATA,
+    required_discovery_methods, discovery_privacy,
+    DiscoveryRequest, DiscoveryResponse,
+    Web4URI,
+    web4_uri_to_dict, web4_uri_from_dict,
+    transport_profile_to_dict,
+)
 
 
 # =============================================================================
@@ -1440,4 +1456,30 @@ __all__ = [
     'incorporate_child',
     'society_depth',
     'society_ancestry',
+    # Core Protocol
+    'HandshakePhase',
+    'ClientHello',
+    'ServerHello',
+    'ClientFinished',
+    'ServerFinished',
+    'HandshakeMessage',
+    'PairingMethod',
+    'Transport',
+    'TransportCompliance',
+    'TransportProfile',
+    'TRANSPORT_PROFILES',
+    'get_transport_profile',
+    'required_transports',
+    'negotiate_transport',
+    'DiscoveryMethod',
+    'PrivacyLevel',
+    'DISCOVERY_METADATA',
+    'required_discovery_methods',
+    'discovery_privacy',
+    'DiscoveryRequest',
+    'DiscoveryResponse',
+    'Web4URI',
+    'web4_uri_to_dict',
+    'web4_uri_from_dict',
+    'transport_profile_to_dict',
 ]
