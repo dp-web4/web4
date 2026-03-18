@@ -1,0 +1,160 @@
+{
+  "name": "Web4 Security Primitives",
+  "version": "1.0.0",
+  "spec": "web4-standard/core-spec/security-framework.md, web4-standard/core-spec/data-formats.md",
+  "vectors": [
+    {
+      "id": "sec-001",
+      "name": "W4-BASE-1 suite definition",
+      "input": {
+        "suite_id": "W4-BASE-1"
+      },
+      "expected": {
+        "kem": "X25519",
+        "sig": "Ed25519",
+        "aead": "ChaCha20-Poly1305",
+        "hash": "SHA-256",
+        "kdf": "HKDF-SHA256",
+        "encoding": "COSE"
+      }
+    },
+    {
+      "id": "sec-002",
+      "name": "W4-FIPS-1 suite definition",
+      "input": {
+        "suite_id": "W4-FIPS-1"
+      },
+      "expected": {
+        "kem": "ECDH-P256",
+        "sig": "ECDSA-P256",
+        "aead": "AES-128-GCM",
+        "hash": "SHA-256",
+        "kdf": "HKDF-SHA256",
+        "encoding": "JOSE"
+      }
+    },
+    {
+      "id": "sec-003",
+      "name": "W4ID key method parse",
+      "input": {
+        "did": "did:web4:key:z6Mkf5rGMoatrSj1f4QR2c5m"
+      },
+      "expected": {
+        "method": "key",
+        "method_specific_id": "z6Mkf5rGMoatrSj1f4QR2c5m",
+        "is_known_method": true,
+        "did": "did:web4:key:z6Mkf5rGMoatrSj1f4QR2c5m"
+      }
+    },
+    {
+      "id": "sec-004",
+      "name": "W4ID web method parse",
+      "input": {
+        "did": "did:web4:web:example.com"
+      },
+      "expected": {
+        "method": "web",
+        "method_specific_id": "example.com",
+        "is_known_method": true,
+        "did": "did:web4:web:example.com"
+      }
+    },
+    {
+      "id": "sec-005",
+      "name": "W4ID invalid format rejected",
+      "input": {
+        "did": "not-a-did"
+      },
+      "expected": {
+        "error": "W4IDError"
+      }
+    },
+    {
+      "id": "sec-006",
+      "name": "W4ID missing method-specific-id rejected",
+      "input": {
+        "did": "did:web4:key:"
+      },
+      "expected": {
+        "error": "W4IDError"
+      }
+    },
+    {
+      "id": "sec-007",
+      "name": "Suite negotiation — both support BASE",
+      "input": {
+        "offered": ["W4-BASE-1", "W4-FIPS-1"],
+        "supported": ["W4-BASE-1"]
+      },
+      "expected": {
+        "negotiated": "W4-BASE-1"
+      }
+    },
+    {
+      "id": "sec-008",
+      "name": "Suite negotiation — FIPS only overlap",
+      "input": {
+        "offered": ["W4-FIPS-1"],
+        "supported": ["W4-BASE-1", "W4-FIPS-1"]
+      },
+      "expected": {
+        "negotiated": "W4-FIPS-1"
+      }
+    },
+    {
+      "id": "sec-009",
+      "name": "Suite negotiation — no overlap",
+      "input": {
+        "offered": ["W4-FIPS-1"],
+        "supported": ["W4-BASE-1"]
+      },
+      "expected": {
+        "negotiated": null
+      }
+    },
+    {
+      "id": "sec-010",
+      "name": "Pairwise W4ID derivation is deterministic",
+      "input": {
+        "master_secret_hex": "deadbeefcafebabe0123456789abcdef",
+        "peer_identifier": "did:web4:web:peer.example.com"
+      },
+      "expected": {
+        "method": "key",
+        "deterministic": true,
+        "note": "Same inputs must always produce the same W4ID"
+      }
+    },
+    {
+      "id": "sec-011",
+      "name": "KeyPolicy hardware-backed detection",
+      "input": {
+        "policies": [
+          {"storage_level": "hsm", "is_hardware_backed": true},
+          {"storage_level": "secure_enclave", "is_hardware_backed": true},
+          {"storage_level": "encrypted", "is_hardware_backed": false},
+          {"storage_level": "plaintext", "is_hardware_backed": false}
+        ]
+      },
+      "expected": {
+        "all_correct": true
+      }
+    },
+    {
+      "id": "sec-012",
+      "name": "Verifiable Credential JSON-LD structure",
+      "input": {
+        "id": "vc:web4:credential:001",
+        "issuer": "did:web4:key:issuer123",
+        "subject": "did:web4:key:subject456",
+        "credential_type": "TrustAttestation",
+        "claims": {"trust_level": 0.85}
+      },
+      "expected": {
+        "context_includes": "https://www.w3.org/2018/credentials/v1",
+        "type_includes": ["VerifiableCredential", "TrustAttestation"],
+        "has_credential_subject": true
+      }
+    }
+  ]
+}

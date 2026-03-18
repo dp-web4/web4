@@ -147,6 +147,13 @@ collision with whitepaper identity coherence (C×S×Phi×R). 70 tests passing.
 Added §2.5.4 reconciling 5-dimension conceptual model vs graph implementation model.
 Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 
+### U13: Security primitives module
+**Status**: IN PROGRESS
+**Spec**: `web4-standard/core-spec/security-framework.md`, `web4-standard/core-spec/data-formats.md`
+**Description**: `web4.security` module — CryptoSuite definitions (W4-BASE-1, W4-FIPS-1), W4ID
+(DID:web4) parsing/validation/pairwise derivation, KeyPolicy types, SignatureEnvelope,
+VerifiableCredential structure. Types-only — no crypto implementations.
+
 ---
 
 ## Task ID Reference
@@ -172,3 +179,4 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U10 | T3/V3 tensor enhancements | DONE |
 | U11 | Society core module | DONE |
 | U12 | SDK v0.4.0 release housekeeping | DONE |
+| U13 | Security primitives module | DONE |
