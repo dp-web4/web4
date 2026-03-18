@@ -55,6 +55,16 @@
 **Spec**: `web4-standard/core-spec/mcp-protocol.md`
 **Description**: Implement `web4.mcp` module with Web4Context headers, CommunicationPattern enum, MCP resource types (tool/prompt/context), TrustRequirements, MCPSession with ATP tracking, SessionHandoff, ATP metering (calculate_mcp_cost), WitnessAttestation, MCPCapabilities/CapabilityBroadcast, MCPAuthority, MCPErrorContext. Types only — no networking or JSON-RPC.
 
+### U16: Full-stack integration tests (all 18 modules)
+**Status**: IN REVIEW
+**Result**: 3 cross-module integration test workflows covering all 18 SDK modules. PR #38.
+
+### U17: SDK v0.5.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-03-18
+**Result**: CHANGELOG.md updated with v0.5.0 entries for U13 (security), U14 (protocol),
+U15 (mcp). Version bumped 0.4.0 → 0.5.0. SPRINT.md U13 status corrected, U16/U17 added.
+
 ---
 
 ## Unscoped Tasks
@@ -158,11 +168,12 @@ Added §2.5.4 reconciling 5-dimension conceptual model vs graph implementation m
 Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 
 ### U13: Security primitives module
-**Status**: IN PROGRESS
+**Status**: DONE
+**Completed**: 2026-03-18
 **Spec**: `web4-standard/core-spec/security-framework.md`, `web4-standard/core-spec/data-formats.md`
-**Description**: `web4.security` module — CryptoSuite definitions (W4-BASE-1, W4-FIPS-1), W4ID
-(DID:web4) parsing/validation/pairwise derivation, KeyPolicy types, SignatureEnvelope,
-VerifiableCredential structure. Types-only — no crypto implementations.
+**Result**: `web4.security` module — 339 lines, 51 tests, 12 vectors. CryptoSuite definitions
+(W4-BASE-1, W4-FIPS-1), W4ID (DID:web4) parsing/validation/pairwise derivation, KeyPolicy types,
+SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementations. PR #34, merged.
 
 ---
 
@@ -192,3 +203,5 @@ VerifiableCredential structure. Types-only — no crypto implementations.
 | U13 | Security primitives module | DONE |
 | U14 | Core protocol types module | DONE |
 | U15 | MCP protocol types module | DONE |
+| U16 | Full-stack integration tests (18 modules) | PR #38 |
+| U17 | SDK v0.5.0 release housekeeping | DONE |
