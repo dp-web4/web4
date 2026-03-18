@@ -2,6 +2,34 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.5.0] - 2026-03-18
+
+Three new protocol-layer modules, completing the 18-module SDK.
+
+### Added
+- **web4.security** (U13) — Security primitives: `CryptoSuiteId`, `CryptoSuite`
+  definitions (W4-BASE-1, W4-FIPS-1), `EncodingProfile`, suite negotiation,
+  `W4ID` (DID:web4) parsing/validation/pairwise derivation, `KeyStorageLevel`,
+  `KeyPolicy`, `SignatureEnvelope`, `VerifiableCredential`. Types and validation
+  only — no crypto operations. 339 lines, 51 tests, 12 vectors.
+- **web4.protocol** (U14) — Core protocol types: `HandshakePhase` (4-phase HPKE),
+  `ClientHello`/`ServerHello`/`ClientFinished`/`ServerFinished` message types,
+  `PairingMethod` (Direct/Mediated/QR), `Transport` with compliance levels and
+  profiles, `DiscoveryMethod` with privacy levels, `Web4URI` parser/validator
+  (RFC 3986 subset). Types only — no networking. 517 lines, 55 tests, 12 vectors.
+- **web4.mcp** (U15) — MCP protocol types: `CommunicationPattern` (4 modes),
+  `Web4Context` headers (trust context, agency proofs, MRH scope),
+  `MCPToolResource`/`MCPPromptResource`, `TrustRequirements`, `MCPSession` with
+  ATP tracking, `SessionHandoff`, `calculate_mcp_cost` (trust discounts, demand
+  modifiers), `WitnessAttestation`, `MCPCapabilities`/`CapabilityBroadcast`,
+  `MCPAuthority`, `MCPErrorContext`. Types only — no networking or JSON-RPC.
+  584 lines, 43 tests, 12 vectors.
+- `web4_sdk.py` re-exports for all 18 modules (17 security + 22 protocol +
+  19 MCP symbols added).
+
+### Changed
+- Version bumped from 0.4.0 to 0.5.0 in `web4/__init__.py`.
+
 ## [0.4.0] - 2026-03-18
 
 Major release: six new modules, two enhanced modules, 15 modules total.

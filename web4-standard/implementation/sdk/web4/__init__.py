@@ -28,4 +28,4 @@ and are designed to be imported by applications, services, and other
 SDKs that build on web4.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
