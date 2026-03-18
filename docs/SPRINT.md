@@ -33,6 +33,11 @@
 **Status**: IN PROGRESS
 **Description**: `web4.errors` module — RFC 9457 error types for Web4 protocol (24 codes, 6 categories). Split from PR #21 per reviewer feedback.
 
+### U11: Society core module
+**Status**: IN PROGRESS
+**Spec**: `web4-standard/core-spec/SOCIETY_SPECIFICATION.md`
+**Description**: `web4.society` module composing federation.Society with metabolic states, treasury management, ledger recording, aggregate trust computation, and fractal hierarchy. Imports from 6 existing modules (federation, metabolic, atp, lct, entity, trust).
+
 ---
 
 ## Unscoped Tasks
@@ -158,3 +163,4 @@ Addresses audit findings D2 (MEDIUM) and D3 (MEDIUM).
 | U8 | SAL governance extensions | DONE |
 | U9 | Society metabolic states module | DONE |
 | U10 | T3/V3 tensor enhancements | DONE |
+| U11 | Society core module | IN PROGRESS |
