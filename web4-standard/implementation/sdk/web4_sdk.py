@@ -155,6 +155,17 @@ from web4.errors import (
     AuthzError, CryptoError, ProtoError,
     get_error_meta, codes_for_category, make_error,
 )
+from web4.society import (
+    SocietyPhase, LedgerEventType,
+    LedgerEntry, SocietyLedger, Treasury, SocietyState,
+    create_society,
+    admit_citizen, suspend_citizen, reinstate_citizen, terminate_citizen,
+    transition_metabolic_state,
+    deposit_treasury, allocate_treasury,
+    record_law_change,
+    compute_society_t3, society_energy_cost, society_health,
+    incorporate_child, society_depth, society_ancestry,
+)
 
 
 # =============================================================================
@@ -1373,4 +1384,26 @@ __all__ = [
     'get_error_meta',
     'codes_for_category',
     'make_error',
+    # Society
+    'SocietyPhase',
+    'LedgerEventType',
+    'LedgerEntry',
+    'SocietyLedger',
+    'Treasury',
+    'SocietyState',
+    'create_society',
+    'admit_citizen',
+    'suspend_citizen',
+    'reinstate_citizen',
+    'terminate_citizen',
+    'transition_metabolic_state',
+    'deposit_treasury',
+    'allocate_treasury',
+    'record_law_change',
+    'compute_society_t3',
+    'society_energy_cost',
+    'society_health',
+    'incorporate_child',
+    'society_depth',
+    'society_ancestry',
 ]

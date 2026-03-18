@@ -1,0 +1,109 @@
+{
+  "name": "society-vectors",
+  "version": "1.0.0",
+  "spec": "web4-standard/core-spec/SOCIETY_SPECIFICATION.md",
+  "description": "Cross-language test vectors for web4.society module",
+  "vectors": [
+    {
+      "name": "minimal_society",
+      "description": "Minimal society creation with 2 founders, no treasury, no law",
+      "input": {
+        "society_id": "lct:society:minimal",
+        "name": "Minimal Society",
+        "founders": ["lct:alice", "lct:bob"],
+        "timestamp": "2026-01-01T00:00:00Z"
+      },
+      "expected": {
+        "phase": "operational",
+        "citizen_count": 2,
+        "metabolic_state": "active",
+        "ledger_entry_count": 3,
+        "treasury_balance": 0.0
+      }
+    },
+    {
+      "name": "society_with_treasury",
+      "description": "Society creation with initial ATP treasury",
+      "input": {
+        "society_id": "lct:society:funded",
+        "name": "Funded Society",
+        "founders": ["lct:alice", "lct:bob", "lct:charlie"],
+        "timestamp": "2026-01-01T00:00:00Z",
+        "initial_treasury": 1000.0
+      },
+      "expected": {
+        "phase": "operational",
+        "citizen_count": 3,
+        "treasury_balance": 1000.0,
+        "total_deposited": 1000.0
+      }
+    },
+    {
+      "name": "citizen_admission",
+      "description": "Admit a new citizen to an operational society",
+      "input": {
+        "society_id": "lct:society:admitting",
+        "name": "Admitting Society",
+        "founders": ["lct:alice", "lct:bob"],
+        "timestamp": "2026-01-01T00:00:00Z",
+        "new_citizen": "lct:charlie",
+        "admit_timestamp": "2026-01-02T00:00:00Z",
+        "witnesses": ["lct:alice", "lct:bob"]
+      },
+      "expected": {
+        "admit_success": true,
+        "citizen_count": 3
+      }
+    },
+    {
+      "name": "treasury_allocation",
+      "description": "Allocate ATP from treasury to a citizen",
+      "input": {
+        "society_id": "lct:society:treasury",
+        "name": "Treasury Society",
+        "founders": ["lct:alice", "lct:bob"],
+        "timestamp": "2026-01-01T00:00:00Z",
+        "initial_treasury": 500.0,
+        "allocate_to": "lct:alice",
+        "allocate_amount": 150.0
+      },
+      "expected": {
+        "allocate_success": true,
+        "remaining_balance": 350.0
+      }
+    },
+    {
+      "name": "metabolic_transition",
+      "description": "Valid metabolic state transition from ACTIVE to REST",
+      "input": {
+        "society_id": "lct:society:metabolic",
+        "name": "Metabolic Society",
+        "founders": ["lct:alice", "lct:bob"],
+        "timestamp": "2026-01-01T00:00:00Z",
+        "target_state": "rest",
+        "witnesses": ["lct:alice", "lct:bob"]
+      },
+      "expected": {
+        "transition_success": true,
+        "final_state": "rest"
+      }
+    },
+    {
+      "name": "fractal_hierarchy",
+      "description": "Incorporate child society into parent, forming fractal hierarchy",
+      "input": {
+        "parent_id": "lct:society:parent",
+        "parent_name": "Parent Society",
+        "child_id": "lct:society:child",
+        "child_name": "Child Society",
+        "founders": ["lct:alice", "lct:bob"],
+        "timestamp": "2026-01-01T00:00:00Z"
+      },
+      "expected": {
+        "incorporate_success": true,
+        "child_depth": 1,
+        "child_ancestry": ["lct:society:parent", "lct:society:child"]
+      }
+    }
+  ]
+}
