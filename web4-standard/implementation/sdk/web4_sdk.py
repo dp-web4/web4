@@ -201,6 +201,19 @@ from web4.protocol import (
     web4_uri_to_dict, web4_uri_from_dict,
     transport_profile_to_dict,
 )
+from web4.mcp import (
+    CommunicationPattern, TrustDimension, MCPResourceType,
+    ResourceRequirements as MCPResourceRequirements,
+    TrustRequirements as MCPTrustRequirements,
+    MCPToolResource, MCPPromptResource,
+    ProofOfAgency, TrustContext, Web4Context,
+    WitnessedInteraction, WitnessAttestation,
+    MCPCapabilities, CapabilityBroadcast,
+    MCPAuthority, MCPSession, SessionHandoff,
+    PricingModifiers, calculate_mcp_cost,
+    MCPErrorContext,
+    web4_context_to_json, web4_context_from_json,
+)
 
 
 # =============================================================================
