@@ -1,11 +1,58 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-17
+**Updated**: 2026-03-19
 **Phase**: Development
 **Track**: web4 (Legion)
 
 ---
+
+## Sprint 2: Hardware Trust Validation (2026-03-19)
+
+The AttestationEnvelope landed on main (3 commits by operator, 2026-03-18) as the P0
+hardware binding primitive. It has a spec, implementation, and verification dispatch —
+but zero test coverage. This sprint validates the new code and prepares it for
+integration with the SDK.
+
+### H1: AttestationEnvelope test coverage
+**Status**: DONE
+**Completed**: 2026-03-19
+**Scope**: Comprehensive tests for `web4-core/python/web4/trust/attestation/envelope.py` —
+construction, defaults, auto-computed fields (fingerprint, trust ceiling), serialization
+round-trips (to_dict/from_dict, to_json/from_json), freshness model (is_fresh,
+freshness_factor, effective_trust), and edge cases.
+**Result**: 49 tests in `test_envelope.py` — all passing.
+
+### H2: Verification dispatch test coverage
+**Status**: DONE
+**Completed**: 2026-03-19
+**Scope**: Tests for `verify_envelope()` dispatch and all 4 anchor verifiers —
+software (end-to-end), TPM2/FIDO2/SE (stub behavior), challenge mismatch,
+unknown anchor type, PCR validation.
+**Result**: 42 tests in `test_verify.py` — all passing. Parametrized cross-anchor consistency tests.
+
+### H3: Cross-language test vectors for attestation
+**Status**: PENDING
+**Scope**: JSON test vectors for AttestationEnvelope construction and verification
+that other language implementations can validate against. Same pattern as existing
+79+ SDK vectors.
+
+### H4: SDK integration for AttestationEnvelope
+**Status**: PENDING
+**Depends on**: H1, H2
+**Scope**: Evaluate whether `web4-core/` attestation types should be re-exported from
+the `web4` SDK package or remain separate. If integrating, add to `web4/__init__.py`.
+
+### H5: AttestationEnvelope + binding module integration
+**Status**: PENDING
+**Depends on**: H4
+**Scope**: Wire AttestationEnvelope into the existing `web4.binding` module
+(DeviceConstellation, HardwareAnchor). The binding module already has AnchorType
+and trust ceiling concepts — these should use AttestationEnvelope as the proof carrier.
+
+---
+
+## Sprint 1 (Complete)
 
 ## Active Tasks
 
