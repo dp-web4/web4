@@ -1,0 +1,834 @@
+{
+  "name": "attestation-envelope-vectors",
+  "version": "1.0.0",
+  "spec": "docs/specs/attestation-envelope.md",
+  "description": "Cross-language test vectors for AttestationEnvelope construction, trust ceilings, freshness, serialization, and verification dispatch",
+  "notes": "All implementations MUST produce identical results for these vectors. Timestamps are fixed for deterministic validation.",
+  "vectors": [
+    {
+      "id": "ae-construct-software",
+      "category": "construction",
+      "description": "Software anchor envelope — minimal construction with defaults",
+      "input": {
+        "entity_id": "lct://sage:legion:agent@raising",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtest1234\n-----END PUBLIC KEY-----",
+        "anchor": {"type": "software"},
+        "proof": {
+          "format": "ecdsa_software",
+          "signature": "MEUCIQD1234test",
+          "challenge": "nonce-sw-001"
+        },
+        "purpose": "session_start",
+        "issuer": "legion"
+      },
+      "expected": {
+        "trust_ceiling": 0.4,
+        "public_key_fingerprint_length": 16,
+        "public_key_fingerprint_not_empty": true,
+        "envelope_version": "0.1",
+        "challenge_ttl": 300.0,
+        "anchor_type": "software"
+      }
+    },
+    {
+      "id": "ae-construct-tpm2-with-pcr",
+      "category": "construction",
+      "description": "TPM2 anchor with PCR digest — should get ceiling 1.0",
+      "input": {
+        "entity_id": "lct://sage:thor:agent@raising",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtpm2test\n-----END PUBLIC KEY-----",
+        "anchor": {"type": "tpm2", "manufacturer": "Infineon", "model": "SLB9670"},
+        "proof": {
+          "format": "tpm2_quote",
+          "signature": "MEUCIQD5678tpmtest",
+          "challenge": "nonce-tpm-001",
+          "pcr_digest": "abcdef1234567890abcdef1234567890",
+          "pcr_selection": [0, 1, 2, 7]
+        },
+        "platform_state": {
+          "available": true,
+          "boot_verified": true,
+          "pcr_values": {"0": "aabb1122", "1": "ccdd3344", "2": "eeff5566", "7": "11223344"}
+        },
+        "purpose": "enrollment",
+        "issuer": "thor"
+      },
+      "expected": {
+        "trust_ceiling": 1.0,
+        "anchor_type": "tpm2"
+      }
+    },
+    {
+      "id": "ae-construct-tpm2-no-pcr",
+      "category": "construction",
+      "description": "TPM2 anchor without PCR digest — should get ceiling 0.85",
+      "input": {
+        "entity_id": "lct://sage:thor:agent@raising",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtpm2nopcr\n-----END PUBLIC KEY-----",
+        "anchor": {"type": "tpm2", "manufacturer": "Infineon"},
+        "proof": {
+          "format": "tpm2_quote",
+          "signature": "MEUCIQD9999tpmnopcr",
+          "challenge": "nonce-tpm-002"
+        },
+        "purpose": "session_start",
+        "issuer": "thor"
+      },
+      "expected": {
+        "trust_ceiling": 0.85,
+        "anchor_type": "tpm2"
+      }
+    },
+    {
+      "id": "ae-construct-fido2",
+      "category": "construction",
+      "description": "FIDO2 anchor — should get ceiling 0.9",
+      "input": {
+        "entity_id": "lct://sage:sprout:human@raising",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfido2key\n-----END PUBLIC KEY-----",
+        "anchor": {"type": "fido2", "manufacturer": "Yubico", "model": "YubiKey 5"},
+        "proof": {
+          "format": "fido2_assertion",
+          "signature": "MEQCIFido2SigTest",
+          "challenge": "nonce-fido-001",
+          "authenticator_data": "base64authdata",
+          "client_data_hash": "base64clienthash"
+        },
+        "purpose": "session_start",
+        "issuer": "sprout"
+      },
+      "expected": {
+        "trust_ceiling": 0.9,
+        "anchor_type": "fido2"
+      }
+    },
+    {
+      "id": "ae-construct-secure-enclave",
+      "category": "construction",
+      "description": "Secure Enclave anchor — should get ceiling 0.85",
+      "input": {
+        "entity_id": "lct://sage:macbook:agent@raising",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEsekey01\n-----END PUBLIC KEY-----",
+        "anchor": {"type": "secure_enclave", "manufacturer": "Apple"},
+        "proof": {
+          "format": "se_attestation",
+          "signature": "MEQCISEattest",
+          "challenge": "nonce-se-001",
+          "attestation_object": "base64attestobj"
+        },
+        "purpose": "session_start",
+        "issuer": "macbook"
+      },
+      "expected": {
+        "trust_ceiling": 0.85,
+        "anchor_type": "secure_enclave"
+      }
+    },
+    {
+      "id": "ae-ceiling-ordering",
+      "category": "trust_ceiling",
+      "description": "Trust ceiling ordering invariant: tpm2 >= fido2 >= tpm2_no_pcr = se >= software",
+      "expected": {
+        "ceilings": {
+          "tpm2": 1.0,
+          "tpm2_no_pcr": 0.85,
+          "fido2": 0.9,
+          "secure_enclave": 0.85,
+          "software": 0.4
+        },
+        "ordering": ["tpm2", "fido2", "tpm2_no_pcr", "secure_enclave", "software"],
+        "ordering_note": "tpm2_no_pcr and secure_enclave are equal (0.85), order between them is arbitrary"
+      }
+    },
+    {
+      "id": "ae-ceiling-default-software",
+      "category": "trust_ceiling",
+      "description": "Default trust ceiling is 0.4 (software) when no anchor type override",
+      "input": {
+        "entity_id": "lct://test:default",
+        "public_key": "testkey",
+        "anchor": {"type": "software"}
+      },
+      "expected": {
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-ceiling-unknown-anchor",
+      "category": "trust_ceiling",
+      "description": "Unknown anchor type falls back to software ceiling (0.4)",
+      "input": {
+        "entity_id": "lct://test:unknown",
+        "public_key": "testkey",
+        "anchor": {"type": "quantum_module"}
+      },
+      "expected": {
+        "trust_ceiling": 0.4,
+        "note": "Unknown anchor types get TRUST_CEILINGS.get(type, 0.4) = 0.4"
+      }
+    },
+    {
+      "id": "ae-freshness-session-start",
+      "category": "freshness",
+      "description": "Session start freshness: max_age = 8 hours (28800 seconds)",
+      "input": {
+        "purpose": "session_start",
+        "max_age_seconds": 28800
+      },
+      "cases": [
+        {
+          "age_seconds": 0,
+          "expected_fresh": true,
+          "expected_freshness_factor": 1.0
+        },
+        {
+          "age_seconds": 14400,
+          "expected_fresh": true,
+          "expected_freshness_factor": 0.5,
+          "note": "Half of max_age → factor = 0.5"
+        },
+        {
+          "age_seconds": 28800,
+          "expected_fresh": false,
+          "expected_freshness_factor": 0.0,
+          "note": "Exactly at max_age → not fresh (strictly less than)"
+        },
+        {
+          "age_seconds": 36000,
+          "expected_fresh": false,
+          "expected_freshness_factor": 0.0,
+          "note": "Past max_age → clamped to 0.0"
+        }
+      ]
+    },
+    {
+      "id": "ae-freshness-re-attestation",
+      "category": "freshness",
+      "description": "Re-attestation freshness: max_age = 24 hours (86400 seconds)",
+      "input": {
+        "purpose": "re_attestation",
+        "max_age_seconds": 86400
+      },
+      "cases": [
+        {
+          "age_seconds": 0,
+          "expected_fresh": true,
+          "expected_freshness_factor": 1.0
+        },
+        {
+          "age_seconds": 43200,
+          "expected_fresh": true,
+          "expected_freshness_factor": 0.5
+        },
+        {
+          "age_seconds": 86400,
+          "expected_fresh": false,
+          "expected_freshness_factor": 0.0
+        }
+      ]
+    },
+    {
+      "id": "ae-freshness-witness",
+      "category": "freshness",
+      "description": "Witness freshness: max_age = 1 hour (3600 seconds)",
+      "input": {
+        "purpose": "witness",
+        "max_age_seconds": 3600
+      },
+      "cases": [
+        {
+          "age_seconds": 0,
+          "expected_fresh": true,
+          "expected_freshness_factor": 1.0
+        },
+        {
+          "age_seconds": 1800,
+          "expected_fresh": true,
+          "expected_freshness_factor": 0.5
+        },
+        {
+          "age_seconds": 3600,
+          "expected_fresh": false,
+          "expected_freshness_factor": 0.0
+        }
+      ]
+    },
+    {
+      "id": "ae-freshness-migration",
+      "category": "freshness",
+      "description": "Migration freshness: max_age = 1 hour (3600 seconds)",
+      "input": {
+        "purpose": "migration",
+        "max_age_seconds": 3600
+      },
+      "cases": [
+        {
+          "age_seconds": 0,
+          "expected_fresh": true,
+          "expected_freshness_factor": 1.0
+        },
+        {
+          "age_seconds": 3600,
+          "expected_fresh": false,
+          "expected_freshness_factor": 0.0
+        }
+      ]
+    },
+    {
+      "id": "ae-freshness-enrollment",
+      "category": "freshness",
+      "description": "Enrollment: no expiry (max_age = null), always fresh",
+      "input": {
+        "purpose": "enrollment",
+        "max_age_seconds": null
+      },
+      "cases": [
+        {
+          "age_seconds": 0,
+          "expected_fresh": true,
+          "expected_freshness_factor": 1.0
+        },
+        {
+          "age_seconds": 999999,
+          "expected_fresh": true,
+          "expected_freshness_factor": 1.0,
+          "note": "Enrollment never expires"
+        }
+      ]
+    },
+    {
+      "id": "ae-freshness-default-purpose",
+      "category": "freshness",
+      "description": "No purpose set defaults to session_start max_age (28800s)",
+      "input": {
+        "purpose": null,
+        "max_age_seconds": 28800,
+        "note": "FRESHNESS_MAX_AGE.get(None or 'session_start') falls back to session_start"
+      },
+      "cases": [
+        {
+          "age_seconds": 0,
+          "expected_fresh": true,
+          "expected_freshness_factor": 1.0
+        },
+        {
+          "age_seconds": 28800,
+          "expected_fresh": false,
+          "expected_freshness_factor": 0.0
+        }
+      ]
+    },
+    {
+      "id": "ae-effective-trust",
+      "category": "freshness",
+      "description": "effective_trust = trust_ceiling * freshness_factor",
+      "cases": [
+        {
+          "trust_ceiling": 1.0,
+          "freshness_factor": 1.0,
+          "expected_effective_trust": 1.0,
+          "note": "Fresh TPM2 with PCR"
+        },
+        {
+          "trust_ceiling": 0.9,
+          "freshness_factor": 0.5,
+          "expected_effective_trust": 0.45,
+          "note": "FIDO2 at half freshness"
+        },
+        {
+          "trust_ceiling": 0.4,
+          "freshness_factor": 0.0,
+          "expected_effective_trust": 0.0,
+          "note": "Expired software anchor"
+        },
+        {
+          "trust_ceiling": 0.85,
+          "freshness_factor": 0.75,
+          "expected_effective_trust": 0.6375,
+          "note": "SE at 75% freshness"
+        }
+      ]
+    },
+    {
+      "id": "ae-serialization-roundtrip-software",
+      "category": "serialization",
+      "description": "Software envelope serialization round-trip via to_dict/from_dict",
+      "input": {
+        "entity_id": "lct://sage:legion:agent@raising",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtest1234\n-----END PUBLIC KEY-----",
+        "anchor": {"type": "software"},
+        "proof": {
+          "format": "ecdsa_software",
+          "signature": "MEUCIQD1234test",
+          "challenge": "nonce-sw-001"
+        },
+        "timestamp": 1742342400.0,
+        "purpose": "session_start",
+        "issuer": "legion",
+        "envelope_version": "0.1"
+      },
+      "expected": {
+        "round_trip_preserves": [
+          "entity_id",
+          "public_key",
+          "anchor.type",
+          "proof.format",
+          "proof.signature",
+          "proof.challenge",
+          "timestamp",
+          "purpose",
+          "issuer",
+          "envelope_version",
+          "trust_ceiling",
+          "challenge_ttl"
+        ],
+        "nested_types_preserved": true,
+        "note": "from_dict(to_dict(envelope)) must produce equivalent envelope"
+      }
+    },
+    {
+      "id": "ae-serialization-roundtrip-tpm2",
+      "category": "serialization",
+      "description": "TPM2 envelope serialization round-trip — includes platform_state and PCR values",
+      "input": {
+        "entity_id": "lct://sage:thor:agent@raising",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtpm2test\n-----END PUBLIC KEY-----",
+        "anchor": {"type": "tpm2", "manufacturer": "Infineon", "model": "SLB9670"},
+        "proof": {
+          "format": "tpm2_quote",
+          "signature": "MEUCIQD5678tpmtest",
+          "challenge": "nonce-tpm-001",
+          "pcr_digest": "abcdef1234567890abcdef1234567890",
+          "pcr_selection": [0, 1, 2, 7]
+        },
+        "platform_state": {
+          "available": true,
+          "boot_verified": true,
+          "pcr_values": {"0": "aabb1122", "1": "ccdd3344", "2": "eeff5566", "7": "11223344"},
+          "os_version": "Linux 6.8.0",
+          "kernel_version": "6.8.0-94-generic"
+        },
+        "timestamp": 1742342400.0,
+        "purpose": "enrollment",
+        "issuer": "thor"
+      },
+      "expected": {
+        "round_trip_preserves": [
+          "entity_id",
+          "public_key",
+          "anchor.type",
+          "anchor.manufacturer",
+          "anchor.model",
+          "proof.pcr_digest",
+          "proof.pcr_selection",
+          "platform_state.available",
+          "platform_state.boot_verified",
+          "platform_state.pcr_values",
+          "platform_state.os_version",
+          "platform_state.kernel_version"
+        ],
+        "nested_types_preserved": true
+      }
+    },
+    {
+      "id": "ae-serialization-json-roundtrip",
+      "category": "serialization",
+      "description": "JSON serialization round-trip: to_json/from_json must produce equivalent envelope",
+      "input": {
+        "entity_id": "lct://sage:sprout:human@raising",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfido2key\n-----END PUBLIC KEY-----",
+        "anchor": {"type": "fido2", "manufacturer": "Yubico"},
+        "proof": {
+          "format": "fido2_assertion",
+          "signature": "MEQCIFido2SigTest",
+          "challenge": "nonce-fido-001"
+        },
+        "timestamp": 1742342400.0,
+        "purpose": "session_start"
+      },
+      "expected": {
+        "json_is_valid": true,
+        "from_json_matches_original": true
+      }
+    },
+    {
+      "id": "ae-fingerprint-computation",
+      "category": "construction",
+      "description": "Public key fingerprint is SHA-256 of UTF-8 encoded key, first 16 hex chars",
+      "input": {
+        "entity_id": "lct://test:fingerprint",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtest1234\n-----END PUBLIC KEY-----"
+      },
+      "expected": {
+        "fingerprint_length": 16,
+        "fingerprint_is_hex": true,
+        "algorithm": "sha256(utf8(public_key))[:16]",
+        "note": "Computed in __post_init__ when public_key_fingerprint is empty"
+      }
+    },
+    {
+      "id": "ae-fingerprint-preserves-explicit",
+      "category": "construction",
+      "description": "Explicit fingerprint is preserved (not overwritten)",
+      "input": {
+        "entity_id": "lct://test:explicit-fp",
+        "public_key": "testkey",
+        "public_key_fingerprint": "explicit12345678"
+      },
+      "expected": {
+        "public_key_fingerprint": "explicit12345678",
+        "note": "When public_key_fingerprint is non-empty, __post_init__ does not overwrite it"
+      }
+    },
+    {
+      "id": "ae-verify-challenge-mismatch",
+      "category": "verification",
+      "description": "Challenge mismatch returns invalid with zero effective_trust",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:challenge",
+          "public_key": "testkey",
+          "anchor": {"type": "software"},
+          "proof": {
+            "format": "ecdsa_software",
+            "signature": "sig123",
+            "challenge": "actual-nonce-abc"
+          }
+        },
+        "expected_challenge": "different-nonce-xyz"
+      },
+      "expected": {
+        "valid": false,
+        "effective_trust": 0,
+        "fresh": false,
+        "reason_contains": "Challenge mismatch"
+      }
+    },
+    {
+      "id": "ae-verify-challenge-match",
+      "category": "verification",
+      "description": "Challenge match proceeds to anchor verification",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:challenge-ok",
+          "public_key": "testkey",
+          "anchor": {"type": "software"},
+          "proof": {
+            "format": "ecdsa_software",
+            "signature": "sig456",
+            "challenge": "matching-nonce"
+          },
+          "purpose": "session_start"
+        },
+        "expected_challenge": "matching-nonce"
+      },
+      "expected": {
+        "valid": true,
+        "trust_ceiling": 0.4,
+        "note": "Challenge matches, fresh, has sig+challenge → valid software verification"
+      }
+    },
+    {
+      "id": "ae-verify-no-challenge-check",
+      "category": "verification",
+      "description": "Empty expected_challenge skips challenge verification",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:no-challenge",
+          "public_key": "testkey",
+          "anchor": {"type": "software"},
+          "proof": {
+            "format": "ecdsa_software",
+            "signature": "sig789",
+            "challenge": "any-nonce"
+          },
+          "purpose": "session_start"
+        },
+        "expected_challenge": ""
+      },
+      "expected": {
+        "valid": true,
+        "note": "No challenge verification when expected_challenge is empty"
+      }
+    },
+    {
+      "id": "ae-verify-dispatch-software",
+      "category": "verification",
+      "description": "Software anchor dispatches to verify_software",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:sw-dispatch",
+          "public_key": "testkey",
+          "anchor": {"type": "software"},
+          "proof": {
+            "format": "ecdsa_software",
+            "signature": "sigSW",
+            "challenge": "nonce-sw"
+          },
+          "purpose": "session_start"
+        }
+      },
+      "expected": {
+        "valid": true,
+        "anchor_verified": true,
+        "trust_ceiling": 0.4,
+        "reason_contains": "Software-only anchor"
+      }
+    },
+    {
+      "id": "ae-verify-dispatch-tpm2",
+      "category": "verification",
+      "description": "TPM2 anchor dispatches to verify_tpm2",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:tpm-dispatch",
+          "public_key": "testkey",
+          "anchor": {"type": "tpm2"},
+          "proof": {
+            "format": "tpm2_quote",
+            "signature": "sigTPM",
+            "challenge": "nonce-tpm"
+          },
+          "purpose": "enrollment"
+        }
+      },
+      "expected": {
+        "valid": true,
+        "anchor_verified": false,
+        "trust_ceiling": 0.85,
+        "reason_contains": "TPM2 verification stub",
+        "note": "anchor_verified=False because TPM hardware verification not yet wired"
+      }
+    },
+    {
+      "id": "ae-verify-dispatch-fido2",
+      "category": "verification",
+      "description": "FIDO2 anchor dispatches to verify_fido2",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:fido-dispatch",
+          "public_key": "testkey",
+          "anchor": {"type": "fido2"},
+          "proof": {
+            "format": "fido2_assertion",
+            "signature": "sigFIDO",
+            "challenge": "nonce-fido"
+          },
+          "purpose": "session_start"
+        }
+      },
+      "expected": {
+        "valid": true,
+        "anchor_verified": false,
+        "trust_ceiling": 0.9,
+        "reason_contains": "FIDO2 verification stub"
+      }
+    },
+    {
+      "id": "ae-verify-dispatch-se",
+      "category": "verification",
+      "description": "Secure Enclave anchor dispatches to verify_secure_enclave",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:se-dispatch",
+          "public_key": "testkey",
+          "anchor": {"type": "secure_enclave"},
+          "proof": {
+            "format": "se_attestation",
+            "signature": "sigSE",
+            "challenge": "nonce-se"
+          },
+          "purpose": "session_start"
+        }
+      },
+      "expected": {
+        "valid": true,
+        "anchor_verified": false,
+        "trust_ceiling": 0.85,
+        "reason_contains": "Secure Enclave verification stub"
+      }
+    },
+    {
+      "id": "ae-verify-dispatch-unknown",
+      "category": "verification",
+      "description": "Unknown anchor type returns invalid with zero ceiling",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:unknown-dispatch",
+          "public_key": "testkey",
+          "anchor": {"type": "quantum_module"},
+          "proof": {
+            "format": "quantum_sig",
+            "signature": "sigQ",
+            "challenge": "nonce-q"
+          }
+        }
+      },
+      "expected": {
+        "valid": false,
+        "trust_ceiling": 0,
+        "effective_trust": 0,
+        "fresh": false,
+        "reason_contains": "Unknown anchor type"
+      }
+    },
+    {
+      "id": "ae-verify-software-missing-sig",
+      "category": "verification",
+      "description": "Software verifier: missing signature → invalid",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:no-sig",
+          "public_key": "testkey",
+          "anchor": {"type": "software"},
+          "proof": {
+            "format": "ecdsa_software",
+            "signature": "",
+            "challenge": "nonce-valid"
+          },
+          "purpose": "session_start"
+        }
+      },
+      "expected": {
+        "valid": false,
+        "note": "verify_software requires non-empty signature"
+      }
+    },
+    {
+      "id": "ae-verify-software-missing-challenge",
+      "category": "verification",
+      "description": "Software verifier: missing challenge in proof → invalid",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:no-challenge-proof",
+          "public_key": "testkey",
+          "anchor": {"type": "software"},
+          "proof": {
+            "format": "ecdsa_software",
+            "signature": "validSig",
+            "challenge": ""
+          },
+          "purpose": "session_start"
+        }
+      },
+      "expected": {
+        "valid": false,
+        "note": "verify_software requires non-empty challenge"
+      }
+    },
+    {
+      "id": "ae-verify-tpm2-pcr-mismatch",
+      "category": "verification",
+      "description": "TPM2 verifier: PCR values don't match expected → invalid",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:pcr-mismatch",
+          "public_key": "testkey",
+          "anchor": {"type": "tpm2"},
+          "proof": {
+            "format": "tpm2_quote",
+            "signature": "sigTPM",
+            "challenge": "nonce-tpm",
+            "pcr_digest": "digest123"
+          },
+          "platform_state": {
+            "available": true,
+            "pcr_values": {"0": "aabb1122", "7": "wrongvalue"}
+          },
+          "purpose": "enrollment"
+        },
+        "expected_pcrs": {"0": "aabb1122", "7": "correct_value"}
+      },
+      "expected": {
+        "valid": false,
+        "platform_state_ok": false,
+        "note": "PCR index 7 doesn't match expected value"
+      }
+    },
+    {
+      "id": "ae-verify-tpm2-pcr-match",
+      "category": "verification",
+      "description": "TPM2 verifier: PCR values match expected → valid (stub)",
+      "input": {
+        "envelope": {
+          "entity_id": "lct://test:pcr-match",
+          "public_key": "testkey",
+          "anchor": {"type": "tpm2"},
+          "proof": {
+            "format": "tpm2_quote",
+            "signature": "sigTPM",
+            "challenge": "nonce-tpm",
+            "pcr_digest": "digest456"
+          },
+          "platform_state": {
+            "available": true,
+            "pcr_values": {"0": "aabb1122", "7": "correct_value"}
+          },
+          "purpose": "enrollment"
+        },
+        "expected_pcrs": {"0": "aabb1122", "7": "correct_value"}
+      },
+      "expected": {
+        "valid": true,
+        "platform_state_ok": true,
+        "anchor_verified": false,
+        "note": "PCRs match, fresh, but anchor_verified still false (hardware verification not wired)"
+      }
+    },
+    {
+      "id": "ae-verify-wrong-anchor-type",
+      "category": "verification",
+      "description": "Each anchor verifier rejects wrong anchor types",
+      "cases": [
+        {
+          "verifier": "software",
+          "anchor_type": "tpm2",
+          "expected_valid": false,
+          "expected_reason": "Wrong anchor type for software verifier"
+        },
+        {
+          "verifier": "tpm2",
+          "anchor_type": "software",
+          "expected_valid": false,
+          "expected_reason": "Wrong anchor type for TPM2 verifier"
+        },
+        {
+          "verifier": "fido2",
+          "anchor_type": "tpm2",
+          "expected_valid": false,
+          "expected_reason": "Wrong anchor type for FIDO2 verifier"
+        },
+        {
+          "verifier": "secure_enclave",
+          "anchor_type": "software",
+          "expected_valid": false,
+          "expected_reason": "Wrong anchor type for SE verifier"
+        }
+      ]
+    },
+    {
+      "id": "ae-freshness-max-age-table",
+      "category": "freshness",
+      "description": "Complete FRESHNESS_MAX_AGE lookup table for cross-language validation",
+      "expected": {
+        "session_start": 28800,
+        "re_attestation": 86400,
+        "witness": 3600,
+        "enrollment": null,
+        "migration": 3600
+      }
+    },
+    {
+      "id": "ae-trust-ceiling-table",
+      "category": "trust_ceiling",
+      "description": "Complete TRUST_CEILINGS lookup table for cross-language validation",
+      "expected": {
+        "tpm2": 1.0,
+        "tpm2_no_pcr": 0.85,
+        "fido2": 0.9,
+        "secure_enclave": 0.85,
+        "software": 0.4
+      }
+    }
+  ]
+}
