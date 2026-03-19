@@ -17,7 +17,7 @@
 - Trust tensor calculations: T3 composite scores stable
 
 ### Risks / Gaps
-- **P0 Blocker**: Hardware binding spec complete - implementation progressing privately (contact dp@metalinxx.io)
+- **P0 Blocker**: Hardware binding — `AttestationEnvelope` spec and Python implementation now complete (`docs/specs/attestation-envelope.md`, `web4-core/python/web4/trust/attestation/`). Anchor verification modules for TPM2, FIDO2, Secure Enclave, and software fallback implemented with unified `verify_envelope()`. SAGE consuming via `IdentityProvider`. Rust port and real hardware integration remain.
 - Economic validation: No real-world market testing
 - Formal Sybil proofs: Empirical defenses, not mathematical proofs
 - Production deployment: All testing is synthetic
@@ -28,7 +28,7 @@
 - What's the minimal viable Web4 for production pilot?
 
 ### Next
-- Hardware binding implementation (TPM 2.0/Secure Enclave/WebAuthn) - in progress, not yet public
+- Hardware binding — AttestationEnvelope spec + Python implementation complete; Rust port and real hardware integration next
 - Economic attack modeling with real parameters
 - ACT ledger integration
 
@@ -257,7 +257,7 @@ Example: Agent purchasing with constraints
 | Concept | Specification | Implementation | Notes |
 |---------|--------------|----------------|-------|
 | **LCT (Presence)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | Also in 4-life repo |
-| **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | Implementation in progress (private repo) | Contact dp@metalinxx.io |
+| **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | [`web4-core/python/web4/trust/attestation/`](web4-core/python/web4/trust/attestation/) | AttestationEnvelope + anchor verification (TPM2/FIDO2/SE/software) |
 | **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`simulations/`](simulations/) | Trust dynamics simulations |
 | **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`simulations/`](simulations/) | Context boundary research |
 | **ATP (Economics)** | [`web4-standard/core-spec/atp-adp-cycle.md`](web4-standard/core-spec/atp-adp-cycle.md) | [`simulations/`](simulations/) | Economic attack simulations |
