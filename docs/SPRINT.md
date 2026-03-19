@@ -38,10 +38,18 @@ that other language implementations can validate against. Same pattern as existi
 79+ SDK vectors.
 
 ### H4: SDK integration for AttestationEnvelope
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-19
 **Depends on**: H1, H2
 **Scope**: Evaluate whether `web4-core/` attestation types should be re-exported from
 the `web4` SDK package or remain separate. If integrating, add to `web4/__init__.py`.
+**Decision**: Mirror into SDK (not re-export from web4-core). Rationale: namespace collision
+between web4-core and web4-standard SDK (both define `web4` package), SDK has zero imports
+from web4-core, attestation types are pure Python (stdlib only). Created `web4/attestation.py`
+consolidating all types + verify_envelope dispatcher + 4 anchor verifiers.
+**Result**: `web4.attestation` module — 8 new symbols in `web4/__init__.py`
+(AttestationEnvelope, AnchorInfo, Proof, PlatformState, VerificationResult, TRUST_CEILINGS,
+FRESHNESS_MAX_AGE, verify_envelope). 41 tests, 1015 total passing.
 
 ### H5: AttestationEnvelope + binding module integration
 **Status**: PENDING
