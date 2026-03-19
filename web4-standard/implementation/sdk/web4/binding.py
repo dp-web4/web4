@@ -27,7 +27,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from web4.attestation import AttestationEnvelope
 
 
 # ── Anchor Types (spec §2.2) ────────────────────────────────────
@@ -86,6 +89,33 @@ WITNESS_DECAY_TABLE: List[Tuple[int, float]] = [
     (999999, 0.3),  # >180 days
 ]
 
+# Bidirectional mapping: binding AnchorType ↔ attestation anchor type strings.
+# binding uses PHONE_SECURE_ELEMENT (phone-centric); attestation uses
+# 'secure_enclave' (macOS-flavored). Both refer to platform secure elements.
+ANCHOR_TYPE_TO_ATTESTATION: Dict[AnchorType, str] = {
+    AnchorType.PHONE_SECURE_ELEMENT: "secure_enclave",
+    AnchorType.FIDO2: "fido2",
+    AnchorType.TPM2: "tpm2",
+    AnchorType.SOFTWARE: "software",
+}
+
+ATTESTATION_TO_ANCHOR_TYPE: Dict[str, AnchorType] = {
+    v: k for k, v in ANCHOR_TYPE_TO_ATTESTATION.items()
+}
+
+
+def attestation_anchor_type(anchor_type: AnchorType) -> str:
+    """Map a binding AnchorType to its attestation anchor type string."""
+    return ANCHOR_TYPE_TO_ATTESTATION[anchor_type]
+
+
+def binding_anchor_type(attestation_type: str) -> AnchorType:
+    """Map an attestation anchor type string to a binding AnchorType.
+
+    Raises KeyError if the attestation type is unknown.
+    """
+    return ATTESTATION_TO_ANCHOR_TYPE[attestation_type]
+
 
 # ── Data Structures ──────────────────────────────────────────────
 
@@ -119,6 +149,9 @@ class DeviceRecord:
     cross_witnesses: List[str] = field(default_factory=list)  # LCT IDs that witnessed this device
     revoked_at: str = ""
     revocation_reason: str = ""
+    # H5: Optional attestation envelope as proof carrier.
+    # When present, trust computation factors in proof freshness.
+    latest_attestation: Optional["AttestationEnvelope"] = None
 
 
 @dataclass
@@ -179,6 +212,7 @@ def enroll_device(
     anchor: HardwareAnchor,
     witnesses: List[str],
     timestamp: str,
+    attestation: Optional["AttestationEnvelope"] = None,
 ) -> DeviceRecord:
     """
     Add a device to the constellation.
@@ -187,8 +221,12 @@ def enroll_device(
     For additional devices: witnesses must include ≥1 existing constellation device.
     Updates recovery quorum automatically.
 
-    Raises ValueError if device already enrolled or if non-genesis enrollment
-    has no existing-device witness.
+    If an AttestationEnvelope is provided, it is stored as the device's
+    latest_attestation. The envelope must have purpose='enrollment' and its
+    anchor type must be compatible with the device's AnchorType.
+
+    Raises ValueError if device already enrolled, non-genesis enrollment
+    has no existing-device witness, or attestation validation fails.
     """
     # Check for duplicate
     existing_ids = {d.device_lct_id for d in constellation.devices}
@@ -205,12 +243,28 @@ def enroll_device(
                 "active device as witness"
             )
 
+    # Validate attestation envelope if provided
+    if attestation is not None:
+        if attestation.purpose != "enrollment":
+            raise ValueError(
+                f"Enrollment attestation must have purpose='enrollment', "
+                f"got '{attestation.purpose}'"
+            )
+        expected_type = ANCHOR_TYPE_TO_ATTESTATION.get(anchor.anchor_type)
+        if expected_type and attestation.anchor.type != expected_type:
+            raise ValueError(
+                f"Attestation anchor type '{attestation.anchor.type}' does not "
+                f"match device anchor type '{anchor.anchor_type.value}' "
+                f"(expected '{expected_type}')"
+            )
+
     record = DeviceRecord(
         device_lct_id=device_lct_id,
         anchor=anchor,
         enrolled_at=timestamp,
         last_witnessed=timestamp,
         cross_witnesses=list(witnesses),
+        latest_attestation=attestation,
     )
     constellation.devices.append(record)
 
@@ -366,6 +420,36 @@ def constellation_trust_ceiling(constellation: DeviceConstellation) -> float:
     return CONSTELLATION_TRUST_CEILING["single_software"]
 
 
+def compute_device_trust(
+    device: DeviceRecord,
+    days_since_witness: int = 0,
+) -> float:
+    """
+    Trust for a single device, combining anchor weight, witness freshness,
+    and attestation proof freshness (when available).
+
+    Trust = anchor_weight × witness_freshness × attestation_freshness
+
+    When no attestation envelope is present, attestation_freshness defaults
+    to 1.0 (no penalty — backward compatible with pre-H5 behavior).
+
+    Args:
+        device: The device record.
+        days_since_witness: Days since this device was last witnessed.
+
+    Returns:
+        Device trust score in [0.0, 1.0].
+    """
+    base = device.anchor.trust_weight
+    w_fresh = witness_freshness(days_since_witness)
+
+    a_fresh = 1.0
+    if device.latest_attestation is not None:
+        a_fresh = device.latest_attestation.freshness_factor
+
+    return base * w_fresh * a_fresh
+
+
 def compute_constellation_trust(
     constellation: DeviceConstellation,
     days_since_witness: Optional[Dict[str, int]] = None,
@@ -374,9 +458,13 @@ def compute_constellation_trust(
     Aggregate trust from device constellation per spec §3.4.
 
     Components:
-    1. Weighted device trust (anchor weight × freshness)
+    1. Weighted device trust (anchor weight × witness freshness × attestation freshness)
     2. Coherence bonus (diverse anchor types: 0–20%)
     3. Cross-witness density (mesh completeness: 0–10%)
+
+    When a device has an AttestationEnvelope, its freshness_factor is included
+    in the device trust computation (via compute_device_trust). When no envelope
+    is present, attestation freshness defaults to 1.0 (backward compatible).
 
     Args:
         constellation: The device constellation.
@@ -393,16 +481,12 @@ def compute_constellation_trust(
     if days_since_witness is None:
         days_since_witness = {}
 
-    # 1. Weighted device trust
+    # 1. Weighted device trust (now uses compute_device_trust for each device)
     total_weight = 0.0
     weighted_sum = 0.0
     for device in active:
-        anchor_w = device.anchor.trust_weight
         days = days_since_witness.get(device.device_lct_id, 0)
-        freshness = witness_freshness(days)
-        device_trust = anchor_w * freshness
-        # Equal weight per device (trust_weight is about the anchor,
-        # not a custom per-device weighting in this simplified model)
+        device_trust = compute_device_trust(device, days)
         total_weight += 1.0
         weighted_sum += device_trust
 

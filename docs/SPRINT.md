@@ -52,11 +52,18 @@ consolidating all types + verify_envelope dispatcher + 4 anchor verifiers.
 FRESHNESS_MAX_AGE, verify_envelope). 41 tests, 1015 total passing.
 
 ### H5: AttestationEnvelope + binding module integration
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-19
 **Depends on**: H4
 **Scope**: Wire AttestationEnvelope into the existing `web4.binding` module
 (DeviceConstellation, HardwareAnchor). The binding module already has AnchorType
 and trust ceiling concepts — these should use AttestationEnvelope as the proof carrier.
+**Result**: Bidirectional AnchorType↔attestation mapping (`ANCHOR_TYPE_TO_ATTESTATION`,
+`attestation_anchor_type()`, `binding_anchor_type()`), `DeviceRecord.latest_attestation`
+optional field, `enroll_device()` validates attestation purpose + anchor type compatibility,
+`compute_device_trust()` combines anchor weight × witness freshness × attestation freshness.
+`compute_constellation_trust()` now uses attestation-aware per-device trust (backward
+compatible). 27 integration tests, 1042 total passing.
 
 ---
 
