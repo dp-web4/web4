@@ -21,6 +21,7 @@ Provides offline-capable primitives for:
 - Security primitives — crypto suite definitions, W4ID identifiers, key policies, VCs
 - Core protocol — handshake, transport, discovery, and Web4 URI types
 - MCP protocol types — Web4 context headers, resources, sessions, ATP metering
+- Attestation — unified hardware trust envelope, verification dispatcher
 
 These modules define the canonical data types and algorithms specified
 in the web4-standard. They work offline (no network services required)
@@ -335,6 +336,18 @@ from .protocol import (
     transport_profile_to_dict,
 )
 
+# ── Attestation (Hardware Trust) ──────────────────────────────
+from .attestation import (
+    AttestationEnvelope,
+    AnchorInfo,
+    Proof,
+    PlatformState,
+    VerificationResult,
+    TRUST_CEILINGS,
+    FRESHNESS_MAX_AGE,
+    verify_envelope,
+)
+
 # ── MCP Protocol Types ────────────────────────────────────────
 from .mcp import (
     CommunicationPattern,
@@ -463,6 +476,10 @@ __all__ = [
     "DiscoveryRequest", "DiscoveryResponse",
     "Web4URI", "web4_uri_to_dict", "web4_uri_from_dict",
     "transport_profile_to_dict",
+    # attestation
+    "AttestationEnvelope", "AnchorInfo", "Proof", "PlatformState",
+    "VerificationResult", "TRUST_CEILINGS", "FRESHNESS_MAX_AGE",
+    "verify_envelope",
     # mcp
     "CommunicationPattern", "TrustDimension", "MCPResourceType",
     "TrustRequirements", "MCPResourceRequirements",
