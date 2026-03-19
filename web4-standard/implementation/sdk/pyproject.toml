@@ -4,15 +4,30 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "web4"
-version = "0.1.0"
-description = "Web4 core data types and operations — trust tensors, LCTs, ATP/ADP lifecycle"
+version = "0.5.0"
+description = "Web4 SDK — trust tensors, LCTs, ATP/ADP, federation (SAL), R7 actions, MRH, ACP, security, protocol types"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [{name = "Web4 Infrastructure Team"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "mypy>=1.0"]
 
 [tool.setuptools.packages.find]
 include = ["web4*"]
+
+[tool.setuptools.package-data]
+web4 = ["py.typed"]
