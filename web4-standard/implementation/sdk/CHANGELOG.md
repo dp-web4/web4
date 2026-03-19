@@ -30,6 +30,30 @@ cross-language data exchange.
   and `setup.py`.
 - 263 public API symbols in `__all__` (up from 250).
 
+## [0.6.0] - 2026-03-19
+
+Hardware trust attestation module, completing Sprint 2 (Hardware Trust Validation).
+
+### Added
+- **web4.attestation** (H4) — AttestationEnvelope: unified hardware trust
+  primitive binding TPM attestation + LCT presence + T3/V3 trust into a single
+  verifiable structure. `AttestationEnvelope` (construction, auto-computed
+  fingerprint, trust ceiling per anchor type, freshness model with configurable
+  max age), `AnchorInfo` (anchor type + metadata), `Proof` (nonce, challenge,
+  signature, PCR values), `PlatformState` (firmware, secure boot, integrity),
+  `VerificationResult` (verified flag + details + timestamp), `verify_envelope()`
+  dispatcher with 4 anchor verifiers (software, TPM2, FIDO2, secure enclave),
+  `TRUST_CEILINGS` (per-anchor-type maximums: software 0.7, TPM2 0.95, FIDO2
+  0.85, secure enclave 0.9), `FRESHNESS_MAX_AGE` (24h default). 370 lines,
+  41 tests.
+- 8 new symbols in `web4/__init__.py` (255 total exports): `AttestationEnvelope`,
+  `AnchorInfo`, `Proof`, `PlatformState`, `VerificationResult`, `TRUST_CEILINGS`,
+  `FRESHNESS_MAX_AGE`, `verify_envelope`.
+
+### Changed
+- Version bumped from 0.5.0 to 0.6.0 in `web4/__init__.py`, `pyproject.toml`,
+  `setup.py`.
+
 ## [0.5.0] - 2026-03-18
 
 Three new protocol-layer modules, completing the 18-module SDK.
