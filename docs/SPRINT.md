@@ -65,6 +65,14 @@
 **Result**: CHANGELOG.md updated with v0.5.0 entries for U13 (security), U14 (protocol),
 U15 (mcp). Version bumped 0.4.0 → 0.5.0. SPRINT.md U13 status corrected, U16/U17 added.
 
+### U18: SDK public API and packaging cleanup
+**Status**: IN REVIEW
+**Description**: Consolidate web4 package public API surface. Populate `web4/__init__.py`
+with re-exports from all 18 modules (247 symbols, `__all__` defined). Fix `pyproject.toml`
+metadata (version 0.5.0, classifiers, description). Add PEP 561 `py.typed` marker.
+Fix `setup.py` consistency. `from web4 import T3, LCT, Society, R7Action` now works.
+49 new tests, 974 total passing.
+
 ---
 
 ## Unscoped Tasks
@@ -205,3 +213,4 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | U15 | MCP protocol types module | DONE |
 | U16 | Full-stack integration tests (18 modules) | PR #38 |
 | U17 | SDK v0.5.0 release housekeeping | DONE |
+| U18 | SDK public API and packaging cleanup | PR #40 |
