@@ -2,6 +2,34 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.7.0] - 2026-03-20
+
+Sprint 3: SDK Interoperability — JSON-LD serialization for spec-compliant
+cross-language data exchange.
+
+### Added
+- **LCT JSON-LD serialization** (I1) — `LCT.to_jsonld()` and `LCT.from_jsonld()`
+  producing documents matching spec §2.3 canonical structure. Includes `@context`
+  header, spec-compliant field naming (`birth_context` not `context`), structured
+  MRH entries (bound/witnessing as objects), optional sections (attestations,
+  lineage) included only when populated, full revocation structure. New types:
+  `Attestation`, `LineageEntry`, `LCT_JSONLD_CONTEXT`. `BirthCertificate` gains
+  optional `genesis_block_hash`. `LCT.revoke()` gains optional `reason` parameter.
+  Backward compatible: `to_dict()` unchanged, `from_jsonld()` accepts both formats.
+  51 new tests. Closes known gap "NO Python impl produces schema-compliant LCT
+  document."
+- **Cross-language LCT JSON-LD test vectors** (I2) — 10 vectors covering minimal,
+  full, revoked, suspended, attestations, lineage, complex MRH, boundary T3/V3,
+  genesis block hash, and no-birth-certificate scenarios. 110 validation tests
+  verify roundtrip fidelity, structural compliance, and spec §2.3 adherence.
+- **AttestationEnvelope JSON-LD serialization** (I3) — `AttestationEnvelope.to_jsonld()`
+  and `from_jsonld()` matching the attestation-envelope spec format. 41 tests.
+
+### Changed
+- Version bumped from 0.5.0 to 0.7.0 in `web4/__init__.py`, `pyproject.toml`,
+  and `setup.py`.
+- 263 public API symbols in `__all__` (up from 250).
+
 ## [0.5.0] - 2026-03-18
 
 Three new protocol-layer modules, completing the 18-module SDK.
