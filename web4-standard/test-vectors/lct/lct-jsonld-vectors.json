@@ -1,0 +1,801 @@
+{
+  "meta": {
+    "format": "lct-jsonld-vectors",
+    "version": "1.0",
+    "description": "Cross-language test vectors for LCT JSON-LD serialization per spec section 2.3",
+    "generated_by": "web4 Python SDK v0.6.0",
+    "spec_reference": "web4-standard/core-spec/LCT-linked-context-token.md section 2.3",
+    "tolerance": 1e-10
+  },
+  "vectors": [
+    {
+      "id": "lct-jsonld-001",
+      "description": "Minimal active LCT with default T3/V3",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:ai:minimal001",
+        "subject": "did:web4:key:z6MkMinimal001",
+        "binding": {
+          "entity_type": "ai",
+          "public_key": "mb64testkey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:signature_placeholder"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-genesis",
+          "citizen_role": "lct:web4:role:citizen:platform",
+          "birth_timestamp": "2026-03-20T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1",
+            "lct:web4:witness-w2"
+          ],
+          "birth_context": "platform"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:platform",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            }
+          ],
+          "witnessing": [],
+          "horizon_depth": 3,
+          "last_updated": "2026-03-20T00:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "exist",
+            "interact",
+            "accumulate_reputation"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.5,
+          "training": 0.5,
+          "temperament": 0.5,
+          "composite_score": 0.5
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.5,
+          "validity": 0.5,
+          "composite_score": 0.49999999999999994
+        },
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "Default T3 (0.5,0.5,0.5) and V3 (0.5,0.5,0.5). No attestations, no lineage."
+    },
+    {
+      "id": "lct-jsonld-002",
+      "description": "Full LCT with all optional fields populated",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:human:full002",
+        "subject": "did:web4:key:z6MkFull002",
+        "binding": {
+          "entity_type": "human",
+          "public_key": "mb64fullkey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:full_proof",
+          "hardware_anchor": "tpm2:sha256:abcdef1234"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-acme",
+          "citizen_role": "lct:web4:role:citizen:organization",
+          "birth_timestamp": "2026-03-20T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1",
+            "lct:web4:witness-w2",
+            "lct:web4:witness-w3"
+          ],
+          "birth_context": "organization",
+          "genesis_block_hash": "sha256:abcdef0123456789"
+        },
+        "mrh": {
+          "bound": [
+            {
+              "lct_id": "lct:web4:org:acme"
+            }
+          ],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:organization",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            },
+            {
+              "lct_id": "lct:web4:role:admin",
+              "pairing_type": "role",
+              "permanent": false,
+              "ts": "2026-03-20T01:00:00Z"
+            }
+          ],
+          "witnessing": [
+            {
+              "lct_id": "lct:web4:oracle:timestamp"
+            }
+          ],
+          "horizon_depth": 5,
+          "last_updated": "2026-03-20T01:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "witness:attest",
+            "r6:execute",
+            "delegate:limited"
+          ],
+          "constraints": {
+            "max_delegation_depth": 3
+          }
+        },
+        "t3_tensor": {
+          "talent": 0.8,
+          "training": 0.7,
+          "temperament": 0.9,
+          "composite_score": 0.8
+        },
+        "v3_tensor": {
+          "valuation": 0.6,
+          "veracity": 0.85,
+          "validity": 0.75,
+          "composite_score": 0.74
+        },
+        "attestations": [
+          {
+            "witness": "did:web4:key:z6MkOracle1",
+            "type": "time",
+            "claims": {
+              "nonce": "mb32:nonce1",
+              "ts": "2026-03-20T00:00:00Z"
+            },
+            "sig": "cose:oracle1_sig",
+            "ts": "2026-03-20T00:00:00Z"
+          },
+          {
+            "witness": "did:web4:key:z6MkAudit1",
+            "type": "audit",
+            "claims": {
+              "scope": "full",
+              "result": "pass"
+            },
+            "sig": "cose:audit1_sig",
+            "ts": "2026-03-20T00:30:00Z"
+          }
+        ],
+        "lineage": [
+          {
+            "parent": "lct:web4:human:genesis",
+            "reason": "genesis",
+            "ts": "2026-03-20T00:00:00Z"
+          },
+          {
+            "parent": "lct:web4:human:full002",
+            "reason": "rotation",
+            "ts": "2026-03-20T01:00:00Z"
+          }
+        ],
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "Hardware anchor, genesis_block_hash, attestations, lineage, policy constraints, multiple MRH pairings."
+    },
+    {
+      "id": "lct-jsonld-003",
+      "description": "Revoked LCT with reason and timestamp",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:ai:revoked003",
+        "subject": "did:web4:key:z6MkRevoked003",
+        "binding": {
+          "entity_type": "ai",
+          "public_key": "mb64revokedkey",
+          "created_at": "2026-01-01T00:00:00Z",
+          "binding_proof": "cose:signature_placeholder"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-test",
+          "citizen_role": "lct:web4:role:citizen:platform",
+          "birth_timestamp": "2026-01-01T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1",
+            "lct:web4:witness-w2",
+            "lct:web4:witness-w3"
+          ],
+          "birth_context": "platform"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:platform",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-01-01T00:00:00Z"
+            }
+          ],
+          "witnessing": [],
+          "horizon_depth": 3,
+          "last_updated": "2026-01-01T00:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "exist",
+            "interact",
+            "accumulate_reputation"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.3,
+          "training": 0.2,
+          "temperament": 0.1,
+          "composite_score": 0.21
+        },
+        "v3_tensor": {
+          "valuation": 0.0,
+          "veracity": 0.1,
+          "validity": 0.2,
+          "composite_score": 0.10499999999999998
+        },
+        "revocation": {
+          "status": "revoked",
+          "ts": "2026-02-15T12:00:00Z",
+          "reason": "compromise"
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "Revocation status=revoked, reason=compromise, ts=2026-02-15T12:00:00Z. Low T3/V3."
+    },
+    {
+      "id": "lct-jsonld-004",
+      "description": "Service LCT with three attestations",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:service:attested004",
+        "subject": "did:web4:key:z6MkService004",
+        "binding": {
+          "entity_type": "service",
+          "public_key": "mb64servicekey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:signature_placeholder"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-genesis",
+          "citizen_role": "lct:web4:role:citizen:platform",
+          "birth_timestamp": "2026-03-20T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1"
+          ],
+          "birth_context": "platform"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:platform",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            }
+          ],
+          "witnessing": [],
+          "horizon_depth": 3,
+          "last_updated": "2026-03-20T00:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "exist",
+            "interact",
+            "accumulate_reputation"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.7,
+          "training": 0.8,
+          "temperament": 0.6,
+          "composite_score": 0.7
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.9,
+          "validity": 0.8,
+          "composite_score": 0.7449999999999999
+        },
+        "attestations": [
+          {
+            "witness": "did:web4:key:z6MkOracle1",
+            "type": "time",
+            "claims": {
+              "nonce": "mb32:n1"
+            },
+            "sig": "cose:sig1",
+            "ts": "2026-03-20T00:00:00Z"
+          },
+          {
+            "witness": "did:web4:key:z6MkAudit1",
+            "type": "capability",
+            "claims": {
+              "level": "hardware",
+              "score": 0.95
+            },
+            "sig": "cose:sig2",
+            "ts": "2026-03-20T00:10:00Z"
+          },
+          {
+            "witness": "did:web4:key:z6MkPeer1",
+            "type": "trust",
+            "claims": {
+              "t3_observed": 0.75
+            },
+            "sig": "cose:sig3",
+            "ts": "2026-03-20T00:20:00Z"
+          }
+        ],
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "Three attestation types: time, capability, trust. Tests attestation array serialization."
+    },
+    {
+      "id": "lct-jsonld-005",
+      "description": "LCT with three-entry lineage chain",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:ai:lineage005",
+        "subject": "did:web4:key:z6MkLineage005",
+        "binding": {
+          "entity_type": "ai",
+          "public_key": "mb64agentkey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:signature_placeholder"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-genesis",
+          "citizen_role": "lct:web4:role:citizen:platform",
+          "birth_timestamp": "2026-03-20T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1",
+            "lct:web4:witness-w2"
+          ],
+          "birth_context": "platform"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:platform",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            }
+          ],
+          "witnessing": [],
+          "horizon_depth": 3,
+          "last_updated": "2026-03-20T00:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "exist",
+            "interact",
+            "accumulate_reputation"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.5,
+          "training": 0.5,
+          "temperament": 0.5,
+          "composite_score": 0.5
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.5,
+          "validity": 0.5,
+          "composite_score": 0.49999999999999994
+        },
+        "lineage": [
+          {
+            "parent": "lct:web4:ai:original",
+            "reason": "genesis",
+            "ts": "2026-01-01T00:00:00Z"
+          },
+          {
+            "parent": "lct:web4:ai:lineage005-v1",
+            "reason": "rotation",
+            "ts": "2026-02-01T00:00:00Z"
+          },
+          {
+            "parent": "lct:web4:ai:lineage005-v2",
+            "reason": "upgrade",
+            "ts": "2026-03-01T00:00:00Z"
+          }
+        ],
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "Genesis -> rotation -> upgrade lineage. Tests lineage array serialization."
+    },
+    {
+      "id": "lct-jsonld-006",
+      "description": "Organization LCT with complex MRH graph",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:organization:mrh006",
+        "subject": "did:web4:key:z6MkOrg006",
+        "binding": {
+          "entity_type": "organization",
+          "public_key": "mb64orgkey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:signature_placeholder"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-genesis",
+          "citizen_role": "lct:web4:role:citizen:organization",
+          "birth_timestamp": "2026-03-20T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1",
+            "lct:web4:witness-w2",
+            "lct:web4:witness-w3"
+          ],
+          "birth_context": "organization"
+        },
+        "mrh": {
+          "bound": [
+            {
+              "lct_id": "lct:web4:society:parent-fed"
+            },
+            {
+              "lct_id": "lct:web4:org:subsidiary"
+            }
+          ],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:organization",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            },
+            {
+              "lct_id": "lct:web4:role:manager",
+              "pairing_type": "role",
+              "permanent": false,
+              "ts": "2026-03-20T01:00:00Z"
+            }
+          ],
+          "witnessing": [
+            {
+              "lct_id": "lct:web4:oracle:timestamp"
+            },
+            {
+              "lct_id": "lct:web4:oracle:audit"
+            }
+          ],
+          "horizon_depth": 7,
+          "last_updated": "2026-03-20T01:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "exist",
+            "interact",
+            "accumulate_reputation"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.5,
+          "training": 0.5,
+          "temperament": 0.5,
+          "composite_score": 0.5
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.5,
+          "validity": 0.5,
+          "composite_score": 0.49999999999999994
+        },
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "Multiple pairings, 2 bound entries, 2 witnessing entries, horizon_depth=7."
+    },
+    {
+      "id": "lct-jsonld-007",
+      "description": "Device LCT with boundary T3/V3 values",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:device:boundary007",
+        "subject": "did:web4:key:z6MkDevice007",
+        "binding": {
+          "entity_type": "device",
+          "public_key": "mb64devicekey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:signature_placeholder"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-genesis",
+          "citizen_role": "lct:web4:role:citizen:platform",
+          "birth_timestamp": "2026-03-20T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1"
+          ],
+          "birth_context": "platform"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:platform",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            }
+          ],
+          "witnessing": [],
+          "horizon_depth": 3,
+          "last_updated": "2026-03-20T00:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "exist",
+            "interact",
+            "accumulate_reputation"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.0,
+          "training": 1.0,
+          "temperament": 0.5,
+          "composite_score": 0.44999999999999996
+        },
+        "v3_tensor": {
+          "valuation": 1.0,
+          "veracity": 0.0,
+          "validity": 0.5,
+          "composite_score": 0.475
+        },
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "T3 (0.0,1.0,0.5) and V3 (1.0,0.0,0.5). Tests boundary value handling."
+    },
+    {
+      "id": "lct-jsonld-008",
+      "description": "Hybrid LCT with suspended status",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:hybrid:suspended008",
+        "subject": "did:web4:key:z6MkHybrid008",
+        "binding": {
+          "entity_type": "hybrid",
+          "public_key": "mb64hybridkey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:signature_placeholder"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-genesis",
+          "citizen_role": "lct:web4:role:citizen:platform",
+          "birth_timestamp": "2026-03-20T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1",
+            "lct:web4:witness-w2"
+          ],
+          "birth_context": "platform"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:platform",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            }
+          ],
+          "witnessing": [],
+          "horizon_depth": 3,
+          "last_updated": "2026-03-20T00:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "witness:attest",
+            "r6:execute"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.5,
+          "training": 0.5,
+          "temperament": 0.5,
+          "composite_score": 0.5
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.5,
+          "validity": 0.5,
+          "composite_score": 0.49999999999999994
+        },
+        "revocation": {
+          "status": "suspended",
+          "ts": "2026-03-20T06:00:00Z",
+          "reason": "investigation"
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "Suspended status (neither active nor revoked). Tests third revocation state."
+    },
+    {
+      "id": "lct-jsonld-009",
+      "description": "Human LCT with genesis_block_hash in birth certificate",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:human:genesis009",
+        "subject": "did:web4:key:z6MkGenesis009",
+        "binding": {
+          "entity_type": "human",
+          "public_key": "mb64genesiskey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:signature_placeholder"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society-mainnet",
+          "citizen_role": "lct:web4:role:citizen:platform",
+          "birth_timestamp": "2026-03-20T00:00:00Z",
+          "birth_witnesses": [
+            "lct:web4:witness-w1",
+            "lct:web4:witness-w2",
+            "lct:web4:witness-w3"
+          ],
+          "birth_context": "platform",
+          "genesis_block_hash": "sha256:0000000000000000000e5f8d68ac5ec1e65b774d5f762b61a4e1e83f2b1c5e2a"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:platform",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            }
+          ],
+          "witnessing": [],
+          "horizon_depth": 3,
+          "last_updated": "2026-03-20T00:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "exist",
+            "interact",
+            "accumulate_reputation"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.5,
+          "training": 0.5,
+          "temperament": 0.5,
+          "composite_score": 0.5
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.5,
+          "validity": 0.5,
+          "composite_score": 0.49999999999999994
+        },
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "Tests genesis_block_hash optional field in birth certificate."
+    },
+    {
+      "id": "lct-jsonld-010",
+      "description": "Oracle LCT without birth certificate",
+      "jsonld": {
+        "@context": [
+          "https://web4.io/contexts/lct.jsonld"
+        ],
+        "lct_id": "lct:web4:oracle:nobc010",
+        "subject": "did:web4:key:z6MkOracle010",
+        "binding": {
+          "entity_type": "oracle",
+          "public_key": "mb64oraclekey",
+          "created_at": "2026-03-20T00:00:00Z",
+          "binding_proof": "cose:oracle_proof"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:oracle:time",
+              "pairing_type": "operational",
+              "permanent": true,
+              "ts": "2026-03-20T00:00:00Z"
+            }
+          ],
+          "witnessing": [],
+          "horizon_depth": 1,
+          "last_updated": "2026-03-20T00:00:00Z"
+        },
+        "policy": {
+          "capabilities": [
+            "oracle:attest"
+          ],
+          "constraints": {}
+        },
+        "t3_tensor": {
+          "talent": 0.9,
+          "training": 0.95,
+          "temperament": 0.85,
+          "composite_score": 0.9
+        },
+        "v3_tensor": {
+          "valuation": 0.7,
+          "veracity": 0.95,
+          "validity": 0.9,
+          "composite_score": 0.8574999999999999
+        },
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      },
+      "roundtrip_stable": true,
+      "notes": "No birth certificate (directly constructed, not via create()). Tests optional birth_certificate absence."
+    }
+  ]
+}
