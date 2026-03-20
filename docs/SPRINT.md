@@ -29,9 +29,14 @@ Backward compatible: `to_dict()` unchanged, `from_jsonld()` accepts both formats
 produces schema-compliant LCT document."
 
 ### I2: Cross-language LCT test vectors
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-20
 **Scope**: JSON test vectors for LCT JSON-LD roundtrip that TypeScript/Go/Rust
 implementations can validate against. Same pattern as existing 79+ SDK vectors.
+**Result**: 10 vectors covering: minimal LCT, full LCT (all optional fields), revoked,
+attestations, lineage, complex MRH, boundary T3/V3, suspended status, genesis_block_hash,
+no birth certificate. 110 validation tests (roundtrip, structure, values, spec compliance,
+backward compat). 1203 total passing.
 
 ### I3: AttestationEnvelope JSON-LD serialization
 **Status**: PENDING
@@ -322,6 +327,6 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | H5 | AttestationEnvelope + binding integration | DONE |
 | H6 | SDK v0.6.0 release housekeeping | PR #46 |
 | I1 | LCT spec-compliant JSON-LD serialization | DONE |
-| I2 | Cross-language LCT test vectors | PENDING |
+| I2 | Cross-language LCT test vectors | DONE |
 | I3 | AttestationEnvelope JSON-LD serialization | PENDING |
 | I4 | SDK v0.7.0 release housekeeping | PENDING |
