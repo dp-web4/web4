@@ -39,10 +39,15 @@ implementations can validate against. Same pattern as existing 79+ SDK vectors.
 `web4.attestation`, matching the attestation-envelope spec format.
 
 ### I4: SDK v0.7.0 release housekeeping
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-20
 **Depends on**: I1 (at minimum)
-**Scope**: Version bump 0.6.0 → 0.7.0, CHANGELOG.md entry for JSON-LD
-serialization, updated exports count.
+**Scope**: Version bump 0.5.0 → 0.7.0 (0.6.0 covered by H6 PR #46),
+CHANGELOG.md entry for Sprint 3 JSON-LD serialization (I1, I2, I3),
+updated exports count (263 symbols).
+**Result**: Version bumped in `__init__.py`, `pyproject.toml`, `setup.py`.
+CHANGELOG.md v0.7.0 section documents LCT JSON-LD, cross-language vectors,
+and AttestationEnvelope JSON-LD. 1093 tests passing, zero regressions.
 
 ---
 
@@ -324,4 +329,4 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | I1 | LCT spec-compliant JSON-LD serialization | DONE |
 | I2 | Cross-language LCT test vectors | PENDING |
 | I3 | AttestationEnvelope JSON-LD serialization | PENDING |
-| I4 | SDK v0.7.0 release housekeeping | PENDING |
+| I4 | SDK v0.7.0 release housekeeping | DONE |

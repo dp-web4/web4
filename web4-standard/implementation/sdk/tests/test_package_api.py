@@ -10,11 +10,11 @@ import web4
 
 class TestPackageVersion:
     def test_version_string(self):
-        assert web4.__version__ == "0.5.0"
+        assert web4.__version__ == "0.7.0"
 
     def test_version_accessible(self):
         from web4 import __version__
-        assert __version__ == "0.5.0"
+        assert __version__ == "0.7.0"
 
 
 class TestAllExports:
