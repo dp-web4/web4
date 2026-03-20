@@ -53,6 +53,8 @@ from .trust import (
     compute_team_t3,
     operational_health,
     is_healthy,
+    T3_JSONLD_CONTEXT,
+    V3_JSONLD_CONTEXT,
 )
 
 # ── Linked Context Tokens ──────────────────────────────────────
@@ -397,6 +399,7 @@ __all__ = [
     # trust
     "T3", "V3", "TrustProfile", "ActionOutcome", "RoleRequirement",
     "compute_team_t3", "operational_health", "is_healthy",
+    "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT",
     # lct
     "LCT", "EntityType", "RevocationStatus", "BirthCertificate",
     "Attestation", "LineageEntry", "LCT_JSONLD_CONTEXT",
