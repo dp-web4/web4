@@ -353,6 +353,7 @@ from .attestation import (
     VerificationResult,
     TRUST_CEILINGS,
     FRESHNESS_MAX_AGE,
+    ATTESTATION_JSONLD_CONTEXT,
     verify_envelope,
 )
 
@@ -490,7 +491,7 @@ __all__ = [
     # attestation
     "AttestationEnvelope", "AnchorInfo", "Proof", "PlatformState",
     "VerificationResult", "TRUST_CEILINGS", "FRESHNESS_MAX_AGE",
-    "verify_envelope",
+    "ATTESTATION_JSONLD_CONTEXT", "verify_envelope",
     # mcp
     "CommunicationPattern", "TrustDimension", "MCPResourceType",
     "TrustRequirements", "MCPResourceRequirements",

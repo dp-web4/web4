@@ -32,11 +32,15 @@ Source: web4-core/python/web4/trust/attestation/
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
 from hashlib import sha256
 import time
 import json
 
+
+# ── JSON-LD Context ──────────────────────────────────────────────
+
+ATTESTATION_JSONLD_CONTEXT = "https://web4.io/contexts/attestation-envelope.jsonld"
 
 # ── Trust Ceilings ────────────────────────────────────────────────
 
@@ -200,6 +204,130 @@ class AttestationEnvelope:
     def from_json(cls, json_str: str) -> AttestationEnvelope:
         """Deserialize from JSON."""
         return cls.from_dict(json.loads(json_str))
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to spec-compliant JSON-LD per attestation-envelope spec.
+
+        Produces the canonical AttestationEnvelope document structure with:
+        - @context header for JSON-LD processors
+        - Spec-compliant field naming matching the TypeScript interface
+        - Structured anchor, proof, and platform_state objects
+        - Optional fields included only when populated
+        """
+        doc: Dict[str, Any] = {
+            "@context": [ATTESTATION_JSONLD_CONTEXT],
+            "@type": "AttestationEnvelope",
+            "envelope_version": self.envelope_version,
+        }
+
+        # === WHO ===
+        doc["entity_id"] = self.entity_id
+        doc["public_key"] = self.public_key
+        doc["public_key_fingerprint"] = self.public_key_fingerprint
+
+        # === WHAT (anchor) ===
+        anchor: Dict[str, Any] = {"type": self.anchor.type}
+        if self.anchor.manufacturer:
+            anchor["manufacturer"] = self.anchor.manufacturer
+        if self.anchor.model:
+            anchor["model"] = self.anchor.model
+        if self.anchor.firmware_version:
+            anchor["firmware_version"] = self.anchor.firmware_version
+        doc["anchor"] = anchor
+
+        # === PROOF ===
+        proof: Dict[str, Any] = {
+            "format": self.proof.format,
+            "signature": self.proof.signature,
+            "challenge": self.proof.challenge,
+        }
+        if self.proof.attestation_object:
+            proof["attestation_object"] = self.proof.attestation_object
+        if self.proof.pcr_digest:
+            proof["pcr_digest"] = self.proof.pcr_digest
+        if self.proof.pcr_selection:
+            proof["pcr_selection"] = list(self.proof.pcr_selection)
+        if self.proof.authenticator_data:
+            proof["authenticator_data"] = self.proof.authenticator_data
+        if self.proof.client_data_hash:
+            proof["client_data_hash"] = self.proof.client_data_hash
+        doc["proof"] = proof
+
+        # === WHEN ===
+        doc["timestamp"] = self.timestamp
+        doc["challenge_issued_at"] = self.challenge_issued_at
+        doc["challenge_ttl"] = self.challenge_ttl
+
+        # === WHERE (platform state) ===
+        ps: Dict[str, Any] = {"available": self.platform_state.available}
+        if self.platform_state.boot_verified is not None:
+            ps["boot_verified"] = self.platform_state.boot_verified
+        if self.platform_state.pcr_values:
+            # Spec uses Record<number, string> — serialize int keys as strings
+            ps["pcr_values"] = {
+                str(k): v for k, v in self.platform_state.pcr_values.items()
+            }
+        if self.platform_state.os_version:
+            ps["os_version"] = self.platform_state.os_version
+        if self.platform_state.kernel_version:
+            ps["kernel_version"] = self.platform_state.kernel_version
+        doc["platform_state"] = ps
+
+        # === TRUST ===
+        doc["trust_ceiling"] = self.trust_ceiling
+
+        # === METADATA (optional) ===
+        if self.issuer:
+            doc["issuer"] = self.issuer
+        if self.purpose:
+            doc["purpose"] = self.purpose
+
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to spec-compliant JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> AttestationEnvelope:
+        """
+        Deserialize from spec-compliant JSON-LD document.
+
+        Accepts both the spec JSON-LD format and the SDK dict format
+        for backward compatibility. Ignores @context and @type fields.
+        """
+        data: Dict[str, Any] = {}
+
+        # Strip JSON-LD envelope fields
+        for k, v in doc.items():
+            if k.startswith("@"):
+                continue
+            data[k] = v
+
+        # Reconstruct nested types
+        if "anchor" in data and isinstance(data["anchor"], dict):
+            data["anchor"] = AnchorInfo(**data["anchor"])
+
+        if "proof" in data and isinstance(data["proof"], dict):
+            data["proof"] = Proof(**data["proof"])
+
+        if "platform_state" in data and isinstance(data["platform_state"], dict):
+            ps_data = dict(data["platform_state"])
+            # Spec serializes PCR keys as strings; restore to int keys
+            if "pcr_values" in ps_data and ps_data["pcr_values"]:
+                ps_data["pcr_values"] = {
+                    int(k): v for k, v in ps_data["pcr_values"].items()
+                }
+            data["platform_state"] = PlatformState(**ps_data)
+
+        return cls(**{k: v for k, v in data.items()
+                      if k in cls.__dataclass_fields__})
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> AttestationEnvelope:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 @dataclass

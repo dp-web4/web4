@@ -39,9 +39,12 @@ no birth certificate. 110 validation tests (roundtrip, structure, values, spec c
 backward compat). 1203 total passing.
 
 ### I3: AttestationEnvelope JSON-LD serialization
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-19
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to `AttestationEnvelope` in
 `web4.attestation`, matching the attestation-envelope spec format.
+**Result**: `AttestationEnvelope.to_jsonld()` and `from_jsonld()` with full
+spec compliance. 41 tests. PR #48.
 
 ### I4: SDK v0.7.0 release housekeeping
 **Status**: DONE
@@ -333,5 +336,5 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | H6 | SDK v0.6.0 release housekeeping | PR #46 |
 | I1 | LCT spec-compliant JSON-LD serialization | DONE |
 | I2 | Cross-language LCT test vectors | DONE |
-| I3 | AttestationEnvelope JSON-LD serialization | PENDING |
+| I3 | AttestationEnvelope JSON-LD serialization | PR #48 |
 | I4 | SDK v0.7.0 release housekeeping | DONE |
