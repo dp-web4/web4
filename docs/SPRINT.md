@@ -81,10 +81,12 @@ unknown anchor type, PCR validation.
 **Result**: 42 tests in `test_verify.py` — all passing. Parametrized cross-anchor consistency tests.
 
 ### H3: Cross-language test vectors for attestation
-**Status**: PENDING
-**Scope**: JSON test vectors for AttestationEnvelope construction and verification
-that other language implementations can validate against. Same pattern as existing
-79+ SDK vectors.
+**Status**: DONE
+**Completed**: 2026-03-19
+**Scope**: JSON test vectors for AttestationEnvelope construction, trust ceilings,
+freshness model, serialization, and verification dispatch. Python validator script.
+**Result**: 35 vectors in `web4-standard/test-vectors/attestation/attestation-vectors.json`,
+validator in `validate_attestation_vectors.py` — all passing.
 
 ### H4: SDK integration for AttestationEnvelope
 **Status**: DONE
