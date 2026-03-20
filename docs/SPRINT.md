@@ -120,10 +120,11 @@ optional field, `enroll_device()` validates attestation purpose + anchor type co
 compatible). 27 integration tests, 1042 total passing.
 
 ### H6: SDK v0.6.0 release housekeeping
-**Status**: IN REVIEW
+**Status**: DONE
+**Completed**: 2026-03-20
 **Scope**: Version bump (0.5.0 -> 0.6.0) and changelog for the attestation module
 that landed in H4. Sprint 2 status update.
-**Result**: CHANGELOG.md v0.6.0 entry. PR #46.
+**Result**: CHANGELOG.md v0.6.0 entry. PR #46, merged.
 
 ---
 
@@ -192,12 +193,13 @@ binding, society, reputation) alongside the original 8. 28 total integration tes
 U15 (mcp). Version bumped 0.4.0 → 0.5.0. SPRINT.md U13 status corrected, U16/U17 added.
 
 ### U18: SDK public API and packaging cleanup
-**Status**: IN REVIEW
+**Status**: DONE
+**Completed**: 2026-03-20
 **Description**: Consolidate web4 package public API surface. Populate `web4/__init__.py`
 with re-exports from all 18 modules (247 symbols, `__all__` defined). Fix `pyproject.toml`
 metadata (version 0.5.0, classifiers, description). Add PEP 561 `py.typed` marker.
 Fix `setup.py` consistency. `from web4 import T3, LCT, Society, R7Action` now works.
-49 new tests, 974 total passing.
+49 new tests, 974 total passing. PR #40, merged.
 
 ---
 
@@ -339,14 +341,14 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | U15 | MCP protocol types module | DONE |
 | U16 | Full-stack integration tests (18 modules) | DONE |
 | U17 | SDK v0.5.0 release housekeeping | DONE |
-| U18 | SDK public API and packaging cleanup | PR #40 |
+| U18 | SDK public API and packaging cleanup | DONE |
 | H1 | AttestationEnvelope test coverage | DONE |
 | H2 | Verification dispatch test coverage | DONE |
-| H3 | Cross-language attestation test vectors | PR #43 |
+| H3 | Cross-language attestation test vectors | DONE |
 | H4 | SDK integration for AttestationEnvelope | DONE |
 | H5 | AttestationEnvelope + binding integration | DONE |
-| H6 | SDK v0.6.0 release housekeeping | PR #46 |
+| H6 | SDK v0.6.0 release housekeeping | DONE |
 | I1 | LCT spec-compliant JSON-LD serialization | DONE |
 | I2 | Cross-language LCT test vectors | DONE |
-| I3 | AttestationEnvelope JSON-LD serialization | PR #48 |
+| I3 | AttestationEnvelope JSON-LD serialization | DONE |
 | I4 | SDK v0.7.0 release housekeeping | DONE |
