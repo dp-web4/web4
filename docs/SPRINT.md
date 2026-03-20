@@ -7,6 +7,45 @@
 
 ---
 
+## Sprint 3: SDK Interoperability (2026-03-19)
+
+The SDK has 19 modules with 1000+ tests, but a known gap exists: no Python
+implementation produces schema-compliant LCT documents. This sprint closes
+interoperability gaps between the SDK output and the spec's canonical formats.
+
+### I1: LCT spec-compliant JSON-LD serialization
+**Status**: DONE
+**Completed**: 2026-03-19
+**Scope**: Add `to_jsonld()` / `from_jsonld()` methods to `LCT` class producing
+documents matching spec §2.3 canonical structure. Includes: `@context` header,
+spec-compliant field naming (`birth_context` not `context`), structured MRH entries
+(bound/witnessing as objects), optional sections (attestations, lineage) included
+only when populated, full revocation structure (status + ts + reason).
+New types: `Attestation`, `LineageEntry`, `LCT_JSONLD_CONTEXT`.
+`BirthCertificate` gains optional `genesis_block_hash`.
+`LCT.revoke()` gains optional `reason` parameter.
+Backward compatible: `to_dict()` unchanged, `from_jsonld()` accepts both formats.
+**Result**: 51 new tests, 1093 total passing. Closes known gap "NO Python impl
+produces schema-compliant LCT document."
+
+### I2: Cross-language LCT test vectors
+**Status**: PENDING
+**Scope**: JSON test vectors for LCT JSON-LD roundtrip that TypeScript/Go/Rust
+implementations can validate against. Same pattern as existing 79+ SDK vectors.
+
+### I3: AttestationEnvelope JSON-LD serialization
+**Status**: PENDING
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to `AttestationEnvelope` in
+`web4.attestation`, matching the attestation-envelope spec format.
+
+### I4: SDK v0.7.0 release housekeeping
+**Status**: PENDING
+**Depends on**: I1 (at minimum)
+**Scope**: Version bump 0.6.0 → 0.7.0, CHANGELOG.md entry for JSON-LD
+serialization, updated exports count.
+
+---
+
 ## Sprint 2: Hardware Trust Validation (2026-03-19)
 
 The AttestationEnvelope landed on main (3 commits by operator, 2026-03-18) as the P0
@@ -276,3 +315,13 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | U16 | Full-stack integration tests (18 modules) | PR #38 |
 | U17 | SDK v0.5.0 release housekeeping | DONE |
 | U18 | SDK public API and packaging cleanup | PR #40 |
+| H1 | AttestationEnvelope test coverage | DONE |
+| H2 | Verification dispatch test coverage | DONE |
+| H3 | Cross-language attestation test vectors | PR #43 |
+| H4 | SDK integration for AttestationEnvelope | DONE |
+| H5 | AttestationEnvelope + binding integration | DONE |
+| H6 | SDK v0.6.0 release housekeeping | PR #46 |
+| I1 | LCT spec-compliant JSON-LD serialization | DONE |
+| I2 | Cross-language LCT test vectors | PENDING |
+| I3 | AttestationEnvelope JSON-LD serialization | PENDING |
+| I4 | SDK v0.7.0 release housekeeping | PENDING |
