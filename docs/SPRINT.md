@@ -1,9 +1,54 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-19
+**Updated**: 2026-03-20
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 4: Cross-Language Schema Standardization (2026-03-20)
+
+Sprint 3 produced spec-compliant JSON-LD serialization for LCT and AttestationEnvelope.
+This sprint provides formal JSON Schema files so that Go/TypeScript/Rust implementations
+can validate their serialization output against a machine-readable specification. It
+also extends JSON-LD coverage to remaining core types.
+
+### V1: JSON Schema for LCT and AttestationEnvelope JSON-LD
+**Status**: IN PROGRESS
+**Scope**: Create JSON Schema (draft 2020-12) files for the LCT JSON-LD format (spec §2.3)
+and AttestationEnvelope JSON-LD format. Include a validation script that confirms current
+SDK `to_jsonld()` output passes the schemas. Schemas derived from spec documents,
+cross-checked against SDK output.
+**Deliverables**:
+- `web4-standard/schemas/lct-jsonld.schema.json`
+- `web4-standard/schemas/attestation-envelope-jsonld.schema.json`
+- `web4-standard/schemas/validate_schemas.py`
+
+### V2: T3/V3 Trust Tensor JSON-LD serialization
+**Status**: NOT STARTED
+**Depends on**: V1
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to `T3` and `V3` classes in `web4.trust`,
+producing output matching `t3v3-ontology.ttl`. JSON Schema for the format.
+
+### V3: R7 Action JSON-LD serialization
+**Status**: NOT STARTED
+**Depends on**: V1
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to R7 action types in `web4.r6`,
+enabling cross-language representation of actions, action chains, and reputation deltas.
+JSON Schema for the format.
+
+### V4: Cross-language validation test vectors
+**Status**: NOT STARTED
+**Depends on**: V1, V2, V3
+**Scope**: JSON test vectors that exercise schema validation edge cases — malformed
+documents, missing required fields, extra fields, boundary values. Vectors usable
+by any language's JSON Schema validator.
+
+### V5: SDK v0.8.0 release housekeeping
+**Status**: NOT STARTED
+**Depends on**: V1 (at minimum)
+**Scope**: Version bump, CHANGELOG.md entry for Sprint 4 deliverables.
 
 ---
 

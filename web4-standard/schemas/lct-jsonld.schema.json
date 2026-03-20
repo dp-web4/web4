@@ -1,0 +1,359 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/lct-jsonld.schema.json",
+  "title": "Web4 Linked Context Token (LCT) — JSON-LD",
+  "description": "JSON Schema for spec-compliant LCT documents per LCT-linked-context-token.md §2.3. Validates output from LCT.to_jsonld() and cross-language implementations.",
+  "type": "object",
+  "required": [
+    "@context",
+    "lct_id",
+    "subject",
+    "binding",
+    "mrh",
+    "policy",
+    "t3_tensor",
+    "v3_tensor",
+    "revocation"
+  ],
+  "properties": {
+    "@context": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "minItems": 1,
+      "description": "JSON-LD context URIs. First MUST be the LCT context."
+    },
+    "lct_id": {
+      "type": "string",
+      "pattern": "^lct:",
+      "description": "Unique LCT identifier. Format: lct:web4:<type>:<hash>"
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Entity DID or identifier bound to this LCT."
+    },
+
+    "binding": {
+      "type": "object",
+      "required": ["entity_type", "public_key", "created_at"],
+      "properties": {
+        "entity_type": {
+          "type": "string",
+          "enum": [
+            "human", "ai", "society", "organization", "role", "task",
+            "resource", "device", "service", "oracle", "accumulator",
+            "dictionary", "hybrid", "policy", "infrastructure", "agent"
+          ],
+          "description": "Web4 entity type taxonomy."
+        },
+        "public_key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Public key in multibase or PEM format."
+        },
+        "created_at": {
+          "type": "string",
+          "description": "ISO 8601 timestamp of binding creation."
+        },
+        "binding_proof": {
+          "type": "string",
+          "description": "COSE signature proof of binding."
+        },
+        "hardware_anchor": {
+          "type": "string",
+          "description": "Hardware anchor reference (EAT token or type identifier)."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "birth_certificate": {
+      "type": "object",
+      "required": ["issuing_society", "citizen_role", "birth_timestamp"],
+      "properties": {
+        "issuing_society": {
+          "type": "string",
+          "description": "LCT ID of the issuing society."
+        },
+        "citizen_role": {
+          "type": "string",
+          "description": "LCT ID of the citizen role."
+        },
+        "birth_timestamp": {
+          "type": "string",
+          "description": "ISO 8601 timestamp of birth."
+        },
+        "birth_witnesses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of witness LCT IDs or DIDs."
+        },
+        "birth_context": {
+          "type": "string",
+          "description": "Context category: nation, platform, network, organization, ecosystem."
+        },
+        "genesis_block_hash": {
+          "type": "string",
+          "description": "Optional genesis block hash for blockchain-anchored births."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "mrh": {
+      "type": "object",
+      "required": ["bound", "paired", "witnessing", "horizon_depth"],
+      "properties": {
+        "bound": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["lct_id"],
+                "properties": {
+                  "lct_id": { "type": "string" },
+                  "type": { "type": "string" },
+                  "binding_context": { "type": "string" },
+                  "ts": { "type": "string" }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "description": "Bound relationships (permanent bindings)."
+        },
+        "paired": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["lct_id", "pairing_type"],
+            "properties": {
+              "lct_id": { "type": "string" },
+              "pairing_type": { "type": "string" },
+              "permanent": { "type": "boolean" },
+              "ts": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "description": "Paired relationships (operational pairings)."
+        },
+        "witnessing": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["lct_id"],
+                "properties": {
+                  "lct_id": { "type": "string" },
+                  "role": { "type": "string" },
+                  "last_attestation": { "type": "string" },
+                  "witness_count": { "type": "integer", "minimum": 0 }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "description": "Witnessing relationships."
+        },
+        "horizon_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum MRH traversal depth."
+        },
+        "last_updated": {
+          "type": "string",
+          "description": "ISO 8601 timestamp of last MRH update."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "policy": {
+      "type": "object",
+      "required": ["capabilities"],
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of capability strings."
+        },
+        "constraints": {
+          "type": "object",
+          "description": "Arbitrary constraint key-value pairs.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "t3_tensor": { "$ref": "#/$defs/trust_tensor" },
+    "v3_tensor": { "$ref": "#/$defs/value_tensor" },
+
+    "attestations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["witness", "type"],
+        "properties": {
+          "witness": {
+            "type": "string",
+            "description": "DID or LCT ID of the attesting witness."
+          },
+          "type": {
+            "type": "string",
+            "description": "Attestation type: existence, trust, quality, action, state, audit, time."
+          },
+          "claims": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Attestation-specific claims."
+          },
+          "sig": {
+            "type": "string",
+            "description": "COSE signature over the attestation."
+          },
+          "ts": {
+            "type": "string",
+            "description": "ISO 8601 timestamp."
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Optional witness attestations. Included only when populated."
+    },
+
+    "lineage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["parent", "reason"],
+        "properties": {
+          "parent": {
+            "type": "string",
+            "description": "LCT ID of the parent token."
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["genesis", "rotation", "fork", "upgrade", "derived_from"],
+            "description": "Reason for lineage entry."
+          },
+          "ts": {
+            "type": "string",
+            "description": "ISO 8601 timestamp."
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Optional lineage entries. Included only when populated."
+    },
+
+    "revocation": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["active", "revoked", "suspended"],
+          "description": "Current revocation status."
+        },
+        "ts": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 timestamp of revocation (null if active)."
+        },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Human-readable revocation reason (null if active)."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+
+  "$defs": {
+    "trust_tensor": {
+      "type": "object",
+      "required": ["talent", "training", "temperament", "composite_score"],
+      "properties": {
+        "talent": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Innate capability dimension."
+        },
+        "training": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Learned skill dimension."
+        },
+        "temperament": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Behavioral consistency dimension."
+        },
+        "composite_score": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Weighted composite of the three dimensions."
+        },
+        "sub_dimensions": {
+          "type": "object",
+          "description": "Optional fractal sub-dimensions per RDF ontology.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "last_computed": {
+          "type": "string",
+          "description": "ISO 8601 timestamp of last computation."
+        },
+        "computation_witnesses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "LCT IDs of oracles that computed this tensor."
+        }
+      },
+      "additionalProperties": false
+    },
+    "value_tensor": {
+      "type": "object",
+      "required": ["valuation", "veracity", "validity", "composite_score"],
+      "properties": {
+        "valuation": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Economic worth dimension."
+        },
+        "veracity": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Truthfulness dimension."
+        },
+        "validity": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Temporal relevance dimension."
+        },
+        "composite_score": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Weighted composite of the three dimensions."
+        },
+        "sub_dimensions": {
+          "type": "object",
+          "description": "Optional fractal sub-dimensions per RDF ontology.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "last_computed": {
+          "type": "string",
+          "description": "ISO 8601 timestamp of last computation."
+        },
+        "computation_witnesses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "LCT IDs of oracles that computed this tensor."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
