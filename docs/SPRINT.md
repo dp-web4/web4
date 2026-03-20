@@ -116,6 +116,12 @@ optional field, `enroll_device()` validates attestation purpose + anchor type co
 `compute_constellation_trust()` now uses attestation-aware per-device trust (backward
 compatible). 27 integration tests, 1042 total passing.
 
+### H6: SDK v0.6.0 release housekeeping
+**Status**: IN REVIEW
+**Scope**: Version bump (0.5.0 -> 0.6.0) and changelog for the attestation module
+that landed in H4. Sprint 2 status update.
+**Result**: CHANGELOG.md v0.6.0 entry. PR #46.
+
 ---
 
 ## Sprint 1 (Complete)
