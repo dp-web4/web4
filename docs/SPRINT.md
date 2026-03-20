@@ -167,8 +167,12 @@ compatible). 27 integration tests, 1042 total passing.
 **Description**: Implement `web4.mcp` module with Web4Context headers, CommunicationPattern enum, MCP resource types (tool/prompt/context), TrustRequirements, MCPSession with ATP tracking, SessionHandoff, ATP metering (calculate_mcp_cost), WitnessAttestation, MCPCapabilities/CapabilityBroadcast, MCPAuthority, MCPErrorContext. Types only — no networking or JSON-RPC.
 
 ### U16: Full-stack integration tests (all 18 modules)
-**Status**: IN REVIEW
-**Result**: 3 cross-module integration test workflows covering all 18 SDK modules. PR #38.
+**Status**: DONE
+**Completed**: 2026-03-18
+**Result**: Extended `test_integration.py` with 3 new cross-module test classes exercising
+all 10 newer modules (security, protocol, mcp, entity, capability, errors, metabolic,
+binding, society, reputation) alongside the original 8. 28 total integration tests,
+928 total SDK tests passing. Validates SDK works as a coherent 18-module library.
 
 ### U17: SDK v0.5.0 release housekeeping
 **Status**: DONE
@@ -322,7 +326,7 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | U13 | Security primitives module | DONE |
 | U14 | Core protocol types module | DONE |
 | U15 | MCP protocol types module | DONE |
-| U16 | Full-stack integration tests (18 modules) | PR #38 |
+| U16 | Full-stack integration tests (18 modules) | DONE |
 | U17 | SDK v0.5.0 release housekeeping | DONE |
 | U18 | SDK public API and packaging cleanup | PR #40 |
 | H1 | AttestationEnvelope test coverage | DONE |

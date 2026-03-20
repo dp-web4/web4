@@ -1,11 +1,11 @@
 """
 Cross-module integration tests for the Web4 Python SDK.
 
-These tests verify that trust, lct, atp, and federation modules compose
-correctly in end-to-end workflows. Each test exercises a realistic scenario
-that spans multiple modules — not unit-level behavior of any single module.
+These tests verify that Web4 SDK modules compose correctly in end-to-end
+workflows. Each test exercises a realistic scenario that spans multiple
+modules — not unit-level behavior of any single module.
 
-Sprint tasks: S2, S6
+Sprint tasks: S2, S6, U16
 """
 
 import pytest
@@ -1102,3 +1102,659 @@ class TestDictionaryTranslationWorkflow:
         assert mrh_zone(0) == "SELF"
         assert mrh_zone(1) == "DIRECT"
         assert mrh_zone(3) == "PERIPHERAL"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# U16: Full-stack integration tests — all 18 modules
+# ═══════════════════════════════════════════════════════════════════
+
+from web4.security import (
+    CryptoSuiteId, parse_w4id, negotiate_suite, get_suite,
+    W4ID, KeyPolicy, KeyStorageLevel, SignatureEnvelope,
+    VerifiableCredential, derive_pairwise_w4id,
+)
+from web4.protocol import (
+    ClientHello, ServerHello, ClientFinished, ServerFinished,
+    HandshakeMessage, HandshakePhase, PairingMethod,
+    Transport, negotiate_transport, get_transport_profile,
+    DiscoveryMethod, discovery_privacy, PrivacyLevel,
+    Web4URI,
+)
+from web4.mcp import (
+    Web4Context, TrustContext, ProofOfAgency,
+    MCPSession, MCPToolResource, TrustRequirements as MCPTrustRequirements,
+    ResourceRequirements as MCPResourceRequirements,
+    WitnessedInteraction, WitnessAttestation,
+    MCPCapabilities, CapabilityBroadcast,
+    MCPErrorContext, calculate_mcp_cost,
+    web4_context_to_json, web4_context_from_json,
+)
+from web4.entity import (
+    get_info, is_agentic, can_delegate, can_process_r6,
+    valid_interaction, InteractionType, BehavioralMode, EnergyPattern,
+)
+from web4.capability import (
+    CapabilityLevel, assess_level, validate_level,
+    entity_level_range, trust_tier, common_ground,
+)
+from web4.errors import (
+    ErrorCode, ErrorCategory, Web4Error, AuthzError, ProtoError,
+    make_error, get_error_meta,
+)
+from web4.metabolic import (
+    MetabolicState, MetabolicProfile,
+    valid_transition, energy_cost, wake_penalty,
+    accepts_transactions, accepts_new_citizens, is_dormant,
+    required_witnesses,
+)
+from web4.binding import (
+    AnchorType, HardwareAnchor, DeviceConstellation, DeviceStatus,
+    enroll_device, compute_constellation_trust,
+    constellation_trust_ceiling, coherence_bonus,
+    record_cross_witness, check_recovery_quorum,
+)
+from web4.society import (
+    SocietyPhase, SocietyState, Treasury, SocietyLedger,
+    LedgerEventType,
+    create_society, admit_citizen, transition_metabolic_state,
+    deposit_treasury, allocate_treasury,
+    compute_society_t3, society_health,
+)
+from web4.reputation import (
+    ReputationRule, ReputationEngine, ReputationStore,
+    DimensionImpact, Modifier,
+)
+
+
+class TestSecurityProtocolMCPWorkflow:
+    """
+    Workflow: W4ID identity → crypto negotiation → handshake → MCP session →
+    ATP metering → witnessed interaction.
+
+    Modules exercised: security, protocol, mcp, trust, lct, atp, federation,
+    entity, errors (9 of 18).
+
+    Scenario: Two entities establish a secure MCP session. Client authenticates
+    with W4ID, negotiates crypto suite and transport, opens an MCP session with
+    Web4Context headers, performs a tool call with ATP metering, and the
+    interaction is witnessed.
+    """
+
+    def test_identity_to_mcp_session_lifecycle(self):
+        """End-to-end: W4ID → handshake → MCP session → ATP metering → witness."""
+        # 1. Create W4ID identities
+        client_id = parse_w4id("did:web4:key:client_ephemeral_abc123")
+        server_id = parse_w4id("did:web4:key:server_ephemeral_def456")
+        assert client_id.method == "key"
+        assert server_id.is_known_method
+
+        # Derive pairwise ID for privacy (different per peer)
+        pairwise = derive_pairwise_w4id(b"client_master_secret", str(server_id))
+        assert str(pairwise) != str(client_id)  # Pairwise is different
+
+        # 2. Negotiate crypto suite
+        selected = negotiate_suite(
+            [CryptoSuiteId.W4_FIPS_1, CryptoSuiteId.W4_BASE_1],
+            [CryptoSuiteId.W4_BASE_1],
+        )
+        assert selected == CryptoSuiteId.W4_BASE_1
+        suite = get_suite(selected)
+        assert suite.sig == "Ed25519"
+
+        # 3. Build handshake messages
+        client_hello = ClientHello(
+            supported_suites=[selected.value],
+            client_public_key=client_id.method_specific_id,
+            client_w4id_ephemeral=str(client_id),
+            nonce="nonce_001",
+        )
+        assert client_hello.phase == HandshakePhase.CLIENT_HELLO
+
+        server_hello = ServerHello(
+            selected_suite=selected.value,
+            server_public_key=server_id.method_specific_id,
+            server_w4id_ephemeral=str(server_id),
+            nonce="nonce_002",
+        )
+        assert server_hello.phase == HandshakePhase.SERVER_HELLO
+
+        # Envelope wraps phase + payload + transport
+        msg = HandshakeMessage(
+            phase=HandshakePhase.CLIENT_HELLO,
+            payload=client_hello,
+            transport=Transport.TLS_1_3,
+        )
+        assert msg.to_dict()["phase"] == "CLIENT_HELLO"
+
+        # 4. Negotiate transport
+        transport = negotiate_transport(
+            [Transport.TLS_1_3, Transport.QUIC, Transport.WEB_SOCKET],
+            [Transport.TLS_1_3, Transport.WEB_TRANSPORT],
+        )
+        assert transport == Transport.TLS_1_3
+        profile = get_transport_profile(transport)
+        assert profile.full_metering  # TLS supports full metering
+
+        # 5. Entity type check — verify client is agentic
+        assert is_agentic(EntityType.AI)
+        assert can_process_r6(EntityType.AI)
+
+        # 6. Create trust context and Web4Context headers
+        client_trust = T3(talent=0.82, training=0.78, temperament=0.85)
+        context = Web4Context(
+            sender_lct=str(pairwise),  # Use pairwise ID for privacy
+            sender_role="web4:DataAnalyst",
+            trust_context=TrustContext(
+                t3_in_role={
+                    "talent": client_trust.talent,
+                    "training": client_trust.training,
+                    "temperament": client_trust.temperament,
+                },
+                atp_stake=50,
+            ),
+            mrh_depth=2,
+            society="lct:web4:society:research",
+            proof_of_agency=ProofOfAgency(
+                grant_id="grant-data-001",
+                scope="data_access",
+            ),
+        )
+
+        # Context round-trips through JSON
+        ctx_json = web4_context_to_json(context)
+        ctx_restored = web4_context_from_json(ctx_json)
+        assert ctx_restored.sender_lct == context.sender_lct
+        assert ctx_restored.trust_context.atp_stake == 50
+        assert ctx_restored.proof_of_agency.scope == "data_access"
+
+        # 7. Define MCP tool with trust requirements
+        tool = MCPToolResource(
+            name="data.query",
+            description="Query research datasets",
+            resource_requirements=MCPResourceRequirements(
+                compute="medium", memory="2GB", atp_cost=25,
+            ),
+            trust_requirements=MCPTrustRequirements(
+                minimum_t3={"talent": 0.7, "training": 0.6},
+                atp_stake=20,
+                role_required="web4:DataAnalyst",
+            ),
+        )
+
+        # Trust requirements are met
+        assert tool.trust_requirements.is_met(
+            t3={"talent": client_trust.talent, "training": client_trust.training},
+            atp_available=100,
+            role="web4:DataAnalyst",
+        )
+
+        # 8. Open MCP session with ATP budget
+        session = MCPSession(
+            session_id="sess-research-001",
+            client_lct=str(pairwise),
+            server_lct=str(server_id),
+            atp_remaining=500,
+        )
+        assert session.active
+
+        # 9. Calculate cost with trust discount
+        cost = calculate_mcp_cost(
+            base_cost=100,
+            trust_average=client_trust.composite,
+            complexity_factor=1.5,  # Complex query
+        )
+        assert cost > 100  # Complexity increases cost
+        # But trust discount partially offsets
+        cost_no_trust = calculate_mcp_cost(
+            base_cost=100, trust_average=0.0, complexity_factor=1.5,
+        )
+        assert cost <= cost_no_trust  # Trust earns discount
+
+        # Consume ATP
+        assert session.consume_atp(cost)
+        assert session.atp_remaining == 500 - cost
+        assert session.interaction_count == 1
+
+        # 10. Record witnessed interaction
+        interaction = WitnessedInteraction(
+            client=str(pairwise),
+            server=str(server_id),
+            action="data.query",
+            timestamp="2026-03-18T12:05:00Z",
+            success=True,
+        )
+        attestation = WitnessAttestation(
+            witnessed_interaction=interaction,
+            witness="lct:web4:human:lab_director",
+            mrh_updates=["mrh:edge:pairwise→server:witnessed_by"],
+        )
+        assert attestation.witnessed_interaction.success
+        assert attestation.witness == "lct:web4:human:lab_director"
+
+        # 11. Verify URI addressing
+        uri = Web4URI.parse("web4://did:web4:key:server_ephemeral_def456/tools/data.query")
+        assert uri.w4id == "did:web4:key:server_ephemeral_def456"
+        assert uri.path == "/tools/data.query"
+
+        # 12. Capability broadcast from server
+        broadcast = CapabilityBroadcast(
+            server_lct=str(server_id),
+            capabilities=MCPCapabilities(
+                tools=["data.query", "data.transform"],
+                protocols=["web4-mcp-v1"],
+                trust_requirements=MCPTrustRequirements(minimum_t3={"talent": 0.5}),
+                availability=0.99,
+            ),
+            ttl=3600,
+        )
+        assert len(broadcast.capabilities.tools) == 2
+        assert broadcast.capabilities.availability == 0.99
+
+
+class TestDeviceBindingCapabilitySocietyWorkflow:
+    """
+    Workflow: entity taxonomy → device binding → capability assessment →
+    society formation → metabolic gating → treasury operations.
+
+    Modules exercised: entity, binding, capability, society, metabolic,
+    trust, lct, atp, federation (9 of 18).
+
+    Scenario: A human entity enrolls hardware devices, gets capability
+    assessed, joins a society with metabolic state management, and the
+    society manages treasury and transitions between metabolic states.
+    """
+
+    def test_entity_devices_capability_society_lifecycle(self):
+        """End-to-end: entity type → devices → capability → society → metabolic."""
+        # 1. Entity type taxonomy
+        human_info = get_info(EntityType.HUMAN)
+        assert BehavioralMode.AGENTIC in human_info.modes
+        assert human_info.energy == EnergyPattern.ACTIVE
+        assert human_info.can_r6
+
+        device_info = get_info(EntityType.DEVICE)
+        assert BehavioralMode.RESPONSIVE in device_info.modes
+        assert device_info.energy == EnergyPattern.ACTIVE  # Devices are active (can expend ATP)
+
+        # Infrastructure is passive (no behavioral modes, ADP slashed)
+        infra_info = get_info(EntityType.INFRASTRUCTURE)
+        assert infra_info.energy == EnergyPattern.PASSIVE
+
+        # Interaction validation: humans pair, societies delegate
+        assert valid_interaction(EntityType.HUMAN, EntityType.AI, InteractionType.PAIRING)
+        assert valid_interaction(EntityType.HUMAN, EntityType.AI, InteractionType.WITNESSING)
+        # Societies (DELEGATIVE) delegate to agents (AGENTIC)
+        assert can_delegate(EntityType.SOCIETY)
+        assert valid_interaction(EntityType.SOCIETY, EntityType.AI, InteractionType.DELEGATION)
+
+        # 2. Create LCT for the human entity
+        alice_lct = LCT.create(
+            entity_type=EntityType.HUMAN,
+            public_key="alice_hw_bound_key_001",
+            society="lct:web4:society:techcorp",
+            witnesses=["witness1", "witness2"],
+            t3=T3(0.80, 0.75, 0.85),
+            v3=V3(0.70, 0.80, 0.75),
+        )
+        assert alice_lct.birth_certificate is not None
+        assert alice_lct.t3.composite > 0.7
+
+        # 3. Create device constellation and enroll hardware
+        constellation = DeviceConstellation(root_lct_id=alice_lct.lct_id)
+
+        # First device (genesis — no existing witness required)
+        phone = enroll_device(
+            constellation=constellation,
+            device_lct_id="dev:phone:alice-001",
+            anchor=HardwareAnchor(
+                anchor_type=AnchorType.PHONE_SECURE_ELEMENT,
+                platform="iOS",
+                manufacturer="Apple",
+            ),
+            witnesses=[],  # Genesis enrollment
+            timestamp="2026-03-18T12:00:00Z",
+        )
+        assert phone.status == DeviceStatus.ACTIVE
+        assert phone.anchor.is_hardware_bound
+
+        # Second device (requires first device as witness)
+        laptop = enroll_device(
+            constellation=constellation,
+            device_lct_id="dev:laptop:alice-001",
+            anchor=HardwareAnchor(
+                anchor_type=AnchorType.TPM2,
+                platform="Linux",
+                manufacturer="Lenovo",
+            ),
+            witnesses=["dev:phone:alice-001"],  # Existing device witnesses
+            timestamp="2026-03-18T12:01:00Z",
+        )
+        assert constellation.device_count == 2
+
+        # Cross-witness for mesh trust
+        record_cross_witness(
+            constellation, "dev:phone:alice-001", "dev:laptop:alice-001",
+            "2026-03-18T12:02:00Z",
+        )
+
+        # Constellation trust
+        trust_score = compute_constellation_trust(constellation)
+        ceiling = constellation_trust_ceiling(constellation)
+        assert 0.0 < trust_score <= ceiling
+        assert ceiling > 0.7  # Two hardware devices = high ceiling
+
+        # Coherence bonus from type diversity
+        bonus = coherence_bonus(constellation.active_devices)
+        assert bonus > 0  # Different anchor types earn bonus
+
+        # Recovery quorum
+        assert check_recovery_quorum(
+            constellation, ["dev:phone:alice-001", "dev:laptop:alice-001"],
+        )
+
+        # 4. Assess LCT capability level
+        level = assess_level(alice_lct)
+        assert level.value >= CapabilityLevel.STUB.value
+
+        # Entity-level range for humans
+        min_lvl, max_lvl = entity_level_range(EntityType.HUMAN)
+        assert min_lvl <= max_lvl
+
+        # Trust tier for the assessed level
+        tier_name, tier_min, tier_max = trust_tier(level.value)
+        assert isinstance(tier_name, str)
+
+        # 5. Create society with metabolic management
+        society_state = create_society(
+            society_id="lct:web4:society:techcorp",
+            name="TechCorp",
+            founders=["founder1", "founder2"],
+            timestamp="2026-03-18T12:00:00Z",
+            initial_treasury=1000.0,
+        )
+        assert society_state.phase == SocietyPhase.OPERATIONAL
+        assert society_state.metabolic_state == MetabolicState.ACTIVE
+        assert society_state.treasury.balance == 1000.0
+
+        # 6. Metabolic state gates operations
+        assert accepts_transactions(MetabolicState.ACTIVE)
+        assert accepts_new_citizens(MetabolicState.ACTIVE)
+        assert not is_dormant(MetabolicState.ACTIVE)
+
+        # Energy cost depends on metabolic state and society size
+        cost = energy_cost(
+            MetabolicState.ACTIVE,
+            baseline_cost_per_hour=10.0,
+            society_size=2,
+        )
+        assert cost > 0
+
+        # Witness requirements scale with state
+        witnesses_needed = required_witnesses(MetabolicState.ACTIVE, total_witnesses=10)
+        assert witnesses_needed > 0
+
+        # 7. Admit citizen (requires operational society + active metabolic state)
+        admitted = admit_citizen(
+            state=society_state,
+            entity_lct=alice_lct.lct_id,
+            timestamp="2026-03-18T12:05:00Z",
+            witnesses=["founder1", "founder2"],
+        )
+        assert admitted
+        assert society_state.citizen_count > 0
+
+        # 8. Treasury operations
+        deposit_treasury(
+            society_state, amount=200.0,
+            timestamp="2026-03-18T12:06:00Z",
+            source="membership_fee",
+        )
+        assert society_state.treasury.balance == 1200.0
+
+        allocated = allocate_treasury(
+            society_state, entity_lct=alice_lct.lct_id, amount=50.0,
+            timestamp="2026-03-18T12:07:00Z",
+            purpose="onboarding_grant",
+        )
+        assert allocated
+        assert society_state.treasury.balance == 1150.0
+
+        # 9. Metabolic transition: ACTIVE → REST
+        assert valid_transition(MetabolicState.ACTIVE, MetabolicState.REST)
+        transitioned = transition_metabolic_state(
+            state=society_state,
+            new_state=MetabolicState.REST,
+            timestamp="2026-03-18T18:00:00Z",
+            witnesses=["founder1"],
+        )
+        assert transitioned
+        assert society_state.metabolic_state == MetabolicState.REST
+
+        # REST still accepts transactions but with higher energy cost
+        assert accepts_transactions(MetabolicState.REST)
+        rest_cost = energy_cost(MetabolicState.REST, 10.0, society_size=3)
+        assert rest_cost > 0
+
+        # 10. Ledger records all operations
+        assert society_state.ledger.entry_count > 0
+        metabolic_entries = society_state.ledger.query(
+            event_type=LedgerEventType.METABOLIC,
+        )
+        assert len(metabolic_entries) >= 1
+
+        # 11. Society aggregate trust
+        society_t3 = compute_society_t3(society_state)
+        # May be None if no citizen_trust profiles, but function works
+        health = society_health(society_state)
+
+
+class TestReputationEntityErrorWorkflow:
+    """
+    Workflow: entity taxonomy check → R7 action → reputation evaluation →
+    trust update → error handling → MCP error context.
+
+    Modules exercised: reputation, entity, errors, mcp, trust, lct, atp,
+    r6, federation, mrh (10 of 18).
+
+    Scenario: An AI agent performs a governed action. The reputation engine
+    evaluates the outcome, updating trust scores. A subsequent action fails
+    trust requirements, producing a structured error with MCP error context.
+    The error round-trips through RFC 9457 serialization.
+    """
+
+    def test_action_reputation_error_lifecycle(self):
+        """End-to-end: action → reputation → trust update → error → MCP context."""
+        # 1. Verify entity capabilities
+        assert is_agentic(EntityType.AI)
+        assert can_process_r6(EntityType.AI)
+        ai_info = get_info(EntityType.AI)
+        assert ai_info.energy == EnergyPattern.ACTIVE
+
+        # Pairing is valid: human ↔ AI (both can initiate)
+        assert valid_interaction(
+            EntityType.HUMAN, EntityType.AI, InteractionType.PAIRING,
+        )
+        # Delegation is valid: society → AI (delegative → agentic)
+        assert valid_interaction(
+            EntityType.SOCIETY, EntityType.AI, InteractionType.DELEGATION,
+        )
+
+        # 2. Create society and citizen
+        society = Society("lct:web4:society:analytics", "Analytics Dept")
+        society.set_law(LawDataset(
+            law_id="law:analytics:v1", version="1.0",
+            society_id=society.society_id,
+            norms=[
+                Norm(norm_id="LAW-TRUST-MIN", selector="trust.composite",
+                     op=">=", value=0.6),
+            ],
+        ))
+
+        agent = society.issue_citizenship(
+            EntityType.AI, "agent_analytics_key",
+            t3=T3(0.72, 0.68, 0.75),
+            v3=V3(0.65, 0.70, 0.68),
+        )
+        assert society.is_citizen(agent.lct_id)
+
+        # 3. Configure reputation engine
+        engine = ReputationEngine()
+        engine.add_rule(ReputationRule(
+            rule_id="RULE-SUCCESS-BOOST",
+            trigger_conditions={"result_status": "success"},
+            t3_impacts={
+                "talent": DimensionImpact(base_delta=0.03, modifiers=[
+                    Modifier(condition="high_quality", multiplier=1.5),
+                ]),
+                "training": DimensionImpact(base_delta=0.02, modifiers=[]),
+            },
+            v3_impacts={
+                "veracity": DimensionImpact(base_delta=0.02, modifiers=[]),
+            },
+        ))
+        engine.add_rule(ReputationRule(
+            rule_id="RULE-FAILURE-PENALTY",
+            trigger_conditions={"result_status": "failure"},
+            t3_impacts={
+                "temperament": DimensionImpact(base_delta=-0.08, modifiers=[
+                    Modifier(condition="repeat_offender", multiplier=2.0),
+                ]),
+            },
+            v3_impacts={},
+        ))
+        assert len(engine.rules) == 2
+
+        # 4. Agent performs successful R7 action
+        action = build_action(
+            actor=agent.lct_id,
+            role_lct="role:data-analyst",
+            action="analyze_dataset",
+            target="customer_segments",
+            t3=agent.t3, v3=agent.v3,
+            atp_stake=15.0, available_atp=100.0,
+            permissions=["analyze_dataset"],
+            society=society.society_id,
+            law_hash="law:analytics:v1",
+        )
+        action.result = Result(
+            status=ActionStatus.SUCCESS,
+            output={"segments": 5, "quality": 0.91},
+            atp_consumed=15.0,
+        )
+        assert action.is_valid
+
+        # 5. Reputation engine evaluates the successful action
+        delta = engine.evaluate(action)
+        assert delta is not None
+        assert "talent" in delta.t3_delta
+        assert delta.t3_delta["talent"].change > 0  # Success boosted talent
+        assert "training" in delta.t3_delta
+        assert delta.t3_delta["training"].change > 0  # Training also improved
+
+        # 6. Store and query reputation
+        store = ReputationStore()
+        store.record(delta)
+
+        rep_talent = store.effective_reputation(
+            agent.lct_id, "role:data-analyst", "talent",
+        )
+        assert rep_talent > 0  # Positive reputation from success
+
+        # 7. Update trust after successful action
+        updated_t3 = agent.t3.update(quality=0.91, success=True)
+        assert updated_t3.talent > agent.t3.talent
+
+        # Operational health check
+        agent_atp = ATPAccount(available=85.0)
+        agent_atp.adp = 15.0  # Work was done
+        health = operational_health(
+            updated_t3.composite, agent.v3.composite, agent_atp.energy_ratio,
+        )
+        assert health > 0.5
+
+        # 8. ATP conservation — total (available + locked) decreased by work
+        # ADP tracks discharged energy separately
+        assert agent_atp.available == 85.0
+        assert agent_atp.adp == 15.0
+        # Energy ratio reflects work done (ATP / (ATP + ADP))
+        assert agent_atp.energy_ratio < 1.0
+
+        # 9. Now simulate a trust-gated failure
+        # Agent's trust is below a hypothetical higher threshold
+        required_trust = {"talent": 0.9, "training": 0.9, "temperament": 0.9}
+        actual_trust = {
+            "talent": agent.t3.talent,
+            "training": agent.t3.training,
+            "temperament": agent.t3.temperament,
+        }
+
+        # Check trust requirements (MCP-style)
+        high_req = MCPTrustRequirements(
+            minimum_t3=required_trust, atp_stake=50,
+        )
+        assert not high_req.is_met(
+            t3=actual_trust, atp_available=100, role="web4:DataAnalyst",
+        )
+
+        # 10. Produce structured error (AUTHZ_DENIED = insufficient trust)
+        error = make_error(
+            ErrorCode.AUTHZ_DENIED,
+            detail=f"Trust composite {agent.t3.composite:.3f} below required 0.9",
+            instance=f"/actions/{agent.lct_id}/premium_analysis",
+        )
+        assert isinstance(error, AuthzError)
+
+        # Error metadata
+        meta = get_error_meta(ErrorCode.AUTHZ_DENIED)
+        assert meta.category == ErrorCategory.AUTHZ
+        assert meta.status == 401  # Unauthorized (credential lacks capability)
+
+        # RFC 9457 Problem Details round-trip
+        problem = error.to_problem_json()
+        assert problem["status"] == 401
+        assert "trust" in problem["detail"].lower()
+        assert problem["instance"].endswith("/premium_analysis")
+
+        restored = Web4Error.from_problem_json(problem)
+        assert restored.code == ErrorCode.AUTHZ_DENIED
+
+        # 11. MCP error context enriches the error with trust details
+        error_ctx = MCPErrorContext(
+            error_type="AUTHZ_DENIED",
+            required_t3=required_trust,
+            provided_t3=actual_trust,
+            suggestion="Complete 10+ successful analyses to build sufficient trust",
+            error_witnessed=True,
+            witness_lct="lct:web4:human:supervisor",
+            trust_impact={"temperament": -0.02},  # Failed attempt costs trust
+        )
+        ctx_dict = error_ctx.to_dict()
+        assert ctx_dict["error_type"] == "AUTHZ_DENIED"
+        assert ctx_dict["required_t3"]["talent"] == 0.9
+        assert ctx_dict["provided_t3"]["talent"] == agent.t3.talent
+
+        # 12. MRH tracks the relationship context
+        graph = MRHGraph(horizon_depth=3)
+        graph.add_node(MRHNode(
+            lct_id=agent.lct_id, entity_type="ai",
+            trust_scores={"talent": agent.t3.talent},
+        ))
+        graph.add_node(MRHNode(
+            lct_id="lct:web4:human:supervisor", entity_type="human",
+            trust_scores={"talent": 0.95},
+        ))
+        graph.add_edge(MRHEdge(
+            source="lct:web4:human:supervisor",
+            target=agent.lct_id,
+            relation=RelationType.SERVICE_PAIRING,
+            weight=0.8,
+        ))
+
+        # Trust propagation through the supervision relationship
+        trust = graph.trust_between(
+            "lct:web4:human:supervisor", agent.lct_id,
+        )
+        assert trust > 0
+
+        # Witness count reflects supervision
+        assert graph.witness_count(agent.lct_id) >= 0
