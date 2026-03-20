@@ -74,6 +74,7 @@ from .atp import (
 
 # ── Federation (SAL) ──────────────────────────────────────────
 from .federation import (
+    Society,
     Society as FederationSociety,
     LawDataset,
     Delegation,
@@ -398,7 +399,7 @@ __all__ = [
     # atp
     "ATPAccount", "energy_ratio",
     # federation
-    "FederationSociety", "LawDataset", "Delegation", "RoleType",
+    "Society", "FederationSociety", "LawDataset", "Delegation", "RoleType",
     "CitizenshipStatus", "CitizenshipRecord", "valid_citizenship_transition",
     "QuorumMode", "QuorumPolicy", "LedgerType",
     "AuditRequest", "AuditAdjustment",

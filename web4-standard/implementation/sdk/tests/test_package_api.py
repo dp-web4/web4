@@ -38,10 +38,7 @@ class TestAllExports:
             "Society", "MRHGraph", "ACPStateMachine",
             "W4ID", "Web4URI", "MCPSession",
         ]
-        # Society is exported as FederationSociety; also society module's functions
         for name in expected:
-            if name == "Society":
-                continue  # exported as FederationSociety
             assert name in web4.__all__, f"{name} missing from __all__"
 
 
@@ -294,6 +291,12 @@ class TestCollisionDisambiguation:
         from web4 import FederationSociety
         from web4.federation import Society
         assert FederationSociety is Society
+
+    def test_society_direct_import(self):
+        """from web4 import Society must work (documented in docstring)."""
+        from web4 import Society
+        from web4.federation import Society as FedSociety
+        assert Society is FedSociety
 
 
 class TestPyTyped:
