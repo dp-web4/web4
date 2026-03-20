@@ -61,6 +61,9 @@ from .lct import (
     EntityType,
     RevocationStatus,
     BirthCertificate,
+    Attestation,
+    LineageEntry,
+    LCT_JSONLD_CONTEXT,
 )
 
 # ── ATP/ADP ────────────────────────────────────────────────────
@@ -390,6 +393,7 @@ __all__ = [
     "compute_team_t3", "operational_health", "is_healthy",
     # lct
     "LCT", "EntityType", "RevocationStatus", "BirthCertificate",
+    "Attestation", "LineageEntry", "LCT_JSONLD_CONTEXT",
     # atp
     "ATPAccount", "energy_ratio",
     # federation
