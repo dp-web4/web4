@@ -105,6 +105,7 @@ from .r6 import (
     ResourceRequirements,
     Result,
     build_action,
+    R7_JSONLD_CONTEXT,
 )
 
 # ── MRH Graph ─────────────────────────────────────────────────
@@ -407,7 +408,7 @@ __all__ = [
     # r6/r7
     "R7Action", "ActionChain", "ActionStatus", "ReputationDelta",
     "Rules", "Role", "Request", "ResourceRequirements", "Result",
-    "build_action",
+    "build_action", "R7_JSONLD_CONTEXT",
     # mrh
     "MRHGraph", "MRHNode", "MRHEdge", "RelationType",
     "mrh_trust_decay", "mrh_zone",

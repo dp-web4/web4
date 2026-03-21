@@ -32,6 +32,9 @@ from typing import Any, Dict, List, Optional
 
 from .trust import T3, V3, _clamp
 
+# JSON-LD context URI for R7 Action documents
+R7_JSONLD_CONTEXT = "https://web4.io/contexts/r7-action.jsonld"
+
 
 # ── Action Status ───────────────────────────────────────────────
 
@@ -401,6 +404,90 @@ class ReputationDelta:
         }
         return d
 
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to spec-compliant JSON-LD per r7-framework.md §1.7.
+
+        Produces the canonical ReputationDelta structure with JSON-LD context,
+        spec-compliant field naming (camelCase for ontology alignment), and
+        computed net change fields.
+        """
+        doc: Dict[str, Any] = {
+            "@context": [R7_JSONLD_CONTEXT],
+            "@type": "ReputationDelta",
+            "subject_lct": self.subject_lct,
+            "role_lct": self.role_lct,
+            "action_type": self.action_type,
+            "action_target": self.action_target,
+            "action_id": self.action_id,
+        }
+        if self.rule_triggered:
+            doc["rule_triggered"] = self.rule_triggered
+        if self.reason:
+            doc["reason"] = self.reason
+        if self.t3_delta:
+            doc["t3_delta"] = {k: v.to_dict() for k, v in self.t3_delta.items()}
+        if self.v3_delta:
+            doc["v3_delta"] = {k: v.to_dict() for k, v in self.v3_delta.items()}
+        if self.contributing_factors:
+            doc["contributing_factors"] = [f.to_dict() for f in self.contributing_factors]
+        if self.witnesses:
+            doc["witnesses"] = [w.to_dict() for w in self.witnesses]
+        doc["net_trust_change"] = self.net_trust_change
+        doc["net_value_change"] = self.net_value_change
+        if self.timestamp:
+            doc["timestamp"] = self.timestamp
+        return doc
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> ReputationDelta:
+        """
+        Deserialize from JSON-LD or dict representation.
+
+        Accepts both spec JSON-LD format (with @context) and plain dict format.
+        """
+        t3_delta: Dict[str, TensorDelta] = {}
+        for dim, delta in doc.get("t3_delta", {}).items():
+            t3_delta[dim] = TensorDelta(
+                change=delta["change"],
+                from_value=delta["from"],
+                to_value=delta["to"],
+            )
+        v3_delta: Dict[str, TensorDelta] = {}
+        for dim, delta in doc.get("v3_delta", {}).items():
+            v3_delta[dim] = TensorDelta(
+                change=delta["change"],
+                from_value=delta["from"],
+                to_value=delta["to"],
+            )
+        contributing_factors = [
+            ContributingFactor(factor=f["factor"], weight=f["weight"])
+            for f in doc.get("contributing_factors", [])
+        ]
+        witnesses = [
+            WitnessAttestation(
+                lct=w["lct"],
+                attestation=w.get("attestation", "verified"),
+                signature=w.get("signature", ""),
+                timestamp=w.get("timestamp", ""),
+            )
+            for w in doc.get("witnesses", [])
+        ]
+        return cls(
+            subject_lct=doc["subject_lct"],
+            role_lct=doc["role_lct"],
+            action_type=doc.get("action_type", ""),
+            action_target=doc.get("action_target", ""),
+            action_id=doc.get("action_id", ""),
+            rule_triggered=doc.get("rule_triggered", ""),
+            reason=doc.get("reason", ""),
+            t3_delta=t3_delta,
+            v3_delta=v3_delta,
+            contributing_factors=contributing_factors,
+            witnesses=witnesses,
+            timestamp=doc.get("timestamp", ""),
+        )
+
 
 # ── R7 Action (Composite) ──────────────────────────────────────
 
@@ -592,6 +679,213 @@ class R7Action:
             d["reputation"] = self.reputation.to_dict()
         return d
 
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to spec-compliant JSON-LD per r7-framework.md.
+
+        Produces the canonical R7 Action document with:
+        - @context header for JSON-LD processors
+        - All 7 components (Rules/Role/Request/Reference/Resource/Result/Reputation)
+        - Spec-compliant field naming matching the R7 framework spec
+        - Reputation included when computed (first-class output)
+        - Chain linking fields for audit trail
+        """
+        doc: Dict[str, Any] = {
+            "@context": [R7_JSONLD_CONTEXT],
+            "@type": "R7Action",
+            "action_id": self.action_id,
+            "timestamp": self.timestamp,
+        }
+        if self.prev_action_hash:
+            doc["prev_action_hash"] = self.prev_action_hash
+
+        # 1. Rules
+        doc["rules"] = self.rules.to_dict()
+
+        # 2. Role
+        doc["role"] = self.role.to_dict()
+
+        # 3. Request
+        doc["request"] = self.request.to_dict()
+
+        # 4. Reference — include only when populated
+        ref_dict = self.reference.to_dict()
+        if (self.reference.precedents or self.reference.witnesses
+                or self.reference.relevant_entities):
+            doc["reference"] = ref_dict
+        else:
+            doc["reference"] = ref_dict
+
+        # 5. Resource
+        doc["resource"] = self.resource.to_dict()
+
+        # 6. Result
+        doc["result"] = self.result.to_dict()
+
+        # 7. Reputation — first-class output, included when computed
+        if self.reputation:
+            # Inline reputation without redundant @context
+            rep = self.reputation.to_dict()
+            doc["reputation"] = rep
+
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to spec-compliant JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> R7Action:
+        """
+        Deserialize from spec-compliant JSON-LD or dict representation.
+
+        Handles both JSON-LD format (with @context/@type) and plain dict.
+        Reconstructs all 7 components from nested structures.
+        """
+        # 1. Rules
+        rules_data = doc.get("rules", {})
+        constraints = [
+            Constraint(constraint_type=c["type"], value=c["value"])
+            for c in rules_data.get("constraints", [])
+        ]
+        rules = Rules(
+            law_hash=rules_data.get("lawHash", ""),
+            society=rules_data.get("society", ""),
+            constraints=constraints,
+            permissions=rules_data.get("permissions", []),
+            prohibitions=rules_data.get("prohibitions", []),
+        )
+
+        # 2. Role
+        role_data = doc.get("role", {})
+        t3_in_role = None
+        v3_in_role = None
+        if "t3InRole" in role_data:
+            t3d = role_data["t3InRole"]
+            t3_in_role = T3(
+                talent=t3d.get("talent", 0.5),
+                training=t3d.get("training", 0.5),
+                temperament=t3d.get("temperament", 0.5),
+            )
+        if "v3InRole" in role_data:
+            v3d = role_data["v3InRole"]
+            v3_in_role = V3(
+                valuation=v3d.get("valuation", 0.5),
+                veracity=v3d.get("veracity", 0.5),
+                validity=v3d.get("validity", 0.5),
+            )
+        role = Role(
+            actor=role_data.get("actor", ""),
+            role_lct=role_data.get("roleLCT", ""),
+            paired_at=role_data.get("pairedAt", ""),
+            t3_in_role=t3_in_role,
+            v3_in_role=v3_in_role,
+        )
+
+        # 3. Request
+        req_data = doc.get("request", {})
+        proof = None
+        if "proofOfAgency" in req_data:
+            pa = req_data["proofOfAgency"]
+            proof = ProofOfAgency(
+                grant_id=pa.get("grantId", ""),
+                inclusion_proof=pa.get("inclusionProof", ""),
+                scope=pa.get("scope", ""),
+                audience=pa.get("audience", []),
+            )
+        request = Request(
+            action=req_data.get("action", ""),
+            target=req_data.get("target", ""),
+            parameters=req_data.get("parameters", {}),
+            atp_stake=req_data.get("atpStake", 0.0),
+            nonce=req_data.get("nonce", ""),
+            constraints=req_data.get("constraints", {}),
+            proof_of_agency=proof,
+        )
+
+        # 4. Reference
+        ref_data = doc.get("reference", {})
+        precedents = [
+            Precedent(
+                action_hash=p.get("actionHash", ""),
+                outcome=p.get("outcome", ""),
+                relevance=p.get("relevance", 0.0),
+            )
+            for p in ref_data.get("precedents", [])
+        ]
+        mrh_ctx = ref_data.get("mrhContext", {})
+        witnesses_ref = [
+            WitnessAttestation(
+                lct=w.get("lct", ""),
+                attestation=w.get("attestation", "verified"),
+                signature=w.get("signature", ""),
+                timestamp=w.get("timestamp", ""),
+            )
+            for w in ref_data.get("witnesses", [])
+        ]
+        reference = Reference(
+            precedents=precedents,
+            mrh_depth=mrh_ctx.get("depth", 0),
+            relevant_entities=mrh_ctx.get("relevantEntities", []),
+            witnesses=witnesses_ref,
+        )
+
+        # 5. Resource
+        res_data = doc.get("resource", {})
+        req_res = res_data.get("required", {})
+        avail_res = res_data.get("available", {})
+        escrow_data = res_data.get("escrow", {})
+        resource = ResourceRequirements(
+            required_atp=req_res.get("atp", 0.0),
+            available_atp=avail_res.get("atp_balance", 0.0),
+            compute=req_res.get("compute", {}),
+            escrow_amount=escrow_data.get("amount", 0.0),
+            escrow_condition=escrow_data.get("release_condition", "result_verified"),
+        )
+
+        # 6. Result
+        result_data = doc.get("result", {})
+        result_attestations = [
+            WitnessAttestation(
+                lct=a.get("lct", ""),
+                attestation=a.get("attestation", "verified"),
+                signature=a.get("signature", ""),
+                timestamp=a.get("timestamp", ""),
+            )
+            for a in result_data.get("attestations", [])
+        ]
+        result = Result(
+            status=ActionStatus(result_data.get("status", "pending")),
+            output=result_data.get("output", {}),
+            output_hash=result_data.get("output", {}).get("hash", ""),
+            error=result_data.get("error", {}).get("message") if isinstance(result_data.get("error"), dict) else result_data.get("error"),
+            atp_consumed=result_data.get("resourceConsumed", {}).get("atp", 0.0),
+            attestations=result_attestations,
+        )
+
+        # 7. Reputation (optional)
+        reputation = None
+        if "reputation" in doc:
+            reputation = ReputationDelta.from_jsonld(doc["reputation"])
+
+        action = cls.__new__(cls)
+        action.rules = rules
+        action.role = role
+        action.request = request
+        action.reference = reference
+        action.resource = resource
+        action.result = result
+        action.reputation = reputation
+        action.action_id = doc.get("action_id", "")
+        action.prev_action_hash = doc.get("prev_action_hash", "")
+        action.timestamp = doc.get("timestamp", "")
+        return action
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> R7Action:
+        """Deserialize from spec-compliant JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
+
 
 # ── Action Chain ────────────────────────────────────────────────
 
@@ -645,6 +939,36 @@ class ActionChain:
             "actions": [a.to_dict() for a in self._actions],
             "chain_valid": self.verify_chain(),
         }
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to spec-compliant JSON-LD.
+
+        Produces an ActionChain document with all actions as JSON-LD,
+        chain validity status, and hash linking preserved.
+        """
+        return {
+            "@context": [R7_JSONLD_CONTEXT],
+            "@type": "ActionChain",
+            "length": self.length,
+            "actions": [a.to_jsonld() for a in self._actions],
+            "chain_valid": self.verify_chain(),
+        }
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> ActionChain:
+        """
+        Deserialize from JSON-LD or dict representation.
+
+        Reconstructs the chain from serialized actions. Does NOT
+        recompute prev_action_hash links — preserves them as-is
+        for chain integrity verification.
+        """
+        chain = cls()
+        for action_doc in doc.get("actions", []):
+            action = R7Action.from_jsonld(action_doc)
+            chain._actions.append(action)
+        return chain
 
 
 # ── Builder (convenience) ──────────────────────────────────────

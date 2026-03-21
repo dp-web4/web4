@@ -29,6 +29,8 @@ from web4.r6 import (
     R7Action, ActionChain,
     # Builder
     build_action,
+    # JSON-LD
+    R7_JSONLD_CONTEXT,
 )
 
 # ── Helpers ──────────────────────────────────────────────────────
@@ -701,3 +703,619 @@ class TestR6Vectors:
         expected = v["expected"]
         assert chain.verify_chain() == expected["chain_valid"]
         assert chain.length == expected["length"]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  JSON-LD SERIALIZATION
+# ══════════════════════════════════════════════════════════════════
+
+class TestReputationDeltaJsonLD:
+    """ReputationDelta JSON-LD serialization and roundtrip."""
+
+    def test_jsonld_structure(self):
+        """JSON-LD output has @context and @type."""
+        rep = ReputationDelta(
+            subject_lct="lct:web4:entity:alice",
+            role_lct="lct:web4:role:analyst:abc",
+            action_type="analyze",
+            action_target="data:quarterly",
+            action_id="r7:abc123",
+            t3_delta={
+                "training": TensorDelta(change=0.01, from_value=0.90, to_value=0.91),
+            },
+            reason="Completed analysis",
+            timestamp="2025-09-15T17:55:00Z",
+        )
+        doc = rep.to_jsonld()
+        assert doc["@context"] == [R7_JSONLD_CONTEXT]
+        assert doc["@type"] == "ReputationDelta"
+        assert doc["subject_lct"] == "lct:web4:entity:alice"
+        assert doc["role_lct"] == "lct:web4:role:analyst:abc"
+        assert doc["net_trust_change"] == 0.01
+        assert doc["net_value_change"] == 0.0
+
+    def test_jsonld_optional_fields_excluded(self):
+        """Empty optional fields are excluded from JSON-LD output."""
+        rep = ReputationDelta(
+            subject_lct="lct:alice",
+            role_lct="lct:role:x",
+        )
+        doc = rep.to_jsonld()
+        assert "rule_triggered" not in doc
+        assert "reason" not in doc
+        assert "t3_delta" not in doc
+        assert "v3_delta" not in doc
+        assert "contributing_factors" not in doc
+        assert "witnesses" not in doc
+        assert "timestamp" not in doc
+
+    def test_jsonld_roundtrip(self):
+        """from_jsonld(rep.to_jsonld()) produces equivalent object."""
+        rep = ReputationDelta(
+            subject_lct="lct:web4:entity:alice",
+            role_lct="lct:web4:role:analyst:abc",
+            action_type="analyze",
+            action_target="data:quarterly",
+            action_id="r7:abc123",
+            rule_triggered="successful_analysis",
+            reason="Completed high-quality analysis",
+            t3_delta={
+                "training": TensorDelta(change=0.01, from_value=0.90, to_value=0.91),
+                "temperament": TensorDelta(change=0.005, from_value=0.88, to_value=0.885),
+            },
+            v3_delta={
+                "veracity": TensorDelta(change=0.02, from_value=0.85, to_value=0.87),
+            },
+            contributing_factors=[
+                ContributingFactor(factor="deadline_met", weight=0.6),
+                ContributingFactor(factor="accuracy", weight=0.4),
+            ],
+            witnesses=[
+                WitnessAttestation(lct="lct:web4:witness:w1", attestation="verified"),
+            ],
+            timestamp="2025-09-15T17:55:00Z",
+        )
+        doc = rep.to_jsonld()
+        restored = ReputationDelta.from_jsonld(doc)
+
+        assert restored.subject_lct == rep.subject_lct
+        assert restored.role_lct == rep.role_lct
+        assert restored.action_type == rep.action_type
+        assert restored.action_id == rep.action_id
+        assert restored.rule_triggered == rep.rule_triggered
+        assert restored.reason == rep.reason
+        assert len(restored.t3_delta) == 2
+        assert abs(restored.t3_delta["training"].change - 0.01) < 1e-9
+        assert abs(restored.t3_delta["temperament"].to_value - 0.885) < 1e-9
+        assert len(restored.v3_delta) == 1
+        assert abs(restored.v3_delta["veracity"].change - 0.02) < 1e-9
+        assert len(restored.contributing_factors) == 2
+        assert restored.contributing_factors[0].factor == "deadline_met"
+        assert len(restored.witnesses) == 1
+        assert restored.timestamp == "2025-09-15T17:55:00Z"
+        assert abs(restored.net_trust_change - rep.net_trust_change) < 1e-9
+        assert abs(restored.net_value_change - rep.net_value_change) < 1e-9
+
+    def test_from_jsonld_plain_dict(self):
+        """from_jsonld accepts plain dict (no @context)."""
+        data = {
+            "subject_lct": "lct:bob",
+            "role_lct": "lct:role:eng",
+            "t3_delta": {
+                "talent": {"change": -0.01, "from": 0.80, "to": 0.79},
+            },
+        }
+        rep = ReputationDelta.from_jsonld(data)
+        assert rep.subject_lct == "lct:bob"
+        assert rep.t3_delta["talent"].change == -0.01
+
+
+class TestR7ActionJsonLD:
+    """R7Action JSON-LD serialization and roundtrip."""
+
+    def _make_full_action(self) -> R7Action:
+        """Create a fully-populated R7Action for testing."""
+        return R7Action(
+            rules=Rules(
+                law_hash="sha256:governance_v2",
+                society="lct:web4:society:genesis",
+                constraints=[
+                    Constraint(constraint_type="atp_minimum", value=50),
+                    Constraint(constraint_type="rate_limit", value=100),
+                ],
+                permissions=["read", "analyze"],
+                prohibitions=["delete"],
+            ),
+            role=Role(
+                actor="lct:web4:entity:alice",
+                role_lct="lct:web4:role:analyst:abc123",
+                paired_at="2025-09-15T12:00:00Z",
+                t3_in_role=T3(talent=0.85, training=0.90, temperament=0.88),
+                v3_in_role=V3(veracity=0.92, validity=0.88, valuation=0.85),
+            ),
+            request=Request(
+                action="analyze_dataset",
+                target="resource:web4:dataset:quarterly",
+                parameters={"algorithm": "neural_net_v2"},
+                atp_stake=100.0,
+                nonce="unique_nonce_001",
+            ),
+            reference=Reference(
+                precedents=[
+                    Precedent(action_hash="sha256:prev_analysis", outcome="success", relevance=0.9),
+                ],
+                mrh_depth=2,
+                relevant_entities=["lct:web4:entity:bob"],
+                witnesses=[
+                    WitnessAttestation(lct="lct:web4:witness:w1", attestation="verified"),
+                ],
+            ),
+            resource=ResourceRequirements(
+                required_atp=100.0,
+                available_atp=500.0,
+                escrow_amount=100.0,
+                escrow_condition="result_verified",
+            ),
+            result=Result(
+                status=ActionStatus.SUCCESS,
+                output={"data": "analysis_complete", "confidence": 0.95},
+                atp_consumed=95.0,
+            ),
+            timestamp="2025-09-15T17:55:00Z",
+        )
+
+    def test_jsonld_structure(self):
+        """JSON-LD output has @context, @type, and all 7 components."""
+        action = self._make_full_action()
+        doc = action.to_jsonld()
+
+        assert doc["@context"] == [R7_JSONLD_CONTEXT]
+        assert doc["@type"] == "R7Action"
+        assert doc["action_id"].startswith("r7:")
+        assert doc["timestamp"] == "2025-09-15T17:55:00Z"
+        assert "rules" in doc
+        assert "role" in doc
+        assert "request" in doc
+        assert "reference" in doc
+        assert "resource" in doc
+        assert "result" in doc
+
+    def test_jsonld_rules_component(self):
+        """Rules are correctly serialized."""
+        action = self._make_full_action()
+        doc = action.to_jsonld()
+        rules = doc["rules"]
+
+        assert rules["lawHash"] == "sha256:governance_v2"
+        assert rules["society"] == "lct:web4:society:genesis"
+        assert len(rules["constraints"]) == 2
+        assert rules["permissions"] == ["read", "analyze"]
+        assert rules["prohibitions"] == ["delete"]
+
+    def test_jsonld_role_with_tensors(self):
+        """Role includes T3/V3 when present."""
+        action = self._make_full_action()
+        doc = action.to_jsonld()
+        role = doc["role"]
+
+        assert role["actor"] == "lct:web4:entity:alice"
+        assert role["roleLCT"] == "lct:web4:role:analyst:abc123"
+        assert role["t3InRole"]["talent"] == 0.85
+        assert role["v3InRole"]["veracity"] == 0.92
+
+    def test_jsonld_role_without_tensors(self):
+        """Role omits T3/V3 when absent."""
+        action = build_action(
+            actor="lct:bob",
+            role_lct="lct:role:reader",
+            action="read",
+        )
+        doc = action.to_jsonld()
+        assert "t3InRole" not in doc["role"]
+        assert "v3InRole" not in doc["role"]
+
+    def test_jsonld_request_with_agency(self):
+        """Request includes proofOfAgency when present."""
+        action = R7Action(
+            role=Role(actor="lct:alice", role_lct="lct:role:x"),
+            request=Request(
+                action="delegate",
+                proof_of_agency=ProofOfAgency(
+                    grant_id="agy:abc",
+                    scope="finance:payments",
+                    audience=["mcp:web4://tool/*"],
+                ),
+            ),
+            timestamp="2025-01-01T00:00:00Z",
+        )
+        doc = action.to_jsonld()
+        assert doc["request"]["proofOfAgency"]["grantId"] == "agy:abc"
+        assert doc["request"]["proofOfAgency"]["scope"] == "finance:payments"
+
+    def test_jsonld_no_reputation_when_not_computed(self):
+        """Reputation is excluded when not computed."""
+        action = self._make_full_action()
+        doc = action.to_jsonld()
+        assert "reputation" not in doc
+
+    def test_jsonld_reputation_included_when_computed(self):
+        """Reputation is included as first-class output when computed."""
+        action = self._make_full_action()
+        action.compute_reputation(
+            quality=0.9,
+            rule_triggered="successful_analysis",
+            factors=[ContributingFactor(factor="deadline_met", weight=0.6)],
+        )
+        doc = action.to_jsonld()
+
+        assert "reputation" in doc
+        rep = doc["reputation"]
+        assert rep["subject_lct"] == "lct:web4:entity:alice"
+        assert rep["role_lct"] == "lct:web4:role:analyst:abc123"
+        assert rep["net_trust_change"] > 0
+        assert rep["rule_triggered"] == "successful_analysis"
+        assert len(rep["contributing_factors"]) == 1
+
+    def test_jsonld_prev_action_hash(self):
+        """prev_action_hash included only when non-empty."""
+        action = self._make_full_action()
+        doc = action.to_jsonld()
+        assert "prev_action_hash" not in doc  # no chain link yet
+
+        action.prev_action_hash = "sha256:abc123def456"
+        doc = action.to_jsonld()
+        assert doc["prev_action_hash"] == "sha256:abc123def456"
+
+    def test_jsonld_string_roundtrip(self):
+        """to_jsonld_string → from_jsonld_string roundtrip."""
+        action = self._make_full_action()
+        action.compute_reputation(quality=0.85)
+
+        json_str = action.to_jsonld_string()
+        restored = R7Action.from_jsonld_string(json_str)
+
+        assert restored.action_id == action.action_id
+        assert restored.timestamp == action.timestamp
+        assert restored.role.actor == action.role.actor
+        assert restored.request.action == action.request.action
+
+    def test_jsonld_roundtrip_minimal(self):
+        """Minimal action roundtrip preserves structure."""
+        action = build_action(
+            actor="lct:alice",
+            role_lct="lct:role:reader",
+            action="read",
+            target="data:test",
+        )
+        doc = action.to_jsonld()
+        restored = R7Action.from_jsonld(doc)
+
+        assert restored.action_id == action.action_id
+        assert restored.role.actor == "lct:alice"
+        assert restored.role.role_lct == "lct:role:reader"
+        assert restored.request.action == "read"
+        assert restored.request.target == "data:test"
+
+    def test_jsonld_roundtrip_full(self):
+        """Full action with all components roundtrip."""
+        action = self._make_full_action()
+        action.compute_reputation(
+            quality=0.9,
+            rule_triggered="successful_analysis",
+            reason="High-quality analysis under deadline",
+            factors=[
+                ContributingFactor(factor="deadline_met", weight=0.6),
+                ContributingFactor(factor="accuracy", weight=0.4),
+            ],
+        )
+        doc = action.to_jsonld()
+        restored = R7Action.from_jsonld(doc)
+
+        # Identity
+        assert restored.action_id == action.action_id
+        assert restored.timestamp == action.timestamp
+
+        # Rules
+        assert restored.rules.law_hash == "sha256:governance_v2"
+        assert restored.rules.society == "lct:web4:society:genesis"
+        assert len(restored.rules.constraints) == 2
+        assert restored.rules.permissions == ["read", "analyze"]
+        assert restored.rules.prohibitions == ["delete"]
+
+        # Role
+        assert restored.role.actor == "lct:web4:entity:alice"
+        assert restored.role.role_lct == "lct:web4:role:analyst:abc123"
+        assert restored.role.t3_in_role.talent == 0.85
+        assert restored.role.v3_in_role.veracity == 0.92
+
+        # Request
+        assert restored.request.action == "analyze_dataset"
+        assert restored.request.target == "resource:web4:dataset:quarterly"
+        assert restored.request.parameters == {"algorithm": "neural_net_v2"}
+        assert restored.request.atp_stake == 100.0
+        assert restored.request.nonce == "unique_nonce_001"
+
+        # Reference
+        assert len(restored.reference.precedents) == 1
+        assert restored.reference.precedents[0].action_hash == "sha256:prev_analysis"
+        assert restored.reference.mrh_depth == 2
+        assert restored.reference.relevant_entities == ["lct:web4:entity:bob"]
+        assert len(restored.reference.witnesses) == 1
+
+        # Resource
+        assert restored.resource.required_atp == 100.0
+        assert restored.resource.available_atp == 500.0
+        assert restored.resource.escrow_amount == 100.0
+
+        # Result
+        assert restored.result.status == ActionStatus.SUCCESS
+        assert restored.result.atp_consumed == 95.0
+
+        # Reputation
+        assert restored.reputation is not None
+        assert restored.reputation.subject_lct == "lct:web4:entity:alice"
+        assert restored.reputation.rule_triggered == "successful_analysis"
+        assert restored.reputation.net_trust_change > 0
+
+    def test_jsonld_roundtrip_with_proof_of_agency(self):
+        """ProofOfAgency roundtrips correctly."""
+        action = R7Action(
+            role=Role(actor="lct:alice", role_lct="lct:role:agent"),
+            request=Request(
+                action="delegate",
+                target="service:payment",
+                proof_of_agency=ProofOfAgency(
+                    grant_id="agy:delegation_001",
+                    inclusion_proof="hash:merkle_proof",
+                    scope="finance:payments",
+                    audience=["mcp:web4://tool/*"],
+                ),
+                nonce="nonce123",
+            ),
+            timestamp="2025-01-01T00:00:00Z",
+        )
+        doc = action.to_jsonld()
+        restored = R7Action.from_jsonld(doc)
+
+        assert restored.request.proof_of_agency is not None
+        assert restored.request.proof_of_agency.grant_id == "agy:delegation_001"
+        assert restored.request.proof_of_agency.scope == "finance:payments"
+        assert restored.request.proof_of_agency.audience == ["mcp:web4://tool/*"]
+
+    def test_jsonld_roundtrip_failure_result(self):
+        """Failed action with error roundtrips correctly."""
+        action = build_action(
+            actor="lct:bob",
+            role_lct="lct:role:engineer",
+            action="deploy",
+            target="service:prod",
+            t3=T3(0.70, 0.75, 0.60),
+        )
+        action.result = Result(
+            status=ActionStatus.FAILURE,
+            error="deployment timeout exceeded",
+            atp_consumed=10.0,
+        )
+        action.compute_reputation(quality=0.2)
+
+        doc = action.to_jsonld()
+        restored = R7Action.from_jsonld(doc)
+
+        assert restored.result.status == ActionStatus.FAILURE
+        assert restored.result.error == "deployment timeout exceeded"
+        assert restored.result.atp_consumed == 10.0
+        assert restored.reputation is not None
+        assert restored.reputation.net_trust_change < 0
+
+    def test_jsonld_escrow_roundtrip(self):
+        """Escrow fields roundtrip correctly."""
+        action = R7Action(
+            role=Role(actor="lct:alice", role_lct="lct:role:x"),
+            request=Request(action="escrow_test"),
+            resource=ResourceRequirements(
+                required_atp=100.0,
+                available_atp=500.0,
+                escrow_amount=100.0,
+                escrow_condition="result_verified",
+            ),
+            timestamp="2025-01-01T00:00:00Z",
+        )
+        doc = action.to_jsonld()
+        assert "escrow" in doc["resource"]
+        assert doc["resource"]["escrow"]["amount"] == 100.0
+
+        restored = R7Action.from_jsonld(doc)
+        assert restored.resource.escrow_amount == 100.0
+        assert restored.resource.escrow_condition == "result_verified"
+
+
+class TestActionChainJsonLD:
+    """ActionChain JSON-LD serialization and roundtrip."""
+
+    def test_empty_chain_jsonld(self):
+        """Empty chain produces valid JSON-LD."""
+        chain = ActionChain()
+        doc = chain.to_jsonld()
+
+        assert doc["@context"] == [R7_JSONLD_CONTEXT]
+        assert doc["@type"] == "ActionChain"
+        assert doc["length"] == 0
+        assert doc["actions"] == []
+        assert doc["chain_valid"] is True
+
+    def test_chain_jsonld_structure(self):
+        """Chain JSON-LD includes all actions with context."""
+        chain = ActionChain()
+        chain.append(build_action(actor="lct:alice", role_lct="lct:role:x", action="read"))
+        chain.append(build_action(actor="lct:alice", role_lct="lct:role:x", action="write"))
+
+        doc = chain.to_jsonld()
+        assert doc["length"] == 2
+        assert doc["chain_valid"] is True
+        assert len(doc["actions"]) == 2
+        # Each action in the chain has its own @type
+        assert all(a["@type"] == "R7Action" for a in doc["actions"])
+
+    def test_chain_jsonld_roundtrip(self):
+        """Chain roundtrip preserves actions and hash linking."""
+        chain = ActionChain()
+        a1 = build_action(
+            actor="lct:alice", role_lct="lct:role:x", action="read",
+            t3=T3(0.5, 0.5, 0.5),
+        )
+        a1.result = Result(status=ActionStatus.SUCCESS)
+        a1.compute_reputation(quality=0.8)
+        chain.append(a1)
+
+        a2 = build_action(
+            actor="lct:alice", role_lct="lct:role:x", action="write",
+        )
+        chain.append(a2)
+
+        doc = chain.to_jsonld()
+        restored = ActionChain.from_jsonld(doc)
+
+        assert restored.length == 2
+        assert restored.verify_chain()
+        assert restored.actions[0].action_id == a1.action_id
+        assert restored.actions[1].action_id == a2.action_id
+        assert restored.actions[1].prev_action_hash == a1.canonical_hash()
+        assert restored.actions[0].reputation is not None
+
+    def test_chain_jsonld_roundtrip_with_reputation(self):
+        """Chain with reputation deltas roundtrips correctly."""
+        chain = ActionChain()
+
+        a1 = build_action(
+            actor="lct:alice", role_lct="lct:role:analyst", action="analyze",
+            t3=T3(0.8, 0.8, 0.8), v3=V3(0.7, 0.7, 0.7),
+        )
+        a1.result = Result(status=ActionStatus.SUCCESS)
+        a1.compute_reputation(quality=0.9)
+        chain.append(a1)
+
+        a2 = build_action(
+            actor="lct:alice", role_lct="lct:role:analyst", action="report",
+            t3=T3(0.8, 0.8, 0.8), v3=V3(0.7, 0.7, 0.7),
+        )
+        a2.result = Result(status=ActionStatus.FAILURE, error="report format invalid")
+        a2.compute_reputation(quality=0.3)
+        chain.append(a2)
+
+        doc = chain.to_jsonld()
+        restored = ActionChain.from_jsonld(doc)
+
+        assert restored.length == 2
+        assert restored.verify_chain()
+        assert restored.actions[0].reputation.net_trust_change > 0
+        assert restored.actions[1].reputation.net_trust_change < 0
+
+
+class TestJsonLDSchemaValidation:
+    """Validate JSON-LD output against JSON Schema (if jsonschema available)."""
+
+    @classmethod
+    def setup_class(cls):
+        try:
+            import jsonschema
+            cls.jsonschema = jsonschema
+        except ImportError:
+            pytest.skip("jsonschema not installed")
+
+        schema_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "schemas",
+            "r7-action-jsonld.schema.json",
+        )
+        with open(schema_path) as f:
+            cls.schema = json.load(f)
+
+    def test_minimal_action_validates(self):
+        """Minimal action output passes schema validation."""
+        action = build_action(
+            actor="lct:alice",
+            role_lct="lct:role:reader",
+            action="read",
+        )
+        doc = action.to_jsonld()
+        self.jsonschema.validate(doc, self.schema)
+
+    def test_full_action_validates(self):
+        """Full action with all components passes schema validation."""
+        action = R7Action(
+            rules=Rules(
+                law_hash="sha256:abc",
+                society="lct:society:genesis",
+                constraints=[Constraint(constraint_type="atp_minimum", value=50)],
+                permissions=["read"],
+            ),
+            role=Role(
+                actor="lct:web4:entity:alice",
+                role_lct="lct:web4:role:analyst:abc",
+                paired_at="2025-09-15T12:00:00Z",
+                t3_in_role=T3(0.85, 0.90, 0.88),
+                v3_in_role=V3(0.80, 0.85, 0.92),
+            ),
+            request=Request(
+                action="analyze",
+                target="data:quarterly",
+                atp_stake=100.0,
+                nonce="nonce_001",
+            ),
+            reference=Reference(
+                precedents=[Precedent(action_hash="sha256:prev", outcome="success", relevance=0.9)],
+                mrh_depth=2,
+                relevant_entities=["lct:web4:entity:bob"],
+                witnesses=[WitnessAttestation(lct="lct:witness:w1")],
+            ),
+            resource=ResourceRequirements(
+                required_atp=100.0,
+                available_atp=500.0,
+                escrow_amount=100.0,
+            ),
+            result=Result(
+                status=ActionStatus.SUCCESS,
+                output={"data": "done"},
+                atp_consumed=95.0,
+            ),
+            timestamp="2025-09-15T17:55:00Z",
+        )
+        action.compute_reputation(
+            quality=0.9,
+            rule_triggered="success",
+            factors=[ContributingFactor(factor="deadline_met", weight=0.6)],
+        )
+        doc = action.to_jsonld()
+        self.jsonschema.validate(doc, self.schema)
+
+    def test_action_with_proof_of_agency_validates(self):
+        """Action with ProofOfAgency passes schema validation."""
+        action = R7Action(
+            role=Role(actor="lct:alice", role_lct="lct:role:agent"),
+            request=Request(
+                action="delegate",
+                proof_of_agency=ProofOfAgency(
+                    grant_id="agy:abc",
+                    scope="finance",
+                    audience=["mcp:web4://tool/*"],
+                ),
+                nonce="n1",
+            ),
+            timestamp="2025-01-01T00:00:00Z",
+        )
+        doc = action.to_jsonld()
+        self.jsonschema.validate(doc, self.schema)
+
+    def test_failure_action_validates(self):
+        """Failed action with error passes schema validation."""
+        action = build_action(
+            actor="lct:bob",
+            role_lct="lct:role:eng",
+            action="deploy",
+        )
+        action.result = Result(
+            status=ActionStatus.FAILURE,
+            error="timeout",
+            atp_consumed=10.0,
+        )
+        doc = action.to_jsonld()
+        self.jsonschema.validate(doc, self.schema)
