@@ -1,0 +1,559 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/r7-action-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/r7-action-jsonld.schema.json",
+    "description": "Cross-language validation vectors for R7 Action JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "web4-standard/core-spec/r6-framework.md (R7 extension)"
+  },
+  "valid": [
+    {
+      "id": "r7-valid-001",
+      "description": "Minimal R7 action with only required fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:abc123",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {
+          "lawHash": "sha256:law_hash_001",
+          "society": "lct:web4:society:genesis"
+        },
+        "role": {
+          "actor": "lct:web4:human:alice",
+          "roleLCT": "lct:web4:role:analyst"
+        },
+        "request": {
+          "action": "analyze_dataset"
+        },
+        "reference": {},
+        "resource": {},
+        "result": {
+          "status": "success",
+          "resourceConsumed": {"atp": 10}
+        }
+      }
+    },
+    {
+      "id": "r7-valid-002",
+      "description": "Full R7 action with all optional fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:def456",
+        "timestamp": "2026-03-20T14:00:00Z",
+        "prev_action_hash": "sha256:prev_hash_abc",
+        "rules": {
+          "lawHash": "sha256:law_hash_002",
+          "society": "lct:web4:society:research",
+          "constraints": [
+            {"type": "time_limit", "value": 3600},
+            {"type": "budget_cap", "value": 100}
+          ],
+          "permissions": ["read", "analyze"],
+          "prohibitions": ["delete", "modify"]
+        },
+        "role": {
+          "actor": "lct:web4:ai:bob",
+          "roleLCT": "lct:web4:role:researcher",
+          "pairedAt": "2026-03-15T00:00:00Z",
+          "t3InRole": {
+            "talent": 0.85,
+            "training": 0.92,
+            "temperament": 0.78,
+            "composite_score": 0.85
+          },
+          "v3InRole": {
+            "valuation": 0.89,
+            "veracity": 0.91,
+            "validity": 0.76,
+            "composite_score": 0.85
+          }
+        },
+        "request": {
+          "action": "delegate",
+          "target": "lct:web4:ai:charlie",
+          "parameters": {"task": "data_cleaning", "priority": "high"},
+          "atpStake": 50,
+          "nonce": "nonce_unique_123",
+          "constraints": {"deadline": "2026-03-21T00:00:00Z", "max_atp": 100},
+          "proofOfAgency": {
+            "grantId": "grant:web4:abc",
+            "inclusionProof": "merkle_proof_base64",
+            "scope": "delegate:analyze",
+            "audience": ["lct:web4:ai:charlie"]
+          }
+        },
+        "reference": {
+          "precedents": [
+            {
+              "actionHash": "sha256:precedent_1",
+              "outcome": "success",
+              "relevance": 0.85
+            },
+            {
+              "actionHash": "sha256:precedent_2",
+              "outcome": "failure",
+              "relevance": 0.3
+            }
+          ],
+          "mrhContext": {
+            "depth": 3,
+            "relevantEntities": ["lct:web4:ai:charlie", "lct:web4:society:research"]
+          },
+          "witnesses": [
+            {
+              "lct": "lct:web4:oracle:trust",
+              "attestation": "verified",
+              "signature": "witness_sig_base64",
+              "timestamp": "2026-03-20T14:00:00Z"
+            }
+          ]
+        },
+        "resource": {
+          "required": {"atp": 50, "compute": {"gpu_hours": 2}},
+          "available": {"atp_balance": 500},
+          "escrow": {"amount": 50, "release_condition": "action_success"}
+        },
+        "result": {
+          "status": "success",
+          "output": {"rows_processed": 10000, "quality_score": 0.95},
+          "resourceConsumed": {"atp": 45},
+          "attestations": [
+            {
+              "lct": "lct:web4:oracle:quality",
+              "attestation": "quality_verified",
+              "signature": "result_sig_base64",
+              "timestamp": "2026-03-20T15:00:00Z"
+            }
+          ]
+        },
+        "reputation": {
+          "subject_lct": "lct:web4:ai:bob",
+          "role_lct": "lct:web4:role:researcher",
+          "action_type": "delegate",
+          "action_target": "lct:web4:ai:charlie",
+          "action_id": "r7:def456",
+          "rule_triggered": "successful_delegation",
+          "reason": "Delegation completed successfully within budget",
+          "t3_delta": {
+            "talent": {"change": 0.02, "from": 0.85, "to": 0.87},
+            "training": {"change": 0.01, "from": 0.92, "to": 0.93}
+          },
+          "v3_delta": {
+            "valuation": {"change": 0.03, "from": 0.89, "to": 0.92}
+          },
+          "contributing_factors": [
+            {"factor": "task_completion", "weight": 0.6},
+            {"factor": "budget_efficiency", "weight": 0.4}
+          ],
+          "witnesses": [
+            {
+              "lct": "lct:web4:oracle:reputation",
+              "attestation": "delta_verified",
+              "signature": "rep_sig_base64",
+              "timestamp": "2026-03-20T15:30:00Z"
+            }
+          ],
+          "net_trust_change": 0.03,
+          "net_value_change": 0.03,
+          "timestamp": "2026-03-20T15:30:00Z"
+        }
+      }
+    },
+    {
+      "id": "r7-valid-003",
+      "description": "Action with failure result and error details",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:fail789",
+        "timestamp": "2026-03-20T16:00:00Z",
+        "rules": {
+          "lawHash": "sha256:law_003",
+          "society": "lct:web4:society:genesis"
+        },
+        "role": {
+          "actor": "lct:web4:service:worker",
+          "roleLCT": "lct:web4:role:processor"
+        },
+        "request": {
+          "action": "process_payment",
+          "target": "lct:web4:resource:invoice001",
+          "atpStake": 25
+        },
+        "reference": {},
+        "resource": {
+          "required": {"atp": 25}
+        },
+        "result": {
+          "status": "failure",
+          "error": {"message": "Insufficient ATP balance"},
+          "resourceConsumed": {"atp": 5}
+        }
+      }
+    },
+    {
+      "id": "r7-valid-004",
+      "description": "Action with pending status (in-progress workflow)",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:pending101",
+        "timestamp": "2026-03-20T17:00:00Z",
+        "rules": {
+          "lawHash": "sha256:law_004",
+          "society": "lct:web4:society:genesis"
+        },
+        "role": {
+          "actor": "lct:web4:ai:orchestrator",
+          "roleLCT": "lct:web4:role:coordinator"
+        },
+        "request": {
+          "action": "coordinate_task"
+        },
+        "reference": {},
+        "resource": {},
+        "result": {
+          "status": "pending",
+          "resourceConsumed": {"atp": 0}
+        }
+      }
+    },
+    {
+      "id": "r7-valid-005",
+      "description": "Action with boundary trust values in role tensors",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bound202",
+        "timestamp": "2026-03-20T18:00:00Z",
+        "rules": {
+          "lawHash": "sha256:law_005",
+          "society": "lct:web4:society:test"
+        },
+        "role": {
+          "actor": "lct:web4:human:tester",
+          "roleLCT": "lct:web4:role:qa",
+          "t3InRole": {"talent": 0.0, "training": 1.0, "temperament": 0.0},
+          "v3InRole": {"valuation": 1.0, "veracity": 0.0, "validity": 1.0}
+        },
+        "request": {
+          "action": "verify"
+        },
+        "reference": {},
+        "resource": {},
+        "result": {
+          "status": "validated",
+          "resourceConsumed": {"atp": 1}
+        }
+      }
+    },
+    {
+      "id": "r7-valid-006",
+      "description": "Action with reputation delta showing negative trust change",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:neg303",
+        "timestamp": "2026-03-20T19:00:00Z",
+        "rules": {
+          "lawHash": "sha256:law_006",
+          "society": "lct:web4:society:genesis"
+        },
+        "role": {
+          "actor": "lct:web4:ai:bad_actor",
+          "roleLCT": "lct:web4:role:service"
+        },
+        "request": {
+          "action": "submit_report"
+        },
+        "reference": {},
+        "resource": {},
+        "result": {
+          "status": "error",
+          "error": {"message": "Data integrity check failed"},
+          "resourceConsumed": {"atp": 15}
+        },
+        "reputation": {
+          "subject_lct": "lct:web4:ai:bad_actor",
+          "role_lct": "lct:web4:role:service",
+          "t3_delta": {
+            "temperament": {"change": -0.1, "from": 0.6, "to": 0.5}
+          },
+          "net_trust_change": -0.1,
+          "net_value_change": 0.0
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "r7-invalid-001",
+      "description": "Missing required field: action_id",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "action_id",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-002",
+      "description": "Missing required field: rules",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "rules",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-003",
+      "description": "Missing required field: result",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "result",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {}
+      }
+    },
+    {
+      "id": "r7-invalid-004",
+      "description": "Wrong @type value (must be 'R7Action')",
+      "error_path": "@type",
+      "error_kind": "const",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R6Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-005",
+      "description": "action_id does not match pattern (must start with 'r7:')",
+      "error_path": "action_id",
+      "error_kind": "pattern",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "action:wrong_prefix",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-006",
+      "description": "Invalid result status enum value",
+      "error_path": "result.status",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "exploded", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-007",
+      "description": "Trust tensor value exceeds maximum in role (1.5 > 1.0)",
+      "error_path": "role.t3InRole.talent",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {
+          "actor": "a",
+          "roleLCT": "r",
+          "t3InRole": {"talent": 1.5, "training": 0.5, "temperament": 0.5}
+        },
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-008",
+      "description": "Negative ATP stake (minimum: 0)",
+      "error_path": "request.atpStake",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test", "atpStake": -10},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-009",
+      "description": "Extra field at root level",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}},
+        "secret_data": "should_be_rejected"
+      }
+    },
+    {
+      "id": "r7-invalid-010",
+      "description": "Precedent relevance exceeds maximum (1.5 > 1.0)",
+      "error_path": "reference.precedents.0.relevance",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {
+          "precedents": [{"actionHash": "sha256:x", "outcome": "success", "relevance": 1.5}]
+        },
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-011",
+      "description": "Missing required field in rules: lawHash",
+      "error_path": "rules",
+      "error_kind": "required",
+      "error_field": "lawHash",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-012",
+      "description": "Missing required field in role: actor (empty string fails minLength)",
+      "error_path": "role.actor",
+      "error_kind": "minLength",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    },
+    {
+      "id": "r7-invalid-013",
+      "description": "Missing required field in reputation: net_trust_change",
+      "error_path": "reputation",
+      "error_kind": "required",
+      "error_field": "net_trust_change",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s"},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}},
+        "reputation": {
+          "subject_lct": "lct:bad",
+          "role_lct": "lct:role",
+          "net_value_change": 0.0
+        }
+      }
+    },
+    {
+      "id": "r7-invalid-014",
+      "description": "Extra field in rules object",
+      "error_path": "rules",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/r7-action.jsonld"],
+        "@type": "R7Action",
+        "action_id": "r7:bad",
+        "timestamp": "2026-03-20T12:00:00Z",
+        "rules": {"lawHash": "h", "society": "s", "backdoor": true},
+        "role": {"actor": "a", "roleLCT": "r"},
+        "request": {"action": "test"},
+        "reference": {},
+        "resource": {},
+        "result": {"status": "success", "resourceConsumed": {"atp": 0}}
+      }
+    }
+  ]
+}

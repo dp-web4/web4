@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-20
+**Updated**: 2026-03-21
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -15,15 +15,14 @@ can validate their serialization output against a machine-readable specification
 also extends JSON-LD coverage to remaining core types.
 
 ### V1: JSON Schema for LCT and AttestationEnvelope JSON-LD
-**Status**: IN PROGRESS
+**Status**: DONE
+**Completed**: 2026-03-20
 **Scope**: Create JSON Schema (draft 2020-12) files for the LCT JSON-LD format (spec §2.3)
 and AttestationEnvelope JSON-LD format. Include a validation script that confirms current
 SDK `to_jsonld()` output passes the schemas. Schemas derived from spec documents,
 cross-checked against SDK output.
-**Deliverables**:
-- `web4-standard/schemas/lct-jsonld.schema.json`
-- `web4-standard/schemas/attestation-envelope-jsonld.schema.json`
-- `web4-standard/schemas/validate_schemas.py`
+**Result**: `lct-jsonld.schema.json`, `attestation-envelope-jsonld.schema.json`,
+`validate_schemas.py`. 19 validation checks (10 LCT + 9 AttestationEnvelope). PR #53, merged.
 
 ### V2: T3/V3 Trust Tensor JSON-LD serialization
 **Status**: NOT STARTED
@@ -32,7 +31,8 @@ cross-checked against SDK output.
 producing output matching `t3v3-ontology.ttl`. JSON Schema for the format.
 
 ### V3: R7 Action JSON-LD serialization
-**Status**: IN PROGRESS
+**Status**: DONE
+**Completed**: 2026-03-21
 **Depends on**: V1
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to R7 action types in `web4.r6`,
 enabling cross-language representation of actions, action chains, and reputation deltas.
@@ -41,14 +41,19 @@ JSON Schema for the format.
 `from_jsonld()`, `ActionChain.to_jsonld()` / `from_jsonld()`. JSON-LD context
 (`r7-action.jsonld`) and JSON Schema (`r7-action-jsonld.schema.json`). All 7 R7
 components serialized (Rules/Role/Request/Reference/Resource/Result/Reputation).
-26 new tests, 75 total R6 tests, 1274 total SDK tests passing.
+26 new tests, 75 total R6 tests, 1274 total SDK tests passing. PR #55, merged.
 
 ### V4: Cross-language validation test vectors
-**Status**: NOT STARTED
+**Status**: IN PROGRESS
 **Depends on**: V1, V2, V3
 **Scope**: JSON test vectors that exercise schema validation edge cases — malformed
 documents, missing required fields, extra fields, boundary values. Vectors usable
 by any language's JSON Schema validator.
+**Result** (partial): 63 vectors for 3 merged schemas (LCT, AttestationEnvelope, R7 Action).
+21 valid documents + 42 invalid documents covering: missing required fields, enum violations,
+out-of-range values, pattern mismatches, type errors, additionalProperties, boundary values.
+Validation runner script (`validate_schema_vectors.py`). T3/V3 tensor vectors deferred
+until PR #54 merges.
 
 ### V5: SDK v0.8.0 release housekeeping
 **Status**: NOT STARTED
