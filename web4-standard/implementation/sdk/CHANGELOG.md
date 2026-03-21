@@ -2,6 +2,40 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.8.0] - 2026-03-21
+
+Sprint 4: Cross-Language Schema Standardization — JSON Schemas, R7 Action
+JSON-LD serialization, and cross-language validation test vectors.
+
+### Added
+- **JSON Schema for LCT JSON-LD** (V1) — `lct-jsonld.schema.json` (JSON Schema
+  draft 2020-12) validating LCT `to_jsonld()` output against spec §2.3. 10
+  validation checks. Schema covers `@context`, `@type`, birth certificate,
+  MRH entries, attestations, lineage, and revocation structure.
+- **JSON Schema for AttestationEnvelope JSON-LD** (V1) — `attestation-envelope-jsonld.schema.json`
+  validating AttestationEnvelope `to_jsonld()` output. 9 validation checks.
+  Covers anchor info, proof, platform state, trust ceiling, and freshness model.
+- **R7 Action JSON-LD serialization** (V3) — `R7Action.to_jsonld()` and
+  `from_jsonld()` for all 7 R7 components (Rules/Role/Request/Reference/
+  Resource/Result/Reputation). `ReputationDelta.to_jsonld()` / `from_jsonld()`,
+  `ActionChain.to_jsonld()` / `from_jsonld()`. JSON-LD context document
+  (`r7-action.jsonld`) and JSON Schema (`r7-action-jsonld.schema.json`).
+  26 new tests.
+- **Cross-language schema validation test vectors** (V4, partial) — 63 vectors
+  across 3 schemas: LCT (23), AttestationEnvelope (20), R7 Action (20). Each
+  set includes valid documents and invalid documents exercising missing required
+  fields, enum violations, range violations, pattern mismatches, type errors,
+  and boundary values. Language-agnostic validation runner script. T3/V3
+  vectors deferred pending PR #54.
+- `R7_JSONLD_CONTEXT` and `ATTESTATION_JSONLD_CONTEXT` constants exported from
+  `web4` package.
+- `Society` re-exported directly (was only available as `FederationSociety` alias).
+
+### Changed
+- Version bumped from 0.7.0 to 0.8.0 in `web4/__init__.py`, `pyproject.toml`,
+  and `setup.py`.
+- 266 public API symbols in `__all__` (up from 263).
+
 ## [0.7.0] - 2026-03-20
 
 Sprint 3: SDK Interoperability — JSON-LD serialization for spec-compliant
