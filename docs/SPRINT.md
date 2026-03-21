@@ -25,10 +25,13 @@ cross-checked against SDK output.
 `validate_schemas.py`. 19 validation checks (10 LCT + 9 AttestationEnvelope). PR #53, merged.
 
 ### V2: T3/V3 Trust Tensor JSON-LD serialization
-**Status**: NOT STARTED
+**Status**: IN REVIEW
 **Depends on**: V1
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to `T3` and `V3` classes in `web4.trust`,
 producing output matching `t3v3-ontology.ttl`. JSON Schema for the format.
+**Result**: `T3.to_jsonld()` / `from_jsonld()`, `V3.to_jsonld()` / `from_jsonld()` with
+ontology-aligned dual representation. JSON Schema (`t3v3-jsonld.schema.json`).
+58 new tests. PR #54, awaiting review.
 
 ### V3: R7 Action JSON-LD serialization
 **Status**: DONE
@@ -56,9 +59,13 @@ Validation runner script (`validate_schema_vectors.py`). T3/V3 tensor vectors de
 until PR #54 merges.
 
 ### V5: SDK v0.8.0 release housekeeping
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-21
 **Depends on**: V1 (at minimum)
 **Scope**: Version bump, CHANGELOG.md entry for Sprint 4 deliverables.
+**Result**: Version bumped 0.7.0 → 0.8.0 in `__init__.py`, `pyproject.toml`, `setup.py`.
+CHANGELOG.md v0.8.0 section documents V1 (JSON Schemas), V3 (R7 Action JSON-LD),
+V4 partial (63 validation vectors), and new exports. 266 symbols, 1274 tests passing.
 
 ---
 
