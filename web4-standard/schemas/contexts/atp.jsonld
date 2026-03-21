@@ -1,0 +1,55 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "web4": "https://web4.io/ns/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "ATPAccount": "web4:ATPAccount",
+    "TransferResult": "web4:TransferResult",
+
+    "available": {
+      "@id": "web4:available",
+      "@type": "xsd:double"
+    },
+    "locked": {
+      "@id": "web4:locked",
+      "@type": "xsd:double"
+    },
+    "adp": {
+      "@id": "web4:adp",
+      "@type": "xsd:double"
+    },
+    "initial_balance": {
+      "@id": "web4:initialBalance",
+      "@type": "xsd:double"
+    },
+    "total": {
+      "@id": "web4:total",
+      "@type": "xsd:double"
+    },
+    "energy_ratio": {
+      "@id": "web4:energyRatio",
+      "@type": "xsd:double"
+    },
+    "fee": {
+      "@id": "web4:fee",
+      "@type": "xsd:double"
+    },
+    "sender_balance": {
+      "@id": "web4:senderBalance",
+      "@type": "xsd:double"
+    },
+    "receiver_balance": {
+      "@id": "web4:receiverBalance",
+      "@type": "xsd:double"
+    },
+    "actual_credit": {
+      "@id": "web4:actualCredit",
+      "@type": "xsd:double"
+    },
+    "overflow": {
+      "@id": "web4:overflow",
+      "@type": "xsd:double"
+    }
+  }
+}

@@ -1,9 +1,50 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-21
+**Updated**: 2026-03-21 (Sprint 5 added)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 5: Core Type JSON-LD Phase 2 (2026-03-21)
+
+Sprint 4 delivered JSON-LD for the highest-priority types (LCT, AttestationEnvelope,
+R7Action, T3/V3). Sprint 5 extends JSON-LD serialization to the next tier of core
+types needed for cross-language interoperability.
+
+### A1: ATP/ADP JSON-LD serialization
+**Status**: IN REVIEW
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to `ATPAccount` and `TransferResult`
+in `web4.atp`, producing RDF-aligned JSON-LD documents. JSON Schema
+(`atp-jsonld.schema.json`) and JSON-LD context (`contexts/atp.jsonld`).
+**Result**: `ATPAccount.to_jsonld()` / `from_jsonld()`, `TransferResult.to_jsonld()` /
+`from_jsonld()`. JSON Schema with ATPAccount and TransferResult definitions.
+JSON-LD context mapping snake_case fields to web4 namespace.
+2 new exports (`TransferResult`, `ATP_JSONLD_CONTEXT`). 28 new tests, 1302 total
+SDK tests passing.
+
+### A2: ACP JSON-LD serialization
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to ACP types (AgentPlan, ProofOfAgency,
+Intent, Decision) in `web4.acp`. JSON Schema and JSON-LD context.
+
+### A3: Entity + Capability JSON-LD
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to EntityTypeInfo and CapabilityLevel
+types. JSON Schema and JSON-LD context.
+
+### A4: Cross-language validation vectors for Phase 2
+**Status**: NOT STARTED
+**Depends on**: A1, A2, A3
+**Scope**: JSON test vectors for ATP, ACP, Entity, Capability schemas.
+
+### A5: SDK v0.9.0 release housekeeping
+**Status**: NOT STARTED
+**Depends on**: A1 (at minimum)
+**Scope**: Version bump, CHANGELOG.md entry for Sprint 5 deliverables.
 
 ---
 
@@ -414,3 +455,13 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | I2 | Cross-language LCT test vectors | DONE |
 | I3 | AttestationEnvelope JSON-LD serialization | DONE |
 | I4 | SDK v0.7.0 release housekeeping | DONE |
+| V1 | JSON Schema for LCT + AttestationEnvelope JSON-LD | DONE |
+| V2 | T3/V3 Trust Tensor JSON-LD serialization | IN REVIEW (PR #54) |
+| V3 | R7 Action JSON-LD serialization | DONE |
+| V4 | Cross-language validation test vectors | IN PROGRESS (partial) |
+| V5 | SDK v0.8.0 release housekeeping | DONE |
+| A1 | ATP/ADP JSON-LD serialization | IN REVIEW |
+| A2 | ACP JSON-LD serialization | NOT STARTED |
+| A3 | Entity + Capability JSON-LD | NOT STARTED |
+| A4 | Cross-language validation vectors (Phase 2) | NOT STARTED |
+| A5 | SDK v0.9.0 release housekeeping | NOT STARTED |
