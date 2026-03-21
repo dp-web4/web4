@@ -1,0 +1,666 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/lct-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/lct-jsonld.schema.json",
+    "description": "Cross-language validation vectors for LCT JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "web4-standard/core-spec/LCT-linked-context-token.md section 2.3"
+  },
+  "valid": [
+    {
+      "id": "lct-valid-001",
+      "description": "Minimal LCT with only required fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:minimal001",
+        "subject": "did:web4:alice",
+        "binding": {
+          "entity_type": "human",
+          "public_key": "ed25519:testkey123",
+          "created_at": "2026-03-20T00:00:00Z"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [],
+          "witnessing": [],
+          "horizon_depth": 1
+        },
+        "policy": {
+          "capabilities": []
+        },
+        "t3_tensor": {
+          "talent": 0.5,
+          "training": 0.5,
+          "temperament": 0.5,
+          "composite_score": 0.5
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.5,
+          "validity": 0.5,
+          "composite_score": 0.5
+        },
+        "revocation": {
+          "status": "active"
+        }
+      }
+    },
+    {
+      "id": "lct-valid-002",
+      "description": "Full LCT with all optional fields populated",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:ai:full002",
+        "subject": "did:web4:bob",
+        "binding": {
+          "entity_type": "ai",
+          "public_key": "ed25519:fullkey456",
+          "created_at": "2026-03-20T12:00:00Z",
+          "binding_proof": "cose:ES256:proof_data",
+          "hardware_anchor": "tpm2"
+        },
+        "birth_certificate": {
+          "issuing_society": "lct:web4:society:genesis",
+          "citizen_role": "lct:web4:role:citizen:platform",
+          "birth_timestamp": "2026-03-20T12:00:00Z",
+          "birth_witnesses": ["did:web4:witness1", "did:web4:witness2"],
+          "birth_context": "platform",
+          "genesis_block_hash": "0xabc123"
+        },
+        "mrh": {
+          "bound": ["lct:web4:hw:device1"],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:citizen:platform",
+              "pairing_type": "birth_certificate",
+              "permanent": true,
+              "ts": "2026-03-20T12:00:00Z"
+            }
+          ],
+          "witnessing": ["did:web4:witness1"],
+          "horizon_depth": 3,
+          "last_updated": "2026-03-20T12:00:00Z"
+        },
+        "policy": {
+          "capabilities": ["pairing:initiate", "witness:attest"],
+          "constraints": {"max_rate": 5000}
+        },
+        "t3_tensor": {
+          "talent": 0.85,
+          "training": 0.92,
+          "temperament": 0.78,
+          "composite_score": 0.85,
+          "sub_dimensions": {
+            "talent": {"analytical": 0.9, "creative": 0.8}
+          },
+          "last_computed": "2026-03-20T12:00:00Z",
+          "computation_witnesses": ["lct:web4:oracle:trust1"]
+        },
+        "v3_tensor": {
+          "valuation": 0.89,
+          "veracity": 0.91,
+          "validity": 0.76,
+          "composite_score": 0.85,
+          "sub_dimensions": {
+            "veracity": {"consistency": 0.95, "accuracy": 0.87}
+          },
+          "last_computed": "2026-03-20T12:00:00Z",
+          "computation_witnesses": ["lct:web4:oracle:value1"]
+        },
+        "attestations": [
+          {
+            "witness": "did:web4:charlie",
+            "type": "existence",
+            "claims": {"observed_at": "2026-03-20T12:00:00Z"},
+            "sig": "cose:ES256:sig_data",
+            "ts": "2026-03-20T12:00:00Z"
+          }
+        ],
+        "lineage": [
+          {
+            "parent": "lct:web4:ai:previous",
+            "reason": "rotation",
+            "ts": "2026-03-19T00:00:00Z"
+          }
+        ],
+        "revocation": {
+          "status": "active",
+          "ts": null,
+          "reason": null
+        }
+      }
+    },
+    {
+      "id": "lct-valid-003",
+      "description": "Revoked LCT with reason and timestamp",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:service:revoked003",
+        "subject": "did:web4:service-compromised",
+        "binding": {
+          "entity_type": "service",
+          "public_key": "ed25519:revokedkey",
+          "created_at": "2026-03-01T00:00:00Z"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [],
+          "witnessing": [],
+          "horizon_depth": 1
+        },
+        "policy": {
+          "capabilities": []
+        },
+        "t3_tensor": {
+          "talent": 0.3,
+          "training": 0.4,
+          "temperament": 0.2,
+          "composite_score": 0.3
+        },
+        "v3_tensor": {
+          "valuation": 0.1,
+          "veracity": 0.2,
+          "validity": 0.0,
+          "composite_score": 0.1
+        },
+        "revocation": {
+          "status": "revoked",
+          "ts": "2026-03-20T15:00:00Z",
+          "reason": "compromised key material"
+        }
+      }
+    },
+    {
+      "id": "lct-valid-004",
+      "description": "Suspended LCT",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:device:suspended004",
+        "subject": "did:web4:device-offline",
+        "binding": {
+          "entity_type": "device",
+          "public_key": "ed25519:suspkey",
+          "created_at": "2026-03-10T00:00:00Z"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [],
+          "witnessing": [],
+          "horizon_depth": 1
+        },
+        "policy": {
+          "capabilities": []
+        },
+        "t3_tensor": {
+          "talent": 0.6,
+          "training": 0.7,
+          "temperament": 0.5,
+          "composite_score": 0.6
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.6,
+          "validity": 0.4,
+          "composite_score": 0.5
+        },
+        "revocation": {
+          "status": "suspended",
+          "ts": "2026-03-20T10:00:00Z",
+          "reason": "device offline for maintenance"
+        }
+      }
+    },
+    {
+      "id": "lct-valid-005",
+      "description": "LCT with boundary trust values (0.0 and 1.0)",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:boundary005",
+        "subject": "did:web4:boundary-test",
+        "binding": {
+          "entity_type": "human",
+          "public_key": "ed25519:boundarykey",
+          "created_at": "2026-03-20T00:00:00Z"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [],
+          "witnessing": [],
+          "horizon_depth": 1
+        },
+        "policy": {
+          "capabilities": []
+        },
+        "t3_tensor": {
+          "talent": 0.0,
+          "training": 1.0,
+          "temperament": 0.0,
+          "composite_score": 0.0
+        },
+        "v3_tensor": {
+          "valuation": 1.0,
+          "veracity": 0.0,
+          "validity": 1.0,
+          "composite_score": 1.0
+        },
+        "revocation": {
+          "status": "active"
+        }
+      }
+    },
+    {
+      "id": "lct-valid-006",
+      "description": "LCT with all 16 entity types (one per type, testing 'policy')",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:policy:type006",
+        "subject": "did:web4:policy-entity",
+        "binding": {
+          "entity_type": "policy",
+          "public_key": "ed25519:policykey",
+          "created_at": "2026-03-20T00:00:00Z"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [],
+          "witnessing": [],
+          "horizon_depth": 1
+        },
+        "policy": {
+          "capabilities": ["policy:evaluate"]
+        },
+        "t3_tensor": {
+          "talent": 0.5,
+          "training": 0.5,
+          "temperament": 0.5,
+          "composite_score": 0.5
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.5,
+          "validity": 0.5,
+          "composite_score": 0.5
+        },
+        "revocation": {
+          "status": "active"
+        }
+      }
+    },
+    {
+      "id": "lct-valid-007",
+      "description": "LCT with structured MRH bound and witnessing objects",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:structured007",
+        "subject": "did:web4:structured-mrh",
+        "binding": {
+          "entity_type": "human",
+          "public_key": "ed25519:structkey",
+          "created_at": "2026-03-20T00:00:00Z"
+        },
+        "mrh": {
+          "bound": [
+            {
+              "lct_id": "lct:web4:device:phone",
+              "type": "hardware",
+              "binding_context": "personal_device",
+              "ts": "2026-03-20T00:00:00Z"
+            }
+          ],
+          "paired": [
+            {
+              "lct_id": "lct:web4:role:admin",
+              "pairing_type": "operational"
+            }
+          ],
+          "witnessing": [
+            {
+              "lct_id": "lct:web4:oracle:trust",
+              "role": "trust_oracle",
+              "last_attestation": "2026-03-20T00:00:00Z",
+              "witness_count": 5
+            }
+          ],
+          "horizon_depth": 5,
+          "last_updated": "2026-03-20T12:00:00Z"
+        },
+        "policy": {
+          "capabilities": ["witness:attest"]
+        },
+        "t3_tensor": {
+          "talent": 0.7,
+          "training": 0.8,
+          "temperament": 0.6,
+          "composite_score": 0.7
+        },
+        "v3_tensor": {
+          "valuation": 0.7,
+          "veracity": 0.8,
+          "validity": 0.6,
+          "composite_score": 0.7
+        },
+        "revocation": {
+          "status": "active"
+        }
+      }
+    },
+    {
+      "id": "lct-valid-008",
+      "description": "LCT with multiple lineage entries",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:ai:lineage008",
+        "subject": "did:web4:multi-lineage",
+        "binding": {
+          "entity_type": "ai",
+          "public_key": "ed25519:lineagekey",
+          "created_at": "2026-03-20T00:00:00Z"
+        },
+        "mrh": {
+          "bound": [],
+          "paired": [],
+          "witnessing": [],
+          "horizon_depth": 1
+        },
+        "policy": {
+          "capabilities": []
+        },
+        "t3_tensor": {
+          "talent": 0.5,
+          "training": 0.5,
+          "temperament": 0.5,
+          "composite_score": 0.5
+        },
+        "v3_tensor": {
+          "valuation": 0.5,
+          "veracity": 0.5,
+          "validity": 0.5,
+          "composite_score": 0.5
+        },
+        "lineage": [
+          {
+            "parent": "lct:web4:ai:v1",
+            "reason": "genesis"
+          },
+          {
+            "parent": "lct:web4:ai:v2",
+            "reason": "upgrade",
+            "ts": "2026-03-15T00:00:00Z"
+          },
+          {
+            "parent": "lct:web4:ai:v3",
+            "reason": "rotation",
+            "ts": "2026-03-19T00:00:00Z"
+          }
+        ],
+        "revocation": {
+          "status": "active"
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "lct-invalid-001",
+      "description": "Missing required field: lct_id",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "lct_id",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "subject": "did:web4:alice",
+        "binding": {
+          "entity_type": "human",
+          "public_key": "ed25519:key",
+          "created_at": "2026-03-20T00:00:00Z"
+        },
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-002",
+      "description": "Missing required field: binding",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "binding",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-003",
+      "description": "Missing required field: t3_tensor",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "t3_tensor",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-004",
+      "description": "Invalid entity_type enum value",
+      "error_path": "binding.entity_type",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "alien", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-005",
+      "description": "T3 talent exceeds maximum (1.5 > 1.0)",
+      "error_path": "t3_tensor.talent",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 1.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-006",
+      "description": "V3 veracity below minimum (-0.1 < 0.0)",
+      "error_path": "v3_tensor.veracity",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": -0.1, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-007",
+      "description": "Invalid revocation status enum",
+      "error_path": "revocation.status",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "expired"}
+      }
+    },
+    {
+      "id": "lct-invalid-008",
+      "description": "Extra field at root level (additionalProperties: false)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"},
+        "hacker_field": "should be rejected"
+      }
+    },
+    {
+      "id": "lct-invalid-009",
+      "description": "lct_id does not match pattern (must start with 'lct:')",
+      "error_path": "lct_id",
+      "error_kind": "pattern",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "did:web4:wrong-prefix",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-010",
+      "description": "MRH horizon_depth below minimum (0 < 1)",
+      "error_path": "mrh.horizon_depth",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 0},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-011",
+      "description": "Empty subject string (minLength: 1)",
+      "error_path": "subject",
+      "error_kind": "minLength",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-012",
+      "description": "Invalid lineage reason enum value",
+      "error_path": "lineage.0.reason",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:ai:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "ai", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "lineage": [{"parent": "lct:web4:old", "reason": "spontaneous_combustion"}],
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-013",
+      "description": "Extra field in binding object",
+      "error_path": "binding",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t", "extra_binding_field": true},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-014",
+      "description": "Empty @context array (minItems: 1)",
+      "error_path": "@context",
+      "error_kind": "minItems",
+      "document": {
+        "@context": [],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": 0.5, "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    },
+    {
+      "id": "lct-invalid-015",
+      "description": "T3 talent is string instead of number",
+      "error_path": "t3_tensor.talent",
+      "error_kind": "type",
+      "document": {
+        "@context": ["https://web4.io/contexts/lct.jsonld"],
+        "lct_id": "lct:web4:human:bad",
+        "subject": "did:web4:alice",
+        "binding": {"entity_type": "human", "public_key": "k", "created_at": "t"},
+        "mrh": {"bound": [], "paired": [], "witnessing": [], "horizon_depth": 1},
+        "policy": {"capabilities": []},
+        "t3_tensor": {"talent": "high", "training": 0.5, "temperament": 0.5, "composite_score": 0.5},
+        "v3_tensor": {"valuation": 0.5, "veracity": 0.5, "validity": 0.5, "composite_score": 0.5},
+        "revocation": {"status": "active"}
+      }
+    }
+  ]
+}

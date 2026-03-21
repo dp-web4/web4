@@ -1,0 +1,481 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/attestation-envelope-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/attestation-envelope-jsonld.schema.json",
+    "description": "Cross-language validation vectors for AttestationEnvelope JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "docs/specs/attestation-envelope.md"
+  },
+  "valid": [
+    {
+      "id": "ae-valid-001",
+      "description": "Minimal software envelope with all required fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:web4:human:soft001",
+        "public_key": "ed25519:softkey123",
+        "public_key_fingerprint": "a1b2c3d4e5f60718",
+        "anchor": {
+          "type": "software"
+        },
+        "proof": {
+          "format": "ecdsa_software",
+          "signature": "base64sig_data",
+          "challenge": "nonce_12345"
+        },
+        "timestamp": 1711000000,
+        "challenge_issued_at": 1710999900,
+        "challenge_ttl": 300,
+        "platform_state": {
+          "available": false
+        },
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-valid-002",
+      "description": "Full TPM2 envelope with all optional fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:web4:device:tpm002",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...\n-----END PUBLIC KEY-----",
+        "public_key_fingerprint": "f1e2d3c4b5a69078",
+        "anchor": {
+          "type": "tpm2",
+          "manufacturer": "Intel",
+          "model": "INTC TPM 2.0",
+          "firmware_version": "1.38"
+        },
+        "proof": {
+          "format": "tpm2_quote",
+          "signature": "base64_tpm_sig",
+          "challenge": "tpm_nonce_abc",
+          "pcr_digest": "sha256:0123456789abcdef",
+          "pcr_selection": [0, 7, 14]
+        },
+        "timestamp": 1711000000,
+        "challenge_issued_at": 1710999950,
+        "challenge_ttl": 300,
+        "platform_state": {
+          "available": true,
+          "boot_verified": true,
+          "pcr_values": {
+            "0": "abc123def456",
+            "7": "789012345678",
+            "14": "fedcba987654"
+          },
+          "os_version": "Linux 6.8.0",
+          "kernel_version": "6.8.0-94-generic"
+        },
+        "trust_ceiling": 1.0,
+        "issuer": "legion.local",
+        "purpose": "session_start"
+      }
+    },
+    {
+      "id": "ae-valid-003",
+      "description": "FIDO2 envelope with authenticator data",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:web4:human:fido003",
+        "public_key": "ed25519:fidokey456",
+        "public_key_fingerprint": "b2c3d4e5f6071829",
+        "anchor": {
+          "type": "fido2",
+          "manufacturer": "Yubico",
+          "model": "YubiKey 5 NFC"
+        },
+        "proof": {
+          "format": "fido2_assertion",
+          "signature": "fido2_sig_base64",
+          "challenge": "fido2_challenge_nonce",
+          "authenticator_data": "cbor_auth_data_base64",
+          "client_data_hash": "sha256_client_hash"
+        },
+        "timestamp": 1711000000,
+        "challenge_issued_at": 1710999980,
+        "challenge_ttl": 60,
+        "platform_state": {
+          "available": false
+        },
+        "trust_ceiling": 0.95,
+        "purpose": "enrollment"
+      }
+    },
+    {
+      "id": "ae-valid-004",
+      "description": "Secure Enclave envelope with attestation object",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:web4:device:se004",
+        "public_key": "p256:se_pubkey_base64",
+        "public_key_fingerprint": "c3d4e5f607182930",
+        "anchor": {
+          "type": "secure_enclave",
+          "manufacturer": "Apple"
+        },
+        "proof": {
+          "format": "se_attestation",
+          "signature": "se_sig_base64",
+          "challenge": "se_challenge_nonce",
+          "attestation_object": "raw_attestation_cbor_base64"
+        },
+        "timestamp": 1711000000,
+        "challenge_issued_at": 1710999990,
+        "challenge_ttl": 120,
+        "platform_state": {
+          "available": true,
+          "boot_verified": true
+        },
+        "trust_ceiling": 0.95,
+        "purpose": "witness"
+      }
+    },
+    {
+      "id": "ae-valid-005",
+      "description": "Boundary: trust_ceiling at exact 0.0",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:web4:device:bound005",
+        "public_key": "ed25519:boundarykey",
+        "public_key_fingerprint": "d4e5f60718293041",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 0,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.0
+      }
+    },
+    {
+      "id": "ae-valid-006",
+      "description": "All purpose enum values: migration",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:web4:device:purpose006",
+        "public_key": "ed25519:purposekey",
+        "public_key_fingerprint": "e5f6071829304152",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 1711000000,
+        "challenge_issued_at": 1710999900,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4,
+        "purpose": "migration"
+      }
+    },
+    {
+      "id": "ae-valid-007",
+      "description": "Purpose: device_binding",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:web4:device:binding007",
+        "public_key": "ed25519:bindkey",
+        "public_key_fingerprint": "f607182930415263",
+        "anchor": {"type": "tpm2", "manufacturer": "AMD"},
+        "proof": {"format": "tpm2_quote", "signature": "s", "challenge": "c"},
+        "timestamp": 1711000000,
+        "challenge_issued_at": 1710999900,
+        "challenge_ttl": 300,
+        "platform_state": {"available": true, "boot_verified": false},
+        "trust_ceiling": 0.85,
+        "purpose": "device_binding",
+        "issuer": "thor.local"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "ae-invalid-001",
+      "description": "Missing required field: entity_id",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "entity_id",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-invalid-002",
+      "description": "Missing required field: proof",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "proof",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-invalid-003",
+      "description": "Missing required field: trust_ceiling",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "trust_ceiling",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false}
+      }
+    },
+    {
+      "id": "ae-invalid-004",
+      "description": "Invalid anchor type (not in enum)",
+      "error_path": "anchor.type",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "quantum_computer"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-invalid-005",
+      "description": "Invalid proof format (not in enum)",
+      "error_path": "proof.format",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "rsa_pkcs1", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-invalid-006",
+      "description": "trust_ceiling exceeds maximum (1.5 > 1.0)",
+      "error_path": "trust_ceiling",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 1.5
+      }
+    },
+    {
+      "id": "ae-invalid-007",
+      "description": "trust_ceiling below minimum (-0.1 < 0.0)",
+      "error_path": "trust_ceiling",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": -0.1
+      }
+    },
+    {
+      "id": "ae-invalid-008",
+      "description": "Wrong @type value (must be 'AttestationEnvelope')",
+      "error_path": "@type",
+      "error_kind": "const",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "WrongType",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-invalid-009",
+      "description": "Extra field at root level",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4,
+        "injected_field": "malicious"
+      }
+    },
+    {
+      "id": "ae-invalid-010",
+      "description": "Invalid purpose enum value",
+      "error_path": "purpose",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4,
+        "purpose": "hacking"
+      }
+    },
+    {
+      "id": "ae-invalid-011",
+      "description": "Extra field in anchor object",
+      "error_path": "anchor",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software", "secret_key": "should_not_be_here"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-invalid-012",
+      "description": "Negative challenge_ttl (minimum: 0)",
+      "error_path": "challenge_ttl",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "software"},
+        "proof": {"format": "ecdsa_software", "signature": "s", "challenge": "c"},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": -1,
+        "platform_state": {"available": false},
+        "trust_ceiling": 0.4
+      }
+    },
+    {
+      "id": "ae-invalid-013",
+      "description": "PCR selection contains negative index",
+      "error_path": "proof.pcr_selection.0",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/attestation-envelope.jsonld"],
+        "@type": "AttestationEnvelope",
+        "envelope_version": "0.1",
+        "entity_id": "lct:bad",
+        "public_key": "k",
+        "public_key_fingerprint": "fp",
+        "anchor": {"type": "tpm2"},
+        "proof": {"format": "tpm2_quote", "signature": "s", "challenge": "c", "pcr_selection": [-1, 7]},
+        "timestamp": 0,
+        "challenge_issued_at": 0,
+        "challenge_ttl": 300,
+        "platform_state": {"available": false},
+        "trust_ceiling": 1.0
+      }
+    }
+  ]
+}
