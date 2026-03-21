@@ -32,11 +32,16 @@ cross-checked against SDK output.
 producing output matching `t3v3-ontology.ttl`. JSON Schema for the format.
 
 ### V3: R7 Action JSON-LD serialization
-**Status**: NOT STARTED
+**Status**: IN PROGRESS
 **Depends on**: V1
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to R7 action types in `web4.r6`,
 enabling cross-language representation of actions, action chains, and reputation deltas.
 JSON Schema for the format.
+**Result**: `R7Action.to_jsonld()` / `from_jsonld()`, `ReputationDelta.to_jsonld()` /
+`from_jsonld()`, `ActionChain.to_jsonld()` / `from_jsonld()`. JSON-LD context
+(`r7-action.jsonld`) and JSON Schema (`r7-action-jsonld.schema.json`). All 7 R7
+components serialized (Rules/Role/Request/Reference/Resource/Result/Reputation).
+26 new tests, 75 total R6 tests, 1274 total SDK tests passing.
 
 ### V4: Cross-language validation test vectors
 **Status**: NOT STARTED
