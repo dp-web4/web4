@@ -69,6 +69,8 @@ from .lct import (
 # ── ATP/ADP ────────────────────────────────────────────────────
 from .atp import (
     ATPAccount,
+    TransferResult,
+    ATP_JSONLD_CONTEXT,
     energy_ratio,
 )
 
@@ -398,7 +400,7 @@ __all__ = [
     "LCT", "EntityType", "RevocationStatus", "BirthCertificate",
     "Attestation", "LineageEntry", "LCT_JSONLD_CONTEXT",
     # atp
-    "ATPAccount", "energy_ratio",
+    "ATPAccount", "TransferResult", "ATP_JSONLD_CONTEXT", "energy_ratio",
     # federation
     "Society", "FederationSociety", "LawDataset", "Delegation", "RoleType",
     "CitizenshipStatus", "CitizenshipRecord", "valid_citizenship_transition",
