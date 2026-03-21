@@ -69,6 +69,95 @@ V4 partial (63 validation vectors), and new exports. 266 symbols, 1274 tests pas
 
 ---
 
+## Sprint 5: Core Type JSON-LD Coverage (2026-03-21)
+
+Sprint 4 established JSON-LD serialization + JSON Schema for LCT, AttestationEnvelope,
+T3/V3, and R7 Action. Sprint 5 extends JSON-LD coverage to the three remaining canonical
+equation components — ATP/ADP (economic metabolism), Federation/Society (governance layer),
+and MRH (context scoping) — completing the cross-language serialization story for all
+fundamental Web4 types.
+
+**Canonical equation coverage after Sprint 5:**
+```
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+         ↑    ↑    ✅     ✅    W3     W1
+         |    |    S3     S4    ────   ────
+         |    backbone (not serialized as standalone)
+         I/O membrane (protocol types, not data serialization)
+```
+
+Plus Federation/Society (W2) — the governance substrate that manages all of the above.
+
+### W1: ATP/ADP JSON-LD serialization
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to `ATPAccount` and `TransferResult` in
+`web4.atp`. JSON-LD context mapping ATP properties to web4 ontology terms (`web4:atpCost`
+and new terms as needed). JSON Schema (draft 2020-12) for the format.
+**Spec reference**: `web4-standard/core-spec/atp-adp-cycle.md` §2.1-2.3 (JSON structures
+for minting events, R6 transactions, pool architecture).
+**Ontology terms**: `web4:atpCost` (existing), plus new `@context` terms for account
+state, balance, locks. No ontology .ttl modification needed — terms defined in JSON-LD
+context following established pattern.
+**Deliverables**: Modified `web4/atp.py`, new `atp-jsonld.schema.json`, tests.
+**Acceptance**: `ATPAccount.to_jsonld()` produces valid JSON-LD; `from_jsonld()` roundtrips;
+schema validates output; all existing ATP tests still pass.
+
+### W2: Federation/Society JSON-LD serialization
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to the four primary federation types:
+`Society`, `Delegation`, `CitizenshipRecord`, `LawDataset` in `web4.federation`.
+Simpler frozen types (`Norm`, `Procedure`, `Interpretation`, `QuorumPolicy`) are embedded
+via their existing `to_dict()` methods within the parent JSON-LD documents. JSON-LD context
+using existing ontology terms (`web4:hasRole`, `web4:delegatedBy`) plus new governance terms.
+JSON Schema (draft 2020-12).
+**Spec reference**: `web4-standard/core-spec/web4-society-authority-law.md`,
+`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`.
+**Ontology terms**: `web4:hasRole`, `web4:delegatedBy` (existing). New terms for society
+membership, law datasets, delegation scoping defined in JSON-LD context.
+**Deliverables**: Modified `web4/federation.py`, new `federation-jsonld.schema.json`, tests.
+**Acceptance**: `Society.to_jsonld()` includes embedded norms/procedures; `Delegation.to_jsonld()`
+captures scope and revocability; `from_jsonld()` roundtrips; schema validates; existing
+federation tests pass.
+
+### W3: MRH JSON-LD serialization
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to `MRHGraph` (which contains `MRHNode` and
+`MRHEdge`) in `web4.mrh`. JSON-LD context maps MRH relationship types directly to web4
+ontology predicates (`web4:boundTo`, `web4:pairedWith`, `web4:witnessedBy` and their
+subtypes). This is the most ontology-aligned serialization since the MRH relationship
+types already correspond 1:1 to ontology properties. JSON Schema (draft 2020-12).
+**Spec reference**: `web4-standard/core-spec/mrh-tensors.md` §1-4.
+**Ontology terms**: `web4:Binding`, `web4:Pairing`, `web4:WitnessAttestation` (classes);
+`web4:boundTo`, `web4:parentBinding`, `web4:childBinding`, `web4:siblingBinding`,
+`web4:pairedWith`, `web4:energyPairing`, `web4:dataPairing`, `web4:servicePairing`,
+`web4:witnessedBy`, `web4:timeWitness`, `web4:auditWitness`, `web4:oracleWitness` (all
+existing in `web4-core-ontology.ttl`).
+**Deliverables**: Modified `web4/mrh.py`, new `mrh-jsonld.schema.json`, tests.
+**Acceptance**: `MRHGraph.to_jsonld()` produces valid JSON-LD with ontology-mapped
+relationship types; `from_jsonld()` roundtrips; graph structure preserved; schema validates;
+existing MRH tests pass.
+
+### W4: Cross-language validation test vectors
+**Status**: NOT STARTED
+**Depends on**: W1, W2, W3
+**Scope**: JSON test vectors for ATP, Federation, MRH JSON-LD formats — valid and invalid
+documents covering missing required fields, enum violations, boundary values, type errors.
+Extends Sprint 4's V4 pattern. Also completes deferred T3/V3 vectors if PR #54 has merged.
+**Deliverables**: New test vector JSON files, updated `validate_schema_vectors.py`.
+**Acceptance**: Vectors validate correctly against JSON Schemas from W1-W3.
+
+### W5: SDK v0.9.0 release housekeeping
+**Status**: NOT STARTED
+**Depends on**: W1 (at minimum)
+**Scope**: Version bump 0.8.0 → 0.9.0, CHANGELOG.md entry for Sprint 5 deliverables,
+SPRINT.md status updates.
+**Deliverables**: Modified `__init__.py`, `pyproject.toml`, `setup.py`, `CHANGELOG.md`.
+
+---
+
 ## Sprint 3: SDK Interoperability (2026-03-19)
 
 The SDK has 19 modules with 1000+ tests, but a known gap exists: no Python
@@ -414,3 +503,13 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | I2 | Cross-language LCT test vectors | DONE |
 | I3 | AttestationEnvelope JSON-LD serialization | DONE |
 | I4 | SDK v0.7.0 release housekeeping | DONE |
+| V1 | JSON Schema for LCT + AttestationEnvelope JSON-LD | DONE |
+| V2 | T3/V3 Trust Tensor JSON-LD serialization | IN REVIEW (PR #54) |
+| V3 | R7 Action JSON-LD serialization | DONE |
+| V4 | Cross-language validation test vectors | IN PROGRESS (partial) |
+| V5 | SDK v0.8.0 release housekeeping | DONE |
+| W1 | ATP/ADP JSON-LD serialization | NOT STARTED |
+| W2 | Federation/Society JSON-LD serialization | NOT STARTED |
+| W3 | MRH JSON-LD serialization | NOT STARTED |
+| W4 | Cross-language validation test vectors (Sprint 5) | NOT STARTED |
+| W5 | SDK v0.9.0 release housekeeping | NOT STARTED |
