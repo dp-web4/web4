@@ -14,7 +14,13 @@ Validated against: web4-standard/test-vectors/atp/transfer-operations.json
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+import json
+
+
+# ── JSON-LD Context ──────────────────────────────────────────────
+
+ATP_JSONLD_CONTEXT = "https://web4.io/contexts/atp.jsonld"
 
 
 # ── ATP Account ──────────────────────────────────────────────────
@@ -105,6 +111,50 @@ class ATPAccount:
         self.available += actual
         return actual
 
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to JSON-LD per atp-adp-cycle spec.
+
+        Produces the canonical ATPAccount document structure with:
+        - @context header for JSON-LD processors
+        - Sub-pool breakdown (available, locked, adp)
+        - Computed properties (total, energy_ratio)
+        """
+        return {
+            "@context": [ATP_JSONLD_CONTEXT],
+            "@type": "ATPAccount",
+            "available": self.available,
+            "locked": self.locked,
+            "adp": self.adp,
+            "initial_balance": self.initial_balance,
+            "total": self.total,
+            "energy_ratio": self.energy_ratio,
+        }
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> ATPAccount:
+        """
+        Deserialize from JSON-LD document.
+
+        Accepts both spec JSON-LD format and plain dict format.
+        Ignores @context, @type, and computed properties (total, energy_ratio).
+        """
+        return cls(
+            available=doc.get("available", 0.0),
+            locked=doc.get("locked", 0.0),
+            adp=doc.get("adp", 0.0),
+            initial_balance=doc.get("initial_balance", 0.0),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> ATPAccount:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
+
 
 # ── Transfer Operations ──────────────────────────────────────────
 
@@ -116,6 +166,50 @@ class TransferResult:
     receiver_balance: float
     actual_credit: float
     overflow: float = 0.0
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to JSON-LD per atp-adp-cycle spec.
+
+        Captures the outcome of an ATP transfer: fee charged,
+        resulting balances, actual credit applied, and any overflow.
+        """
+        doc: Dict[str, Any] = {
+            "@context": [ATP_JSONLD_CONTEXT],
+            "@type": "TransferResult",
+            "fee": self.fee,
+            "sender_balance": self.sender_balance,
+            "receiver_balance": self.receiver_balance,
+            "actual_credit": self.actual_credit,
+        }
+        if self.overflow > 0:
+            doc["overflow"] = self.overflow
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> TransferResult:
+        """
+        Deserialize from JSON-LD document.
+
+        Accepts both spec JSON-LD format and plain dict format.
+        Ignores @context and @type fields.
+        """
+        return cls(
+            fee=doc["fee"],
+            sender_balance=doc["sender_balance"],
+            receiver_balance=doc["receiver_balance"],
+            actual_credit=doc["actual_credit"],
+            overflow=doc.get("overflow", 0.0),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> TransferResult:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 def transfer(
