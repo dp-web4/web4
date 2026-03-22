@@ -25,10 +25,16 @@ JSON-LD context mapping snake_case fields to web4 namespace.
 SDK tests passing.
 
 ### A2: ACP JSON-LD serialization
-**Status**: NOT STARTED
+**Status**: IN REVIEW
 **Depends on**: None
-**Scope**: Add `to_jsonld()` / `from_jsonld()` to ACP types (AgentPlan, ProofOfAgency,
-Intent, Decision) in `web4.acp`. JSON Schema and JSON-LD context.
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to ACP types (AgentPlan, Intent,
+Decision, ExecutionRecord) in `web4.acp`. JSON Schema and JSON-LD context.
+**Result**: `AgentPlan.to_jsonld()` / `from_jsonld()`, `Intent.to_jsonld()` /
+`from_jsonld()`, `Decision.to_jsonld()` / `from_jsonld()`,
+`ExecutionRecord.to_jsonld()` / `from_jsonld()`. JSON Schema
+(`acp-jsonld.schema.json`) with 4 type definitions and 6 reusable sub-schemas.
+JSON-LD context (`contexts/acp.jsonld`). 1 new export (`ACP_JSONLD_CONTEXT`).
+54 new tests, 1356 total SDK tests passing.
 
 ### A3: Entity + Capability JSON-LD
 **Status**: NOT STARTED
