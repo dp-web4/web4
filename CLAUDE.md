@@ -1,3 +1,5 @@
+**Read `SESSION_PRIMER.md` → then `SESSION_FOCUS.md`** for current sprint, SDK status, and active work.
+
 # Claude Context for Web4
 
 ## Epistemic Principles (Collective)
