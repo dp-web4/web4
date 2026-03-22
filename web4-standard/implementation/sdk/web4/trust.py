@@ -16,9 +16,10 @@ Validated against: web4-standard/test-vectors/t3v3/tensor-operations.json
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # ── Canonical weights (from test vectors) ────────────────────────
 
@@ -48,6 +49,12 @@ HEALTH_THRESHOLD = 0.7
 # Diminishing returns (test vector t3v3-007)
 DIMINISHING_BASE = 0.8
 DIMINISHING_FLOOR = 0.1
+
+# ── JSON-LD Context URIs ─────────────────────────────────────
+
+T3_JSONLD_CONTEXT = "https://web4.io/contexts/t3-tensor.jsonld"
+V3_JSONLD_CONTEXT = "https://web4.io/contexts/v3-tensor.jsonld"
+WEB4_ONTOLOGY_NS = "https://web4.io/ontology#"
 
 # ── Outcome-based evolution (spec §2.3) ──────────────────────────
 
@@ -145,6 +152,60 @@ class T3:
     def as_dict(self) -> Dict[str, float]:
         return {"talent": self.talent, "training": self.training, "temperament": self.temperament}
 
+    def to_jsonld(self, entity: Optional[str] = None, role: Optional[str] = None) -> Dict[str, Any]:
+        """Serialize to JSON-LD per t3v3-ontology.ttl.
+
+        Produces both shorthand properties (web4:talent etc.) and
+        structured dimension_scores array (web4:hasDimensionScore form).
+        The shorthand carries aggregate scores; the array enables
+        sub-dimension extensions by other ontologies.
+
+        Args:
+            entity: Optional LCT entity ID (web4:entity binding)
+            role: Optional role context (web4:role binding)
+        """
+        doc: Dict[str, Any] = {
+            "@context": [T3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS],
+            "@type": "T3Tensor",
+            # Shorthand aggregate scores (ontology §backward-compatible)
+            "talent": self.talent,
+            "training": self.training,
+            "temperament": self.temperament,
+            "composite_score": self.composite,
+            # Structured dimension scores (ontology §DimensionScore)
+            "dimension_scores": [
+                {"dimension": "web4:Talent", "score": self.talent},
+                {"dimension": "web4:Training", "score": self.training},
+                {"dimension": "web4:Temperament", "score": self.temperament},
+            ],
+        }
+        if entity is not None:
+            doc["entity"] = entity
+        if role is not None:
+            doc["role"] = role
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2, **kwargs: Any) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(**kwargs), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> T3:
+        """Deserialize from JSON-LD document.
+
+        Accepts both JSON-LD format (with @context/@type) and plain dict
+        format (from as_dict). composite_score is recomputed, not stored.
+        """
+        talent = doc.get("talent", 0.5)
+        training = doc.get("training", 0.5)
+        temperament = doc.get("temperament", 0.5)
+        return cls(talent=talent, training=training, temperament=temperament)
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> T3:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
+
 
 # ── V3 Tensor ────────────────────────────────────────────────────
 
@@ -203,6 +264,58 @@ class V3:
 
     def as_dict(self) -> Dict[str, float]:
         return {"valuation": self.valuation, "veracity": self.veracity, "validity": self.validity}
+
+    def to_jsonld(self, entity: Optional[str] = None, role: Optional[str] = None) -> Dict[str, Any]:
+        """Serialize to JSON-LD per t3v3-ontology.ttl.
+
+        Produces both shorthand properties (web4:valuation etc.) and
+        structured dimension_scores array (web4:hasDimensionScore form).
+
+        Args:
+            entity: Optional LCT entity ID (web4:entity binding)
+            role: Optional role context (web4:role binding)
+        """
+        doc: Dict[str, Any] = {
+            "@context": [V3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS],
+            "@type": "V3Tensor",
+            # Shorthand aggregate scores (ontology §backward-compatible)
+            "valuation": self.valuation,
+            "veracity": self.veracity,
+            "validity": self.validity,
+            "composite_score": self.composite,
+            # Structured dimension scores (ontology §DimensionScore)
+            "dimension_scores": [
+                {"dimension": "web4:Valuation", "score": self.valuation},
+                {"dimension": "web4:Veracity", "score": self.veracity},
+                {"dimension": "web4:Validity", "score": self.validity},
+            ],
+        }
+        if entity is not None:
+            doc["entity"] = entity
+        if role is not None:
+            doc["role"] = role
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2, **kwargs: Any) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(**kwargs), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> V3:
+        """Deserialize from JSON-LD document.
+
+        Accepts both JSON-LD format (with @context/@type) and plain dict
+        format (from as_dict). composite_score is recomputed, not stored.
+        """
+        valuation = doc.get("valuation", 0.5)
+        veracity = doc.get("veracity", 0.5)
+        validity = doc.get("validity", 0.5)
+        return cls(valuation=valuation, veracity=veracity, validity=validity)
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> V3:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 # ── Role-Contextual Tensor Store ─────────────────────────────────
