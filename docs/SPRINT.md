@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-22 (A5 release housekeeping)
+**Updated**: 2026-03-23 (A3 merged)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -41,8 +41,15 @@ JSON-LD context (`contexts/acp.jsonld`). 1 new export (`ACP_JSONLD_CONTEXT`).
 ### A3: Entity + Capability JSON-LD
 **Status**: IN REVIEW (PR #63)
 **Depends on**: None
-**Scope**: Add `to_jsonld()` / `from_jsonld()` to EntityTypeInfo and CapabilityLevel
-types. JSON Schema and JSON-LD context.
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to EntityTypeInfo and LevelRequirement
+types, plus registry/framework/assessment serializers. JSON Schema and JSON-LD context.
+**Result**: `EntityTypeInfo.to_jsonld()` / `from_jsonld()`, `entity_registry_to_jsonld()`,
+`LevelRequirement.to_jsonld()` / `from_jsonld()`, `capability_assessment_to_jsonld()`,
+`capability_framework_to_jsonld()`. JSON Schemas (`entity-jsonld.schema.json`,
+`capability-jsonld.schema.json`). JSON-LD contexts (`entity.jsonld`, `capability.jsonld`).
+5 new exports (`ENTITY_JSONLD_CONTEXT`, `entity_registry_to_jsonld`,
+`CAPABILITY_JSONLD_CONTEXT`, `capability_assessment_to_jsonld`,
+`capability_framework_to_jsonld`). 37 new tests, 1393 total SDK tests passing.
 
 ### A4: Cross-language validation vectors for Phase 2
 **Status**: IN PROGRESS (partial)

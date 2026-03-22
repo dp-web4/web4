@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/entity-jsonld.schema.json",
+  "title": "Web4 Entity Type Taxonomy — JSON-LD",
+  "description": "JSON Schema for entity type taxonomy documents per web4-standard/core-spec/entity-types.md. Validates output from EntityTypeInfo.to_jsonld() and cross-language implementations.",
+
+  "oneOf": [
+    { "$ref": "#/$defs/EntityTypeInfo" },
+    { "$ref": "#/$defs/EntityTypeRegistry" }
+  ],
+
+  "$defs": {
+    "BehavioralMode": {
+      "type": "string",
+      "enum": ["agentic", "responsive", "delegative"],
+      "description": "How an entity interacts with the world."
+    },
+
+    "EnergyPattern": {
+      "type": "string",
+      "enum": ["active", "passive"],
+      "description": "How an entity participates in ATP/ADP energy metabolism."
+    },
+
+    "EntityType": {
+      "type": "string",
+      "enum": [
+        "human", "ai", "society", "organization", "role",
+        "task", "resource", "device", "service", "oracle",
+        "accumulator", "dictionary", "hybrid", "policy", "infrastructure"
+      ],
+      "description": "One of the 15 canonical Web4 entity types."
+    },
+
+    "EntityTypeInfo": {
+      "type": "object",
+      "title": "EntityTypeInfo",
+      "description": "Behavioral and metabolic metadata for an entity type.",
+      "required": [
+        "@context",
+        "@type",
+        "entity_type",
+        "modes",
+        "energy",
+        "can_r6",
+        "description"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "EntityTypeInfo",
+          "description": "JSON-LD type identifier."
+        },
+        "entity_type": {
+          "$ref": "#/$defs/EntityType"
+        },
+        "modes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/BehavioralMode" },
+          "uniqueItems": true,
+          "description": "Behavioral modes this entity type can exhibit."
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyPattern"
+        },
+        "can_r6": {
+          "type": "boolean",
+          "description": "Whether this entity type can process R6 transactions."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description from spec §2.1."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "EntityTypeRegistry": {
+      "type": "object",
+      "title": "EntityTypeRegistry",
+      "description": "Full registry of all 15 canonical entity types.",
+      "required": [
+        "@context",
+        "@type",
+        "entity_types"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "EntityTypeRegistry",
+          "description": "JSON-LD type identifier."
+        },
+        "entity_types": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EntityTypeInfo" },
+          "description": "All entity type metadata entries."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
