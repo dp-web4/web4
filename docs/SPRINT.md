@@ -14,7 +14,8 @@ R7Action, T3/V3). Sprint 5 extends JSON-LD serialization to the next tier of cor
 types needed for cross-language interoperability.
 
 ### A1: ATP/ADP JSON-LD serialization
-**Status**: IN REVIEW
+**Status**: DONE
+**Completed**: 2026-03-21
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to `ATPAccount` and `TransferResult`
 in `web4.atp`, producing RDF-aligned JSON-LD documents. JSON Schema
 (`atp-jsonld.schema.json`) and JSON-LD context (`contexts/atp.jsonld`).
@@ -25,7 +26,8 @@ JSON-LD context mapping snake_case fields to web4 namespace.
 SDK tests passing.
 
 ### A2: ACP JSON-LD serialization
-**Status**: IN REVIEW
+**Status**: DONE
+**Completed**: 2026-03-21
 **Depends on**: None
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to ACP types (AgentPlan, Intent,
 Decision, ExecutionRecord) in `web4.acp`. JSON Schema and JSON-LD context.
@@ -37,7 +39,7 @@ JSON-LD context (`contexts/acp.jsonld`). 1 new export (`ACP_JSONLD_CONTEXT`).
 54 new tests, 1356 total SDK tests passing.
 
 ### A3: Entity + Capability JSON-LD
-**Status**: NOT STARTED
+**Status**: IN REVIEW (PR #63)
 **Depends on**: None
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to EntityTypeInfo and CapabilityLevel
 types. JSON Schema and JSON-LD context.
@@ -53,9 +55,13 @@ Validation runner updated to include ATP and ACP targets.
 Entity + Capability vectors deferred until A3 PR #63 merges.
 
 ### A5: SDK v0.9.0 release housekeeping
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-22
 **Depends on**: A1 (at minimum)
 **Scope**: Version bump, CHANGELOG.md entry for Sprint 5 deliverables.
+**Result**: Version bumped 0.8.0 → 0.9.0 in `__init__.py`, `pyproject.toml`, `setup.py`.
+CHANGELOG.md v0.9.0 section documents A1 (ATP JSON-LD), A2 (ACP JSON-LD),
+A4 partial (59 validation vectors), and 3 new exports. 269 symbols, 1356 tests passing.
 
 ---
 
@@ -471,8 +477,8 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | V3 | R7 Action JSON-LD serialization | DONE |
 | V4 | Cross-language validation test vectors | IN PROGRESS (partial) |
 | V5 | SDK v0.8.0 release housekeeping | DONE |
-| A1 | ATP/ADP JSON-LD serialization | IN REVIEW |
-| A2 | ACP JSON-LD serialization | NOT STARTED |
-| A3 | Entity + Capability JSON-LD | NOT STARTED |
-| A4 | Cross-language validation vectors (Phase 2) | NOT STARTED |
-| A5 | SDK v0.9.0 release housekeeping | NOT STARTED |
+| A1 | ATP/ADP JSON-LD serialization | DONE |
+| A2 | ACP JSON-LD serialization | DONE |
+| A3 | Entity + Capability JSON-LD | IN REVIEW (PR #63) |
+| A4 | Cross-language validation vectors (Phase 2) | IN PROGRESS (partial) |
+| A5 | SDK v0.9.0 release housekeeping | DONE |
