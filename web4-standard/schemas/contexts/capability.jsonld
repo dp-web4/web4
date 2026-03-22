@@ -1,0 +1,60 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "web4": "https://web4.io/ns/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "LevelRequirement": "web4:LevelRequirement",
+    "CapabilityAssessment": "web4:CapabilityAssessment",
+    "CapabilityFramework": "web4:CapabilityFramework",
+
+    "level": {
+      "@id": "web4:capabilityLevel",
+      "@type": "xsd:integer"
+    },
+    "name": {
+      "@id": "web4:levelName",
+      "@type": "xsd:string"
+    },
+    "description": {
+      "@id": "web4:description",
+      "@type": "xsd:string"
+    },
+    "requirements": {
+      "@id": "web4:requirements",
+      "@container": "@list"
+    },
+    "trust_range": {
+      "@id": "web4:trustRange",
+      "@container": "@list"
+    },
+    "lct_id": {
+      "@id": "web4:lctId",
+      "@type": "xsd:string"
+    },
+    "assessed_level": {
+      "@id": "web4:assessedLevel",
+      "@type": "xsd:integer"
+    },
+    "level_name": {
+      "@id": "web4:levelName",
+      "@type": "xsd:string"
+    },
+    "trust_tier": {
+      "@id": "web4:trustTier",
+      "@type": "xsd:string"
+    },
+    "requirements_met": {
+      "@id": "web4:requirementsMet",
+      "@type": "xsd:boolean"
+    },
+    "missing_requirements": {
+      "@id": "web4:missingRequirements",
+      "@container": "@list"
+    },
+    "levels": {
+      "@id": "web4:levels",
+      "@container": "@list"
+    }
+  }
+}

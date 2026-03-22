@@ -20,11 +20,17 @@ Validated against: web4-standard/test-vectors/capability/
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .lct import LCT, EntityType
+
+
+# ── JSON-LD Context ──────────────────────────────────────────────
+
+CAPABILITY_JSONLD_CONTEXT = "https://web4.io/contexts/capability.jsonld"
 
 
 # ── Capability Levels ────────────────────────────────────────────
@@ -94,6 +100,39 @@ class LevelRequirement:
     description: str
     requirements: List[str]
     trust_range: Tuple[float, float]
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """Serialize to JSON-LD per lct-capability-levels spec."""
+        return {
+            "@context": [CAPABILITY_JSONLD_CONTEXT],
+            "@type": "LevelRequirement",
+            "level": int(self.level),
+            "name": self.name,
+            "description": self.description,
+            "requirements": list(self.requirements),
+            "trust_range": list(self.trust_range),
+        }
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> LevelRequirement:
+        """Deserialize from JSON-LD document."""
+        tr = doc["trust_range"]
+        return cls(
+            level=CapabilityLevel(doc["level"]),
+            name=doc["name"],
+            description=doc["description"],
+            requirements=doc["requirements"],
+            trust_range=(tr[0], tr[1]),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> LevelRequirement:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 _LEVEL_REQUIREMENTS: Dict[CapabilityLevel, LevelRequirement] = {
@@ -438,3 +477,30 @@ def common_ground(level_a: int, level_b: int) -> CapabilityLevel:
         The minimum CapabilityLevel.
     """
     return CapabilityLevel(min(level_a, level_b))
+
+
+def capability_assessment_to_jsonld(lct: LCT) -> Dict[str, Any]:
+    """Serialize an LCT's capability assessment to JSON-LD."""
+    level = assess_level(lct)
+    tier_name, tier_min, tier_max = trust_tier(level)
+    is_valid, missing = validate_level(lct, level)
+    return {
+        "@context": [CAPABILITY_JSONLD_CONTEXT],
+        "@type": "CapabilityAssessment",
+        "lct_id": lct.lct_id,
+        "assessed_level": int(level),
+        "level_name": CapabilityLevel(level).name.lower().capitalize(),
+        "trust_tier": tier_name,
+        "trust_range": [tier_min, tier_max],
+        "requirements_met": is_valid,
+        "missing_requirements": missing,
+    }
+
+
+def capability_framework_to_jsonld() -> Dict[str, Any]:
+    """Serialize the full capability level framework to JSON-LD."""
+    return {
+        "@context": [CAPABILITY_JSONLD_CONTEXT],
+        "@type": "CapabilityFramework",
+        "levels": [req.to_jsonld() for req in _LEVEL_REQUIREMENTS.values()],
+    }
