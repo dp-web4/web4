@@ -1,0 +1,636 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/acp-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/acp-jsonld.schema.json",
+    "description": "Cross-language validation vectors for ACP (Agentic Context Protocol) JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "web4-standard/core-spec/acp-framework.md"
+  },
+  "valid": [
+    {
+      "id": "acp-valid-001",
+      "description": "Minimal AgentPlan with one step",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:001",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [
+          {"id": "step-1", "mcp": "mcp:web4:search", "args": {"query": "test"}}
+        ],
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-002",
+      "description": "Full AgentPlan with triggers, guards, and multi-step workflow",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:002",
+        "principal": "lct:web4:human:bob",
+        "agent": "lct:web4:ai:orchestrator",
+        "grantId": "grant:web4:def",
+        "triggers": [
+          {"kind": "cron", "expr": "0 9 * * *"},
+          {"kind": "event", "expr": "data.updated"},
+          {"kind": "manual", "authorized": ["lct:web4:human:bob"]}
+        ],
+        "steps": [
+          {"id": "step-1", "mcp": "mcp:web4:fetch", "args": {"url": "https://example.com"}},
+          {"id": "step-2", "mcp": "mcp:web4:analyze", "args": {"input": "step-1"}, "dependsOn": ["step-1"]},
+          {"id": "step-3", "mcp": "mcp:web4:report", "args": {}, "dependsOn": ["step-2"], "requiresApproval": "lct:web4:human:bob"}
+        ],
+        "guards": {
+          "lawHash": "sha256:law_abc",
+          "witnessLevel": 2,
+          "resourceCaps": {"maxAtp": 500, "maxExecutions": 10, "rateLimit": "10/hour"},
+          "humanApproval": {"mode": "conditional", "autoThreshold": 0.9, "timeout": 3600, "fallback": "deny"},
+          "expiresAt": "2026-04-01T00:00:00Z"
+        },
+        "canonicalHash": "sha256:plan_hash_002",
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-003",
+      "description": "Minimal Intent with proof of agency",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:001",
+        "planId": "plan:web4:001",
+        "stepId": "step-1",
+        "proposedAction": {"tool": "mcp:web4:search", "input": {"query": "test"}},
+        "proofOfAgency": {
+          "grantId": "grant:web4:abc",
+          "planId": "plan:web4:001",
+          "intentId": "intent:web4:001",
+          "nonce": "nonce_unique_001"
+        },
+        "createdAt": "2026-03-22T01:00:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-004",
+      "description": "Full Intent with all optional fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:002",
+        "planId": "plan:web4:002",
+        "stepId": "step-2",
+        "proposedAction": {"tool": "mcp:web4:analyze", "input": {"data": "step-1-output"}},
+        "proofOfAgency": {
+          "grantId": "grant:web4:def",
+          "planId": "plan:web4:002",
+          "intentId": "intent:web4:002",
+          "nonce": "nonce_unique_002",
+          "audience": ["lct:web4:service:analytics"],
+          "expiresAt": "2026-03-22T02:00:00Z"
+        },
+        "explanation": "Analyzing fetched data to produce report",
+        "confidence": 0.92,
+        "riskAssessment": "low",
+        "needsApproval": false,
+        "createdAt": "2026-03-22T01:30:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-005",
+      "description": "Minimal Decision (approve)",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Decision",
+        "intentId": "intent:web4:002",
+        "decision": "approve",
+        "decidedBy": "lct:web4:human:bob",
+        "timestamp": "2026-03-22T02:00:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-006",
+      "description": "Full Decision with modifications and witnesses",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Decision",
+        "intentId": "intent:web4:003",
+        "decision": "modify",
+        "decidedBy": "lct:web4:human:alice",
+        "rationale": "Reducing scope to stay within ATP budget",
+        "modifications": {"maxRows": 1000, "timeout": 300},
+        "witnesses": ["lct:web4:oracle:governance", "lct:web4:human:bob"],
+        "timestamp": "2026-03-22T02:30:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-007",
+      "description": "Minimal ExecutionRecord with success",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "ExecutionRecord",
+        "recordId": "exec:web4:001",
+        "intentId": "intent:web4:001",
+        "grantId": "grant:web4:abc",
+        "lawHash": "sha256:law_abc",
+        "mcpCall": {"tool": "mcp:web4:search", "input": {"query": "test"}},
+        "result": {"status": "success"},
+        "timestamp": "2026-03-22T03:00:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-008",
+      "description": "Full ExecutionRecord with output, witnesses, and t3v3 delta",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "ExecutionRecord",
+        "recordId": "exec:web4:002",
+        "intentId": "intent:web4:002",
+        "grantId": "grant:web4:def",
+        "lawHash": "sha256:law_def",
+        "mcpCall": {"tool": "mcp:web4:analyze", "input": {"data": "dataset_001"}},
+        "result": {
+          "status": "success",
+          "output": {"rows": 10000, "score": 0.95},
+          "resourcesConsumed": {"atp": 45, "compute_ms": 12000}
+        },
+        "t3v3Delta": {"training": 0.01, "temperament": 0.005},
+        "witnesses": ["lct:web4:oracle:execution"],
+        "canonicalHash": "sha256:exec_hash_002",
+        "timestamp": "2026-03-22T03:30:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-009",
+      "description": "ExecutionRecord with failure result",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "ExecutionRecord",
+        "recordId": "exec:web4:003",
+        "intentId": "intent:web4:003",
+        "grantId": "grant:web4:ghi",
+        "lawHash": "sha256:law_ghi",
+        "mcpCall": {"tool": "mcp:web4:deploy", "input": {"target": "production"}},
+        "result": {
+          "status": "failure",
+          "output": {"error": "Timeout exceeded"},
+          "resourcesConsumed": {"atp": 100}
+        },
+        "timestamp": "2026-03-22T04:00:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-010",
+      "description": "Decision with deny verdict",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Decision",
+        "intentId": "intent:web4:004",
+        "decision": "deny",
+        "decidedBy": "lct:web4:human:admin",
+        "rationale": "Action exceeds ATP budget for this period",
+        "timestamp": "2026-03-22T05:00:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-011",
+      "description": "Intent with boundary confidence 0.0 (minimum) and critical risk",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:boundary-low",
+        "planId": "plan:web4:001",
+        "stepId": "step-1",
+        "proposedAction": {"tool": "noop"},
+        "proofOfAgency": {
+          "grantId": "grant:web4:abc",
+          "planId": "plan:web4:001",
+          "intentId": "intent:web4:boundary-low",
+          "nonce": "nonce_boundary"
+        },
+        "confidence": 0.0,
+        "riskAssessment": "critical",
+        "needsApproval": true,
+        "createdAt": "2026-03-22T06:00:00Z"
+      }
+    },
+    {
+      "id": "acp-valid-012",
+      "description": "Intent with boundary confidence 1.0 (maximum)",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:boundary-high",
+        "planId": "plan:web4:001",
+        "stepId": "step-1",
+        "proposedAction": {"tool": "read-only"},
+        "proofOfAgency": {
+          "grantId": "grant:web4:abc",
+          "planId": "plan:web4:001",
+          "intentId": "intent:web4:boundary-high",
+          "nonce": "nonce_max"
+        },
+        "confidence": 1.0,
+        "riskAssessment": "low",
+        "needsApproval": false,
+        "createdAt": "2026-03-22T06:01:00Z"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "acp-invalid-001",
+      "description": "AgentPlan missing required field: planId",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "planId",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [{"id": "s1", "mcp": "m", "args": {}}],
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-002",
+      "description": "AgentPlan missing required field: steps",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "steps",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-003",
+      "description": "AgentPlan with empty steps array (minItems: 1)",
+      "error_path": "steps",
+      "error_kind": "minItems",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [],
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-004",
+      "description": "Wrong @type value (must be AgentPlan/Intent/Decision/ExecutionRecord)",
+      "error_path": "@type",
+      "error_kind": "const",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Workflow",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [{"id": "s1", "mcp": "m", "args": {}}],
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-005",
+      "description": "Invalid trigger kind enum (not cron/event/manual)",
+      "error_path": "triggers.0.kind",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "triggers": [{"kind": "webhook"}],
+        "steps": [{"id": "s1", "mcp": "m", "args": {}}],
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-006",
+      "description": "Invalid decision enum value (not approve/deny/modify)",
+      "error_path": "decision",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Decision",
+        "intentId": "intent:web4:bad",
+        "decision": "escalate",
+        "decidedBy": "lct:web4:human:alice",
+        "timestamp": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-007",
+      "description": "Intent missing required field: proofOfAgency",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "proofOfAgency",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:bad",
+        "planId": "plan:web4:001",
+        "stepId": "step-1",
+        "proposedAction": {"tool": "test"},
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-008",
+      "description": "proofOfAgency missing required field: nonce",
+      "error_path": "proofOfAgency",
+      "error_kind": "required",
+      "error_field": "nonce",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:bad",
+        "planId": "plan:web4:001",
+        "stepId": "step-1",
+        "proposedAction": {"tool": "test"},
+        "proofOfAgency": {
+          "grantId": "grant:web4:abc",
+          "planId": "plan:web4:001",
+          "intentId": "intent:web4:bad"
+        },
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-009",
+      "description": "Intent confidence exceeds maximum (1.5 > 1.0)",
+      "error_path": "confidence",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:bad",
+        "planId": "plan:web4:001",
+        "stepId": "step-1",
+        "proposedAction": {"tool": "test"},
+        "proofOfAgency": {"grantId": "g", "planId": "p", "intentId": "i", "nonce": "n"},
+        "confidence": 1.5,
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-010",
+      "description": "Invalid riskAssessment enum (not low/medium/high/critical)",
+      "error_path": "riskAssessment",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:bad",
+        "planId": "plan:web4:001",
+        "stepId": "step-1",
+        "proposedAction": {"tool": "test"},
+        "proofOfAgency": {"grantId": "g", "planId": "p", "intentId": "i", "nonce": "n"},
+        "riskAssessment": "extreme",
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-011",
+      "description": "ExecutionRecord missing required field: recordId",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "recordId",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "ExecutionRecord",
+        "intentId": "intent:web4:001",
+        "grantId": "grant:web4:abc",
+        "lawHash": "sha256:law",
+        "mcpCall": {"tool": "test"},
+        "result": {"status": "success"},
+        "timestamp": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-012",
+      "description": "Invalid execution result status enum (not success/failure)",
+      "error_path": "result.status",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "ExecutionRecord",
+        "recordId": "exec:web4:bad",
+        "intentId": "intent:web4:001",
+        "grantId": "grant:web4:abc",
+        "lawHash": "sha256:law",
+        "mcpCall": {"tool": "test"},
+        "result": {"status": "partial"},
+        "timestamp": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-013",
+      "description": "Extra field at root level (AgentPlan)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [{"id": "s1", "mcp": "m", "args": {}}],
+        "createdAt": "2026-03-22T00:00:00Z",
+        "secret_data": "should_be_rejected"
+      }
+    },
+    {
+      "id": "acp-invalid-014",
+      "description": "Extra field in guards (additionalProperties: false)",
+      "error_path": "guards",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [{"id": "s1", "mcp": "m", "args": {}}],
+        "guards": {"lawHash": "sha256:law", "backdoor": true},
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-015",
+      "description": "Invalid humanApproval mode enum (not auto/manual/conditional)",
+      "error_path": "guards.humanApproval.mode",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [{"id": "s1", "mcp": "m", "args": {}}],
+        "guards": {"humanApproval": {"mode": "always"}},
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-016",
+      "description": "Negative maxAtp in resourceCaps (minimum: 0)",
+      "error_path": "guards.resourceCaps.maxAtp",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [{"id": "s1", "mcp": "m", "args": {}}],
+        "guards": {"resourceCaps": {"maxAtp": -100}},
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-017",
+      "description": "Extra field in step (additionalProperties: false)",
+      "error_path": "steps.0",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [{"id": "s1", "mcp": "m", "args": {}, "malicious": true}],
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-018",
+      "description": "Invalid humanApproval fallback enum (not deny/abort)",
+      "error_path": "guards.humanApproval.fallback",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "AgentPlan",
+        "planId": "plan:web4:bad",
+        "principal": "lct:web4:human:alice",
+        "agent": "lct:web4:ai:assistant",
+        "grantId": "grant:web4:abc",
+        "steps": [{"id": "s1", "mcp": "m", "args": {}}],
+        "guards": {"humanApproval": {"fallback": "retry"}},
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-019",
+      "description": "Extra field in result (ExecutionRecord)",
+      "error_path": "result",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "ExecutionRecord",
+        "recordId": "exec:web4:bad",
+        "intentId": "intent:web4:001",
+        "grantId": "grant:web4:abc",
+        "lawHash": "sha256:law",
+        "mcpCall": {"tool": "test"},
+        "result": {"status": "success", "hidden": true},
+        "timestamp": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-020",
+      "description": "Intent with negative confidence (< 0)",
+      "error_path": "confidence",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "Intent",
+        "intentId": "intent:web4:neg",
+        "planId": "plan:web4:001",
+        "stepId": "step-1",
+        "proposedAction": {"tool": "test"},
+        "proofOfAgency": {"grantId": "g", "planId": "p", "intentId": "i", "nonce": "n"},
+        "confidence": -0.5,
+        "createdAt": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-021",
+      "description": "Empty @context array (minItems: 1) on Decision",
+      "error_path": "@context",
+      "error_kind": "minItems",
+      "document": {
+        "@context": [],
+        "@type": "Decision",
+        "intentId": "intent:web4:001",
+        "decision": "approve",
+        "decidedBy": "lct:web4:human:alice",
+        "timestamp": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-022",
+      "description": "ExecutionRecord missing required field: result",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "result",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "ExecutionRecord",
+        "recordId": "exec:web4:no-result",
+        "intentId": "intent:web4:001",
+        "grantId": "grant:web4:abc",
+        "lawHash": "sha256:law",
+        "mcpCall": {"tool": "test"},
+        "timestamp": "2026-03-22T00:00:00Z"
+      }
+    },
+    {
+      "id": "acp-invalid-023",
+      "description": "Empty object (matches no oneOf branch)",
+      "error_path": "",
+      "error_kind": "oneOf",
+      "document": {}
+    },
+    {
+      "id": "acp-invalid-024",
+      "description": "ExecutionRecord result missing required status field",
+      "error_path": "result",
+      "error_kind": "required",
+      "error_field": "status",
+      "document": {
+        "@context": ["https://web4.io/contexts/acp.jsonld"],
+        "@type": "ExecutionRecord",
+        "recordId": "exec:web4:no-status",
+        "intentId": "intent:web4:001",
+        "grantId": "grant:web4:abc",
+        "lawHash": "sha256:law",
+        "mcpCall": {"tool": "test"},
+        "result": {"output": {"data": "test"}},
+        "timestamp": "2026-03-22T00:00:00Z"
+      }
+    }
+  ]
+}

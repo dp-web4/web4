@@ -43,9 +43,14 @@ JSON-LD context (`contexts/acp.jsonld`). 1 new export (`ACP_JSONLD_CONTEXT`).
 types. JSON Schema and JSON-LD context.
 
 ### A4: Cross-language validation vectors for Phase 2
-**Status**: NOT STARTED
+**Status**: IN PROGRESS (partial)
 **Depends on**: A1, A2, A3
 **Scope**: JSON test vectors for ATP, ACP, Entity, Capability schemas.
+**Result** (partial): 59 vectors for 2 merged schemas (ATP, ACP).
+ATP: 8 valid + 15 invalid = 23 vectors (ATPAccount and TransferResult types).
+ACP: 12 valid + 24 invalid = 36 vectors (AgentPlan, Intent, Decision, ExecutionRecord types).
+Validation runner updated to include ATP and ACP targets.
+Entity + Capability vectors deferred until A3 PR #63 merges.
 
 ### A5: SDK v0.9.0 release housekeeping
 **Status**: NOT STARTED

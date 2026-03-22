@@ -1,0 +1,347 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/atp-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/atp-jsonld.schema.json",
+    "description": "Cross-language validation vectors for ATP/ADP JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "web4-standard/core-spec/atp-adp-cycle.md"
+  },
+  "valid": [
+    {
+      "id": "atp-valid-001",
+      "description": "Minimal ATPAccount with required fields at zero",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 0,
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 0,
+        "total": 0,
+        "energy_ratio": 0.5
+      }
+    },
+    {
+      "id": "atp-valid-002",
+      "description": "ATPAccount with typical active balance",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 750.0,
+        "locked": 250.0,
+        "adp": 100.0,
+        "initial_balance": 1000.0,
+        "total": 1000.0,
+        "energy_ratio": 0.909
+      }
+    },
+    {
+      "id": "atp-valid-003",
+      "description": "ATPAccount fully discharged (energy_ratio = 0)",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 0,
+        "locked": 0,
+        "adp": 1000.0,
+        "initial_balance": 1000.0,
+        "total": 0,
+        "energy_ratio": 0
+      }
+    },
+    {
+      "id": "atp-valid-004",
+      "description": "ATPAccount with maximum energy_ratio (1.0, no ADP)",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 500.0,
+        "locked": 500.0,
+        "adp": 0,
+        "initial_balance": 1000.0,
+        "total": 1000.0,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-valid-005",
+      "description": "ATPAccount with fractional values",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 0.001,
+        "locked": 0.002,
+        "adp": 0.003,
+        "initial_balance": 0.006,
+        "total": 0.003,
+        "energy_ratio": 0.5
+      }
+    },
+    {
+      "id": "atp-valid-006",
+      "description": "Minimal TransferResult with required fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "TransferResult",
+        "fee": 5.0,
+        "sender_balance": 495.0,
+        "receiver_balance": 500.0,
+        "actual_credit": 495.0
+      }
+    },
+    {
+      "id": "atp-valid-007",
+      "description": "TransferResult with overflow (receiver cap exceeded)",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "TransferResult",
+        "fee": 10.0,
+        "sender_balance": 0,
+        "receiver_balance": 900.0,
+        "actual_credit": 400.0,
+        "overflow": 590.0
+      }
+    },
+    {
+      "id": "atp-valid-008",
+      "description": "TransferResult with zero fee and zero overflow",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "TransferResult",
+        "fee": 0,
+        "sender_balance": 100.0,
+        "receiver_balance": 200.0,
+        "actual_credit": 100.0
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "atp-invalid-001",
+      "description": "Missing required field: @type",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "@type",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "available": 100,
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-invalid-002",
+      "description": "Missing required field: available (ATPAccount)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "available",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-invalid-003",
+      "description": "Missing required field: energy_ratio (ATPAccount)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "energy_ratio",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 100,
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100
+      }
+    },
+    {
+      "id": "atp-invalid-004",
+      "description": "Missing required field: actual_credit (TransferResult)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "actual_credit",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "TransferResult",
+        "fee": 5.0,
+        "sender_balance": 95.0,
+        "receiver_balance": 105.0
+      }
+    },
+    {
+      "id": "atp-invalid-005",
+      "description": "Wrong @type value (must be ATPAccount or TransferResult)",
+      "error_path": "@type",
+      "error_kind": "const",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ADPAccount",
+        "available": 100,
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-invalid-006",
+      "description": "Negative available balance (minimum: 0)",
+      "error_path": "available",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": -50,
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-invalid-007",
+      "description": "energy_ratio exceeds maximum (1.5 > 1.0)",
+      "error_path": "energy_ratio",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 100,
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100,
+        "energy_ratio": 1.5
+      }
+    },
+    {
+      "id": "atp-invalid-008",
+      "description": "Negative fee in TransferResult (minimum: 0)",
+      "error_path": "fee",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "TransferResult",
+        "fee": -5,
+        "sender_balance": 100,
+        "receiver_balance": 200,
+        "actual_credit": 100
+      }
+    },
+    {
+      "id": "atp-invalid-009",
+      "description": "Extra field at root level (ATPAccount)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 100,
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100,
+        "energy_ratio": 1.0,
+        "secret_field": "should_be_rejected"
+      }
+    },
+    {
+      "id": "atp-invalid-010",
+      "description": "Extra field at root level (TransferResult)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "TransferResult",
+        "fee": 5,
+        "sender_balance": 95,
+        "receiver_balance": 105,
+        "actual_credit": 95,
+        "hidden_data": true
+      }
+    },
+    {
+      "id": "atp-invalid-011",
+      "description": "String type for available (should be number)",
+      "error_path": "available",
+      "error_kind": "type",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": "one hundred",
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-invalid-012",
+      "description": "Empty @context array (minItems: 1)",
+      "error_path": "@context",
+      "error_kind": "minItems",
+      "document": {
+        "@context": [],
+        "@type": "ATPAccount",
+        "available": 100,
+        "locked": 0,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 100,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-invalid-013",
+      "description": "Negative locked balance (minimum: 0)",
+      "error_path": "locked",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "ATPAccount",
+        "available": 100,
+        "locked": -10,
+        "adp": 0,
+        "initial_balance": 100,
+        "total": 90,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-invalid-014",
+      "description": "Negative overflow in TransferResult (minimum: 0)",
+      "error_path": "overflow",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/atp.jsonld"],
+        "@type": "TransferResult",
+        "fee": 5,
+        "sender_balance": 95,
+        "receiver_balance": 105,
+        "actual_credit": 95,
+        "overflow": -10
+      }
+    },
+    {
+      "id": "atp-invalid-015",
+      "description": "Empty object (matches no oneOf branch)",
+      "error_path": "",
+      "error_kind": "oneOf",
+      "document": {}
+    }
+  ]
+}
