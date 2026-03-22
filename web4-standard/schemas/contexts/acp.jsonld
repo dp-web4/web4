@@ -1,0 +1,128 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "web4": "https://web4.io/ns/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "AgentPlan": "web4:AgentPlan",
+    "Intent": "web4:Intent",
+    "Decision": "web4:Decision",
+    "ExecutionRecord": "web4:ExecutionRecord",
+
+    "planId": {
+      "@id": "web4:planId",
+      "@type": "xsd:string"
+    },
+    "principal": {
+      "@id": "web4:principal",
+      "@type": "@id"
+    },
+    "agent": {
+      "@id": "web4:agent",
+      "@type": "@id"
+    },
+    "grantId": {
+      "@id": "web4:grantId",
+      "@type": "xsd:string"
+    },
+    "triggers": {
+      "@id": "web4:triggers",
+      "@container": "@list"
+    },
+    "steps": {
+      "@id": "web4:steps",
+      "@container": "@list"
+    },
+    "guards": {
+      "@id": "web4:guards"
+    },
+    "createdAt": {
+      "@id": "web4:createdAt",
+      "@type": "xsd:dateTime"
+    },
+    "canonicalHash": {
+      "@id": "web4:canonicalHash",
+      "@type": "xsd:string"
+    },
+
+    "intentId": {
+      "@id": "web4:intentId",
+      "@type": "xsd:string"
+    },
+    "stepId": {
+      "@id": "web4:stepId",
+      "@type": "xsd:string"
+    },
+    "proposedAction": {
+      "@id": "web4:proposedAction"
+    },
+    "proofOfAgency": {
+      "@id": "web4:proofOfAgency"
+    },
+    "explanation": {
+      "@id": "web4:explanation",
+      "@type": "xsd:string"
+    },
+    "confidence": {
+      "@id": "web4:confidence",
+      "@type": "xsd:double"
+    },
+    "riskAssessment": {
+      "@id": "web4:riskAssessment",
+      "@type": "xsd:string"
+    },
+    "needsApproval": {
+      "@id": "web4:needsApproval",
+      "@type": "xsd:boolean"
+    },
+
+    "decision": {
+      "@id": "web4:decision",
+      "@type": "xsd:string"
+    },
+    "decidedBy": {
+      "@id": "web4:decidedBy",
+      "@type": "@id"
+    },
+    "rationale": {
+      "@id": "web4:rationale",
+      "@type": "xsd:string"
+    },
+    "modifications": {
+      "@id": "web4:modifications"
+    },
+    "witnesses": {
+      "@id": "web4:witnesses",
+      "@container": "@list"
+    },
+    "timestamp": {
+      "@id": "web4:timestamp",
+      "@type": "xsd:dateTime"
+    },
+
+    "recordId": {
+      "@id": "web4:recordId",
+      "@type": "xsd:string"
+    },
+    "lawHash": {
+      "@id": "web4:lawHash",
+      "@type": "xsd:string"
+    },
+    "mcpCall": {
+      "@id": "web4:mcpCall"
+    },
+    "result": {
+      "@id": "web4:result"
+    },
+    "resultStatus": {
+      "@id": "web4:resultStatus",
+      "@type": "xsd:string"
+    },
+    "t3v3Delta": {
+      "@id": "web4:t3v3Delta"
+    },
+    "resourcesConsumed": {
+      "@id": "web4:resourcesConsumed"
+    }
+  }
+}

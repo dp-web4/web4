@@ -1,0 +1,461 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/acp-jsonld.schema.json",
+  "title": "Web4 ACP — JSON-LD",
+  "description": "JSON Schema for ACP (Agentic Context Protocol) documents per web4-standard/core-spec/acp-framework.md. Validates output from AgentPlan.to_jsonld(), Intent.to_jsonld(), Decision.to_jsonld(), ExecutionRecord.to_jsonld(), and cross-language implementations.",
+
+  "oneOf": [
+    { "$ref": "#/$defs/AgentPlan" },
+    { "$ref": "#/$defs/Intent" },
+    { "$ref": "#/$defs/Decision" },
+    { "$ref": "#/$defs/ExecutionRecord" }
+  ],
+
+  "$defs": {
+    "Trigger": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["cron", "event", "manual"],
+          "description": "Trigger type per ACP §2.1."
+        },
+        "expr": {
+          "type": "string",
+          "description": "Cron expression or event topic."
+        },
+        "authorized": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "LCT IDs authorized to manually trigger."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "PlanStep": {
+      "type": "object",
+      "required": ["id", "mcp", "args"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Step identifier."
+        },
+        "mcp": {
+          "type": "string",
+          "description": "MCP tool reference (e.g. invoice.search)."
+        },
+        "args": {
+          "type": "object",
+          "description": "Tool arguments."
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Step IDs this step depends on."
+        },
+        "requiresApproval": {
+          "type": "string",
+          "description": "Condition for requiring human approval."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ResourceCaps": {
+      "type": "object",
+      "properties": {
+        "maxAtp": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum ATP expenditure."
+        },
+        "maxExecutions": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum execution count."
+        },
+        "rateLimit": {
+          "type": "string",
+          "description": "Rate limit expression (e.g. 10/hour)."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "HumanApproval": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["auto", "manual", "conditional"],
+          "description": "Approval gate mode."
+        },
+        "autoThreshold": {
+          "type": "number",
+          "description": "Auto-approve if value <= threshold."
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Seconds to wait for human approval."
+        },
+        "fallback": {
+          "type": "string",
+          "enum": ["deny", "abort"],
+          "description": "Action on timeout."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "Guards": {
+      "type": "object",
+      "properties": {
+        "lawHash": {
+          "type": "string",
+          "description": "Hash of authorizing law."
+        },
+        "witnessLevel": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Required witness count."
+        },
+        "resourceCaps": {
+          "$ref": "#/$defs/ResourceCaps"
+        },
+        "humanApproval": {
+          "$ref": "#/$defs/HumanApproval"
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "ISO 8601 expiration timestamp."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ProofOfAgency": {
+      "type": "object",
+      "required": ["grantId", "planId", "intentId", "nonce"],
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "description": "AGY grant ID."
+        },
+        "planId": {
+          "type": "string",
+          "description": "Plan this proof authorizes."
+        },
+        "intentId": {
+          "type": "string",
+          "description": "Intent this proof binds to."
+        },
+        "nonce": {
+          "type": "string",
+          "description": "Cryptographic nonce."
+        },
+        "audience": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Intended audience LCT IDs."
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "ISO 8601 expiration."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "AgentPlan": {
+      "type": "object",
+      "title": "AgentPlan",
+      "description": "Declarative agent workflow specification per ACP §2.1.",
+      "required": [
+        "@context",
+        "@type",
+        "planId",
+        "principal",
+        "agent",
+        "grantId",
+        "steps",
+        "createdAt"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "AgentPlan",
+          "description": "JSON-LD type identifier."
+        },
+        "planId": {
+          "type": "string",
+          "description": "Unique plan identifier."
+        },
+        "principal": {
+          "type": "string",
+          "description": "LCT ID of authorizing entity."
+        },
+        "agent": {
+          "type": "string",
+          "description": "LCT ID of executing entity."
+        },
+        "grantId": {
+          "type": "string",
+          "description": "AGY grant authorizing this plan."
+        },
+        "triggers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Trigger" },
+          "description": "Plan activation triggers."
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PlanStep" },
+          "minItems": 1,
+          "description": "Ordered workflow steps."
+        },
+        "guards": {
+          "$ref": "#/$defs/Guards",
+          "description": "Safety constraints."
+        },
+        "canonicalHash": {
+          "type": "string",
+          "description": "Content-addressed hash of the plan."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO 8601 creation timestamp."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "Intent": {
+      "type": "object",
+      "title": "Intent",
+      "description": "Actionable proposal from plan evaluation per ACP §2.2.",
+      "required": [
+        "@context",
+        "@type",
+        "intentId",
+        "planId",
+        "stepId",
+        "proposedAction",
+        "proofOfAgency",
+        "createdAt"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "Intent",
+          "description": "JSON-LD type identifier."
+        },
+        "intentId": {
+          "type": "string",
+          "description": "Unique intent identifier."
+        },
+        "planId": {
+          "type": "string",
+          "description": "Plan this intent derives from."
+        },
+        "stepId": {
+          "type": "string",
+          "description": "Step this intent executes."
+        },
+        "proposedAction": {
+          "type": "object",
+          "description": "MCP tool call specification."
+        },
+        "proofOfAgency": {
+          "$ref": "#/$defs/ProofOfAgency",
+          "description": "Proof of authority to act."
+        },
+        "explanation": {
+          "type": "string",
+          "description": "Agent's reasoning."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Agent confidence [0,1]."
+        },
+        "riskAssessment": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"],
+          "description": "Risk level assessment."
+        },
+        "needsApproval": {
+          "type": "boolean",
+          "description": "Whether human approval is required."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO 8601 creation timestamp."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "Decision": {
+      "type": "object",
+      "title": "Decision",
+      "description": "Human or automated decision on an intent per ACP §2.3.",
+      "required": [
+        "@context",
+        "@type",
+        "intentId",
+        "decision",
+        "decidedBy",
+        "timestamp"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "Decision",
+          "description": "JSON-LD type identifier."
+        },
+        "intentId": {
+          "type": "string",
+          "description": "Intent this decision responds to."
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["approve", "deny", "modify"],
+          "description": "Decision outcome."
+        },
+        "decidedBy": {
+          "type": "string",
+          "description": "LCT ID of decision maker."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Reasoning for decision."
+        },
+        "modifications": {
+          "type": "object",
+          "description": "Changes applied (for modify decisions)."
+        },
+        "witnesses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "LCT IDs of witnesses."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO 8601 decision timestamp."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ExecutionRecord": {
+      "type": "object",
+      "title": "ExecutionRecord",
+      "description": "Immutable record of action execution per ACP §2.4.",
+      "required": [
+        "@context",
+        "@type",
+        "recordId",
+        "intentId",
+        "grantId",
+        "lawHash",
+        "mcpCall",
+        "result",
+        "timestamp"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "ExecutionRecord",
+          "description": "JSON-LD type identifier."
+        },
+        "recordId": {
+          "type": "string",
+          "description": "Unique record identifier."
+        },
+        "intentId": {
+          "type": "string",
+          "description": "Intent that was executed."
+        },
+        "grantId": {
+          "type": "string",
+          "description": "AGY grant authorizing execution."
+        },
+        "lawHash": {
+          "type": "string",
+          "description": "Hash of authorizing law."
+        },
+        "mcpCall": {
+          "type": "object",
+          "description": "MCP tool invocation details."
+        },
+        "result": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["success", "failure"],
+              "description": "Execution outcome."
+            },
+            "output": {
+              "type": "object",
+              "description": "Execution output data."
+            },
+            "resourcesConsumed": {
+              "type": "object",
+              "description": "Resources used during execution."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Execution result."
+        },
+        "t3v3Delta": {
+          "type": "object",
+          "description": "Trust/value tensor changes."
+        },
+        "witnesses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "LCT IDs of witnesses."
+        },
+        "canonicalHash": {
+          "type": "string",
+          "description": "Content-addressed hash for ledger."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO 8601 execution timestamp."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -32,6 +32,11 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 
+# ── JSON-LD Context ──────────────────────────────────────────────
+
+ACP_JSONLD_CONTEXT = "https://web4.io/contexts/acp.jsonld"
+
+
 # ── ACP Errors ──────────────────────────────────────────────────
 
 class ACPError(Exception):
@@ -336,6 +341,120 @@ class AgentPlan:
             "createdAt": self.created_at,
         }
 
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to JSON-LD per ACP framework spec.
+
+        Produces an AgentPlan document with @context header,
+        nested triggers/steps/guards, and canonical hash.
+        """
+        triggers = []
+        for t in self.triggers:
+            td: Dict[str, Any] = {"kind": t.kind.value}
+            if t.expr:
+                td["expr"] = t.expr
+            if t.authorized:
+                td["authorized"] = list(t.authorized)
+            triggers.append(td)
+
+        doc: Dict[str, Any] = {
+            "@context": [ACP_JSONLD_CONTEXT],
+            "@type": "AgentPlan",
+            "planId": self.plan_id,
+            "principal": self.principal,
+            "agent": self.agent,
+            "grantId": self.grant_id,
+            "steps": [s.to_dict() for s in self.steps],
+            "guards": {
+                "lawHash": self.guards.law_hash,
+                "witnessLevel": self.guards.witness_level,
+                "resourceCaps": {
+                    "maxAtp": self.guards.resource_caps.max_atp,
+                    "maxExecutions": self.guards.resource_caps.max_executions,
+                    "rateLimit": self.guards.resource_caps.rate_limit,
+                },
+                "humanApproval": {
+                    "mode": self.guards.human_approval.mode.value,
+                    "autoThreshold": self.guards.human_approval.auto_threshold,
+                    "timeout": self.guards.human_approval.timeout,
+                    "fallback": self.guards.human_approval.fallback,
+                },
+                "expiresAt": self.guards.expires_at,
+            },
+            "canonicalHash": self.canonical_hash(),
+            "createdAt": self.created_at,
+        }
+        if triggers:
+            doc["triggers"] = triggers
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> AgentPlan:
+        """
+        Deserialize from JSON-LD document.
+
+        Accepts spec JSON-LD format. Ignores @context, @type,
+        and canonicalHash (recomputed from content).
+        """
+        triggers: List[Trigger] = []
+        for t in doc.get("triggers", []):
+            triggers.append(Trigger(
+                kind=TriggerKind(t["kind"]),
+                expr=t.get("expr", ""),
+                authorized=t.get("authorized", []),
+            ))
+
+        steps: List[PlanStep] = []
+        for s in doc.get("steps", []):
+            steps.append(PlanStep(
+                step_id=s["id"],
+                mcp_tool=s["mcp"],
+                args=s.get("args", {}),
+                depends_on=s.get("dependsOn", []),
+                requires_approval=s.get("requiresApproval", ""),
+            ))
+
+        gd = doc.get("guards", {})
+        rc = gd.get("resourceCaps", {})
+        ha = gd.get("humanApproval", {})
+
+        guards = Guards(
+            law_hash=gd.get("lawHash", ""),
+            witness_level=gd.get("witnessLevel", 0),
+            resource_caps=ResourceCaps(
+                max_atp=rc.get("maxAtp", 0.0),
+                max_executions=rc.get("maxExecutions", 0),
+                rate_limit=rc.get("rateLimit", ""),
+            ),
+            human_approval=HumanApproval(
+                mode=ApprovalMode(ha["mode"]) if ha.get("mode") else ApprovalMode.CONDITIONAL,
+                auto_threshold=ha.get("autoThreshold", 0.0),
+                timeout=ha.get("timeout", 3600),
+                fallback=ha.get("fallback", "deny"),
+            ),
+            expires_at=gd.get("expiresAt", ""),
+        )
+
+        return cls(
+            plan_id=doc["planId"],
+            principal=doc["principal"],
+            agent=doc["agent"],
+            grant_id=doc["grantId"],
+            triggers=triggers,
+            steps=steps,
+            guards=guards,
+            created_at=doc.get("createdAt", ""),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> AgentPlan:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
+
 
 # ── Proof of Agency ─────────────────────────────────────────────
 
@@ -405,6 +524,78 @@ class Intent:
             "createdAt": self.created_at,
         }
 
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to JSON-LD per ACP framework spec.
+
+        Produces an Intent document with proof of agency,
+        explanation, and proposed action.
+        """
+        doc: Dict[str, Any] = {
+            "@context": [ACP_JSONLD_CONTEXT],
+            "@type": "Intent",
+            "intentId": self.intent_id,
+            "planId": self.plan_id,
+            "stepId": self.step_id,
+            "proposedAction": self.proposed_action,
+            "proofOfAgency": {
+                "grantId": self.proof.grant_id,
+                "planId": self.proof.plan_id,
+                "intentId": self.proof.intent_id,
+                "nonce": self.proof.nonce,
+            },
+            "createdAt": self.created_at,
+        }
+        if self.explanation:
+            doc["explanation"] = self.explanation
+        doc["confidence"] = self.confidence
+        doc["riskAssessment"] = self.risk_assessment
+        doc["needsApproval"] = self.needs_approval
+        if self.proof.audience:
+            doc["proofOfAgency"]["audience"] = list(self.proof.audience)
+        if self.proof.expires_at:
+            doc["proofOfAgency"]["expiresAt"] = self.proof.expires_at
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> Intent:
+        """
+        Deserialize from JSON-LD document.
+
+        Accepts spec JSON-LD format. Ignores @context and @type.
+        """
+        proof_data = doc.get("proofOfAgency", {})
+        proof = ProofOfAgency(
+            grant_id=proof_data.get("grantId", ""),
+            plan_id=proof_data.get("planId", ""),
+            intent_id=proof_data.get("intentId", ""),
+            nonce=proof_data.get("nonce", ""),
+            audience=proof_data.get("audience", []),
+            expires_at=proof_data.get("expiresAt", ""),
+        )
+
+        return cls(
+            intent_id=doc["intentId"],
+            plan_id=doc["planId"],
+            step_id=doc["stepId"],
+            proposed_action=doc.get("proposedAction", {}),
+            proof=proof,
+            explanation=doc.get("explanation", ""),
+            confidence=doc.get("confidence", 0.0),
+            risk_assessment=doc.get("riskAssessment", "low"),
+            needs_approval=doc.get("needsApproval", False),
+            created_at=doc.get("createdAt", ""),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> Intent:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
+
 
 # ── Decision ────────────────────────────────────────────────────
 
@@ -446,6 +637,55 @@ class Decision:
         if self.modifications:
             d["modifications"] = self.modifications
         return d
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to JSON-LD per ACP framework spec.
+
+        Produces a Decision document. Modifications included only
+        when present (non-None).
+        """
+        doc: Dict[str, Any] = {
+            "@context": [ACP_JSONLD_CONTEXT],
+            "@type": "Decision",
+            "intentId": self.intent_id,
+            "decision": self.decision.value,
+            "decidedBy": self.decided_by,
+            "timestamp": self.timestamp,
+        }
+        if self.rationale:
+            doc["rationale"] = self.rationale
+        if self.modifications is not None:
+            doc["modifications"] = self.modifications
+        if self.witnesses:
+            doc["witnesses"] = list(self.witnesses)
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> Decision:
+        """
+        Deserialize from JSON-LD document.
+
+        Accepts spec JSON-LD format. Ignores @context and @type.
+        """
+        return cls(
+            intent_id=doc["intentId"],
+            decision=DecisionType(doc["decision"]),
+            decided_by=doc["decidedBy"],
+            rationale=doc.get("rationale", ""),
+            modifications=doc.get("modifications"),
+            witnesses=doc.get("witnesses", []),
+            timestamp=doc.get("timestamp", ""),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> Decision:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 # ── Execution Record ────────────────────────────────────────────
@@ -507,6 +747,70 @@ class ExecutionRecord:
             "witnesses": self.witnesses,
             "timestamp": self.timestamp,
         }
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to JSON-LD per ACP framework spec.
+
+        Produces an ExecutionRecord document with nested result
+        structure and canonical hash for ledger inclusion.
+        """
+        result: Dict[str, Any] = {"status": self.result_status}
+        if self.result_output:
+            result["output"] = self.result_output
+        if self.resources_consumed:
+            result["resourcesConsumed"] = self.resources_consumed
+
+        doc: Dict[str, Any] = {
+            "@context": [ACP_JSONLD_CONTEXT],
+            "@type": "ExecutionRecord",
+            "recordId": self.record_id,
+            "intentId": self.intent_id,
+            "grantId": self.grant_id,
+            "lawHash": self.law_hash,
+            "mcpCall": self.mcp_call,
+            "result": result,
+            "canonicalHash": self.canonical_hash(),
+            "timestamp": self.timestamp,
+        }
+        if self.t3v3_delta:
+            doc["t3v3Delta"] = self.t3v3_delta
+        if self.witnesses:
+            doc["witnesses"] = list(self.witnesses)
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> ExecutionRecord:
+        """
+        Deserialize from JSON-LD document.
+
+        Accepts spec JSON-LD format. Ignores @context, @type,
+        and canonicalHash (recomputed from content).
+        """
+        result_data = doc.get("result", {})
+
+        return cls(
+            record_id=doc["recordId"],
+            intent_id=doc["intentId"],
+            grant_id=doc["grantId"],
+            law_hash=doc["lawHash"],
+            mcp_call=doc.get("mcpCall", {}),
+            result_status=result_data.get("status", "success"),
+            result_output=result_data.get("output", {}),
+            resources_consumed=result_data.get("resourcesConsumed", {}),
+            t3v3_delta=doc.get("t3v3Delta", {}),
+            witnesses=doc.get("witnesses", []),
+            timestamp=doc.get("timestamp", ""),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> ExecutionRecord:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 # ── ACP State Machine ──────────────────────────────────────────

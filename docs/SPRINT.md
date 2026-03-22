@@ -14,7 +14,8 @@ R7Action, T3/V3). Sprint 5 extends JSON-LD serialization to the next tier of cor
 types needed for cross-language interoperability.
 
 ### A1: ATP/ADP JSON-LD serialization
-**Status**: IN REVIEW
+**Status**: DONE
+**Completed**: 2026-03-21
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to `ATPAccount` and `TransferResult`
 in `web4.atp`, producing RDF-aligned JSON-LD documents. JSON Schema
 (`atp-jsonld.schema.json`) and JSON-LD context (`contexts/atp.jsonld`).
@@ -25,10 +26,16 @@ JSON-LD context mapping snake_case fields to web4 namespace.
 SDK tests passing.
 
 ### A2: ACP JSON-LD serialization
-**Status**: NOT STARTED
+**Status**: IN REVIEW
 **Depends on**: None
-**Scope**: Add `to_jsonld()` / `from_jsonld()` to ACP types (AgentPlan, ProofOfAgency,
-Intent, Decision) in `web4.acp`. JSON Schema and JSON-LD context.
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to ACP types (AgentPlan, Intent,
+Decision, ExecutionRecord) in `web4.acp`. JSON Schema and JSON-LD context.
+**Result**: `AgentPlan.to_jsonld()` / `from_jsonld()`, `Intent.to_jsonld()` /
+`from_jsonld()`, `Decision.to_jsonld()` / `from_jsonld()`, `ExecutionRecord.to_jsonld()` /
+`from_jsonld()`. JSON Schema (`acp-jsonld.schema.json`) with 4 type definitions and
+nested sub-schemas (Trigger, PlanStep, Guards, ProofOfAgency). JSON-LD context
+(`contexts/acp.jsonld`). 1 new export (`ACP_JSONLD_CONTEXT`). 55 new tests, 1357 total
+SDK tests passing.
 
 ### A3: Entity + Capability JSON-LD
 **Status**: NOT STARTED

@@ -125,6 +125,7 @@ from .mrh import (
 
 # ── ACP (Agentic Context Protocol) ────────────────────────────
 from .acp import (
+    ACP_JSONLD_CONTEXT,
     ACPStateMachine,
     ACPState,
     ACPError,
@@ -416,7 +417,7 @@ __all__ = [
     "mrh_trust_decay", "mrh_zone",
     "propagate_multiplicative", "propagate_probabilistic", "propagate_maximal",
     # acp
-    "ACPStateMachine", "ACPState", "ACPError",
+    "ACP_JSONLD_CONTEXT", "ACPStateMachine", "ACPState", "ACPError",
     "AgentPlan", "PlanStep", "Intent", "Decision", "DecisionType",
     "ProofOfAgency", "ExecutionRecord",
     "ApprovalMode", "ResourceCaps", "Guards", "Trigger", "TriggerKind",
