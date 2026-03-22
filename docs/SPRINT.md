@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-21 (Sprint 5 added)
+**Updated**: 2026-03-22 (A1, A2 merged; A3 in review)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -14,7 +14,8 @@ R7Action, T3/V3). Sprint 5 extends JSON-LD serialization to the next tier of cor
 types needed for cross-language interoperability.
 
 ### A1: ATP/ADP JSON-LD serialization
-**Status**: IN REVIEW
+**Status**: DONE
+**Completed**: 2026-03-21
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to `ATPAccount` and `TransferResult`
 in `web4.atp`, producing RDF-aligned JSON-LD documents. JSON Schema
 (`atp-jsonld.schema.json`) and JSON-LD context (`contexts/atp.jsonld`).
@@ -25,7 +26,8 @@ JSON-LD context mapping snake_case fields to web4 namespace.
 SDK tests passing.
 
 ### A2: ACP JSON-LD serialization
-**Status**: IN REVIEW
+**Status**: DONE
+**Completed**: 2026-03-21
 **Depends on**: None
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to ACP types (AgentPlan, Intent,
 Decision, ExecutionRecord) in `web4.acp`. JSON Schema and JSON-LD context.
@@ -37,10 +39,17 @@ JSON-LD context (`contexts/acp.jsonld`). 1 new export (`ACP_JSONLD_CONTEXT`).
 54 new tests, 1356 total SDK tests passing.
 
 ### A3: Entity + Capability JSON-LD
-**Status**: NOT STARTED
+**Status**: IN REVIEW
 **Depends on**: None
-**Scope**: Add `to_jsonld()` / `from_jsonld()` to EntityTypeInfo and CapabilityLevel
-types. JSON Schema and JSON-LD context.
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to EntityTypeInfo and LevelRequirement
+types, plus registry/framework/assessment serializers. JSON Schema and JSON-LD context.
+**Result**: `EntityTypeInfo.to_jsonld()` / `from_jsonld()`, `entity_registry_to_jsonld()`,
+`LevelRequirement.to_jsonld()` / `from_jsonld()`, `capability_assessment_to_jsonld()`,
+`capability_framework_to_jsonld()`. JSON Schemas (`entity-jsonld.schema.json`,
+`capability-jsonld.schema.json`). JSON-LD contexts (`entity.jsonld`, `capability.jsonld`).
+5 new exports (`ENTITY_JSONLD_CONTEXT`, `entity_registry_to_jsonld`,
+`CAPABILITY_JSONLD_CONTEXT`, `capability_assessment_to_jsonld`,
+`capability_framework_to_jsonld`). 37 new tests, 1393 total SDK tests passing.
 
 ### A4: Cross-language validation vectors for Phase 2
 **Status**: NOT STARTED
@@ -466,8 +475,8 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | V3 | R7 Action JSON-LD serialization | DONE |
 | V4 | Cross-language validation test vectors | IN PROGRESS (partial) |
 | V5 | SDK v0.8.0 release housekeeping | DONE |
-| A1 | ATP/ADP JSON-LD serialization | IN REVIEW |
-| A2 | ACP JSON-LD serialization | NOT STARTED |
-| A3 | Entity + Capability JSON-LD | NOT STARTED |
+| A1 | ATP/ADP JSON-LD serialization | DONE |
+| A2 | ACP JSON-LD serialization | DONE |
+| A3 | Entity + Capability JSON-LD | IN REVIEW |
 | A4 | Cross-language validation vectors (Phase 2) | NOT STARTED |
 | A5 | SDK v0.9.0 release housekeeping | NOT STARTED |
