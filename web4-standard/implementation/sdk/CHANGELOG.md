@@ -2,6 +2,35 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.9.0] - 2026-03-22
+
+Sprint 5: Core Type JSON-LD Phase 2 — ATP/ADP and ACP JSON-LD serialization
+with cross-language validation vectors.
+
+### Added
+- **ATP/ADP JSON-LD serialization** (A1) — `ATPAccount.to_jsonld()` and
+  `from_jsonld()`, `TransferResult.to_jsonld()` and `from_jsonld()`. JSON
+  Schema (`atp-jsonld.schema.json`) and JSON-LD context (`contexts/atp.jsonld`).
+  28 new tests.
+- **ACP JSON-LD serialization** (A2) — `AgentPlan.to_jsonld()` /
+  `from_jsonld()`, `Intent.to_jsonld()` / `from_jsonld()`, `Decision.to_jsonld()`
+  / `from_jsonld()`, `ExecutionRecord.to_jsonld()` / `from_jsonld()`. JSON Schema
+  (`acp-jsonld.schema.json`) with 4 type definitions and 6 reusable sub-schemas.
+  JSON-LD context (`contexts/acp.jsonld`). 54 new tests.
+- **Cross-language validation vectors** (A4, partial) — 59 vectors across 2
+  schemas: ATP (23 vectors: 8 valid + 15 invalid for ATPAccount and
+  TransferResult) and ACP (36 vectors: 12 valid + 24 invalid for AgentPlan,
+  Intent, Decision, ExecutionRecord). Covers missing required fields, invalid
+  enums, out-of-range values, type errors, additionalProperties violations,
+  and boundary values.
+- `TransferResult`, `ATP_JSONLD_CONTEXT`, and `ACP_JSONLD_CONTEXT` exported
+  from `web4` package.
+
+### Changed
+- Version bumped from 0.8.0 to 0.9.0 in `web4/__init__.py`, `pyproject.toml`,
+  and `setup.py`.
+- 269 public API symbols in `__all__` (up from 266).
+
 ## [0.8.0] - 2026-03-21
 
 Sprint 4: Cross-Language Schema Standardization — JSON Schemas, R7 Action

@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="web4",
-    version="0.8.0",
+    version="0.9.0",
     author="Web4 Infrastructure Team",
     description="Web4 SDK — trust tensors, LCTs, ATP/ADP, federation (SAL), R7 actions, MRH, ACP, security, protocol types",
     packages=find_packages(include=["web4*"]),
