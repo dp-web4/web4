@@ -11,6 +11,8 @@ Usage:
     python validate_schema_vectors.py lct          # LCT only
     python validate_schema_vectors.py attestation  # AttestationEnvelope only
     python validate_schema_vectors.py r7           # R7 Action only
+    python validate_schema_vectors.py atp          # ATP/ADP only
+    python validate_schema_vectors.py acp          # ACP only
     python validate_schema_vectors.py --verbose    # Show details
 
 Exit code 0 = all vectors behave correctly, 1 = unexpected results.
@@ -42,6 +44,14 @@ VECTOR_FILES = {
     "r7": {
         "vectors": "r7-action-jsonld-validation.json",
         "schema": "r7-action-jsonld.schema.json",
+    },
+    "atp": {
+        "vectors": "atp-jsonld-validation.json",
+        "schema": "atp-jsonld.schema.json",
+    },
+    "acp": {
+        "vectors": "acp-jsonld-validation.json",
+        "schema": "acp-jsonld.schema.json",
     },
 }
 
