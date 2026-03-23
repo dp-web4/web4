@@ -1,0 +1,482 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/entity-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/entity-jsonld.schema.json",
+    "description": "Cross-language validation vectors for Entity Type Taxonomy JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "web4-standard/core-spec/entity-types.md"
+  },
+  "valid": [
+    {
+      "id": "entity-valid-001",
+      "description": "Minimal EntityTypeInfo — human entity type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic", "responsive"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Biological human entity with full agency and trust capacity."
+      }
+    },
+    {
+      "id": "entity-valid-002",
+      "description": "EntityTypeInfo — ai entity type with single mode",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "ai",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Artificial intelligence agent with autonomous decision capability."
+      }
+    },
+    {
+      "id": "entity-valid-003",
+      "description": "EntityTypeInfo — passive device entity",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "device",
+        "modes": ["responsive"],
+        "energy": "passive",
+        "can_r6": false,
+        "description": "Hardware device with passive energy consumption."
+      }
+    },
+    {
+      "id": "entity-valid-004",
+      "description": "EntityTypeInfo — society entity with all three modes",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "society",
+        "modes": ["agentic", "delegative", "responsive"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Collective entity composed of member entities with shared governance."
+      }
+    },
+    {
+      "id": "entity-valid-005",
+      "description": "EntityTypeInfo — infrastructure entity type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "infrastructure",
+        "modes": ["responsive"],
+        "energy": "passive",
+        "can_r6": false,
+        "description": "System infrastructure component providing foundational services."
+      }
+    },
+    {
+      "id": "entity-valid-006",
+      "description": "EntityTypeInfo — policy entity type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "policy",
+        "modes": ["responsive"],
+        "energy": "passive",
+        "can_r6": false,
+        "description": "Governance policy entity enforcing rules and constraints."
+      }
+    },
+    {
+      "id": "entity-valid-007",
+      "description": "EntityTypeInfo — dictionary entity with delegative mode",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "dictionary",
+        "modes": ["delegative", "responsive"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Inter-synthon arbitration entity providing semantic translation."
+      }
+    },
+    {
+      "id": "entity-valid-008",
+      "description": "EntityTypeInfo — empty modes array",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "resource",
+        "modes": [],
+        "energy": "passive",
+        "can_r6": false,
+        "description": "Passive resource entity with no behavioral modes."
+      }
+    },
+    {
+      "id": "entity-valid-009",
+      "description": "EntityTypeRegistry — minimal with one entity type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeRegistry",
+        "entity_types": [
+          {
+            "@context": ["https://web4.io/contexts/entity.jsonld"],
+            "@type": "EntityTypeInfo",
+            "entity_type": "human",
+            "modes": ["agentic"],
+            "energy": "active",
+            "can_r6": true,
+            "description": "Human entity."
+          }
+        ]
+      }
+    },
+    {
+      "id": "entity-valid-010",
+      "description": "EntityTypeRegistry — two entity types",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeRegistry",
+        "entity_types": [
+          {
+            "@context": ["https://web4.io/contexts/entity.jsonld"],
+            "@type": "EntityTypeInfo",
+            "entity_type": "human",
+            "modes": ["agentic", "responsive"],
+            "energy": "active",
+            "can_r6": true,
+            "description": "Human entity."
+          },
+          {
+            "@context": ["https://web4.io/contexts/entity.jsonld"],
+            "@type": "EntityTypeInfo",
+            "entity_type": "ai",
+            "modes": ["agentic"],
+            "energy": "active",
+            "can_r6": true,
+            "description": "AI entity."
+          }
+        ]
+      }
+    },
+    {
+      "id": "entity-valid-011",
+      "description": "EntityTypeInfo — accumulator entity type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "accumulator",
+        "modes": ["responsive"],
+        "energy": "passive",
+        "can_r6": false,
+        "description": "Trust accumulation entity for aggregate scoring."
+      }
+    },
+    {
+      "id": "entity-valid-012",
+      "description": "EntityTypeInfo — oracle entity type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "oracle",
+        "modes": ["responsive"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "External data provider with verified trust chain."
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "entity-invalid-001",
+      "description": "Missing required field: @type",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "@type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Human entity."
+      }
+    },
+    {
+      "id": "entity-invalid-002",
+      "description": "Missing required field: entity_type",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "entity_type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Human entity."
+      }
+    },
+    {
+      "id": "entity-invalid-003",
+      "description": "Missing required field: modes",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "modes",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "energy": "active",
+        "can_r6": true,
+        "description": "Human entity."
+      }
+    },
+    {
+      "id": "entity-invalid-004",
+      "description": "Missing required field: energy",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "energy",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "can_r6": true,
+        "description": "Human entity."
+      }
+    },
+    {
+      "id": "entity-invalid-005",
+      "description": "Missing required field: can_r6",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "can_r6",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "active",
+        "description": "Human entity."
+      }
+    },
+    {
+      "id": "entity-invalid-006",
+      "description": "Missing required field: description",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "description",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true
+      }
+    },
+    {
+      "id": "entity-invalid-007",
+      "description": "Wrong @type value (not EntityTypeInfo or EntityTypeRegistry)",
+      "error_path": "@type",
+      "error_kind": "const",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "Entity",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Human entity."
+      }
+    },
+    {
+      "id": "entity-invalid-008",
+      "description": "Invalid entity_type enum value",
+      "error_path": "entity_type",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "alien",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Not a valid entity type."
+      }
+    },
+    {
+      "id": "entity-invalid-009",
+      "description": "Invalid behavioral mode enum value",
+      "error_path": "modes.0",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["autonomous"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Invalid mode."
+      }
+    },
+    {
+      "id": "entity-invalid-010",
+      "description": "Invalid energy pattern enum value",
+      "error_path": "energy",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "reactive",
+        "can_r6": true,
+        "description": "Invalid energy."
+      }
+    },
+    {
+      "id": "entity-invalid-011",
+      "description": "Wrong type for can_r6 (string instead of boolean)",
+      "error_path": "can_r6",
+      "error_kind": "type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": "yes",
+        "description": "Wrong type."
+      }
+    },
+    {
+      "id": "entity-invalid-012",
+      "description": "Wrong type for modes (string instead of array)",
+      "error_path": "modes",
+      "error_kind": "type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": "agentic",
+        "energy": "active",
+        "can_r6": true,
+        "description": "Wrong type for modes."
+      }
+    },
+    {
+      "id": "entity-invalid-013",
+      "description": "Extra field at root level (additionalProperties: false)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Human entity.",
+        "extra_field": "should be rejected"
+      }
+    },
+    {
+      "id": "entity-invalid-014",
+      "description": "Empty @context array (minItems: 1)",
+      "error_path": "@context",
+      "error_kind": "minItems",
+      "document": {
+        "@context": [],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Empty context."
+      }
+    },
+    {
+      "id": "entity-invalid-015",
+      "description": "Duplicate modes (uniqueItems: true)",
+      "error_path": "modes",
+      "error_kind": "uniqueItems",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic", "agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": "Duplicate modes."
+      }
+    },
+    {
+      "id": "entity-invalid-016",
+      "description": "Missing required field: entity_types (EntityTypeRegistry)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "entity_types",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeRegistry"
+      }
+    },
+    {
+      "id": "entity-invalid-017",
+      "description": "EntityTypeRegistry with invalid nested EntityTypeInfo (missing energy)",
+      "error_path": "entity_types.0",
+      "error_kind": "required",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeRegistry",
+        "entity_types": [
+          {
+            "@context": ["https://web4.io/contexts/entity.jsonld"],
+            "@type": "EntityTypeInfo",
+            "entity_type": "human",
+            "modes": ["agentic"],
+            "can_r6": true,
+            "description": "Missing energy field."
+          }
+        ]
+      }
+    },
+    {
+      "id": "entity-invalid-018",
+      "description": "EntityTypeRegistry with extra field (additionalProperties: false)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeRegistry",
+        "entity_types": [],
+        "version": "1.0"
+      }
+    },
+    {
+      "id": "entity-invalid-019",
+      "description": "Empty object (matches no oneOf branch)",
+      "error_path": "",
+      "error_kind": "oneOf",
+      "document": {}
+    },
+    {
+      "id": "entity-invalid-020",
+      "description": "Wrong type for description (number instead of string)",
+      "error_path": "description",
+      "error_kind": "type",
+      "document": {
+        "@context": ["https://web4.io/contexts/entity.jsonld"],
+        "@type": "EntityTypeInfo",
+        "entity_type": "human",
+        "modes": ["agentic"],
+        "energy": "active",
+        "can_r6": true,
+        "description": 42
+      }
+    }
+  ]
+}

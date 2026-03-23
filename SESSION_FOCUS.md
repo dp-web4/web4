@@ -16,8 +16,8 @@
 |------|--------|-------|
 | A1: ATP/ADP JSON-LD | DONE | 28 tests, PR #60 merged |
 | A2: ACP JSON-LD | DONE | 54 tests, PR #62 merged |
-| A3: Entity + Capability JSON-LD | IN REVIEW | 37 tests, PR #63 awaiting review |
-| A4: Cross-language validation vectors | IN PROGRESS | 59 vectors (ATP + ACP); Entity+Capability blocked on A3 |
+| A3: Entity + Capability JSON-LD | DONE | 37 tests, PR #63 merged |
+| A4: Cross-language validation vectors | DONE | 127 vectors (ATP + ACP + Entity + Capability) |
 | A5: SDK v0.9.0 release | DONE | PR #66 merged |
 
 ### Sprint 4 Summary: Cross-Language Schema Standardization (complete)
@@ -30,7 +30,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD, PR #54 merged), V3 (R7 Act
 
 - **Version**: 0.9.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
-- **Tests**: 1414 passing
+- **Tests**: 1451 passing
 - **Exports**: 271 symbols via `web4/__init__.py`
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
@@ -46,10 +46,10 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD, PR #54 merged), V3 (R7 Act
 | T3/V3 | DONE | DONE | DONE (38 vectors) |
 | ATP/ADP | DONE | DONE | DONE (23 vectors) |
 | ACP | DONE | DONE | DONE (36 vectors) |
-| Entity | IN REVIEW (PR #63) | IN REVIEW (PR #63) | Blocked on A3 merge |
-| Capability | IN REVIEW (PR #63) | IN REVIEW (PR #63) | Blocked on A3 merge |
+| Entity | DONE | DONE | DONE (32 vectors) |
+| Capability | DONE | DONE | DONE (36 vectors) |
 
-**Total schema validation vectors**: 160 across 6 schemas
+**Total schema validation vectors**: 228 across 8 schemas
 
 ---
 
@@ -66,25 +66,24 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+9dd8f06 A3: Entity + Capability JSON-LD serialization — 37 tests (#63)
+cf887fb Maintenance: Update SESSION_FOCUS.md to reflect current state (#69)
+e0546f9 Fix T3/V3 schema validation test path — 20 errors resolved (#70)
 82e59bf V4 (complete): T3/V3 cross-language validation vectors — 38 vectors (#67)
-6ea0d0b Add SESSION_PRIMER + SESSION_FOCUS: R7-framed session governance
 227038a A5: SDK v0.9.0 release — Sprint 5 ATP/ADP and ACP JSON-LD (#66)
-5069661 V2: T3/V3 Trust Tensor JSON-LD serialization — 58 tests (#54)
-3495e13 A4 (partial): Cross-language validation vectors for ATP and ACP schemas — 59 vectors (#64)
 ```
 
 ---
 
 ## Open PRs
 
-- PR #63: A3 Entity + Capability JSON-LD serialization — 37 tests, awaiting review
+None — Sprint 5 all merged.
 
 ---
 
 ## Pending Items
 
-- A4 completion — Entity + Capability vectors, blocked on PR #63 merging
-- Sprint 6 planning — needed once Sprint 5 completes
+- Sprint 6 planning — Sprint 5 is now COMPLETE (all 5 tasks done)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 
 ---

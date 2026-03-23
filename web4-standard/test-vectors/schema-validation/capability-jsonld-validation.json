@@ -1,0 +1,580 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/capability-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/capability-jsonld.schema.json",
+    "description": "Cross-language validation vectors for LCT Capability Levels JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "web4-standard/core-spec/lct-capability-levels.md"
+  },
+  "valid": [
+    {
+      "id": "cap-valid-001",
+      "description": "LevelRequirement — Level 0 (Stub) with minimal requirements",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Stub",
+        "description": "Placeholder LCT with no verified capabilities.",
+        "requirements": ["Valid lct_id"],
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-valid-002",
+      "description": "LevelRequirement — Level 5 (Hardware) with multiple requirements",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 5,
+        "name": "Hardware",
+        "description": "Hardware-bound LCT with TPM/SE attestation.",
+        "requirements": [
+          "Valid lct_id",
+          "Binding with public key",
+          "Email or phone verification",
+          "Government ID verification",
+          "Biometric binding",
+          "Hardware attestation (TPM2/FIDO2/SE)"
+        ],
+        "trust_range": [0.9, 1.0]
+      }
+    },
+    {
+      "id": "cap-valid-003",
+      "description": "LevelRequirement — Level 3 (Standard) mid-range",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 3,
+        "name": "Standard",
+        "description": "Standard verified LCT with identity confirmation.",
+        "requirements": [
+          "Valid lct_id",
+          "Binding with public key",
+          "Email or phone verification",
+          "Government ID verification"
+        ],
+        "trust_range": [0.5, 0.7]
+      }
+    },
+    {
+      "id": "cap-valid-004",
+      "description": "LevelRequirement — boundary trust_range values at 0 and 1",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Test",
+        "description": "Boundary test for trust range.",
+        "requirements": [],
+        "trust_range": [0, 1]
+      }
+    },
+    {
+      "id": "cap-valid-005",
+      "description": "LevelRequirement — empty requirements array",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 1,
+        "name": "Minimal",
+        "description": "Level with no explicit requirements.",
+        "requirements": [],
+        "trust_range": [0.1, 0.3]
+      }
+    },
+    {
+      "id": "cap-valid-006",
+      "description": "CapabilityAssessment — fully met requirements",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:agent:alice-001",
+        "assessed_level": 3,
+        "level_name": "Standard",
+        "trust_tier": "medium",
+        "trust_range": [0.5, 0.7],
+        "requirements_met": true,
+        "missing_requirements": []
+      }
+    },
+    {
+      "id": "cap-valid-007",
+      "description": "CapabilityAssessment — requirements not met with missing list",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:device:sensor-042",
+        "assessed_level": 1,
+        "level_name": "Minimal",
+        "trust_tier": "low",
+        "trust_range": [0.1, 0.3],
+        "requirements_met": false,
+        "missing_requirements": ["Binding with public key"]
+      }
+    },
+    {
+      "id": "cap-valid-008",
+      "description": "CapabilityAssessment — level 0 (Stub) untrusted tier",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:service:temp-svc",
+        "assessed_level": 0,
+        "level_name": "Stub",
+        "trust_tier": "untrusted",
+        "trust_range": [0.0, 0.1],
+        "requirements_met": true,
+        "missing_requirements": []
+      }
+    },
+    {
+      "id": "cap-valid-009",
+      "description": "CapabilityAssessment — level 5 (Hardware) maximum tier",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:human:bob-tpm",
+        "assessed_level": 5,
+        "level_name": "Hardware",
+        "trust_tier": "maximum",
+        "trust_range": [0.9, 1.0],
+        "requirements_met": true,
+        "missing_requirements": []
+      }
+    },
+    {
+      "id": "cap-valid-010",
+      "description": "CapabilityFramework — minimal with one level",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityFramework",
+        "levels": [
+          {
+            "@context": ["https://web4.io/contexts/capability.jsonld"],
+            "@type": "LevelRequirement",
+            "level": 0,
+            "name": "Stub",
+            "description": "Placeholder.",
+            "requirements": [],
+            "trust_range": [0.0, 0.1]
+          }
+        ]
+      }
+    },
+    {
+      "id": "cap-valid-011",
+      "description": "CapabilityFramework — two levels",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityFramework",
+        "levels": [
+          {
+            "@context": ["https://web4.io/contexts/capability.jsonld"],
+            "@type": "LevelRequirement",
+            "level": 0,
+            "name": "Stub",
+            "description": "Level 0.",
+            "requirements": ["Valid lct_id"],
+            "trust_range": [0.0, 0.1]
+          },
+          {
+            "@context": ["https://web4.io/contexts/capability.jsonld"],
+            "@type": "LevelRequirement",
+            "level": 1,
+            "name": "Minimal",
+            "description": "Level 1.",
+            "requirements": ["Valid lct_id", "Binding with public key"],
+            "trust_range": [0.1, 0.3]
+          }
+        ]
+      }
+    },
+    {
+      "id": "cap-valid-012",
+      "description": "CapabilityAssessment — multiple missing requirements",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:ai:new-agent",
+        "assessed_level": 4,
+        "level_name": "Full",
+        "trust_tier": "high",
+        "trust_range": [0.7, 0.9],
+        "requirements_met": false,
+        "missing_requirements": ["Biometric binding", "Hardware attestation (TPM2/FIDO2/SE)"]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "cap-invalid-001",
+      "description": "Missing required field: @type",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "@type",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "level": 0,
+        "name": "Stub",
+        "description": "Missing @type.",
+        "requirements": [],
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-invalid-002",
+      "description": "Missing required field: level (LevelRequirement)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "level",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "name": "Stub",
+        "description": "Missing level.",
+        "requirements": [],
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-invalid-003",
+      "description": "Missing required field: name (LevelRequirement)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "name",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "description": "Missing name.",
+        "requirements": [],
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-invalid-004",
+      "description": "Missing required field: trust_range (LevelRequirement)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "trust_range",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Stub",
+        "description": "Missing trust_range.",
+        "requirements": []
+      }
+    },
+    {
+      "id": "cap-invalid-005",
+      "description": "Missing required field: requirements (LevelRequirement)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "requirements",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Stub",
+        "description": "Missing requirements.",
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-invalid-006",
+      "description": "Level exceeds maximum (6 > 5)",
+      "error_path": "level",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 6,
+        "name": "Invalid",
+        "description": "Level too high.",
+        "requirements": [],
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-invalid-007",
+      "description": "Negative level (-1 < 0)",
+      "error_path": "level",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": -1,
+        "name": "Invalid",
+        "description": "Negative level.",
+        "requirements": [],
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-invalid-008",
+      "description": "Trust range value exceeds maximum (1.5 > 1.0)",
+      "error_path": "trust_range.0",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Invalid",
+        "description": "Trust range too high.",
+        "requirements": [],
+        "trust_range": [1.5, 2.0]
+      }
+    },
+    {
+      "id": "cap-invalid-009",
+      "description": "Trust range with negative value (-0.1 < 0)",
+      "error_path": "trust_range.0",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Invalid",
+        "description": "Negative trust.",
+        "requirements": [],
+        "trust_range": [-0.1, 0.5]
+      }
+    },
+    {
+      "id": "cap-invalid-010",
+      "description": "Trust range with too few elements (minItems: 2)",
+      "error_path": "trust_range",
+      "error_kind": "minItems",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Invalid",
+        "description": "One element trust range.",
+        "requirements": [],
+        "trust_range": [0.5]
+      }
+    },
+    {
+      "id": "cap-invalid-011",
+      "description": "Trust range with too many elements (maxItems: 2)",
+      "error_path": "trust_range",
+      "error_kind": "maxItems",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Invalid",
+        "description": "Three element trust range.",
+        "requirements": [],
+        "trust_range": [0.0, 0.5, 1.0]
+      }
+    },
+    {
+      "id": "cap-invalid-012",
+      "description": "Wrong @type value (not LevelRequirement, CapabilityAssessment, or CapabilityFramework)",
+      "error_path": "@type",
+      "error_kind": "const",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityLevel",
+        "level": 0,
+        "name": "Invalid",
+        "description": "Wrong type.",
+        "requirements": [],
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-invalid-013",
+      "description": "Extra field at root level (LevelRequirement, additionalProperties: false)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Stub",
+        "description": "Extra field.",
+        "requirements": [],
+        "trust_range": [0.0, 0.1],
+        "secret": "should be rejected"
+      }
+    },
+    {
+      "id": "cap-invalid-014",
+      "description": "Empty @context array (minItems: 1)",
+      "error_path": "@context",
+      "error_kind": "minItems",
+      "document": {
+        "@context": [],
+        "@type": "LevelRequirement",
+        "level": 0,
+        "name": "Stub",
+        "description": "Empty context.",
+        "requirements": [],
+        "trust_range": [0.0, 0.1]
+      }
+    },
+    {
+      "id": "cap-invalid-015",
+      "description": "Missing required field: lct_id (CapabilityAssessment)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "lct_id",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "assessed_level": 3,
+        "level_name": "Standard",
+        "trust_tier": "medium",
+        "trust_range": [0.5, 0.7],
+        "requirements_met": true,
+        "missing_requirements": []
+      }
+    },
+    {
+      "id": "cap-invalid-016",
+      "description": "Missing required field: assessed_level (CapabilityAssessment)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "assessed_level",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:test:foo",
+        "level_name": "Standard",
+        "trust_tier": "medium",
+        "trust_range": [0.5, 0.7],
+        "requirements_met": true,
+        "missing_requirements": []
+      }
+    },
+    {
+      "id": "cap-invalid-017",
+      "description": "Missing required field: requirements_met (CapabilityAssessment)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "requirements_met",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:test:foo",
+        "assessed_level": 3,
+        "level_name": "Standard",
+        "trust_tier": "medium",
+        "trust_range": [0.5, 0.7],
+        "missing_requirements": []
+      }
+    },
+    {
+      "id": "cap-invalid-018",
+      "description": "CapabilityAssessment assessed_level exceeds maximum (6 > 5)",
+      "error_path": "assessed_level",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:test:foo",
+        "assessed_level": 6,
+        "level_name": "Invalid",
+        "trust_tier": "unknown",
+        "trust_range": [0.0, 0.1],
+        "requirements_met": false,
+        "missing_requirements": []
+      }
+    },
+    {
+      "id": "cap-invalid-019",
+      "description": "Extra field on CapabilityAssessment (additionalProperties: false)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:test:foo",
+        "assessed_level": 3,
+        "level_name": "Standard",
+        "trust_tier": "medium",
+        "trust_range": [0.5, 0.7],
+        "requirements_met": true,
+        "missing_requirements": [],
+        "audit_log": "should be rejected"
+      }
+    },
+    {
+      "id": "cap-invalid-020",
+      "description": "Missing required field: levels (CapabilityFramework)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "levels",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityFramework"
+      }
+    },
+    {
+      "id": "cap-invalid-021",
+      "description": "CapabilityFramework with invalid nested LevelRequirement (missing name)",
+      "error_path": "levels.0",
+      "error_kind": "required",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityFramework",
+        "levels": [
+          {
+            "@context": ["https://web4.io/contexts/capability.jsonld"],
+            "@type": "LevelRequirement",
+            "level": 0,
+            "description": "Missing name field.",
+            "requirements": [],
+            "trust_range": [0.0, 0.1]
+          }
+        ]
+      }
+    },
+    {
+      "id": "cap-invalid-022",
+      "description": "Wrong type for level (string instead of integer)",
+      "error_path": "level",
+      "error_kind": "type",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "LevelRequirement",
+        "level": "three",
+        "name": "Standard",
+        "description": "Wrong type for level.",
+        "requirements": [],
+        "trust_range": [0.5, 0.7]
+      }
+    },
+    {
+      "id": "cap-invalid-023",
+      "description": "Wrong type for requirements_met (string instead of boolean)",
+      "error_path": "requirements_met",
+      "error_kind": "type",
+      "document": {
+        "@context": ["https://web4.io/contexts/capability.jsonld"],
+        "@type": "CapabilityAssessment",
+        "lct_id": "lct:test:foo",
+        "assessed_level": 3,
+        "level_name": "Standard",
+        "trust_tier": "medium",
+        "trust_range": [0.5, 0.7],
+        "requirements_met": "true",
+        "missing_requirements": []
+      }
+    },
+    {
+      "id": "cap-invalid-024",
+      "description": "Empty object (matches no oneOf branch)",
+      "error_path": "",
+      "error_kind": "oneOf",
+      "document": {}
+    }
+  ]
+}
