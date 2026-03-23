@@ -105,16 +105,19 @@ components serialized (Rules/Role/Request/Reference/Resource/Result/Reputation).
 26 new tests, 75 total R6 tests, 1274 total SDK tests passing. PR #55, merged.
 
 ### V4: Cross-language validation test vectors
-**Status**: IN PROGRESS
+**Status**: IN PROGRESS (T3/V3 done, Entity+Capability deferred)
 **Depends on**: V1, V2, V3
 **Scope**: JSON test vectors that exercise schema validation edge cases — malformed
 documents, missing required fields, extra fields, boundary values. Vectors usable
 by any language's JSON Schema validator.
-**Result** (partial): 63 vectors for 3 merged schemas (LCT, AttestationEnvelope, R7 Action).
-21 valid documents + 42 invalid documents covering: missing required fields, enum violations,
-out-of-range values, pattern mismatches, type errors, additionalProperties, boundary values.
-Validation runner script (`validate_schema_vectors.py`). T3/V3 tensor vectors deferred
-until PR #54 merges.
+**Result** (partial): 104 vectors for 4 merged schemas (LCT, AttestationEnvelope, R7 Action, T3/V3).
+T3/V3 vectors: 11 valid + 30 invalid = 41 vectors covering: missing required fields,
+out-of-range values (min/max), type errors, minItems violations, pattern mismatches
+(web4: prefix), additionalProperties, @context format, boundary values (0.0/1.0),
+optional fields (entity, role, observed_at, witnessed_by), type cross-contamination
+(T3 fields with V3 @type and vice versa).
+Validation runner updated with `t3v3` target. 163 total vectors across all schemas.
+Entity+Capability vectors deferred until A3 PR #63 merges.
 
 ### V5: SDK v0.8.0 release housekeeping
 **Status**: DONE
