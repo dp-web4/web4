@@ -16,12 +16,15 @@ and no programmatic schema validation in the SDK. This sprint consolidates the J
 foundation before building on it.
 
 ### B1: SDK v0.10.0 release housekeeping
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-23
 **Depends on**: None
-**Scope**: Update CHANGELOG.md to document A3 (Entity+Capability JSON-LD, 5 new exports)
-and A4 complete (127 total vectors, up from 59 partial documented in v0.9.0). Bump SDK
-version 0.9.0 → 0.10.0. Reconcile export count (269 documented → 276 actual).
-**Deliverables**: Updated CHANGELOG.md, version bump in `__init__.py`/`pyproject.toml`/`setup.py`.
+**Scope**: Update CHANGELOG.md to document A3 (Entity+Capability JSON-LD, 5 new exports),
+A4 complete (127 total vectors, up from 59 partial documented in v0.9.0), and B6
+(Dictionary JSON-LD). Bump SDK version 0.9.0 → 0.10.0.
+**Result**: CHANGELOG v0.10.0 entry documents A3, A4 complete, and B6. Version bumped
+in `__init__.py`, `pyproject.toml`, `setup.py`. 277 symbols in `__all__` (up from 269).
+1465 tests passing.
 
 ### B2: Missing JSON-LD context files for LCT and AttestationEnvelope
 **Status**: PENDING

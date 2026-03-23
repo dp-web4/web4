@@ -35,8 +35,8 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 - **Version**: 0.10.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
-- **Tests**: 1463 passing
-- **Exports**: 278 symbols via `web4/__init__.py`
+- **Tests**: 1465 passing
+- **Exports**: 277 symbols via `web4/__init__.py`
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
 ---
