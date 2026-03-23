@@ -11,6 +11,7 @@ Validates:
 """
 
 import json
+import os
 import pytest
 
 from web4.trust import T3, V3, T3_JSONLD_CONTEXT, V3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS
@@ -22,7 +23,10 @@ try:
 except ImportError:
     HAS_JSONSCHEMA = False
 
-SCHEMA_PATH = "web4-standard/schemas/t3v3-jsonld.schema.json"
+SCHEMA_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "..",
+    "schemas", "t3v3-jsonld.schema.json"
+)
 
 
 @pytest.fixture
