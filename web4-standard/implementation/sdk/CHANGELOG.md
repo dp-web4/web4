@@ -2,6 +2,33 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.10.0] - 2026-03-23
+
+Sprint 5 completion: Entity + Capability JSON-LD serialization and full
+cross-language validation vectors for all Phase 2 types.
+
+### Added
+- **Entity + Capability JSON-LD serialization** (A3) — `EntityTypeInfo.to_jsonld()`
+  and `from_jsonld()`, `entity_registry_to_jsonld()` for full registry serialization.
+  `LevelRequirement.to_jsonld()` and `from_jsonld()`, `capability_assessment_to_jsonld()`,
+  `capability_framework_to_jsonld()`. JSON Schemas (`entity-jsonld.schema.json`,
+  `capability-jsonld.schema.json`). JSON-LD contexts (`entity.jsonld`, `capability.jsonld`).
+  37 new tests.
+- **Cross-language validation vectors completed** (A4, complete) — 68 additional
+  vectors for Entity (32: 12 valid + 20 invalid for EntityTypeInfo and
+  EntityTypeRegistry) and Capability (36: 12 valid + 24 invalid for
+  LevelRequirement, CapabilityAssessment, CapabilityFramework). Total: 127 Phase 2
+  vectors across 4 schemas (ATP 23 + ACP 36 + Entity 32 + Capability 36). Grand
+  total: 228 cross-language validation vectors across all 8 JSON-LD schemas.
+- 5 new exports from `web4` package: `ENTITY_JSONLD_CONTEXT`,
+  `entity_registry_to_jsonld`, `CAPABILITY_JSONLD_CONTEXT`,
+  `capability_assessment_to_jsonld`, `capability_framework_to_jsonld`.
+
+### Changed
+- Version bumped from 0.9.0 to 0.10.0.
+- 277 public API symbols in `__all__` (up from 269). All 8 core types now have
+  complete JSON-LD serialization with JSON Schemas and cross-language test vectors.
+
 ## [0.9.0] - 2026-03-22
 
 Sprint 5: Core Type JSON-LD Phase 2 — ATP/ADP and ACP JSON-LD serialization

@@ -27,10 +27,15 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .lct import LCT, EntityType
 from .trust import T3, V3, _clamp
+
+
+# ── JSON-LD Context ──────────────────────────────────────────────
+
+DICTIONARY_JSONLD_CONTEXT = "https://web4.io/contexts/dictionary.jsonld"
 
 
 # ── Dictionary Types ─────────────────────────────────────────────
@@ -97,6 +102,71 @@ class DictionarySpec:
         reverse = self.bidirectional and self.source_domain == target and self.target_domain == source
         return forward or reverse
 
+    def to_jsonld(self) -> Dict[str, Any]:
+        """Serialize to JSON-LD per dictionary-entities spec §2.2."""
+        doc: Dict[str, Any] = {
+            "@context": [DICTIONARY_JSONLD_CONTEXT],
+            "@type": "DictionarySpec",
+            "source_domain": self.source_domain,
+            "target_domain": self.target_domain,
+            "bidirectional": self.bidirectional,
+            "version": self.version,
+            "dictionary_type": self.dictionary_type.value,
+        }
+        if self.coverage.terms > 0 or self.coverage.concepts > 0 or self.coverage.relationships > 0:
+            doc["coverage"] = {
+                "terms": self.coverage.terms,
+                "concepts": self.coverage.concepts,
+                "relationships": self.coverage.relationships,
+            }
+        if self.compression != CompressionProfile():
+            doc["compression"] = {
+                "average_ratio": self.compression.average_ratio,
+                "lossy_threshold": self.compression.lossy_threshold,
+                "context_required": self.compression.context_required,
+                "ambiguity_handling": self.compression.ambiguity_handling.value,
+            }
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> DictionarySpec:
+        """Deserialize from JSON-LD document."""
+        coverage = DomainCoverage()
+        if "coverage" in doc:
+            c = doc["coverage"]
+            coverage = DomainCoverage(
+                terms=c.get("terms", 0),
+                concepts=c.get("concepts", 0),
+                relationships=c.get("relationships", 0),
+            )
+        compression = CompressionProfile()
+        if "compression" in doc:
+            p = doc["compression"]
+            compression = CompressionProfile(
+                average_ratio=p.get("average_ratio", 1.0),
+                lossy_threshold=p.get("lossy_threshold", 0.02),
+                context_required=p.get("context_required", "moderate"),
+                ambiguity_handling=AmbiguityHandling(p.get("ambiguity_handling", "probabilistic")),
+            )
+        return cls(
+            source_domain=doc["source_domain"],
+            target_domain=doc["target_domain"],
+            bidirectional=doc.get("bidirectional", True),
+            version=doc.get("version", "1.0.0"),
+            coverage=coverage,
+            compression=compression,
+            dictionary_type=DictionaryType(doc.get("dictionary_type", "domain")),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> DictionarySpec:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
+
 
 # ── Translation ──────────────────────────────────────────────────
 
@@ -139,6 +209,44 @@ class TranslationResult:
         self.degradation = _clamp(self.degradation)
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """Serialize to JSON-LD per dictionary-entities spec §4.2."""
+        doc: Dict[str, Any] = {
+            "@context": [DICTIONARY_JSONLD_CONTEXT],
+            "@type": "TranslationResult",
+            "content": self.content,
+            "confidence": self.confidence,
+            "degradation": self.degradation,
+            "dictionary_lct_id": self.dictionary_lct_id,
+            "witness_required": self.witness_required,
+            "timestamp": self.timestamp,
+        }
+        if self.witness_lct_ids:
+            doc["witness_lct_ids"] = list(self.witness_lct_ids)
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> TranslationResult:
+        """Deserialize from JSON-LD document."""
+        return cls(
+            content=doc["content"],
+            confidence=doc["confidence"],
+            degradation=doc["degradation"],
+            dictionary_lct_id=doc["dictionary_lct_id"],
+            witness_required=doc.get("witness_required", False),
+            witness_lct_ids=doc.get("witness_lct_ids", []),
+            timestamp=doc.get("timestamp", ""),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> TranslationResult:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 # ── Translation Chain ────────────────────────────────────────────
@@ -209,6 +317,57 @@ class TranslationChain:
     def is_acceptable(self, minimum_confidence: float = 0.8) -> bool:
         """Check if cumulative confidence meets threshold."""
         return self.cumulative_confidence >= minimum_confidence
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """Serialize to JSON-LD per dictionary-entities spec §4.3."""
+        doc: Dict[str, Any] = {
+            "@context": [DICTIONARY_JSONLD_CONTEXT],
+            "@type": "TranslationChain",
+            "steps": [
+                {
+                    "step": s.step,
+                    "source_domain": s.source_domain,
+                    "target_domain": s.target_domain,
+                    "dictionary_lct_id": s.dictionary_lct_id,
+                    "confidence": s.confidence,
+                    "degradation": s.degradation,
+                }
+                for s in self.steps
+            ],
+            "cumulative_confidence": self.cumulative_confidence,
+            "cumulative_degradation": self.cumulative_degradation,
+            "length": self.length,
+        }
+        if self.witness_lct_ids:
+            doc["witness_lct_ids"] = list(self.witness_lct_ids)
+        return doc
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> TranslationChain:
+        """Deserialize from JSON-LD document."""
+        steps = []
+        for s in doc.get("steps", []):
+            steps.append(ChainStep(
+                step=s["step"],
+                source_domain=s["source_domain"],
+                target_domain=s["target_domain"],
+                dictionary_lct_id=s["dictionary_lct_id"],
+                confidence=s["confidence"],
+                degradation=s["degradation"],
+            ))
+        return cls(
+            steps=steps,
+            witness_lct_ids=doc.get("witness_lct_ids", []),
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> TranslationChain:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 # ── Dictionary Evolution ─────────────────────────────────────────
@@ -356,6 +515,79 @@ class DictionaryEntity:
         if self.translation_count == 0:
             return 0.0
         return self.successful_translations / self.translation_count
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """
+        Serialize to JSON-LD per dictionary-entities spec §2.1.
+
+        Produces a summary document with spec (inline), statistics,
+        and computed properties. The LCT itself is serialized separately.
+        """
+        spec_inline: Dict[str, Any] = {
+            "source_domain": self.spec.source_domain,
+            "target_domain": self.spec.target_domain,
+            "bidirectional": self.spec.bidirectional,
+            "version": self.spec.version,
+            "dictionary_type": self.spec.dictionary_type.value,
+        }
+        if self.spec.coverage.terms > 0 or self.spec.coverage.concepts > 0 or self.spec.coverage.relationships > 0:
+            spec_inline["coverage"] = {
+                "terms": self.spec.coverage.terms,
+                "concepts": self.spec.coverage.concepts,
+                "relationships": self.spec.coverage.relationships,
+            }
+        if self.spec.compression != CompressionProfile():
+            spec_inline["compression"] = {
+                "average_ratio": self.spec.compression.average_ratio,
+                "lossy_threshold": self.spec.compression.lossy_threshold,
+                "context_required": self.spec.compression.context_required,
+                "ambiguity_handling": self.spec.compression.ambiguity_handling.value,
+            }
+        return {
+            "@context": [DICTIONARY_JSONLD_CONTEXT],
+            "@type": "DictionaryEntity",
+            "lct_id": self.lct_id,
+            "spec": spec_inline,
+            "translation_count": self.translation_count,
+            "successful_translations": self.successful_translations,
+            "success_rate": self.success_rate,
+            "current_version": self.current_version,
+        }
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any], public_key: str = "restored") -> DictionaryEntity:
+        """
+        Deserialize from JSON-LD document.
+
+        Since the full LCT is not embedded (it's a separate document),
+        a minimal LCT is created from the lct_id and spec. The public_key
+        parameter allows callers to supply the actual key.
+        """
+        spec_data = doc["spec"]
+        spec = DictionarySpec.from_jsonld(spec_data)
+
+        entity = cls.create(
+            source_domain=spec.source_domain,
+            target_domain=spec.target_domain,
+            public_key=public_key,
+            bidirectional=spec.bidirectional,
+            version=spec.version,
+            coverage=spec.coverage,
+            compression=spec.compression,
+            dictionary_type=spec.dictionary_type,
+        )
+        entity.translation_count = doc.get("translation_count", 0)
+        entity.successful_translations = doc.get("successful_translations", 0)
+        return entity
+
+    @classmethod
+    def from_jsonld_string(cls, s: str, public_key: str = "restored") -> DictionaryEntity:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s), public_key=public_key)
 
     def can_translate(self, source_domain: str, target_domain: str) -> bool:
         """Check if this dictionary covers the requested domain pair."""

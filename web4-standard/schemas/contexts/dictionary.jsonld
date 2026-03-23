@@ -1,0 +1,139 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "web4": "https://web4.io/ns/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "DictionaryEntity": "web4:DictionaryEntity",
+    "DictionarySpec": "web4:DictionarySpec",
+    "TranslationResult": "web4:TranslationResult",
+    "TranslationChain": "web4:TranslationChain",
+    "ChainStep": "web4:ChainStep",
+
+    "lct_id": {
+      "@id": "web4:lctId",
+      "@type": "xsd:string"
+    },
+    "source_domain": {
+      "@id": "web4:sourceDomain",
+      "@type": "xsd:string"
+    },
+    "target_domain": {
+      "@id": "web4:targetDomain",
+      "@type": "xsd:string"
+    },
+    "bidirectional": {
+      "@id": "web4:bidirectional",
+      "@type": "xsd:boolean"
+    },
+    "version": {
+      "@id": "web4:version",
+      "@type": "xsd:string"
+    },
+    "dictionary_type": {
+      "@id": "web4:dictionaryType",
+      "@type": "xsd:string"
+    },
+    "coverage": {
+      "@id": "web4:coverage"
+    },
+    "terms": {
+      "@id": "web4:terms",
+      "@type": "xsd:integer"
+    },
+    "concepts": {
+      "@id": "web4:concepts",
+      "@type": "xsd:integer"
+    },
+    "relationships": {
+      "@id": "web4:relationships",
+      "@type": "xsd:integer"
+    },
+    "compression": {
+      "@id": "web4:compression"
+    },
+    "average_ratio": {
+      "@id": "web4:averageRatio",
+      "@type": "xsd:double"
+    },
+    "lossy_threshold": {
+      "@id": "web4:lossyThreshold",
+      "@type": "xsd:double"
+    },
+    "context_required": {
+      "@id": "web4:contextRequired",
+      "@type": "xsd:string"
+    },
+    "ambiguity_handling": {
+      "@id": "web4:ambiguityHandling",
+      "@type": "xsd:string"
+    },
+    "translation_count": {
+      "@id": "web4:translationCount",
+      "@type": "xsd:integer"
+    },
+    "successful_translations": {
+      "@id": "web4:successfulTranslations",
+      "@type": "xsd:integer"
+    },
+    "success_rate": {
+      "@id": "web4:successRate",
+      "@type": "xsd:double"
+    },
+    "current_version": {
+      "@id": "web4:currentVersion",
+      "@type": "xsd:string"
+    },
+    "spec": {
+      "@id": "web4:spec"
+    },
+    "content": {
+      "@id": "web4:content",
+      "@type": "xsd:string"
+    },
+    "confidence": {
+      "@id": "web4:confidence",
+      "@type": "xsd:double"
+    },
+    "degradation": {
+      "@id": "web4:degradation",
+      "@type": "xsd:double"
+    },
+    "dictionary_lct_id": {
+      "@id": "web4:dictionaryLctId",
+      "@type": "xsd:string"
+    },
+    "witness_required": {
+      "@id": "web4:witnessRequired",
+      "@type": "xsd:boolean"
+    },
+    "witness_lct_ids": {
+      "@id": "web4:witnessLctIds",
+      "@container": "@list"
+    },
+    "timestamp": {
+      "@id": "web4:timestamp",
+      "@type": "xsd:dateTime"
+    },
+    "steps": {
+      "@id": "web4:steps",
+      "@container": "@list"
+    },
+    "step": {
+      "@id": "web4:step",
+      "@type": "xsd:integer"
+    },
+    "cumulative_confidence": {
+      "@id": "web4:cumulativeConfidence",
+      "@type": "xsd:double"
+    },
+    "cumulative_degradation": {
+      "@id": "web4:cumulativeDegradation",
+      "@type": "xsd:double"
+    },
+    "length": {
+      "@id": "web4:length",
+      "@type": "xsd:integer"
+    }
+  }
+}
