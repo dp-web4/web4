@@ -1,0 +1,35 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "web4": "https://web4.io/ns/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "EntityTypeInfo": "web4:EntityTypeInfo",
+    "EntityTypeRegistry": "web4:EntityTypeRegistry",
+
+    "entity_type": {
+      "@id": "web4:entityType",
+      "@type": "xsd:string"
+    },
+    "modes": {
+      "@id": "web4:behavioralModes",
+      "@container": "@set"
+    },
+    "energy": {
+      "@id": "web4:energyPattern",
+      "@type": "xsd:string"
+    },
+    "can_r6": {
+      "@id": "web4:canProcessR6",
+      "@type": "xsd:boolean"
+    },
+    "description": {
+      "@id": "web4:description",
+      "@type": "xsd:string"
+    },
+    "entity_types": {
+      "@id": "web4:entityTypes",
+      "@container": "@list"
+    }
+  }
+}

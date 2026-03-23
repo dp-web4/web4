@@ -17,11 +17,17 @@ Validated against: web4-standard/test-vectors/entity/
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import Enum
-from typing import FrozenSet, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
 
 from .lct import EntityType
+
+
+# ── JSON-LD Context ──────────────────────────────────────────────
+
+ENTITY_JSONLD_CONTEXT = "https://web4.io/contexts/entity.jsonld"
 
 
 # ── Behavioral Modes (spec §2.2) ────────────────────────────────
@@ -72,6 +78,38 @@ class EntityTypeInfo:
     energy: EnergyPattern
     can_r6: bool
     description: str
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """Serialize to JSON-LD per entity-types spec."""
+        return {
+            "@context": [ENTITY_JSONLD_CONTEXT],
+            "@type": "EntityTypeInfo",
+            "entity_type": self.entity_type.value,
+            "modes": sorted(m.value for m in self.modes),
+            "energy": self.energy.value,
+            "can_r6": self.can_r6,
+            "description": self.description,
+        }
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> EntityTypeInfo:
+        """Deserialize from JSON-LD document."""
+        return cls(
+            entity_type=EntityType(doc["entity_type"]),
+            modes=frozenset(BehavioralMode(m) for m in doc["modes"]),
+            energy=EnergyPattern(doc["energy"]),
+            can_r6=doc["can_r6"],
+            description=doc["description"],
+        )
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> EntityTypeInfo:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 # ── Registry ─────────────────────────────────────────────────────
@@ -281,3 +319,12 @@ def valid_interaction(
 def all_entity_types() -> list[EntityTypeInfo]:
     """Return info for all 15 canonical entity types."""
     return list(_REGISTRY.values())
+
+
+def entity_registry_to_jsonld() -> Dict[str, Any]:
+    """Serialize the full entity type registry to JSON-LD."""
+    return {
+        "@context": [ENTITY_JSONLD_CONTEXT],
+        "@type": "EntityTypeRegistry",
+        "entity_types": [info.to_jsonld() for info in _REGISTRY.values()],
+    }

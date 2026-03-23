@@ -178,6 +178,7 @@ from .entity import (
     EnergyPattern,
     InteractionType,
     EntityTypeInfo,
+    ENTITY_JSONLD_CONTEXT,
     behavioral_modes,
     energy_pattern,
     is_agentic,
@@ -186,6 +187,7 @@ from .entity import (
     can_process_r6,
     valid_interaction,
     all_entity_types,
+    entity_registry_to_jsonld,
 )
 
 # ── Capability Levels ─────────────────────────────────────────
@@ -194,6 +196,7 @@ from .capability import (
     TrustTier,
     ENTITY_LEVEL_RANGES,
     LevelRequirement,
+    CAPABILITY_JSONLD_CONTEXT,
     assess_level,
     validate_level,
     can_upgrade,
@@ -202,6 +205,8 @@ from .capability import (
     entity_level_range,
     is_level_typical,
     common_ground,
+    capability_assessment_to_jsonld,
+    capability_framework_to_jsonld,
 )
 
 # ── Error Taxonomy ─────────────────────────────────────────────
@@ -435,15 +440,17 @@ __all__ = [
     "ReputationEngine", "ReputationStore", "analyze_factors",
     # entity
     "BehavioralMode", "EnergyPattern", "InteractionType",
-    "EntityTypeInfo",
+    "EntityTypeInfo", "ENTITY_JSONLD_CONTEXT",
     "behavioral_modes", "energy_pattern",
     "is_agentic", "can_initiate", "can_delegate", "can_process_r6",
-    "valid_interaction", "all_entity_types",
+    "valid_interaction", "all_entity_types", "entity_registry_to_jsonld",
     # capability
     "CapabilityLevel", "TrustTier", "ENTITY_LEVEL_RANGES", "LevelRequirement",
+    "CAPABILITY_JSONLD_CONTEXT",
     "assess_level", "validate_level", "can_upgrade",
     "level_requirements", "trust_tier",
     "entity_level_range", "is_level_typical", "common_ground",
+    "capability_assessment_to_jsonld", "capability_framework_to_jsonld",
     # errors
     "ErrorCode", "ErrorCategory", "ErrorMeta",
     "Web4Error", "BindingError", "PairingError", "WitnessError",
