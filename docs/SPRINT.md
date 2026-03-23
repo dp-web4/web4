@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-23 (A3 merged)
+**Updated**: 2026-03-23 (A4 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -39,7 +39,8 @@ JSON-LD context (`contexts/acp.jsonld`). 1 new export (`ACP_JSONLD_CONTEXT`).
 54 new tests, 1356 total SDK tests passing.
 
 ### A3: Entity + Capability JSON-LD
-**Status**: IN REVIEW (PR #63)
+**Status**: DONE
+**Completed**: 2026-03-23
 **Depends on**: None
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to EntityTypeInfo and LevelRequirement
 types, plus registry/framework/assessment serializers. JSON Schema and JSON-LD context.
@@ -52,14 +53,16 @@ types, plus registry/framework/assessment serializers. JSON Schema and JSON-LD c
 `capability_framework_to_jsonld`). 37 new tests, 1393 total SDK tests passing.
 
 ### A4: Cross-language validation vectors for Phase 2
-**Status**: IN PROGRESS (partial)
+**Status**: DONE
+**Completed**: 2026-03-23
 **Depends on**: A1, A2, A3
 **Scope**: JSON test vectors for ATP, ACP, Entity, Capability schemas.
-**Result** (partial): 59 vectors for 2 merged schemas (ATP, ACP).
+**Result**: 127 vectors for all 4 Phase 2 schemas.
 ATP: 8 valid + 15 invalid = 23 vectors (ATPAccount and TransferResult types).
 ACP: 12 valid + 24 invalid = 36 vectors (AgentPlan, Intent, Decision, ExecutionRecord types).
-Validation runner updated to include ATP and ACP targets.
-Entity + Capability vectors deferred until A3 PR #63 merges.
+Entity: 12 valid + 20 invalid = 32 vectors (EntityTypeInfo and EntityTypeRegistry types).
+Capability: 12 valid + 24 invalid = 36 vectors (LevelRequirement, CapabilityAssessment, CapabilityFramework types).
+Validation runner updated to include all 8 schemas. 228 total vectors across all schemas.
 
 ### A5: SDK v0.9.0 release housekeeping
 **Status**: DONE
@@ -90,7 +93,8 @@ cross-checked against SDK output.
 `validate_schemas.py`. 19 validation checks (10 LCT + 9 AttestationEnvelope). PR #53, merged.
 
 ### V2: T3/V3 Trust Tensor JSON-LD serialization
-**Status**: IN REVIEW
+**Status**: DONE
+**Completed**: 2026-03-22
 **Depends on**: V1
 **Scope**: Add `to_jsonld()` / `from_jsonld()` to `T3` and `V3` classes in `web4.trust`,
 producing output matching `t3v3-ontology.ttl`. JSON Schema for the format.
@@ -482,12 +486,12 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | I3 | AttestationEnvelope JSON-LD serialization | DONE |
 | I4 | SDK v0.7.0 release housekeeping | DONE |
 | V1 | JSON Schema for LCT + AttestationEnvelope JSON-LD | DONE |
-| V2 | T3/V3 Trust Tensor JSON-LD serialization | IN REVIEW (PR #54) |
+| V2 | T3/V3 Trust Tensor JSON-LD serialization | DONE |
 | V3 | R7 Action JSON-LD serialization | DONE |
 | V4 | Cross-language validation test vectors | DONE |
 | V5 | SDK v0.8.0 release housekeeping | DONE |
 | A1 | ATP/ADP JSON-LD serialization | DONE |
 | A2 | ACP JSON-LD serialization | DONE |
-| A3 | Entity + Capability JSON-LD | IN REVIEW (PR #63) |
-| A4 | Cross-language validation vectors (Phase 2) | IN PROGRESS (partial) |
+| A3 | Entity + Capability JSON-LD | DONE |
+| A4 | Cross-language validation vectors (Phase 2) | DONE |
 | A5 | SDK v0.9.0 release housekeeping | DONE |

@@ -14,6 +14,8 @@ Usage:
     python validate_schema_vectors.py atp          # ATP/ADP only
     python validate_schema_vectors.py acp          # ACP only
     python validate_schema_vectors.py t3v3         # T3/V3 only
+    python validate_schema_vectors.py entity       # Entity only
+    python validate_schema_vectors.py capability   # Capability only
     python validate_schema_vectors.py --verbose    # Show details
 
 Exit code 0 = all vectors behave correctly, 1 = unexpected results.
@@ -57,6 +59,14 @@ VECTOR_FILES = {
     "t3v3": {
         "vectors": "t3v3-jsonld-validation.json",
         "schema": "t3v3-jsonld.schema.json",
+    },
+    "entity": {
+        "vectors": "entity-jsonld-validation.json",
+        "schema": "entity-jsonld.schema.json",
+    },
+    "capability": {
+        "vectors": "capability-jsonld-validation.json",
+        "schema": "capability-jsonld.schema.json",
     },
 }
 
