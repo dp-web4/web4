@@ -1,0 +1,708 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/t3v3-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/t3v3-jsonld.schema.json",
+    "description": "Cross-language validation vectors for T3/V3 Tensor JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "web4-standard/ontology/t3v3-ontology.ttl"
+  },
+  "valid": [
+    {
+      "id": "t3-valid-001",
+      "description": "Minimal T3Tensor with required fields at zero",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.0,
+        "training": 0.0,
+        "temperament": 0.0,
+        "composite_score": 0.0,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.0},
+          {"dimension": "web4:Training", "score": 0.0},
+          {"dimension": "web4:Temperament", "score": 0.0}
+        ]
+      }
+    },
+    {
+      "id": "t3-valid-002",
+      "description": "T3Tensor with typical mid-range scores",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.7,
+        "training": 0.8,
+        "temperament": 0.6,
+        "composite_score": 0.7,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.7},
+          {"dimension": "web4:Training", "score": 0.8},
+          {"dimension": "web4:Temperament", "score": 0.6}
+        ]
+      }
+    },
+    {
+      "id": "t3-valid-003",
+      "description": "T3Tensor at maximum scores (1.0)",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 1.0,
+        "training": 1.0,
+        "temperament": 1.0,
+        "composite_score": 1.0,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 1.0},
+          {"dimension": "web4:Training", "score": 1.0},
+          {"dimension": "web4:Temperament", "score": 1.0}
+        ]
+      }
+    },
+    {
+      "id": "t3-valid-004",
+      "description": "T3Tensor with optional entity and role fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.85,
+        "training": 0.9,
+        "temperament": 0.75,
+        "composite_score": 0.835,
+        "entity": "lct:alice-001",
+        "role": "developer",
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.85},
+          {"dimension": "web4:Training", "score": 0.9},
+          {"dimension": "web4:Temperament", "score": 0.75}
+        ]
+      }
+    },
+    {
+      "id": "t3-valid-005",
+      "description": "T3Tensor with dimension_scores including observed_at and witnessed_by",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.6,
+        "training": 0.7,
+        "temperament": 0.8,
+        "composite_score": 0.69,
+        "dimension_scores": [
+          {
+            "dimension": "web4:Talent",
+            "score": 0.6,
+            "observed_at": "2026-03-22T12:00:00Z",
+            "witnessed_by": "lct:witness-001"
+          },
+          {
+            "dimension": "web4:Training",
+            "score": 0.7,
+            "observed_at": "2026-03-22T12:00:00Z",
+            "witnessed_by": "lct:witness-001"
+          },
+          {
+            "dimension": "web4:Temperament",
+            "score": 0.8,
+            "observed_at": "2026-03-22T12:00:00Z",
+            "witnessed_by": "lct:witness-001"
+          }
+        ]
+      }
+    },
+    {
+      "id": "t3-valid-006",
+      "description": "T3Tensor with extra sub-dimensions beyond the 3 root",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5},
+          {"dimension": "web4:ProblemSolving", "score": 0.6},
+          {"dimension": "web4:Communication", "score": 0.4}
+        ]
+      }
+    },
+    {
+      "id": "v3-valid-001",
+      "description": "Minimal V3Tensor with required fields at zero",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "valuation": 0.0,
+        "veracity": 0.0,
+        "validity": 0.0,
+        "composite_score": 0.0,
+        "dimension_scores": [
+          {"dimension": "web4:Valuation", "score": 0.0},
+          {"dimension": "web4:Veracity", "score": 0.0},
+          {"dimension": "web4:Validity", "score": 0.0}
+        ]
+      }
+    },
+    {
+      "id": "v3-valid-002",
+      "description": "V3Tensor with typical scores",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "valuation": 0.8,
+        "veracity": 0.9,
+        "validity": 0.85,
+        "composite_score": 0.8525,
+        "dimension_scores": [
+          {"dimension": "web4:Valuation", "score": 0.8},
+          {"dimension": "web4:Veracity", "score": 0.9},
+          {"dimension": "web4:Validity", "score": 0.85}
+        ]
+      }
+    },
+    {
+      "id": "v3-valid-003",
+      "description": "V3Tensor at maximum with entity and role",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "valuation": 1.0,
+        "veracity": 1.0,
+        "validity": 1.0,
+        "composite_score": 1.0,
+        "entity": "lct:resource-042",
+        "role": "content-creator",
+        "dimension_scores": [
+          {"dimension": "web4:Valuation", "score": 1.0},
+          {"dimension": "web4:Veracity", "score": 1.0},
+          {"dimension": "web4:Validity", "score": 1.0}
+        ]
+      }
+    },
+    {
+      "id": "v3-valid-004",
+      "description": "V3Tensor with full dimension metadata",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "valuation": 0.45,
+        "veracity": 0.6,
+        "validity": 0.55,
+        "composite_score": 0.5375,
+        "dimension_scores": [
+          {
+            "dimension": "web4:Valuation",
+            "score": 0.45,
+            "observed_at": "2026-03-20T08:30:00Z",
+            "witnessed_by": "lct:assessor-003"
+          },
+          {
+            "dimension": "web4:Veracity",
+            "score": 0.6,
+            "observed_at": "2026-03-20T08:30:00Z",
+            "witnessed_by": "lct:assessor-003"
+          },
+          {
+            "dimension": "web4:Validity",
+            "score": 0.55,
+            "observed_at": "2026-03-20T08:30:00Z",
+            "witnessed_by": "lct:assessor-003"
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "t3v3-invalid-001",
+      "description": "Missing required field: @type",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-002",
+      "description": "Missing required field: @context",
+      "error_kind": "oneOf",
+      "document": {
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-003",
+      "description": "Missing required field: talent (T3Tensor)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-004",
+      "description": "Missing required field: training (T3Tensor)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-005",
+      "description": "Missing required field: temperament (T3Tensor)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-006",
+      "description": "Missing required field: composite_score (T3Tensor)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-007",
+      "description": "Missing required field: dimension_scores (T3Tensor)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5
+      }
+    },
+    {
+      "id": "t3v3-invalid-008",
+      "description": "Wrong @type value (not T3Tensor or V3Tensor)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "TrustTensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-009",
+      "description": "talent score out of range (> 1.0)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 1.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-010",
+      "description": "training score out of range (negative)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": -0.1,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-011",
+      "description": "composite_score out of range (> 1.0)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 1.1,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-012",
+      "description": "talent is string instead of number",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": "high",
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-013",
+      "description": "dimension_scores has fewer than 3 items (minItems violation)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-014",
+      "description": "dimension_scores item missing required 'score' field",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent"},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-015",
+      "description": "dimension_scores item missing required 'dimension' field",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-016",
+      "description": "dimension_scores item score out of range (> 1.0)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 1.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-017",
+      "description": "dimension pattern violation (missing web4: prefix)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-018",
+      "description": "additionalProperties violation on T3Tensor (extra field)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "extra_field": "not allowed",
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-019",
+      "description": "additionalProperties violation on DimensionScore (extra field)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5, "confidence": 0.9},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-020",
+      "description": "@context is string instead of array",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": "https://web4.io/contexts/t3v3.jsonld",
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-021",
+      "description": "Empty @context array (minItems violation)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": [],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-022",
+      "description": "Missing required V3 field: valuation",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "veracity": 0.5,
+        "validity": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Valuation", "score": 0.5},
+          {"dimension": "web4:Veracity", "score": 0.5},
+          {"dimension": "web4:Validity", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-023",
+      "description": "Missing required V3 field: veracity",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "valuation": 0.5,
+        "validity": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Valuation", "score": 0.5},
+          {"dimension": "web4:Veracity", "score": 0.5},
+          {"dimension": "web4:Validity", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-024",
+      "description": "V3 valuation score out of range (negative)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "valuation": -0.5,
+        "veracity": 0.5,
+        "validity": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Valuation", "score": 0.5},
+          {"dimension": "web4:Veracity", "score": 0.5},
+          {"dimension": "web4:Validity", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-025",
+      "description": "V3 additionalProperties violation (extra field)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "valuation": 0.5,
+        "veracity": 0.5,
+        "validity": 0.5,
+        "composite_score": 0.5,
+        "unknown_field": true,
+        "dimension_scores": [
+          {"dimension": "web4:Valuation", "score": 0.5},
+          {"dimension": "web4:Veracity", "score": 0.5},
+          {"dimension": "web4:Validity", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-026",
+      "description": "dimension_scores is not an array",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": "not an array"
+      }
+    },
+    {
+      "id": "t3v3-invalid-027",
+      "description": "T3 fields used with V3 @type (type mismatch)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "V3Tensor",
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Talent", "score": 0.5},
+          {"dimension": "web4:Training", "score": 0.5},
+          {"dimension": "web4:Temperament", "score": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "t3v3-invalid-028",
+      "description": "V3 fields used with T3 @type (type mismatch)",
+      "error_kind": "oneOf",
+      "document": {
+        "@context": ["https://web4.io/contexts/t3v3.jsonld"],
+        "@type": "T3Tensor",
+        "valuation": 0.5,
+        "veracity": 0.5,
+        "validity": 0.5,
+        "composite_score": 0.5,
+        "dimension_scores": [
+          {"dimension": "web4:Valuation", "score": 0.5},
+          {"dimension": "web4:Veracity", "score": 0.5},
+          {"dimension": "web4:Validity", "score": 0.5}
+        ]
+      }
+    }
+  ]
+}

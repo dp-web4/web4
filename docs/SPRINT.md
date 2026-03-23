@@ -105,16 +105,18 @@ components serialized (Rules/Role/Request/Reference/Resource/Result/Reputation).
 26 new tests, 75 total R6 tests, 1274 total SDK tests passing. PR #55, merged.
 
 ### V4: Cross-language validation test vectors
-**Status**: IN PROGRESS
+**Status**: DONE
+**Completed**: 2026-03-22
 **Depends on**: V1, V2, V3
 **Scope**: JSON test vectors that exercise schema validation edge cases — malformed
 documents, missing required fields, extra fields, boundary values. Vectors usable
 by any language's JSON Schema validator.
-**Result** (partial): 63 vectors for 3 merged schemas (LCT, AttestationEnvelope, R7 Action).
-21 valid documents + 42 invalid documents covering: missing required fields, enum violations,
-out-of-range values, pattern mismatches, type errors, additionalProperties, boundary values.
-Validation runner script (`validate_schema_vectors.py`). T3/V3 tensor vectors deferred
-until PR #54 merges.
+**Result**: 101 vectors for 4 merged schemas (LCT, AttestationEnvelope, R7 Action, T3/V3).
+31 valid documents + 70 invalid documents covering: missing required fields, enum violations,
+out-of-range values, pattern mismatches, type errors, additionalProperties, boundary values,
+type mismatches (T3 fields with V3 @type and vice versa), DimensionScore sub-schema validation.
+T3/V3 vectors: 10 valid + 28 invalid = 38 vectors.
+Validation runner script (`validate_schema_vectors.py`) covers all 4 schemas.
 
 ### V5: SDK v0.8.0 release housekeeping
 **Status**: DONE
@@ -475,7 +477,7 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | V1 | JSON Schema for LCT + AttestationEnvelope JSON-LD | DONE |
 | V2 | T3/V3 Trust Tensor JSON-LD serialization | IN REVIEW (PR #54) |
 | V3 | R7 Action JSON-LD serialization | DONE |
-| V4 | Cross-language validation test vectors | IN PROGRESS (partial) |
+| V4 | Cross-language validation test vectors | DONE |
 | V5 | SDK v0.8.0 release housekeeping | DONE |
 | A1 | ATP/ADP JSON-LD serialization | DONE |
 | A2 | ACP JSON-LD serialization | DONE |
