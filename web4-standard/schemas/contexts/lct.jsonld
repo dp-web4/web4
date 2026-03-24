@@ -1,0 +1,203 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "web4": "https://web4.io/ns/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "LinkedContextToken": "web4:LinkedContextToken",
+
+    "lct_id": {
+      "@id": "web4:lctId",
+      "@type": "xsd:string"
+    },
+    "subject": {
+      "@id": "web4:subject",
+      "@type": "xsd:string"
+    },
+
+    "binding": {
+      "@id": "web4:binding",
+      "@type": "@id"
+    },
+    "entity_type": {
+      "@id": "web4:entityType",
+      "@type": "xsd:string"
+    },
+    "public_key": {
+      "@id": "web4:publicKey",
+      "@type": "xsd:string"
+    },
+    "created_at": {
+      "@id": "web4:createdAt",
+      "@type": "xsd:string"
+    },
+    "binding_proof": {
+      "@id": "web4:bindingProof",
+      "@type": "xsd:string"
+    },
+    "hardware_anchor": {
+      "@id": "web4:hardwareAnchor",
+      "@type": "xsd:string"
+    },
+
+    "birth_certificate": {
+      "@id": "web4:birthCertificate",
+      "@type": "@id"
+    },
+    "issuing_society": {
+      "@id": "web4:issuingSociety",
+      "@type": "xsd:string"
+    },
+    "citizen_role": {
+      "@id": "web4:citizenRole",
+      "@type": "xsd:string"
+    },
+    "birth_timestamp": {
+      "@id": "web4:birthTimestamp",
+      "@type": "xsd:string"
+    },
+    "birth_witnesses": {
+      "@id": "web4:birthWitnesses",
+      "@container": "@set"
+    },
+    "birth_context": {
+      "@id": "web4:birthContext",
+      "@type": "xsd:string"
+    },
+    "genesis_block_hash": {
+      "@id": "web4:genesisBlockHash",
+      "@type": "xsd:string"
+    },
+
+    "mrh": {
+      "@id": "web4:markovRelevancyHorizon",
+      "@type": "@id"
+    },
+    "bound": {
+      "@id": "web4:bound",
+      "@container": "@list"
+    },
+    "paired": {
+      "@id": "web4:paired",
+      "@container": "@list"
+    },
+    "witnessing": {
+      "@id": "web4:witnessing",
+      "@container": "@list"
+    },
+    "pairing_type": {
+      "@id": "web4:pairingType",
+      "@type": "xsd:string"
+    },
+    "permanent": {
+      "@id": "web4:permanent",
+      "@type": "xsd:boolean"
+    },
+    "ts": {
+      "@id": "web4:timestamp",
+      "@type": "xsd:string"
+    },
+    "horizon_depth": {
+      "@id": "web4:horizonDepth",
+      "@type": "xsd:integer"
+    },
+    "last_updated": {
+      "@id": "web4:lastUpdated",
+      "@type": "xsd:string"
+    },
+
+    "policy": {
+      "@id": "web4:policy",
+      "@type": "@id"
+    },
+    "capabilities": {
+      "@id": "web4:capabilities",
+      "@container": "@set"
+    },
+    "constraints": {
+      "@id": "web4:constraints",
+      "@type": "@id"
+    },
+
+    "t3_tensor": {
+      "@id": "web4:t3Tensor",
+      "@type": "@id"
+    },
+    "talent": {
+      "@id": "web4:talent",
+      "@type": "xsd:double"
+    },
+    "training": {
+      "@id": "web4:training",
+      "@type": "xsd:double"
+    },
+    "temperament": {
+      "@id": "web4:temperament",
+      "@type": "xsd:double"
+    },
+    "composite_score": {
+      "@id": "web4:compositeScore",
+      "@type": "xsd:double"
+    },
+
+    "v3_tensor": {
+      "@id": "web4:v3Tensor",
+      "@type": "@id"
+    },
+    "valuation": {
+      "@id": "web4:valuation",
+      "@type": "xsd:double"
+    },
+    "veracity": {
+      "@id": "web4:veracity",
+      "@type": "xsd:double"
+    },
+    "validity": {
+      "@id": "web4:validity",
+      "@type": "xsd:double"
+    },
+
+    "attestations": {
+      "@id": "web4:attestations",
+      "@container": "@list"
+    },
+    "witness": {
+      "@id": "web4:witness",
+      "@type": "xsd:string"
+    },
+    "type": {
+      "@id": "web4:attestationType",
+      "@type": "xsd:string"
+    },
+    "claims": {
+      "@id": "web4:claims",
+      "@type": "@id"
+    },
+    "sig": {
+      "@id": "web4:signature",
+      "@type": "xsd:string"
+    },
+
+    "lineage": {
+      "@id": "web4:lineage",
+      "@container": "@list"
+    },
+    "parent": {
+      "@id": "web4:parent",
+      "@type": "xsd:string"
+    },
+    "reason": {
+      "@id": "web4:reason",
+      "@type": "xsd:string"
+    },
+
+    "revocation": {
+      "@id": "web4:revocation",
+      "@type": "@id"
+    },
+    "status": {
+      "@id": "web4:revocationStatus",
+      "@type": "xsd:string"
+    }
+  }
+}
