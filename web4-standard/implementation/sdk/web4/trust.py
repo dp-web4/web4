@@ -52,9 +52,9 @@ DIMINISHING_FLOOR = 0.1
 
 # ── JSON-LD Context URIs ─────────────────────────────────────
 
-T3_JSONLD_CONTEXT = "https://web4.io/contexts/t3-tensor.jsonld"
-V3_JSONLD_CONTEXT = "https://web4.io/contexts/v3-tensor.jsonld"
-WEB4_ONTOLOGY_NS = "https://web4.io/ontology#"
+T3_JSONLD_CONTEXT = "https://web4.io/contexts/t3.jsonld"
+V3_JSONLD_CONTEXT = "https://web4.io/contexts/v3.jsonld"
+WEB4_ONTOLOGY_NS = "https://web4.io/ontology#"  # Kept for OWL/RDF tooling reference
 
 # ── Outcome-based evolution (spec §2.3) ──────────────────────────
 
@@ -165,7 +165,7 @@ class T3:
             role: Optional role context (web4:role binding)
         """
         doc: Dict[str, Any] = {
-            "@context": [T3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS],
+            "@context": [T3_JSONLD_CONTEXT],
             "@type": "T3Tensor",
             # Shorthand aggregate scores (ontology §backward-compatible)
             "talent": self.talent,
@@ -276,7 +276,7 @@ class V3:
             role: Optional role context (web4:role binding)
         """
         doc: Dict[str, Any] = {
-            "@context": [V3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS],
+            "@context": [V3_JSONLD_CONTEXT],
             "@type": "V3Tensor",
             # Shorthand aggregate scores (ontology §backward-compatible)
             "valuation": self.valuation,

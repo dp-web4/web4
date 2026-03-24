@@ -1,0 +1,34 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "web4": "https://web4.io/ns/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "T3Tensor": "web4:T3Tensor",
+    "DimensionScore": "web4:DimensionScore",
+
+    "Talent": "web4:Talent",
+    "Training": "web4:Training",
+    "Temperament": "web4:Temperament",
+
+    "entity": { "@id": "web4:entity", "@type": "@id" },
+    "role": { "@id": "web4:role", "@type": "@id" },
+    "dimension": { "@id": "web4:dimension", "@type": "@id" },
+    "hasDimensionScore": { "@id": "web4:hasDimensionScore", "@type": "@id" },
+    "subDimensionOf": { "@id": "web4:subDimensionOf", "@type": "@id" },
+    "witnessedBy": { "@id": "web4:witnessedBy", "@type": "@id" },
+
+    "score": { "@id": "web4:score", "@type": "xsd:decimal" },
+    "observedAt": { "@id": "web4:observedAt", "@type": "xsd:dateTime" },
+
+    "talent": { "@id": "web4:talent", "@type": "xsd:decimal" },
+    "training": { "@id": "web4:training", "@type": "xsd:decimal" },
+    "temperament": { "@id": "web4:temperament", "@type": "xsd:decimal" },
+    "composite_score": { "@id": "web4:compositeScore", "@type": "xsd:decimal" },
+
+    "dimension_scores": {
+      "@id": "web4:dimensionScores",
+      "@container": "@list"
+    }
+  }
+}

@@ -14,7 +14,7 @@ import json
 import os
 import pytest
 
-from web4.trust import T3, V3, T3_JSONLD_CONTEXT, V3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS
+from web4.trust import T3, V3, T3_JSONLD_CONTEXT, V3_JSONLD_CONTEXT
 
 # Conditional import for JSON Schema validation
 try:
@@ -52,7 +52,7 @@ class TestT3ToJsonld:
         t3 = T3()
         doc = t3.to_jsonld()
 
-        assert doc["@context"] == [T3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS]
+        assert doc["@context"] == [T3_JSONLD_CONTEXT]
         assert doc["@type"] == "T3Tensor"
         assert doc["talent"] == 0.5
         assert doc["training"] == 0.5
@@ -217,7 +217,7 @@ class TestV3ToJsonld:
         v3 = V3()
         doc = v3.to_jsonld()
 
-        assert doc["@context"] == [V3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS]
+        assert doc["@context"] == [V3_JSONLD_CONTEXT]
         assert doc["@type"] == "V3Tensor"
         assert doc["valuation"] == 0.5
         assert doc["veracity"] == 0.5
@@ -449,3 +449,117 @@ class TestV3SchemaValidation:
         del doc["valuation"]
         with pytest.raises(jsonschema.ValidationError):
             validate(doc, t3v3_schema)
+
+
+# ── B3: Context File Consistency Tests ─────────────────────────
+
+T3_CONTEXT_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "..",
+    "schemas", "contexts", "t3.jsonld"
+)
+
+V3_CONTEXT_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "..",
+    "schemas", "contexts", "v3.jsonld"
+)
+
+
+class TestT3ContextConsistency:
+    """Verify T3 context file maps all keys from to_jsonld()."""
+
+    @pytest.fixture
+    def t3_context(self):
+        with open(T3_CONTEXT_PATH) as f:
+            return json.load(f)["@context"]
+
+    def test_context_file_exists(self):
+        assert os.path.exists(T3_CONTEXT_PATH), "t3.jsonld context file missing"
+
+    def test_context_uses_ns_namespace(self, t3_context):
+        assert t3_context["web4"] == "https://web4.io/ns/"
+
+    def test_context_has_version(self, t3_context):
+        assert t3_context["@version"] == 1.1
+
+    def test_all_top_level_keys_mapped(self, t3_context):
+        doc = T3(0.8, 0.7, 0.6).to_jsonld(entity="lct:test", role="role:dev")
+        for key in doc:
+            if key.startswith("@"):
+                continue
+            assert key in t3_context, f"T3 key '{key}' missing from context"
+
+    def test_dimension_scores_keys_mapped(self, t3_context):
+        doc = T3(0.8, 0.7, 0.6).to_jsonld()
+        for ds in doc["dimension_scores"]:
+            for key in ds:
+                if key.startswith("@"):
+                    continue
+                assert key in t3_context, f"DimensionScore key '{key}' missing from context"
+
+    def test_t3_type_mapped(self, t3_context):
+        assert "T3Tensor" in t3_context
+
+    def test_dimension_type_mapped(self, t3_context):
+        assert "DimensionScore" in t3_context
+
+    def test_context_uri_matches_constant(self, t3_context):
+        assert T3_JSONLD_CONTEXT == "https://web4.io/contexts/t3.jsonld"
+
+    def test_single_context_in_output(self):
+        doc = T3().to_jsonld()
+        assert len(doc["@context"]) == 1
+        assert doc["@context"][0] == T3_JSONLD_CONTEXT
+
+    def test_no_bare_namespace_in_context(self):
+        doc = T3().to_jsonld()
+        for uri in doc["@context"]:
+            assert not uri.endswith("#"), f"Bare namespace URI in @context: {uri}"
+
+
+class TestV3ContextConsistency:
+    """Verify V3 context file maps all keys from to_jsonld()."""
+
+    @pytest.fixture
+    def v3_context(self):
+        with open(V3_CONTEXT_PATH) as f:
+            return json.load(f)["@context"]
+
+    def test_context_file_exists(self):
+        assert os.path.exists(V3_CONTEXT_PATH), "v3.jsonld context file missing"
+
+    def test_context_uses_ns_namespace(self, v3_context):
+        assert v3_context["web4"] == "https://web4.io/ns/"
+
+    def test_context_has_version(self, v3_context):
+        assert v3_context["@version"] == 1.1
+
+    def test_all_top_level_keys_mapped(self, v3_context):
+        doc = V3(0.8, 0.7, 0.6).to_jsonld(entity="lct:test", role="role:dev")
+        for key in doc:
+            if key.startswith("@"):
+                continue
+            assert key in v3_context, f"V3 key '{key}' missing from context"
+
+    def test_dimension_scores_keys_mapped(self, v3_context):
+        doc = V3(0.8, 0.7, 0.6).to_jsonld()
+        for ds in doc["dimension_scores"]:
+            for key in ds:
+                if key.startswith("@"):
+                    continue
+                assert key in v3_context, f"DimensionScore key '{key}' missing from context"
+
+    def test_v3_type_mapped(self, v3_context):
+        assert "V3Tensor" in v3_context
+
+    def test_context_uri_matches_constant(self, v3_context):
+        assert V3_JSONLD_CONTEXT == "https://web4.io/contexts/v3.jsonld"
+
+    def test_single_context_in_output(self):
+        doc = V3().to_jsonld()
+        assert len(doc["@context"]) == 1
+        assert doc["@context"][0] == V3_JSONLD_CONTEXT
+
+    def test_no_bare_namespace_in_context(self):
+        doc = V3().to_jsonld()
+        for uri in doc["@context"]:
+            assert not uri.endswith("#"), f"Bare namespace URI in @context: {uri}"
