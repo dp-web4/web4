@@ -1319,3 +1319,127 @@ class TestJsonLDSchemaValidation:
         )
         doc = action.to_jsonld()
         self.jsonschema.validate(doc, self.schema)
+
+
+# ── B3: R7 Context File Consistency Tests ─────────────────────
+
+R7_CONTEXT_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "..",
+    "schemas", "contexts", "r7-action.jsonld"
+)
+
+
+class TestR7ContextConsistency:
+    """Verify R7 context file maps all structural keys from to_jsonld()."""
+
+    @pytest.fixture
+    def r7_context(self):
+        with open(R7_CONTEXT_PATH) as f:
+            return json.load(f)["@context"]
+
+    def _make_full_action(self):
+        """Create an R7Action with all components populated."""
+        return R7Action(
+            action_id="test-001",
+            timestamp="2026-01-01T00:00:00Z",
+            prev_action_hash="abc123",
+            rules=Rules(
+                law_hash="lh1", society="soc1",
+                constraints=[Constraint("trust_min", 0.5)],
+                permissions=["read"], prohibitions=["delete"],
+            ),
+            role=Role(
+                actor="lct:actor", role_lct="lct:role",
+                paired_at="2026-01-01",
+                t3_in_role=T3(0.8, 0.7, 0.6),
+                v3_in_role=V3(0.7, 0.8, 0.9),
+            ),
+            request=Request(
+                action="analyze", target="dataset:1",
+                parameters={"depth": 3}, atp_stake=10.0, nonce="n1",
+            ),
+            reference=Reference(
+                precedents=[Precedent("hash1", "success", 0.9)],
+                mrh_depth=2, relevant_entities=["e1"],
+                witnesses=[WitnessAttestation("lct:w1", "verified", "sig1", "2026")],
+            ),
+            resource=ResourceRequirements(
+                required_atp=5.0, available_atp=100.0,
+                compute={"cpu": "2_cores"}, escrow_amount=2.0,
+            ),
+            result=Result(
+                output={"data": "ok"}, output_hash="h1",
+                atp_consumed=5.0,
+                attestations=[WitnessAttestation("lct:w2")],
+            ),
+            reputation=ReputationDelta(
+                subject_lct="lct:sub", role_lct="lct:role",
+                action_type="analyze", action_target="dataset:1",
+                action_id="test-001", rule_triggered="rule1", reason="good work",
+                t3_delta={"talent": TensorDelta(0.05, 0.8, 0.85)},
+                v3_delta={"valuation": TensorDelta(0.03, 0.7, 0.73)},
+                contributing_factors=[ContributingFactor("quality", 0.8)],
+                witnesses=[WitnessAttestation("lct:w1")],
+                timestamp="2026-01-01T00:00:01Z",
+            ),
+        )
+
+    def test_context_file_exists(self):
+        assert os.path.exists(R7_CONTEXT_PATH), "r7-action.jsonld context file missing"
+
+    def test_context_uses_ns_namespace(self, r7_context):
+        assert r7_context["web4"] == "https://web4.io/ns/"
+
+    def test_context_has_version(self, r7_context):
+        assert r7_context["@version"] == 1.1
+
+    def test_r7action_top_level_keys_mapped(self, r7_context):
+        doc = self._make_full_action().to_jsonld()
+        for key in doc:
+            if key.startswith("@"):
+                continue
+            assert key in r7_context, f"R7Action top-level key '{key}' missing from context"
+
+    def test_reputation_delta_top_level_keys_mapped(self, r7_context):
+        action = self._make_full_action()
+        doc = action.reputation.to_jsonld()
+        for key in doc:
+            if key.startswith("@"):
+                continue
+            assert key in r7_context, f"ReputationDelta key '{key}' missing from context"
+
+    def test_rules_component_keys_mapped(self, r7_context):
+        rules = Rules(law_hash="h", society="s", constraints=[], permissions=[], prohibitions=[])
+        d = rules.to_dict()
+        for key in d:
+            assert key in r7_context, f"Rules key '{key}' missing from context"
+
+    def test_role_component_keys_mapped(self, r7_context):
+        role = Role(actor="a", role_lct="r", paired_at="t", t3_in_role=T3(), v3_in_role=V3())
+        d = role.to_dict()
+        for key in d:
+            assert key in r7_context, f"Role key '{key}' missing from context"
+
+    def test_request_component_keys_mapped(self, r7_context):
+        req = Request(action="a", target="t", parameters={}, atp_stake=1.0, nonce="n")
+        d = req.to_dict()
+        for key in d:
+            assert key in r7_context, f"Request key '{key}' missing from context"
+
+    def test_r7_type_mapped(self, r7_context):
+        assert "R7Action" in r7_context
+
+    def test_reputation_delta_type_mapped(self, r7_context):
+        assert "ReputationDelta" in r7_context
+
+    def test_action_chain_type_mapped(self, r7_context):
+        assert "ActionChain" in r7_context
+
+    def test_context_uri_matches_constant(self):
+        assert R7_JSONLD_CONTEXT == "https://web4.io/contexts/r7-action.jsonld"
+
+    def test_single_context_in_r7_output(self):
+        action = build_action(actor="a", role_lct="r", action="test")
+        doc = action.to_jsonld()
+        assert len(doc["@context"]) == 1
+        assert doc["@context"][0] == R7_JSONLD_CONTEXT

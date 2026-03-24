@@ -27,7 +27,8 @@ in `__init__.py`, `pyproject.toml`, `setup.py`. 277 symbols in `__all__` (up fro
 1465 tests passing.
 
 ### B2: Missing JSON-LD context files for LCT and AttestationEnvelope
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-23
 **Depends on**: None
 **Scope**: Create `lct.jsonld` and `attestation-envelope.jsonld` context files in
 `web4-standard/schemas/contexts/`. LCT and AttestationEnvelope Python constants
@@ -35,11 +36,14 @@ in `__init__.py`, `pyproject.toml`, `setup.py`. 277 symbols in `__all__` (up fro
 exist as files. All other 6 types have external context files. These 2 are the gap.
 Extract term mappings from the Python `to_jsonld()` output and create context files
 matching the pattern used by ATP/ACP/Entity/Capability contexts (namespace: `https://web4.io/ns/`).
-**Deliverables**: 2 new `.jsonld` files in `schemas/contexts/`, tests verifying consistency
-with Python serialization output.
+**Result**: 2 `.jsonld` context files (lct.jsonld: 30+ term mappings, attestation-envelope.jsonld:
+25+ term mappings). 26 consistency tests verifying all to_jsonld() keys have context mappings.
+Fixed 3 type errors in attestation context (timestamp/TTL as xsd:double, PCR selection as @list).
+1477 total tests passing.
 
 ### B3: JSON-LD namespace and context URI reconciliation
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-24
 **Depends on**: B2
 **Scope**: Audit and reconcile the namespace split across all 8 types. Currently:
 - T3/V3 and R7 use `https://web4.io/ontology#` (from TTL ontology files)
@@ -50,8 +54,13 @@ Determine canonical namespace strategy (likely `https://web4.io/ns/` for all, wi
 `ontology#` reserved for OWL/RDF class definitions). Document the decision. Update
 context files and Python constants for consistency. Preserve backward compatibility
 in `from_jsonld()` (accept both old and new namespace URIs).
-**Deliverables**: Decision document, updated context files, updated Python constants,
-tests confirming backward-compatible deserialization.
+**Result**: Decision: `https://web4.io/ns/` canonical for all application contexts;
+`ontology#` reserved for OWL/RDF. Created 3 new context files (`t3.jsonld`, `v3.jsonld`,
+`r7-action.jsonld`) in `schemas/contexts/` using `ns/` namespace. Updated T3/V3 constants
+and removed bare `WEB4_ONTOLOGY_NS` from @context arrays. R7 context maps both snake_case
+(from to_jsonld) and camelCase (from nested to_dict) field names. 32 consistency tests.
+Decision doc: `docs/history/design_decisions/JSONLD-NAMESPACE-RECONCILIATION.md`.
+1523 total tests passing.
 
 ### B4: Schema-validated JSON-LD round-trip tests
 **Status**: PENDING
