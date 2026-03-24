@@ -56,6 +56,20 @@ Additionally:
 - Ontology files in `ontology/` remain unchanged (no impact on RDF/SPARQL consumers)
 - `WEB4_ONTOLOGY_NS` constant kept in SDK for any code referencing the ontology directly
 
+### R7 Context File — Field Name Alignment
+
+The R7 Action `to_jsonld()` uses snake_case for top-level fields (`action_id`, `prev_action_hash`)
+while nested component `to_dict()` methods use camelCase (`lawHash`, `roleLCT`, `atpStake`).
+The application context file maps BOTH conventions to the same semantic IRIs:
+
+- `action_id` → `web4:actionId` (top-level, from `to_jsonld()`)
+- `actionId` (not currently emitted, reserved for camelCase-first consumers)
+- `subject_lct` → `web4:subjectLCT` (ReputationDelta snake_case output)
+- `subjectLCT` (reserved for camelCase-first consumers)
+
+This dual mapping ensures JSON-LD processors can expand terms regardless of which
+naming convention the producing implementation uses.
+
 ### Not Changed
 
 - `ontology/t3v3.jsonld` and `ontology/r7-action.jsonld` — left in place for OWL tooling
