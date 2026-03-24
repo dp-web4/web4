@@ -39,19 +39,22 @@ matching the pattern used by ATP/ACP/Entity/Capability contexts (namespace: `htt
 with Python serialization output.
 
 ### B3: JSON-LD namespace and context URI reconciliation
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-24
 **Depends on**: B2
-**Scope**: Audit and reconcile the namespace split across all 8 types. Currently:
-- T3/V3 and R7 use `https://web4.io/ontology#` (from TTL ontology files)
-- ATP/ACP/Entity/Capability use `https://web4.io/ns/` (from schemas/contexts/)
-- LCT and AttestationEnvelope reference `https://web4.io/contexts/` URIs
+**Scope**: Audit and reconcile the namespace split across all 9 types. Previously:
+- T3/V3 and R7 used `https://web4.io/ontology#` (from TTL ontology files)
+- ATP/ACP/Entity/Capability/Dictionary/LCT/AttestationEnvelope used `https://web4.io/ns/`
+- T3/V3 SDK referenced non-existent separate files (`t3-tensor.jsonld`, `v3-tensor.jsonld`)
 
-Determine canonical namespace strategy (likely `https://web4.io/ns/` for all, with
-`ontology#` reserved for OWL/RDF class definitions). Document the decision. Update
-context files and Python constants for consistency. Preserve backward compatibility
-in `from_jsonld()` (accept both old and new namespace URIs).
-**Deliverables**: Decision document, updated context files, updated Python constants,
-tests confirming backward-compatible deserialization.
+**Decision**: Standardize on `https://web4.io/ns/` for all application-facing JSON-LD
+contexts. Keep `ontology#` only in OWL/RDF ontology files. Decision document:
+`docs/history/design_decisions/JSONLD-NAMESPACE-RECONCILIATION.md`
+**Result**: 3 new context files (`schemas/contexts/t3.jsonld`, `v3.jsonld`, `r7-action.jsonld`)
+all using `ns/` namespace. SDK constants updated (`T3_JSONLD_CONTEXT`, `V3_JSONLD_CONTEXT`),
+`WEB4_ONTOLOGY_NS` removed from `@context` arrays. Ontology files (`ontology/*.jsonld`)
+preserved unchanged. 16 new tests (12 T3/V3 + 4 R7) verifying namespace consistency,
+backward-compatible deserialization, and context file existence. 1507 total tests passing.
 
 ### B4: Schema-validated JSON-LD round-trip tests
 **Status**: PENDING

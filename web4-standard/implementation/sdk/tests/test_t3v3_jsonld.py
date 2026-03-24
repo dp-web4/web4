@@ -14,7 +14,7 @@ import json
 import os
 import pytest
 
-from web4.trust import T3, V3, T3_JSONLD_CONTEXT, V3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS
+from web4.trust import T3, V3, T3_JSONLD_CONTEXT, V3_JSONLD_CONTEXT
 
 # Conditional import for JSON Schema validation
 try:
@@ -52,7 +52,7 @@ class TestT3ToJsonld:
         t3 = T3()
         doc = t3.to_jsonld()
 
-        assert doc["@context"] == [T3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS]
+        assert doc["@context"] == [T3_JSONLD_CONTEXT]
         assert doc["@type"] == "T3Tensor"
         assert doc["talent"] == 0.5
         assert doc["training"] == 0.5
@@ -217,7 +217,7 @@ class TestV3ToJsonld:
         v3 = V3()
         doc = v3.to_jsonld()
 
-        assert doc["@context"] == [V3_JSONLD_CONTEXT, WEB4_ONTOLOGY_NS]
+        assert doc["@context"] == [V3_JSONLD_CONTEXT]
         assert doc["@type"] == "V3Tensor"
         assert doc["valuation"] == 0.5
         assert doc["veracity"] == 0.5
@@ -449,3 +449,128 @@ class TestV3SchemaValidation:
         del doc["valuation"]
         with pytest.raises(jsonschema.ValidationError):
             validate(doc, t3v3_schema)
+
+
+# ── Namespace Reconciliation (B3) ────────────────────────────────
+
+
+class TestNamespaceReconciliation:
+    """B3: Verify namespace consistency after reconciliation."""
+
+    def test_t3_context_uses_ns_namespace(self):
+        """T3 @context no longer includes ontology# URI."""
+        doc = T3().to_jsonld()
+        assert doc["@context"] == [T3_JSONLD_CONTEXT]
+        assert "https://web4.io/ontology#" not in doc["@context"]
+
+    def test_v3_context_uses_ns_namespace(self):
+        """V3 @context no longer includes ontology# URI."""
+        doc = V3().to_jsonld()
+        assert doc["@context"] == [V3_JSONLD_CONTEXT]
+        assert "https://web4.io/ontology#" not in doc["@context"]
+
+    def test_t3_context_uri_pattern(self):
+        """T3 context URI follows schemas/contexts/ pattern."""
+        assert T3_JSONLD_CONTEXT == "https://web4.io/contexts/t3.jsonld"
+
+    def test_v3_context_uri_pattern(self):
+        """V3 context URI follows schemas/contexts/ pattern."""
+        assert V3_JSONLD_CONTEXT == "https://web4.io/contexts/v3.jsonld"
+
+    def test_t3_from_jsonld_old_context(self):
+        """T3.from_jsonld() accepts documents with old ontology# context."""
+        old_doc = {
+            "@context": ["https://web4.io/contexts/t3-tensor.jsonld", "https://web4.io/ontology#"],
+            "@type": "T3Tensor",
+            "talent": 0.9,
+            "training": 0.8,
+            "temperament": 0.7,
+            "composite_score": 0.83,
+            "dimension_scores": [
+                {"dimension": "web4:Talent", "score": 0.9},
+                {"dimension": "web4:Training", "score": 0.8},
+                {"dimension": "web4:Temperament", "score": 0.7},
+            ],
+        }
+        t3 = T3.from_jsonld(old_doc)
+        assert t3.talent == 0.9
+        assert t3.training == 0.8
+        assert t3.temperament == 0.7
+
+    def test_v3_from_jsonld_old_context(self):
+        """V3.from_jsonld() accepts documents with old ontology# context."""
+        old_doc = {
+            "@context": ["https://web4.io/contexts/v3-tensor.jsonld", "https://web4.io/ontology#"],
+            "@type": "V3Tensor",
+            "valuation": 0.8,
+            "veracity": 0.9,
+            "validity": 0.7,
+            "composite_score": 0.805,
+            "dimension_scores": [
+                {"dimension": "web4:Valuation", "score": 0.8},
+                {"dimension": "web4:Veracity", "score": 0.9},
+                {"dimension": "web4:Validity", "score": 0.7},
+            ],
+        }
+        v3 = V3.from_jsonld(old_doc)
+        assert v3.valuation == 0.8
+        assert v3.veracity == 0.9
+        assert v3.validity == 0.7
+
+    def test_t3_context_file_exists(self):
+        """t3.jsonld context file exists in schemas/contexts/."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "t3.jsonld"
+        )
+        assert os.path.exists(ctx_path), f"Missing context file: {ctx_path}"
+
+    def test_v3_context_file_exists(self):
+        """v3.jsonld context file exists in schemas/contexts/."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "v3.jsonld"
+        )
+        assert os.path.exists(ctx_path), f"Missing context file: {ctx_path}"
+
+    def test_t3_context_file_uses_ns_namespace(self):
+        """t3.jsonld uses https://web4.io/ns/ namespace."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "t3.jsonld"
+        )
+        with open(ctx_path) as f:
+            ctx = json.load(f)
+        assert ctx["@context"]["web4"] == "https://web4.io/ns/"
+
+    def test_v3_context_file_uses_ns_namespace(self):
+        """v3.jsonld uses https://web4.io/ns/ namespace."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "v3.jsonld"
+        )
+        with open(ctx_path) as f:
+            ctx = json.load(f)
+        assert ctx["@context"]["web4"] == "https://web4.io/ns/"
+
+    def test_t3_context_file_has_all_dimensions(self):
+        """t3.jsonld context defines T3 dimension terms."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "t3.jsonld"
+        )
+        with open(ctx_path) as f:
+            ctx = json.load(f)["@context"]
+        for term in ["talent", "training", "temperament", "T3Tensor", "Talent", "Training", "Temperament"]:
+            assert term in ctx, f"Missing term '{term}' in t3.jsonld"
+
+    def test_v3_context_file_has_all_dimensions(self):
+        """v3.jsonld context defines V3 dimension terms."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "v3.jsonld"
+        )
+        with open(ctx_path) as f:
+            ctx = json.load(f)["@context"]
+        for term in ["valuation", "veracity", "validity", "V3Tensor", "Valuation", "Veracity", "Validity"]:
+            assert term in ctx, f"Missing term '{term}' in v3.jsonld"

@@ -1319,3 +1319,43 @@ class TestJsonLDSchemaValidation:
         )
         doc = action.to_jsonld()
         self.jsonschema.validate(doc, self.schema)
+
+
+# ── Namespace Reconciliation (B3) ────────────────────────────────
+
+
+class TestR7NamespaceReconciliation:
+    """B3: Verify R7 Action context file consistency."""
+
+    def test_r7_context_uri_pattern(self):
+        """R7 context URI follows schemas/contexts/ pattern."""
+        assert R7_JSONLD_CONTEXT == "https://web4.io/contexts/r7-action.jsonld"
+
+    def test_r7_context_file_exists(self):
+        """r7-action.jsonld context file exists in schemas/contexts/."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "r7-action.jsonld"
+        )
+        assert os.path.exists(ctx_path), f"Missing context file: {ctx_path}"
+
+    def test_r7_context_file_uses_ns_namespace(self):
+        """r7-action.jsonld uses https://web4.io/ns/ namespace."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "r7-action.jsonld"
+        )
+        with open(ctx_path) as f:
+            ctx = json.load(f)
+        assert ctx["@context"]["web4"] == "https://web4.io/ns/"
+
+    def test_r7_context_file_has_core_types(self):
+        """r7-action.jsonld defines R7 core type terms."""
+        ctx_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..",
+            "schemas", "contexts", "r7-action.jsonld"
+        )
+        with open(ctx_path) as f:
+            ctx = json.load(f)["@context"]
+        for term in ["R7Action", "ReputationDelta", "Rules", "Role", "Request", "Reference", "Result"]:
+            assert term in ctx, f"Missing term '{term}' in r7-action.jsonld"
