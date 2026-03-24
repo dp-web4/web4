@@ -691,3 +691,139 @@ class TestSpecCanonicalExample:
         # to_dict uses 'context' not 'birth_context'
         assert "context" in d["birth_certificate"]
         assert "birth_context" not in d["birth_certificate"]
+
+
+# ── Context File Consistency (B2) ─────────────────────────────────
+
+
+import pathlib
+
+CONTEXT_FILE = (
+    pathlib.Path(__file__).resolve().parents[3]
+    / "schemas" / "contexts" / "lct.jsonld"
+)
+
+
+class TestLCTContextFileConsistency:
+    """Verify lct.jsonld context file covers all to_jsonld() output fields."""
+
+    @pytest.fixture(autouse=True)
+    def load_context(self):
+        assert CONTEXT_FILE.exists(), f"Missing context file: {CONTEXT_FILE}"
+        self.context = json.loads(CONTEXT_FILE.read_text())["@context"]
+
+    def test_context_has_version(self):
+        assert self.context.get("@version") == 1.1
+
+    def test_context_has_web4_namespace(self):
+        assert "web4" in self.context
+        assert self.context["web4"] == "https://web4.io/ns/"
+
+    def test_context_has_type_definition(self):
+        assert "LinkedContextToken" in self.context
+
+    def test_top_level_fields_covered(self):
+        """All top-level to_jsonld() keys (except @context) must be in context."""
+        required_keys = [
+            "lct_id", "subject", "binding", "mrh", "policy",
+            "t3_tensor", "v3_tensor", "revocation",
+        ]
+        for key in required_keys:
+            assert key in self.context, f"Missing context term: {key}"
+
+    def test_optional_top_level_fields_covered(self):
+        optional_keys = ["birth_certificate", "attestations", "lineage"]
+        for key in optional_keys:
+            assert key in self.context, f"Missing context term: {key}"
+
+    def test_binding_subfields_covered(self):
+        binding_keys = [
+            "entity_type", "public_key", "created_at",
+            "binding_proof", "hardware_anchor",
+        ]
+        for key in binding_keys:
+            assert key in self.context, f"Missing binding term: {key}"
+
+    def test_birth_certificate_subfields_covered(self):
+        bc_keys = [
+            "issuing_society", "citizen_role", "birth_timestamp",
+            "birth_witnesses", "birth_context", "genesis_block_hash",
+        ]
+        for key in bc_keys:
+            assert key in self.context, f"Missing birth_certificate term: {key}"
+
+    def test_mrh_subfields_covered(self):
+        mrh_keys = [
+            "bound", "paired", "witnessing",
+            "horizon_depth", "last_updated",
+        ]
+        for key in mrh_keys:
+            assert key in self.context, f"Missing MRH term: {key}"
+
+    def test_pairing_subfields_covered(self):
+        pairing_keys = ["pairing_type", "permanent", "ts"]
+        for key in pairing_keys:
+            assert key in self.context, f"Missing pairing term: {key}"
+
+    def test_tensor_subfields_covered(self):
+        tensor_keys = [
+            "talent", "training", "temperament",
+            "valuation", "veracity", "validity", "composite_score",
+        ]
+        for key in tensor_keys:
+            assert key in self.context, f"Missing tensor term: {key}"
+
+    def test_attestation_subfields_covered(self):
+        att_keys = ["witness", "type", "claims", "sig", "ts"]
+        for key in att_keys:
+            assert key in self.context, f"Missing attestation term: {key}"
+
+    def test_lineage_subfields_covered(self):
+        lin_keys = ["parent", "reason"]
+        for key in lin_keys:
+            assert key in self.context, f"Missing lineage term: {key}"
+
+    def test_revocation_subfields_covered(self):
+        rev_keys = ["status"]
+        for key in rev_keys:
+            assert key in self.context, f"Missing revocation term: {key}"
+
+    def test_full_lct_all_keys_in_context(self):
+        """Create a full LCT, to_jsonld(), verify all output keys are in context."""
+        lct = LCT.create(
+            entity_type=EntityType.HUMAN,
+            public_key="mb64:ctxtest",
+            society="lct:web4:society:ctx",
+            context="platform",
+            witnesses=["lct:web4:witness:w1"],
+            t3=T3(talent=0.8, training=0.9, temperament=0.7),
+            v3=V3(valuation=0.85, veracity=0.9, validity=0.8),
+        )
+        lct.add_attestation(
+            witness="lct:web4:witness:w1", type="identity",
+            claims={"verified": True}, sig="sig123", ts="2025-01-01",
+        )
+        lct.lineage.append(LineageEntry(
+            parent="lct:old", reason="upgrade", ts="2025-01-01",
+        ))
+        doc = lct.to_jsonld()
+
+        # User-data dicts whose keys are NOT schema terms
+        data_containers = {"claims", "constraints"}
+
+        def _check_keys(obj, path=""):
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k.startswith("@"):
+                        continue
+                    if any(path.endswith(c) for c in data_containers):
+                        continue
+                    assert k in self.context, (
+                        f"Key '{k}' (at {path}) not in context file"
+                    )
+                    _check_keys(v, f"{path}.{k}")
+            elif isinstance(obj, list):
+                for item in obj:
+                    _check_keys(item, path)
+
+        _check_keys(doc)
