@@ -2,6 +2,37 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.10.1] - 2026-03-24
+
+Sprint 6 completion: JSON-LD context consolidation, namespace reconciliation,
+and schema-validated round-trip tests across all 19 serializable types.
+
+### Added
+- **Missing JSON-LD context files** (B2) — `lct.jsonld` (30+ term mappings)
+  and `attestation-envelope.jsonld` (25+ term mappings) in `schemas/contexts/`.
+  These were the last 2 types without external `.jsonld` context files. 26
+  consistency tests verifying all `to_jsonld()` keys have context mappings.
+- **Schema-validated JSON-LD round-trip tests** (B4) —
+  `test_jsonld_schema_roundtrip.py` with 48 integration tests covering all 9
+  JSON-LD schemas and 19 distinct `@type` values. Pattern: construct object →
+  `to_jsonld()` → validate against JSON Schema → `from_jsonld()` → assert
+  field equality. Types covered: LCT, AttestationEnvelope, T3Tensor, V3Tensor,
+  R7Action, ATPAccount, TransferResult, AgentPlan, Intent, Decision,
+  ExecutionRecord, EntityTypeInfo, EntityTypeRegistry, LevelRequirement,
+  CapabilityAssessment, CapabilityFramework, DictionarySpec, TranslationResult,
+  TranslationChain.
+
+### Changed
+- **JSON-LD namespace reconciliation** (B3) — All 10 JSON-LD context files now
+  use `https://web4.io/ns/` as canonical namespace. Created 3 new context files
+  (`t3.jsonld`, `v3.jsonld`, `r7-action.jsonld`) in `schemas/contexts/` using
+  `ns/` namespace. T3/V3 constants updated; `ontology#` reserved for OWL/RDF
+  class definitions only. Decision documented in
+  `docs/history/design_decisions/JSONLD-NAMESPACE-RECONCILIATION.md`. 32
+  consistency tests.
+- Version bumped from 0.10.0 to 0.10.1.
+- Sprint 6 complete (6/6 tasks: B1-B6 all DONE). 1571 tests passing.
+
 ## [0.10.0] - 2026-03-23
 
 Sprint 5 completion and Sprint 6 start: Entity + Capability JSON-LD, full
