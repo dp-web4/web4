@@ -1,9 +1,50 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-23 (A4 complete)
+**Updated**: 2026-03-23 (B2 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 6: JSON-LD Context Consolidation & SDK Quality (2026-03-23)
+
+Sprints 3-5 delivered JSON-LD serialization for all 8 core types with JSON Schemas
+and 228 cross-language test vectors. However, an audit reveals inconsistencies in the
+JSON-LD context layer: missing context files, a namespace split (`ontology#` vs `ns/`),
+and no programmatic schema validation in the SDK. This sprint consolidates the JSON-LD
+foundation before building on it.
+
+### B2: Missing JSON-LD context files for LCT and AttestationEnvelope
+**Status**: DONE
+**Completed**: 2026-03-23
+**Depends on**: None
+**Scope**: Create `lct.jsonld` and `attestation-envelope.jsonld` context files in
+`web4-standard/schemas/contexts/`. LCT and AttestationEnvelope Python constants
+(`LCT_JSONLD_CONTEXT`, `ATTESTATION_JSONLD_CONTEXT`) reference context URIs that don't
+exist as files. All other types have external context files. These 2 were the gap.
+**Result**: 2 new context files (`lct.jsonld` with 39 term mappings, `attestation-envelope.jsonld`
+with 28 term mappings). 27 new consistency tests verifying every `to_jsonld()` output key
+is covered by the context file. 1478 total SDK tests passing.
+
+### B3: JSON-LD namespace and context URI reconciliation
+**Status**: PENDING
+**Depends on**: B2
+**Scope**: Audit and reconcile the namespace split across all types. Currently:
+T3/V3 and R7 use `https://web4.io/ontology#`, ATP/ACP/Entity/Capability use
+`https://web4.io/ns/`, LCT and AttestationEnvelope reference `https://web4.io/contexts/`.
+Determine canonical namespace strategy and update for consistency.
+
+### B4: Schema-validated JSON-LD round-trip tests
+**Status**: PENDING
+**Depends on**: B2, B3
+**Scope**: Add integration tests that validate all `to_jsonld()` outputs against
+their JSON Schema files programmatically using `jsonschema`.
+
+### B5: SDK release housekeeping
+**Status**: PENDING
+**Depends on**: B2, B3, B4
+**Scope**: Version bump and CHANGELOG entry documenting Sprint 6 deliverables.
 
 ---
 

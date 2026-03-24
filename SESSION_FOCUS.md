@@ -10,7 +10,16 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 5 Summary: Core Type JSON-LD Phase 2
+### Sprint 6: JSON-LD Context Consolidation & SDK Quality
+
+| Task | Status | Notes |
+|------|--------|-------|
+| B2: LCT + AttestationEnvelope context files | DONE | 2 context files, 27 consistency tests |
+| B3: Namespace reconciliation | PENDING | Depends on B2 |
+| B4: Schema-validated round-trip tests | PENDING | Depends on B2, B3 |
+| B5: SDK release housekeeping | PENDING | Depends on B2-B4 |
+
+### Sprint 5 Summary: Core Type JSON-LD Phase 2 (complete)
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -30,7 +39,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD, PR #54 merged), V3 (R7 Act
 
 - **Version**: 0.9.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
-- **Tests**: 1451 passing
+- **Tests**: 1478 passing
 - **Exports**: 271 symbols via `web4/__init__.py`
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
@@ -77,13 +86,13 @@ e0546f9 Fix T3/V3 schema validation test path — 20 errors resolved (#70)
 
 ## Open PRs
 
-None — Sprint 5 all merged.
+- PR #72: B1+B6 (SDK v0.10.0, Dictionary JSON-LD) — awaiting review
 
 ---
 
 ## Pending Items
 
-- Sprint 6 planning — Sprint 5 is now COMPLETE (all 5 tasks done)
+- Sprint 6 in progress — B2 DONE, B3-B5 PENDING
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 
 ---

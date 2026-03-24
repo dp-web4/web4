@@ -435,3 +435,117 @@ class TestBackwardCompat:
         j = env.to_json()
         parsed = json.loads(j)
         assert "@context" not in parsed
+
+
+# ── Context File Consistency (B2) ─────────────────────────────────
+
+
+import pathlib
+
+CONTEXT_FILE = (
+    pathlib.Path(__file__).resolve().parents[3]
+    / "schemas" / "contexts" / "attestation-envelope.jsonld"
+)
+
+
+class TestAttestationContextFileConsistency:
+    """Verify attestation-envelope.jsonld covers all to_jsonld() output fields."""
+
+    @pytest.fixture(autouse=True)
+    def load_context(self):
+        assert CONTEXT_FILE.exists(), f"Missing context file: {CONTEXT_FILE}"
+        self.context = json.loads(CONTEXT_FILE.read_text())["@context"]
+
+    def test_context_has_version(self):
+        assert self.context.get("@version") == 1.1
+
+    def test_context_has_web4_namespace(self):
+        assert "web4" in self.context
+        assert self.context["web4"] == "https://web4.io/ns/"
+
+    def test_context_has_type_definition(self):
+        assert "AttestationEnvelope" in self.context
+
+    def test_who_fields_covered(self):
+        who_keys = ["entity_id", "public_key", "public_key_fingerprint"]
+        for key in who_keys:
+            assert key in self.context, f"Missing WHO term: {key}"
+
+    def test_anchor_fields_covered(self):
+        anchor_keys = ["anchor", "type", "manufacturer", "model", "firmware_version"]
+        for key in anchor_keys:
+            assert key in self.context, f"Missing anchor term: {key}"
+
+    def test_proof_fields_covered(self):
+        proof_keys = [
+            "proof", "format", "signature", "challenge",
+            "attestation_object", "pcr_digest", "pcr_selection",
+            "authenticator_data", "client_data_hash",
+        ]
+        for key in proof_keys:
+            assert key in self.context, f"Missing proof term: {key}"
+
+    def test_when_fields_covered(self):
+        when_keys = ["timestamp", "challenge_issued_at", "challenge_ttl"]
+        for key in when_keys:
+            assert key in self.context, f"Missing WHEN term: {key}"
+
+    def test_platform_state_fields_covered(self):
+        ps_keys = [
+            "platform_state", "available", "boot_verified",
+            "pcr_values", "os_version", "kernel_version",
+        ]
+        for key in ps_keys:
+            assert key in self.context, f"Missing platform_state term: {key}"
+
+    def test_trust_and_metadata_fields_covered(self):
+        meta_keys = ["trust_ceiling", "issuer", "purpose"]
+        for key in meta_keys:
+            assert key in self.context, f"Missing metadata term: {key}"
+
+    def test_envelope_version_covered(self):
+        assert "envelope_version" in self.context
+
+    def test_software_envelope_keys_in_context(self):
+        """All keys from a software envelope's to_jsonld() must be in context."""
+        env = _software_envelope()
+        doc = env.to_jsonld()
+        self._check_keys(doc)
+
+    def test_tpm2_envelope_keys_in_context(self):
+        """All keys from a TPM2 envelope's to_jsonld() must be in context."""
+        env = _tpm2_envelope()
+        doc = env.to_jsonld()
+        self._check_keys(doc)
+
+    def test_full_envelope_keys_in_context(self):
+        """Envelope with all optional fields populated."""
+        env = _tpm2_envelope(
+            issuer="lct://web4:ca",
+            purpose="device_binding",
+            platform_state=PlatformState(
+                available=True,
+                boot_verified=True,
+                pcr_values={0: "aabb", 7: "ccdd"},
+                os_version="Linux 6.8",
+                kernel_version="6.8.0-106-generic",
+            ),
+        )
+        doc = env.to_jsonld()
+        self._check_keys(doc)
+
+    def _check_keys(self, obj, path=""):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k.startswith("@"):
+                    continue
+                # pcr_values uses numeric string keys ("0", "7") — data, not terms
+                if path.endswith("pcr_values"):
+                    continue
+                assert k in self.context, (
+                    f"Key '{k}' (at {path}) not in context file"
+                )
+                self._check_keys(v, f"{path}.{k}")
+        elif isinstance(obj, list):
+            for item in obj:
+                self._check_keys(item, path)

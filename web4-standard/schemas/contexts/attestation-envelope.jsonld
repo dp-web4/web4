@@ -1,0 +1,137 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "web4": "https://web4.io/ns/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "AttestationEnvelope": "web4:AttestationEnvelope",
+
+    "envelope_version": {
+      "@id": "web4:envelopeVersion",
+      "@type": "xsd:string"
+    },
+
+    "entity_id": {
+      "@id": "web4:entityId",
+      "@type": "xsd:string"
+    },
+    "public_key": {
+      "@id": "web4:publicKey",
+      "@type": "xsd:string"
+    },
+    "public_key_fingerprint": {
+      "@id": "web4:publicKeyFingerprint",
+      "@type": "xsd:string"
+    },
+
+    "anchor": {
+      "@id": "web4:anchor",
+      "@type": "@id"
+    },
+    "type": {
+      "@id": "web4:anchorType",
+      "@type": "xsd:string"
+    },
+    "manufacturer": {
+      "@id": "web4:manufacturer",
+      "@type": "xsd:string"
+    },
+    "model": {
+      "@id": "web4:model",
+      "@type": "xsd:string"
+    },
+    "firmware_version": {
+      "@id": "web4:firmwareVersion",
+      "@type": "xsd:string"
+    },
+
+    "proof": {
+      "@id": "web4:proof",
+      "@type": "@id"
+    },
+    "format": {
+      "@id": "web4:proofFormat",
+      "@type": "xsd:string"
+    },
+    "signature": {
+      "@id": "web4:signature",
+      "@type": "xsd:string"
+    },
+    "challenge": {
+      "@id": "web4:challenge",
+      "@type": "xsd:string"
+    },
+    "attestation_object": {
+      "@id": "web4:attestationObject",
+      "@type": "xsd:string"
+    },
+    "pcr_digest": {
+      "@id": "web4:pcrDigest",
+      "@type": "xsd:string"
+    },
+    "pcr_selection": {
+      "@id": "web4:pcrSelection",
+      "@container": "@set"
+    },
+    "authenticator_data": {
+      "@id": "web4:authenticatorData",
+      "@type": "xsd:string"
+    },
+    "client_data_hash": {
+      "@id": "web4:clientDataHash",
+      "@type": "xsd:string"
+    },
+
+    "timestamp": {
+      "@id": "web4:timestamp",
+      "@type": "xsd:string"
+    },
+    "challenge_issued_at": {
+      "@id": "web4:challengeIssuedAt",
+      "@type": "xsd:double"
+    },
+    "challenge_ttl": {
+      "@id": "web4:challengeTtl",
+      "@type": "xsd:integer"
+    },
+
+    "platform_state": {
+      "@id": "web4:platformState",
+      "@type": "@id"
+    },
+    "available": {
+      "@id": "web4:available",
+      "@type": "xsd:boolean"
+    },
+    "boot_verified": {
+      "@id": "web4:bootVerified",
+      "@type": "xsd:boolean"
+    },
+    "pcr_values": {
+      "@id": "web4:pcrValues",
+      "@type": "@id"
+    },
+    "os_version": {
+      "@id": "web4:osVersion",
+      "@type": "xsd:string"
+    },
+    "kernel_version": {
+      "@id": "web4:kernelVersion",
+      "@type": "xsd:string"
+    },
+
+    "trust_ceiling": {
+      "@id": "web4:trustCeiling",
+      "@type": "xsd:double"
+    },
+
+    "issuer": {
+      "@id": "web4:issuer",
+      "@type": "xsd:string"
+    },
+    "purpose": {
+      "@id": "web4:purpose",
+      "@type": "xsd:string"
+    }
+  }
+}
