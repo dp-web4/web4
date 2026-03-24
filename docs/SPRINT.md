@@ -63,15 +63,21 @@ Decision doc: `docs/history/design_decisions/JSONLD-NAMESPACE-RECONCILIATION.md`
 1523 total tests passing.
 
 ### B4: Schema-validated JSON-LD round-trip tests
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-24
 **Depends on**: B2, B3
 **Scope**: Add integration tests that validate all 8 `to_jsonld()` outputs against
 their JSON Schema files programmatically using `jsonschema` (already available — used
 by validation runners). Currently round-trip tests exist per-module but don't validate
 against schemas. Pattern: create object → `to_jsonld()` → validate against schema →
 `from_jsonld()` → assert equality.
-**Deliverables**: One integration test file covering all 8 types with schema validation.
-Requires `jsonschema` as test dependency (not runtime).
+**Result**: One integration test file (`test_jsonld_schema_roundtrip.py`) covering all
+10 JSON-LD types (LCT, AttestationEnvelope, T3, V3, R7Action, ATPAccount, TransferResult,
+ACP 4 types, Entity, Capability, Dictionary 4 types) — 20 distinct type/variant
+combinations validated. 48 new tests. Schema validation confirms all `to_jsonld()` output
+matches JSON Schema, and round-trip through `from_jsonld()` preserves state. Plus a
+parametrized sweep validating all 20 type variants in a single assertion. No schema/code
+mismatches found. 1571 total SDK tests passing.
 
 ### B5: SDK v0.10.1 release housekeeping
 **Status**: PENDING
