@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-24 (B4 complete)
+**Updated**: 2026-03-24 (Sprint 6 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -78,10 +78,14 @@ Includes per-type schema validation, round-trip fidelity, and a parametrized sum
 that validates all types in one pass. 1571 total tests passing.
 
 ### B5: SDK v0.10.1 release housekeeping
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-24
 **Depends on**: B2, B3, B4, B6
 **Scope**: Version bump and CHANGELOG entry documenting B2-B6 deliverables.
-**Deliverables**: Updated CHANGELOG.md, version bump.
+**Result**: CHANGELOG.md v0.10.1 entry documents B2 (missing context files), B3
+(namespace reconciliation), B4 (schema-validated round-trip tests). Version bumped
+0.10.0 → 0.10.1 in `__init__.py`, `pyproject.toml`, `setup.py`. Sprint 6 complete
+(6/6 tasks). 1571 tests passing.
 
 ### B6: Dictionary JSON-LD serialization
 **Status**: DONE

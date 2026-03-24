@@ -18,7 +18,7 @@
 | B2: Missing JSON-LD context files (LCT, AttestationEnvelope) | DONE | 2 .jsonld files, 26 consistency tests |
 | B3: Namespace and context URI reconciliation | DONE | All 10 context files now use ns/, decision documented |
 | B4: Schema-validated JSON-LD round-trip tests | DONE | 48 tests, 9 schemas, 19 @type values |
-| B5: SDK v0.10.1 release housekeeping | PENDING | Depends on B2-B4, B6 |
+| B5: SDK v0.10.1 release housekeeping | DONE | CHANGELOG + version bump, Sprint 6 complete |
 | B6: Dictionary JSON-LD serialization | DONE | 4 types, 14 tests, schema + context |
 
 ### Sprint 5 Summary: Core Type JSON-LD Phase 2 (COMPLETE)
@@ -33,7 +33,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 ## SDK Status
 
-- **Version**: 0.10.0
+- **Version**: 0.10.1
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
 - **Tests**: 1571 passing
 - **Exports**: 277 symbols via `web4/__init__.py`
@@ -76,24 +76,25 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+74484de B4: Schema-validated JSON-LD round-trip tests — 48 tests (#78)
+936c2d9 B3: JSON-LD namespace and context URI reconciliation — 32 tests (#76)
 2fb27d1 B2: Missing JSON-LD context files for LCT and AttestationEnvelope — 26 tests (#74)
 dfc7151 B1+B6: SDK v0.10.0 — Dictionary JSON-LD + Sprint 6 planning (#72)
 705e90e A4 (complete): Entity + Capability cross-language validation vectors — 68 vectors (#71)
-9dd8f06 A3: Entity + Capability JSON-LD serialization — 37 tests (#63)
-cf887fb Maintenance: Update SESSION_FOCUS.md to reflect current state (#69)
 ```
 
 ---
 
 ## Open PRs
 
-None — B4 PR pending.
+PR #78 merged (B4). B5 PR pending.
 
 ---
 
 ## Pending Items
 
-- Sprint 6 B5: SDK v0.10.1 version bump (B4 complete, B5 now unblocked)
+- Sprint 6 COMPLETE (6/6 tasks). Next: Sprint 7 planning.
+- Dictionary JSON-LD test vectors still pending (all other 8 schemas have vectors)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 
 ---
