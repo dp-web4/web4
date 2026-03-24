@@ -85,6 +85,16 @@
     "net_trust_change": { "@id": "web4:netTrustChange", "@type": "xsd:decimal" },
     "net_value_change": { "@id": "web4:netValueChange", "@type": "xsd:decimal" },
 
+    "talent": { "@id": "web4:talent", "@type": "xsd:decimal" },
+    "training": { "@id": "web4:training", "@type": "xsd:decimal" },
+    "temperament": { "@id": "web4:temperament", "@type": "xsd:decimal" },
+    "valuation": { "@id": "web4:valuation", "@type": "xsd:decimal" },
+    "veracity": { "@id": "web4:veracity", "@type": "xsd:decimal" },
+    "validity": { "@id": "web4:validity", "@type": "xsd:decimal" },
+
+    "type": { "@id": "web4:constraintType", "@type": "xsd:string" },
+    "compute": { "@id": "web4:compute" },
+
     "change": { "@id": "web4:change", "@type": "xsd:decimal" },
     "from": { "@id": "web4:fromValue", "@type": "xsd:decimal" },
     "to": { "@id": "web4:toValue", "@type": "xsd:decimal" },
