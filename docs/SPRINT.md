@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-23 (Sprint 6 planned)
+**Updated**: 2026-03-24 (B4 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -63,15 +63,19 @@ Decision doc: `docs/history/design_decisions/JSONLD-NAMESPACE-RECONCILIATION.md`
 1523 total tests passing.
 
 ### B4: Schema-validated JSON-LD round-trip tests
-**Status**: PENDING
+**Status**: DONE
+**Completed**: 2026-03-24
 **Depends on**: B2, B3
-**Scope**: Add integration tests that validate all 8 `to_jsonld()` outputs against
-their JSON Schema files programmatically using `jsonschema` (already available — used
-by validation runners). Currently round-trip tests exist per-module but don't validate
-against schemas. Pattern: create object → `to_jsonld()` → validate against schema →
-`from_jsonld()` → assert equality.
-**Deliverables**: One integration test file covering all 8 types with schema validation.
-Requires `jsonschema` as test dependency (not runtime).
+**Scope**: Add integration tests that validate all 9 `to_jsonld()` schemas (19 @type
+values) programmatically using `jsonschema`. Pattern: create object → `to_jsonld()` →
+validate against schema → `from_jsonld()` → assert equality.
+**Result**: `tests/test_jsonld_schema_roundtrip.py` — 48 tests covering all 9 JSON-LD
+schemas and 19 distinct @type values: LCT, AttestationEnvelope, T3Tensor, V3Tensor,
+R7Action, ATPAccount, TransferResult, AgentPlan, Intent, Decision, ExecutionRecord,
+EntityTypeInfo, EntityTypeRegistry, LevelRequirement, CapabilityAssessment,
+CapabilityFramework, DictionarySpec, TranslationResult, TranslationChain, DictionaryEntity.
+Includes per-type schema validation, round-trip fidelity, and a parametrized summary test
+that validates all types in one pass. 1571 total tests passing.
 
 ### B5: SDK v0.10.1 release housekeeping
 **Status**: PENDING
