@@ -1,9 +1,87 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-23 (A4 complete)
+**Updated**: 2026-03-23 (Sprint 6 planned)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 6: JSON-LD Context Consolidation & SDK Quality (2026-03-23)
+
+Sprints 3-5 delivered JSON-LD serialization for all 8 core types with JSON Schemas
+and 228 cross-language test vectors. However, an audit reveals inconsistencies in the
+JSON-LD context layer: 2 missing context files, a namespace split (`ontology#` vs `ns/`),
+and no programmatic schema validation in the SDK. This sprint consolidates the JSON-LD
+foundation before building on it.
+
+### B1: SDK v0.10.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-03-23
+**Depends on**: None
+**Scope**: Update CHANGELOG.md to document A3 (Entity+Capability JSON-LD, 5 new exports),
+A4 complete (127 total vectors, up from 59 partial documented in v0.9.0), and B6
+(Dictionary JSON-LD). Bump SDK version 0.9.0 → 0.10.0.
+**Result**: CHANGELOG v0.10.0 entry documents A3, A4 complete, and B6. Version bumped
+in `__init__.py`, `pyproject.toml`, `setup.py`. 277 symbols in `__all__` (up from 269).
+1465 tests passing.
+
+### B2: Missing JSON-LD context files for LCT and AttestationEnvelope
+**Status**: PENDING
+**Depends on**: None
+**Scope**: Create `lct.jsonld` and `attestation-envelope.jsonld` context files in
+`web4-standard/schemas/contexts/`. LCT and AttestationEnvelope Python constants
+(`LCT_JSONLD_CONTEXT`, `ATTESTATION_JSONLD_CONTEXT`) reference context URIs that don't
+exist as files. All other 6 types have external context files. These 2 are the gap.
+Extract term mappings from the Python `to_jsonld()` output and create context files
+matching the pattern used by ATP/ACP/Entity/Capability contexts (namespace: `https://web4.io/ns/`).
+**Deliverables**: 2 new `.jsonld` files in `schemas/contexts/`, tests verifying consistency
+with Python serialization output.
+
+### B3: JSON-LD namespace and context URI reconciliation
+**Status**: PENDING
+**Depends on**: B2
+**Scope**: Audit and reconcile the namespace split across all 8 types. Currently:
+- T3/V3 and R7 use `https://web4.io/ontology#` (from TTL ontology files)
+- ATP/ACP/Entity/Capability use `https://web4.io/ns/` (from schemas/contexts/)
+- LCT and AttestationEnvelope reference `https://web4.io/contexts/` URIs
+
+Determine canonical namespace strategy (likely `https://web4.io/ns/` for all, with
+`ontology#` reserved for OWL/RDF class definitions). Document the decision. Update
+context files and Python constants for consistency. Preserve backward compatibility
+in `from_jsonld()` (accept both old and new namespace URIs).
+**Deliverables**: Decision document, updated context files, updated Python constants,
+tests confirming backward-compatible deserialization.
+
+### B4: Schema-validated JSON-LD round-trip tests
+**Status**: PENDING
+**Depends on**: B2, B3
+**Scope**: Add integration tests that validate all 8 `to_jsonld()` outputs against
+their JSON Schema files programmatically using `jsonschema` (already available — used
+by validation runners). Currently round-trip tests exist per-module but don't validate
+against schemas. Pattern: create object → `to_jsonld()` → validate against schema →
+`from_jsonld()` → assert equality.
+**Deliverables**: One integration test file covering all 8 types with schema validation.
+Requires `jsonschema` as test dependency (not runtime).
+
+### B5: SDK v0.10.1 release housekeeping
+**Status**: PENDING
+**Depends on**: B2, B3, B4, B6
+**Scope**: Version bump and CHANGELOG entry documenting B2-B6 deliverables.
+**Deliverables**: Updated CHANGELOG.md, version bump.
+
+### B6: Dictionary JSON-LD serialization
+**Status**: DONE
+**Completed**: 2026-03-23
+**Depends on**: None
+**Scope**: Add `to_jsonld()` / `from_jsonld()` to DictionarySpec, TranslationResult,
+TranslationChain, and DictionaryEntity in `web4.dictionary`. JSON Schema
+(`dictionary-jsonld.schema.json`) and JSON-LD context (`contexts/dictionary.jsonld`).
+**Result**: 4 types with JSON-LD serialization (DictionarySpec, TranslationResult,
+TranslationChain, DictionaryEntity). JSON Schema with 4 type definitions and 4
+reusable sub-schemas (DomainCoverage, CompressionProfile, ChainStep, DictionaryType).
+JSON-LD context (`contexts/dictionary.jsonld`). 1 new export (`DICTIONARY_JSONLD_CONTEXT`).
+14 new tests, 1463 total SDK tests passing.
 
 ---
 

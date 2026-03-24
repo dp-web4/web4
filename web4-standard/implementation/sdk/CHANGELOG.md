@@ -2,6 +2,40 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.10.0] - 2026-03-23
+
+Sprint 5 completion and Sprint 6 start: Entity + Capability JSON-LD, full
+cross-language validation vectors, Dictionary JSON-LD, and Sprint 6 planning.
+
+### Added
+- **Entity + Capability JSON-LD serialization** (A3) — `EntityTypeInfo.to_jsonld()`
+  and `from_jsonld()`, `entity_registry_to_jsonld()` for full registry serialization.
+  `LevelRequirement.to_jsonld()` and `from_jsonld()`, `capability_assessment_to_jsonld()`,
+  `capability_framework_to_jsonld()`. JSON Schemas (`entity-jsonld.schema.json`,
+  `capability-jsonld.schema.json`). JSON-LD contexts (`entity.jsonld`, `capability.jsonld`).
+  37 new tests.
+- **Cross-language validation vectors completed** (A4, complete) — 68 additional
+  vectors for Entity (32: 12 valid + 20 invalid for EntityTypeInfo and
+  EntityTypeRegistry) and Capability (36: 12 valid + 24 invalid for
+  LevelRequirement, CapabilityAssessment, CapabilityFramework). Total: 127 Phase 2
+  vectors across 4 schemas (ATP 23 + ACP 36 + Entity 32 + Capability 36). Grand
+  total: 228 cross-language validation vectors across all 8 JSON-LD schemas.
+- **Dictionary JSON-LD serialization** (B6) — `DictionarySpec.to_jsonld()` and
+  `from_jsonld()`, `TranslationResult.to_jsonld()` and `from_jsonld()`,
+  `TranslationChain.to_jsonld()` and `from_jsonld()`, `DictionaryEntity.to_jsonld()`
+  and `from_jsonld()`. JSON Schema (`dictionary-jsonld.schema.json`). JSON-LD context
+  (`contexts/dictionary.jsonld`). 14 new tests.
+- 6 new exports from `web4` package: `ENTITY_JSONLD_CONTEXT`,
+  `entity_registry_to_jsonld`, `CAPABILITY_JSONLD_CONTEXT`,
+  `capability_assessment_to_jsonld`, `capability_framework_to_jsonld`,
+  `DICTIONARY_JSONLD_CONTEXT`.
+
+### Changed
+- Version bumped from 0.9.0 to 0.10.0.
+- 277 public API symbols in `__all__` (up from 269). All 8 core types plus Dictionary
+  now have JSON-LD serialization with JSON Schemas. Sprint 6 planned for JSON-LD
+  context consolidation and namespace reconciliation.
+
 ## [0.9.0] - 2026-03-22
 
 Sprint 5: Core Type JSON-LD Phase 2 — ATP/ADP and ACP JSON-LD serialization

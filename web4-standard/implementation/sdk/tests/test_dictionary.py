@@ -12,6 +12,8 @@ Tests verify:
 - Dictionary selection scoring (spec §6.2)
 - select_best_dictionary filters and ranks candidates
 - Test vector validation (dict-001 through dict-005)
+- JSON-LD serialization roundtrips (DictionarySpec, TranslationResult,
+  TranslationChain, DictionaryEntity)
 """
 
 import json
@@ -378,3 +380,221 @@ class TestDictionarySelection:
         )
         assert d.meets_trust_requirement(0.8)
         assert not d.meets_trust_requirement(0.95)
+
+
+# ── JSON-LD Serialization Tests ──────────────────────────────────
+
+class TestDictionarySpecJsonLd:
+    """DictionarySpec JSON-LD roundtrip tests."""
+
+    def test_minimal_spec_roundtrip(self):
+        spec = DictionarySpec(source_domain="medical", target_domain="legal")
+        doc = spec.to_jsonld()
+        assert doc["@type"] == "DictionarySpec"
+        assert doc["@context"] == ["https://web4.io/contexts/dictionary.jsonld"]
+        assert doc["source_domain"] == "medical"
+        assert doc["target_domain"] == "legal"
+        assert doc["bidirectional"] is True
+        assert doc["dictionary_type"] == "domain"
+        # Coverage and compression omitted when default
+        assert "coverage" not in doc
+        assert "compression" not in doc
+        restored = DictionarySpec.from_jsonld(doc)
+        assert restored.source_domain == spec.source_domain
+        assert restored.target_domain == spec.target_domain
+        assert restored.bidirectional == spec.bidirectional
+
+    def test_full_spec_roundtrip(self):
+        spec = DictionarySpec(
+            source_domain="python",
+            target_domain="rust",
+            bidirectional=False,
+            version="2.1.0",
+            coverage=DomainCoverage(terms=500, concepts=120, relationships=80),
+            compression=CompressionProfile(
+                average_ratio=0.7,
+                lossy_threshold=0.05,
+                context_required="full",
+                ambiguity_handling=AmbiguityHandling.DETERMINISTIC,
+            ),
+            dictionary_type=DictionaryType.MODEL,
+        )
+        doc = spec.to_jsonld()
+        assert doc["coverage"]["terms"] == 500
+        assert doc["compression"]["ambiguity_handling"] == "deterministic"
+        assert doc["dictionary_type"] == "model"
+        restored = DictionarySpec.from_jsonld(doc)
+        assert restored.version == "2.1.0"
+        assert restored.coverage.concepts == 120
+        assert restored.compression.context_required == "full"
+        assert restored.dictionary_type == DictionaryType.MODEL
+        assert not restored.bidirectional
+
+    def test_spec_string_roundtrip(self):
+        spec = DictionarySpec(source_domain="a", target_domain="b")
+        s = spec.to_jsonld_string()
+        restored = DictionarySpec.from_jsonld_string(s)
+        assert restored.source_domain == "a"
+
+
+class TestTranslationResultJsonLd:
+    """TranslationResult JSON-LD roundtrip tests."""
+
+    def test_basic_result_roundtrip(self):
+        result = TranslationResult(
+            content="translated text",
+            confidence=0.95,
+            degradation=0.05,
+            dictionary_lct_id="lct:web4:dict:med-legal-001",
+            witness_required=False,
+            timestamp="2026-03-23T12:00:00+00:00",
+        )
+        doc = result.to_jsonld()
+        assert doc["@type"] == "TranslationResult"
+        assert doc["content"] == "translated text"
+        assert doc["confidence"] == 0.95
+        assert doc["degradation"] == 0.05
+        assert doc["witness_required"] is False
+        assert "witness_lct_ids" not in doc  # empty list omitted
+        restored = TranslationResult.from_jsonld(doc)
+        assert restored.content == result.content
+        assert restored.confidence == result.confidence
+        assert restored.dictionary_lct_id == result.dictionary_lct_id
+
+    def test_result_with_witnesses(self):
+        result = TranslationResult(
+            content="reviewed translation",
+            confidence=0.88,
+            degradation=0.12,
+            dictionary_lct_id="lct:web4:dict:001",
+            witness_required=True,
+            witness_lct_ids=["lct:web4:witness:a", "lct:web4:witness:b"],
+            timestamp="2026-03-23T12:00:00+00:00",
+        )
+        doc = result.to_jsonld()
+        assert doc["witness_required"] is True
+        assert len(doc["witness_lct_ids"]) == 2
+        restored = TranslationResult.from_jsonld(doc)
+        assert restored.witness_required is True
+        assert restored.witness_lct_ids == ["lct:web4:witness:a", "lct:web4:witness:b"]
+
+    def test_result_string_roundtrip(self):
+        result = TranslationResult(
+            content="test", confidence=0.9, degradation=0.1,
+            dictionary_lct_id="lct:001",
+            timestamp="2026-03-23T12:00:00+00:00",
+        )
+        s = result.to_jsonld_string()
+        restored = TranslationResult.from_jsonld_string(s)
+        assert restored.confidence == 0.9
+
+
+class TestTranslationChainJsonLd:
+    """TranslationChain JSON-LD roundtrip tests."""
+
+    def test_empty_chain_roundtrip(self):
+        chain = TranslationChain()
+        doc = chain.to_jsonld()
+        assert doc["@type"] == "TranslationChain"
+        assert doc["steps"] == []
+        assert doc["cumulative_confidence"] == 1.0
+        assert doc["cumulative_degradation"] == 0.0
+        assert doc["length"] == 0
+        restored = TranslationChain.from_jsonld(doc)
+        assert restored.length == 0
+        assert restored.cumulative_confidence == 1.0
+
+    def test_multi_step_chain_roundtrip(self):
+        chain = TranslationChain()
+        chain.add_step("medical", "scientific", "lct:dict:001", 0.95)
+        chain.add_step("scientific", "legal", "lct:dict:002", 0.92)
+        doc = chain.to_jsonld()
+        assert len(doc["steps"]) == 2
+        assert doc["steps"][0]["source_domain"] == "medical"
+        assert doc["steps"][1]["dictionary_lct_id"] == "lct:dict:002"
+        assert abs(doc["cumulative_confidence"] - 0.95 * 0.92) < 1e-10
+        assert doc["length"] == 2
+        restored = TranslationChain.from_jsonld(doc)
+        assert restored.length == 2
+        assert abs(restored.cumulative_confidence - 0.95 * 0.92) < 1e-10
+        assert restored.steps[0].source_domain == "medical"
+        assert restored.steps[1].confidence == 0.92
+
+    def test_chain_with_witnesses(self):
+        chain = TranslationChain(witness_lct_ids=["lct:w1", "lct:w2"])
+        chain.add_step("a", "b", "lct:d1", 0.9)
+        doc = chain.to_jsonld()
+        assert doc["witness_lct_ids"] == ["lct:w1", "lct:w2"]
+        restored = TranslationChain.from_jsonld(doc)
+        assert restored.witness_lct_ids == ["lct:w1", "lct:w2"]
+
+    def test_chain_string_roundtrip(self):
+        chain = TranslationChain()
+        chain.add_step("x", "y", "lct:d1", 0.85)
+        s = chain.to_jsonld_string()
+        restored = TranslationChain.from_jsonld_string(s)
+        assert restored.steps[0].confidence == 0.85
+
+
+class TestDictionaryEntityJsonLd:
+    """DictionaryEntity JSON-LD roundtrip tests."""
+
+    def test_basic_entity_roundtrip(self):
+        entity = DictionaryEntity.create(
+            source_domain="medical",
+            target_domain="legal",
+            public_key="mb64key",
+        )
+        doc = entity.to_jsonld()
+        assert doc["@type"] == "DictionaryEntity"
+        assert doc["@context"] == ["https://web4.io/contexts/dictionary.jsonld"]
+        assert "lct_id" in doc
+        assert doc["spec"]["source_domain"] == "medical"
+        assert doc["spec"]["target_domain"] == "legal"
+        assert doc["translation_count"] == 0
+        assert doc["success_rate"] == 0.0
+        restored = DictionaryEntity.from_jsonld(doc, public_key="mb64key")
+        assert restored.spec.source_domain == "medical"
+        assert restored.spec.target_domain == "legal"
+        assert restored.translation_count == 0
+
+    def test_entity_with_translations_roundtrip(self):
+        entity = DictionaryEntity.create(
+            source_domain="python",
+            target_domain="rust",
+            public_key="key1",
+            version="2.0.0",
+            coverage=DomainCoverage(terms=100, concepts=50, relationships=30),
+            dictionary_type=DictionaryType.MODEL,
+        )
+        # Record some translations
+        req = TranslationRequest(
+            source_content="def foo():",
+            source_domain="python",
+            target_domain="rust",
+        )
+        entity.record_translation(req, "fn foo()", 0.95)
+        entity.record_translation(req, "fn bar()", 0.85)
+        doc = entity.to_jsonld()
+        assert doc["translation_count"] == 2
+        assert doc["successful_translations"] == 1  # only 0.95 >= 0.9
+        assert doc["success_rate"] == 0.5
+        assert doc["current_version"] == "2.0.0"
+        assert doc["spec"]["coverage"]["terms"] == 100
+
+    def test_entity_spec_inline_no_context_type(self):
+        """Spec inside DictionaryEntity should NOT have @context/@type."""
+        entity = DictionaryEntity.create(
+            source_domain="a", target_domain="b", public_key="k",
+        )
+        doc = entity.to_jsonld()
+        assert "@context" not in doc["spec"]
+        assert "@type" not in doc["spec"]
+
+    def test_entity_string_roundtrip(self):
+        entity = DictionaryEntity.create(
+            source_domain="en", target_domain="fr", public_key="k",
+        )
+        s = entity.to_jsonld_string()
+        restored = DictionaryEntity.from_jsonld_string(s)
+        assert restored.spec.source_domain == "en"
