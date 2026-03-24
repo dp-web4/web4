@@ -6,6 +6,7 @@
 
     "R7Action": "web4:ActionRecord",
     "ReputationDelta": "web4:ReputationDelta",
+    "ActionChain": "web4:ActionChain",
     "TensorDelta": "web4:TensorDelta",
 
     "Rules": "web4:Rules",
@@ -15,9 +16,17 @@
     "ResourceRequirements": "web4:ResourceRequirements",
     "Result": "web4:Result",
 
-    "actionId": { "@id": "web4:actionId", "@type": "xsd:string" },
+    "action_id": { "@id": "web4:actionId", "@type": "xsd:string" },
     "timestamp": { "@id": "web4:timestamp", "@type": "xsd:dateTime" },
-    "prevActionHash": { "@id": "web4:prevActionHash", "@type": "xsd:string" },
+    "prev_action_hash": { "@id": "web4:prevActionHash", "@type": "xsd:string" },
+
+    "rules": { "@id": "web4:rules" },
+    "role": { "@id": "web4:role" },
+    "request": { "@id": "web4:request" },
+    "reference": { "@id": "web4:reference" },
+    "resource": { "@id": "web4:resource" },
+    "result": { "@id": "web4:result" },
+    "reputation": { "@id": "web4:reputation" },
 
     "lawHash": { "@id": "web4:lawHash", "@type": "xsd:string" },
     "society": { "@id": "web4:society", "@type": "@id" },
@@ -36,10 +45,23 @@
     "parameters": { "@id": "web4:parameters" },
     "atpStake": { "@id": "web4:atpStake", "@type": "xsd:decimal" },
     "nonce": { "@id": "web4:nonce", "@type": "xsd:string" },
+    "proofOfAgency": { "@id": "web4:proofOfAgency" },
+    "grantId": { "@id": "web4:grantId", "@type": "xsd:string" },
+    "inclusionProof": { "@id": "web4:inclusionProof", "@type": "xsd:string" },
+    "scope": { "@id": "web4:scope", "@type": "xsd:string" },
+    "audience": { "@id": "web4:audience" },
 
     "precedents": { "@id": "web4:precedents" },
     "mrhContext": { "@id": "web4:mrhContext" },
     "witnesses": { "@id": "web4:witnesses" },
+    "actionHash": { "@id": "web4:actionHash", "@type": "xsd:string" },
+    "outcome": { "@id": "web4:outcome", "@type": "xsd:string" },
+    "relevance": { "@id": "web4:relevance", "@type": "xsd:decimal" },
+    "depth": { "@id": "web4:depth", "@type": "xsd:integer" },
+    "relevantEntities": { "@id": "web4:relevantEntities" },
+    "lct": { "@id": "web4:lct", "@type": "@id" },
+    "attestation": { "@id": "web4:attestation", "@type": "xsd:string" },
+    "signature": { "@id": "web4:signature", "@type": "xsd:string" },
 
     "required": { "@id": "web4:requiredResources" },
     "available": { "@id": "web4:availableResources" },
@@ -49,21 +71,28 @@
     "output": { "@id": "web4:output" },
     "resourceConsumed": { "@id": "web4:resourceConsumed" },
     "attestations": { "@id": "web4:attestations" },
+    "error": { "@id": "web4:error" },
 
-    "subjectLCT": { "@id": "web4:subjectLCT", "@type": "@id" },
-    "actionTarget": { "@id": "web4:actionTarget", "@type": "@id" },
-    "ruleTriggered": { "@id": "web4:ruleTriggered", "@type": "xsd:string" },
+    "subject_lct": { "@id": "web4:subjectLCT", "@type": "@id" },
+    "role_lct": { "@id": "web4:roleLCT", "@type": "@id" },
+    "action_type": { "@id": "web4:actionType", "@type": "xsd:string" },
+    "action_target": { "@id": "web4:actionTarget", "@type": "@id" },
+    "rule_triggered": { "@id": "web4:ruleTriggered", "@type": "xsd:string" },
     "reason": { "@id": "web4:reason", "@type": "xsd:string" },
-    "t3Delta": { "@id": "web4:t3Delta" },
-    "v3Delta": { "@id": "web4:v3Delta" },
-    "contributingFactors": { "@id": "web4:contributingFactors" },
-    "netTrustChange": { "@id": "web4:netTrustChange", "@type": "xsd:decimal" },
-    "netValueChange": { "@id": "web4:netValueChange", "@type": "xsd:decimal" },
+    "t3_delta": { "@id": "web4:t3Delta" },
+    "v3_delta": { "@id": "web4:v3Delta" },
+    "contributing_factors": { "@id": "web4:contributingFactors" },
+    "net_trust_change": { "@id": "web4:netTrustChange", "@type": "xsd:decimal" },
+    "net_value_change": { "@id": "web4:netValueChange", "@type": "xsd:decimal" },
 
     "change": { "@id": "web4:change", "@type": "xsd:decimal" },
     "from": { "@id": "web4:fromValue", "@type": "xsd:decimal" },
     "to": { "@id": "web4:toValue", "@type": "xsd:decimal" },
     "factor": { "@id": "web4:factor", "@type": "xsd:string" },
-    "weight": { "@id": "web4:weight", "@type": "xsd:decimal" }
+    "weight": { "@id": "web4:weight", "@type": "xsd:decimal" },
+
+    "length": { "@id": "web4:length", "@type": "xsd:integer" },
+    "actions": { "@id": "web4:actions", "@container": "@list" },
+    "chain_valid": { "@id": "web4:chainValid", "@type": "xsd:boolean" }
   }
 }
