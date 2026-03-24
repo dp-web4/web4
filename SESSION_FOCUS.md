@@ -17,7 +17,7 @@
 | B1: SDK v0.10.0 release housekeeping | DONE | CHANGELOG + version bump for A3/A4 complete |
 | B2: Missing JSON-LD context files (LCT, AttestationEnvelope) | DONE | 2 .jsonld files, 26 consistency tests |
 | B3: Namespace and context URI reconciliation | DONE | All 10 context files now use ns/, decision documented |
-| B4: Schema-validated JSON-LD round-trip tests | PENDING | Depends on B2, B3 (now unblocked) |
+| B4: Schema-validated JSON-LD round-trip tests | DONE | 48 tests, 9 schemas, 19 @type values |
 | B5: SDK v0.10.1 release housekeeping | PENDING | Depends on B2-B4, B6 |
 | B6: Dictionary JSON-LD serialization | DONE | 4 types, 14 tests, schema + context |
 
@@ -35,7 +35,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 - **Version**: 0.10.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
-- **Tests**: 1523 passing
+- **Tests**: 1571 passing
 - **Exports**: 277 symbols via `web4/__init__.py`
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
@@ -87,13 +87,13 @@ cf887fb Maintenance: Update SESSION_FOCUS.md to reflect current state (#69)
 
 ## Open PRs
 
-None — B3 PR pending (worker/web4-20260324-000007).
+None — B4 PR pending.
 
 ---
 
 ## Pending Items
 
-- Sprint 6 B4-B5: Schema-validated round-trip tests and version bump
+- Sprint 6 B5: SDK v0.10.1 version bump (B4 complete, B5 now unblocked)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 
 ---
