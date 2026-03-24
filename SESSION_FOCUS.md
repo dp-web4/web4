@@ -54,9 +54,9 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 | ACP | DONE | DONE | schemas/contexts/ | DONE (36 vectors) |
 | Entity | DONE | DONE | schemas/contexts/ | DONE (32 vectors) |
 | Capability | DONE | DONE | schemas/contexts/ | DONE (36 vectors) |
-| Dictionary | DONE | DONE | schemas/contexts/ | PENDING |
+| Dictionary | DONE | DONE | schemas/contexts/ | DONE (50 vectors) |
 
-**Total schema validation vectors**: 228 across 8 schemas (Dictionary vectors pending)
+**Total schema validation vectors**: 278 across 9 schemas (ALL COMPLETE)
 
 **All 10 context files now in `schemas/contexts/` using `https://web4.io/ns/` namespace.**
 Namespace decision documented in `docs/history/design_decisions/JSONLD-NAMESPACE-RECONCILIATION.md`.
@@ -76,25 +76,25 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+40190f1 B5: SDK v0.10.1 — Sprint 6 complete (6/6 tasks) (#79)
 74484de B4: Schema-validated JSON-LD round-trip tests — 48 tests (#78)
 936c2d9 B3: JSON-LD namespace and context URI reconciliation — 32 tests (#76)
 2fb27d1 B2: Missing JSON-LD context files for LCT and AttestationEnvelope — 26 tests (#74)
 dfc7151 B1+B6: SDK v0.10.0 — Dictionary JSON-LD + Sprint 6 planning (#72)
-705e90e A4 (complete): Entity + Capability cross-language validation vectors — 68 vectors (#71)
 ```
 
 ---
 
 ## Open PRs
 
-PR #78 merged (B4). B5 PR pending.
+None.
 
 ---
 
 ## Pending Items
 
 - Sprint 6 COMPLETE (6/6 tasks). Next: Sprint 7 planning.
-- Dictionary JSON-LD test vectors still pending (all other 8 schemas have vectors)
+- All 9 JSON-LD schemas now have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 
 ---
