@@ -71,7 +71,7 @@
     },
     "pcr_selection": {
       "@id": "web4:pcrSelection",
-      "@container": "@set"
+      "@container": "@list"
     },
     "authenticator_data": {
       "@id": "web4:authenticatorData",
@@ -84,7 +84,7 @@
 
     "timestamp": {
       "@id": "web4:timestamp",
-      "@type": "xsd:string"
+      "@type": "xsd:double"
     },
     "challenge_issued_at": {
       "@id": "web4:challengeIssuedAt",
@@ -92,7 +92,7 @@
     },
     "challenge_ttl": {
       "@id": "web4:challengeTtl",
-      "@type": "xsd:integer"
+      "@type": "xsd:double"
     },
 
     "platform_state": {
