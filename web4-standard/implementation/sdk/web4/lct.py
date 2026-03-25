@@ -94,7 +94,7 @@ class BirthCertificate:
     citizen_role: str
     birth_timestamp: str
     birth_witnesses: List[str] = field(default_factory=list)
-    context: str = "platform"
+    birth_context: str = "platform"
     genesis_block_hash: Optional[str] = None
 
 
@@ -206,7 +206,7 @@ class LCT:
             citizen_role=citizen_role,
             birth_timestamp=ts,
             birth_witnesses=list(witnesses),
-            context=context,
+            birth_context=context,
         )
 
         # First pairing is always the citizen role
@@ -322,7 +322,7 @@ class LCT:
                 "citizen_role": self.birth_certificate.citizen_role,
                 "birth_timestamp": self.birth_certificate.birth_timestamp,
                 "birth_witnesses": self.birth_certificate.birth_witnesses,
-                "context": self.birth_certificate.context,
+                "birth_context": self.birth_certificate.birth_context,
             }
 
         raw = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
@@ -370,7 +370,7 @@ class LCT:
                 "citizen_role": self.birth_certificate.citizen_role,
                 "birth_timestamp": self.birth_certificate.birth_timestamp,
                 "birth_witnesses": self.birth_certificate.birth_witnesses,
-                "context": self.birth_certificate.context,
+                "birth_context": self.birth_certificate.birth_context,
             }
         return d
 
@@ -411,7 +411,7 @@ class LCT:
                 "citizen_role": self.birth_certificate.citizen_role,
                 "birth_timestamp": self.birth_certificate.birth_timestamp,
                 "birth_witnesses": list(self.birth_certificate.birth_witnesses),
-                "birth_context": self.birth_certificate.context,
+                "birth_context": self.birth_certificate.birth_context,
             }
             if self.birth_certificate.genesis_block_hash:
                 bc["genesis_block_hash"] = self.birth_certificate.genesis_block_hash
@@ -578,14 +578,14 @@ class LCT:
         birth_certificate = None
         bc_data = doc.get("birth_certificate")
         if bc_data:
-            # Accept both spec format (birth_context) and SDK format (context)
-            context = bc_data.get("birth_context", bc_data.get("context", "platform"))
+            # Accept both spec format (birth_context) and legacy format (context)
+            bc_context = bc_data.get("birth_context", bc_data.get("context", "platform"))
             birth_certificate = BirthCertificate(
                 issuing_society=bc_data["issuing_society"],
                 citizen_role=bc_data["citizen_role"],
                 birth_timestamp=bc_data["birth_timestamp"],
                 birth_witnesses=bc_data.get("birth_witnesses", []),
-                context=context,
+                birth_context=bc_context,
                 genesis_block_hash=bc_data.get("genesis_block_hash"),
             )
 

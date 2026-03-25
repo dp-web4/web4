@@ -18,7 +18,7 @@
     },
     "birth_certificate": {
       "citizen_role": "lct:web4:role:citizen:platform",
-      "context": "platform",
+      "birth_context": "platform",
       "birth_timestamp": "2025-09-14T12:00:00Z",
       "parent_entity": "lct:web4:platform:genesis",
       "birth_witnesses": [

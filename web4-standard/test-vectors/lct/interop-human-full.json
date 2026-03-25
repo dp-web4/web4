@@ -1,5 +1,5 @@
 {
-  "canonical_hash": "57e5b623e9afa073c49fee3d5df0d385563a2ec014e8fc6dfbc9dc778915b5ab",
+  "canonical_hash": "c93df5c8379abf234b212839b6a9517981b1eede39a21a19cfdae07bf5c5276c",
   "description": "Full human LCT with all optional fields",
   "expected_output": {
     "attestations": [
@@ -29,7 +29,7 @@
         "lct:web4:witness-oracle-1"
       ],
       "citizen_role": "lct:web4:role:citizen:human",
-      "context": "organization",
+      "birth_context": "organization",
       "issuing_society": "lct:web4:society-acme-corp",
       "parent_entity": "lct:web4:org:acme"
     },

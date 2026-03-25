@@ -118,7 +118,7 @@
             "lct:web4:witness:2",
             "lct:web4:witness:3"
           ],
-          "context": "federation"
+          "birth_context": "federation"
         }
       },
       "expected": {
@@ -157,7 +157,7 @@
             "lct:web4:witness:2",
             "lct:web4:witness:3"
           ],
-          "context": "infrastructure"
+          "birth_context": "infrastructure"
         }
       },
       "expected": {

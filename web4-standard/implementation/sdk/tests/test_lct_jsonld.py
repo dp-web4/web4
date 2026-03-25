@@ -365,7 +365,7 @@ class TestJsonLdRoundtrip:
         restored = LCT.from_jsonld(doc)
         assert restored.birth_certificate is not None
         assert restored.birth_certificate.issuing_society == basic_lct.birth_certificate.issuing_society
-        assert restored.birth_certificate.context == "platform"  # birth_context → context
+        assert restored.birth_certificate.birth_context == "platform"
         assert len(restored.birth_certificate.birth_witnesses) == 3
 
     def test_mrh_roundtrip(self, basic_lct):
@@ -431,8 +431,8 @@ class TestFromJsonLdCompat:
         lct = LCT.from_jsonld(doc)
         assert lct.mrh.bound == ["lct:web4:hw:1", "lct:web4:hw:2"]
 
-    def test_accepts_context_field(self):
-        """SDK format uses 'context', spec uses 'birth_context'."""
+    def test_accepts_legacy_context_field(self):
+        """Legacy format uses 'context' — still accepted for backward compat."""
         doc = {
             "lct_id": "lct:web4:ai:test",
             "subject": "did:web4:key:test",
@@ -445,7 +445,7 @@ class TestFromJsonLdCompat:
             },
         }
         lct = LCT.from_jsonld(doc)
-        assert lct.birth_certificate.context == "network"
+        assert lct.birth_certificate.birth_context == "network"
 
     def test_accepts_birth_context_field(self):
         """Spec format uses 'birth_context'."""
@@ -461,7 +461,7 @@ class TestFromJsonLdCompat:
             },
         }
         lct = LCT.from_jsonld(doc)
-        assert lct.birth_certificate.context == "ecosystem"
+        assert lct.birth_certificate.birth_context == "ecosystem"
 
     def test_accepts_string_witnessing_entries(self):
         doc = {
@@ -595,7 +595,7 @@ class TestSpecCanonicalExample:
                 citizen_role="lct:web4:role:citizen:nation",
                 birth_timestamp="2025-10-01T00:00:00Z",
                 birth_witnesses=["lct:web4:witness:1", "lct:web4:witness:2", "lct:web4:witness:3"],
-                context="nation",
+                birth_context="nation",
                 genesis_block_hash="0xgenesishash",
             ),
             mrh=MRH(
@@ -683,14 +683,14 @@ class TestSpecCanonicalExample:
         assert parsed["@context"] == [LCT_JSONLD_CONTEXT]
 
     def test_to_dict_backward_compat(self):
-        """to_dict() should NOT be affected by new fields."""
+        """to_dict() should NOT have @context header."""
         lct = LCT.create(entity_type=EntityType.AI, public_key="mb64:k")
         d = lct.to_dict()
         # to_dict should NOT have @context (backward compat)
         assert "@context" not in d
-        # to_dict uses 'context' not 'birth_context'
-        assert "context" in d["birth_certificate"]
-        assert "birth_context" not in d["birth_certificate"]
+        # to_dict now uses 'birth_context' (harmonized with spec)
+        assert "birth_context" in d["birth_certificate"]
+        assert "context" not in d["birth_certificate"]
 
 
 # ── Context File Consistency (B2) ─────────────────────────────────
