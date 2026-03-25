@@ -11,11 +11,16 @@ import pytest
 
 from web4.capability import (
     CapabilityLevel,
+    CapabilityAssessment,
     LevelRequirement,
     CAPABILITY_JSONLD_CONTEXT,
     level_requirements,
     capability_assessment_to_jsonld,
+    capability_assessment_from_jsonld,
+    capability_assessment_from_jsonld_string,
     capability_framework_to_jsonld,
+    capability_framework_from_jsonld,
+    capability_framework_from_jsonld_string,
 )
 from web4.lct import LCT, EntityType, Binding, MRH, Policy
 from web4.trust import T3, V3
@@ -217,3 +222,116 @@ class TestCapabilityFrameworkJsonLd:
             curr_min = levels[i]["trust_range"][0]
             assert prev_max == pytest.approx(curr_min), \
                 f"Gap between level {i-1} max ({prev_max}) and level {i} min ({curr_min})"
+
+
+# ── CapabilityAssessment from_jsonld() roundtrip ──────────────────
+
+
+class TestCapabilityAssessmentRoundtrip:
+    """capability_assessment_to_jsonld() -> capability_assessment_from_jsonld() roundtrip."""
+
+    def _make_stub_lct(self):
+        """Create a minimal LCT (level 0 Stub)."""
+        return LCT(
+            lct_id="test-stub",
+            subject="did:web4:key:stub",
+            binding=Binding(
+                entity_type=EntityType.HUMAN,
+                public_key="",
+                created_at="2026-01-01T00:00:00Z",
+            ),
+            mrh=MRH(),
+            policy=Policy(),
+            t3=T3(talent=0.0, training=0.0, temperament=0.0),
+            v3=V3(valuation=0.0, veracity=0.0, validity=0.0),
+        )
+
+    def test_roundtrip_preserves_all_fields(self):
+        """to_jsonld -> from_jsonld preserves all assessment fields."""
+        lct = self._make_stub_lct()
+        doc = capability_assessment_to_jsonld(lct)
+        result = capability_assessment_from_jsonld(doc)
+        assert isinstance(result, CapabilityAssessment)
+        assert result.lct_id == "test-stub"
+        assert result.assessed_level == 0
+        assert result.level_name == "Stub"
+        assert result.trust_tier == "untrusted"
+        assert result.trust_range == (0.0, 0.0)
+        assert result.requirements_met is True
+        assert result.missing_requirements == []
+
+    def test_roundtrip_via_json_string(self):
+        """to_jsonld -> JSON string -> from_jsonld_string roundtrip."""
+        lct = self._make_stub_lct()
+        doc = capability_assessment_to_jsonld(lct)
+        s = json.dumps(doc)
+        result = capability_assessment_from_jsonld_string(s)
+        assert result.lct_id == "test-stub"
+        assert result.assessed_level == 0
+
+    def test_assessment_is_frozen(self):
+        """CapabilityAssessment is immutable (frozen dataclass)."""
+        lct = self._make_stub_lct()
+        doc = capability_assessment_to_jsonld(lct)
+        result = capability_assessment_from_jsonld(doc)
+        with pytest.raises(AttributeError):
+            result.lct_id = "changed"
+
+    def test_trust_range_is_tuple(self):
+        """trust_range is deserialized as tuple, not list."""
+        lct = self._make_stub_lct()
+        doc = capability_assessment_to_jsonld(lct)
+        result = capability_assessment_from_jsonld(doc)
+        assert isinstance(result.trust_range, tuple)
+        assert len(result.trust_range) == 2
+
+
+# ── CapabilityFramework from_jsonld() roundtrip ──────────────────
+
+
+class TestCapabilityFrameworkRoundtrip:
+    """capability_framework_to_jsonld() -> capability_framework_from_jsonld() roundtrip."""
+
+    def test_roundtrip_preserves_all_levels(self):
+        """to_jsonld -> from_jsonld preserves all 6 levels."""
+        doc = capability_framework_to_jsonld()
+        levels = capability_framework_from_jsonld(doc)
+        assert len(levels) == 6
+        for i, req in enumerate(levels):
+            assert isinstance(req, LevelRequirement)
+            assert int(req.level) == i
+
+    def test_roundtrip_preserves_level_details(self):
+        """Round-tripped levels match the originals."""
+        doc = capability_framework_to_jsonld()
+        levels = capability_framework_from_jsonld(doc)
+        for req in levels:
+            original = level_requirements(int(req.level))
+            assert req == original
+
+    def test_string_roundtrip(self):
+        """to_jsonld -> JSON string -> from_jsonld_string roundtrip."""
+        doc = capability_framework_to_jsonld()
+        s = json.dumps(doc)
+        levels = capability_framework_from_jsonld_string(s)
+        assert len(levels) == 6
+        assert levels[0].name == "Stub"
+        assert levels[5].name == "Hardware"
+
+    def test_roundtrip_preserves_requirements_lists(self):
+        """Round-trip preserves requirement strings for each level."""
+        doc = capability_framework_to_jsonld()
+        levels = capability_framework_from_jsonld(doc)
+        # Level 0 has 2 requirements, Level 5 has 2 requirements
+        assert len(levels[0].requirements) >= 1
+        assert "Valid lct_id" in levels[0].requirements
+        assert len(levels[5].requirements) >= 1
+        assert "Hardware anchor in binding" in levels[5].requirements[1] or \
+               any("hardware" in r.lower() for r in levels[5].requirements)
+
+    def test_roundtrip_preserves_trust_ranges(self):
+        """Round-trip preserves trust range tuples."""
+        doc = capability_framework_to_jsonld()
+        levels = capability_framework_from_jsonld(doc)
+        assert levels[0].trust_range == (0.0, 0.0)
+        assert levels[5].trust_range == (0.8, 1.0)

@@ -479,6 +479,28 @@ def common_ground(level_a: int, level_b: int) -> CapabilityLevel:
     return CapabilityLevel(min(level_a, level_b))
 
 
+@dataclass(frozen=True)
+class CapabilityAssessment:
+    """Result of assessing an LCT's capability level.
+
+    Attributes:
+        lct_id: The LCT that was assessed.
+        assessed_level: The computed capability level (0-5).
+        level_name: Human-readable level name.
+        trust_tier: Trust tier label for this level.
+        trust_range: Min/max trust scores for this tier.
+        requirements_met: Whether all requirements for this level are met.
+        missing_requirements: List of unmet requirement descriptions.
+    """
+    lct_id: str
+    assessed_level: int
+    level_name: str
+    trust_tier: str
+    trust_range: Tuple[float, float]
+    requirements_met: bool
+    missing_requirements: List[str]
+
+
 def capability_assessment_to_jsonld(lct: LCT) -> Dict[str, Any]:
     """Serialize an LCT's capability assessment to JSON-LD."""
     level = assess_level(lct)
@@ -497,6 +519,32 @@ def capability_assessment_to_jsonld(lct: LCT) -> Dict[str, Any]:
     }
 
 
+def capability_assessment_from_jsonld(doc: Dict[str, Any]) -> CapabilityAssessment:
+    """Deserialize a CapabilityAssessment from a JSON-LD document.
+
+    Args:
+        doc: A JSON-LD document with @type "CapabilityAssessment".
+
+    Returns:
+        CapabilityAssessment dataclass with the assessment fields.
+    """
+    tr = doc["trust_range"]
+    return CapabilityAssessment(
+        lct_id=doc["lct_id"],
+        assessed_level=doc["assessed_level"],
+        level_name=doc["level_name"],
+        trust_tier=doc["trust_tier"],
+        trust_range=(tr[0], tr[1]),
+        requirements_met=doc["requirements_met"],
+        missing_requirements=list(doc["missing_requirements"]),
+    )
+
+
+def capability_assessment_from_jsonld_string(s: str) -> CapabilityAssessment:
+    """Deserialize a CapabilityAssessment from a JSON-LD string."""
+    return capability_assessment_from_jsonld(json.loads(s))
+
+
 def capability_framework_to_jsonld() -> Dict[str, Any]:
     """Serialize the full capability level framework to JSON-LD."""
     return {
@@ -504,3 +552,20 @@ def capability_framework_to_jsonld() -> Dict[str, Any]:
         "@type": "CapabilityFramework",
         "levels": [req.to_jsonld() for req in _LEVEL_REQUIREMENTS.values()],
     }
+
+
+def capability_framework_from_jsonld(doc: Dict[str, Any]) -> List[LevelRequirement]:
+    """Deserialize a CapabilityFramework from a JSON-LD document.
+
+    Args:
+        doc: A JSON-LD document with @type "CapabilityFramework".
+
+    Returns:
+        List of LevelRequirement objects, one per capability level.
+    """
+    return [LevelRequirement.from_jsonld(level_doc) for level_doc in doc["levels"]]
+
+
+def capability_framework_from_jsonld_string(s: str) -> List[LevelRequirement]:
+    """Deserialize a CapabilityFramework from a JSON-LD string."""
+    return capability_framework_from_jsonld(json.loads(s))

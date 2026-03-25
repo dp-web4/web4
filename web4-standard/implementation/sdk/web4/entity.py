@@ -328,3 +328,23 @@ def entity_registry_to_jsonld() -> Dict[str, Any]:
         "@type": "EntityTypeRegistry",
         "entity_types": [info.to_jsonld() for info in _REGISTRY.values()],
     }
+
+
+def entity_registry_from_jsonld(doc: Dict[str, Any]) -> Dict[EntityType, EntityTypeInfo]:
+    """Deserialize an EntityTypeRegistry JSON-LD document.
+
+    Args:
+        doc: A JSON-LD document with @type "EntityTypeRegistry".
+
+    Returns:
+        Dict mapping EntityType to EntityTypeInfo for each entry in the registry.
+    """
+    return {
+        EntityType(info_doc["entity_type"]): EntityTypeInfo.from_jsonld(info_doc)
+        for info_doc in doc["entity_types"]
+    }
+
+
+def entity_registry_from_jsonld_string(s: str) -> Dict[EntityType, EntityTypeInfo]:
+    """Deserialize an EntityTypeRegistry from a JSON-LD string."""
+    return entity_registry_from_jsonld(json.loads(s))

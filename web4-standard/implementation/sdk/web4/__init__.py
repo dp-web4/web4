@@ -189,6 +189,8 @@ from .entity import (
     valid_interaction,
     all_entity_types,
     entity_registry_to_jsonld,
+    entity_registry_from_jsonld,
+    entity_registry_from_jsonld_string,
 )
 
 # ── Capability Levels ─────────────────────────────────────────
@@ -206,8 +208,13 @@ from .capability import (
     entity_level_range,
     is_level_typical,
     common_ground,
+    CapabilityAssessment,
     capability_assessment_to_jsonld,
+    capability_assessment_from_jsonld,
+    capability_assessment_from_jsonld_string,
     capability_framework_to_jsonld,
+    capability_framework_from_jsonld,
+    capability_framework_from_jsonld_string,
 )
 
 # ── Error Taxonomy ─────────────────────────────────────────────
@@ -445,14 +452,20 @@ __all__ = [
     "EntityTypeInfo", "ENTITY_JSONLD_CONTEXT",
     "behavioral_modes", "energy_pattern",
     "is_agentic", "can_initiate", "can_delegate", "can_process_r6",
-    "valid_interaction", "all_entity_types", "entity_registry_to_jsonld",
+    "valid_interaction", "all_entity_types",
+    "entity_registry_to_jsonld", "entity_registry_from_jsonld",
+    "entity_registry_from_jsonld_string",
     # capability
     "CapabilityLevel", "TrustTier", "ENTITY_LEVEL_RANGES", "LevelRequirement",
     "CAPABILITY_JSONLD_CONTEXT",
     "assess_level", "validate_level", "can_upgrade",
     "level_requirements", "trust_tier",
     "entity_level_range", "is_level_typical", "common_ground",
-    "capability_assessment_to_jsonld", "capability_framework_to_jsonld",
+    "CapabilityAssessment",
+    "capability_assessment_to_jsonld", "capability_assessment_from_jsonld",
+    "capability_assessment_from_jsonld_string",
+    "capability_framework_to_jsonld", "capability_framework_from_jsonld",
+    "capability_framework_from_jsonld_string",
     # errors
     "ErrorCode", "ErrorCategory", "ErrorMeta",
     "Web4Error", "BindingError", "PairingError", "WitnessError",
