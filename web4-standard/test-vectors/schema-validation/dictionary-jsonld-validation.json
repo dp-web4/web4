@@ -1,0 +1,924 @@
+{
+  "meta": {
+    "format": "schema-validation-vectors",
+    "version": "1.0",
+    "schema": "../../schemas/dictionary-jsonld.schema.json",
+    "schema_id": "https://web4.io/schemas/dictionary-jsonld.schema.json",
+    "description": "Cross-language validation vectors for Dictionary Entities JSON-LD schema. Each 'valid' document MUST pass validation. Each 'invalid' document MUST fail with the indicated error.",
+    "spec_reference": "web4-standard/core-spec/dictionary-entities.md"
+  },
+  "valid": [
+    {
+      "id": "dict-valid-001",
+      "description": "Minimal DictionarySpec with required fields only",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "medical",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain"
+      }
+    },
+    {
+      "id": "dict-valid-002",
+      "description": "DictionarySpec with coverage metrics",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "finance",
+        "target_domain": "regulatory",
+        "bidirectional": true,
+        "version": "2.1.0",
+        "dictionary_type": "domain",
+        "coverage": {
+          "terms": 5000,
+          "concepts": 1200,
+          "relationships": 3400
+        }
+      }
+    },
+    {
+      "id": "dict-valid-003",
+      "description": "DictionarySpec with compression profile",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "natural_language",
+        "target_domain": "formal_logic",
+        "bidirectional": false,
+        "version": "0.5.0",
+        "dictionary_type": "compression",
+        "compression": {
+          "average_ratio": 3.5,
+          "lossy_threshold": 0.05,
+          "context_required": "moderate",
+          "ambiguity_handling": "context_aware"
+        }
+      }
+    },
+    {
+      "id": "dict-valid-004",
+      "description": "DictionarySpec with all optional fields (coverage + compression)",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "english",
+        "target_domain": "spanish",
+        "bidirectional": true,
+        "version": "3.0.1",
+        "dictionary_type": "model",
+        "coverage": {
+          "terms": 50000,
+          "concepts": 12000,
+          "relationships": 25000
+        },
+        "compression": {
+          "average_ratio": 1.2,
+          "lossy_threshold": 0.01,
+          "context_required": "full",
+          "ambiguity_handling": "probabilistic"
+        }
+      }
+    },
+    {
+      "id": "dict-valid-005",
+      "description": "DictionarySpec with meta dictionary type",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "web4_ontology",
+        "target_domain": "schema_org",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "meta"
+      }
+    },
+    {
+      "id": "dict-valid-006",
+      "description": "DictionarySpec with zero coverage values",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "domain_a",
+        "target_domain": "domain_b",
+        "bidirectional": false,
+        "version": "0.1.0",
+        "dictionary_type": "domain",
+        "coverage": {
+          "terms": 0,
+          "concepts": 0,
+          "relationships": 0
+        }
+      }
+    },
+    {
+      "id": "dict-valid-007",
+      "description": "Minimal TranslationResult with required fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "Translated output text",
+        "confidence": 0.95,
+        "degradation": 0.05,
+        "dictionary_lct_id": "lct:dict:med-legal-v1",
+        "witness_required": false,
+        "timestamp": "2026-03-24T12:00:00Z"
+      }
+    },
+    {
+      "id": "dict-valid-008",
+      "description": "TranslationResult with witness IDs",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "Resultado de la traduccion",
+        "confidence": 0.88,
+        "degradation": 0.12,
+        "dictionary_lct_id": "lct:dict:en-es-v3",
+        "witness_required": true,
+        "witness_lct_ids": ["lct:witness:001", "lct:witness:002"],
+        "timestamp": "2026-03-24T14:30:00Z"
+      }
+    },
+    {
+      "id": "dict-valid-009",
+      "description": "TranslationResult at confidence boundaries (0 and 1)",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "Perfect translation",
+        "confidence": 1.0,
+        "degradation": 0.0,
+        "dictionary_lct_id": "lct:dict:exact-match",
+        "witness_required": false,
+        "timestamp": "2026-03-24T00:00:00Z"
+      }
+    },
+    {
+      "id": "dict-valid-010",
+      "description": "TranslationResult with zero confidence (total degradation)",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "",
+        "confidence": 0.0,
+        "degradation": 1.0,
+        "dictionary_lct_id": "lct:dict:failed",
+        "witness_required": true,
+        "timestamp": "2026-03-24T01:00:00Z"
+      }
+    },
+    {
+      "id": "dict-valid-011",
+      "description": "Minimal TranslationChain with one step",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [
+          {
+            "step": 1,
+            "source_domain": "medical",
+            "target_domain": "legal",
+            "dictionary_lct_id": "lct:dict:med-legal-v1",
+            "confidence": 0.92,
+            "degradation": 0.08
+          }
+        ],
+        "cumulative_confidence": 0.92,
+        "cumulative_degradation": 0.08,
+        "length": 1
+      }
+    },
+    {
+      "id": "dict-valid-012",
+      "description": "TranslationChain with two steps (multi-hop)",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [
+          {
+            "step": 1,
+            "source_domain": "medical",
+            "target_domain": "scientific",
+            "dictionary_lct_id": "lct:dict:med-sci-v2",
+            "confidence": 0.95,
+            "degradation": 0.05
+          },
+          {
+            "step": 2,
+            "source_domain": "scientific",
+            "target_domain": "legal",
+            "dictionary_lct_id": "lct:dict:sci-legal-v1",
+            "confidence": 0.90,
+            "degradation": 0.10
+          }
+        ],
+        "cumulative_confidence": 0.855,
+        "cumulative_degradation": 0.145,
+        "length": 2
+      }
+    },
+    {
+      "id": "dict-valid-013",
+      "description": "TranslationChain with witness IDs",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [
+          {
+            "step": 1,
+            "source_domain": "english",
+            "target_domain": "french",
+            "dictionary_lct_id": "lct:dict:en-fr-v1",
+            "confidence": 0.97,
+            "degradation": 0.03
+          }
+        ],
+        "witness_lct_ids": ["lct:chain-witness:001"],
+        "cumulative_confidence": 0.97,
+        "cumulative_degradation": 0.03,
+        "length": 1
+      }
+    },
+    {
+      "id": "dict-valid-014",
+      "description": "TranslationChain with empty steps (zero length)",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [],
+        "cumulative_confidence": 1.0,
+        "cumulative_degradation": 0.0,
+        "length": 0
+      }
+    },
+    {
+      "id": "dict-valid-015",
+      "description": "Minimal DictionaryEntity with required fields",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:med-legal-v1",
+        "spec": {
+          "source_domain": "medical",
+          "target_domain": "legal",
+          "bidirectional": false,
+          "version": "1.0.0",
+          "dictionary_type": "domain"
+        },
+        "translation_count": 0,
+        "successful_translations": 0,
+        "success_rate": 0.0,
+        "current_version": "1.0.0"
+      }
+    },
+    {
+      "id": "dict-valid-016",
+      "description": "DictionaryEntity with active translation history",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:en-es-v3",
+        "spec": {
+          "source_domain": "english",
+          "target_domain": "spanish",
+          "bidirectional": true,
+          "version": "3.0.0",
+          "dictionary_type": "model",
+          "coverage": {
+            "terms": 50000,
+            "concepts": 12000,
+            "relationships": 25000
+          }
+        },
+        "translation_count": 15420,
+        "successful_translations": 14890,
+        "success_rate": 0.966,
+        "current_version": "3.0.0"
+      }
+    },
+    {
+      "id": "dict-valid-017",
+      "description": "DictionaryEntity with inline spec including compression",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:compress-v1",
+        "spec": {
+          "source_domain": "natural_language",
+          "target_domain": "formal_logic",
+          "bidirectional": false,
+          "version": "1.2.0",
+          "dictionary_type": "compression",
+          "compression": {
+            "average_ratio": 4.2,
+            "lossy_threshold": 0.03,
+            "context_required": "full",
+            "ambiguity_handling": "deterministic"
+          }
+        },
+        "translation_count": 500,
+        "successful_translations": 480,
+        "success_rate": 0.96,
+        "current_version": "1.2.0"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "dict-invalid-001",
+      "description": "Missing required field: @type",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "@type",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "source_domain": "medical",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain"
+      }
+    },
+    {
+      "id": "dict-invalid-002",
+      "description": "Missing required field: source_domain (DictionarySpec)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "source_domain",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain"
+      }
+    },
+    {
+      "id": "dict-invalid-003",
+      "description": "Missing required field: version (DictionarySpec)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "version",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "medical",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "dictionary_type": "domain"
+      }
+    },
+    {
+      "id": "dict-invalid-004",
+      "description": "Invalid dictionary_type enum value",
+      "error_path": "dictionary_type",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "medical",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "custom"
+      }
+    },
+    {
+      "id": "dict-invalid-005",
+      "description": "Invalid version format (missing patch number)",
+      "error_path": "version",
+      "error_kind": "pattern",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "medical",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "version": "1.0",
+        "dictionary_type": "domain"
+      }
+    },
+    {
+      "id": "dict-invalid-006",
+      "description": "Empty source_domain (minLength: 1)",
+      "error_path": "source_domain",
+      "error_kind": "minLength",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain"
+      }
+    },
+    {
+      "id": "dict-invalid-007",
+      "description": "Extra field at root level (DictionarySpec)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "medical",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain",
+        "secret_field": "should_be_rejected"
+      }
+    },
+    {
+      "id": "dict-invalid-008",
+      "description": "Negative coverage terms (minimum: 0)",
+      "error_path": "coverage.terms",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "medical",
+        "target_domain": "legal",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain",
+        "coverage": {
+          "terms": -1,
+          "concepts": 100,
+          "relationships": 50
+        }
+      }
+    },
+    {
+      "id": "dict-invalid-009",
+      "description": "lossy_threshold exceeds maximum (1.5 > 1.0)",
+      "error_path": "compression.lossy_threshold",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "a",
+        "target_domain": "b",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "compression",
+        "compression": {
+          "average_ratio": 2.0,
+          "lossy_threshold": 1.5,
+          "context_required": "minimal",
+          "ambiguity_handling": "reject"
+        }
+      }
+    },
+    {
+      "id": "dict-invalid-010",
+      "description": "Invalid ambiguity_handling enum value",
+      "error_path": "compression.ambiguity_handling",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "a",
+        "target_domain": "b",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain",
+        "compression": {
+          "average_ratio": 2.0,
+          "lossy_threshold": 0.05,
+          "context_required": "minimal",
+          "ambiguity_handling": "unknown_mode"
+        }
+      }
+    },
+    {
+      "id": "dict-invalid-011",
+      "description": "Missing required field: content (TranslationResult)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "content",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "confidence": 0.9,
+        "degradation": 0.1,
+        "dictionary_lct_id": "lct:dict:v1",
+        "witness_required": false,
+        "timestamp": "2026-03-24T12:00:00Z"
+      }
+    },
+    {
+      "id": "dict-invalid-012",
+      "description": "Missing required field: timestamp (TranslationResult)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "timestamp",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "Translated text",
+        "confidence": 0.9,
+        "degradation": 0.1,
+        "dictionary_lct_id": "lct:dict:v1",
+        "witness_required": false
+      }
+    },
+    {
+      "id": "dict-invalid-013",
+      "description": "Confidence exceeds maximum (1.5 > 1.0, TranslationResult)",
+      "error_path": "confidence",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "Text",
+        "confidence": 1.5,
+        "degradation": 0.0,
+        "dictionary_lct_id": "lct:dict:v1",
+        "witness_required": false,
+        "timestamp": "2026-03-24T12:00:00Z"
+      }
+    },
+    {
+      "id": "dict-invalid-014",
+      "description": "Negative degradation (minimum: 0, TranslationResult)",
+      "error_path": "degradation",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "Text",
+        "confidence": 0.9,
+        "degradation": -0.1,
+        "dictionary_lct_id": "lct:dict:v1",
+        "witness_required": false,
+        "timestamp": "2026-03-24T12:00:00Z"
+      }
+    },
+    {
+      "id": "dict-invalid-015",
+      "description": "Extra field at root level (TranslationResult)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "Text",
+        "confidence": 0.9,
+        "degradation": 0.1,
+        "dictionary_lct_id": "lct:dict:v1",
+        "witness_required": false,
+        "timestamp": "2026-03-24T12:00:00Z",
+        "extra_data": "should_fail"
+      }
+    },
+    {
+      "id": "dict-invalid-016",
+      "description": "Empty dictionary_lct_id (minLength: 1, TranslationResult)",
+      "error_path": "dictionary_lct_id",
+      "error_kind": "minLength",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationResult",
+        "content": "Text",
+        "confidence": 0.9,
+        "degradation": 0.1,
+        "dictionary_lct_id": "",
+        "witness_required": false,
+        "timestamp": "2026-03-24T12:00:00Z"
+      }
+    },
+    {
+      "id": "dict-invalid-017",
+      "description": "Missing required field: steps (TranslationChain)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "steps",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "cumulative_confidence": 0.9,
+        "cumulative_degradation": 0.1,
+        "length": 1
+      }
+    },
+    {
+      "id": "dict-invalid-018",
+      "description": "Missing required field: length (TranslationChain)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "length",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [],
+        "cumulative_confidence": 1.0,
+        "cumulative_degradation": 0.0
+      }
+    },
+    {
+      "id": "dict-invalid-019",
+      "description": "Chain step missing required field: dictionary_lct_id",
+      "error_path": "steps.0",
+      "error_kind": "required",
+      "error_field": "dictionary_lct_id",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [
+          {
+            "step": 1,
+            "source_domain": "a",
+            "target_domain": "b",
+            "confidence": 0.9,
+            "degradation": 0.1
+          }
+        ],
+        "cumulative_confidence": 0.9,
+        "cumulative_degradation": 0.1,
+        "length": 1
+      }
+    },
+    {
+      "id": "dict-invalid-020",
+      "description": "Chain step with step number below minimum (0 < 1)",
+      "error_path": "steps.0.step",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [
+          {
+            "step": 0,
+            "source_domain": "a",
+            "target_domain": "b",
+            "dictionary_lct_id": "lct:dict:v1",
+            "confidence": 0.9,
+            "degradation": 0.1
+          }
+        ],
+        "cumulative_confidence": 0.9,
+        "cumulative_degradation": 0.1,
+        "length": 1
+      }
+    },
+    {
+      "id": "dict-invalid-021",
+      "description": "Extra field in chain step (additionalProperties: false)",
+      "error_path": "steps.0",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [
+          {
+            "step": 1,
+            "source_domain": "a",
+            "target_domain": "b",
+            "dictionary_lct_id": "lct:dict:v1",
+            "confidence": 0.9,
+            "degradation": 0.1,
+            "extra_field": true
+          }
+        ],
+        "cumulative_confidence": 0.9,
+        "cumulative_degradation": 0.1,
+        "length": 1
+      }
+    },
+    {
+      "id": "dict-invalid-022",
+      "description": "Chain step confidence exceeds maximum (1.5 > 1.0)",
+      "error_path": "steps.0.confidence",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "TranslationChain",
+        "steps": [
+          {
+            "step": 1,
+            "source_domain": "a",
+            "target_domain": "b",
+            "dictionary_lct_id": "lct:dict:v1",
+            "confidence": 1.5,
+            "degradation": 0.0
+          }
+        ],
+        "cumulative_confidence": 1.0,
+        "cumulative_degradation": 0.0,
+        "length": 1
+      }
+    },
+    {
+      "id": "dict-invalid-023",
+      "description": "Missing required field: lct_id (DictionaryEntity)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "lct_id",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "spec": {
+          "source_domain": "a",
+          "target_domain": "b",
+          "bidirectional": false,
+          "version": "1.0.0",
+          "dictionary_type": "domain"
+        },
+        "translation_count": 0,
+        "successful_translations": 0,
+        "success_rate": 0.0,
+        "current_version": "1.0.0"
+      }
+    },
+    {
+      "id": "dict-invalid-024",
+      "description": "Missing required field: spec (DictionaryEntity)",
+      "error_path": "",
+      "error_kind": "required",
+      "error_field": "spec",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:v1",
+        "translation_count": 0,
+        "successful_translations": 0,
+        "success_rate": 0.0,
+        "current_version": "1.0.0"
+      }
+    },
+    {
+      "id": "dict-invalid-025",
+      "description": "Negative translation_count (minimum: 0, DictionaryEntity)",
+      "error_path": "translation_count",
+      "error_kind": "minimum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:v1",
+        "spec": {
+          "source_domain": "a",
+          "target_domain": "b",
+          "bidirectional": false,
+          "version": "1.0.0",
+          "dictionary_type": "domain"
+        },
+        "translation_count": -5,
+        "successful_translations": 0,
+        "success_rate": 0.0,
+        "current_version": "1.0.0"
+      }
+    },
+    {
+      "id": "dict-invalid-026",
+      "description": "success_rate exceeds maximum (1.5 > 1.0, DictionaryEntity)",
+      "error_path": "success_rate",
+      "error_kind": "maximum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:v1",
+        "spec": {
+          "source_domain": "a",
+          "target_domain": "b",
+          "bidirectional": false,
+          "version": "1.0.0",
+          "dictionary_type": "domain"
+        },
+        "translation_count": 100,
+        "successful_translations": 90,
+        "success_rate": 1.5,
+        "current_version": "1.0.0"
+      }
+    },
+    {
+      "id": "dict-invalid-027",
+      "description": "Extra field at root level (DictionaryEntity)",
+      "error_path": "",
+      "error_kind": "additionalProperties",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:v1",
+        "spec": {
+          "source_domain": "a",
+          "target_domain": "b",
+          "bidirectional": false,
+          "version": "1.0.0",
+          "dictionary_type": "domain"
+        },
+        "translation_count": 0,
+        "successful_translations": 0,
+        "success_rate": 0.0,
+        "current_version": "1.0.0",
+        "hidden": true
+      }
+    },
+    {
+      "id": "dict-invalid-028",
+      "description": "Inline spec missing required field: dictionary_type (DictionaryEntity)",
+      "error_path": "spec",
+      "error_kind": "required",
+      "error_field": "dictionary_type",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:v1",
+        "spec": {
+          "source_domain": "a",
+          "target_domain": "b",
+          "bidirectional": false,
+          "version": "1.0.0"
+        },
+        "translation_count": 0,
+        "successful_translations": 0,
+        "success_rate": 0.0,
+        "current_version": "1.0.0"
+      }
+    },
+    {
+      "id": "dict-invalid-029",
+      "description": "Wrong @type value (must be one of the 4 dictionary types)",
+      "error_path": "@type",
+      "error_kind": "const",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryDefinition",
+        "source_domain": "a",
+        "target_domain": "b",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain"
+      }
+    },
+    {
+      "id": "dict-invalid-030",
+      "description": "Empty @context array (minItems: 1)",
+      "error_path": "@context",
+      "error_kind": "minItems",
+      "document": {
+        "@context": [],
+        "@type": "DictionarySpec",
+        "source_domain": "a",
+        "target_domain": "b",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain"
+      }
+    },
+    {
+      "id": "dict-invalid-031",
+      "description": "String type for translation_count (should be integer)",
+      "error_path": "translation_count",
+      "error_kind": "type",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionaryEntity",
+        "lct_id": "lct:dict:v1",
+        "spec": {
+          "source_domain": "a",
+          "target_domain": "b",
+          "bidirectional": false,
+          "version": "1.0.0",
+          "dictionary_type": "domain"
+        },
+        "translation_count": "many",
+        "successful_translations": 0,
+        "success_rate": 0.0,
+        "current_version": "1.0.0"
+      }
+    },
+    {
+      "id": "dict-invalid-032",
+      "description": "Empty object (matches no oneOf branch)",
+      "error_path": "",
+      "error_kind": "oneOf",
+      "document": {}
+    },
+    {
+      "id": "dict-invalid-033",
+      "description": "Invalid context_required enum value in compression",
+      "error_path": "compression.context_required",
+      "error_kind": "enum",
+      "document": {
+        "@context": ["https://web4.io/contexts/dictionary.jsonld"],
+        "@type": "DictionarySpec",
+        "source_domain": "a",
+        "target_domain": "b",
+        "bidirectional": false,
+        "version": "1.0.0",
+        "dictionary_type": "domain",
+        "compression": {
+          "average_ratio": 2.0,
+          "lossy_threshold": 0.05,
+          "context_required": "heavy",
+          "ambiguity_handling": "deterministic"
+        }
+      }
+    }
+  ]
+}
