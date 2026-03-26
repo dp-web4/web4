@@ -32,6 +32,22 @@ from typing import Any, Dict, List, Optional
 
 from .trust import T3, V3, _clamp
 
+__all__ = [
+    # Classes
+    "R7Action", "ActionChain", "ActionStatus", "ReputationDelta",
+    "Rules", "Role", "Request", "ResourceRequirements", "Result",
+    "R7Error", "Constraint", "ContributingFactor", "Precedent",
+    "Reference", "TensorDelta",
+    "ReferenceInvalid", "ReputationComputationError", "RequestMalformed",
+    "ResourceInsufficient", "ResultInvalid", "RoleUnauthorized", "RuleViolation",
+    # Also in this module but used by reputation
+    "ProofOfAgency", "WitnessAttestation",
+    # Functions
+    "build_action",
+    # Constants
+    "R7_JSONLD_CONTEXT",
+]
+
 # JSON-LD context URI for R7 Action documents
 R7_JSONLD_CONTEXT = "https://web4.io/contexts/r7-action.jsonld"
 

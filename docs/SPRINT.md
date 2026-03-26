@@ -41,19 +41,27 @@ with roundtrip validation for federation helpers and functional tests for ATP op
 1694 tests passing, zero regressions.
 
 ### D2: Submodule `__all__` declarations
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-26
 **Depends on**: D1
 **Scope**: Add `__all__` list to each of the 19 submodules (`trust.py`, `lct.py`, etc.)
 so that `from web4.trust import *` works correctly and IDEs can autocomplete submodule
 imports. Extract the symbol list from the corresponding `web4/__init__.py` import group
 plus any module-internal public symbols.
+**Result**: All 19 submodules now have `__all__` declarations (375 total symbols across
+submodules). 21 new tests in `test_package_api.py` verify consistency (all entries resolve,
+no duplicates, submodule count). 1715 tests passing, zero regressions.
 
 ### D3: Docstring coverage for mcp.py
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-26
 **Depends on**: None
 **Scope**: Add docstrings to the 32 undocumented public functions/methods in `web4/mcp.py`.
 This module has the worst documentation coverage (13.5%) in the SDK. Focus on class-level
 docstrings, constructor parameters, and return types.
+**Result**: All 32 previously undocumented `to_dict()` and `from_dict()` methods now have
+docstrings. Coverage went from 13.5% to 100% (56/56 public symbols documented).
+1715 tests passing, zero regressions.
 
 ### D4: SDK v0.12.0 release housekeeping
 **Status**: NOT STARTED

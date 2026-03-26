@@ -24,6 +24,22 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    # Classes
+    "CommunicationPattern", "TrustDimension", "MCPResourceType",
+    "ResourceRequirements", "TrustRequirements",
+    "MCPToolResource", "MCPPromptResource",
+    "ProofOfAgency",
+    "TrustContext", "Web4Context",
+    "WitnessedInteraction", "WitnessAttestation",
+    "MCPCapabilities", "CapabilityBroadcast",
+    "MCPAuthority", "MCPSession", "SessionHandoff",
+    "PricingModifiers", "MCPErrorContext",
+    # Functions
+    "calculate_mcp_cost",
+    "web4_context_to_json", "web4_context_from_json",
+]
+
 
 # ── Communication Patterns (spec §2.2) ──────────────────────────
 
@@ -62,10 +78,12 @@ class ResourceRequirements:
     atp_cost: int = 1
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with compute, memory, and atp_cost keys."""
         return {"compute": self.compute, "memory": self.memory, "atp_cost": self.atp_cost}
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> ResourceRequirements:
+        """Deserialize from a dictionary, using defaults for missing keys."""
         return cls(
             compute=d.get("compute", "low"),
             memory=d.get("memory", "256MB"),
@@ -92,6 +110,7 @@ class TrustRequirements:
         return True
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary, omitting zero/empty fields."""
         d: Dict[str, Any] = {}
         if self.minimum_t3:
             d["minimum_t3"] = dict(self.minimum_t3)
@@ -103,6 +122,7 @@ class TrustRequirements:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> TrustRequirements:
+        """Deserialize from a dictionary, using defaults for missing keys."""
         return cls(
             minimum_t3=d.get("minimum_t3", {}),
             atp_stake=d.get("atp_stake", 0),
@@ -119,6 +139,7 @@ class MCPToolResource:
     trust_requirements: TrustRequirements = field(default_factory=TrustRequirements)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary including resource_type, requirements, and trust."""
         return {
             "resource_type": MCPResourceType.TOOL.value,
             "name": self.name,
@@ -129,6 +150,7 @@ class MCPToolResource:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> MCPToolResource:
+        """Deserialize from a dictionary, reconstructing nested requirements."""
         return cls(
             name=d["name"],
             description=d.get("description", ""),
@@ -147,6 +169,7 @@ class MCPPromptResource:
     atp_cost: int = 1
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary including template, variables, and cost."""
         return {
             "resource_type": MCPResourceType.PROMPT.value,
             "name": self.name,
@@ -158,6 +181,7 @@ class MCPPromptResource:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> MCPPromptResource:
+        """Deserialize from a dictionary, using defaults for optional fields."""
         return cls(
             name=d["name"],
             template=d.get("template", ""),
@@ -176,10 +200,12 @@ class ProofOfAgency:
     scope: str
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with grant_id and scope."""
         return {"grant_id": self.grant_id, "scope": self.scope}
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> ProofOfAgency:
+        """Deserialize from a dictionary. Requires grant_id and scope keys."""
         return cls(grant_id=d["grant_id"], scope=d["scope"])
 
 
@@ -190,6 +216,7 @@ class TrustContext:
     atp_stake: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary, omitting zero/empty fields."""
         d: Dict[str, Any] = {}
         if self.t3_in_role:
             d["t3_in_role"] = dict(self.t3_in_role)
@@ -199,6 +226,7 @@ class TrustContext:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> TrustContext:
+        """Deserialize from a dictionary, using defaults for missing keys."""
         return cls(
             t3_in_role=d.get("t3_in_role", {}),
             atp_stake=d.get("atp_stake", 0),
@@ -220,6 +248,7 @@ class Web4Context:
     proof_of_agency: Optional[ProofOfAgency] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with identity, trust, scope, and governance fields."""
         d: Dict[str, Any] = {
             "sender_lct": self.sender_lct,
         }
@@ -237,6 +266,7 @@ class Web4Context:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> Web4Context:
+        """Deserialize from a dictionary, reconstructing nested trust and agency objects."""
         poa = d.get("proof_of_agency")
         return cls(
             sender_lct=d["sender_lct"],
@@ -261,6 +291,7 @@ class WitnessedInteraction:
     success: bool
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with client, server, action, timestamp, and success."""
         return {
             "client": self.client,
             "server": self.server,
@@ -271,6 +302,7 @@ class WitnessedInteraction:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> WitnessedInteraction:
+        """Deserialize from a dictionary. All fields are required."""
         return cls(
             client=d["client"],
             server=d["server"],
@@ -289,6 +321,7 @@ class WitnessAttestation:
     mrh_updates: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with nested interaction, witness, and optional MRH updates."""
         d: Dict[str, Any] = {
             "witnessed_interaction": self.witnessed_interaction.to_dict(),
             "witness": self.witness,
@@ -301,6 +334,7 @@ class WitnessAttestation:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> WitnessAttestation:
+        """Deserialize from a dictionary, reconstructing the nested WitnessedInteraction."""
         return cls(
             witnessed_interaction=WitnessedInteraction.from_dict(d["witnessed_interaction"]),
             witness=d["witness"],
@@ -320,6 +354,7 @@ class MCPCapabilities:
     availability: float = 0.99
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with tools, protocols, trust, and availability."""
         return {
             "tools": list(self.tools),
             "protocols": list(self.protocols),
@@ -329,6 +364,7 @@ class MCPCapabilities:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> MCPCapabilities:
+        """Deserialize from a dictionary, defaulting to mcp/1.0 + web4/1.0 protocols."""
         return cls(
             tools=d.get("tools", []),
             protocols=d.get("protocols", ["mcp/1.0", "web4/1.0"]),
@@ -346,6 +382,7 @@ class CapabilityBroadcast:
     signature: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with broadcast_type, server, capabilities, and TTL."""
         d: Dict[str, Any] = {
             "broadcast_type": "mcp_capabilities",
             "server": self.server_lct,
@@ -358,6 +395,7 @@ class CapabilityBroadcast:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> CapabilityBroadcast:
+        """Deserialize from a dictionary, reconstructing nested MCPCapabilities."""
         return cls(
             server_lct=d["server"],
             capabilities=MCPCapabilities.from_dict(d.get("capabilities", {})),
@@ -380,6 +418,7 @@ class MCPAuthority:
     valid_until: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with delegation chain, resources, and rate limits."""
         return {
             "server": self.server_lct,
             "delegated_from": self.delegated_from,
@@ -392,6 +431,7 @@ class MCPAuthority:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> MCPAuthority:
+        """Deserialize from a dictionary, using defaults for rate limits and expiry."""
         return cls(
             server_lct=d["server"],
             delegated_from=d["delegated_from"],
@@ -428,6 +468,7 @@ class MCPSession:
         return True
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with session state, ATP usage, and activity status."""
         return {
             "session_id": self.session_id,
             "client": self.client_lct,
@@ -442,6 +483,7 @@ class MCPSession:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> MCPSession:
+        """Deserialize from a dictionary, restoring session state and ATP counters."""
         return cls(
             session_id=d["session_id"],
             client_lct=d["client"],
@@ -465,6 +507,7 @@ class SessionHandoff:
     trust_proofs: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with session, servers, and optional consent/proofs."""
         d: Dict[str, Any] = {
             "session_id": self.session_id,
             "from_server": self.from_server,
@@ -478,6 +521,7 @@ class SessionHandoff:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> SessionHandoff:
+        """Deserialize from a dictionary, using empty defaults for consent and proofs."""
         return cls(
             session_id=d["session_id"],
             from_server=d["from_server"],
@@ -497,6 +541,7 @@ class PricingModifiers:
     bulk_discount: float = 0.9
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with discount and surge multiplier values."""
         return {
             "high_trust_discount": self.high_trust_discount,
             "peak_demand_surge": self.peak_demand_surge,
@@ -505,6 +550,7 @@ class PricingModifiers:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> PricingModifiers:
+        """Deserialize from a dictionary, using default multipliers for missing keys."""
         return cls(
             high_trust_discount=d.get("high_trust_discount", 0.8),
             peak_demand_surge=d.get("peak_demand_surge", 1.5),
@@ -545,6 +591,7 @@ class MCPErrorContext:
     trust_impact: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a dictionary with error details, T3 comparison, and trust impact."""
         d: Dict[str, Any] = {"error_type": self.error_type}
         if self.required_t3:
             d["required_t3"] = dict(self.required_t3)
@@ -561,6 +608,7 @@ class MCPErrorContext:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> MCPErrorContext:
+        """Deserialize from a dictionary, using empty defaults for optional fields."""
         return cls(
             error_type=d["error_type"],
             required_t3=d.get("required_t3", {}),

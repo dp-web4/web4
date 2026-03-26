@@ -30,6 +30,23 @@ from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    # Classes
+    "HandshakePhase",
+    "ClientHello", "ServerHello", "ClientFinished", "ServerFinished",
+    "HandshakeMessage", "PairingMethod",
+    "Transport", "TransportCompliance", "TransportProfile",
+    "DiscoveryMethod", "PrivacyLevel",
+    "DiscoveryRequest", "DiscoveryResponse",
+    "Web4URI",
+    # Functions
+    "get_transport_profile", "required_transports", "negotiate_transport",
+    "required_discovery_methods", "discovery_privacy",
+    "web4_uri_to_dict", "web4_uri_from_dict", "transport_profile_to_dict",
+    # Constants
+    "TRANSPORT_PROFILES", "DISCOVERY_METADATA",
+]
+
 
 # ── Handshake Phases ──────────────────────────────────────────────
 

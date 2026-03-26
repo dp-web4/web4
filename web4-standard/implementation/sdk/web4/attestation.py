@@ -37,6 +37,16 @@ from hashlib import sha256
 import time
 import json
 
+__all__ = [
+    # Classes
+    "AttestationEnvelope", "AnchorInfo", "Proof",
+    "PlatformState", "VerificationResult",
+    # Functions
+    "verify_envelope",
+    # Constants
+    "ATTESTATION_JSONLD_CONTEXT", "TRUST_CEILINGS", "FRESHNESS_MAX_AGE",
+]
+
 
 # ── JSON-LD Context ──────────────────────────────────────────────
 

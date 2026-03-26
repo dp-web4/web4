@@ -38,6 +38,23 @@ from typing import Dict, FrozenSet, List, Optional, Set
 from .lct import LCT, EntityType, BirthCertificate, MRHPairing
 from .trust import T3, V3
 
+__all__ = [
+    # Classes
+    "Society", "LawDataset", "Delegation", "RoleType",
+    "CitizenshipStatus", "CitizenshipRecord",
+    "QuorumMode", "QuorumPolicy", "LedgerType",
+    "AuditRequest", "AuditAdjustment",
+    "Norm", "Procedure", "Interpretation",
+    # Functions
+    "valid_citizenship_transition", "merge_law",
+    "norm_to_dict", "norm_from_dict",
+    "procedure_to_dict", "procedure_from_dict",
+    "interpretation_to_dict", "interpretation_from_dict",
+    "law_dataset_to_dict", "law_dataset_from_dict",
+    "delegation_to_dict", "delegation_from_dict",
+    "quorum_policy_to_dict", "quorum_policy_from_dict",
+]
+
 
 # ── Role Types ───────────────────────────────────────────────────
 

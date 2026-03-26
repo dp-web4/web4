@@ -20,6 +20,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional
 
+__all__ = [
+    # Classes
+    "ErrorCode", "ErrorCategory", "ErrorMeta",
+    "Web4Error", "BindingError", "PairingError", "WitnessError",
+    "AuthzError", "CryptoError", "ProtoError",
+    # Functions
+    "get_error_meta", "codes_for_category", "make_error",
+]
+
 
 # ── Error Categories (spec §2) ────────────────────────────────
 

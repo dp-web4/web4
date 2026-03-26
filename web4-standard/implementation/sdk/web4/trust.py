@@ -21,6 +21,21 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    # Classes
+    "T3", "V3", "TrustProfile", "ActionOutcome", "RoleRequirement", "RoleTensors",
+    # Functions
+    "compute_team_t3", "operational_health", "is_healthy",
+    "diminishing_returns", "trust_bridge", "mrh_trust_decay", "mrh_zone",
+    # Constants
+    "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT", "WEB4_ONTOLOGY_NS",
+    "T3_WEIGHTS", "V3_WEIGHTS", "T3_UPDATE_FACTORS", "T3_UPDATE_RATE",
+    "BRIDGE_PRIMARY_WEIGHT", "BRIDGE_SECONDARY_WEIGHT_EACH",
+    "MRH_MAX_HOPS", "HEALTH_WEIGHTS", "HEALTH_THRESHOLD",
+    "DIMINISHING_BASE", "DIMINISHING_FLOOR",
+    "TRAINING_DECAY_PER_MONTH", "TEMPERAMENT_RECOVERY_PER_MONTH",
+]
+
 # ── Canonical weights (from test vectors) ────────────────────────
 
 T3_WEIGHTS = {"talent": 0.4, "training": 0.3, "temperament": 0.3}

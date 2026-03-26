@@ -27,6 +27,21 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .lct import LCT, EntityType
 
+__all__ = [
+    # Classes
+    "CapabilityLevel", "TrustTier", "LevelRequirement", "CapabilityAssessment",
+    # Functions
+    "assess_level", "validate_level", "can_upgrade",
+    "level_requirements", "trust_tier",
+    "entity_level_range", "is_level_typical", "common_ground",
+    "capability_assessment_to_jsonld", "capability_assessment_from_jsonld",
+    "capability_assessment_from_jsonld_string",
+    "capability_framework_to_jsonld", "capability_framework_from_jsonld",
+    "capability_framework_from_jsonld_string",
+    # Constants
+    "CAPABILITY_JSONLD_CONTEXT", "ENTITY_LEVEL_RANGES",
+]
+
 
 # ── JSON-LD Context ──────────────────────────────────────────────
 
