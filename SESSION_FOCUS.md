@@ -10,14 +10,14 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 8 Summary: SDK Developer Experience (IN PROGRESS)
+### Sprint 8 Summary: SDK Developer Experience (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
 | D1: Export completeness | DONE | 52 new exports (284 → 336), 35 new tests |
 | D2: Submodule `__all__` declarations | DONE | All 19 submodules, 375 symbols, 21 new tests |
 | D3: Docstring coverage for mcp.py | DONE | 32 methods documented, 100% coverage |
-| D4: SDK v0.12.0 release housekeeping | NOT STARTED | Version bump, CHANGELOG |
+| D4: SDK v0.12.0 release housekeeping | DONE | Version bump 0.11.0 → 0.12.0, CHANGELOG |
 
 ### Sprint 7 Summary: SDK API Completeness (COMPLETE)
 
@@ -44,7 +44,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 ## SDK Status
 
-- **Version**: 0.11.0
+- **Version**: 0.12.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
 - **Tests**: 1715 passing
 - **Exports**: 336 symbols via `web4/__init__.py`
@@ -87,11 +87,11 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+db26585 D2+D3: Submodule __all__ + mcp.py docstrings (#87)
+4b121b3 D1: Export completeness — 52 missing public symbols added (284 → 336) (#85)
+adf4882 C4: SDK v0.11.0 — Sprint 7 complete (4/4 tasks) (#84)
 0ab1cd2 C2: ATP core unit tests — 74 tests (#82)
 650518d C3: BirthCertificate field rename context → birth_context (#83)
-a8c7dd8 C1: Add missing from_jsonld() inverse functions — 14 tests (#81)
-f39252d Dictionary JSON-LD cross-language validation vectors — 50 vectors (#80)
-40190f1 B5: SDK v0.10.1 — Sprint 6 complete (6/6 tasks) (#79)
 ```
 
 ---
@@ -104,13 +104,12 @@ None.
 
 ## Pending Items
 
-- Sprint 8 IN PROGRESS (D1-D3 done, D4 remaining)
-- D1 export audit: 52 missing symbols now exported (336 total), 6 aliased to avoid collisions
-- D2 submodule __all__: all 19 submodules have __all__ (375 total symbols)
-- D3 mcp.py docstrings: 32 methods documented, 100% coverage (56/56 symbols)
+- Sprint 8 COMPLETE (D1-D4 all done), SDK v0.12.0 released
 - All 9 JSON-LD schemas have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
+- All 19 submodules have `__all__` declarations (375 symbols), 336 root exports
+- Next: Sprint 9 planning (all current sprint work complete)
 
 ---
 

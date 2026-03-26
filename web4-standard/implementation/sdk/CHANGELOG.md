@@ -2,6 +2,33 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.12.0] - 2026-03-26
+
+Sprint 8 completion: SDK Developer Experience — export completeness, submodule
+`__all__` declarations, and docstring coverage.
+
+### Added
+- **Export completeness** (D1) — 52 public symbols across 10 modules added to
+  `web4/__init__.py` that were previously accessible only via direct submodule
+  import: ATP core operations (5 functions), R7 exceptions + component classes
+  (13 symbols), ACP exceptions + guard (9 symbols), Federation serialization
+  helpers (12 functions), Dictionary types (4 classes), Trust utilities (3
+  symbols), LCT sub-types (4 aliases), Entity lookup (1 function), MRH helper
+  (1 function). 336 total exports, up from 284.
+- **Submodule `__all__` declarations** (D2) — All 19 SDK submodules now have
+  `__all__` lists (375 total symbols across submodules), enabling correct
+  `from web4.trust import *` behavior and IDE autocomplete for submodule
+  imports. 21 new consistency tests verify all entries resolve, no duplicates,
+  and root imports are covered.
+- **Docstring coverage for mcp.py** (D3) — All 32 previously undocumented
+  `to_dict()` and `from_dict()` methods in `web4.mcp` now have docstrings
+  describing serialized format and key behaviors. Module documentation
+  coverage: 13.5% → 100% (56/56 public symbols).
+
+### Changed
+- Version bumped from 0.11.0 to 0.12.0.
+- Sprint 8 complete (4/4 tasks: D1-D4 all DONE). 1715 tests passing.
+
 ## [0.11.0] - 2026-03-26
 
 Sprint 7 completion: SDK API completeness — missing `from_jsonld()` inverses,

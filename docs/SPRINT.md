@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-26 (Sprint 8 started)
+**Updated**: 2026-03-26 (Sprint 8 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -64,10 +64,14 @@ docstrings. Coverage went from 13.5% to 100% (56/56 public symbols documented).
 1715 tests passing, zero regressions.
 
 ### D4: SDK v0.12.0 release housekeeping
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-26
 **Depends on**: D1 (at minimum)
 **Scope**: Version bump 0.11.0 → 0.12.0, CHANGELOG.md entry documenting Sprint 8
 deliverables.
+**Result**: Version bumped in `__init__.py`, `pyproject.toml`, `setup.py`. CHANGELOG.md
+v0.12.0 section documents D1 (export completeness), D2 (submodule `__all__`), D3
+(mcp.py docstrings). Sprint 8 complete (4/4 tasks). 1715 tests passing.
 
 ---
 
