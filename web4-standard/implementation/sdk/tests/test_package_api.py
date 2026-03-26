@@ -20,7 +20,7 @@ class TestPackageVersion:
 class TestAllExports:
     def test_all_defined(self):
         assert hasattr(web4, "__all__")
-        assert len(web4.__all__) > 200
+        assert len(web4.__all__) >= 336
 
     def test_all_symbols_resolve(self):
         """Every name in __all__ must be importable from web4."""
@@ -297,6 +297,201 @@ class TestCollisionDisambiguation:
         from web4 import Society
         from web4.federation import Society as FedSociety
         assert Society is FedSociety
+
+
+class TestNewExportsD1:
+    """Verify all symbols added in Sprint 8 D1 (export completeness)."""
+
+    # ── Trust ──
+    def test_role_tensors(self):
+        from web4 import RoleTensors
+        assert RoleTensors is not None
+
+    def test_diminishing_returns(self):
+        from web4 import diminishing_returns
+        assert callable(diminishing_returns)
+
+    def test_trust_bridge(self):
+        from web4 import trust_bridge
+        assert callable(trust_bridge)
+
+    # ── LCT aliases ──
+    def test_lct_binding(self):
+        from web4 import LCTBinding
+        assert LCTBinding.__module__ == "web4.lct"
+
+    def test_lct_mrh(self):
+        from web4 import LCTMRH
+        assert LCTMRH.__module__ == "web4.lct"
+
+    def test_lct_mrh_pairing(self):
+        from web4 import LCTMRHPairing
+        assert LCTMRHPairing.__module__ == "web4.lct"
+
+    def test_lct_policy(self):
+        from web4 import LCTPolicy
+        assert LCTPolicy.__module__ == "web4.lct"
+
+    # ── ATP ──
+    def test_transfer(self):
+        from web4 import transfer, ATPAccount
+        src = ATPAccount(available=100)
+        dst = ATPAccount(available=0)
+        result = transfer(src, dst, 50)
+        assert result.actual_credit > 0
+
+    def test_sliding_scale(self):
+        from web4 import sliding_scale
+        assert callable(sliding_scale)
+
+    def test_check_conservation(self):
+        from web4 import check_conservation
+        assert callable(check_conservation)
+
+    def test_sybil_cost(self):
+        from web4 import sybil_cost
+        assert callable(sybil_cost)
+
+    def test_fee_sensitivity(self):
+        from web4 import fee_sensitivity
+        assert callable(fee_sensitivity)
+
+    # ── Federation serialization helpers ──
+    def test_norm_roundtrip(self):
+        from web4 import Norm, norm_to_dict, norm_from_dict
+        n = Norm(norm_id="n1", selector="*", op=">=", value=0.5, description="test")
+        d = norm_to_dict(n)
+        n2 = norm_from_dict(d)
+        assert n2.norm_id == "n1"
+
+    def test_procedure_roundtrip(self):
+        from web4 import Procedure, procedure_to_dict, procedure_from_dict
+        p = Procedure(procedure_id="p1", description="test")
+        d = procedure_to_dict(p)
+        p2 = procedure_from_dict(d)
+        assert p2.procedure_id == "p1"
+
+    def test_interpretation_roundtrip(self):
+        from web4 import Interpretation, interpretation_to_dict, interpretation_from_dict
+        i = Interpretation(interpretation_id="i1", replaces="n1", reason="test")
+        d = interpretation_to_dict(i)
+        i2 = interpretation_from_dict(d)
+        assert i2.interpretation_id == "i1"
+
+    def test_law_dataset_roundtrip(self):
+        from web4 import LawDataset, law_dataset_to_dict, law_dataset_from_dict
+        ld = LawDataset(law_id="l1", version="1.0", society_id="s1")
+        d = law_dataset_to_dict(ld)
+        ld2 = law_dataset_from_dict(d)
+        assert ld2.law_id == "l1"
+
+    def test_delegation_roundtrip(self):
+        from web4 import Delegation, delegation_to_dict, delegation_from_dict
+        dl = Delegation(delegation_id="d1", delegator="lct:a", delegate="lct:b",
+                        scope="read", permissions=["read"])
+        d = delegation_to_dict(dl)
+        dl2 = delegation_from_dict(d)
+        assert dl2.delegation_id == "d1"
+
+    def test_quorum_policy_roundtrip(self):
+        from web4 import QuorumPolicy, QuorumMode, quorum_policy_to_dict, quorum_policy_from_dict
+        qp = QuorumPolicy(mode=QuorumMode.MAJORITY)
+        d = quorum_policy_to_dict(qp)
+        qp2 = quorum_policy_from_dict(d)
+        assert qp2.mode == QuorumMode.MAJORITY
+
+    # ── R6/R7 errors and data classes ──
+    def test_r7_error(self):
+        from web4 import R7Error
+        assert issubclass(R7Error, Exception)
+
+    def test_r7_constraint(self):
+        from web4 import Constraint
+        assert Constraint is not None
+
+    def test_r7_contributing_factor(self):
+        from web4 import ContributingFactor
+        assert ContributingFactor is not None
+
+    def test_r7_precedent(self):
+        from web4 import Precedent
+        assert Precedent is not None
+
+    def test_r7_reference(self):
+        from web4 import Reference
+        assert Reference is not None
+
+    def test_r7_tensor_delta(self):
+        from web4 import TensorDelta
+        assert TensorDelta is not None
+
+    def test_r7_exception_types(self):
+        from web4 import (
+            ReferenceInvalid, ReputationComputationError,
+            RequestMalformed, ResourceInsufficient,
+            ResultInvalid, RoleUnauthorized, RuleViolation,
+        )
+        for exc_cls in [ReferenceInvalid, ReputationComputationError,
+                        RequestMalformed, ResourceInsufficient,
+                        ResultInvalid, RoleUnauthorized, RuleViolation]:
+            assert issubclass(exc_cls, Exception)
+
+    # ── MRH ──
+    def test_relation_category(self):
+        from web4 import relation_category
+        assert callable(relation_category)
+
+    # ── ACP exceptions ──
+    def test_acp_human_approval(self):
+        from web4 import HumanApproval
+        assert HumanApproval is not None
+
+    def test_acp_exceptions(self):
+        from web4 import (
+            ApprovalRequired, InvalidTransition, LedgerWriteFailure,
+            NoValidGrant, PlanExpired, ResourceCapExceeded,
+            ScopeViolation, WitnessDeficit,
+        )
+        for exc_cls in [ApprovalRequired, InvalidTransition, LedgerWriteFailure,
+                        NoValidGrant, PlanExpired, ResourceCapExceeded,
+                        ScopeViolation, WitnessDeficit]:
+            assert issubclass(exc_cls, Exception)
+
+    # ── Dictionary ──
+    def test_dictionary_ambiguity_handling(self):
+        from web4 import AmbiguityHandling
+        assert AmbiguityHandling is not None
+
+    def test_dictionary_chain_step(self):
+        from web4 import ChainStep
+        assert ChainStep is not None
+
+    def test_dictionary_evolution_config(self):
+        from web4 import EvolutionConfig
+        assert EvolutionConfig is not None
+
+    def test_dictionary_feedback_record(self):
+        from web4 import FeedbackRecord
+        assert FeedbackRecord is not None
+
+    # ── Entity ──
+    def test_get_info(self):
+        from web4 import get_info, EntityType
+        info = get_info(EntityType.HUMAN)
+        assert info is not None
+
+    # ── Collision disambiguation (new aliases) ──
+    def test_lct_binding_vs_binding_module(self):
+        """LCTBinding is from lct, not binding module."""
+        from web4 import LCTBinding, DeviceConstellation
+        assert LCTBinding.__module__ == "web4.lct"
+        assert DeviceConstellation.__module__ == "web4.binding"
+
+    def test_lct_mrh_vs_mrh_module(self):
+        """LCTMRH is from lct, not mrh module."""
+        from web4 import LCTMRH, MRHGraph
+        assert LCTMRH.__module__ == "web4.lct"
+        assert MRHGraph.__module__ == "web4.mrh"
 
 
 class TestPyTyped:

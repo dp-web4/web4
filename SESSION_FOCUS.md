@@ -10,6 +10,15 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
+### Sprint 8 Summary: SDK Developer Experience (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| D1: Export completeness | DONE | 52 new exports (284 → 336), 35 new tests |
+| D2: Submodule `__all__` declarations | NOT STARTED | Add `__all__` to all 19 submodules |
+| D3: Docstring coverage for mcp.py | NOT STARTED | 32 undocumented public functions |
+| D4: SDK v0.12.0 release housekeeping | NOT STARTED | Version bump, CHANGELOG |
+
 ### Sprint 7 Summary: SDK API Completeness (COMPLETE)
 
 | Task | Status | Notes |
@@ -37,8 +46,8 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 - **Version**: 0.11.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
-- **Tests**: 1659 passing
-- **Exports**: 284 symbols via `web4/__init__.py`
+- **Tests**: 1694 passing
+- **Exports**: 336 symbols via `web4/__init__.py`
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
 ---
@@ -95,8 +104,9 @@ None.
 
 ## Pending Items
 
-- Sprint 7 COMPLETE (4/4 tasks). Next: Sprint 8 planning.
-- All 9 JSON-LD schemas now have cross-language validation vectors (278 total)
+- Sprint 8 IN PROGRESS (D1 done, D2-D4 remaining)
+- D1 export audit: 52 missing symbols now exported (336 total), 6 aliased to avoid collisions
+- All 9 JSON-LD schemas have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 

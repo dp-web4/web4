@@ -50,9 +50,12 @@ from .trust import (
     TrustProfile,
     ActionOutcome,
     RoleRequirement,
+    RoleTensors,
     compute_team_t3,
     operational_health,
     is_healthy,
+    diminishing_returns,
+    trust_bridge,
     T3_JSONLD_CONTEXT,
     V3_JSONLD_CONTEXT,
 )
@@ -67,6 +70,11 @@ from .lct import (
     LineageEntry,
     LCT_JSONLD_CONTEXT,
 )
+# LCT sub-types (aliased to avoid collision with binding/mrh modules)
+from .lct import Binding as LCTBinding
+from .lct import MRH as LCTMRH
+from .lct import MRHPairing as LCTMRHPairing
+from .lct import Policy as LCTPolicy
 
 # ── ATP/ADP ────────────────────────────────────────────────────
 from .atp import (
@@ -74,6 +82,11 @@ from .atp import (
     TransferResult,
     ATP_JSONLD_CONTEXT,
     energy_ratio,
+    transfer,
+    sliding_scale,
+    check_conservation,
+    sybil_cost,
+    fee_sensitivity,
 )
 
 # ── Federation (SAL) ──────────────────────────────────────────
@@ -95,6 +108,18 @@ from .federation import (
     Procedure,
     Interpretation,
     merge_law,
+    norm_to_dict,
+    norm_from_dict,
+    procedure_to_dict,
+    procedure_from_dict,
+    interpretation_to_dict,
+    interpretation_from_dict,
+    law_dataset_to_dict,
+    law_dataset_from_dict,
+    delegation_to_dict,
+    delegation_from_dict,
+    quorum_policy_to_dict,
+    quorum_policy_from_dict,
 )
 
 # ── R7 Action Framework ───────────────────────────────────────
@@ -110,6 +135,19 @@ from .r6 import (
     Result,
     build_action,
     R7_JSONLD_CONTEXT,
+    R7Error,
+    Constraint,
+    ContributingFactor,
+    Precedent,
+    Reference,
+    TensorDelta,
+    ReferenceInvalid,
+    ReputationComputationError,
+    RequestMalformed,
+    ResourceInsufficient,
+    ResultInvalid,
+    RoleUnauthorized,
+    RuleViolation,
 )
 
 # ── MRH Graph ─────────────────────────────────────────────────
@@ -118,6 +156,7 @@ from .mrh import (
     MRHNode,
     MRHEdge,
     RelationType,
+    relation_category,
     mrh_trust_decay,
     mrh_zone,
     propagate_multiplicative,
@@ -145,6 +184,15 @@ from .acp import (
     TriggerKind,
     build_intent,
     validate_plan,
+    HumanApproval,
+    ApprovalRequired,
+    InvalidTransition,
+    LedgerWriteFailure,
+    NoValidGrant,
+    PlanExpired,
+    ResourceCapExceeded,
+    ScopeViolation,
+    WitnessDeficit,
 )
 
 # ── Dictionary Entities ───────────────────────────────────────
@@ -161,6 +209,10 @@ from .dictionary import (
     TranslationChain,
     dictionary_selection_score,
     select_best_dictionary,
+    AmbiguityHandling,
+    ChainStep,
+    EvolutionConfig,
+    FeedbackRecord,
 )
 
 # ── Reputation ─────────────────────────────────────────────────
@@ -191,6 +243,7 @@ from .entity import (
     entity_registry_to_jsonld,
     entity_registry_from_jsonld,
     entity_registry_from_jsonld_string,
+    get_info,
 )
 
 # ── Capability Levels ─────────────────────────────────────────
@@ -411,26 +464,39 @@ __all__ = [
     "__version__",
     # trust
     "T3", "V3", "TrustProfile", "ActionOutcome", "RoleRequirement",
-    "compute_team_t3", "operational_health", "is_healthy",
+    "RoleTensors", "compute_team_t3", "operational_health", "is_healthy",
+    "diminishing_returns", "trust_bridge",
     "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT",
     # lct
     "LCT", "EntityType", "RevocationStatus", "BirthCertificate",
     "Attestation", "LineageEntry", "LCT_JSONLD_CONTEXT",
+    "LCTBinding", "LCTMRH", "LCTMRHPairing", "LCTPolicy",
     # atp
     "ATPAccount", "TransferResult", "ATP_JSONLD_CONTEXT", "energy_ratio",
+    "transfer", "sliding_scale", "check_conservation", "sybil_cost", "fee_sensitivity",
     # federation
     "Society", "FederationSociety", "LawDataset", "Delegation", "RoleType",
     "CitizenshipStatus", "CitizenshipRecord", "valid_citizenship_transition",
     "QuorumMode", "QuorumPolicy", "LedgerType",
     "AuditRequest", "AuditAdjustment",
     "Norm", "Procedure", "Interpretation", "merge_law",
+    "norm_to_dict", "norm_from_dict",
+    "procedure_to_dict", "procedure_from_dict",
+    "interpretation_to_dict", "interpretation_from_dict",
+    "law_dataset_to_dict", "law_dataset_from_dict",
+    "delegation_to_dict", "delegation_from_dict",
+    "quorum_policy_to_dict", "quorum_policy_from_dict",
     # r6/r7
     "R7Action", "ActionChain", "ActionStatus", "ReputationDelta",
     "Rules", "Role", "Request", "ResourceRequirements", "Result",
     "build_action", "R7_JSONLD_CONTEXT",
+    "R7Error", "Constraint", "ContributingFactor", "Precedent",
+    "Reference", "TensorDelta",
+    "ReferenceInvalid", "ReputationComputationError", "RequestMalformed",
+    "ResourceInsufficient", "ResultInvalid", "RoleUnauthorized", "RuleViolation",
     # mrh
     "MRHGraph", "MRHNode", "MRHEdge", "RelationType",
-    "mrh_trust_decay", "mrh_zone",
+    "relation_category", "mrh_trust_decay", "mrh_zone",
     "propagate_multiplicative", "propagate_probabilistic", "propagate_maximal",
     # acp
     "ACP_JSONLD_CONTEXT", "ACPStateMachine", "ACPState", "ACPError",
@@ -438,12 +504,17 @@ __all__ = [
     "ProofOfAgency", "ExecutionRecord",
     "ApprovalMode", "ResourceCaps", "Guards", "Trigger", "TriggerKind",
     "build_intent", "validate_plan",
+    "HumanApproval",
+    "ApprovalRequired", "InvalidTransition", "LedgerWriteFailure",
+    "NoValidGrant", "PlanExpired", "ResourceCapExceeded",
+    "ScopeViolation", "WitnessDeficit",
     # dictionary
     "DICTIONARY_JSONLD_CONTEXT",
     "DictionaryEntity", "DictionarySpec", "DictionaryType", "DictionaryVersion",
     "CompressionProfile", "DomainCoverage",
     "TranslationRequest", "TranslationResult", "TranslationChain",
     "dictionary_selection_score", "select_best_dictionary",
+    "AmbiguityHandling", "ChainStep", "EvolutionConfig", "FeedbackRecord",
     # reputation
     "ReputationRule", "DimensionImpact", "Modifier",
     "ReputationEngine", "ReputationStore", "analyze_factors",
@@ -455,6 +526,7 @@ __all__ = [
     "valid_interaction", "all_entity_types",
     "entity_registry_to_jsonld", "entity_registry_from_jsonld",
     "entity_registry_from_jsonld_string",
+    "get_info",
     # capability
     "CapabilityLevel", "TrustTier", "ENTITY_LEVEL_RANGES", "LevelRequirement",
     "CAPABILITY_JSONLD_CONTEXT",
