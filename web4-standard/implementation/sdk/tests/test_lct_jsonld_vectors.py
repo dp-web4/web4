@@ -318,8 +318,8 @@ class TestLCTJsonLDFromDictCompat:
         lct = LCT.from_jsonld(doc)
         assert lct.lct_id == doc["lct_id"]
 
-    def test_from_jsonld_accepts_sdk_format(self):
-        """from_jsonld works with SDK internal format (no @context, uses 'context' not 'birth_context')."""
+    def test_from_jsonld_accepts_legacy_context_field(self):
+        """from_jsonld accepts legacy 'context' field name for backward compat."""
         lct = LCT.from_jsonld({
             "lct_id": "lct:test:compat",
             "subject": "did:test:compat",
@@ -332,10 +332,10 @@ class TestLCTJsonLDFromDictCompat:
                 "issuing_society": "lct:web4:society-genesis",
                 "citizen_role": "lct:web4:role:citizen:platform",
                 "birth_timestamp": "2026-01-01T00:00:00Z",
-                "context": "platform",  # SDK format uses "context"
+                "context": "platform",  # legacy format — still accepted
             },
         })
-        assert lct.birth_certificate.context == "platform"
+        assert lct.birth_certificate.birth_context == "platform"
 
 
 if __name__ == "__main__":

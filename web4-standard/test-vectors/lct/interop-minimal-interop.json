@@ -1,5 +1,5 @@
 {
-  "canonical_hash": "13209d8ca7b325b007125a65f78ba4db35f887ab40443b59bf86858225752b53",
+  "canonical_hash": "ee9db9e7f849d7852b61a6f55038d8f073dce7dd228011e7832150ef4c4f5448",
   "description": "Minimal LCT for cross-language interop",
   "expected_output": {
     "binding": {
@@ -16,7 +16,7 @@
         "lct:web4:witness-w3"
       ],
       "citizen_role": "lct:web4:role:citizen:ai",
-      "context": "platform",
+      "birth_context": "platform",
       "issuing_society": "lct:web4:society-genesis"
     },
     "lct_id": "lct:web4:ai:test0000deadbeef",

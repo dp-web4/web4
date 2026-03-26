@@ -166,7 +166,7 @@ def full_lct():
                 "lct:web4:witness:2",
                 "lct:web4:witness:3",
             ],
-            context="federation",
+            birth_context="federation",
         ),
     )
 
@@ -207,7 +207,7 @@ def hardware_lct():
                 "lct:web4:witness:2",
                 "lct:web4:witness:3",
             ],
-            context="infrastructure",
+            birth_context="infrastructure",
         ),
     )
 
@@ -509,7 +509,7 @@ class TestVectors:
                 citizen_role=bc_data["citizen_role"],
                 birth_timestamp=bc_data.get("birth_timestamp", "2026-01-01T00:00:00Z"),
                 birth_witnesses=bc_data.get("birth_witnesses", []),
-                context=bc_data.get("context", "platform"),
+                birth_context=bc_data.get("birth_context", bc_data.get("context", "platform")),
             )
 
         return LCT(

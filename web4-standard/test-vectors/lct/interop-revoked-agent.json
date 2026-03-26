@@ -1,5 +1,5 @@
 {
-  "canonical_hash": "630dd9508ca838574e1b521e4f64f42770e760de44ee482907737e853b2769eb",
+  "canonical_hash": "5cad1a24f2e52086d61500eb201ea1dc8a5f11adde7a17fadf7b3f1d5792a48a",
   "description": "Revoked AI agent LCT",
   "expected_output": {
     "binding": {
@@ -16,7 +16,7 @@
         "lct:web4:witness-w3"
       ],
       "citizen_role": "lct:web4:role:citizen:ai",
-      "context": "platform",
+      "birth_context": "platform",
       "issuing_society": "lct:web4:society-test"
     },
     "lct_id": "lct:web4:ai:revoked-agent-999",
