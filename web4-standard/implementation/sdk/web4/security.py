@@ -30,6 +30,19 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    # Classes
+    "CryptoSuiteId", "CryptoSuite", "EncodingProfile",
+    "W4IDError", "W4ID",
+    "KeyStorageLevel", "KeyPolicy",
+    "SignatureEnvelope", "VerifiableCredential",
+    # Functions
+    "get_suite", "negotiate_suite",
+    "parse_w4id", "derive_pairwise_w4id",
+    # Constants
+    "SUITE_BASE", "SUITE_FIPS", "SUITES", "KNOWN_METHODS",
+]
+
 
 # ── Crypto Suites ─────────────────────────────────────────────────
 

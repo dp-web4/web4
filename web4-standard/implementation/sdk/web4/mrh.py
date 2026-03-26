@@ -30,6 +30,15 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from .trust import T3, V3, mrh_trust_decay, mrh_zone
 
+__all__ = [
+    # Classes
+    "MRHGraph", "MRHNode", "MRHEdge", "RelationType",
+    # Functions
+    "relation_category",
+    "mrh_trust_decay", "mrh_zone",
+    "propagate_multiplicative", "propagate_probabilistic", "propagate_maximal",
+]
+
 
 # ── Relationship Types ──────────────────────────────────────────
 

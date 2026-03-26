@@ -32,6 +32,24 @@ from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from web4.attestation import AttestationEnvelope
 
+__all__ = [
+    # Classes
+    "AnchorType", "DeviceStatus", "HardwareAnchor",
+    "DeviceRecord", "DeviceConstellation",
+    # Functions
+    "witness_freshness", "default_recovery_quorum",
+    "attestation_anchor_type", "binding_anchor_type",
+    "enroll_device", "remove_device",
+    "coherence_bonus", "cross_witness_density",
+    "constellation_trust_ceiling", "compute_device_trust",
+    "compute_constellation_trust", "record_cross_witness",
+    "check_recovery_quorum", "can_recover",
+    # Constants
+    "ANCHOR_TRUST_WEIGHT", "ANCHOR_TYPE_TO_ATTESTATION",
+    "ATTESTATION_TO_ANCHOR_TYPE",
+    "CONSTELLATION_TRUST_CEILING", "WITNESS_DECAY_TABLE",
+]
+
 
 # ── Anchor Types (spec §2.2) ────────────────────────────────────
 

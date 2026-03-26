@@ -24,6 +24,22 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    # Classes
+    "CommunicationPattern", "TrustDimension", "MCPResourceType",
+    "ResourceRequirements", "TrustRequirements",
+    "MCPToolResource", "MCPPromptResource",
+    "ProofOfAgency",
+    "TrustContext", "Web4Context",
+    "WitnessedInteraction", "WitnessAttestation",
+    "MCPCapabilities", "CapabilityBroadcast",
+    "MCPAuthority", "MCPSession", "SessionHandoff",
+    "PricingModifiers", "MCPErrorContext",
+    # Functions
+    "calculate_mcp_cost",
+    "web4_context_to_json", "web4_context_from_json",
+]
+
 
 # ── Communication Patterns (spec §2.2) ──────────────────────────
 

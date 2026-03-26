@@ -41,12 +41,16 @@ with roundtrip validation for federation helpers and functional tests for ATP op
 1694 tests passing, zero regressions.
 
 ### D2: Submodule `__all__` declarations
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-26
 **Depends on**: D1
 **Scope**: Add `__all__` list to each of the 19 submodules (`trust.py`, `lct.py`, etc.)
 so that `from web4.trust import *` works correctly and IDEs can autocomplete submodule
 imports. Extract the symbol list from the corresponding `web4/__init__.py` import group
 plus any module-internal public symbols.
+**Result**: All 19 submodules now have `__all__` declarations (375 total symbols across
+submodules). 21 new tests in `test_package_api.py` verify consistency (all entries resolve,
+no duplicates, submodule count). 1715 tests passing, zero regressions.
 
 ### D3: Docstring coverage for mcp.py
 **Status**: NOT STARTED
