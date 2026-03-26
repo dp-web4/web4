@@ -53,11 +53,15 @@ submodules). 21 new tests in `test_package_api.py` verify consistency (all entri
 no duplicates, submodule count). 1715 tests passing, zero regressions.
 
 ### D3: Docstring coverage for mcp.py
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-26
 **Depends on**: None
 **Scope**: Add docstrings to the 32 undocumented public functions/methods in `web4/mcp.py`.
 This module has the worst documentation coverage (13.5%) in the SDK. Focus on class-level
 docstrings, constructor parameters, and return types.
+**Result**: All 32 previously undocumented `to_dict()` and `from_dict()` methods now have
+docstrings. Coverage went from 13.5% to 100% (56/56 public symbols documented).
+1715 tests passing, zero regressions.
 
 ### D4: SDK v0.12.0 release housekeeping
 **Status**: NOT STARTED

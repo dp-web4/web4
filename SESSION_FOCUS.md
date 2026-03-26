@@ -16,7 +16,7 @@
 |------|--------|-------|
 | D1: Export completeness | DONE | 52 new exports (284 → 336), 35 new tests |
 | D2: Submodule `__all__` declarations | DONE | All 19 submodules, 375 symbols, 21 new tests |
-| D3: Docstring coverage for mcp.py | NOT STARTED | 32 undocumented public functions |
+| D3: Docstring coverage for mcp.py | DONE | 32 methods documented, 100% coverage |
 | D4: SDK v0.12.0 release housekeeping | NOT STARTED | Version bump, CHANGELOG |
 
 ### Sprint 7 Summary: SDK API Completeness (COMPLETE)
@@ -104,9 +104,10 @@ None.
 
 ## Pending Items
 
-- Sprint 8 IN PROGRESS (D1-D2 done, D3-D4 remaining)
+- Sprint 8 IN PROGRESS (D1-D3 done, D4 remaining)
 - D1 export audit: 52 missing symbols now exported (336 total), 6 aliased to avoid collisions
 - D2 submodule __all__: all 19 submodules have __all__ (375 total symbols)
+- D3 mcp.py docstrings: 32 methods documented, 100% coverage (56/56 symbols)
 - All 9 JSON-LD schemas have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
