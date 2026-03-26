@@ -27,6 +27,20 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, FrozenSet, List, Optional, Tuple
 
+__all__ = [
+    # Classes
+    "MetabolicState", "Transition", "TrustEffect",
+    "MetabolicProfile", "ReliabilityFactors",
+    # Functions
+    "valid_transition", "reachable_states", "transition_trigger", "all_transitions",
+    "energy_cost", "wake_penalty", "metabolic_reliability",
+    "required_witnesses", "all_profiles",
+    "is_dormant", "accepts_transactions", "accepts_new_citizens",
+    # Constants
+    "ENERGY_MULTIPLIERS", "TRUST_EFFECTS", "WITNESS_REQUIREMENTS",
+    "DORMANT_STATES", "ACTIVE_STATES",
+]
+
 
 # ── Metabolic States (§2) ──────────────────────────────────────
 

@@ -32,6 +32,20 @@ from typing import Any, Dict, List, Optional
 from .lct import LCT, EntityType
 from .trust import T3, V3, _clamp
 
+__all__ = [
+    # Classes
+    "DictionaryEntity", "DictionarySpec", "DictionaryType", "DictionaryVersion",
+    "CompressionProfile", "DomainCoverage",
+    "TranslationRequest", "TranslationResult", "TranslationChain",
+    "AmbiguityHandling", "ChainStep", "EvolutionConfig", "FeedbackRecord",
+    # Functions
+    "dictionary_selection_score", "select_best_dictionary",
+    # Constants
+    "DICTIONARY_JSONLD_CONTEXT",
+    "SELECTION_WEIGHT_TRUST", "SELECTION_WEIGHT_COVERAGE",
+    "SELECTION_WEIGHT_RECENCY", "SELECTION_WEIGHT_COST",
+]
+
 
 # ── JSON-LD Context ──────────────────────────────────────────────
 

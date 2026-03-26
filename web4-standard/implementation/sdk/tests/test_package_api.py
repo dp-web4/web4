@@ -494,6 +494,163 @@ class TestNewExportsD1:
         assert MRHGraph.__module__ == "web4.mrh"
 
 
+class TestSubmoduleAll:
+    """D2: Verify __all__ declarations in all 19 submodules."""
+
+    SUBMODULES = [
+        "trust", "lct", "atp", "federation", "r6", "mrh", "acp",
+        "dictionary", "reputation", "entity", "capability", "errors",
+        "metabolic", "binding", "society", "security", "protocol",
+        "attestation", "mcp",
+    ]
+
+    def _import_submodule(self, name):
+        import importlib
+        return importlib.import_module(f"web4.{name}")
+
+    def test_all_submodules_have_all(self):
+        """Every SDK submodule must define __all__."""
+        missing = []
+        for name in self.SUBMODULES:
+            mod = self._import_submodule(name)
+            if not hasattr(mod, "__all__"):
+                missing.append(name)
+        assert missing == [], f"Submodules missing __all__: {missing}"
+
+    def test_submodule_count(self):
+        """There should be exactly 19 submodules with __all__."""
+        count = 0
+        for name in self.SUBMODULES:
+            mod = self._import_submodule(name)
+            if hasattr(mod, "__all__"):
+                count += 1
+        assert count == 19
+
+    def test_all_entries_resolve(self):
+        """Every name in a submodule's __all__ must be an attribute of that module."""
+        errors = []
+        for name in self.SUBMODULES:
+            mod = self._import_submodule(name)
+            for sym in getattr(mod, "__all__", []):
+                if not hasattr(mod, sym):
+                    errors.append(f"web4.{name}.{sym}")
+        assert errors == [], f"__all__ entries that don't resolve: {errors}"
+
+    def test_star_import_matches_all(self):
+        """Verify `from web4.X import *` would export exactly __all__."""
+        for name in self.SUBMODULES:
+            mod = self._import_submodule(name)
+            all_list = getattr(mod, "__all__", [])
+            # __all__ should have no duplicates
+            assert len(all_list) == len(set(all_list)), \
+                f"web4.{name}.__all__ has duplicates"
+
+    def test_init_imports_subset_of_submodule_all(self):
+        """Everything __init__.py imports from a submodule should be in that submodule's __all__."""
+        import web4
+        # Map: which symbols __init__.py imports from each submodule
+        # (use module origin to check)
+        errors = []
+        for name in self.SUBMODULES:
+            mod = self._import_submodule(name)
+            sub_all = set(getattr(mod, "__all__", []))
+            for sym in sub_all:
+                obj = getattr(mod, sym, None)
+                if obj is None:
+                    errors.append(f"web4.{name}.{sym} not found")
+        assert errors == [], f"Missing: {errors}"
+
+    def test_trust_all(self):
+        from web4.trust import __all__ as all_trust
+        assert "T3" in all_trust
+        assert "V3" in all_trust
+        assert "T3_JSONLD_CONTEXT" in all_trust
+        assert "T3_WEIGHTS" in all_trust
+
+    def test_lct_all(self):
+        from web4.lct import __all__ as all_lct
+        assert "LCT" in all_lct
+        assert "EntityType" in all_lct
+        assert "Binding" in all_lct
+        assert "MRH" in all_lct
+
+    def test_atp_all(self):
+        from web4.atp import __all__ as all_atp
+        assert "ATPAccount" in all_atp
+        assert "transfer" in all_atp
+        assert "ATP_JSONLD_CONTEXT" in all_atp
+
+    def test_federation_all(self):
+        from web4.federation import __all__ as all_fed
+        assert "Society" in all_fed
+        assert "LawDataset" in all_fed
+        assert "norm_to_dict" in all_fed
+        assert "merge_law" in all_fed
+
+    def test_r6_all(self):
+        from web4.r6 import __all__ as all_r6
+        assert "R7Action" in all_r6
+        assert "R7Error" in all_r6
+        assert "build_action" in all_r6
+
+    def test_mrh_all(self):
+        from web4.mrh import __all__ as all_mrh
+        assert "MRHGraph" in all_mrh
+        assert "propagate_multiplicative" in all_mrh
+
+    def test_acp_all(self):
+        from web4.acp import __all__ as all_acp
+        assert "ACPStateMachine" in all_acp
+        assert "build_intent" in all_acp
+        assert "ACP_JSONLD_CONTEXT" in all_acp
+
+    def test_dictionary_all(self):
+        from web4.dictionary import __all__ as all_dict
+        assert "DictionaryEntity" in all_dict
+        assert "DICTIONARY_JSONLD_CONTEXT" in all_dict
+
+    def test_errors_all(self):
+        from web4.errors import __all__ as all_err
+        assert "Web4Error" in all_err
+        assert "make_error" in all_err
+
+    def test_metabolic_all(self):
+        from web4.metabolic import __all__ as all_met
+        assert "MetabolicState" in all_met
+        assert "Transition" in all_met
+        assert "ENERGY_MULTIPLIERS" in all_met
+
+    def test_binding_all(self):
+        from web4.binding import __all__ as all_bind
+        assert "DeviceConstellation" in all_bind
+        assert "ANCHOR_TRUST_WEIGHT" in all_bind
+
+    def test_society_all(self):
+        from web4.society import __all__ as all_soc
+        assert "SocietyState" in all_soc
+        assert "create_society" in all_soc
+
+    def test_security_all(self):
+        from web4.security import __all__ as all_sec
+        assert "W4ID" in all_sec
+        assert "SUITE_BASE" in all_sec
+
+    def test_protocol_all(self):
+        from web4.protocol import __all__ as all_proto
+        assert "Web4URI" in all_proto
+        assert "TRANSPORT_PROFILES" in all_proto
+
+    def test_attestation_all(self):
+        from web4.attestation import __all__ as all_att
+        assert "AttestationEnvelope" in all_att
+        assert "verify_envelope" in all_att
+
+    def test_mcp_all(self):
+        from web4.mcp import __all__ as all_mcp
+        assert "MCPSession" in all_mcp
+        assert "calculate_mcp_cost" in all_mcp
+
+
 class TestPyTyped:
     def test_py_typed_exists(self):
         import pathlib

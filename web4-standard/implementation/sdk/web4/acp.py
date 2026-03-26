@@ -31,6 +31,22 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    # Classes
+    "ACPStateMachine", "ACPState", "ACPError",
+    "AgentPlan", "PlanStep", "Intent", "Decision", "DecisionType",
+    "ProofOfAgency", "ExecutionRecord",
+    "ApprovalMode", "ResourceCaps", "Guards", "Trigger", "TriggerKind",
+    # Exception classes
+    "HumanApproval", "ApprovalRequired", "InvalidTransition",
+    "LedgerWriteFailure", "NoValidGrant", "PlanExpired",
+    "ResourceCapExceeded", "ScopeViolation", "WitnessDeficit",
+    # Functions
+    "build_intent", "validate_plan",
+    # Constants
+    "ACP_JSONLD_CONTEXT",
+]
+
 
 # ── JSON-LD Context ──────────────────────────────────────────────
 

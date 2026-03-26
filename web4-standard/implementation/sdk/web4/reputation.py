@@ -32,6 +32,14 @@ from .r6 import (
 )
 from .trust import T3, V3, _clamp
 
+__all__ = [
+    # Classes
+    "ReputationRule", "DimensionImpact", "Modifier",
+    "ReputationEngine", "ReputationStore",
+    # Functions
+    "analyze_factors",
+]
+
 
 # ── Reputation Rule ──────────────────────────────────────────────
 

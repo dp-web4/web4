@@ -47,6 +47,19 @@ from web4.metabolic import (
 from web4.atp import ATPAccount
 from web4.trust import T3, TrustProfile, compute_team_t3, operational_health
 
+__all__ = [
+    # Classes
+    "SocietyPhase", "LedgerEventType",
+    "LedgerEntry", "SocietyLedger", "Treasury", "SocietyState",
+    # Functions
+    "create_society",
+    "admit_citizen", "suspend_citizen", "reinstate_citizen", "terminate_citizen",
+    "transition_metabolic_state",
+    "deposit_treasury", "allocate_treasury", "record_law_change",
+    "compute_society_t3", "society_energy_cost", "society_health",
+    "incorporate_child", "society_depth", "society_ancestry",
+]
+
 
 # ── Enums ─────────────────────────────────────────────────────────
 

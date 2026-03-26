@@ -25,6 +25,15 @@ from typing import Any, Dict, List, Optional
 
 from .trust import T3, V3
 
+__all__ = [
+    # Classes
+    "LCT", "EntityType", "RevocationStatus", "BirthCertificate",
+    "Attestation", "LineageEntry",
+    "Binding", "MRH", "MRHPairing", "Policy",
+    # Constants
+    "LCT_JSONLD_CONTEXT",
+]
+
 # JSON-LD context URI for spec-compliant LCT documents
 LCT_JSONLD_CONTEXT = "https://web4.io/contexts/lct.jsonld"
 

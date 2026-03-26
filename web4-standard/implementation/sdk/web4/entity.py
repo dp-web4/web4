@@ -24,6 +24,19 @@ from typing import Any, Dict, FrozenSet, List, Optional
 
 from .lct import EntityType
 
+__all__ = [
+    # Classes
+    "BehavioralMode", "EnergyPattern", "InteractionType", "EntityTypeInfo",
+    # Functions
+    "behavioral_modes", "energy_pattern",
+    "is_agentic", "can_initiate", "can_delegate", "can_process_r6",
+    "valid_interaction", "all_entity_types", "get_info",
+    "entity_registry_to_jsonld", "entity_registry_from_jsonld",
+    "entity_registry_from_jsonld_string",
+    # Constants
+    "ENTITY_JSONLD_CONTEXT",
+]
+
 
 # ── JSON-LD Context ──────────────────────────────────────────────
 
