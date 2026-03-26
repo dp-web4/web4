@@ -2,6 +2,39 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.11.0] - 2026-03-26
+
+Sprint 7 completion: SDK API completeness — missing `from_jsonld()` inverses,
+ATP core unit tests, and BirthCertificate field harmonization.
+
+### Added
+- **Missing `from_jsonld()` inverse functions** (C1) — 3 module-level
+  serialization functions that previously only had `to_jsonld()` now have
+  full round-trip support: `entity_registry_from_jsonld()` /
+  `entity_registry_from_jsonld_string()` in `web4.entity`,
+  `capability_assessment_from_jsonld()` /
+  `capability_assessment_from_jsonld_string()` in `web4.capability`,
+  `capability_framework_from_jsonld()` /
+  `capability_framework_from_jsonld_string()` in `web4.capability`.
+  New `CapabilityAssessment` dataclass. 7 new exports (284 total).
+  14 new tests with roundtrip validation.
+- **ATP core unit tests** (C2) — 74 tests in `test_atp.py` covering all 8
+  ATP public functions/classes: `ATPAccount` construction, `energy_ratio`,
+  `transfer`, `sliding_scale`, `recharge`, conservation invariants, edge
+  cases, and all 15 cross-language ATP test vectors. Previously only
+  JSON-LD serialization tests existed.
+- **Dictionary JSON-LD validation vectors** — 50 vectors (17 valid + 33
+  invalid) for the Dictionary JSON-LD schema, completing cross-language
+  coverage for all 9 schemas (278 total vectors).
+
+### Changed
+- **BirthCertificate field rename** (C3) — `BirthCertificate.context` renamed
+  to `BirthCertificate.birth_context` to align with LCT spec §2.3 and JSON-LD
+  output field naming. Breaking change for direct `.context` access; backward
+  compatible in `from_jsonld()` (accepts both field names). 9 files modified.
+- Version bumped from 0.10.1 to 0.11.0.
+- Sprint 7 complete (4/4 tasks: C1-C4 all DONE). 1659 tests passing.
+
 ## [0.10.1] - 2026-03-24
 
 Sprint 6 completion: JSON-LD context consolidation, namespace reconciliation,
