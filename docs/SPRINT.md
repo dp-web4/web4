@@ -1,9 +1,65 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-26 (Sprint 7 complete)
+**Updated**: 2026-03-26 (Sprint 8 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 8: SDK Developer Experience (2026-03-26)
+
+Sprints 1-7 built the full SDK (19 modules, 284 exports, 1659 tests, 278 cross-language
+validation vectors, 10 JSON-LD schemas with bidirectional roundtrip). An internal audit
+reveals developer experience gaps: 48 public symbols not exported from the package root,
+all 19 submodules missing `__all__` declarations, and several modules with incomplete
+docstring coverage. This sprint closes DX gaps to prepare the SDK for external consumers.
+
+### D1: Export completeness — missing public symbols
+**Status**: DONE
+**Completed**: 2026-03-26
+**Depends on**: None
+**Scope**: Add 52 public symbols across 10 modules to `web4/__init__.py` that were
+previously accessible only via direct submodule import:
+- ATP core operations: `transfer`, `sliding_scale`, `check_conservation`, `sybil_cost`,
+  `fee_sensitivity` (5 functions)
+- R7 exceptions + component classes: `R7Error` + 7 subclasses, `Constraint`, `Reference`,
+  `Precedent`, `TensorDelta`, `ContributingFactor` (13 symbols)
+- ACP exceptions + guard: `NoValidGrant`, `ScopeViolation`, `ApprovalRequired`,
+  `WitnessDeficit`, `PlanExpired`, `LedgerWriteFailure`, `InvalidTransition`,
+  `ResourceCapExceeded`, `HumanApproval` (9 symbols)
+- Federation serialization: 6 `_to_dict` + 6 `_from_dict` functions for Norm, Procedure,
+  Interpretation, LawDataset, Delegation, QuorumPolicy (12 functions)
+- Dictionary types: `AmbiguityHandling`, `ChainStep`, `EvolutionConfig`, `FeedbackRecord`
+  (4 classes)
+- Trust utilities: `RoleTensors`, `trust_bridge`, `diminishing_returns` (3 symbols)
+- LCT sub-types (aliased): `LCTBinding`, `LCTMRH`, `LCTMRHPairing`, `LCTPolicy` (4 aliases)
+- Entity lookup: `get_info` (1 function)
+- MRH helper: `relation_category` (1 function)
+**Result**: 52 new exports (284 → 336 total). 35 new tests in `test_package_api.py`
+with roundtrip validation for federation helpers and functional tests for ATP operations.
+1694 tests passing, zero regressions.
+
+### D2: Submodule `__all__` declarations
+**Status**: NOT STARTED
+**Depends on**: D1
+**Scope**: Add `__all__` list to each of the 19 submodules (`trust.py`, `lct.py`, etc.)
+so that `from web4.trust import *` works correctly and IDEs can autocomplete submodule
+imports. Extract the symbol list from the corresponding `web4/__init__.py` import group
+plus any module-internal public symbols.
+
+### D3: Docstring coverage for mcp.py
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Add docstrings to the 32 undocumented public functions/methods in `web4/mcp.py`.
+This module has the worst documentation coverage (13.5%) in the SDK. Focus on class-level
+docstrings, constructor parameters, and return types.
+
+### D4: SDK v0.12.0 release housekeeping
+**Status**: NOT STARTED
+**Depends on**: D1 (at minimum)
+**Scope**: Version bump 0.11.0 → 0.12.0, CHANGELOG.md entry documenting Sprint 8
+deliverables.
 
 ---
 
