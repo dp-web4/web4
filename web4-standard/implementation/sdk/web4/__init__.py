@@ -41,7 +41,7 @@ For module-specific imports (recommended for large applications)::
     from web4.security import W4ID, CryptoSuite
 """
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 # ── Trust (T3/V3) ──────────────────────────────────────────────
 from .trust import (
