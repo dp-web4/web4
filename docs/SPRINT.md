@@ -1,9 +1,52 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-24 (Sprint 6 complete)
+**Updated**: 2026-03-24 (Sprint 7 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 7: SDK API Completeness (2026-03-24)
+
+Sprints 3-6 delivered JSON-LD serialization for all 10 core types with schemas, context
+files, and 278 cross-language validation vectors. However, an API audit reveals asymmetries:
+3 module-level `to_jsonld()` functions lack `from_jsonld()` inverses (write-only export),
+the ATP module has no direct unit tests, and `BirthCertificate.context` diverges from the
+spec's `birth_context` field name. This sprint closes these API gaps before v0.11.0.
+
+### C1: Missing from_jsonld() inverse functions
+**Status**: IN PROGRESS
+**Depends on**: None
+**Scope**: Add `from_jsonld()` counterparts for the 3 module-level serialization functions
+that currently only have `to_jsonld()`:
+1. `entity_registry_from_jsonld(doc)` → `Dict[EntityType, EntityTypeInfo]` in `web4/entity.py`
+2. `capability_assessment_from_jsonld(doc)` → assessment dict in `web4/capability.py`
+3. `capability_framework_from_jsonld(doc)` → framework dict in `web4/capability.py`
+
+Schemas already specify the format (`entity-jsonld.schema.json`, `capability-jsonld.schema.json`).
+Export new functions from `web4/__init__.py`. Add roundtrip tests.
+
+### C2: ATP core unit tests
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Create `tests/test_atp.py` with direct unit tests for core ATP operations
+(transfer, sliding_scale, recharge, conservation invariants). Currently only JSON-LD
+serialization tests exist (`test_atp_jsonld.py`). Follow `test_acp.py` pattern.
+
+### C3: BirthCertificate field naming harmonization
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Rename `BirthCertificate.context` → `BirthCertificate.birth_context` to align
+with LCT spec §2.3 and JSON-LD output. The field currently uses `context` internally but
+serializes as `birth_context` — creating asymmetric round-trips. Breaking change requiring
+`from_jsonld()` backward compatibility (accept both field names).
+
+### C4: SDK v0.11.0 release housekeeping
+**Status**: NOT STARTED
+**Depends on**: C1 (at minimum)
+**Scope**: Version bump 0.10.1 → 0.11.0, CHANGELOG.md entry documenting Sprint 7
+deliverables.
 
 ---
 

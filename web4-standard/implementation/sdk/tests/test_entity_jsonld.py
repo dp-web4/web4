@@ -16,6 +16,8 @@ from web4.entity import (
     all_entity_types,
     get_info,
     entity_registry_to_jsonld,
+    entity_registry_from_jsonld,
+    entity_registry_from_jsonld_string,
 )
 from web4.lct import EntityType
 
@@ -177,3 +179,46 @@ class TestEntityRegistryJsonLd:
         s = json.dumps(doc, indent=2)
         parsed = json.loads(s)
         assert len(parsed["entity_types"]) == 15
+
+    def test_registry_roundtrip(self):
+        """entity_registry_to_jsonld() -> entity_registry_from_jsonld() preserves all entries."""
+        doc = entity_registry_to_jsonld()
+        restored = entity_registry_from_jsonld(doc)
+        assert len(restored) == 15
+        for et, info in restored.items():
+            original = get_info(et)
+            assert info == original
+
+    def test_registry_roundtrip_keys(self):
+        """Round-tripped registry has all 15 EntityType keys."""
+        doc = entity_registry_to_jsonld()
+        restored = entity_registry_from_jsonld(doc)
+        expected_types = {et for et in EntityType}
+        assert set(restored.keys()) == expected_types
+
+    def test_registry_string_roundtrip(self):
+        """entity_registry_to_jsonld() -> JSON string -> entity_registry_from_jsonld_string()."""
+        doc = entity_registry_to_jsonld()
+        s = json.dumps(doc)
+        restored = entity_registry_from_jsonld_string(s)
+        assert len(restored) == 15
+        for et, info in restored.items():
+            assert info == get_info(et)
+
+    def test_registry_roundtrip_preserves_modes(self):
+        """Round-trip preserves multi-mode entities (frozenset equality)."""
+        doc = entity_registry_to_jsonld()
+        restored = entity_registry_from_jsonld(doc)
+        # Device has {agentic, responsive}
+        assert restored[EntityType.DEVICE].modes == frozenset({
+            BehavioralMode.AGENTIC, BehavioralMode.RESPONSIVE
+        })
+        # Infrastructure has empty modes
+        assert restored[EntityType.INFRASTRUCTURE].modes == frozenset()
+
+    def test_registry_roundtrip_preserves_energy(self):
+        """Round-trip preserves energy patterns."""
+        doc = entity_registry_to_jsonld()
+        restored = entity_registry_from_jsonld(doc)
+        assert restored[EntityType.RESOURCE].energy == EnergyPattern.PASSIVE
+        assert restored[EntityType.HUMAN].energy == EnergyPattern.ACTIVE
