@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-24 (Sprint 7 started)
+**Updated**: 2026-03-26 (Sprint 7 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -16,7 +16,8 @@ the ATP module has no direct unit tests, and `BirthCertificate.context` diverges
 spec's `birth_context` field name. This sprint closes these API gaps before v0.11.0.
 
 ### C1: Missing from_jsonld() inverse functions
-**Status**: IN PROGRESS
+**Status**: DONE
+**Completed**: 2026-03-24
 **Depends on**: None
 **Scope**: Add `from_jsonld()` counterparts for the 3 module-level serialization functions
 that currently only have `to_jsonld()`:
@@ -26,27 +27,41 @@ that currently only have `to_jsonld()`:
 
 Schemas already specify the format (`entity-jsonld.schema.json`, `capability-jsonld.schema.json`).
 Export new functions from `web4/__init__.py`. Add roundtrip tests.
+**Result**: 3 `from_jsonld()` inverses plus 3 `from_jsonld_string()` convenience wrappers.
+New `CapabilityAssessment` dataclass. 7 new exports (284 total). 14 new tests with roundtrip
+validation. PR #81, merged.
 
 ### C2: ATP core unit tests
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-25
 **Depends on**: None
 **Scope**: Create `tests/test_atp.py` with direct unit tests for core ATP operations
 (transfer, sliding_scale, recharge, conservation invariants). Currently only JSON-LD
 serialization tests exist (`test_atp_jsonld.py`). Follow `test_acp.py` pattern.
+**Result**: 74 tests covering all 8 ATP public functions/classes. Validates all 15
+cross-language ATP test vectors. PR #82, merged.
 
 ### C3: BirthCertificate field naming harmonization
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-25
 **Depends on**: None
 **Scope**: Rename `BirthCertificate.context` → `BirthCertificate.birth_context` to align
 with LCT spec §2.3 and JSON-LD output. The field currently uses `context` internally but
 serializes as `birth_context` — creating asymmetric round-trips. Breaking change requiring
 `from_jsonld()` backward compatibility (accept both field names).
+**Result**: 9 files modified, 34-line symmetric diff. `from_jsonld()` retains backward
+compat (accepts both field names). 1571 tests passing, zero regressions. PR #83, merged.
 
 ### C4: SDK v0.11.0 release housekeeping
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-26
 **Depends on**: C1 (at minimum)
 **Scope**: Version bump 0.10.1 → 0.11.0, CHANGELOG.md entry documenting Sprint 7
 deliverables.
+**Result**: Version bumped in `__init__.py`, `pyproject.toml`, `setup.py`. CHANGELOG.md
+v0.11.0 section documents C1 (from_jsonld inverses), C2 (ATP unit tests), C3
+(BirthCertificate rename), Dictionary validation vectors. Sprint 7 complete (4/4 tasks).
+1659 tests passing.
 
 ---
 

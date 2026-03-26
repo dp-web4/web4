@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-03-24*
+*Last updated: 2026-03-26*
 
 ---
 
@@ -10,16 +10,18 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 6 Summary: JSON-LD Context Consolidation & SDK Quality
+### Sprint 7 Summary: SDK API Completeness (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
-| B1: SDK v0.10.0 release housekeeping | DONE | CHANGELOG + version bump for A3/A4 complete |
-| B2: Missing JSON-LD context files (LCT, AttestationEnvelope) | DONE | 2 .jsonld files, 26 consistency tests |
-| B3: Namespace and context URI reconciliation | DONE | All 10 context files now use ns/, decision documented |
-| B4: Schema-validated JSON-LD round-trip tests | DONE | 48 tests, 9 schemas, 19 @type values |
-| B5: SDK v0.10.1 release housekeeping | DONE | CHANGELOG + version bump, Sprint 6 complete |
-| B6: Dictionary JSON-LD serialization | DONE | 4 types, 14 tests, schema + context |
+| C1: Missing from_jsonld() inverse functions | DONE | 3 inverses + 3 string wrappers, CapabilityAssessment dataclass, 14 tests |
+| C2: ATP core unit tests | DONE | 74 tests covering all 8 ATP public functions/classes |
+| C3: BirthCertificate field rename | DONE | context → birth_context, backward compat in from_jsonld() |
+| C4: SDK v0.11.0 release housekeeping | DONE | Version bump, CHANGELOG, sprint closure |
+
+### Sprint 6 Summary: JSON-LD Context Consolidation & SDK Quality (COMPLETE)
+
+All tasks DONE: B1-B6 (context files, namespace reconciliation, round-trip tests, Dictionary JSON-LD, release housekeeping).
 
 ### Sprint 5 Summary: Core Type JSON-LD Phase 2 (COMPLETE)
 
@@ -33,10 +35,10 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 ## SDK Status
 
-- **Version**: 0.10.1
+- **Version**: 0.11.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
-- **Tests**: 1571 passing
-- **Exports**: 277 symbols via `web4/__init__.py`
+- **Tests**: 1659 passing
+- **Exports**: 284 symbols via `web4/__init__.py`
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
 ---
@@ -76,11 +78,11 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+0ab1cd2 C2: ATP core unit tests — 74 tests (#82)
+650518d C3: BirthCertificate field rename context → birth_context (#83)
+a8c7dd8 C1: Add missing from_jsonld() inverse functions — 14 tests (#81)
+f39252d Dictionary JSON-LD cross-language validation vectors — 50 vectors (#80)
 40190f1 B5: SDK v0.10.1 — Sprint 6 complete (6/6 tasks) (#79)
-74484de B4: Schema-validated JSON-LD round-trip tests — 48 tests (#78)
-936c2d9 B3: JSON-LD namespace and context URI reconciliation — 32 tests (#76)
-2fb27d1 B2: Missing JSON-LD context files for LCT and AttestationEnvelope — 26 tests (#74)
-dfc7151 B1+B6: SDK v0.10.0 — Dictionary JSON-LD + Sprint 6 planning (#72)
 ```
 
 ---
@@ -93,10 +95,11 @@ None.
 
 ## Pending Items
 
-- Sprint 6 COMPLETE (6/6 tasks). Next: Sprint 7 planning.
+- Sprint 7 COMPLETE (4/4 tasks). Next: Sprint 8 planning.
 - All 9 JSON-LD schemas now have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
+- All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 
 ---
 
-*Updated by autonomous session, 2026-03-24*
+*Updated by autonomous session, 2026-03-26*
