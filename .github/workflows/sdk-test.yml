@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'web4-standard/implementation/sdk/**'
+      - '.github/workflows/sdk-test.yml'
   pull_request:
     branches: [main]
     paths:
       - 'web4-standard/implementation/sdk/**'
+      - '.github/workflows/sdk-test.yml'
 
 jobs:
   test:
