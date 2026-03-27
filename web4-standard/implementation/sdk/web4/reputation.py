@@ -105,6 +105,7 @@ class ReputationRule:
         return True
 
     def to_dict(self) -> Dict:
+        """Serialize rule to dict with trigger conditions and T3/V3 impact definitions."""
         return {
             "rule_id": self.rule_id,
             "trigger_conditions": self.trigger_conditions,
@@ -185,10 +186,12 @@ class ReputationEngine:
         self._rules: List[ReputationRule] = []
 
     def add_rule(self, rule: ReputationRule) -> None:
+        """Register a reputation rule for evaluation."""
         self._rules.append(rule)
 
     @property
     def rules(self) -> List[ReputationRule]:
+        """Copy of all registered reputation rules."""
         return list(self._rules)
 
     def evaluate(

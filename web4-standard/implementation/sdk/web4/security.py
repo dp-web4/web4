@@ -75,6 +75,7 @@ class CryptoSuite:
     encoding: EncodingProfile
 
     def to_dict(self) -> Dict[str, str]:
+        """Serialize suite definition to dict with all algorithm identifiers."""
         return {
             "suite_id": self.suite_id.value,
             "kem": self.kem,
@@ -190,6 +191,7 @@ class W4ID:
         return self.method in KNOWN_METHODS
 
     def to_dict(self) -> Dict[str, str]:
+        """Serialize W4ID to dict with full DID string, method, and method-specific ID."""
         return {
             "did": self.did,
             "method": self.method,
@@ -273,6 +275,7 @@ class KeyPolicy:
         return self.storage_level in (KeyStorageLevel.HSM, KeyStorageLevel.SECURE_ENCLAVE)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize key policy to dict with storage level, rotation interval, and allowed suites."""
         return {
             "storage_level": self.storage_level.value,
             "rotation_days": self.rotation_days,
@@ -298,6 +301,7 @@ class SignatureEnvelope:
     timestamp: str = ""            # ISO 8601 timestamp
 
     def to_dict(self) -> Dict[str, str]:
+        """Serialize signature envelope to dict with payload hash, signature, and signer identity."""
         return {
             "payload_hash": self.payload_hash,
             "signature": self.signature,
@@ -334,6 +338,7 @@ class VerifiableCredential:
         return bool(self.expiration_date)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to W3C Verifiable Credential dict with @context, claims, and optional proof."""
         d: Dict[str, Any] = {
             "@context": ["https://www.w3.org/2018/credentials/v1"],
             "id": self.id,
