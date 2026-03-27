@@ -10,6 +10,15 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
+### Sprint 10 Summary: CI/CD & Packaging Quality (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| F1: GitHub Actions CI workflow | DONE | pytest across Python 3.10-3.13 matrix |
+| F2: Packaging metadata improvements | TODO | URLs, keywords, LICENSE, MANIFEST.in |
+| F3: Single-source version management | TODO | Eliminate 3-way version sync |
+| F4: SDK v0.14.0 release housekeeping | TODO | Version bump, CHANGELOG |
+
 ### Sprint 9 Summary: SDK Documentation Completeness (COMPLETE)
 
 | Task | Status | Notes |
@@ -120,7 +129,7 @@ None.
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 - All 19 submodules have `__all__` declarations (375 symbols), 336 root exports
 - All public methods have docstrings and return type annotations
-- Next: Sprint 10 planning (SDK is now fully self-documenting for external consumers)
+- Sprint 10 IN PROGRESS: CI/CD & Packaging Quality (F1 done, F2-F4 remaining)
 
 ---
 
