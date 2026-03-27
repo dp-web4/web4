@@ -15,7 +15,7 @@
 | Task | Status | Notes |
 |------|--------|-------|
 | F1: GitHub Actions CI workflow | DONE | pytest across Python 3.10-3.13 matrix |
-| F2: Packaging metadata improvements | TODO | URLs, keywords, LICENSE, MANIFEST.in |
+| F2: Packaging metadata improvements | DONE | URLs, keywords, LICENSE, MANIFEST.in |
 | F3: Single-source version management | TODO | Eliminate 3-way version sync |
 | F4: SDK v0.14.0 release housekeeping | TODO | Version bump, CHANGELOG |
 
