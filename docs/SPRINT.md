@@ -1,9 +1,52 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-26 (Sprint 8 complete)
+**Updated**: 2026-03-26 (Sprint 9 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 9: SDK Documentation Completeness (2026-03-26)
+
+Sprint 8 completed docstring coverage for mcp.py (the worst module at 13.5% → 100%). An
+SDK-wide audit reveals 6 more modules below 90% docstring coverage, totaling ~51 undocumented
+public methods. Additionally, 21 public methods across 5 modules lack return type annotations.
+This sprint closes remaining documentation gaps so the SDK is fully self-documenting for
+external consumers.
+
+### E1: Docstring coverage for r6.py, mrh.py, security.py
+**Status**: DONE
+**Completed**: 2026-03-26
+**Depends on**: None
+**Scope**: Add docstrings to all undocumented public methods in the three worst-documented
+modules: r6.py (19 methods at 69% coverage), mrh.py (7 methods at 72%), security.py
+(4 methods at 77%). Total: ~30 methods. Focus on `to_dict()` methods explaining serialization
+format, and property accessors explaining what they return.
+**Result**: 32 docstrings added across 3 modules. r6.py: 95.4% (62/65), mrh.py: 93.5%
+(29/31), security.py: 81.5% (22/27). Remaining undocumented are dunder/private methods
+(__init__, __post_init__, __eq__, __hash__, __str__, _generate_id). 1715 tests passing,
+zero regressions.
+
+### E2: Docstring coverage for reputation.py, protocol.py, acp.py
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Add docstrings to remaining undocumented public methods in reputation.py
+(3 methods at 81%), protocol.py (5 methods at 84%), acp.py (11 methods at 84%).
+Total: ~19 methods.
+
+### E3: Return type annotations for public methods
+**Status**: NOT STARTED
+**Depends on**: None
+**Scope**: Add return type annotations to 21 public methods across 5 modules (acp.py: 9,
+federation.py: 2, lct.py: 2, dictionary.py: 1, trust.py: 1) that currently lack them.
+Improves static analysis, IDE support, and mypy compatibility.
+
+### E4: SDK v0.13.0 release housekeeping
+**Status**: NOT STARTED
+**Depends on**: E1 (at minimum)
+**Scope**: Version bump 0.12.0 → 0.13.0, CHANGELOG.md entry documenting Sprint 9
+deliverables.
 
 ---
 

@@ -102,6 +102,7 @@ class MRHNode:
     metadata: Dict[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict:
+        """Serialize node to dict with camelCase keys for JSON-LD compatibility."""
         return {
             "lctId": self.lct_id,
             "entityType": self.entity_type,
@@ -128,9 +129,11 @@ class MRHEdge:
 
     @property
     def category(self) -> str:
+        """Relationship category: 'binding', 'pairing', or 'witness'."""
         return relation_category(self.relation)
 
     def as_dict(self) -> dict:
+        """Serialize edge to dict with source, target, relation type, weight, and category."""
         d = {
             "source": self.source,
             "target": self.target,
@@ -239,6 +242,7 @@ class MRHGraph:
         self._rev[edge.target].append((edge.source, idx))
 
     def get_node(self, lct_id: str) -> Optional[MRHNode]:
+        """Look up a node by LCT ID, or None if not in the graph."""
         return self._nodes.get(lct_id)
 
     def get_edges(
@@ -268,14 +272,17 @@ class MRHGraph:
 
     @property
     def node_count(self) -> int:
+        """Total number of nodes in the graph."""
         return len(self._nodes)
 
     @property
     def edge_count(self) -> int:
+        """Total number of edges in the graph."""
         return len(self._edges)
 
     @property
     def nodes(self) -> List[MRHNode]:
+        """List of all nodes in the graph."""
         return list(self._nodes.values())
 
     # ── Horizon Traversal ───────────────────────────────────────
@@ -491,6 +498,7 @@ class MRHGraph:
     # ── Serialization ───────────────────────────────────────────
 
     def as_dict(self) -> dict:
+        """Serialize entire graph to dict with nodes, edges, and counts."""
         return {
             "horizonDepth": self.horizon_depth,
             "nodes": [n.as_dict() for n in self._nodes.values()],

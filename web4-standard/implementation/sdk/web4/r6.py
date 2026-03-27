@@ -108,6 +108,7 @@ class Constraint:
     value: Any             # threshold or limit
 
     def to_dict(self) -> Dict:
+        """Serialize to dict with 'type' and 'value' keys."""
         return {"type": self.constraint_type, "value": self.value}
 
 
@@ -141,6 +142,7 @@ class Rules:
         return True
 
     def to_dict(self) -> Dict:
+        """Serialize rules to dict with constraints, permissions, and prohibitions."""
         return {
             "lawHash": self.law_hash,
             "society": self.society,
@@ -167,6 +169,7 @@ class Role:
     v3_in_role: Optional[V3] = None
 
     def to_dict(self) -> Dict:
+        """Serialize role to dict with actor, role LCT, and optional T3/V3 tensors."""
         d: Dict[str, Any] = {
             "actor": self.actor,
             "roleLCT": self.role_lct,
@@ -190,6 +193,7 @@ class ProofOfAgency:
     audience: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
+        """Serialize proof of agency to dict with grant ID and scope."""
         return {
             "grantId": self.grant_id,
             "inclusionProof": self.inclusion_proof,
@@ -214,6 +218,7 @@ class Request:
     proof_of_agency: Optional[ProofOfAgency] = None
 
     def to_dict(self) -> Dict:
+        """Serialize request to dict with action, target, ATP stake, and optional proof of agency."""
         d: Dict[str, Any] = {
             "action": self.action,
             "target": self.target,
@@ -238,6 +243,7 @@ class Precedent:
     relevance: float = 0.0
 
     def to_dict(self) -> Dict:
+        """Serialize precedent to dict with action hash, outcome, and relevance score."""
         return {"actionHash": self.action_hash, "outcome": self.outcome, "relevance": self.relevance}
 
 
@@ -250,6 +256,7 @@ class WitnessAttestation:
     timestamp: str = ""
 
     def to_dict(self) -> Dict:
+        """Serialize witness attestation to dict with LCT, attestation type, and signature."""
         return {
             "lct": self.lct,
             "attestation": self.attestation,
@@ -271,6 +278,7 @@ class Reference:
     witnesses: List[WitnessAttestation] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
+        """Serialize reference to dict with precedents, MRH context, and witnesses."""
         return {
             "precedents": [p.to_dict() for p in self.precedents],
             "mrhContext": {
@@ -294,9 +302,11 @@ class ResourceRequirements:
 
     @property
     def has_sufficient_atp(self) -> bool:
+        """True if available ATP meets or exceeds required ATP."""
         return self.available_atp >= self.required_atp
 
     def to_dict(self) -> Dict:
+        """Serialize resource requirements to dict with required/available ATP and optional escrow."""
         d: Dict[str, Any] = {
             "required": {"atp": self.required_atp},
             "available": {"atp_balance": self.available_atp},
@@ -329,6 +339,7 @@ class Result:
     attestations: List[WitnessAttestation] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
+        """Serialize result to dict with status, output, resource consumption, and attestations."""
         d: Dict[str, Any] = {
             "status": self.status.value,
             "resourceConsumed": {"atp": self.atp_consumed},
@@ -356,6 +367,7 @@ class TensorDelta:
     to_value: float
 
     def to_dict(self) -> Dict:
+        """Serialize tensor delta to dict with change magnitude and from/to values."""
         return {"change": self.change, "from": self.from_value, "to": self.to_value}
 
 
@@ -366,6 +378,7 @@ class ContributingFactor:
     weight: float
 
     def to_dict(self) -> Dict:
+        """Serialize contributing factor to dict with factor name and weight."""
         return {"factor": self.factor, "weight": self.weight}
 
 
@@ -402,6 +415,7 @@ class ReputationDelta:
         return sum(d.change for d in self.v3_delta.values())
 
     def to_dict(self) -> Dict:
+        """Serialize reputation delta to dict with T3/V3 deltas and net change totals."""
         d: Dict[str, Any] = {
             "subject_lct": self.subject_lct,
             "role_lct": self.role_lct,
@@ -579,6 +593,7 @@ class R7Action:
 
     @property
     def is_valid(self) -> bool:
+        """True if the action passes all structural validation checks."""
         return len(self.validate()) == 0
 
     # ── Reputation Computation ──────────────────────────────────
@@ -929,14 +944,17 @@ class ActionChain:
 
     @property
     def length(self) -> int:
+        """Number of actions in the chain."""
         return len(self._actions)
 
     @property
     def actions(self) -> List[R7Action]:
+        """Copy of all actions in chain order."""
         return list(self._actions)
 
     @property
     def head(self) -> Optional[R7Action]:
+        """Most recent action in the chain, or None if empty."""
         return self._actions[-1] if self._actions else None
 
     def verify_chain(self) -> bool:
@@ -950,6 +968,7 @@ class ActionChain:
         return True
 
     def to_dict(self) -> Dict:
+        """Serialize chain to dict with all actions and chain validity status."""
         return {
             "length": self.length,
             "actions": [a.to_dict() for a in self._actions],
