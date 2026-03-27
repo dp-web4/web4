@@ -1,9 +1,45 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-26 (Sprint 9 started)
+**Updated**: 2026-03-27 (Sprint 10 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 10: CI/CD & Packaging Quality (2026-03-27)
+
+Sprints 4-9 built a comprehensive SDK: 19 modules, 336 exports, 1715 tests, 278 cross-language
+validation vectors, full docstrings and type annotations. However, none of this is verified in
+CI — there are no GitHub Actions workflows. This sprint adds automated test verification and
+improves packaging metadata so the SDK is ready for external distribution.
+
+### F1: GitHub Actions CI workflow
+**Status**: DONE
+**Completed**: 2026-03-27
+**Depends on**: None
+**Scope**: Create `.github/workflows/sdk-test.yml` that runs the full pytest suite across
+Python 3.10-3.13 on push/PR to SDK paths. Zero external dependencies — only pytest needed.
+
+### F2: Packaging metadata improvements
+**Status**: TODO
+**Depends on**: None
+**Scope**: Add project URLs (homepage, repository, issues, changelog) to `pyproject.toml`.
+Add keywords for PyPI discoverability. Ensure `MANIFEST.in` includes README, CHANGELOG, and
+`py.typed` in sdist. Add LICENSE file to SDK directory.
+
+### F3: Single-source version management
+**Status**: TODO
+**Depends on**: None
+**Scope**: Version is currently hardcoded in 3 places (`pyproject.toml`, `setup.py`,
+`__init__.py`). Use `importlib.metadata` or a shared `_version.py` to eliminate sync risk.
+Remove redundant `setup.py` if `pyproject.toml` is sufficient.
+
+### F4: SDK v0.14.0 release housekeeping
+**Status**: TODO
+**Depends on**: F1 (at minimum)
+**Scope**: Version bump 0.13.0 → 0.14.0, CHANGELOG.md entry documenting Sprint 10
+deliverables.
 
 ---
 
