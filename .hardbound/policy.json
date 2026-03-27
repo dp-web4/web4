@@ -1,0 +1,19 @@
+{
+  "phase": "development",
+  "repo": "web4",
+  "circuit_breakers": {
+    "max_new_files_per_session": 10,
+    "max_new_tests_per_session": 100
+  },
+  "notes": {
+    "hardbound": "Sprint plan required",
+    "web4": "No standalone academic scripts",
+    "SAGE": "IRP-connected work only",
+    "Synchronism": "Tensions > validation",
+    "synchronism-site": "Fix friction, not features",
+    "4-life": "Visitor feedback drives work",
+    "4-lab": "Minimal changes",
+    "private-context": "Logging only, no constraints"
+  },
+  "initialized": "2026-03-14T00:21:03-07:00"
+}
