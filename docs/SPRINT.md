@@ -40,17 +40,24 @@ acp.py: 9). 2 of the original 11 acp.py symbols were inner functions (visit, dfs
 not public API. 1715 tests passing, zero regressions.
 
 ### E3: Return type annotations for public methods
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-27
 **Depends on**: None
-**Scope**: Add return type annotations to 21 public methods across 5 modules (acp.py: 9,
-federation.py: 2, lct.py: 2, dictionary.py: 1, trust.py: 1) that currently lack them.
+**Scope**: Add return type annotations to all public methods across 5 modules (acp.py,
+federation.py, lct.py, dictionary.py, trust.py) that currently lack them.
 Improves static analysis, IDE support, and mypy compatibility.
+**Result**: 33 `-> None` annotations added across 5 modules: acp.py (15), federation.py (8),
+dictionary.py (4), trust.py (4), lct.py (2). Covers public methods, `__init__`, and
+`__post_init__`. 1715 tests passing, zero regressions.
 
 ### E4: SDK v0.13.0 release housekeeping
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-27
 **Depends on**: E1 (at minimum)
 **Scope**: Version bump 0.12.0 → 0.13.0, CHANGELOG.md entry documenting Sprint 9
 deliverables.
+**Result**: Version bumped in __init__.py, pyproject.toml, setup.py. CHANGELOG.md
+documents E1-E4 deliverables. Sprint 9 complete (4/4 tasks).
 
 ---
 

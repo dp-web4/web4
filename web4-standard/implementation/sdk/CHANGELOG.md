@@ -2,6 +2,28 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.13.0] - 2026-03-27
+
+Sprint 9 completion: SDK Documentation Completeness — docstring coverage for all
+public methods and return type annotations across the entire SDK.
+
+### Added
+- **Docstring coverage for r6, mrh, security** (E1) — 32 docstrings across 3
+  modules: r6.py (19 methods, 69% → 95%), mrh.py (8 methods, 72% → 94%),
+  security.py (5 methods, 77% → 82%). All `to_dict()`, property accessors,
+  and public methods now documented.
+- **Docstring coverage for reputation, protocol, acp** (E2) — 17 docstrings
+  across 3 modules: reputation.py (3), protocol.py (5), acp.py (9). All 6
+  documentation-gap modules now above 80% coverage on public API.
+- **Return type annotations** (E3) — 33 `-> None` annotations added across 5
+  modules: acp.py (15), federation.py (8), dictionary.py (4), trust.py (4),
+  lct.py (2). All public methods, `__init__`, and `__post_init__` now have
+  return type annotations for mypy/IDE support.
+
+### Changed
+- Version bumped from 0.12.0 to 0.13.0.
+- Sprint 9 complete (4/4 tasks: E1-E4 all DONE). 1715 tests passing.
+
 ## [0.12.0] - 2026-03-26
 
 Sprint 8 completion: SDK Developer Experience — export completeness, submodule

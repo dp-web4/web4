@@ -256,7 +256,7 @@ class LCT:
         self.revocation_reason = reason
         return self
 
-    def add_pairing(self, target_lct_id: str, pairing_type: str, permanent: bool = False):
+    def add_pairing(self, target_lct_id: str, pairing_type: str, permanent: bool = False) -> None:
         """Add a pairing to the MRH."""
         ts = datetime.now(timezone.utc).isoformat()
         self.mrh.paired.append(
@@ -264,7 +264,7 @@ class LCT:
         )
         self.mrh.last_updated = ts
 
-    def add_witness(self, witness_lct_id: str):
+    def add_witness(self, witness_lct_id: str) -> None:
         """Record a witnessing relationship."""
         if witness_lct_id not in self.mrh.witnessing:
             self.mrh.witnessing.append(witness_lct_id)

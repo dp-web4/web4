@@ -218,7 +218,7 @@ class TranslationResult:
     witness_lct_ids: List[str] = field(default_factory=list)
     timestamp: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.confidence = _clamp(self.confidence)
         self.degradation = _clamp(self.degradation)
         if not self.timestamp:
@@ -404,7 +404,7 @@ class DictionaryVersion:
     changelog: str = ""
     corrections_applied: int = 0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -421,7 +421,7 @@ class FeedbackRecord:
     context: Dict = field(default_factory=dict)
     timestamp: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -645,7 +645,7 @@ class DictionaryEntity:
 
         return result
 
-    def apply_feedback(self, feedback: FeedbackRecord):
+    def apply_feedback(self, feedback: FeedbackRecord) -> None:
         """
         Apply feedback to update the dictionary's trust (spec §5.1).
 

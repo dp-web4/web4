@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-03-26*
+*Last updated: 2026-03-27*
 
 ---
 
@@ -10,14 +10,14 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 9 Summary: SDK Documentation Completeness (IN PROGRESS)
+### Sprint 9 Summary: SDK Documentation Completeness (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
 | E1: Docstring coverage (r6, mrh, security) | DONE | 32 docstrings across 3 modules, PR #89 |
-| E2: Docstring coverage (reputation, protocol, acp) | NOT STARTED | ~19 methods |
-| E3: Return type annotations | NOT STARTED | 21 methods across 5 modules |
-| E4: SDK v0.13.0 release housekeeping | NOT STARTED | Version bump + CHANGELOG |
+| E2: Docstring coverage (reputation, protocol, acp) | DONE | 17 docstrings across 3 modules, PR #89 |
+| E3: Return type annotations | DONE | 33 annotations across 5 modules |
+| E4: SDK v0.13.0 release housekeeping | DONE | Version bump 0.12.0 → 0.13.0, CHANGELOG |
 
 ### Sprint 8 Summary: SDK Developer Experience (COMPLETE)
 
@@ -53,7 +53,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 ## SDK Status
 
-- **Version**: 0.12.0
+- **Version**: 0.13.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
 - **Tests**: 1715 passing
 - **Exports**: 336 symbols via `web4/__init__.py`
@@ -96,11 +96,11 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+6b27d1f E1+E2: Docstring coverage for 6 SDK modules — 49 methods documented (#89)
 db26585 D2+D3: Submodule __all__ + mcp.py docstrings (#87)
 4b121b3 D1: Export completeness — 52 missing public symbols added (284 → 336) (#85)
 adf4882 C4: SDK v0.11.0 — Sprint 7 complete (4/4 tasks) (#84)
 0ab1cd2 C2: ATP core unit tests — 74 tests (#82)
-650518d C3: BirthCertificate field rename context → birth_context (#83)
 ```
 
 ---
@@ -113,14 +113,15 @@ None.
 
 ## Pending Items
 
-- Sprint 9 IN PROGRESS (E1 done, E2-E4 remaining)
+- Sprint 9 COMPLETE (E1-E4 all done), SDK v0.13.0 released
 - Sprint 8 COMPLETE (D1-D4 all done), SDK v0.12.0 released
 - All 9 JSON-LD schemas have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 - All 19 submodules have `__all__` declarations (375 symbols), 336 root exports
-- Next: E2 (docstrings for reputation.py, protocol.py, acp.py)
+- All public methods have docstrings and return type annotations
+- Next: Sprint 10 planning (SDK is now fully self-documenting for external consumers)
 
 ---
 
-*Updated by autonomous session, 2026-03-26*
+*Updated by autonomous session, 2026-03-27*

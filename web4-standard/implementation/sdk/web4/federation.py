@@ -111,7 +111,7 @@ class CitizenshipRecord:
     suspended_at: Optional[str] = None
     terminated_at: Optional[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.granted_at:
             self.granted_at = datetime.now(timezone.utc).isoformat()
 
@@ -200,7 +200,7 @@ class AuditRequest:
     proposed_v3_deltas: Dict[str, float] = field(default_factory=dict)
     timestamp: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -221,7 +221,7 @@ class AuditAdjustment:
     appeal_path: Optional[str] = None
     timestamp: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -311,7 +311,7 @@ class LawDataset:
     interpretations: List[Interpretation] = field(default_factory=list)
     timestamp: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -400,11 +400,11 @@ class Delegation:
     expires_at: Optional[str] = None
     max_depth: int = 1      # how many levels of sub-delegation allowed
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.created_at:
             self.created_at = datetime.now(timezone.utc).isoformat()
 
-    def revoke(self):
+    def revoke(self) -> None:
         """Revoke this delegation."""
         self.active = False
 
@@ -463,7 +463,7 @@ class Society:
         parent: Optional[Society] = None,
         quorum_policy: Optional[QuorumPolicy] = None,
         ledger_type: LedgerType = LedgerType.CONFINED,
-    ):
+    ) -> None:
         self.society_id = society_id
         self.name = name
         self.parent = parent
@@ -488,7 +488,7 @@ class Society:
         if parent:
             parent.children.append(self)
 
-    def set_law(self, law: LawDataset):
+    def set_law(self, law: LawDataset) -> None:
         """Publish a new law dataset for this society."""
         self.law = law
 
