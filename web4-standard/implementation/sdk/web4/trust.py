@@ -113,7 +113,7 @@ class T3:
     training: float = 0.5
     temperament: float = 0.5
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.talent = _clamp(self.talent)
         self.training = _clamp(self.training)
         self.temperament = _clamp(self.temperament)
@@ -232,7 +232,7 @@ class V3:
     veracity: float = 0.5
     validity: float = 0.5
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.valuation = _clamp(self.valuation)
         self.veracity = _clamp(self.veracity)
         self.validity = _clamp(self.validity)
@@ -354,11 +354,11 @@ class TrustProfile:
         score = profile.get_t3("web4:DataAnalyst").composite
     """
 
-    def __init__(self, entity_id: str):
+    def __init__(self, entity_id: str) -> None:
         self.entity_id = entity_id
         self._roles: Dict[str, RoleTensors] = {}
 
-    def set_role(self, role: str, t3: Optional[T3] = None, v3: Optional[V3] = None):
+    def set_role(self, role: str, t3: Optional[T3] = None, v3: Optional[V3] = None) -> None:
         """Set tensors for a role."""
         rt = self._roles.get(role, RoleTensors(role=role))
         if t3 is not None:

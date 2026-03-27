@@ -278,7 +278,7 @@ class AgentPlan:
     guards: Guards = field(default_factory=Guards)
     created_at: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.created_at:
             self.created_at = datetime.now(timezone.utc).isoformat()
 
@@ -290,7 +290,7 @@ class AgentPlan:
 
         step_map = {s.step_id: s for s in self.steps}
 
-        def visit(step_id: str):
+        def visit(step_id: str) -> None:
             if step_id in visited:
                 return
             visited.add(step_id)
@@ -490,7 +490,7 @@ class ProofOfAgency:
     audience: List[str] = field(default_factory=list)
     expires_at: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.nonce:
             object.__setattr__(self, "nonce", uuid.uuid4().hex[:16])
 
@@ -516,7 +516,7 @@ class Intent:
     needs_approval: bool = False
     created_at: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.created_at:
             self.created_at = datetime.now(timezone.utc).isoformat()
 
@@ -629,7 +629,7 @@ class Decision:
     witnesses: List[str] = field(default_factory=list)
     timestamp: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -729,7 +729,7 @@ class ExecutionRecord:
     witnesses: List[str] = field(default_factory=list)
     timestamp: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -846,7 +846,7 @@ class ACPStateMachine:
     Maintains an audit trail of all transitions.
     """
 
-    def __init__(self, plan: AgentPlan):
+    def __init__(self, plan: AgentPlan) -> None:
         self.plan = plan
         self.state = ACPState.IDLE
         self.intent: Optional[Intent] = None
@@ -878,7 +878,7 @@ class ACPStateMachine:
         """Copy of the state transition history log."""
         return list(self._history)
 
-    def start_planning(self):
+    def start_planning(self) -> None:
         """Trigger fires → begin planning."""
         if self.plan.guards.is_expired():
             self._transition(ACPState.PLANNING, "trigger fired")
@@ -886,7 +886,7 @@ class ACPStateMachine:
             raise PlanExpired(f"Plan {self.plan.plan_id} has expired")
         self._transition(ACPState.PLANNING, "trigger fired")
 
-    def create_intent(self, intent: Intent):
+    def create_intent(self, intent: Intent) -> None:
         """Plan evaluated → intent created."""
         # Validate resource caps
         atp_requested = intent.proposed_action.get("args", {}).get("atp", 0)
@@ -899,14 +899,14 @@ class ACPStateMachine:
         self.intent = intent
         self._transition(ACPState.INTENT_CREATED, f"intent {intent.intent_id}")
 
-    def enter_approval_gate(self):
+    def enter_approval_gate(self) -> None:
         """Law check passes → approval gate."""
         if self.intent is None:
             self.fail("No intent to approve")
             raise InvalidTransition("No intent created")
         self._transition(ACPState.APPROVAL_GATE, "law check passed")
 
-    def approve(self, decision: Decision):
+    def approve(self, decision: Decision) -> None:
         """Decision made at approval gate."""
         self.decision = decision
         if decision.denied:
@@ -918,23 +918,23 @@ class ACPStateMachine:
                 self.intent.proposed_action.update(decision.modifications)
         self._transition(ACPState.EXECUTING, f"approved by {decision.decided_by}")
 
-    def record_execution(self, record: ExecutionRecord):
+    def record_execution(self, record: ExecutionRecord) -> None:
         """Execution complete → record result."""
         self.record = record
         self._transition(ACPState.RECORDING, f"record {record.record_id}")
 
-    def complete(self):
+    def complete(self) -> None:
         """Recording done → complete."""
         self._transition(ACPState.COMPLETE, "execution recorded and witnessed")
 
-    def fail(self, reason: str):
+    def fail(self, reason: str) -> None:
         """Transition to failed state from any active state."""
         self.error = reason
         if ACPState.FAILED in VALID_TRANSITIONS.get(self.state, []):
             self._log_transition(ACPState.FAILED, reason)
             self.state = ACPState.FAILED
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset to idle for re-execution."""
         if self.state in (ACPState.COMPLETE, ACPState.FAILED):
             self._transition(ACPState.IDLE, "reset")
