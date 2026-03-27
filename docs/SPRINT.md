@@ -22,11 +22,15 @@ improves packaging metadata so the SDK is ready for external distribution.
 Python 3.10-3.13 on push/PR to SDK paths. Zero external dependencies — only pytest needed.
 
 ### F2: Packaging metadata improvements
-**Status**: TODO
+**Status**: DONE
+**Completed**: 2026-03-27
 **Depends on**: None
 **Scope**: Add project URLs (homepage, repository, issues, changelog) to `pyproject.toml`.
 Add keywords for PyPI discoverability. Ensure `MANIFEST.in` includes README, CHANGELOG, and
 `py.typed` in sdist. Add LICENSE file to SDK directory.
+**Result**: Added `[project.urls]` (Homepage, Repository, Issues, Changelog), 10 keywords,
+`MANIFEST.in` (LICENSE, README.md, CHANGELOG.md, py.typed), MIT LICENSE file. 1715 tests
+passing, zero regressions.
 
 ### F3: Single-source version management
 **Status**: TODO
