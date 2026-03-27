@@ -10,6 +10,18 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [{name = "Web4 Infrastructure Team"}]
+keywords = [
+    "web4",
+    "trust",
+    "identity",
+    "federation",
+    "linked-context-token",
+    "rdf",
+    "semantic-web",
+    "decentralized",
+    "attestation",
+    "agentic",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -22,6 +34,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
+
+[project.urls]
+Homepage = "https://github.com/dp-web4/web4"
+Repository = "https://github.com/dp-web4/web4"
+Issues = "https://github.com/dp-web4/web4/issues"
+Changelog = "https://github.com/dp-web4/web4/blob/main/web4-standard/implementation/sdk/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "mypy>=1.0"]
