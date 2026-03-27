@@ -10,6 +10,15 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
+### Sprint 9 Summary: SDK Documentation Completeness (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| E1: Docstring coverage (r6, mrh, security) | DONE | 32 docstrings across 3 modules, PR #89 |
+| E2: Docstring coverage (reputation, protocol, acp) | NOT STARTED | ~19 methods |
+| E3: Return type annotations | NOT STARTED | 21 methods across 5 modules |
+| E4: SDK v0.13.0 release housekeeping | NOT STARTED | Version bump + CHANGELOG |
+
 ### Sprint 8 Summary: SDK Developer Experience (COMPLETE)
 
 | Task | Status | Notes |
@@ -104,12 +113,13 @@ None.
 
 ## Pending Items
 
+- Sprint 9 IN PROGRESS (E1 done, E2-E4 remaining)
 - Sprint 8 COMPLETE (D1-D4 all done), SDK v0.12.0 released
 - All 9 JSON-LD schemas have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 - All 19 submodules have `__all__` declarations (375 symbols), 336 root exports
-- Next: Sprint 9 planning (all current sprint work complete)
+- Next: E2 (docstrings for reputation.py, protocol.py, acp.py)
 
 ---
 
