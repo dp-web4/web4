@@ -81,6 +81,7 @@ class ClientHello:
 
     @property
     def phase(self) -> HandshakePhase:
+        """Handshake phase identifier for this message."""
         return HandshakePhase.CLIENT_HELLO
 
 
@@ -107,6 +108,7 @@ class ServerHello:
 
     @property
     def phase(self) -> HandshakePhase:
+        """Handshake phase identifier for this message."""
         return HandshakePhase.SERVER_HELLO
 
 
@@ -126,6 +128,7 @@ class ClientFinished:
 
     @property
     def phase(self) -> HandshakePhase:
+        """Handshake phase identifier for this message."""
         return HandshakePhase.CLIENT_FINISHED
 
 
@@ -148,6 +151,7 @@ class ServerFinished:
 
     @property
     def phase(self) -> HandshakePhase:
+        """Handshake phase identifier for this message."""
         return HandshakePhase.SERVER_FINISHED
 
 
@@ -186,6 +190,7 @@ class TransportProfile:
 
     @property
     def full_metering(self) -> bool:
+        """True if this transport supports full ATP metering (not limited)."""
         return not self.limited_metering
 
 

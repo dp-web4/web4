@@ -29,11 +29,15 @@ format, and property accessors explaining what they return.
 zero regressions.
 
 ### E2: Docstring coverage for reputation.py, protocol.py, acp.py
-**Status**: NOT STARTED
+**Status**: DONE
+**Completed**: 2026-03-26
 **Depends on**: None
 **Scope**: Add docstrings to remaining undocumented public methods in reputation.py
 (3 methods at 81%), protocol.py (5 methods at 84%), acp.py (11 methods at 84%).
 Total: ~19 methods.
+**Result**: 17 docstrings added across 3 modules (reputation.py: 3, protocol.py: 5,
+acp.py: 9). 2 of the original 11 acp.py symbols were inner functions (visit, dfs) —
+not public API. 1715 tests passing, zero regressions.
 
 ### E3: Return type annotations for public methods
 **Status**: NOT STARTED

@@ -246,6 +246,7 @@ class PlanStep:
     requires_approval: str = ""         # Condition string, e.g. "if_amount > 10"
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize plan step to dict with MCP tool reference and dependencies."""
         d: Dict[str, Any] = {
             "id": self.step_id,
             "mcp": self.mcp_tool,
@@ -327,6 +328,7 @@ class AgentPlan:
         return hashlib.sha256(canonical.encode()).hexdigest()
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize agent plan to dict with triggers, steps, guards, and principal-agent binding."""
         return {
             "type": "ACP.AgentPlan",
             "planId": self.plan_id,
@@ -519,6 +521,7 @@ class Intent:
             self.created_at = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize intent to dict with proposed action, proof of agency, and risk assessment."""
         return {
             "type": "ACP.Intent",
             "intentId": self.intent_id,
@@ -632,13 +635,16 @@ class Decision:
 
     @property
     def approved(self) -> bool:
+        """True if the decision approves the intent."""
         return self.decision == DecisionType.APPROVE
 
     @property
     def denied(self) -> bool:
+        """True if the decision denies the intent."""
         return self.decision == DecisionType.DENY
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize decision to dict with decision type, rationale, and optional modifications."""
         d: Dict[str, Any] = {
             "type": "ACP.Decision",
             "intentId": self.intent_id,
@@ -729,6 +735,7 @@ class ExecutionRecord:
 
     @property
     def success(self) -> bool:
+        """True if execution completed successfully."""
         return self.result_status == "success"
 
     def canonical_hash(self) -> str:
@@ -745,6 +752,7 @@ class ExecutionRecord:
         return hashlib.sha256(canonical.encode()).hexdigest()
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize execution record to dict with MCP call, result, and T3/V3 deltas."""
         return {
             "type": "ACP.ExecutionRecord",
             "recordId": self.record_id,
@@ -867,6 +875,7 @@ class ACPStateMachine:
 
     @property
     def history(self) -> List[Dict[str, Any]]:
+        """Copy of the state transition history log."""
         return list(self._history)
 
     def start_planning(self):
