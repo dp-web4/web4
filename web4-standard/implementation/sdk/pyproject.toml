@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "web4"
-version = "0.13.0"
+version = "0.14.0"
 description = "Web4 SDK — trust tensors, LCTs, ATP/ADP, federation (SAL), R7 actions, MRH, ACP, security, protocol types"
 readme = "README.md"
 requires-python = ">=3.10"

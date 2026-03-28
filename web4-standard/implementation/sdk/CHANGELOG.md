@@ -2,6 +2,28 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.14.0] - 2026-03-28
+
+Sprint 10 completion: CI/CD & Packaging Quality — automated test verification,
+packaging metadata improvements, and single-source version management.
+
+### Added
+- **GitHub Actions CI workflow** (F1) — `.github/workflows/sdk-test.yml` runs
+  full pytest suite across Python 3.10-3.13 matrix on push/PR to SDK paths.
+  Zero external dependencies beyond pytest.
+- **Packaging metadata improvements** (F2) — `[project.urls]` with Homepage,
+  Repository, Issues, Changelog links. 10 PyPI keywords. `MANIFEST.in` for
+  sdist inclusion of LICENSE, README.md, CHANGELOG.md, py.typed. MIT LICENSE
+  file added to SDK directory.
+- **Single-source version management** (F3) — `pyproject.toml` is now the
+  single source of truth for version. `__init__.py` reads version via
+  `importlib.metadata.version("web4")` with fallback. Redundant `setup.py`
+  removed — `pyproject.toml` with setuptools ≥64 is sufficient.
+
+### Changed
+- Version bumped from 0.13.0 to 0.14.0.
+- Sprint 10 complete (4/4 tasks: F1-F4 all DONE). 1715 tests passing.
+
 ## [0.13.0] - 2026-03-27
 
 Sprint 9 completion: SDK Documentation Completeness — docstring coverage for all
