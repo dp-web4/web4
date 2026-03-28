@@ -44,10 +44,14 @@ via `importlib.metadata.version("web4")` with fallback. Redundant `setup.py` rem
 `pyproject.toml` with setuptools ≥64 is sufficient. 1715 tests passing, zero regressions.
 
 ### F4: SDK v0.14.0 release housekeeping
-**Status**: TODO
+**Status**: DONE
+**Completed**: 2026-03-28
 **Depends on**: F1 (at minimum)
 **Scope**: Version bump 0.13.0 → 0.14.0, CHANGELOG.md entry documenting Sprint 10
 deliverables.
+**Result**: Version bumped in `pyproject.toml`. CHANGELOG.md entry documents all Sprint 10
+deliverables (F1-F3: CI workflow, packaging metadata, single-source version management).
+Sprint 10 complete (4/4 tasks). 1715 tests passing.
 
 ---
 

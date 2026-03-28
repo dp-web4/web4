@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-03-27*
+*Last updated: 2026-03-28*
 
 ---
 
@@ -10,14 +10,14 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 10 Summary: CI/CD & Packaging Quality (IN PROGRESS)
+### Sprint 10 Summary: CI/CD & Packaging Quality (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
 | F1: GitHub Actions CI workflow | DONE | pytest across Python 3.10-3.13 matrix |
 | F2: Packaging metadata improvements | DONE | URLs, keywords, LICENSE, MANIFEST.in |
 | F3: Single-source version management | DONE | importlib.metadata, removed setup.py |
-| F4: SDK v0.14.0 release housekeeping | TODO | Version bump, CHANGELOG |
+| F4: SDK v0.14.0 release housekeeping | DONE | Version bump 0.13.0 → 0.14.0, CHANGELOG |
 
 ### Sprint 9 Summary: SDK Documentation Completeness (COMPLETE)
 
@@ -62,7 +62,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 ## SDK Status
 
-- **Version**: 0.13.0
+- **Version**: 0.14.0
 - **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
 - **Tests**: 1715 passing
 - **Exports**: 336 symbols via `web4/__init__.py`
@@ -122,15 +122,15 @@ None.
 
 ## Pending Items
 
-- Sprint 9 COMPLETE (E1-E4 all done), SDK v0.13.0 released
-- Sprint 8 COMPLETE (D1-D4 all done), SDK v0.12.0 released
+- Sprint 10 COMPLETE (F1-F4 all done): CI/CD & Packaging Quality, SDK v0.14.0
+- Sprint 9 COMPLETE (E1-E4 all done): SDK Documentation Completeness, SDK v0.13.0
+- Sprint 8 COMPLETE (D1-D4 all done): SDK Developer Experience, SDK v0.12.0
 - All 9 JSON-LD schemas have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 - All 19 submodules have `__all__` declarations (375 symbols), 336 root exports
 - All public methods have docstrings and return type annotations
-- Sprint 10 IN PROGRESS: CI/CD & Packaging Quality (F1-F3 done, F4 remaining)
 
 ---
 
-*Updated by autonomous session, 2026-03-27*
+*Updated by autonomous session, 2026-03-28*
