@@ -1,9 +1,47 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-27 (Sprint 10 started)
+**Updated**: 2026-03-28 (Sprint 11 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 11: SDK Quality Gates (2026-03-28)
+
+Sprint 10 added CI (pytest across 4 Python versions). The SDK ships `py.typed` (PEP 561)
+but mypy has never been run — type errors existed undetected. This sprint adds static
+analysis quality gates to CI and establishes a test coverage baseline, ensuring the SDK's
+quality claims are verifiable.
+
+### G1: mypy type safety — fix errors and add to CI
+**Status**: DONE
+**Completed**: 2026-03-28
+**Depends on**: None
+**Scope**: Run mypy against SDK, fix all type errors, add mypy step to CI workflow.
+**Result**: Fixed 9 type errors across 4 files (metabolic.py already fixed by prior session).
+Errors were: frozenset mutation (metabolic), dict type narrowing (mrh, lct), `object` lacking
+comparison operators (federation), callable type inference (attestation). Added mypy step to
+`.github/workflows/sdk-test.yml`. 1715 tests passing, mypy clean.
+
+### G2: Test coverage baseline with pytest-cov
+**Status**: TODO
+**Depends on**: None
+**Scope**: Add pytest-cov to dev dependencies. Measure baseline coverage percentage. Add
+`--cov=web4 --cov-report=term-missing` to CI. Document baseline in CHANGELOG.
+
+### G3: CLI entry point — `python -m web4`
+**Status**: TODO
+**Depends on**: None
+**Scope**: Add `web4/__main__.py` so `python -m web4` works. Subcommands: `version` (print
+version), `validate <file>` (validate JSON-LD against schemas). Uses existing SDK validation
+functions — no new logic.
+
+### G4: SDK v0.15.0 release housekeeping
+**Status**: TODO
+**Depends on**: G1 (at minimum)
+**Scope**: Version bump 0.14.0 → 0.15.0, CHANGELOG.md entry documenting Sprint 11
+deliverables.
 
 ---
 

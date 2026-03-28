@@ -289,7 +289,7 @@ class LCT:
 
         Canonical form: sorted JSON of the LCT's essential fields.
         """
-        canonical = {
+        canonical: Dict[str, Any] = {
             "lct_id": self.lct_id,
             "subject": self.subject,
             "binding": {

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, FrozenSet, List, Optional, Tuple
+from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 __all__ = [
     # Classes
@@ -151,10 +151,12 @@ _TRANSITIONS: List[Transition] = [
 ]
 
 # Pre-built lookup: from_state → set of valid to_states
-_VALID_TRANSITIONS: Dict[MetabolicState, FrozenSet[MetabolicState]] = {}
+_transition_build: Dict[MetabolicState, Set[MetabolicState]] = {}
 for _t in _TRANSITIONS:
-    _VALID_TRANSITIONS.setdefault(_t.from_state, set()).add(_t.to_state)
-_VALID_TRANSITIONS = {k: frozenset(v) for k, v in _VALID_TRANSITIONS.items()}
+    _transition_build.setdefault(_t.from_state, set()).add(_t.to_state)
+_VALID_TRANSITIONS: Dict[MetabolicState, FrozenSet[MetabolicState]] = {
+    k: frozenset(v) for k, v in _transition_build.items()
+}
 # States with no outgoing transitions get empty frozenset
 for _s in MetabolicState:
     _VALID_TRANSITIONS.setdefault(_s, frozenset())

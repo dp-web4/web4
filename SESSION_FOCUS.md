@@ -10,6 +10,15 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
+### Sprint 11 Summary: SDK Quality Gates (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| G1: mypy type safety | DONE | 9 type errors fixed across 4 files, mypy added to CI |
+| G2: Test coverage baseline | TODO | pytest-cov, baseline measurement, CI integration |
+| G3: CLI entry point | TODO | `python -m web4` with validate/version subcommands |
+| G4: SDK v0.15.0 release housekeeping | TODO | Version bump, CHANGELOG |
+
 ### Sprint 10 Summary: CI/CD & Packaging Quality (COMPLETE)
 
 | Task | Status | Notes |
@@ -122,6 +131,7 @@ None.
 
 ## Pending Items
 
+- Sprint 11 IN PROGRESS (G1 done, G2-G4 TODO): SDK Quality Gates
 - Sprint 10 COMPLETE (F1-F4 all done): CI/CD & Packaging Quality, SDK v0.14.0
 - Sprint 9 COMPLETE (E1-E4 all done): SDK Documentation Completeness, SDK v0.13.0
 - Sprint 8 COMPLETE (D1-D4 all done): SDK Developer Experience, SDK v0.12.0
