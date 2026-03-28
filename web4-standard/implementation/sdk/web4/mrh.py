@@ -24,11 +24,10 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from .trust import T3, V3, mrh_trust_decay, mrh_zone
+from .trust import mrh_trust_decay, mrh_zone
 
 __all__ = [
     # Classes

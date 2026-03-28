@@ -1,101 +1,43 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-29 (Sprint 13 started)
+**Updated**: 2026-03-28 (Sprint 11 started)
 **Phase**: Development
 **Track**: web4 (Legion)
 
 ---
 
-## Sprint 13: SDK CLI Module (2026-03-29)
-
-The SDK has 20 modules, 344 exports, and a validation module that can check JSON-LD
-documents against JSON Schemas — but no command-line interface. `python -m web4`
-should work. This sprint adds a CLI entry point wrapping existing SDK functionality.
-
-### J1: CLI module (`web4/__main__.py`)
-**Status**: DONE
-**Completed**: 2026-03-29
-**Depends on**: H1 (validation module)
-**Scope**: Create `web4/__main__.py` with three subcommands: `validate` (validate
-JSON-LD documents against web4 schemas, with `--schema` flag and `@type`
-auto-detection), `info` (show SDK version, module count, export count, schema count),
-`list-schemas` (list all available schemas). Uses argparse (stdlib only). Wire
-`web4` console script into `pyproject.toml` `[project.scripts]`. Tests via
-subprocess invocation.
-**Result**: `web4/__main__.py` with 3 subcommands. Schema auto-detection from `@type`
-field (30+ type mappings covering all JSON-LD types with and without `web4:` prefix).
-Stdin support (`-` as file path). Clear error messages for missing files, invalid JSON,
-unknown schemas, and missing jsonschema dependency. Console script entry point wired.
-22 tests covering all subcommands, error cases, auto-detection, and help output.
-Mypy strict clean. 1774 tests passing, zero regressions.
-
----
-
-## Sprint 12: Schema Validation Integration (2026-03-29)
-
-The SDK produces JSON-LD via `to_jsonld()` for all 10 types and has JSON Schemas in
-`web4-standard/schemas/`. But there was no way to validate documents against those schemas
-from within the SDK. This sprint closes that gap with a validation module.
-
-### H1: Schema validation module (`web4/validation.py`)
-**Status**: DONE
-**Completed**: 2026-03-29
-**Depends on**: None
-**Scope**: Create `web4/validation.py` module that loads JSON schemas from
-`web4-standard/schemas/` and validates JSON-LD documents against them. `jsonschema` as
-optional dependency with graceful degradation. Public API: `validate()`, `list_schemas()`,
-`get_schema()`, `get_schema_dir()`. Tests covering all 9 JSON-LD schema types with both
-valid SDK output and invalid documents.
-**Result**: 20th SDK module with 8 public symbols. Schema directory auto-detected via
-repo-relative walk (with `WEB4_SCHEMA_DIR` env override). 12 named schemas (9 JSON-LD +
-3 standalone). 33 tests covering all schema types, error handling, caching, and
-directory resolution. Mypy strict clean. 1748 tests passing, zero regressions.
-
-### H2: SDK v0.15.0 release housekeeping
-**Status**: DONE
-**Completed**: 2026-03-29
-**Depends on**: H1
-**Scope**: Version bump 0.14.0 → 0.15.0, CHANGELOG.md entry documenting Sprint 12.
-**Result**: Version bumped in pyproject.toml. CHANGELOG.md v0.15.0 entry documents
-Sprint 11 (G3: mypy strict, G4: README coherence) and Sprint 12 (H1: validation module).
-SESSION_FOCUS.md updated with current SDK status (20 modules, 344 exports, 1748 tests).
-Sprint 12 complete (2/2 tasks).
-
----
-
 ## Sprint 11: Code Quality Gates (2026-03-28)
 
-Sprint 10 established CI with pytest (4 Python versions) and mypy. Follow-up sessions
-add ruff linting, coverage reporting (PR #98), and mypy strict compliance to complete the
-quality gate trifecta: lint + typecheck + test with coverage.
+Sprint 10 established CI with pytest (4 Python versions) and mypy. A follow-up session
+added mypy type error fixes (PR #97). This sprint adds ruff linting and test coverage
+reporting to complete the quality gate trifecta: lint + typecheck + test with coverage.
+Coverage is observed as a health metric, not optimized as a target.
 
-### G4: SDK README coherence update
-**Status**: DONE
-**Completed**: 2026-03-29
-**Depends on**: None
-**Scope**: The SDK README.md documented `web4_sdk.py` (async HTTP client, v1.0.0)
-rather than the actual `web4` package (19 modules, 336 exports, v0.14.0). Rewrite
-to accurately reflect installation, module structure, usage patterns, JSON-LD
-serialization, error handling, and testing. All code examples verified against
-the actual API.
-**Result**: README reduced from 688 lines of outdated content to a focused,
-accurate document. Covers all 19 modules, correct import patterns, verified
-code examples, JSON-LD round-trip, error handling, testing commands, and project
-structure. `web4_sdk.py` HTTP client retained as secondary section.
-
-### G3: Mypy strict compliance + .gitignore housekeeping
+### G1: Ruff linting — fix issues and add to CI
 **Status**: DONE
 **Completed**: 2026-03-28
-**Depends on**: None (complements G1+G2 in PR #98)
-**Scope**: Fix all 72 `mypy --strict` errors across 13 SDK source files (46 type-arg,
-17 no-untyped-def, 9 no-any-return). Add missing `.gitignore` entries for build/test
-artifacts (.coverage, htmlcov/, .mypy_cache/, .ruff_cache/).
-**Result**: All 72 errors fixed across 13 files: parameterized bare `Dict`/`dict`/`set`/`tuple`
-annotations, added return type annotations to `__init__`/`__post_init__` methods, added
-`bool()` casts for `Any`-typed comparisons, added explicit `type[Web4Error]` annotations.
-`.gitignore` updated with 4 new entries. `mypy --strict web4/` passes with 0 errors.
-1715 tests passing, zero regressions.
+**Depends on**: None
+**Scope**: Fix all ruff lint issues (unused imports across 9 modules, f-string without
+placeholders, line too long). Add ruff configuration to `pyproject.toml` (rules E/F/W/I,
+line-length 120, `__init__.py` excluded from import sorting to preserve deliberate section
+ordering). Add ruff as a separate CI job that runs on Python 3.12.
+**Result**: Fixed 18 lint issues across 11 files (16 unused imports, 1 f-string without
+placeholders, 1 line too long). Added `[tool.ruff]` config to `pyproject.toml`. CI now
+has dedicated `lint` job (ruff + mypy) separate from `test` job (pytest matrix). `ruff
+check web4/` passes with 0 errors. 1715 tests passing, zero regressions.
+
+### G2: Test coverage reporting
+**Status**: DONE
+**Completed**: 2026-03-28
+**Depends on**: G1
+**Scope**: Add pytest-cov to dev dependencies. Configure coverage in `pyproject.toml`
+(source=web4, show_missing=true). Update CI test step to run with `--cov=web4
+--cov-report=term-missing`. Coverage is reported for observability — no minimum threshold
+enforced.
+**Result**: pytest-cov added to `[project.optional-dependencies]`. Coverage config in
+`[tool.coverage.*]` sections. CI test matrix now reports coverage per Python version.
+Baseline coverage: 98.1% (4108 statements, 79 missed). 1715 tests passing.
 
 ---
 
@@ -910,4 +852,3 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | A3 | Entity + Capability JSON-LD | DONE |
 | A4 | Cross-language validation vectors (Phase 2) | DONE |
 | A5 | SDK v0.9.0 release housekeeping | DONE |
-| J1 | CLI module (`web4/__main__.py`) | DONE |

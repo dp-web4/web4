@@ -207,7 +207,7 @@ class LCT:
             entity_type=entity_type,
             public_key=public_key,
             created_at=ts,
-            binding_proof=f"cose:signature_placeholder",
+            binding_proof="cose:signature_placeholder",
         )
 
         birth_cert = BirthCertificate(
