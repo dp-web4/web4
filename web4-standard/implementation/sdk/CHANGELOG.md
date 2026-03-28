@@ -20,6 +20,11 @@ packaging metadata improvements, and single-source version management.
   `importlib.metadata.version("web4")` with fallback. Redundant `setup.py`
   removed — `pyproject.toml` with setuptools ≥64 is sufficient.
 
+### Fixed
+- **CI test dependency** — Added `jsonschema>=4.0` to `[project.optional-dependencies]`
+  dev extras so `test_jsonld_schema_roundtrip.py` runs in CI (was failing with
+  `ModuleNotFoundError: No module named 'jsonschema'` across all Python versions).
+
 ### Changed
 - Version bumped from 0.13.0 to 0.14.0.
 - Sprint 10 complete (4/4 tasks: F1-F4 all DONE). 1715 tests passing.

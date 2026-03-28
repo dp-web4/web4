@@ -42,7 +42,7 @@ Issues = "https://github.com/dp-web4/web4/issues"
 Changelog = "https://github.com/dp-web4/web4/blob/main/web4-standard/implementation/sdk/CHANGELOG.md"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "mypy>=1.0"]
+dev = ["pytest>=7.0", "mypy>=1.0", "jsonschema>=4.0"]
 
 [tool.setuptools.packages.find]
 include = ["web4*"]
