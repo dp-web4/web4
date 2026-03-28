@@ -33,11 +33,15 @@ Add keywords for PyPI discoverability. Ensure `MANIFEST.in` includes README, CHA
 passing, zero regressions.
 
 ### F3: Single-source version management
-**Status**: TODO
+**Status**: DONE
+**Completed**: 2026-03-27
 **Depends on**: None
 **Scope**: Version is currently hardcoded in 3 places (`pyproject.toml`, `setup.py`,
 `__init__.py`). Use `importlib.metadata` or a shared `_version.py` to eliminate sync risk.
 Remove redundant `setup.py` if `pyproject.toml` is sufficient.
+**Result**: `pyproject.toml` is now the single source of truth. `__init__.py` reads version
+via `importlib.metadata.version("web4")` with fallback. Redundant `setup.py` removed —
+`pyproject.toml` with setuptools ≥64 is sufficient. 1715 tests passing, zero regressions.
 
 ### F4: SDK v0.14.0 release housekeeping
 **Status**: TODO

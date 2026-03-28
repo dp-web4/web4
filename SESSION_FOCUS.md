@@ -16,7 +16,7 @@
 |------|--------|-------|
 | F1: GitHub Actions CI workflow | DONE | pytest across Python 3.10-3.13 matrix |
 | F2: Packaging metadata improvements | DONE | URLs, keywords, LICENSE, MANIFEST.in |
-| F3: Single-source version management | TODO | Eliminate 3-way version sync |
+| F3: Single-source version management | DONE | importlib.metadata, removed setup.py |
 | F4: SDK v0.14.0 release housekeeping | TODO | Version bump, CHANGELOG |
 
 ### Sprint 9 Summary: SDK Documentation Completeness (COMPLETE)
@@ -129,7 +129,7 @@ None.
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 - All 19 submodules have `__all__` declarations (375 symbols), 336 root exports
 - All public methods have docstrings and return type annotations
-- Sprint 10 IN PROGRESS: CI/CD & Packaging Quality (F1 done, F2-F4 remaining)
+- Sprint 10 IN PROGRESS: CI/CD & Packaging Quality (F1-F3 done, F4 remaining)
 
 ---
 
