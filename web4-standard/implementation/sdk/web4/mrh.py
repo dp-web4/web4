@@ -26,7 +26,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .trust import T3, V3, mrh_trust_decay, mrh_zone
 
@@ -132,9 +132,9 @@ class MRHEdge:
         """Relationship category: 'binding', 'pairing', or 'witness'."""
         return relation_category(self.relation)
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> Dict[str, Any]:
         """Serialize edge to dict with source, target, relation type, weight, and category."""
-        d = {
+        d: Dict[str, Any] = {
             "source": self.source,
             "target": self.target,
             "relation": self.relation.value,

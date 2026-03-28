@@ -32,7 +32,7 @@ Source: web4-core/python/web4/trust/attestation/
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Optional, Dict, List
+from typing import Any, Callable, Optional, Dict, List
 from hashlib import sha256
 import time
 import json
@@ -488,7 +488,7 @@ def verify_envelope(envelope: AttestationEnvelope,
 
     # Dispatch to anchor-specific verifier
     anchor_type = envelope.anchor.type
-    _verifiers = {
+    _verifiers: Dict[str, Callable[..., VerificationResult]] = {
         'tpm2': _verify_tpm2,
         'fido2': _verify_fido2,
         'secure_enclave': _verify_secure_enclave,
