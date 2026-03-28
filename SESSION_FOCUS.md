@@ -122,16 +122,15 @@ None.
 
 ## Pending Items
 
-- Sprint 10 COMPLETE (F1-F4 all done), SDK v0.14.0
-- Sprint 9 COMPLETE (E1-E4 all done), SDK v0.13.0
-- Sprint 8 COMPLETE (D1-D4 all done), SDK v0.12.0 released
+- Sprint 10 COMPLETE (F1-F4 all done): CI/CD & Packaging Quality, SDK v0.14.0
+- Sprint 9 COMPLETE (E1-E4 all done): SDK Documentation Completeness, SDK v0.13.0
+- Sprint 8 COMPLETE (D1-D4 all done): SDK Developer Experience, SDK v0.12.0
 - All 9 JSON-LD schemas have cross-language validation vectors (278 total)
 - Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 - All 19 submodules have `__all__` declarations (375 symbols), 336 root exports
 - All public methods have docstrings and return type annotations
-- Sprint 10 COMPLETE: CI/CD & Packaging Quality (F1-F4 all done), SDK v0.14.0
 
 ---
 
-*Updated by autonomous session, 2026-03-27*
+*Updated by autonomous session, 2026-03-28*
