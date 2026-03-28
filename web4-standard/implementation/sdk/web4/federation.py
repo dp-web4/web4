@@ -33,7 +33,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, FrozenSet, List, Optional, Set
+from typing import Any, Dict, FrozenSet, List, Optional, Set
 
 from .lct import LCT, EntityType, BirthCertificate, MRHPairing
 from .trust import T3, V3
@@ -251,10 +251,10 @@ class Norm:
     norm_id: str
     selector: str         # what the norm applies to (e.g. "r6.resource.atp")
     op: str               # comparison operator: "<=", ">=", "==", "!=", "in", "not_in"
-    value: object         # threshold or allowed values
+    value: Any            # threshold or allowed values
     description: str = ""
 
-    def check(self, actual_value: object) -> bool:
+    def check(self, actual_value: Any) -> bool:
         """Check if a value satisfies the norm.
 
         Supports numeric comparisons (<=, >=, ==, !=, <, >) and
