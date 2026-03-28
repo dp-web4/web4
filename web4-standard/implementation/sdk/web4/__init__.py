@@ -41,7 +41,12 @@ For module-specific imports (recommended for large applications)::
     from web4.security import W4ID, CryptoSuite
 """
 
-__version__ = "0.13.0"
+try:
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("web4")
+except Exception:
+    __version__ = "0.0.0"  # fallback when not installed
 
 # ── Trust (T3/V3) ──────────────────────────────────────────────
 from .trust import (
