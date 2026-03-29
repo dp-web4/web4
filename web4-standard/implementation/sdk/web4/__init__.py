@@ -22,6 +22,7 @@ Provides offline-capable primitives for:
 - Core protocol — handshake, transport, discovery, and Web4 URI types
 - MCP protocol types — Web4 context headers, resources, sessions, ATP metering
 - Attestation — unified hardware trust envelope, verification dispatcher
+- Validation — JSON Schema validation for all Web4 JSON-LD document types
 
 These modules define the canonical data types and algorithms specified
 in the web4-standard. They work offline (no network services required)
@@ -462,6 +463,18 @@ from .mcp import (
 from .mcp import ResourceRequirements as MCPResourceRequirements
 from .mcp import ProofOfAgency as MCPProofOfAgency
 
+# ── Validation ────────────────────────────────────────────────
+from .validation import (  # noqa: F401
+    SchemaNotFound,
+    SchemaValidationUnavailable,
+    ValidationError,
+    ValidationResult,
+    get_schema,
+    get_schema_dir,
+    list_schemas,
+    validate,
+)
+
 
 # ── Public API ─────────────────────────────────────────────────
 __all__ = [
@@ -611,4 +624,8 @@ __all__ = [
     "PricingModifiers", "calculate_mcp_cost",
     "MCPErrorContext",
     "web4_context_to_json", "web4_context_from_json",
+    # validation
+    "ValidationResult", "ValidationError",
+    "SchemaValidationUnavailable", "SchemaNotFound",
+    "validate", "list_schemas", "get_schema", "get_schema_dir",
 ]
