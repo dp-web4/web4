@@ -1,9 +1,36 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-28 (Sprint 11 started)
+**Updated**: 2026-03-29 (Sprint 12 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 12: Schema Validation Integration (2026-03-29)
+
+The SDK produces JSON-LD via `to_jsonld()` for all 10 types and has JSON Schemas in
+`web4-standard/schemas/`. But there was no way to validate documents against those schemas
+from within the SDK. This sprint closes that gap with a validation module.
+
+### H1: Schema validation module (`web4/validation.py`)
+**Status**: DONE
+**Completed**: 2026-03-29
+**Depends on**: None
+**Scope**: Create `web4/validation.py` module that loads JSON schemas from
+`web4-standard/schemas/` and validates JSON-LD documents against them. `jsonschema` as
+optional dependency with graceful degradation. Public API: `validate()`, `list_schemas()`,
+`get_schema()`, `get_schema_dir()`. Tests covering all 9 JSON-LD schema types with both
+valid SDK output and invalid documents.
+**Result**: 20th SDK module with 8 public symbols. Schema directory auto-detected via
+repo-relative walk (with `WEB4_SCHEMA_DIR` env override). 12 named schemas (9 JSON-LD +
+3 standalone). 33 tests covering all schema types, error handling, caching, and
+directory resolution. Mypy strict clean. 1748 tests passing, zero regressions.
+
+### H2: SDK v0.15.0 release housekeeping
+**Status**: TODO
+**Depends on**: H1
+**Scope**: Version bump 0.14.0 → 0.15.0, CHANGELOG.md entry documenting Sprint 12.
 
 ---
 
