@@ -1,0 +1,364 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/r7-action-jsonld.schema.json",
+  "title": "Web4 R7 Action — JSON-LD",
+  "description": "JSON Schema for spec-compliant R7 Action documents per r7-framework.md. Validates output from R7Action.to_jsonld() and cross-language implementations.",
+  "type": "object",
+  "required": [
+    "@context",
+    "@type",
+    "action_id",
+    "timestamp",
+    "rules",
+    "role",
+    "request",
+    "reference",
+    "resource",
+    "result"
+  ],
+  "properties": {
+    "@context": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "minItems": 1,
+      "description": "JSON-LD context URIs. First MUST be the R7 Action context."
+    },
+    "@type": {
+      "type": "string",
+      "const": "R7Action",
+      "description": "JSON-LD type identifier."
+    },
+    "action_id": {
+      "type": "string",
+      "pattern": "^r7:",
+      "description": "Unique action identifier. Format: r7:<hash>"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO 8601 timestamp of action creation."
+    },
+    "prev_action_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of the previous action in the chain (empty if first)."
+    },
+
+    "rules": {
+      "type": "object",
+      "required": ["lawHash", "society"],
+      "properties": {
+        "lawHash": {
+          "type": "string",
+          "description": "Hash reference to the authorizing law/policy."
+        },
+        "society": {
+          "type": "string",
+          "description": "LCT ID of the governing society."
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "value"],
+            "properties": {
+              "type": { "type": "string" },
+              "value": {}
+            },
+            "additionalProperties": false
+          },
+          "description": "Governing constraints."
+        },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Permitted action types."
+        },
+        "prohibitions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Prohibited action types."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "role": {
+      "type": "object",
+      "required": ["actor", "roleLCT"],
+      "properties": {
+        "actor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Entity LCT ID of the actor."
+        },
+        "roleLCT": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Role LCT ID (domain-specific role context)."
+        },
+        "pairedAt": {
+          "type": "string",
+          "description": "ISO 8601 timestamp of role pairing."
+        },
+        "t3InRole": { "$ref": "#/$defs/trust_tensor" },
+        "v3InRole": { "$ref": "#/$defs/value_tensor" }
+      },
+      "additionalProperties": false
+    },
+
+    "request": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Action verb (e.g., analyze_dataset, delegate)."
+        },
+        "target": {
+          "type": "string",
+          "description": "Target entity or resource."
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Action-specific parameters."
+        },
+        "atpStake": {
+          "type": "number",
+          "minimum": 0,
+          "description": "ATP staked on this request."
+        },
+        "nonce": {
+          "type": "string",
+          "description": "Unique request identifier."
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Temporal and budget constraints."
+        },
+        "proofOfAgency": {
+          "type": "object",
+          "required": ["grantId"],
+          "properties": {
+            "grantId": { "type": "string" },
+            "inclusionProof": { "type": "string" },
+            "scope": { "type": "string" },
+            "audience": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "reference": {
+      "type": "object",
+      "properties": {
+        "precedents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["actionHash"],
+            "properties": {
+              "actionHash": { "type": "string" },
+              "outcome": { "type": "string" },
+              "relevance": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "mrhContext": {
+          "type": "object",
+          "properties": {
+            "depth": { "type": "integer", "minimum": 0 },
+            "relevantEntities": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        },
+        "witnesses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/witness_attestation" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "resource": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "object",
+          "properties": {
+            "atp": { "type": "number", "minimum": 0 },
+            "compute": { "type": "object", "additionalProperties": true }
+          },
+          "additionalProperties": false
+        },
+        "available": {
+          "type": "object",
+          "properties": {
+            "atp_balance": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "escrow": {
+          "type": "object",
+          "properties": {
+            "amount": { "type": "number", "minimum": 0 },
+            "release_condition": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "result": {
+      "type": "object",
+      "required": ["status", "resourceConsumed"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "validated", "in_progress", "success", "failure", "error", "cancelled"],
+          "description": "Action lifecycle status."
+        },
+        "output": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Action output data."
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "message": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "resourceConsumed": {
+          "type": "object",
+          "properties": {
+            "atp": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": true
+        },
+        "attestations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/witness_attestation" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "reputation": { "$ref": "#/$defs/reputation_delta" }
+  },
+  "additionalProperties": false,
+
+  "$defs": {
+    "trust_tensor": {
+      "type": "object",
+      "required": ["talent", "training", "temperament"],
+      "properties": {
+        "talent": { "type": "number", "minimum": 0, "maximum": 1 },
+        "training": { "type": "number", "minimum": 0, "maximum": 1 },
+        "temperament": { "type": "number", "minimum": 0, "maximum": 1 },
+        "composite_score": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "value_tensor": {
+      "type": "object",
+      "required": ["valuation", "veracity", "validity"],
+      "properties": {
+        "valuation": { "type": "number", "minimum": 0, "maximum": 1 },
+        "veracity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "validity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "composite_score": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "tensor_delta": {
+      "type": "object",
+      "required": ["change", "from", "to"],
+      "properties": {
+        "change": { "type": "number" },
+        "from": { "type": "number", "minimum": 0, "maximum": 1 },
+        "to": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "contributing_factor": {
+      "type": "object",
+      "required": ["factor", "weight"],
+      "properties": {
+        "factor": { "type": "string" },
+        "weight": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "witness_attestation": {
+      "type": "object",
+      "required": ["lct"],
+      "properties": {
+        "lct": { "type": "string" },
+        "attestation": { "type": "string" },
+        "signature": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "reputation_delta": {
+      "type": "object",
+      "required": ["subject_lct", "role_lct", "net_trust_change", "net_value_change"],
+      "properties": {
+        "subject_lct": {
+          "type": "string",
+          "description": "LCT ID of the entity whose reputation changed."
+        },
+        "role_lct": {
+          "type": "string",
+          "description": "Role LCT ID — reputation is role-contextualized."
+        },
+        "action_type": { "type": "string" },
+        "action_target": { "type": "string" },
+        "action_id": { "type": "string" },
+        "rule_triggered": { "type": "string" },
+        "reason": { "type": "string" },
+        "t3_delta": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/tensor_delta" },
+          "description": "Per-dimension T3 tensor changes."
+        },
+        "v3_delta": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/tensor_delta" },
+          "description": "Per-dimension V3 tensor changes."
+        },
+        "contributing_factors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contributing_factor" }
+        },
+        "witnesses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/witness_attestation" }
+        },
+        "net_trust_change": {
+          "type": "number",
+          "description": "Sum of all T3 dimension changes."
+        },
+        "net_value_change": {
+          "type": "number",
+          "description": "Sum of all V3 dimension changes."
+        },
+        "timestamp": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

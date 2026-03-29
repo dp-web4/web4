@@ -10,6 +10,12 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
+### Sprint 13 Summary: SDK Distribution Readiness (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| I1: Bundle JSON Schemas as package data | DONE | 12 schemas in web4/schemas/, importlib.resources, wheel verified |
+
 ### Sprint 12 Summary: Schema Validation Integration (COMPLETE)
 
 | Task | Status | Notes |
@@ -79,7 +85,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 - **Version**: 0.15.0
 - **Modules**: 20 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation)
-- **Tests**: 1748 passing
+- **Tests**: 1752 passing
 - **Exports**: 344 symbols via `web4/__init__.py`
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
@@ -120,11 +126,11 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+0bef0a9 H2: SDK v0.15.0 release housekeeping — Sprint 12 complete (#103)
 e6f4fc5 H1: Schema validation module — Sprint 12 (#102)
 bf42c0d G4: SDK README coherence update — document actual web4 package (#101)
 803b095 G3: Mypy strict compliance — 65 type fixes across 13 SDK modules (#100)
 9f5d9c4 Fix 11 mypy type errors across 5 SDK modules, add mypy to CI (#97)
-3f5ca4e F4: SDK v0.14.0 — Sprint 10 complete (#95)
 ```
 
 ---
@@ -137,6 +143,7 @@ bf42c0d G4: SDK README coherence update — document actual web4 package (#101)
 
 ## Pending Items
 
+- Sprint 13 IN PROGRESS: I1 done (schema bundling), distribution readiness
 - Sprint 12 COMPLETE (H1-H2 all done): Schema Validation Integration, SDK v0.15.0
 - Sprint 11 COMPLETE (G1-G4 all done): Code Quality Gates (G1+G2 in PR #98)
 - Sprint 10 COMPLETE (F1-F4 all done): CI/CD & Packaging Quality, SDK v0.14.0

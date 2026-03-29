@@ -1,5 +1,6 @@
 """Tests for web4.validation — schema validation module."""
 
+import importlib.resources
 import pytest
 from pathlib import Path
 from web4.validation import (
@@ -11,6 +12,8 @@ from web4.validation import (
     list_schemas,
     get_schema,
     get_schema_dir,
+    _find_schema_dir_package,
+    _find_schema_dir_repo,
     _schema_cache,
 )
 
@@ -35,6 +38,37 @@ class TestSchemaDir:
         monkeypatch.setenv("WEB4_SCHEMA_DIR", "/nonexistent/path")
         with pytest.raises(SchemaNotFound, match="does not exist"):
             get_schema_dir()
+
+
+class TestSchemaResolution:
+    """Tests for the two schema resolution strategies."""
+
+    def test_package_resolution_finds_bundled_schemas(self) -> None:
+        """importlib.resources resolves web4.schemas package data."""
+        result = _find_schema_dir_package()
+        assert result is not None
+        assert result.is_dir()
+        assert (result / "lct-jsonld.schema.json").exists()
+
+    def test_package_resolution_has_all_12_schemas(self) -> None:
+        """All 12 schema files are present in the bundled package."""
+        result = _find_schema_dir_package()
+        assert result is not None
+        json_files = sorted(f.name for f in result.iterdir() if f.suffix == ".json")
+        assert len(json_files) == 12
+
+    def test_repo_resolution_finds_schemas(self) -> None:
+        """Filesystem walk fallback locates schemas in repo tree."""
+        result = _find_schema_dir_repo()
+        assert result is not None
+        assert result.is_dir()
+        assert (result / "lct-jsonld.schema.json").exists()
+
+    def test_importlib_resources_accessible(self) -> None:
+        """web4.schemas is a valid importlib.resources package."""
+        ref = importlib.resources.files("web4.schemas")
+        schema_path = Path(str(ref))
+        assert schema_path.is_dir()
 
 
 class TestListSchemas:

@@ -7,11 +7,11 @@
 
 ---
 
-## Sprint 13: SDK CLI Module (2026-03-29)
+## Sprint 13: SDK CLI & Distribution Readiness (2026-03-29)
 
-The SDK has 20 modules, 344 exports, and a validation module that can check JSON-LD
-documents against JSON Schemas — but no command-line interface. `python -m web4`
-should work. This sprint adds a CLI entry point wrapping existing SDK functionality.
+The SDK has 20 modules, 344 exports, and a validation module — but no CLI and schemas
+only work from repo checkouts. This sprint adds a CLI entry point and bundles schemas
+as package data so `pip install web4` works end-to-end.
 
 ### J1: CLI module (`web4/__main__.py`)
 **Status**: DONE
@@ -29,6 +29,24 @@ Stdin support (`-` as file path). Clear error messages for missing files, invali
 unknown schemas, and missing jsonschema dependency. Console script entry point wired.
 22 tests covering all subcommands, error cases, auto-detection, and help output.
 Mypy strict clean. 1774 tests passing, zero regressions.
+
+### I1: Bundle JSON Schemas as package data
+**Status**: DONE
+**Completed**: 2026-03-29
+**Depends on**: H1 (validation module)
+**Scope**: Copy all 12 JSON Schema files into `web4/schemas/` sub-package. Update
+`pyproject.toml` package-data to include `*.json`. Refactor `validation.py` to use
+`importlib.resources` (Python 3.9+) as primary resolution with filesystem walk as
+fallback. Add tests verifying both resolution strategies. Verify with wheel build
+and clean venv install.
+**Result**: 12 schema files bundled in `web4/schemas/` sub-package with `__init__.py`.
+`validation.py` refactored: `_find_schema_dir()` split into `_find_schema_dir_package()`
+(importlib.resources) and `_find_schema_dir_repo()` (filesystem walk). `get_schema_dir()`
+checks env var → package data → repo walk. `pyproject.toml` updated with
+`"web4.schemas" = ["*.json"]`. 4 new tests covering both resolution paths and
+importlib.resources accessibility. Wheel build verified: schemas present in wheel.
+Clean venv install verified: `validate()` works from `/site-packages/web4/schemas/`.
+1752 tests passing (4 new), mypy strict clean, zero regressions.
 
 ---
 
@@ -910,4 +928,5 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | A3 | Entity + Capability JSON-LD | DONE |
 | A4 | Cross-language validation vectors (Phase 2) | DONE |
 | A5 | SDK v0.9.0 release housekeeping | DONE |
+| I1 | Bundle JSON Schemas as package data | DONE |
 | J1 | CLI module (`web4/__main__.py`) | DONE |

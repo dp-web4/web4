@@ -3,7 +3,13 @@ Web4 schema validation — validate JSON-LD documents against Web4 JSON Schemas.
 
 Provides programmatic validation of JSON-LD documents produced by SDK
 ``to_jsonld()`` methods (or received from external systems) against the
-canonical JSON Schemas defined in ``web4-standard/schemas/``.
+canonical JSON Schemas shipped with the package.
+
+Schemas are resolved in order:
+
+1. ``WEB4_SCHEMA_DIR`` environment variable (explicit override)
+2. ``importlib.resources`` (works for wheel/pip installs)
+3. Filesystem walk from module location (editable installs, repo checkouts)
 
 The ``jsonschema`` package is an **optional** dependency. If not installed,
 :func:`validate` raises :class:`SchemaValidationUnavailable` with
@@ -28,6 +34,7 @@ Usage::
 
 from __future__ import annotations
 
+import importlib.resources
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -65,20 +72,37 @@ _SCHEMA_FILES: Dict[str, str] = {
 }
 
 
-def _find_schema_dir() -> Optional[Path]:
-    """Locate the ``web4-standard/schemas/`` directory.
+def _find_schema_dir_package() -> Optional[Path]:
+    """Locate schemas bundled as package data via ``importlib.resources``.
 
-    Walks up from this module's location in the repository tree.  Works for
-    editable installs (``pip install -e .``) and direct repo checkouts.
-    Returns *None* if the directory cannot be found.
+    Works for wheel installs, sdist installs, and editable installs where
+    ``web4/schemas/`` is a proper sub-package.
+    Returns *None* if the package data cannot be found.
     """
-    # web4/validation.py -> sdk/ -> implementation/ -> web4-standard/ -> schemas/
+    try:
+        # Python 3.9+ API
+        ref = importlib.resources.files("web4.schemas")
+        # Resolve to a concrete filesystem path
+        schema_path = Path(str(ref))
+        if schema_path.is_dir() and (schema_path / "lct-jsonld.schema.json").exists():
+            return schema_path
+    except (ModuleNotFoundError, TypeError, FileNotFoundError):
+        pass
+    return None
+
+
+def _find_schema_dir_repo() -> Optional[Path]:
+    """Locate ``web4-standard/schemas/`` by walking up the repository tree.
+
+    Fallback for editable installs and direct repo checkouts where schemas
+    may live in the standard's ``schemas/`` directory rather than inside
+    the package.  Returns *None* if the directory cannot be found.
+    """
     current = Path(__file__).resolve().parent  # web4/
     for _ in range(6):  # max 6 levels up
         candidate = current / "schemas"
         if candidate.is_dir() and (candidate / "lct-jsonld.schema.json").exists():
             return candidate
-        # Also check web4-standard/schemas at sibling level
         sibling = current / "web4-standard" / "schemas"
         if sibling.is_dir() and (sibling / "lct-jsonld.schema.json").exists():
             return sibling
@@ -90,8 +114,9 @@ def get_schema_dir() -> Path:
     """Return the resolved path to the schema directory.
 
     Checks (in order):
-    1. ``WEB4_SCHEMA_DIR`` environment variable
-    2. Repository-relative walk from this module
+    1. ``WEB4_SCHEMA_DIR`` environment variable (explicit override)
+    2. ``importlib.resources`` — package-bundled schemas (wheel/pip installs)
+    3. Repository-relative filesystem walk (editable installs, repo checkouts)
 
     Raises:
         SchemaNotFound: If the schema directory cannot be located.
@@ -107,13 +132,20 @@ def get_schema_dir() -> Path:
             f"WEB4_SCHEMA_DIR={env_dir!r} does not exist or is not a directory"
         )
 
-    found = _find_schema_dir()
+    # Try package-bundled schemas first (works in wheel installs)
+    found = _find_schema_dir_package()
+    if found is not None:
+        return found
+
+    # Fallback: walk up repo tree (editable installs, repo checkouts)
+    found = _find_schema_dir_repo()
     if found is not None:
         return found
 
     raise SchemaNotFound(
-        "Cannot locate web4-standard/schemas/. "
-        "Set WEB4_SCHEMA_DIR or run from a web4 repository checkout."
+        "Cannot locate Web4 JSON Schemas. "
+        "Install the web4 package (pip install web4) or "
+        "set WEB4_SCHEMA_DIR to the schema directory path."
     )
 
 

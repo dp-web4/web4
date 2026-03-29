@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/atp-jsonld.schema.json",
+  "title": "Web4 ATP/ADP — JSON-LD",
+  "description": "JSON Schema for ATP/ADP value cycle documents per web4-standard/core-spec/atp-adp-cycle.md. Validates output from ATPAccount.to_jsonld(), TransferResult.to_jsonld(), and cross-language implementations.",
+
+  "oneOf": [
+    { "$ref": "#/$defs/ATPAccount" },
+    { "$ref": "#/$defs/TransferResult" }
+  ],
+
+  "$defs": {
+    "ATPAccount": {
+      "type": "object",
+      "title": "ATPAccount",
+      "description": "An entity's ATP balance with sub-pool breakdown. Invariant: total = available + locked.",
+      "required": [
+        "@context",
+        "@type",
+        "available",
+        "locked",
+        "adp",
+        "initial_balance",
+        "total",
+        "energy_ratio"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "ATPAccount",
+          "description": "JSON-LD type identifier."
+        },
+        "available": {
+          "type": "number",
+          "minimum": 0,
+          "description": "ATP available for transfer or locking."
+        },
+        "locked": {
+          "type": "number",
+          "minimum": 0,
+          "description": "ATP reserved for pending operations."
+        },
+        "adp": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Discharged tokens tracking past expenditure."
+        },
+        "initial_balance": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Balance at account creation, used for recharge calculations."
+        },
+        "total": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Computed: available + locked."
+        },
+        "energy_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Computed: total / (total + adp). 0.5 when both zero."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "TransferResult": {
+      "type": "object",
+      "title": "TransferResult",
+      "description": "Outcome of an ATP transfer between accounts.",
+      "required": [
+        "@context",
+        "@type",
+        "fee",
+        "sender_balance",
+        "receiver_balance",
+        "actual_credit"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "TransferResult",
+          "description": "JSON-LD type identifier."
+        },
+        "fee": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Fee charged to sender (amount × fee_rate)."
+        },
+        "sender_balance": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Sender's balance after transfer."
+        },
+        "receiver_balance": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Receiver's balance after transfer."
+        },
+        "actual_credit": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Amount actually credited to receiver (may differ from requested if capped)."
+        },
+        "overflow": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Amount returned to sender due to receiver cap. Omitted when zero."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

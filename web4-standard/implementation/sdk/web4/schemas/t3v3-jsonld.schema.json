@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/t3v3-jsonld.schema.json",
+  "title": "Web4 T3/V3 Tensor — JSON-LD",
+  "description": "JSON Schema for T3Tensor and V3Tensor JSON-LD documents per t3v3-ontology.ttl. Validates output from T3.to_jsonld() and V3.to_jsonld() and cross-language implementations.",
+  "oneOf": [
+    { "$ref": "#/$defs/T3Tensor" },
+    { "$ref": "#/$defs/V3Tensor" }
+  ],
+  "$defs": {
+    "DimensionScore": {
+      "type": "object",
+      "required": ["dimension", "score"],
+      "properties": {
+        "dimension": {
+          "type": "string",
+          "pattern": "^web4:",
+          "description": "Dimension IRI (e.g., web4:Talent, web4:Training)."
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Numeric score for this dimension."
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this score was observed (web4:observedAt)."
+        },
+        "witnessed_by": {
+          "type": "string",
+          "description": "LCT that witnessed this score (web4:witnessedBy)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "T3Tensor": {
+      "type": "object",
+      "required": [
+        "@context",
+        "@type",
+        "talent",
+        "training",
+        "temperament",
+        "composite_score",
+        "dimension_scores"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "T3Tensor",
+          "description": "JSON-LD type identifier."
+        },
+        "talent": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Shorthand: aggregate Talent score (web4:talent)."
+        },
+        "training": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Shorthand: aggregate Training score (web4:training)."
+        },
+        "temperament": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Shorthand: aggregate Temperament score (web4:temperament)."
+        },
+        "composite_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Weighted composite: talent*0.4 + training*0.3 + temperament*0.3."
+        },
+        "dimension_scores": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DimensionScore" },
+          "minItems": 3,
+          "description": "Structured dimension scores (web4:hasDimensionScore). At minimum the 3 root T3 dimensions."
+        },
+        "entity": {
+          "type": "string",
+          "description": "LCT entity ID this tensor measures (web4:entity)."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role context for this tensor (web4:role)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "V3Tensor": {
+      "type": "object",
+      "required": [
+        "@context",
+        "@type",
+        "valuation",
+        "veracity",
+        "validity",
+        "composite_score",
+        "dimension_scores"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "V3Tensor",
+          "description": "JSON-LD type identifier."
+        },
+        "valuation": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Shorthand: aggregate Valuation score (web4:valuation)."
+        },
+        "veracity": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Shorthand: aggregate Veracity score (web4:veracity)."
+        },
+        "validity": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Shorthand: aggregate Validity score (web4:validity)."
+        },
+        "composite_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Weighted composite: valuation*0.3 + veracity*0.35 + validity*0.35."
+        },
+        "dimension_scores": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DimensionScore" },
+          "minItems": 3,
+          "description": "Structured dimension scores (web4:hasDimensionScore). At minimum the 3 root V3 dimensions."
+        },
+        "entity": {
+          "type": "string",
+          "description": "LCT entity ID this tensor measures (web4:entity)."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role context for this tensor (web4:role)."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

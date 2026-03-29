@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/capability-jsonld.schema.json",
+  "title": "Web4 LCT Capability Levels — JSON-LD",
+  "description": "JSON Schema for LCT capability level documents per web4-standard/core-spec/lct-capability-levels.md. Validates output from LevelRequirement.to_jsonld(), capability_assessment_to_jsonld(), and cross-language implementations.",
+
+  "oneOf": [
+    { "$ref": "#/$defs/LevelRequirement" },
+    { "$ref": "#/$defs/CapabilityAssessment" },
+    { "$ref": "#/$defs/CapabilityFramework" }
+  ],
+
+  "$defs": {
+    "LevelRequirement": {
+      "type": "object",
+      "title": "LevelRequirement",
+      "description": "Human-readable requirements for a capability level.",
+      "required": [
+        "@context",
+        "@type",
+        "level",
+        "name",
+        "description",
+        "requirements",
+        "trust_range"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "LevelRequirement",
+          "description": "JSON-LD type identifier."
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Capability level (0=Stub through 5=Hardware)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable level name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Level description."
+        },
+        "requirements": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of requirements for this level."
+        },
+        "trust_range": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0, "maximum": 1 },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Trust score range [min, max] for this level."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "CapabilityAssessment": {
+      "type": "object",
+      "title": "CapabilityAssessment",
+      "description": "Result of assessing an LCT's capability level.",
+      "required": [
+        "@context",
+        "@type",
+        "lct_id",
+        "assessed_level",
+        "level_name",
+        "trust_tier",
+        "trust_range",
+        "requirements_met",
+        "missing_requirements"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "CapabilityAssessment",
+          "description": "JSON-LD type identifier."
+        },
+        "lct_id": {
+          "type": "string",
+          "description": "The LCT being assessed."
+        },
+        "assessed_level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "The assessed capability level."
+        },
+        "level_name": {
+          "type": "string",
+          "description": "Human-readable name for the assessed level."
+        },
+        "trust_tier": {
+          "type": "string",
+          "description": "Trust tier label for the assessed level."
+        },
+        "trust_range": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0, "maximum": 1 },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Trust score range for the assessed level."
+        },
+        "requirements_met": {
+          "type": "boolean",
+          "description": "Whether all requirements for the assessed level are met."
+        },
+        "missing_requirements": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Requirements not yet met (empty if requirements_met is true)."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "CapabilityFramework": {
+      "type": "object",
+      "title": "CapabilityFramework",
+      "description": "Complete capability level framework with all 6 levels.",
+      "required": [
+        "@context",
+        "@type",
+        "levels"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1,
+          "description": "JSON-LD context URIs."
+        },
+        "@type": {
+          "type": "string",
+          "const": "CapabilityFramework",
+          "description": "JSON-LD type identifier."
+        },
+        "levels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/LevelRequirement" },
+          "description": "All capability level requirements."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
