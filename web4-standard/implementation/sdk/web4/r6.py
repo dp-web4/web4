@@ -107,7 +107,7 @@ class Constraint:
     constraint_type: str   # e.g. "rate_limit", "atp_minimum", "witness_required"
     value: Any             # threshold or limit
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize to dict with 'type' and 'value' keys."""
         return {"type": self.constraint_type, "value": self.value}
 
@@ -141,7 +141,7 @@ class Rules:
                     return actual_value >= c.value if constraint_type.endswith("_minimum") else actual_value <= c.value
         return True
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize rules to dict with constraints, permissions, and prohibitions."""
         return {
             "lawHash": self.law_hash,
@@ -168,7 +168,7 @@ class Role:
     t3_in_role: Optional[T3] = None
     v3_in_role: Optional[V3] = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize role to dict with actor, role LCT, and optional T3/V3 tensors."""
         d: Dict[str, Any] = {
             "actor": self.actor,
@@ -192,7 +192,7 @@ class ProofOfAgency:
     scope: str = ""
     audience: List[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize proof of agency to dict with grant ID and scope."""
         return {
             "grantId": self.grant_id,
@@ -217,7 +217,7 @@ class Request:
     constraints: Dict[str, Any] = field(default_factory=dict)  # temporal, budget limits
     proof_of_agency: Optional[ProofOfAgency] = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize request to dict with action, target, ATP stake, and optional proof of agency."""
         d: Dict[str, Any] = {
             "action": self.action,
@@ -242,7 +242,7 @@ class Precedent:
     outcome: str = ""
     relevance: float = 0.0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize precedent to dict with action hash, outcome, and relevance score."""
         return {"actionHash": self.action_hash, "outcome": self.outcome, "relevance": self.relevance}
 
@@ -255,7 +255,7 @@ class WitnessAttestation:
     signature: str = ""
     timestamp: str = ""
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize witness attestation to dict with LCT, attestation type, and signature."""
         return {
             "lct": self.lct,
@@ -277,7 +277,7 @@ class Reference:
     relevant_entities: List[str] = field(default_factory=list)
     witnesses: List[WitnessAttestation] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize reference to dict with precedents, MRH context, and witnesses."""
         return {
             "precedents": [p.to_dict() for p in self.precedents],
@@ -305,7 +305,7 @@ class ResourceRequirements:
         """True if available ATP meets or exceeds required ATP."""
         return self.available_atp >= self.required_atp
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize resource requirements to dict with required/available ATP and optional escrow."""
         d: Dict[str, Any] = {
             "required": {"atp": self.required_atp},
@@ -338,7 +338,7 @@ class Result:
     resource_consumed: Dict[str, Any] = field(default_factory=dict)
     attestations: List[WitnessAttestation] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize result to dict with status, output, resource consumption, and attestations."""
         d: Dict[str, Any] = {
             "status": self.status.value,
@@ -366,7 +366,7 @@ class TensorDelta:
     from_value: float
     to_value: float
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize tensor delta to dict with change magnitude and from/to values."""
         return {"change": self.change, "from": self.from_value, "to": self.to_value}
 
@@ -377,7 +377,7 @@ class ContributingFactor:
     factor: str
     weight: float
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize contributing factor to dict with factor name and weight."""
         return {"factor": self.factor, "weight": self.weight}
 
@@ -414,7 +414,7 @@ class ReputationDelta:
         """Sum of all V3 dimension changes."""
         return sum(d.change for d in self.v3_delta.values())
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize reputation delta to dict with T3/V3 deltas and net change totals."""
         d: Dict[str, Any] = {
             "subject_lct": self.subject_lct,
@@ -542,7 +542,7 @@ class R7Action:
     prev_action_hash: str = ""
     timestamp: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat()
         if not self.action_id:
@@ -693,7 +693,7 @@ class R7Action:
 
     # ── Serialization ───────────────────────────────────────────
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize complete R7 action to dictionary."""
         d: Dict[str, Any] = {
             "action_id": self.action_id,
@@ -928,7 +928,7 @@ class ActionChain:
     creating a tamper-evident audit trail.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._actions: List[R7Action] = []
 
     def append(self, action: R7Action) -> R7Action:
@@ -967,7 +967,7 @@ class ActionChain:
                 return False
         return True
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize chain to dict with all actions and chain validity status."""
         return {
             "length": self.length,

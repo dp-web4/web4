@@ -294,7 +294,7 @@ class Web4Error(Exception):
         """
         code = ErrorCode(data["code"])
         meta = get_error_meta(code)
-        subclass = _CATEGORY_SUBCLASS.get(meta.category, cls)
+        subclass: type[Web4Error] = _CATEGORY_SUBCLASS.get(meta.category, cls)
         return subclass(
             code,
             detail=data.get("detail"),
@@ -336,7 +336,7 @@ class ProtoError(Web4Error):
 
 
 # Map categories to their subclass for from_problem_json dispatch
-_CATEGORY_SUBCLASS: Dict[ErrorCategory, type] = {
+_CATEGORY_SUBCLASS: Dict[ErrorCategory, type[Web4Error]] = {
     ErrorCategory.BINDING: BindingError,
     ErrorCategory.PAIRING: PairingError,
     ErrorCategory.WITNESS: WitnessError,
@@ -358,5 +358,5 @@ def make_error(
     Returns a BindingError for BINDING codes, AuthzError for AUTHZ codes, etc.
     """
     meta = get_error_meta(code)
-    subclass = _CATEGORY_SUBCLASS.get(meta.category, Web4Error)
+    subclass: type[Web4Error] = _CATEGORY_SUBCLASS.get(meta.category, Web4Error)
     return subclass(code, detail=detail, instance=instance)

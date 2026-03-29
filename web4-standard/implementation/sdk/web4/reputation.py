@@ -104,7 +104,7 @@ class ReputationRule:
 
         return True
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize rule to dict with trigger conditions and T3/V3 impact definitions."""
         return {
             "rule_id": self.rule_id,
@@ -182,7 +182,7 @@ class ReputationEngine:
         delta = engine.evaluate(action)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._rules: List[ReputationRule] = []
 
     def add_rule(self, rule: ReputationRule) -> None:
@@ -319,11 +319,11 @@ class ReputationStore:
     INACTIVITY_ACCELERATE_FACTOR = 1.5
     MAX_INACTIVITY_DECAY = 0.5
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Key: (entity_lct, role_lct) → list of stored deltas
-        self._deltas: Dict[tuple, List[_StoredDelta]] = {}
+        self._deltas: Dict[tuple[str, str], List[_StoredDelta]] = {}
         # Key: (entity_lct, role_lct) → last action datetime
-        self._last_action: Dict[tuple, datetime] = {}
+        self._last_action: Dict[tuple[str, str], datetime] = {}
 
     def record(self, delta: ReputationDelta, now: Optional[datetime] = None) -> None:
         """Record a ReputationDelta into the store."""

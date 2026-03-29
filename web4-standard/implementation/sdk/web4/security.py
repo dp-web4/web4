@@ -174,7 +174,7 @@ class W4ID:
     method: str
     method_specific_id: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.method:
             raise W4IDError("method is required")
         if not self.method_specific_id:
@@ -265,7 +265,7 @@ class KeyPolicy:
         default_factory=lambda: [CryptoSuiteId.W4_BASE_1]
     )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.rotation_days < 1:
             raise ValueError("rotation_days must be >= 1")
 
