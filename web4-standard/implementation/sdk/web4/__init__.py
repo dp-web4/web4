@@ -462,6 +462,18 @@ from .mcp import (
 from .mcp import ResourceRequirements as MCPResourceRequirements
 from .mcp import ProofOfAgency as MCPProofOfAgency
 
+# ── Validation ────────────────────────────────────────────────
+from .validation import (  # noqa: F401
+    ValidationResult,
+    ValidationError,
+    SchemaValidationUnavailable,
+    SchemaNotFound,
+    validate,
+    list_schemas,
+    get_schema,
+    get_schema_dir,
+)
+
 
 # ── Public API ─────────────────────────────────────────────────
 __all__ = [
@@ -611,4 +623,8 @@ __all__ = [
     "PricingModifiers", "calculate_mcp_cost",
     "MCPErrorContext",
     "web4_context_to_json", "web4_context_from_json",
+    # validation
+    "ValidationResult", "ValidationError",
+    "SchemaValidationUnavailable", "SchemaNotFound",
+    "validate", "list_schemas", "get_schema", "get_schema_dir",
 ]
