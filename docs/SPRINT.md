@@ -1,9 +1,30 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-27 (Sprint 10 started)
+**Updated**: 2026-03-28 (Sprint 11 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 11: Code Quality Gates (2026-03-28)
+
+Sprint 10 established CI with pytest (4 Python versions) and mypy. Follow-up sessions
+add ruff linting, coverage reporting (PR #98), and mypy strict compliance to complete the
+quality gate trifecta: lint + typecheck + test with coverage.
+
+### G3: Mypy strict compliance + .gitignore housekeeping
+**Status**: DONE
+**Completed**: 2026-03-28
+**Depends on**: None (complements G1+G2 in PR #98)
+**Scope**: Fix all 72 `mypy --strict` errors across 13 SDK source files (46 type-arg,
+17 no-untyped-def, 9 no-any-return). Add missing `.gitignore` entries for build/test
+artifacts (.coverage, htmlcov/, .mypy_cache/, .ruff_cache/).
+**Result**: All 72 errors fixed across 13 files: parameterized bare `Dict`/`dict`/`set`/`tuple`
+annotations, added return type annotations to `__init__`/`__post_init__` methods, added
+`bool()` casts for `Any`-typed comparisons, added explicit `type[Web4Error]` annotations.
+`.gitignore` updated with 4 new entries. `mypy --strict web4/` passes with 0 errors.
+1715 tests passing, zero regressions.
 
 ---
 
