@@ -41,6 +41,9 @@ Repository = "https://github.com/dp-web4/web4"
 Issues = "https://github.com/dp-web4/web4/issues"
 Changelog = "https://github.com/dp-web4/web4/blob/main/web4-standard/implementation/sdk/CHANGELOG.md"
 
+[project.scripts]
+web4 = "web4.__main__:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "mypy>=1.0", "jsonschema>=4.0"]
 

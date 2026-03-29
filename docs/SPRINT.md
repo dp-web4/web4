@@ -1,9 +1,34 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-29 (Sprint 12 complete)
+**Updated**: 2026-03-29 (Sprint 13 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 13: SDK CLI Module (2026-03-29)
+
+The SDK has 20 modules, 344 exports, and a validation module that can check JSON-LD
+documents against JSON Schemas — but no command-line interface. `python -m web4`
+should work. This sprint adds a CLI entry point wrapping existing SDK functionality.
+
+### J1: CLI module (`web4/__main__.py`)
+**Status**: DONE
+**Completed**: 2026-03-29
+**Depends on**: H1 (validation module)
+**Scope**: Create `web4/__main__.py` with three subcommands: `validate` (validate
+JSON-LD documents against web4 schemas, with `--schema` flag and `@type`
+auto-detection), `info` (show SDK version, module count, export count, schema count),
+`list-schemas` (list all available schemas). Uses argparse (stdlib only). Wire
+`web4` console script into `pyproject.toml` `[project.scripts]`. Tests via
+subprocess invocation.
+**Result**: `web4/__main__.py` with 3 subcommands. Schema auto-detection from `@type`
+field (30+ type mappings covering all JSON-LD types with and without `web4:` prefix).
+Stdin support (`-` as file path). Clear error messages for missing files, invalid JSON,
+unknown schemas, and missing jsonschema dependency. Console script entry point wired.
+22 tests covering all subcommands, error cases, auto-detection, and help output.
+Mypy strict clean. 1774 tests passing, zero regressions.
 
 ---
 
@@ -885,3 +910,4 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | A3 | Entity + Capability JSON-LD | DONE |
 | A4 | Cross-language validation vectors (Phase 2) | DONE |
 | A5 | SDK v0.9.0 release housekeeping | DONE |
+| J1 | CLI module (`web4/__main__.py`) | DONE |
