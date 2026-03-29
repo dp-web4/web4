@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-29 (Sprint 12 started)
+**Updated**: 2026-03-29 (Sprint 12 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -28,9 +28,14 @@ repo-relative walk (with `WEB4_SCHEMA_DIR` env override). 12 named schemas (9 JS
 directory resolution. Mypy strict clean. 1748 tests passing, zero regressions.
 
 ### H2: SDK v0.15.0 release housekeeping
-**Status**: TODO
+**Status**: DONE
+**Completed**: 2026-03-29
 **Depends on**: H1
 **Scope**: Version bump 0.14.0 → 0.15.0, CHANGELOG.md entry documenting Sprint 12.
+**Result**: Version bumped in pyproject.toml. CHANGELOG.md v0.15.0 entry documents
+Sprint 11 (G3: mypy strict, G4: README coherence) and Sprint 12 (H1: validation module).
+SESSION_FOCUS.md updated with current SDK status (20 modules, 344 exports, 1748 tests).
+Sprint 12 complete (2/2 tasks).
 
 ---
 

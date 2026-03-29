@@ -2,6 +2,30 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.15.0] - 2026-03-29
+
+Sprints 11 and 12: Code Quality Gates and Schema Validation Integration.
+
+### Added
+- **Schema validation module** (H1) — `web4/validation.py`: 20th SDK module
+  providing runtime validation of JSON-LD documents against the project's JSON
+  Schemas. Public API: `validate()`, `list_schemas()`, `get_schema()`,
+  `get_schema_dir()`, `ValidationResult`, `ValidationError`,
+  `SchemaValidationUnavailable`, `SchemaNotFound`.
+  Schema directory auto-detected via repo-relative walk (with
+  `WEB4_SCHEMA_DIR` env override). 12 named schemas (9 JSON-LD + 3 standalone).
+  33 tests covering all schema types, error handling, caching, and directory
+  resolution. `jsonschema` as optional dependency with graceful degradation.
+
+### Changed
+- **SDK README coherence update** (G4) — README.md rewritten to accurately
+  document the `web4` package (19→20 modules, 336→344 exports, v0.14.0→0.15.0)
+  instead of the legacy `web4_sdk.py` async HTTP client.
+- **Mypy strict compliance** (G3) — 65 type fixes across 13 SDK modules.
+  `mypy --strict web4/` passes with 0 errors.
+- Version bumped from 0.14.0 to 0.15.0.
+- 1748 tests passing. 20 SDK modules, 344 exports.
+
 ## [0.14.0] - 2026-03-28
 
 Sprint 10 completion: CI/CD & Packaging Quality — automated test verification,
