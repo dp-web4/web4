@@ -195,7 +195,7 @@ class TranslationRequest:
     source_content: str
     source_domain: str
     target_domain: str
-    context: Dict = field(default_factory=dict)
+    context: Dict[str, Any] = field(default_factory=dict)
     minimum_fidelity: float = 0.9
     require_witness: bool = False
     atp_stake: float = 0.0
@@ -418,7 +418,7 @@ class FeedbackRecord:
     corrector_lct_id: str = ""
     original_content: str = ""
     corrected_content: str = ""
-    context: Dict = field(default_factory=dict)
+    context: Dict[str, Any] = field(default_factory=dict)
     timestamp: str = ""
 
     def __post_init__(self) -> None:

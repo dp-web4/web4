@@ -101,7 +101,7 @@ class MRHNode:
     trust_scores: Dict[str, float] = field(default_factory=dict)
     metadata: Dict[str, str] = field(default_factory=dict)
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         """Serialize node to dict with camelCase keys for JSON-LD compatibility."""
         return {
             "lctId": self.lct_id,
@@ -120,9 +120,9 @@ class MRHEdge:
     relation: RelationType
     weight: float = 1.0  # Edge weight (trust probability)
     timestamp: Optional[str] = None  # ISO 8601
-    metadata: Dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, str] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.weight = max(0.0, min(1.0, self.weight))
         if isinstance(self.relation, str):
             self.relation = RelationType(self.relation)
@@ -497,7 +497,7 @@ class MRHGraph:
 
     # ── Serialization ───────────────────────────────────────────
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         """Serialize entire graph to dict with nodes, edges, and counts."""
         return {
             "horizonDepth": self.horizon_depth,

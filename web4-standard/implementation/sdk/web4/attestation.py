@@ -151,7 +151,7 @@ class AttestationEnvelope:
     issuer: Optional[str] = None      # Machine name or instance ID
     purpose: Optional[str] = None     # 'enrollment' | 'session_start' | etc.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Compute derived fields."""
         if not self.public_key_fingerprint and self.public_key:
             self.public_key_fingerprint = sha256(
@@ -189,7 +189,7 @@ class AttestationEnvelope:
         """Trust ceiling x freshness decay."""
         return self.trust_ceiling * self.freshness_factor
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
         return asdict(self)
 
@@ -198,7 +198,7 @@ class AttestationEnvelope:
         return json.dumps(self.to_dict(), indent=2)
 
     @classmethod
-    def from_dict(cls, data: Dict) -> AttestationEnvelope:
+    def from_dict(cls, data: Dict[str, Any]) -> AttestationEnvelope:
         """Deserialize from dictionary."""
         data = dict(data)
         if 'anchor' in data and isinstance(data['anchor'], dict):
@@ -461,7 +461,7 @@ def _verify_secure_enclave(envelope: AttestationEnvelope) -> VerificationResult:
 
 def verify_envelope(envelope: AttestationEnvelope,
                     expected_challenge: str = '',
-                    **kwargs) -> VerificationResult:
+                    **kwargs: Any) -> VerificationResult:
     """Verify an attestation envelope.
 
     Dispatches to the appropriate anchor-specific verifier.

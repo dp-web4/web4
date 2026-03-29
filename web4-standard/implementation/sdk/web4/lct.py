@@ -129,7 +129,7 @@ class LineageEntry:
 class Policy:
     """Capabilities and constraints for this LCT."""
     capabilities: List[str] = field(default_factory=list)
-    constraints: Dict = field(default_factory=dict)
+    constraints: Dict[str, Any] = field(default_factory=dict)
 
 
 # ── LCT ──────────────────────────────────────────────────────────
@@ -337,7 +337,7 @@ class LCT:
         raw = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(raw.encode()).hexdigest()
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary (SDK internal format, backward-compatible)."""
         d = {
             "lct_id": self.lct_id,

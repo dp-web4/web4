@@ -261,21 +261,21 @@ class Norm:
         membership tests (in, not_in) for collection-valued norms.
         """
         if self.op == "<=":
-            return actual_value <= self.value
+            return bool(actual_value <= self.value)
         elif self.op == ">=":
-            return actual_value >= self.value
+            return bool(actual_value >= self.value)
         elif self.op == "==":
-            return actual_value == self.value
+            return bool(actual_value == self.value)
         elif self.op == "!=":
-            return actual_value != self.value
+            return bool(actual_value != self.value)
         elif self.op == "<":
-            return actual_value < self.value
+            return bool(actual_value < self.value)
         elif self.op == ">":
-            return actual_value > self.value
+            return bool(actual_value > self.value)
         elif self.op == "in":
-            return actual_value in self.value
+            return bool(actual_value in self.value)
         elif self.op == "not_in":
-            return actual_value not in self.value
+            return bool(actual_value not in self.value)
         return False
 
 
@@ -666,9 +666,9 @@ class Society:
 # These are used by test vectors and wire formats.
 
 
-def norm_to_dict(norm: Norm) -> dict:
+def norm_to_dict(norm: Norm) -> dict[str, Any]:
     """Serialize a Norm to a JSON-compatible dict."""
-    d: dict = {
+    d: dict[str, Any] = {
         "norm_id": norm.norm_id,
         "selector": norm.selector,
         "op": norm.op,
@@ -679,7 +679,7 @@ def norm_to_dict(norm: Norm) -> dict:
     return d
 
 
-def norm_from_dict(d: dict) -> Norm:
+def norm_from_dict(d: dict[str, Any]) -> Norm:
     """Deserialize a Norm from a dict."""
     return Norm(
         norm_id=d["norm_id"],
@@ -690,9 +690,9 @@ def norm_from_dict(d: dict) -> Norm:
     )
 
 
-def procedure_to_dict(proc: Procedure) -> dict:
+def procedure_to_dict(proc: Procedure) -> dict[str, Any]:
     """Serialize a Procedure to a JSON-compatible dict."""
-    d: dict = {
+    d: dict[str, Any] = {
         "procedure_id": proc.procedure_id,
         "requires_witnesses": proc.requires_witnesses,
     }
@@ -701,7 +701,7 @@ def procedure_to_dict(proc: Procedure) -> dict:
     return d
 
 
-def procedure_from_dict(d: dict) -> Procedure:
+def procedure_from_dict(d: dict[str, Any]) -> Procedure:
     """Deserialize a Procedure from a dict."""
     return Procedure(
         procedure_id=d["procedure_id"],
@@ -710,9 +710,9 @@ def procedure_from_dict(d: dict) -> Procedure:
     )
 
 
-def interpretation_to_dict(interp: Interpretation) -> dict:
+def interpretation_to_dict(interp: Interpretation) -> dict[str, Any]:
     """Serialize an Interpretation to a JSON-compatible dict."""
-    d: dict = {"interpretation_id": interp.interpretation_id}
+    d: dict[str, Any] = {"interpretation_id": interp.interpretation_id}
     if interp.replaces:
         d["replaces"] = interp.replaces
     if interp.reason:
@@ -720,7 +720,7 @@ def interpretation_to_dict(interp: Interpretation) -> dict:
     return d
 
 
-def interpretation_from_dict(d: dict) -> Interpretation:
+def interpretation_from_dict(d: dict[str, Any]) -> Interpretation:
     """Deserialize an Interpretation from a dict."""
     return Interpretation(
         interpretation_id=d["interpretation_id"],
@@ -729,7 +729,7 @@ def interpretation_from_dict(d: dict) -> Interpretation:
     )
 
 
-def law_dataset_to_dict(law: LawDataset) -> dict:
+def law_dataset_to_dict(law: LawDataset) -> dict[str, Any]:
     """Serialize a LawDataset to a JSON-compatible dict."""
     return {
         "law_id": law.law_id,
@@ -742,7 +742,7 @@ def law_dataset_to_dict(law: LawDataset) -> dict:
     }
 
 
-def law_dataset_from_dict(d: dict) -> LawDataset:
+def law_dataset_from_dict(d: dict[str, Any]) -> LawDataset:
     """Deserialize a LawDataset from a dict."""
     return LawDataset(
         law_id=d["law_id"],
@@ -754,9 +754,9 @@ def law_dataset_from_dict(d: dict) -> LawDataset:
     )
 
 
-def delegation_to_dict(deleg: Delegation) -> dict:
+def delegation_to_dict(deleg: Delegation) -> dict[str, Any]:
     """Serialize a Delegation to a JSON-compatible dict."""
-    d: dict = {
+    d: dict[str, Any] = {
         "delegation_id": deleg.delegation_id,
         "delegator": deleg.delegator,
         "delegate": deleg.delegate,
@@ -770,7 +770,7 @@ def delegation_to_dict(deleg: Delegation) -> dict:
     return d
 
 
-def delegation_from_dict(d: dict) -> Delegation:
+def delegation_from_dict(d: dict[str, Any]) -> Delegation:
     """Deserialize a Delegation from a dict."""
     deleg = Delegation(
         delegation_id=d["delegation_id"],
@@ -786,12 +786,12 @@ def delegation_from_dict(d: dict) -> Delegation:
     return deleg
 
 
-def quorum_policy_to_dict(qp: QuorumPolicy) -> dict:
+def quorum_policy_to_dict(qp: QuorumPolicy) -> dict[str, Any]:
     """Serialize a QuorumPolicy to a JSON-compatible dict."""
     return {"mode": qp.mode.value, "required": qp.required}
 
 
-def quorum_policy_from_dict(d: dict) -> QuorumPolicy:
+def quorum_policy_from_dict(d: dict[str, Any]) -> QuorumPolicy:
     """Deserialize a QuorumPolicy from a dict."""
     return QuorumPolicy(
         mode=QuorumMode(d["mode"]),

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from web4.federation import (
     Society,
@@ -93,7 +93,7 @@ class LedgerEntry:
     entry_id: str
     event_type: LedgerEventType
     action: str                    # e.g. "grant", "suspend", "allocate", "ratify"
-    data: Dict                     # event-specific payload
+    data: Dict[str, Any]            # event-specific payload
     timestamp: str
     witnesses: List[str] = field(default_factory=list)
     superseded_by: Optional[str] = None   # entry_id of amendment that replaces this

@@ -53,7 +53,7 @@ class ATPAccount:
     adp: float = 0.0
     initial_balance: float = 0.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.initial_balance == 0.0:
             self.initial_balance = self.available
 
@@ -330,7 +330,7 @@ def sybil_cost(
     hardware_cost: float,
     atp_stake: float,
     fee_rate: float = 0.05,
-) -> dict:
+) -> dict[str, float]:
     """
     Sybil attack cost analysis (test vector atp-011).
 
@@ -349,7 +349,7 @@ def sybil_cost(
 
 # ── Fee Sensitivity ──────────────────────────────────────────────
 
-def fee_sensitivity(amount: float, fee_rates: List[float]) -> List[dict]:
+def fee_sensitivity(amount: float, fee_rates: List[float]) -> List[dict[str, float]]:
     """
     Fee sensitivity sweep (test vector atp-014).
 

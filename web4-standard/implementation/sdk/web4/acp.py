@@ -286,7 +286,7 @@ class AgentPlan:
     def step_order(self) -> List[str]:
         """Topological order of steps based on dependencies."""
         ordered: List[str] = []
-        visited: set = set()
+        visited: set[str] = set()
 
         step_map = {s.step_id: s for s in self.steps}
 
@@ -856,7 +856,7 @@ class ACPStateMachine:
         self._history: List[Dict[str, Any]] = []
         self._log_transition(ACPState.IDLE, "initialized")
 
-    def _log_transition(self, to_state: ACPState, reason: str):
+    def _log_transition(self, to_state: ACPState, reason: str) -> None:
         self._history.append({
             "from": self.state.value if self._history else None,
             "to": to_state.value,
@@ -864,7 +864,7 @@ class ACPStateMachine:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
-    def _transition(self, to_state: ACPState, reason: str = ""):
+    def _transition(self, to_state: ACPState, reason: str = "") -> None:
         """Validate and execute a state transition."""
         if to_state not in VALID_TRANSITIONS.get(self.state, []):
             raise InvalidTransition(

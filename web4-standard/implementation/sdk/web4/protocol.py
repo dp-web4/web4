@@ -73,7 +73,7 @@ class ClientHello:
     supported_extensions: List[str] = field(default_factory=list)
     grease_extensions: List[str] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.supported_suites:
             raise ValueError("ClientHello must list at least one supported suite")
         if not self.nonce:
@@ -100,7 +100,7 @@ class ServerHello:
     encrypted_credentials: str = ""
     selected_extensions: List[str] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.selected_suite:
             raise ValueError("ServerHello must select a suite")
         if not self.nonce:
@@ -122,7 +122,7 @@ class ClientFinished:
     encrypted_credentials: str
     transcript_mac: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.transcript_mac:
             raise ValueError("ClientFinished requires transcript MAC")
 
@@ -143,7 +143,7 @@ class ServerFinished:
     transcript_mac: str
     session_id: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.transcript_mac:
             raise ValueError("ServerFinished requires transcript MAC")
         if not self.session_id:
@@ -347,7 +347,8 @@ def required_discovery_methods() -> List[DiscoveryMethod]:
 
 def discovery_privacy(method: DiscoveryMethod) -> PrivacyLevel:
     """Get the privacy level of a discovery method."""
-    return DISCOVERY_METADATA[method]["privacy"]
+    result: PrivacyLevel = DISCOVERY_METADATA[method]["privacy"]
+    return result
 
 
 @dataclass
@@ -403,7 +404,7 @@ class Web4URI:
     query: Optional[str] = None
     fragment: Optional[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.w4id:
             raise ValueError("Web4URI requires a non-empty w4id")
 
