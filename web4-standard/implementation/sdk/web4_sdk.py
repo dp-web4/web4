@@ -67,18 +67,14 @@ from datetime import datetime, timezone
 try:
     import aiohttp
 except ImportError:
-    aiohttp = None
-    import warnings
-    warnings.warn("aiohttp not installed. Async methods will not work. Install with: pip install aiohttp")
+    aiohttp = None  # type: ignore[assignment]
 
 try:
     from nacl.signing import SigningKey, VerifyKey
     from nacl.encoding import HexEncoder
 except ImportError:
-    SigningKey = None
-    VerifyKey = None
-    import warnings
-    warnings.warn("PyNaCl not installed. Cryptographic signing will not work. Install with: pip install pynacl")
+    SigningKey = None  # type: ignore[assignment,misc]
+    VerifyKey = None  # type: ignore[assignment,misc]
 
 # Import canonical web4 types (v0.1.0+)
 from web4.trust import (

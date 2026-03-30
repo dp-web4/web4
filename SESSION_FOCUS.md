@@ -14,6 +14,7 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
+| L1: Strict warnings + CI quality gates | DONE | Lazy imports, mypy --strict CI, pytest -W error, ruff fixes, PR #112 |
 | N1: Security from_dict() | DONE | W4ID, KeyPolicy, SignatureEnvelope, VerifiableCredential — 4 methods, 16 tests, PR #119 |
 | O1: R6 from_dict() | DONE | 12 component from_dict() methods, 32 tests, PR #120 |
 | P1: Reputation + protocol from_dict() | DONE | ReputationRule, HandshakeMessage — 2 methods, 8 tests, PR #121 |
@@ -41,6 +42,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 - **Tests**: 2183 passing
 - **Exports**: 344 symbols via `web4/__init__.py`
 - **from_dict()**: 56 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
+- **Quality gates**: ruff clean, mypy --strict clean, pytest -W error clean
 - **CLI**: `web4 info/validate/list-schemas` (console script + `python -m web4`)
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[dev]` (full toolchain)
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
@@ -82,13 +84,13 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+84b808d S1: Trust/MRH from_dict() round-trip + Sprint 15 + SDK v0.17.0 (#125)
 7677335 K1: Validation optional extra + README coherence + SDK v0.16.0 (#113)
 e7f1b97 R1: LCT module from_dict() round-trip completeness (#124)
 f05c3f8 M1: Integrate 278 schema validation vectors into pytest suite (#117)
 9417027 Q1: ACP module from_dict() round-trip completeness (#123)
 8184181 P1: Reputation + protocol from_dict() round-trip completeness (#121)
 e7ddf1a O1: R6 module from_dict() round-trip completeness (#120)
-b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 ```
 
 ---

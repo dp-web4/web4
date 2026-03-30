@@ -7,11 +7,26 @@
 
 ---
 
-## Sprint 15: from_dict() Round-Trip Completeness + Schema Vector Integration (2026-04-04)
+## Sprint 15: from_dict() Round-Trip Completeness + Schema Vector Integration + CI Quality Gates (2026-04-04)
 
-Post-Sprint 14 work completed the from_dict() round-trip series across all SDK modules
-and integrated the 278 cross-language schema validation vectors into the pytest suite.
-This sprint retroactively documents that work and bumps the SDK to v0.17.0.
+Post-Sprint 14 work completed the from_dict() round-trip series across all SDK modules,
+integrated the 278 cross-language schema validation vectors into the pytest suite, and
+hardened CI with strict warnings and quality gates. Bumps the SDK to v0.17.0.
+
+### L1: Strict warnings + CI hardening
+**Status**: DONE
+**Completed**: 2026-03-30
+**Depends on**: G3 (mypy strict compliance)
+**Scope**: Fix `web4_sdk.py` eager aiohttp/pynacl import warnings (lazy import pattern).
+Add `filterwarnings = ["error"]` to pytest config. Upgrade CI mypy to `--strict`.
+Fix pre-existing ruff lint errors in `__main__.py`. Remove stale `type: ignore` in
+`validation.py`.
+**Result**: `web4_sdk.py` no longer warns on import (lazy pattern — deps checked on use
+in `Web4Client.__init__`). CI mypy upgraded from basic to `--strict --ignore-missing-imports`.
+Pre-existing ruff issues in `__main__.py` fixed (unused `List` import, unsorted import
+block). Stale `type: ignore[import-untyped]` removed from `validation.py`.
+Files modified: 5 (`web4_sdk.py`, `pyproject.toml`, `sdk-test.yml`, `__main__.py`,
+`validation.py`). PR #112.
 
 ### N1: Security module from_dict() round-trip completeness
 **Status**: DONE
@@ -1016,3 +1031,4 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | A5 | SDK v0.9.0 release housekeeping | DONE |
 | I1 | Bundle JSON Schemas as package data | DONE |
 | J1 | CLI module (`web4/__main__.py`) | DONE |
+| L1 | Strict warnings + CI quality gates | DONE |
