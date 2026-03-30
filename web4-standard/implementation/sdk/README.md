@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.14.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.16.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
 
 ## Installation
 
@@ -22,10 +22,16 @@ Or from the repository root:
 pip install -e web4-standard/implementation/sdk/
 ```
 
-No runtime dependencies. For development:
+No runtime dependencies. For schema validation support:
 
 ```bash
-pip install -e ".[dev]"  # adds pytest, mypy, jsonschema
+pip install -e ".[validation]"  # adds jsonschema
+```
+
+For development (includes validation + pytest, mypy):
+
+```bash
+pip install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -53,7 +59,7 @@ assert reconstructed.talent == trust.talent
 
 ## Modules
 
-The SDK contains 19 modules, all importable from the `web4` namespace:
+The SDK contains 20 modules, all importable from the `web4` namespace:
 
 | Module | Description | Key Types |
 |--------|-------------|-----------|
@@ -76,8 +82,20 @@ The SDK contains 19 modules, all importable from the `web4` namespace:
 | `protocol` | Handshake, transport, discovery, Web4 URIs | `Web4URI`, `Transport`, `ClientHello` |
 | `mcp` | MCP context headers, sessions, ATP metering | `MCPSession`, `Web4Context` |
 | `attestation` | Hardware trust envelope and verification | `AttestationEnvelope`, `verify_envelope` |
+| `validation` | Schema validation for JSON-LD documents | `validate`, `list_schemas`, `get_schema` |
 
-336 symbols are exported from `web4.__init__`. All 19 submodules have `__all__` declarations (375 symbols total).
+344 symbols are exported from `web4.__init__`. All 20 submodules have `__all__` declarations.
+
+## Command-Line Interface
+
+```bash
+web4 info             # Show SDK version, modules, exports, schemas
+web4 list-schemas     # List available JSON Schemas
+web4 validate F.json  # Validate a JSON-LD document (auto-detects schema from @type)
+web4 validate F.json --schema lct  # Validate against a specific schema
+```
+
+Also available as `python -m web4`.
 
 ## Import Patterns
 
@@ -144,7 +162,7 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-1715 tests, 98% coverage, mypy strict compliant, CI across Python 3.10-3.13.
+1770 tests, 98% coverage, mypy strict compliant, CI across Python 3.10-3.13.
 
 ## Client SDK
 
@@ -169,13 +187,15 @@ The client SDK re-exports canonical types from the `web4` package, so both
 ## Project Structure
 
 ```
-web4/                  # Python package (19 modules)
-  __init__.py          # 336 re-exports
+web4/                  # Python package (20 modules)
+  __init__.py          # 344 re-exports
+  __main__.py          # CLI entry point (web4 info/validate/list-schemas)
   py.typed             # PEP 561 marker
   trust.py             # T3/V3 tensors
   lct.py               # Linked Context Tokens
+  validation.py        # Schema validation
   ...                  # (17 more modules)
-tests/                 # 1715 tests
+tests/                 # 1770 tests
 schemas/               # JSON Schemas + JSON-LD contexts
 web4_sdk.py            # Async HTTP client (separate)
 pyproject.toml         # Package metadata (single version source)

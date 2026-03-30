@@ -2,6 +2,23 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.16.0] - 2026-03-29
+
+Sprints 13 and 14: CLI module and distribution polish.
+
+### Added
+- **CLI module** (J1) — `web4/__main__.py` with 3 subcommands: `info`, `validate`,
+  `list-schemas`. Schema auto-detection from `@type` field (30+ type mappings).
+  Stdin support. Console script entry point (`web4` command). 22 tests.
+- **`validation` optional extra** (K1) — `pip install web4[validation]` installs
+  just `jsonschema` without the full dev toolchain. Error messages in both
+  `validation.py` and CLI now suggest `web4[validation]` instead of `web4[dev]`.
+
+### Changed
+- README.md updated to reflect v0.16.0 status: 20 modules, 344 exports, 1770 tests,
+  CLI documentation, validation extra installation instructions.
+- Version bumped from 0.15.0 to 0.16.0.
+
 ## [0.15.0] - 2026-03-29
 
 Sprints 11 and 12: Code Quality Gates and Schema Validation Integration.
