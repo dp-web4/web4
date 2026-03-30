@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/trust-query.schema.json",
+  "title": "Trust Query Request",
+  "description": "ATP-staked request for role-contextual trust information",
+  "type": "object",
+  "required": ["query", "signature"],
+  "properties": {
+    "query": {
+      "type": "object",
+      "required": [
+        "querier",
+        "target_entity",
+        "requested_role",
+        "intended_interaction",
+        "atp_stake",
+        "validity_period"
+      ],
+      "properties": {
+        "querier": {
+          "type": "string",
+          "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+          "description": "Entity making the trust query"
+        },
+        "target_entity": {
+          "type": "string",
+          "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+          "description": "Entity whose trust is being queried"
+        },
+        "requested_role": {
+          "type": "string",
+          "pattern": "^web4:[A-Za-z]+$",
+          "description": "Specific role context for trust query"
+        },
+        "intended_interaction": {
+          "type": "string",
+          "description": "Type of interaction planned with target"
+        },
+        "atp_stake": {
+          "type": "integer",
+          "minimum": 10,
+          "description": "ATP amount staked for this query"
+        },
+        "validity_period": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 86400,
+          "description": "Seconds until engagement required or stake forfeited"
+        },
+        "query_justification": {
+          "type": "string",
+          "description": "Reason for needing trust information"
+        },
+        "disclosure_level": {
+          "type": "string",
+          "enum": ["binary", "range", "precise"],
+          "default": "range",
+          "description": "Requested level of trust detail"
+        }
+      },
+      "additionalProperties": false
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "description": "Cryptographic signature of the query"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

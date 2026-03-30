@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/attestation-envelope-jsonld.schema.json",
+  "title": "Web4 AttestationEnvelope — JSON-LD",
+  "description": "JSON Schema for spec-compliant AttestationEnvelope documents per docs/specs/attestation-envelope.md. Validates output from AttestationEnvelope.to_jsonld() and cross-language implementations.",
+  "type": "object",
+  "required": [
+    "@context",
+    "@type",
+    "envelope_version",
+    "entity_id",
+    "public_key",
+    "public_key_fingerprint",
+    "anchor",
+    "proof",
+    "timestamp",
+    "challenge_issued_at",
+    "challenge_ttl",
+    "platform_state",
+    "trust_ceiling"
+  ],
+  "properties": {
+    "@context": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "minItems": 1,
+      "description": "JSON-LD context URIs."
+    },
+    "@type": {
+      "type": "string",
+      "const": "AttestationEnvelope",
+      "description": "JSON-LD type identifier."
+    },
+    "envelope_version": {
+      "type": "string",
+      "description": "Envelope format version."
+    },
+
+    "entity_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "LCT ID of the entity being attested."
+    },
+    "public_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Public key in PEM, JWK, or multibase format."
+    },
+    "public_key_fingerprint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SHA-256 fingerprint of the public key (first 16 hex chars)."
+    },
+
+    "anchor": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["tpm2", "fido2", "secure_enclave", "software"],
+          "description": "Hardware anchor type."
+        },
+        "manufacturer": {
+          "type": "string",
+          "description": "Hardware manufacturer."
+        },
+        "model": {
+          "type": "string",
+          "description": "Hardware model identifier."
+        },
+        "firmware_version": {
+          "type": "string",
+          "description": "Firmware version string."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "proof": {
+      "type": "object",
+      "required": ["format", "signature", "challenge"],
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["tpm2_quote", "fido2_assertion", "se_attestation", "ecdsa_software"],
+          "description": "Proof format matching the anchor type."
+        },
+        "signature": {
+          "type": "string",
+          "description": "Base64-encoded signature over the challenge."
+        },
+        "challenge": {
+          "type": "string",
+          "description": "The nonce that was signed."
+        },
+        "attestation_object": {
+          "type": "string",
+          "description": "Raw attestation object (Base64). FIDO2/platform-specific."
+        },
+        "pcr_digest": {
+          "type": "string",
+          "description": "SHA-256 digest of selected PCR values. TPM2-specific."
+        },
+        "pcr_selection": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "description": "PCR register indices included in the quote. TPM2-specific."
+        },
+        "authenticator_data": {
+          "type": "string",
+          "description": "CBOR-encoded authenticator data. FIDO2-specific."
+        },
+        "client_data_hash": {
+          "type": "string",
+          "description": "Hash of the client data. FIDO2-specific."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "timestamp": {
+      "type": "number",
+      "description": "Unix epoch timestamp of attestation creation."
+    },
+    "challenge_issued_at": {
+      "type": "number",
+      "description": "Unix epoch timestamp when the challenge was issued."
+    },
+    "challenge_ttl": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time-to-live for the challenge in seconds."
+    },
+
+    "platform_state": {
+      "type": "object",
+      "required": ["available"],
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "description": "Whether platform state information is available."
+        },
+        "boot_verified": {
+          "type": "boolean",
+          "description": "Whether secure/measured boot was verified."
+        },
+        "pcr_values": {
+          "type": "object",
+          "description": "PCR register values as string-keyed hex digests.",
+          "additionalProperties": { "type": "string" }
+        },
+        "os_version": {
+          "type": "string",
+          "description": "Operating system version string."
+        },
+        "kernel_version": {
+          "type": "string",
+          "description": "Kernel version string."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "trust_ceiling": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Maximum trust score achievable with this anchor type."
+    },
+
+    "issuer": {
+      "type": "string",
+      "description": "Machine name or instance ID that issued this envelope."
+    },
+    "purpose": {
+      "type": "string",
+      "enum": ["enrollment", "session_start", "re_attestation", "witness", "migration", "device_binding"],
+      "description": "Purpose of the attestation."
+    }
+  },
+  "additionalProperties": false
+}

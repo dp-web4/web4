@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/acp-jsonld.schema.json",
+  "title": "Web4 ACP — JSON-LD",
+  "description": "JSON Schema for ACP (Agentic Context Protocol) documents per web4-standard/core-spec/acp-framework.md. Validates output from AgentPlan.to_jsonld(), Intent.to_jsonld(), Decision.to_jsonld(), ExecutionRecord.to_jsonld(), and cross-language implementations.",
+
+  "oneOf": [
+    { "$ref": "#/$defs/AgentPlan" },
+    { "$ref": "#/$defs/Intent" },
+    { "$ref": "#/$defs/Decision" },
+    { "$ref": "#/$defs/ExecutionRecord" }
+  ],
+
+  "$defs": {
+    "Trigger": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["cron", "event", "manual"],
+          "description": "Trigger type per ACP §2.1."
+        },
+        "expr": {
+          "type": "string",
+          "description": "Cron expression or event topic."
+        },
+        "authorized": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "LCT IDs authorized to manually trigger."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "PlanStep": {
+      "type": "object",
+      "required": ["id", "mcp", "args"],
+      "properties": {
+        "id": { "type": "string" },
+        "mcp": { "type": "string" },
+        "args": { "type": "object" },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requiresApproval": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "ResourceCaps": {
+      "type": "object",
+      "properties": {
+        "maxAtp": { "type": "number", "minimum": 0 },
+        "maxExecutions": { "type": "integer", "minimum": 0 },
+        "rateLimit": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "HumanApproval": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["auto", "manual", "conditional"] },
+        "autoThreshold": { "type": "number" },
+        "timeout": { "type": "integer", "minimum": 0 },
+        "fallback": { "type": "string", "enum": ["deny", "abort"] }
+      },
+      "additionalProperties": false
+    },
+
+    "Guards": {
+      "type": "object",
+      "properties": {
+        "lawHash": { "type": "string" },
+        "witnessLevel": { "type": "integer", "minimum": 0 },
+        "resourceCaps": { "$ref": "#/$defs/ResourceCaps" },
+        "humanApproval": { "$ref": "#/$defs/HumanApproval" },
+        "expiresAt": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "ProofOfAgency": {
+      "type": "object",
+      "required": ["grantId", "planId", "intentId", "nonce"],
+      "properties": {
+        "grantId": { "type": "string" },
+        "planId": { "type": "string" },
+        "intentId": { "type": "string" },
+        "nonce": { "type": "string" },
+        "audience": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "expiresAt": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "AgentPlan": {
+      "type": "object",
+      "title": "AgentPlan",
+      "description": "Declarative agent workflow specification per ACP §2.1.",
+      "required": [
+        "@context", "@type", "planId", "principal", "agent",
+        "grantId", "steps", "createdAt"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1
+        },
+        "@type": { "type": "string", "const": "AgentPlan" },
+        "planId": { "type": "string" },
+        "principal": { "type": "string" },
+        "agent": { "type": "string" },
+        "grantId": { "type": "string" },
+        "triggers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Trigger" }
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PlanStep" },
+          "minItems": 1
+        },
+        "guards": { "$ref": "#/$defs/Guards" },
+        "canonicalHash": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "Intent": {
+      "type": "object",
+      "title": "Intent",
+      "description": "Actionable proposal from plan evaluation per ACP §2.2.",
+      "required": [
+        "@context", "@type", "intentId", "planId", "stepId",
+        "proposedAction", "proofOfAgency", "createdAt"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1
+        },
+        "@type": { "type": "string", "const": "Intent" },
+        "intentId": { "type": "string" },
+        "planId": { "type": "string" },
+        "stepId": { "type": "string" },
+        "proposedAction": { "type": "object" },
+        "proofOfAgency": { "$ref": "#/$defs/ProofOfAgency" },
+        "explanation": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "riskAssessment": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "needsApproval": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "Decision": {
+      "type": "object",
+      "title": "Decision",
+      "description": "Human or automated decision on an intent per ACP §2.3.",
+      "required": [
+        "@context", "@type", "intentId", "decision", "decidedBy", "timestamp"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1
+        },
+        "@type": { "type": "string", "const": "Decision" },
+        "intentId": { "type": "string" },
+        "decision": { "type": "string", "enum": ["approve", "deny", "modify"] },
+        "decidedBy": { "type": "string" },
+        "rationale": { "type": "string" },
+        "modifications": { "type": "object" },
+        "witnesses": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "timestamp": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "ExecutionRecord": {
+      "type": "object",
+      "title": "ExecutionRecord",
+      "description": "Immutable record of action execution per ACP §2.4.",
+      "required": [
+        "@context", "@type", "recordId", "intentId", "grantId",
+        "lawHash", "mcpCall", "result", "timestamp"
+      ],
+      "properties": {
+        "@context": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "minItems": 1
+        },
+        "@type": { "type": "string", "const": "ExecutionRecord" },
+        "recordId": { "type": "string" },
+        "intentId": { "type": "string" },
+        "grantId": { "type": "string" },
+        "lawHash": { "type": "string" },
+        "mcpCall": { "type": "object" },
+        "result": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "type": "string", "enum": ["success", "failure"] },
+            "output": { "type": "object" },
+            "resourcesConsumed": { "type": "object" }
+          },
+          "additionalProperties": false
+        },
+        "t3v3Delta": { "type": "object" },
+        "witnesses": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "canonicalHash": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

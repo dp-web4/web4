@@ -52,3 +52,4 @@ include = ["web4*"]
 
 [tool.setuptools.package-data]
 web4 = ["py.typed"]
+"web4.schemas" = ["*.json"]
