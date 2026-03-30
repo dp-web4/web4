@@ -13,9 +13,9 @@ Validated against: web4-standard/test-vectors/atp/transfer-operations.json
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 import json
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 __all__ = [
     # Classes

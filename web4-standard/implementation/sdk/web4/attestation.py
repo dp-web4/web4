@@ -31,11 +31,11 @@ Source: web4-core/python/web4/trust/attestation/
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from typing import Any, Callable, Optional, Dict, List
-from hashlib import sha256
-import time
 import json
+import time
+from dataclasses import asdict, dataclass, field
+from hashlib import sha256
+from typing import Any, Callable, Dict, List, Optional
 
 __all__ = [
     # Classes

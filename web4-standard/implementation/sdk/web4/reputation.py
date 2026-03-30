@@ -20,14 +20,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from .r6 import (
     ContributingFactor,
-    ReputationDelta,
     R7Action,
-    ActionStatus,
+    ReputationDelta,
     TensorDelta,
 )
 from .trust import T3, V3, _clamp

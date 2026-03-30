@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, FrozenSet, List, Optional, Set
 
-from .lct import LCT, EntityType, BirthCertificate, MRHPairing
+from .lct import LCT, EntityType
 from .trust import T3, V3
 
 __all__ = [

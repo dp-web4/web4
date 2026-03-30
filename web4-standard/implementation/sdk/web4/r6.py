@@ -889,7 +889,11 @@ class R7Action:
             status=ActionStatus(result_data.get("status", "pending")),
             output=result_data.get("output", {}),
             output_hash=result_data.get("output", {}).get("hash", ""),
-            error=result_data.get("error", {}).get("message") if isinstance(result_data.get("error"), dict) else result_data.get("error"),
+            error=(
+                result_data.get("error", {}).get("message")
+                if isinstance(result_data.get("error"), dict)
+                else result_data.get("error")
+            ),
             atp_consumed=result_data.get("resourceConsumed", {}).get("atp", 0.0),
             attestations=result_attestations,
         )
