@@ -1,9 +1,29 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-29 (Sprint 13 started)
+**Updated**: 2026-03-29 (Sprint 14 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 14: Optional Extras and Release Polish (2026-03-29)
+
+The validation module and CLI require `jsonschema`, but it's only available in the
+`dev` extras group. Users who `pip install web4` and try `web4 validate` get a
+confusing error. This sprint adds a `validation` optional extra and updates
+documentation to reflect the current SDK state.
+
+### K1: Validation optional extra + README coherence + v0.16.0 release
+**Status**: DONE
+**Completed**: 2026-03-29
+**Depends on**: J1 (CLI module), H1 (validation module)
+**Scope**: Add `validation = ["jsonschema>=4.0"]` to pyproject.toml optional deps.
+Update error messages in `validation.py` and `__main__.py` to suggest
+`pip install web4[validation]`. Update README.md for v0.16.0 (20 modules, 344
+exports, CLI docs, validation extra). Bump version 0.15.0 → 0.16.0, CHANGELOG entry.
+**Result**: `pip install web4[validation]` works. README accurate. Error messages
+guide users to the correct install command. Version 0.16.0. 1770 tests, zero regressions.
 
 ---
 

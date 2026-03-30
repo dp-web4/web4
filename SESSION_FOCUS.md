@@ -10,6 +10,19 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
+### Sprint 14 Summary: Optional Extras and Release Polish (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| K1: Validation extra + README + v0.16.0 | DONE | `pip install web4[validation]`, README coherence, version bump |
+
+### Sprint 13 Summary: SDK CLI Module (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| J1: CLI module | DONE | `web4 info/validate/list-schemas`, 22 tests, merged #105 |
+| I1: Bundle JSON Schemas as package data | DONE | PR #104, pending review |
+
 ### Sprint 12 Summary: Schema Validation Integration (COMPLETE)
 
 | Task | Status | Notes |
@@ -77,10 +90,12 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 ## SDK Status
 
-- **Version**: 0.15.0
+- **Version**: 0.16.0
 - **Modules**: 20 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation)
-- **Tests**: 1748 passing
+- **Tests**: 1770 passing
 - **Exports**: 344 symbols via `web4/__init__.py`
+- **CLI**: `web4 info/validate/list-schemas` (console script + `python -m web4`)
+- **Optional extras**: `web4[validation]` (jsonschema), `web4[dev]` (full toolchain)
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
 ---
@@ -120,31 +135,34 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+bdf3c8d J1: SDK CLI module — python -m web4 validate/info/list-schemas (#105)
+0bef0a9 H2: SDK v0.15.0 release housekeeping — Sprint 12 complete (#103)
 e6f4fc5 H1: Schema validation module — Sprint 12 (#102)
 bf42c0d G4: SDK README coherence update — document actual web4 package (#101)
 803b095 G3: Mypy strict compliance — 65 type fixes across 13 SDK modules (#100)
-9f5d9c4 Fix 11 mypy type errors across 5 SDK modules, add mypy to CI (#97)
-3f5ca4e F4: SDK v0.14.0 — Sprint 10 complete (#95)
 ```
 
 ---
 
 ## Open PRs
 
+- PR #104: I1: Bundle JSON Schemas as package data — Sprint 13 (REVIEW_REQUIRED)
 - PR #98: G1+G2: Ruff linting + coverage reporting — Sprint 11 (REVIEW_REQUIRED)
 
 ---
 
 ## Pending Items
 
+- Sprint 14 COMPLETE (K1 done): Optional Extras and Release Polish, SDK v0.16.0
+- Sprint 13 COMPLETE (I1+J1 done): CLI module merged, schema bundling in PR #104
 - Sprint 12 COMPLETE (H1-H2 all done): Schema Validation Integration, SDK v0.15.0
 - Sprint 11 COMPLETE (G1-G4 all done): Code Quality Gates (G1+G2 in PR #98)
-- Sprint 10 COMPLETE (F1-F4 all done): CI/CD & Packaging Quality, SDK v0.14.0
 - All 9 JSON-LD schemas have cross-language validation vectors (278 total)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
 - All 20 submodules have `__all__` declarations, 344 root exports
 - All public methods have docstrings and return type annotations
-- Schema validation available via `web4.validation.validate()`
+- Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
+- CLI via `web4 info/validate/list-schemas`
 
 ---
 

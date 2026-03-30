@@ -126,7 +126,7 @@ class SchemaValidationUnavailable(ImportError):
     def __init__(self) -> None:
         super().__init__(
             "Schema validation requires the 'jsonschema' package. "
-            "Install it with: pip install 'web4[dev]'  or  pip install jsonschema"
+            "Install it with: pip install 'web4[validation]'  or  pip install jsonschema"
         )
 
 
