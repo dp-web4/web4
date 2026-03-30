@@ -1,9 +1,35 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-29 (Sprint 13 started)
+**Updated**: 2026-03-30 (Sprint 15 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 15: Strict Warnings + CI Quality Gates (2026-03-30)
+
+Sprints 10-12 built CI (pytest, mypy, ruff, coverage) and achieved mypy --strict
+compliance locally. However, CI doesn't enforce the strictness that local development
+achieved: mypy runs in basic mode, and no warning enforcement exists. Additionally,
+`web4_sdk.py` emits a UserWarning on import (failing tests under `-W error`).
+
+### L1: Strict warnings + CI hardening
+**Status**: DONE
+**Completed**: 2026-03-30
+**Depends on**: G3 (mypy strict compliance)
+**Scope**: Fix `web4_sdk.py` eager aiohttp/pynacl import warnings (lazy import pattern).
+Add `filterwarnings = ["error"]` to pytest config. Upgrade CI mypy to `--strict`.
+Fix pre-existing ruff lint errors in `__main__.py`. Remove stale `type: ignore` in
+`validation.py`. Update SESSION_FOCUS.md with accurate state.
+**Result**: `web4_sdk.py` no longer warns on import (lazy pattern — deps checked on use
+in `Web4Client.__init__`). All 1770 tests pass with strict warnings. CI mypy upgraded
+from basic to `--strict --ignore-missing-imports`. Pre-existing ruff issues in
+`__main__.py` fixed (unused `List` import, unsorted import block). Stale
+`type: ignore[import-untyped]` removed from `validation.py`. SESSION_FOCUS.md updated
+(PR #98 merged, accurate test/coverage numbers, correct open PR list).
+Files modified: 5 (`web4_sdk.py`, `pyproject.toml`, `sdk-test.yml`, `__main__.py`,
+`validation.py`). Files created: 0. 1770 tests passing, zero regressions.
 
 ---
 
@@ -911,3 +937,4 @@ SignatureEnvelope, VerifiableCredential. Types-only — no crypto implementation
 | A4 | Cross-language validation vectors (Phase 2) | DONE |
 | A5 | SDK v0.9.0 release housekeeping | DONE |
 | J1 | CLI module (`web4/__main__.py`) | DONE |
+| L1 | Strict warnings + CI quality gates | DONE |

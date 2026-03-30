@@ -246,7 +246,7 @@ def validate(
         ValidationError: If ``raise_on_error=True`` and validation fails.
     """
     try:
-        from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+        from jsonschema import Draft202012Validator
     except ImportError:
         raise SchemaValidationUnavailable()
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 
 def _cmd_info(args: argparse.Namespace) -> int:
@@ -94,7 +94,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
             return 1
 
     # Validate
-    from web4.validation import validate, SchemaNotFound, SchemaValidationUnavailable
+    from web4.validation import SchemaNotFound, SchemaValidationUnavailable, validate
 
     try:
         result = validate(doc, schema_name)

@@ -68,6 +68,7 @@ known-first-party = ["web4"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = ["error"]
 
 [tool.coverage.run]
 source = ["web4"]
