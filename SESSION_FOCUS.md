@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-03-28*
+*Last updated: 2026-03-29*
 
 ---
 
@@ -10,12 +10,20 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 11 Summary: Code Quality Gates (IN PROGRESS)
+### Sprint 12 Summary: Schema Validation Integration (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
-| G1: Ruff linting — fix issues and add to CI | DONE | 18 issues fixed, ruff config in pyproject.toml, lint CI job |
-| G2: Test coverage reporting | DONE | pytest-cov, 98.1% baseline coverage |
+| H1: Schema validation module | DONE | 20th SDK module, 8 public symbols, 33 tests |
+| H2: SDK v0.15.0 release housekeeping | DONE | Version bump, CHANGELOG, sprint closure |
+
+### Sprint 11 Summary: Code Quality Gates (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| G1+G2: Ruff linting + coverage reporting | DONE | PR #98, pending review |
+| G3: Mypy strict compliance | DONE | 65 type fixes, mypy --strict passes |
+| G4: SDK README coherence update | DONE | README rewritten for actual web4 package |
 
 ### Sprint 10 Summary: CI/CD & Packaging Quality (COMPLETE)
 
@@ -69,10 +77,10 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 
 ## SDK Status
 
-- **Version**: 0.14.0
-- **Modules**: 19 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation)
-- **Tests**: 1715 passing
-- **Exports**: 336 symbols via `web4/__init__.py`
+- **Version**: 0.15.0
+- **Modules**: 20 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation)
+- **Tests**: 1748 passing
+- **Exports**: 344 symbols via `web4/__init__.py`
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
 ---
@@ -112,32 +120,32 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
-6b27d1f E1+E2: Docstring coverage for 6 SDK modules — 49 methods documented (#89)
-db26585 D2+D3: Submodule __all__ + mcp.py docstrings (#87)
-4b121b3 D1: Export completeness — 52 missing public symbols added (284 → 336) (#85)
-adf4882 C4: SDK v0.11.0 — Sprint 7 complete (4/4 tasks) (#84)
-0ab1cd2 C2: ATP core unit tests — 74 tests (#82)
+e6f4fc5 H1: Schema validation module — Sprint 12 (#102)
+bf42c0d G4: SDK README coherence update — document actual web4 package (#101)
+803b095 G3: Mypy strict compliance — 65 type fixes across 13 SDK modules (#100)
+9f5d9c4 Fix 11 mypy type errors across 5 SDK modules, add mypy to CI (#97)
+3f5ca4e F4: SDK v0.14.0 — Sprint 10 complete (#95)
 ```
 
 ---
 
 ## Open PRs
 
-None.
+- PR #98: G1+G2: Ruff linting + coverage reporting — Sprint 11 (REVIEW_REQUIRED)
 
 ---
 
 ## Pending Items
 
+- Sprint 12 COMPLETE (H1-H2 all done): Schema Validation Integration, SDK v0.15.0
+- Sprint 11 COMPLETE (G1-G4 all done): Code Quality Gates (G1+G2 in PR #98)
 - Sprint 10 COMPLETE (F1-F4 all done): CI/CD & Packaging Quality, SDK v0.14.0
-- Sprint 9 COMPLETE (E1-E4 all done): SDK Documentation Completeness, SDK v0.13.0
-- Sprint 8 COMPLETE (D1-D4 all done): SDK Developer Experience, SDK v0.12.0
 - All 9 JSON-LD schemas have cross-language validation vectors (278 total)
-- Whitepaper-SDK coherence: ongoing (last audit 2026-03-15, 4 divergences found and fixed)
 - All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
-- All 19 submodules have `__all__` declarations (375 symbols), 336 root exports
+- All 20 submodules have `__all__` declarations, 344 root exports
 - All public methods have docstrings and return type annotations
+- Schema validation available via `web4.validation.validate()`
 
 ---
 
-*Updated by autonomous session, 2026-03-28*
+*Updated by autonomous session, 2026-03-29*
