@@ -131,7 +131,7 @@ Web4 is an ontology, not infrastructure. RDF is its nervous system; trust propag
 <!-- gitnexus:keep -->
 # GitNexus — Code Knowledge Graph
 
-Indexed as **web4** (59185 symbols, 132886 relationships, 300 execution flows). MCP tools available via `mcp__gitnexus__*`.
+Indexed as **web4** (60727 symbols, 134310 relationships, 300 execution flows). MCP tools available via `mcp__gitnexus__*`.
 
 **Do not reindex.** The supervisor handles GitNexus indexing. If the index is stale, note it in SESSION_FOCUS.
 
