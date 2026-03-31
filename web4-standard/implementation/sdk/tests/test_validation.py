@@ -1,5 +1,6 @@
 """Tests for web4.validation — schema validation module."""
 
+import json
 import pytest
 from pathlib import Path
 from web4.validation import (
@@ -11,7 +12,9 @@ from web4.validation import (
     list_schemas,
     get_schema,
     get_schema_dir,
+    _load_bundled_registry,
     _schema_cache,
+    _SCHEMA_FILES,
 )
 
 
@@ -35,6 +38,41 @@ class TestSchemaDir:
         monkeypatch.setenv("WEB4_SCHEMA_DIR", "/nonexistent/path")
         with pytest.raises(SchemaNotFound, match="does not exist"):
             get_schema_dir()
+
+
+class TestBundledRegistry:
+    """Tests for the bundled schema_registry.json."""
+
+    def test_registry_loads(self) -> None:
+        import web4.validation as v
+        v._bundled_registry = None  # force reload
+        registry = _load_bundled_registry()
+        assert registry is not None
+        assert isinstance(registry, dict)
+
+    def test_registry_contains_all_schemas(self) -> None:
+        import web4.validation as v
+        v._bundled_registry = None
+        registry = _load_bundled_registry()
+        assert registry is not None
+        for name, filename in _SCHEMA_FILES.items():
+            assert filename in registry, f"Missing {filename} for schema '{name}'"
+
+    def test_registry_schemas_have_schema_key(self) -> None:
+        import web4.validation as v
+        v._bundled_registry = None
+        registry = _load_bundled_registry()
+        assert registry is not None
+        for filename, schema in registry.items():
+            assert "$schema" in schema or "type" in schema, (
+                f"Schema {filename} missing $schema or type key"
+            )
+
+    def test_get_schema_uses_registry(self) -> None:
+        _schema_cache.clear()
+        schema = get_schema("lct")
+        assert isinstance(schema, dict)
+        assert "$schema" in schema or "title" in schema
 
 
 class TestListSchemas:

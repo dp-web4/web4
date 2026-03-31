@@ -5,6 +5,12 @@ Provides programmatic validation of JSON-LD documents produced by SDK
 ``to_jsonld()`` methods (or received from external systems) against the
 canonical JSON Schemas defined in ``web4-standard/schemas/``.
 
+Schemas are resolved in priority order:
+
+1. ``WEB4_SCHEMA_DIR`` environment variable (directory override)
+2. Bundled ``schema_registry.json`` (works in pip-installed wheels)
+3. Repository-relative walk (works in editable installs and checkouts)
+
 The ``jsonschema`` package is an **optional** dependency. If not installed,
 :func:`validate` raises :class:`SchemaValidationUnavailable` with
 installation instructions.
@@ -44,10 +50,9 @@ __all__ = [
     "get_schema_dir",
 ]
 
-# ── Schema directory resolution ─────────────────────────────────
+# ── Schema name → filename mapping ─────────────────────────────
 
-# Schema name -> filename mapping.  Covers both JSON-LD schemas and
-# standalone schemas shipped in web4-standard/schemas/.
+# Covers both JSON-LD schemas and standalone schemas.
 _SCHEMA_FILES: Dict[str, str] = {
     "lct": "lct-jsonld.schema.json",
     "attestation-envelope": "attestation-envelope-jsonld.schema.json",
@@ -64,6 +69,36 @@ _SCHEMA_FILES: Dict[str, str] = {
     "trust-query": "trust-query.schema.json",
 }
 
+# ── Bundled registry loading ────────────────────────────────────
+
+# Lazy-loaded: all 12 schemas in a single JSON file, keyed by filename.
+_bundled_registry: Optional[Dict[str, Dict[str, Any]]] = None
+
+
+def _load_bundled_registry() -> Optional[Dict[str, Dict[str, Any]]]:
+    """Load the bundled schema registry (schema_registry.json).
+
+    Uses ``importlib.resources`` so it works from installed wheels
+    (not just editable installs). Returns *None* if the registry
+    file is not available (e.g. running from a minimal checkout).
+    """
+    global _bundled_registry
+    if _bundled_registry is not None:
+        return _bundled_registry
+
+    try:
+        import importlib.resources as resources
+
+        ref = resources.files("web4").joinpath("schema_registry.json")
+        data = ref.read_text(encoding="utf-8")
+        _bundled_registry = json.loads(data)
+        return _bundled_registry
+    except (FileNotFoundError, ModuleNotFoundError, TypeError):
+        return None
+
+
+# ── Schema directory resolution (fallback) ──────────────────────
+
 
 def _find_schema_dir() -> Optional[Path]:
     """Locate the ``web4-standard/schemas/`` directory.
@@ -72,13 +107,11 @@ def _find_schema_dir() -> Optional[Path]:
     editable installs (``pip install -e .``) and direct repo checkouts.
     Returns *None* if the directory cannot be found.
     """
-    # web4/validation.py -> sdk/ -> implementation/ -> web4-standard/ -> schemas/
     current = Path(__file__).resolve().parent  # web4/
     for _ in range(6):  # max 6 levels up
         candidate = current / "schemas"
         if candidate.is_dir() and (candidate / "lct-jsonld.schema.json").exists():
             return candidate
-        # Also check web4-standard/schemas at sibling level
         sibling = current / "web4-standard" / "schemas"
         if sibling.is_dir() and (sibling / "lct-jsonld.schema.json").exists():
             return sibling
@@ -92,6 +125,9 @@ def get_schema_dir() -> Path:
     Checks (in order):
     1. ``WEB4_SCHEMA_DIR`` environment variable
     2. Repository-relative walk from this module
+
+    Note: When schemas are loaded from the bundled registry, this function
+    is not called. It only applies when loading from individual files.
 
     Raises:
         SchemaNotFound: If the schema directory cannot be located.
@@ -168,8 +204,14 @@ class ValidationResult:
 _schema_cache: Dict[str, Dict[str, Any]] = {}
 
 
-def _load_schema(name: str, schema_dir: Path) -> Dict[str, Any]:
-    """Load and cache a schema by name."""
+def _load_schema(name: str, schema_dir: Optional[Path] = None) -> Dict[str, Any]:
+    """Load and cache a schema by name.
+
+    Resolution order:
+    1. In-memory cache
+    2. Bundled registry (``schema_registry.json``)
+    3. Individual file from *schema_dir*
+    """
     if name in _schema_cache:
         return _schema_cache[name]
 
@@ -179,12 +221,23 @@ def _load_schema(name: str, schema_dir: Path) -> Dict[str, Any]:
             f"Unknown schema {name!r}. Available: {', '.join(sorted(_SCHEMA_FILES))}"
         )
 
+    # Try bundled registry first (works in wheels).
+    registry = _load_bundled_registry()
+    if registry is not None and filename in registry:
+        schema: Dict[str, Any] = registry[filename]
+        _schema_cache[name] = schema
+        return schema
+
+    # Fall back to directory-based loading.
+    if schema_dir is None:
+        schema_dir = get_schema_dir()
+
     path = schema_dir / filename
     if not path.exists():
         raise SchemaNotFound(f"Schema file not found: {path}")
 
     with open(path) as f:
-        schema: Dict[str, Any] = json.load(f)
+        schema = json.load(f)
 
     _schema_cache[name] = schema
     return schema
@@ -208,7 +261,8 @@ def get_schema(name: str, *, schema_dir: Optional[Path] = None) -> Dict[str, Any
 
     Args:
         name: Schema name (e.g. ``"lct"``, ``"attestation-envelope"``).
-        schema_dir: Override schema directory. If *None*, auto-detected.
+        schema_dir: Override schema directory. If *None*, uses bundled
+            registry then auto-detected directory.
 
     Returns:
         The parsed JSON Schema dictionary.
@@ -216,8 +270,6 @@ def get_schema(name: str, *, schema_dir: Optional[Path] = None) -> Dict[str, Any
     Raises:
         SchemaNotFound: If the schema name is unknown or file is missing.
     """
-    if schema_dir is None:
-        schema_dir = get_schema_dir()
     return _load_schema(name, schema_dir)
 
 
@@ -246,7 +298,7 @@ def validate(
         ValidationError: If ``raise_on_error=True`` and validation fails.
     """
     try:
-        from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+        from jsonschema import Draft202012Validator
     except ImportError:
         raise SchemaValidationUnavailable()
 
