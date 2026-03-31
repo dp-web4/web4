@@ -1,0 +1,3468 @@
+{
+  "acp-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/acp-jsonld.schema.json",
+    "title": "Web4 ACP \u2014 JSON-LD",
+    "description": "JSON Schema for ACP (Agentic Context Protocol) documents per web4-standard/core-spec/acp-framework.md. Validates output from AgentPlan.to_jsonld(), Intent.to_jsonld(), Decision.to_jsonld(), ExecutionRecord.to_jsonld(), and cross-language implementations.",
+    "oneOf": [
+      {
+        "$ref": "#/$defs/AgentPlan"
+      },
+      {
+        "$ref": "#/$defs/Intent"
+      },
+      {
+        "$ref": "#/$defs/Decision"
+      },
+      {
+        "$ref": "#/$defs/ExecutionRecord"
+      }
+    ],
+    "$defs": {
+      "Trigger": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cron",
+              "event",
+              "manual"
+            ],
+            "description": "Trigger type per ACP \u00a72.1."
+          },
+          "expr": {
+            "type": "string",
+            "description": "Cron expression or event topic."
+          },
+          "authorized": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "LCT IDs authorized to manually trigger."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanStep": {
+        "type": "object",
+        "required": [
+          "id",
+          "mcp",
+          "args"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mcp": {
+            "type": "string"
+          },
+          "args": {
+            "type": "object"
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiresApproval": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResourceCaps": {
+        "type": "object",
+        "properties": {
+          "maxAtp": {
+            "type": "number",
+            "minimum": 0
+          },
+          "maxExecutions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rateLimit": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "HumanApproval": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "manual",
+              "conditional"
+            ]
+          },
+          "autoThreshold": {
+            "type": "number"
+          },
+          "timeout": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fallback": {
+            "type": "string",
+            "enum": [
+              "deny",
+              "abort"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Guards": {
+        "type": "object",
+        "properties": {
+          "lawHash": {
+            "type": "string"
+          },
+          "witnessLevel": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resourceCaps": {
+            "$ref": "#/$defs/ResourceCaps"
+          },
+          "humanApproval": {
+            "$ref": "#/$defs/HumanApproval"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProofOfAgency": {
+        "type": "object",
+        "required": [
+          "grantId",
+          "planId",
+          "intentId",
+          "nonce"
+        ],
+        "properties": {
+          "grantId": {
+            "type": "string"
+          },
+          "planId": {
+            "type": "string"
+          },
+          "intentId": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AgentPlan": {
+        "type": "object",
+        "title": "AgentPlan",
+        "description": "Declarative agent workflow specification per ACP \u00a72.1.",
+        "required": [
+          "@context",
+          "@type",
+          "planId",
+          "principal",
+          "agent",
+          "grantId",
+          "steps",
+          "createdAt"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1
+          },
+          "@type": {
+            "type": "string",
+            "const": "AgentPlan"
+          },
+          "planId": {
+            "type": "string"
+          },
+          "principal": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "grantId": {
+            "type": "string"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Trigger"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/PlanStep"
+            },
+            "minItems": 1
+          },
+          "guards": {
+            "$ref": "#/$defs/Guards"
+          },
+          "canonicalHash": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Intent": {
+        "type": "object",
+        "title": "Intent",
+        "description": "Actionable proposal from plan evaluation per ACP \u00a72.2.",
+        "required": [
+          "@context",
+          "@type",
+          "intentId",
+          "planId",
+          "stepId",
+          "proposedAction",
+          "proofOfAgency",
+          "createdAt"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1
+          },
+          "@type": {
+            "type": "string",
+            "const": "Intent"
+          },
+          "intentId": {
+            "type": "string"
+          },
+          "planId": {
+            "type": "string"
+          },
+          "stepId": {
+            "type": "string"
+          },
+          "proposedAction": {
+            "type": "object"
+          },
+          "proofOfAgency": {
+            "$ref": "#/$defs/ProofOfAgency"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "riskAssessment": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "needsApproval": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Decision": {
+        "type": "object",
+        "title": "Decision",
+        "description": "Human or automated decision on an intent per ACP \u00a72.3.",
+        "required": [
+          "@context",
+          "@type",
+          "intentId",
+          "decision",
+          "decidedBy",
+          "timestamp"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1
+          },
+          "@type": {
+            "type": "string",
+            "const": "Decision"
+          },
+          "intentId": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "deny",
+              "modify"
+            ]
+          },
+          "decidedBy": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "modifications": {
+            "type": "object"
+          },
+          "witnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionRecord": {
+        "type": "object",
+        "title": "ExecutionRecord",
+        "description": "Immutable record of action execution per ACP \u00a72.4.",
+        "required": [
+          "@context",
+          "@type",
+          "recordId",
+          "intentId",
+          "grantId",
+          "lawHash",
+          "mcpCall",
+          "result",
+          "timestamp"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1
+          },
+          "@type": {
+            "type": "string",
+            "const": "ExecutionRecord"
+          },
+          "recordId": {
+            "type": "string"
+          },
+          "intentId": {
+            "type": "string"
+          },
+          "grantId": {
+            "type": "string"
+          },
+          "lawHash": {
+            "type": "string"
+          },
+          "mcpCall": {
+            "type": "object"
+          },
+          "result": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "success",
+                  "failure"
+                ]
+              },
+              "output": {
+                "type": "object"
+              },
+              "resourcesConsumed": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          },
+          "t3v3Delta": {
+            "type": "object"
+          },
+          "witnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "canonicalHash": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "atp-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/atp-jsonld.schema.json",
+    "title": "Web4 ATP/ADP \u2014 JSON-LD",
+    "description": "JSON Schema for ATP/ADP value cycle documents per web4-standard/core-spec/atp-adp-cycle.md. Validates output from ATPAccount.to_jsonld(), TransferResult.to_jsonld(), and cross-language implementations.",
+    "oneOf": [
+      {
+        "$ref": "#/$defs/ATPAccount"
+      },
+      {
+        "$ref": "#/$defs/TransferResult"
+      }
+    ],
+    "$defs": {
+      "ATPAccount": {
+        "type": "object",
+        "title": "ATPAccount",
+        "description": "An entity's ATP balance with sub-pool breakdown. Invariant: total = available + locked.",
+        "required": [
+          "@context",
+          "@type",
+          "available",
+          "locked",
+          "adp",
+          "initial_balance",
+          "total",
+          "energy_ratio"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "ATPAccount",
+            "description": "JSON-LD type identifier."
+          },
+          "available": {
+            "type": "number",
+            "minimum": 0,
+            "description": "ATP available for transfer or locking."
+          },
+          "locked": {
+            "type": "number",
+            "minimum": 0,
+            "description": "ATP reserved for pending operations."
+          },
+          "adp": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Discharged tokens tracking past expenditure."
+          },
+          "initial_balance": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Balance at account creation, used for recharge calculations."
+          },
+          "total": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Computed: available + locked."
+          },
+          "energy_ratio": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Computed: total / (total + adp). 0.5 when both zero."
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransferResult": {
+        "type": "object",
+        "title": "TransferResult",
+        "description": "Outcome of an ATP transfer between accounts.",
+        "required": [
+          "@context",
+          "@type",
+          "fee",
+          "sender_balance",
+          "receiver_balance",
+          "actual_credit"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "TransferResult",
+            "description": "JSON-LD type identifier."
+          },
+          "fee": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Fee charged to sender (amount \u00d7 fee_rate)."
+          },
+          "sender_balance": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Sender's balance after transfer."
+          },
+          "receiver_balance": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Receiver's balance after transfer."
+          },
+          "actual_credit": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Amount actually credited to receiver (may differ from requested if capped)."
+          },
+          "overflow": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Amount returned to sender due to receiver cap. Omitted when zero."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "attestation-envelope-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/attestation-envelope-jsonld.schema.json",
+    "title": "Web4 AttestationEnvelope \u2014 JSON-LD",
+    "description": "JSON Schema for spec-compliant AttestationEnvelope documents per docs/specs/attestation-envelope.md. Validates output from AttestationEnvelope.to_jsonld() and cross-language implementations.",
+    "type": "object",
+    "required": [
+      "@context",
+      "@type",
+      "envelope_version",
+      "entity_id",
+      "public_key",
+      "public_key_fingerprint",
+      "anchor",
+      "proof",
+      "timestamp",
+      "challenge_issued_at",
+      "challenge_ttl",
+      "platform_state",
+      "trust_ceiling"
+    ],
+    "properties": {
+      "@context": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "uri"
+        },
+        "minItems": 1,
+        "description": "JSON-LD context URIs."
+      },
+      "@type": {
+        "type": "string",
+        "const": "AttestationEnvelope",
+        "description": "JSON-LD type identifier."
+      },
+      "envelope_version": {
+        "type": "string",
+        "description": "Envelope format version."
+      },
+      "entity_id": {
+        "type": "string",
+        "minLength": 1,
+        "description": "LCT ID of the entity being attested."
+      },
+      "public_key": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Public key in PEM, JWK, or multibase format."
+      },
+      "public_key_fingerprint": {
+        "type": "string",
+        "minLength": 1,
+        "description": "SHA-256 fingerprint of the public key (first 16 hex chars)."
+      },
+      "anchor": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "tpm2",
+              "fido2",
+              "secure_enclave",
+              "software"
+            ],
+            "description": "Hardware anchor type."
+          },
+          "manufacturer": {
+            "type": "string",
+            "description": "Hardware manufacturer."
+          },
+          "model": {
+            "type": "string",
+            "description": "Hardware model identifier."
+          },
+          "firmware_version": {
+            "type": "string",
+            "description": "Firmware version string."
+          }
+        },
+        "additionalProperties": false
+      },
+      "proof": {
+        "type": "object",
+        "required": [
+          "format",
+          "signature",
+          "challenge"
+        ],
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "tpm2_quote",
+              "fido2_assertion",
+              "se_attestation",
+              "ecdsa_software"
+            ],
+            "description": "Proof format matching the anchor type."
+          },
+          "signature": {
+            "type": "string",
+            "description": "Base64-encoded signature over the challenge."
+          },
+          "challenge": {
+            "type": "string",
+            "description": "The nonce that was signed."
+          },
+          "attestation_object": {
+            "type": "string",
+            "description": "Raw attestation object (Base64). FIDO2/platform-specific."
+          },
+          "pcr_digest": {
+            "type": "string",
+            "description": "SHA-256 digest of selected PCR values. TPM2-specific."
+          },
+          "pcr_selection": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "PCR register indices included in the quote. TPM2-specific."
+          },
+          "authenticator_data": {
+            "type": "string",
+            "description": "CBOR-encoded authenticator data. FIDO2-specific."
+          },
+          "client_data_hash": {
+            "type": "string",
+            "description": "Hash of the client data. FIDO2-specific."
+          }
+        },
+        "additionalProperties": false
+      },
+      "timestamp": {
+        "type": "number",
+        "description": "Unix epoch timestamp of attestation creation."
+      },
+      "challenge_issued_at": {
+        "type": "number",
+        "description": "Unix epoch timestamp when the challenge was issued."
+      },
+      "challenge_ttl": {
+        "type": "number",
+        "minimum": 0,
+        "description": "Time-to-live for the challenge in seconds."
+      },
+      "platform_state": {
+        "type": "object",
+        "required": [
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Whether platform state information is available."
+          },
+          "boot_verified": {
+            "type": "boolean",
+            "description": "Whether secure/measured boot was verified."
+          },
+          "pcr_values": {
+            "type": "object",
+            "description": "PCR register values as string-keyed hex digests.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "os_version": {
+            "type": "string",
+            "description": "Operating system version string."
+          },
+          "kernel_version": {
+            "type": "string",
+            "description": "Kernel version string."
+          }
+        },
+        "additionalProperties": false
+      },
+      "trust_ceiling": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "Maximum trust score achievable with this anchor type."
+      },
+      "issuer": {
+        "type": "string",
+        "description": "Machine name or instance ID that issued this envelope."
+      },
+      "purpose": {
+        "type": "string",
+        "enum": [
+          "enrollment",
+          "session_start",
+          "re_attestation",
+          "witness",
+          "migration",
+          "device_binding"
+        ],
+        "description": "Purpose of the attestation."
+      }
+    },
+    "additionalProperties": false
+  },
+  "capability-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/capability-jsonld.schema.json",
+    "title": "Web4 LCT Capability Levels \u2014 JSON-LD",
+    "description": "JSON Schema for LCT capability level documents per web4-standard/core-spec/lct-capability-levels.md. Validates output from LevelRequirement.to_jsonld(), capability_assessment_to_jsonld(), and cross-language implementations.",
+    "oneOf": [
+      {
+        "$ref": "#/$defs/LevelRequirement"
+      },
+      {
+        "$ref": "#/$defs/CapabilityAssessment"
+      },
+      {
+        "$ref": "#/$defs/CapabilityFramework"
+      }
+    ],
+    "$defs": {
+      "LevelRequirement": {
+        "type": "object",
+        "title": "LevelRequirement",
+        "description": "Human-readable requirements for a capability level.",
+        "required": [
+          "@context",
+          "@type",
+          "level",
+          "name",
+          "description",
+          "requirements",
+          "trust_range"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "LevelRequirement",
+            "description": "JSON-LD type identifier."
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "description": "Capability level (0=Stub through 5=Hardware)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable level name."
+          },
+          "description": {
+            "type": "string",
+            "description": "Level description."
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of requirements for this level."
+          },
+          "trust_range": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Trust score range [min, max] for this level."
+          }
+        },
+        "additionalProperties": false
+      },
+      "CapabilityAssessment": {
+        "type": "object",
+        "title": "CapabilityAssessment",
+        "description": "Result of assessing an LCT's capability level.",
+        "required": [
+          "@context",
+          "@type",
+          "lct_id",
+          "assessed_level",
+          "level_name",
+          "trust_tier",
+          "trust_range",
+          "requirements_met",
+          "missing_requirements"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "CapabilityAssessment",
+            "description": "JSON-LD type identifier."
+          },
+          "lct_id": {
+            "type": "string",
+            "description": "The LCT being assessed."
+          },
+          "assessed_level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "description": "The assessed capability level."
+          },
+          "level_name": {
+            "type": "string",
+            "description": "Human-readable name for the assessed level."
+          },
+          "trust_tier": {
+            "type": "string",
+            "description": "Trust tier label for the assessed level."
+          },
+          "trust_range": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Trust score range for the assessed level."
+          },
+          "requirements_met": {
+            "type": "boolean",
+            "description": "Whether all requirements for the assessed level are met."
+          },
+          "missing_requirements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Requirements not yet met (empty if requirements_met is true)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "CapabilityFramework": {
+        "type": "object",
+        "title": "CapabilityFramework",
+        "description": "Complete capability level framework with all 6 levels.",
+        "required": [
+          "@context",
+          "@type",
+          "levels"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "CapabilityFramework",
+            "description": "JSON-LD type identifier."
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/LevelRequirement"
+            },
+            "description": "All capability level requirements."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "dictionary-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/dictionary-jsonld.schema.json",
+    "title": "Web4 Dictionary Entities \u2014 JSON-LD",
+    "description": "JSON Schema for Dictionary Entity documents per web4-standard/core-spec/dictionary-entities.md. Validates output from DictionaryEntity.to_jsonld(), DictionarySpec.to_jsonld(), TranslationResult.to_jsonld(), TranslationChain.to_jsonld(), and cross-language implementations.",
+    "oneOf": [
+      {
+        "$ref": "#/$defs/DictionaryEntity"
+      },
+      {
+        "$ref": "#/$defs/DictionarySpec"
+      },
+      {
+        "$ref": "#/$defs/TranslationResult"
+      },
+      {
+        "$ref": "#/$defs/TranslationChain"
+      }
+    ],
+    "$defs": {
+      "DictionaryType": {
+        "type": "string",
+        "enum": [
+          "domain",
+          "model",
+          "compression",
+          "meta"
+        ],
+        "description": "Dictionary type taxonomy (spec \u00a73)."
+      },
+      "AmbiguityHandling": {
+        "type": "string",
+        "enum": [
+          "deterministic",
+          "probabilistic",
+          "context_aware",
+          "reject"
+        ],
+        "description": "How the dictionary resolves ambiguous mappings."
+      },
+      "ContextRequired": {
+        "type": "string",
+        "enum": [
+          "none",
+          "minimal",
+          "moderate",
+          "full"
+        ],
+        "description": "Amount of context required for translation."
+      },
+      "DomainCoverage": {
+        "type": "object",
+        "description": "Coverage metrics for a dictionary's domain knowledge.",
+        "required": [
+          "terms",
+          "concepts",
+          "relationships"
+        ],
+        "properties": {
+          "terms": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of terms covered."
+          },
+          "concepts": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of concepts covered."
+          },
+          "relationships": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of relationships mapped."
+          }
+        },
+        "additionalProperties": false
+      },
+      "CompressionProfile": {
+        "type": "object",
+        "description": "How this dictionary compresses meaning (spec \u00a72.2).",
+        "required": [
+          "average_ratio",
+          "lossy_threshold",
+          "context_required",
+          "ambiguity_handling"
+        ],
+        "properties": {
+          "average_ratio": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Average compression ratio."
+          },
+          "lossy_threshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Threshold for lossy compression."
+          },
+          "context_required": {
+            "$ref": "#/$defs/ContextRequired"
+          },
+          "ambiguity_handling": {
+            "$ref": "#/$defs/AmbiguityHandling"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DictionarySpec": {
+        "type": "object",
+        "title": "DictionarySpec",
+        "description": "Specification defining a dictionary's scope and capabilities (spec \u00a72.2).",
+        "required": [
+          "@context",
+          "@type",
+          "source_domain",
+          "target_domain",
+          "bidirectional",
+          "version",
+          "dictionary_type"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "DictionarySpec",
+            "description": "JSON-LD type identifier."
+          },
+          "source_domain": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Source domain for translation."
+          },
+          "target_domain": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Target domain for translation."
+          },
+          "bidirectional": {
+            "type": "boolean",
+            "description": "Whether translation works in both directions."
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+            "description": "Semantic version string."
+          },
+          "dictionary_type": {
+            "$ref": "#/$defs/DictionaryType"
+          },
+          "coverage": {
+            "$ref": "#/$defs/DomainCoverage"
+          },
+          "compression": {
+            "$ref": "#/$defs/CompressionProfile"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChainStep": {
+        "type": "object",
+        "description": "One step in a multi-hop translation chain (spec \u00a74.3).",
+        "required": [
+          "step",
+          "source_domain",
+          "target_domain",
+          "dictionary_lct_id",
+          "confidence",
+          "degradation"
+        ],
+        "properties": {
+          "step": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Step number in the chain."
+          },
+          "source_domain": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_domain": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dictionary_lct_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "LCT ID of the dictionary performing this step."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence in this step's translation."
+          },
+          "degradation": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Semantic loss in this step (1 - confidence)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "TranslationResult": {
+        "type": "object",
+        "title": "TranslationResult",
+        "description": "Result of a dictionary translation (spec \u00a74.2).",
+        "required": [
+          "@context",
+          "@type",
+          "content",
+          "confidence",
+          "degradation",
+          "dictionary_lct_id",
+          "witness_required",
+          "timestamp"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "TranslationResult",
+            "description": "JSON-LD type identifier."
+          },
+          "content": {
+            "type": "string",
+            "description": "Translated content."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence in the translation [0,1]."
+          },
+          "degradation": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Semantic loss (1 - confidence)."
+          },
+          "dictionary_lct_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "LCT ID of the translating dictionary."
+          },
+          "witness_required": {
+            "type": "boolean",
+            "description": "Whether this translation requires witnessing."
+          },
+          "witness_lct_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "LCT IDs of witnesses."
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the translation."
+          }
+        },
+        "additionalProperties": false
+      },
+      "TranslationChain": {
+        "type": "object",
+        "title": "TranslationChain",
+        "description": "Multi-hop translation with cumulative degradation tracking (spec \u00a74.3).",
+        "required": [
+          "@context",
+          "@type",
+          "steps",
+          "cumulative_confidence",
+          "cumulative_degradation",
+          "length"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "TranslationChain",
+            "description": "JSON-LD type identifier."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ChainStep"
+            },
+            "description": "Ordered list of translation steps."
+          },
+          "witness_lct_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "LCT IDs of chain-level witnesses."
+          },
+          "cumulative_confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Product of all step confidences."
+          },
+          "cumulative_degradation": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "1 - cumulative_confidence."
+          },
+          "length": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of steps in the chain."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DictionaryEntity": {
+        "type": "object",
+        "title": "DictionaryEntity",
+        "description": "A living semantic bridge with its own LCT and trust profile (spec \u00a72.1).",
+        "required": [
+          "@context",
+          "@type",
+          "lct_id",
+          "spec",
+          "translation_count",
+          "successful_translations",
+          "success_rate",
+          "current_version"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "DictionaryEntity",
+            "description": "JSON-LD type identifier."
+          },
+          "lct_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "LCT identifier for this dictionary."
+          },
+          "spec": {
+            "type": "object",
+            "description": "Dictionary specification (inline, without @context/@type).",
+            "required": [
+              "source_domain",
+              "target_domain",
+              "bidirectional",
+              "version",
+              "dictionary_type"
+            ],
+            "properties": {
+              "source_domain": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target_domain": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bidirectional": {
+                "type": "boolean"
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+              },
+              "dictionary_type": {
+                "$ref": "#/$defs/DictionaryType"
+              },
+              "coverage": {
+                "$ref": "#/$defs/DomainCoverage"
+              },
+              "compression": {
+                "$ref": "#/$defs/CompressionProfile"
+              }
+            },
+            "additionalProperties": false
+          },
+          "translation_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total number of translations performed."
+          },
+          "successful_translations": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of successful translations."
+          },
+          "success_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Translation success rate."
+          },
+          "current_version": {
+            "type": "string",
+            "description": "Current dictionary version string."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "entity-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/entity-jsonld.schema.json",
+    "title": "Web4 Entity Type Taxonomy \u2014 JSON-LD",
+    "description": "JSON Schema for entity type taxonomy documents per web4-standard/core-spec/entity-types.md. Validates output from EntityTypeInfo.to_jsonld() and cross-language implementations.",
+    "oneOf": [
+      {
+        "$ref": "#/$defs/EntityTypeInfo"
+      },
+      {
+        "$ref": "#/$defs/EntityTypeRegistry"
+      }
+    ],
+    "$defs": {
+      "BehavioralMode": {
+        "type": "string",
+        "enum": [
+          "agentic",
+          "responsive",
+          "delegative"
+        ],
+        "description": "How an entity interacts with the world."
+      },
+      "EnergyPattern": {
+        "type": "string",
+        "enum": [
+          "active",
+          "passive"
+        ],
+        "description": "How an entity participates in ATP/ADP energy metabolism."
+      },
+      "EntityType": {
+        "type": "string",
+        "enum": [
+          "human",
+          "ai",
+          "society",
+          "organization",
+          "role",
+          "task",
+          "resource",
+          "device",
+          "service",
+          "oracle",
+          "accumulator",
+          "dictionary",
+          "hybrid",
+          "policy",
+          "infrastructure"
+        ],
+        "description": "One of the 15 canonical Web4 entity types."
+      },
+      "EntityTypeInfo": {
+        "type": "object",
+        "title": "EntityTypeInfo",
+        "description": "Behavioral and metabolic metadata for an entity type.",
+        "required": [
+          "@context",
+          "@type",
+          "entity_type",
+          "modes",
+          "energy",
+          "can_r6",
+          "description"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "EntityTypeInfo",
+            "description": "JSON-LD type identifier."
+          },
+          "entity_type": {
+            "$ref": "#/$defs/EntityType"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/BehavioralMode"
+            },
+            "uniqueItems": true,
+            "description": "Behavioral modes this entity type can exhibit."
+          },
+          "energy": {
+            "$ref": "#/$defs/EnergyPattern"
+          },
+          "can_r6": {
+            "type": "boolean",
+            "description": "Whether this entity type can process R6 transactions."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description from spec \u00a72.1."
+          }
+        },
+        "additionalProperties": false
+      },
+      "EntityTypeRegistry": {
+        "type": "object",
+        "title": "EntityTypeRegistry",
+        "description": "Full registry of all 15 canonical entity types.",
+        "required": [
+          "@context",
+          "@type",
+          "entity_types"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "EntityTypeRegistry",
+            "description": "JSON-LD type identifier."
+          },
+          "entity_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EntityTypeInfo"
+            },
+            "description": "All entity type metadata entries."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "lct-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/lct-jsonld.schema.json",
+    "title": "Web4 Linked Context Token (LCT) \u2014 JSON-LD",
+    "description": "JSON Schema for spec-compliant LCT documents per LCT-linked-context-token.md \u00a72.3. Validates output from LCT.to_jsonld() and cross-language implementations.",
+    "type": "object",
+    "required": [
+      "@context",
+      "lct_id",
+      "subject",
+      "binding",
+      "mrh",
+      "policy",
+      "t3_tensor",
+      "v3_tensor",
+      "revocation"
+    ],
+    "properties": {
+      "@context": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "uri"
+        },
+        "minItems": 1,
+        "description": "JSON-LD context URIs. First MUST be the LCT context."
+      },
+      "lct_id": {
+        "type": "string",
+        "pattern": "^lct:",
+        "description": "Unique LCT identifier. Format: lct:web4:<type>:<hash>"
+      },
+      "subject": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Entity DID or identifier bound to this LCT."
+      },
+      "binding": {
+        "type": "object",
+        "required": [
+          "entity_type",
+          "public_key",
+          "created_at"
+        ],
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "human",
+              "ai",
+              "society",
+              "organization",
+              "role",
+              "task",
+              "resource",
+              "device",
+              "service",
+              "oracle",
+              "accumulator",
+              "dictionary",
+              "hybrid",
+              "policy",
+              "infrastructure",
+              "agent"
+            ],
+            "description": "Web4 entity type taxonomy."
+          },
+          "public_key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Public key in multibase or PEM format."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of binding creation."
+          },
+          "binding_proof": {
+            "type": "string",
+            "description": "COSE signature proof of binding."
+          },
+          "hardware_anchor": {
+            "type": "string",
+            "description": "Hardware anchor reference (EAT token or type identifier)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "birth_certificate": {
+        "type": "object",
+        "required": [
+          "issuing_society",
+          "citizen_role",
+          "birth_timestamp"
+        ],
+        "properties": {
+          "issuing_society": {
+            "type": "string",
+            "description": "LCT ID of the issuing society."
+          },
+          "citizen_role": {
+            "type": "string",
+            "description": "LCT ID of the citizen role."
+          },
+          "birth_timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of birth."
+          },
+          "birth_witnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of witness LCT IDs or DIDs."
+          },
+          "birth_context": {
+            "type": "string",
+            "description": "Context category: nation, platform, network, organization, ecosystem."
+          },
+          "genesis_block_hash": {
+            "type": "string",
+            "description": "Optional genesis block hash for blockchain-anchored births."
+          }
+        },
+        "additionalProperties": false
+      },
+      "mrh": {
+        "type": "object",
+        "required": [
+          "bound",
+          "paired",
+          "witnessing",
+          "horizon_depth"
+        ],
+        "properties": {
+          "bound": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "lct_id"
+                  ],
+                  "properties": {
+                    "lct_id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "binding_context": {
+                      "type": "string"
+                    },
+                    "ts": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "description": "Bound relationships (permanent bindings)."
+          },
+          "paired": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "lct_id",
+                "pairing_type"
+              ],
+              "properties": {
+                "lct_id": {
+                  "type": "string"
+                },
+                "pairing_type": {
+                  "type": "string"
+                },
+                "permanent": {
+                  "type": "boolean"
+                },
+                "ts": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Paired relationships (operational pairings)."
+          },
+          "witnessing": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "lct_id"
+                  ],
+                  "properties": {
+                    "lct_id": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "last_attestation": {
+                      "type": "string"
+                    },
+                    "witness_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "description": "Witnessing relationships."
+          },
+          "horizon_depth": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum MRH traversal depth."
+          },
+          "last_updated": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of last MRH update."
+          }
+        },
+        "additionalProperties": false
+      },
+      "policy": {
+        "type": "object",
+        "required": [
+          "capabilities"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of capability strings."
+          },
+          "constraints": {
+            "type": "object",
+            "description": "Arbitrary constraint key-value pairs.",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "t3_tensor": {
+        "$ref": "#/$defs/trust_tensor"
+      },
+      "v3_tensor": {
+        "$ref": "#/$defs/value_tensor"
+      },
+      "attestations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "witness",
+            "type"
+          ],
+          "properties": {
+            "witness": {
+              "type": "string",
+              "description": "DID or LCT ID of the attesting witness."
+            },
+            "type": {
+              "type": "string",
+              "description": "Attestation type: existence, trust, quality, action, state, audit, time."
+            },
+            "claims": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Attestation-specific claims."
+            },
+            "sig": {
+              "type": "string",
+              "description": "COSE signature over the attestation."
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO 8601 timestamp."
+            }
+          },
+          "additionalProperties": false
+        },
+        "description": "Optional witness attestations. Included only when populated."
+      },
+      "lineage": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "parent",
+            "reason"
+          ],
+          "properties": {
+            "parent": {
+              "type": "string",
+              "description": "LCT ID of the parent token."
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "genesis",
+                "rotation",
+                "fork",
+                "upgrade",
+                "derived_from"
+              ],
+              "description": "Reason for lineage entry."
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO 8601 timestamp."
+            }
+          },
+          "additionalProperties": false
+        },
+        "description": "Optional lineage entries. Included only when populated."
+      },
+      "revocation": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked",
+              "suspended"
+            ],
+            "description": "Current revocation status."
+          },
+          "ts": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 timestamp of revocation (null if active)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Human-readable revocation reason (null if active)."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false,
+    "$defs": {
+      "trust_tensor": {
+        "type": "object",
+        "required": [
+          "talent",
+          "training",
+          "temperament",
+          "composite_score"
+        ],
+        "properties": {
+          "talent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Innate capability dimension."
+          },
+          "training": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Learned skill dimension."
+          },
+          "temperament": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Behavioral consistency dimension."
+          },
+          "composite_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Weighted composite of the three dimensions."
+          },
+          "sub_dimensions": {
+            "type": "object",
+            "description": "Optional fractal sub-dimensions per RDF ontology.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "last_computed": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of last computation."
+          },
+          "computation_witnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "LCT IDs of oracles that computed this tensor."
+          }
+        },
+        "additionalProperties": false
+      },
+      "value_tensor": {
+        "type": "object",
+        "required": [
+          "valuation",
+          "veracity",
+          "validity",
+          "composite_score"
+        ],
+        "properties": {
+          "valuation": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Economic worth dimension."
+          },
+          "veracity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Truthfulness dimension."
+          },
+          "validity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Temporal relevance dimension."
+          },
+          "composite_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Weighted composite of the three dimensions."
+          },
+          "sub_dimensions": {
+            "type": "object",
+            "description": "Optional fractal sub-dimensions per RDF ontology.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "last_computed": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of last computation."
+          },
+          "computation_witnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "LCT IDs of oracles that computed this tensor."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "lct.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/lct.schema.json",
+    "title": "Linked Context Token (LCT)",
+    "description": "Web4 LCT with birth certificate and role-contextual MRH",
+    "type": "object",
+    "required": [
+      "lct_id",
+      "subject",
+      "binding",
+      "birth_certificate",
+      "mrh",
+      "policy"
+    ],
+    "properties": {
+      "lct_id": {
+        "type": "string",
+        "pattern": "^lct:web4:[A-Za-z0-9_:-]+$",
+        "description": "Globally unique LCT identifier"
+      },
+      "subject": {
+        "type": "string",
+        "pattern": "^did:web4:(key|method):[A-Za-z0-9_-]+$",
+        "description": "DID of the entity this LCT represents"
+      },
+      "binding": {
+        "type": "object",
+        "required": [
+          "entity_type",
+          "public_key",
+          "created_at",
+          "binding_proof"
+        ],
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "human",
+              "ai",
+              "society",
+              "organization",
+              "role",
+              "task",
+              "resource",
+              "device",
+              "service",
+              "oracle",
+              "accumulator",
+              "dictionary",
+              "hybrid",
+              "policy",
+              "infrastructure"
+            ]
+          },
+          "public_key": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Multibase-encoded public key"
+          },
+          "hardware_anchor": {
+            "type": "string",
+            "pattern": "^eat:[A-Za-z0-9_-]+$",
+            "description": "Optional EAT attestation"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "binding_proof": {
+            "type": "string",
+            "pattern": "^cose:[A-Za-z0-9_-]+$"
+          }
+        }
+      },
+      "birth_certificate": {
+        "type": "object",
+        "required": [
+          "issuing_society",
+          "citizen_role",
+          "context",
+          "birth_timestamp",
+          "birth_witnesses"
+        ],
+        "properties": {
+          "issuing_society": {
+            "type": "string",
+            "pattern": "^lct:web4:[A-Za-z0-9_:-]+$",
+            "description": "LCT of the society issuing this birth certificate"
+          },
+          "citizen_role": {
+            "type": "string",
+            "pattern": "^lct:web4:role:citizen:[a-z]+$",
+            "description": "Citizen role LCT for this entity's context"
+          },
+          "context": {
+            "type": "string",
+            "enum": [
+              "nation",
+              "platform",
+              "network",
+              "organization",
+              "ecosystem"
+            ],
+            "description": "Birth context"
+          },
+          "birth_timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "parent_entity": {
+            "type": "string",
+            "pattern": "^lct:web4:[A-Za-z0-9_:-]+$"
+          },
+          "birth_witnesses": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^lct:web4:[A-Za-z0-9_:-]+$"
+            }
+          }
+        }
+      },
+      "mrh": {
+        "type": "object",
+        "required": [
+          "bound",
+          "paired",
+          "horizon_depth",
+          "last_updated"
+        ],
+        "properties": {
+          "bound": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "lct_id",
+                "type",
+                "ts"
+              ],
+              "properties": {
+                "lct_id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "parent",
+                    "child",
+                    "sibling"
+                  ]
+                },
+                "ts": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "paired": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "lct_id",
+                "ts"
+              ],
+              "properties": {
+                "lct_id": {
+                  "type": "string"
+                },
+                "pairing_type": {
+                  "type": "string",
+                  "enum": [
+                    "birth_certificate",
+                    "role",
+                    "operational"
+                  ]
+                },
+                "permanent": {
+                  "type": "boolean"
+                },
+                "context": {
+                  "type": "string"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "ts": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "witnessing": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "lct_id",
+                "role",
+                "last_attestation"
+              ],
+              "properties": {
+                "lct_id": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "time",
+                    "audit",
+                    "oracle",
+                    "peer",
+                    "existence",
+                    "action",
+                    "state",
+                    "quality"
+                  ]
+                },
+                "last_attestation": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "horizon_depth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 3
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "policy": {
+        "type": "object",
+        "required": [
+          "capabilities"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraints": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "t3_tensor": {
+        "type": "object",
+        "description": "Trust tensor with 3 canonical root dimensions (Talent/Training/Temperament). Each is an aggregate of an open-ended RDF sub-dimension graph.",
+        "required": [
+          "talent",
+          "training",
+          "temperament"
+        ],
+        "properties": {
+          "talent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "training": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "temperament": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "sub_dimensions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          },
+          "composite_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "last_computed": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "computation_witnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "v3_tensor": {
+        "type": "object",
+        "description": "Value tensor with 3 canonical root dimensions (Valuation/Veracity/Validity). Follows same fractal sub-dimension pattern as T3.",
+        "required": [
+          "valuation",
+          "veracity",
+          "validity"
+        ],
+        "properties": {
+          "valuation": {
+            "type": "number",
+            "minimum": 0
+          },
+          "veracity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "validity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "sub_dimensions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          },
+          "composite_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "last_computed": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "computation_witnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "attestations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "witness",
+            "type",
+            "sig",
+            "ts"
+          ],
+          "properties": {
+            "witness": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "sig": {
+              "type": "string"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "lineage": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "reason",
+            "ts"
+          ],
+          "properties": {
+            "parent": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "genesis",
+                "rotation",
+                "fork",
+                "upgrade"
+              ]
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "revocation": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked"
+            ]
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "compromise",
+              "superseded",
+              "expired"
+            ]
+          }
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "r7-action-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/r7-action-jsonld.schema.json",
+    "title": "Web4 R7 Action \u2014 JSON-LD",
+    "description": "JSON Schema for spec-compliant R7 Action documents per r7-framework.md. Validates output from R7Action.to_jsonld() and cross-language implementations.",
+    "type": "object",
+    "required": [
+      "@context",
+      "@type",
+      "action_id",
+      "timestamp",
+      "rules",
+      "role",
+      "request",
+      "reference",
+      "resource",
+      "result"
+    ],
+    "properties": {
+      "@context": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "uri"
+        },
+        "minItems": 1,
+        "description": "JSON-LD context URIs. First MUST be the R7 Action context."
+      },
+      "@type": {
+        "type": "string",
+        "const": "R7Action",
+        "description": "JSON-LD type identifier."
+      },
+      "action_id": {
+        "type": "string",
+        "pattern": "^r7:",
+        "description": "Unique action identifier. Format: r7:<hash>"
+      },
+      "timestamp": {
+        "type": "string",
+        "description": "ISO 8601 timestamp of action creation."
+      },
+      "prev_action_hash": {
+        "type": "string",
+        "description": "SHA-256 hash of the previous action in the chain (empty if first)."
+      },
+      "rules": {
+        "type": "object",
+        "required": [
+          "lawHash",
+          "society"
+        ],
+        "properties": {
+          "lawHash": {
+            "type": "string",
+            "description": "Hash reference to the authorizing law/policy."
+          },
+          "society": {
+            "type": "string",
+            "description": "LCT ID of the governing society."
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "type",
+                "value"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "value": {}
+              },
+              "additionalProperties": false
+            },
+            "description": "Governing constraints."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Permitted action types."
+          },
+          "prohibitions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Prohibited action types."
+          }
+        },
+        "additionalProperties": false
+      },
+      "role": {
+        "type": "object",
+        "required": [
+          "actor",
+          "roleLCT"
+        ],
+        "properties": {
+          "actor": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Entity LCT ID of the actor."
+          },
+          "roleLCT": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Role LCT ID (domain-specific role context)."
+          },
+          "pairedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of role pairing."
+          },
+          "t3InRole": {
+            "$ref": "#/$defs/trust_tensor"
+          },
+          "v3InRole": {
+            "$ref": "#/$defs/value_tensor"
+          }
+        },
+        "additionalProperties": false
+      },
+      "request": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Action verb (e.g., analyze_dataset, delegate)."
+          },
+          "target": {
+            "type": "string",
+            "description": "Target entity or resource."
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Action-specific parameters."
+          },
+          "atpStake": {
+            "type": "number",
+            "minimum": 0,
+            "description": "ATP staked on this request."
+          },
+          "nonce": {
+            "type": "string",
+            "description": "Unique request identifier."
+          },
+          "constraints": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Temporal and budget constraints."
+          },
+          "proofOfAgency": {
+            "type": "object",
+            "required": [
+              "grantId"
+            ],
+            "properties": {
+              "grantId": {
+                "type": "string"
+              },
+              "inclusionProof": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "audience": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "reference": {
+        "type": "object",
+        "properties": {
+          "precedents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "actionHash"
+              ],
+              "properties": {
+                "actionHash": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "type": "string"
+                },
+                "relevance": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "mrhContext": {
+            "type": "object",
+            "properties": {
+              "depth": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "relevantEntities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "witnesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/witness_attestation"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "resource": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "object",
+            "properties": {
+              "atp": {
+                "type": "number",
+                "minimum": 0
+              },
+              "compute": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "available": {
+            "type": "object",
+            "properties": {
+              "atp_balance": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "escrow": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "number",
+                "minimum": 0
+              },
+              "release_condition": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "status",
+          "resourceConsumed"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "validated",
+              "in_progress",
+              "success",
+              "failure",
+              "error",
+              "cancelled"
+            ],
+            "description": "Action lifecycle status."
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Action output data."
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "resourceConsumed": {
+            "type": "object",
+            "properties": {
+              "atp": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": true
+          },
+          "attestations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/witness_attestation"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "reputation": {
+        "$ref": "#/$defs/reputation_delta"
+      }
+    },
+    "additionalProperties": false,
+    "$defs": {
+      "trust_tensor": {
+        "type": "object",
+        "required": [
+          "talent",
+          "training",
+          "temperament"
+        ],
+        "properties": {
+          "talent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "training": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "temperament": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "composite_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "value_tensor": {
+        "type": "object",
+        "required": [
+          "valuation",
+          "veracity",
+          "validity"
+        ],
+        "properties": {
+          "valuation": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "veracity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "validity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "composite_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "tensor_delta": {
+        "type": "object",
+        "required": [
+          "change",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "change": {
+            "type": "number"
+          },
+          "from": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "to": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "contributing_factor": {
+        "type": "object",
+        "required": [
+          "factor",
+          "weight"
+        ],
+        "properties": {
+          "factor": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "witness_attestation": {
+        "type": "object",
+        "required": [
+          "lct"
+        ],
+        "properties": {
+          "lct": {
+            "type": "string"
+          },
+          "attestation": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "reputation_delta": {
+        "type": "object",
+        "required": [
+          "subject_lct",
+          "role_lct",
+          "net_trust_change",
+          "net_value_change"
+        ],
+        "properties": {
+          "subject_lct": {
+            "type": "string",
+            "description": "LCT ID of the entity whose reputation changed."
+          },
+          "role_lct": {
+            "type": "string",
+            "description": "Role LCT ID \u2014 reputation is role-contextualized."
+          },
+          "action_type": {
+            "type": "string"
+          },
+          "action_target": {
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
+          "rule_triggered": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "t3_delta": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/tensor_delta"
+            },
+            "description": "Per-dimension T3 tensor changes."
+          },
+          "v3_delta": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/tensor_delta"
+            },
+            "description": "Per-dimension V3 tensor changes."
+          },
+          "contributing_factors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/contributing_factor"
+            }
+          },
+          "witnesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/witness_attestation"
+            }
+          },
+          "net_trust_change": {
+            "type": "number",
+            "description": "Sum of all T3 dimension changes."
+          },
+          "net_value_change": {
+            "type": "number",
+            "description": "Sum of all V3 dimension changes."
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "t3v3-jsonld.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/t3v3-jsonld.schema.json",
+    "title": "Web4 T3/V3 Tensor \u2014 JSON-LD",
+    "description": "JSON Schema for T3Tensor and V3Tensor JSON-LD documents per t3v3-ontology.ttl. Validates output from T3.to_jsonld() and V3.to_jsonld() and cross-language implementations.",
+    "oneOf": [
+      {
+        "$ref": "#/$defs/T3Tensor"
+      },
+      {
+        "$ref": "#/$defs/V3Tensor"
+      }
+    ],
+    "$defs": {
+      "DimensionScore": {
+        "type": "object",
+        "required": [
+          "dimension",
+          "score"
+        ],
+        "properties": {
+          "dimension": {
+            "type": "string",
+            "pattern": "^web4:",
+            "description": "Dimension IRI (e.g., web4:Talent, web4:Training)."
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Numeric score for this dimension."
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this score was observed (web4:observedAt)."
+          },
+          "witnessed_by": {
+            "type": "string",
+            "description": "LCT that witnessed this score (web4:witnessedBy)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "T3Tensor": {
+        "type": "object",
+        "required": [
+          "@context",
+          "@type",
+          "talent",
+          "training",
+          "temperament",
+          "composite_score",
+          "dimension_scores"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "T3Tensor",
+            "description": "JSON-LD type identifier."
+          },
+          "talent": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Shorthand: aggregate Talent score (web4:talent)."
+          },
+          "training": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Shorthand: aggregate Training score (web4:training)."
+          },
+          "temperament": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Shorthand: aggregate Temperament score (web4:temperament)."
+          },
+          "composite_score": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Weighted composite: talent*0.4 + training*0.3 + temperament*0.3."
+          },
+          "dimension_scores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/DimensionScore"
+            },
+            "minItems": 3,
+            "description": "Structured dimension scores (web4:hasDimensionScore). At minimum the 3 root T3 dimensions."
+          },
+          "entity": {
+            "type": "string",
+            "description": "LCT entity ID this tensor measures (web4:entity)."
+          },
+          "role": {
+            "type": "string",
+            "description": "Role context for this tensor (web4:role)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "V3Tensor": {
+        "type": "object",
+        "required": [
+          "@context",
+          "@type",
+          "valuation",
+          "veracity",
+          "validity",
+          "composite_score",
+          "dimension_scores"
+        ],
+        "properties": {
+          "@context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "description": "JSON-LD context URIs."
+          },
+          "@type": {
+            "type": "string",
+            "const": "V3Tensor",
+            "description": "JSON-LD type identifier."
+          },
+          "valuation": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Shorthand: aggregate Valuation score (web4:valuation)."
+          },
+          "veracity": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Shorthand: aggregate Veracity score (web4:veracity)."
+          },
+          "validity": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Shorthand: aggregate Validity score (web4:validity)."
+          },
+          "composite_score": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Weighted composite: valuation*0.3 + veracity*0.35 + validity*0.35."
+          },
+          "dimension_scores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/DimensionScore"
+            },
+            "minItems": 3,
+            "description": "Structured dimension scores (web4:hasDimensionScore). At minimum the 3 root V3 dimensions."
+          },
+          "entity": {
+            "type": "string",
+            "description": "LCT entity ID this tensor measures (web4:entity)."
+          },
+          "role": {
+            "type": "string",
+            "description": "Role context for this tensor (web4:role)."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "t3v3.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/t3v3.schema.json",
+    "title": "T3/V3 Tensor Updates",
+    "description": "Role-contextual trust and value tensor updates",
+    "type": "object",
+    "required": [
+      "entity",
+      "role",
+      "tensor_type",
+      "timestamp"
+    ],
+    "properties": {
+      "entity": {
+        "type": "string",
+        "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+        "description": "Entity LCT ID"
+      },
+      "role": {
+        "type": "string",
+        "pattern": "^web4:[A-Za-z]+$",
+        "description": "Role context for tensor (e.g., web4:Surgeon)"
+      },
+      "tensor_type": {
+        "type": "string",
+        "enum": [
+          "t3",
+          "v3"
+        ],
+        "description": "Trust (T3) or Value (V3) tensor"
+      },
+      "t3": {
+        "type": "object",
+        "properties": {
+          "talent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Role-specific capability (root aggregate)"
+          },
+          "training": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Role-specific expertise (root aggregate)"
+          },
+          "temperament": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Role-specific reliability (root aggregate)"
+          },
+          "sub_dimensions": {
+            "type": "object",
+            "description": "Domain-specific sub-dimension scores grouped by root dimension. Open-ended \u2014 mirrors the web4:subDimensionOf RDF graph.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "required": [
+          "talent",
+          "training",
+          "temperament"
+        ],
+        "additionalProperties": false
+      },
+      "v3": {
+        "type": "object",
+        "properties": {
+          "valuation": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Value created in role"
+          },
+          "veracity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Accuracy of value claims"
+          },
+          "validity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Successful value transfers"
+          },
+          "sub_dimensions": {
+            "type": "object",
+            "description": "Domain-specific sub-dimension scores grouped by root dimension",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "required": [
+          "valuation",
+          "veracity",
+          "validity"
+        ],
+        "additionalProperties": false
+      },
+      "update": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "pattern": "^r6:web4:[A-Za-z0-9_-]+$",
+            "description": "R6 action that triggered update"
+          },
+          "deltas": {
+            "type": "object",
+            "properties": {
+              "talent": {
+                "type": "number"
+              },
+              "training": {
+                "type": "number"
+              },
+              "temperament": {
+                "type": "number"
+              },
+              "valuation": {
+                "type": "number"
+              },
+              "veracity": {
+                "type": "number"
+              },
+              "validity": {
+                "type": "number"
+              }
+            }
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable update reason"
+          }
+        }
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "witness": {
+        "type": "string",
+        "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+        "description": "Entity that witnessed/validated the update"
+      }
+    },
+    "oneOf": [
+      {
+        "required": [
+          "t3"
+        ]
+      },
+      {
+        "required": [
+          "v3"
+        ]
+      }
+    ],
+    "additionalProperties": false
+  },
+  "trust-query.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://web4.io/schemas/trust-query.schema.json",
+    "title": "Trust Query Request",
+    "description": "ATP-staked request for role-contextual trust information",
+    "type": "object",
+    "required": [
+      "query",
+      "signature"
+    ],
+    "properties": {
+      "query": {
+        "type": "object",
+        "required": [
+          "querier",
+          "target_entity",
+          "requested_role",
+          "intended_interaction",
+          "atp_stake",
+          "validity_period"
+        ],
+        "properties": {
+          "querier": {
+            "type": "string",
+            "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+            "description": "Entity making the trust query"
+          },
+          "target_entity": {
+            "type": "string",
+            "pattern": "^lct:web4:[A-Za-z0-9_-]+$",
+            "description": "Entity whose trust is being queried"
+          },
+          "requested_role": {
+            "type": "string",
+            "pattern": "^web4:[A-Za-z]+$",
+            "description": "Specific role context for trust query"
+          },
+          "intended_interaction": {
+            "type": "string",
+            "description": "Type of interaction planned with target"
+          },
+          "atp_stake": {
+            "type": "integer",
+            "minimum": 10,
+            "description": "ATP amount staked for this query"
+          },
+          "validity_period": {
+            "type": "integer",
+            "minimum": 300,
+            "maximum": 86400,
+            "description": "Seconds until engagement required or stake forfeited"
+          },
+          "query_justification": {
+            "type": "string",
+            "description": "Reason for needing trust information"
+          },
+          "disclosure_level": {
+            "type": "string",
+            "enum": [
+              "binary",
+              "range",
+              "precise"
+            ],
+            "default": "range",
+            "description": "Requested level of trust detail"
+          }
+        },
+        "additionalProperties": false
+      },
+      "signature": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$",
+        "description": "Cryptographic signature of the query"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "additionalProperties": false
+  }
+}
