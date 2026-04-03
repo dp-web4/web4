@@ -823,5 +823,263 @@ class TestACPVectors:
                 f"Case '{case['name']}': expected errors={case['expectErrors']}, got {errors}"
 
 
+# ── Round-trip tests (from_dict ↔ to_dict) ─────────────────────
+
+
+class TestPlanStepRoundTrip:
+    """Verify PlanStep.from_dict(x.to_dict()) == x."""
+
+    def test_minimal(self) -> None:
+        step = PlanStep(step_id="s1", mcp_tool="tool.run")
+        assert PlanStep.from_dict(step.to_dict()) == step
+
+    def test_with_args_and_deps(self) -> None:
+        step = PlanStep(
+            step_id="s2",
+            mcp_tool="invoice.search",
+            args={"query": "overdue", "limit": 10},
+            depends_on=["s1"],
+            requires_approval="if_amount > 100",
+        )
+        assert PlanStep.from_dict(step.to_dict()) == step
+
+    def test_empty_optionals(self) -> None:
+        step = PlanStep(step_id="s3", mcp_tool="noop", args={})
+        d = step.to_dict()
+        assert "dependsOn" not in d
+        assert "requiresApproval" not in d
+        assert PlanStep.from_dict(d) == step
+
+
+class TestAgentPlanRoundTrip:
+    """Verify AgentPlan.from_dict(x.to_dict()) == x."""
+
+    def test_minimal(self) -> None:
+        plan = AgentPlan(
+            plan_id="p1",
+            principal="lct:alice",
+            agent="lct:bot",
+            grant_id="g1",
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        assert AgentPlan.from_dict(plan.to_dict()) == plan
+
+    def test_with_triggers_and_steps(self) -> None:
+        plan = AgentPlan(
+            plan_id="p2",
+            principal="lct:alice",
+            agent="lct:bot",
+            grant_id="g2",
+            triggers=[
+                Trigger(kind=TriggerKind.CRON, expr="0 9 * * *"),
+                Trigger(kind=TriggerKind.EVENT, expr="invoice.created"),
+            ],
+            steps=[
+                PlanStep(step_id="s1", mcp_tool="invoice.search"),
+                PlanStep(step_id="s2", mcp_tool="invoice.pay", depends_on=["s1"]),
+            ],
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        assert AgentPlan.from_dict(plan.to_dict()) == plan
+
+    def test_with_full_guards(self) -> None:
+        plan = AgentPlan(
+            plan_id="p3",
+            principal="lct:alice",
+            agent="lct:bot",
+            grant_id="g3",
+            guards=Guards(
+                law_hash="abc123",
+                witness_level=2,
+                resource_caps=ResourceCaps(
+                    max_atp=100.0,
+                    max_executions=5,
+                    rate_limit="10/hour",
+                ),
+                human_approval=HumanApproval(
+                    mode=ApprovalMode.CONDITIONAL,
+                    auto_threshold=50.0,
+                    timeout=7200,
+                    fallback="abort",
+                ),
+                expires_at="2026-12-31T23:59:59+00:00",
+            ),
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        assert AgentPlan.from_dict(plan.to_dict()) == plan
+
+    def test_canonical_hash_preserved(self) -> None:
+        """Canonical hash should be identical after round-trip."""
+        plan = AgentPlan(
+            plan_id="p4",
+            principal="lct:alice",
+            agent="lct:bot",
+            grant_id="g4",
+            steps=[PlanStep(step_id="s1", mcp_tool="tool.x")],
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        restored = AgentPlan.from_dict(plan.to_dict())
+        assert restored.canonical_hash() == plan.canonical_hash()
+
+
+class TestIntentRoundTrip:
+    """Verify Intent.from_dict(x.to_dict()) == x."""
+
+    def test_minimal(self) -> None:
+        proof = ProofOfAgency(
+            grant_id="g1", plan_id="p1", intent_id="i1", nonce="abc123"
+        )
+        intent = Intent(
+            intent_id="i1",
+            plan_id="p1",
+            step_id="s1",
+            proposed_action={"mcp": "tool.run", "args": {}},
+            proof=proof,
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        assert Intent.from_dict(intent.to_dict()) == intent
+
+    def test_with_explanation(self) -> None:
+        proof = ProofOfAgency(
+            grant_id="g1", plan_id="p1", intent_id="i2", nonce="def456"
+        )
+        intent = Intent(
+            intent_id="i2",
+            plan_id="p1",
+            step_id="s1",
+            proposed_action={"mcp": "invoice.pay", "args": {"amount": 99.50}},
+            proof=proof,
+            explanation="Invoice is overdue by 30 days",
+            confidence=0.92,
+            risk_assessment="medium",
+            needs_approval=True,
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        assert Intent.from_dict(intent.to_dict()) == intent
+
+    def test_proof_nonce_preserved(self) -> None:
+        """ProofOfAgency nonce must survive round-trip."""
+        proof = ProofOfAgency(
+            grant_id="g1", plan_id="p1", intent_id="i3", nonce="unique_nonce_42"
+        )
+        intent = Intent(
+            intent_id="i3",
+            plan_id="p1",
+            step_id="s1",
+            proposed_action={"mcp": "tool.run", "args": {}},
+            proof=proof,
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        restored = Intent.from_dict(intent.to_dict())
+        assert restored.proof.nonce == "unique_nonce_42"
+
+
+class TestDecisionRoundTrip:
+    """Verify Decision.from_dict(x.to_dict()) == x."""
+
+    def test_approve(self) -> None:
+        decision = Decision(
+            intent_id="i1",
+            decision=DecisionType.APPROVE,
+            decided_by="lct:alice",
+            rationale="Looks good",
+            witnesses=["lct:witness1"],
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+        assert Decision.from_dict(decision.to_dict()) == decision
+
+    def test_deny(self) -> None:
+        decision = Decision(
+            intent_id="i2",
+            decision=DecisionType.DENY,
+            decided_by="lct:bob",
+            rationale="Too expensive",
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+        assert Decision.from_dict(decision.to_dict()) == decision
+
+    def test_modify_with_modifications(self) -> None:
+        decision = Decision(
+            intent_id="i3",
+            decision=DecisionType.MODIFY,
+            decided_by="lct:alice",
+            rationale="Reduce amount",
+            modifications={"args": {"amount": 50.0}},
+            witnesses=["lct:w1", "lct:w2"],
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+        assert Decision.from_dict(decision.to_dict()) == decision
+
+    def test_no_modifications_stays_none(self) -> None:
+        """When modifications is None, to_dict() omits it, from_dict() restores None."""
+        decision = Decision(
+            intent_id="i4",
+            decision=DecisionType.APPROVE,
+            decided_by="lct:alice",
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+        d = decision.to_dict()
+        assert "modifications" not in d
+        assert Decision.from_dict(d).modifications is None
+
+
+class TestExecutionRecordRoundTrip:
+    """Verify ExecutionRecord.from_dict(x.to_dict()) == x."""
+
+    def test_success(self) -> None:
+        record = ExecutionRecord(
+            record_id="r1",
+            intent_id="i1",
+            grant_id="g1",
+            law_hash="law_abc",
+            mcp_call={"resource": "invoice.pay", "args": {"id": "inv-001"}},
+            result_status="success",
+            result_output={"paid": True, "receipt": "rcpt-001"},
+            resources_consumed={"atp": 5.0},
+            witnesses=["lct:w1"],
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+        assert ExecutionRecord.from_dict(record.to_dict()) == record
+
+    def test_failure(self) -> None:
+        record = ExecutionRecord(
+            record_id="r2",
+            intent_id="i2",
+            grant_id="g2",
+            law_hash="law_def",
+            mcp_call={"resource": "invoice.pay", "args": {"id": "inv-002"}},
+            result_status="failure",
+            result_output={"error": "insufficient_funds"},
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+        assert ExecutionRecord.from_dict(record.to_dict()) == record
+
+    def test_with_t3v3_delta(self) -> None:
+        record = ExecutionRecord(
+            record_id="r3",
+            intent_id="i3",
+            grant_id="g3",
+            law_hash="law_ghi",
+            mcp_call={"resource": "tool.run", "args": {}},
+            t3v3_delta={"talent": 0.01, "temperament": -0.005},
+            witnesses=["lct:w1", "lct:w2", "lct:w3"],
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+        assert ExecutionRecord.from_dict(record.to_dict()) == record
+
+    def test_canonical_hash_preserved(self) -> None:
+        """Canonical hash should be identical after round-trip."""
+        record = ExecutionRecord(
+            record_id="r4",
+            intent_id="i4",
+            grant_id="g4",
+            law_hash="law_jkl",
+            mcp_call={"resource": "tool.run", "args": {}},
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+        restored = ExecutionRecord.from_dict(record.to_dict())
+        assert restored.canonical_hash() == record.canonical_hash()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
