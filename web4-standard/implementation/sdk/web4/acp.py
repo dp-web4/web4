@@ -258,6 +258,17 @@ class PlanStep:
             d["requiresApproval"] = self.requires_approval
         return d
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "PlanStep":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(
+            step_id=d["id"],
+            mcp_tool=d["mcp"],
+            args=d.get("args", {}),
+            depends_on=d.get("dependsOn", []),
+            requires_approval=d.get("requiresApproval", ""),
+        )
+
 
 # ── Agent Plan ──────────────────────────────────────────────────
 
@@ -358,6 +369,56 @@ class AgentPlan:
             },
             "createdAt": self.created_at,
         }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AgentPlan":
+        """Deserialize from dict produced by to_dict().
+
+        Note: Trigger.authorized is not included in to_dict() output,
+        so it is not restored by this method.
+        """
+        triggers: List[Trigger] = []
+        for t in d.get("triggers", []):
+            triggers.append(Trigger(
+                kind=TriggerKind(t["kind"]),
+                expr=t.get("expr", ""),
+            ))
+
+        steps: List[PlanStep] = []
+        for s in d.get("steps", []):
+            steps.append(PlanStep.from_dict(s))
+
+        gd = d.get("guards", {})
+        rc = gd.get("resourceCaps", {})
+        ha = gd.get("humanApproval", {})
+
+        guards = Guards(
+            law_hash=gd.get("lawHash", ""),
+            witness_level=gd.get("witnessLevel", 0),
+            resource_caps=ResourceCaps(
+                max_atp=rc.get("maxAtp", 0.0),
+                max_executions=rc.get("maxExecutions", 0),
+                rate_limit=rc.get("rateLimit", ""),
+            ),
+            human_approval=HumanApproval(
+                mode=ApprovalMode(ha["mode"]) if ha.get("mode") else ApprovalMode.CONDITIONAL,
+                auto_threshold=ha.get("autoThreshold", 0.0),
+                timeout=ha.get("timeout", 3600),
+                fallback=ha.get("fallback", "deny"),
+            ),
+            expires_at=gd.get("expiresAt", ""),
+        )
+
+        return cls(
+            plan_id=d["planId"],
+            principal=d["principal"],
+            agent=d["agent"],
+            grant_id=d["grantId"],
+            triggers=triggers,
+            steps=steps,
+            guards=guards,
+            created_at=d.get("createdAt", ""),
+        )
 
     def to_jsonld(self) -> Dict[str, Any]:
         """
@@ -543,6 +604,36 @@ class Intent:
             "createdAt": self.created_at,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Intent":
+        """Deserialize from dict produced by to_dict().
+
+        Note: ProofOfAgency.audience and .expires_at are not included
+        in to_dict() output, so they are not restored by this method.
+        """
+        proof_data = d.get("proofOfAgency", {})
+        proof = ProofOfAgency(
+            grant_id=proof_data.get("grantId", ""),
+            plan_id=proof_data.get("planId", ""),
+            intent_id=proof_data.get("intentId", ""),
+            nonce=proof_data.get("nonce", ""),
+        )
+
+        explain = d.get("explain", {})
+
+        return cls(
+            intent_id=d["intentId"],
+            plan_id=d["planId"],
+            step_id=d["stepId"],
+            proposed_action=d.get("proposedAction", {}),
+            proof=proof,
+            explanation=explain.get("why", ""),
+            confidence=explain.get("confidence", 0.0),
+            risk_assessment=explain.get("riskAssessment", "low"),
+            needs_approval=d.get("needsApproval", False),
+            created_at=d.get("createdAt", ""),
+        )
+
     def to_jsonld(self) -> Dict[str, Any]:
         """
         Serialize to JSON-LD per ACP framework spec.
@@ -658,6 +749,19 @@ class Decision:
             d["modifications"] = self.modifications
         return d
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Decision":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(
+            intent_id=d["intentId"],
+            decision=DecisionType(d["decision"]),
+            decided_by=d["by"],
+            rationale=d.get("rationale", ""),
+            modifications=d.get("modifications"),
+            witnesses=d.get("witnesses", []),
+            timestamp=d.get("timestamp", ""),
+        )
+
     def to_jsonld(self) -> Dict[str, Any]:
         """
         Serialize to JSON-LD per ACP framework spec.
@@ -769,6 +873,25 @@ class ExecutionRecord:
             "witnesses": self.witnesses,
             "timestamp": self.timestamp,
         }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ExecutionRecord":
+        """Deserialize from dict produced by to_dict()."""
+        result_data = d.get("result", {})
+
+        return cls(
+            record_id=d["recordId"],
+            intent_id=d["intentId"],
+            grant_id=d["grantId"],
+            law_hash=d["lawHash"],
+            mcp_call=d.get("mcpCall", {}),
+            result_status=result_data.get("status", "success"),
+            result_output=result_data.get("output", {}),
+            resources_consumed=result_data.get("resourcesConsumed", {}),
+            t3v3_delta=d.get("t3v3Delta", {}),
+            witnesses=d.get("witnesses", []),
+            timestamp=d.get("timestamp", ""),
+        )
 
     def to_jsonld(self) -> Dict[str, Any]:
         """
