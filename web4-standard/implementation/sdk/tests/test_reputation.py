@@ -750,3 +750,78 @@ class TestVectors:
             assert delta.t3_delta[dim].change == pytest.approx(expected["change"], abs=tol)
         for dim, expected in v["expected"]["v3_deltas"].items():
             assert delta.v3_delta[dim].change == pytest.approx(expected["change"], abs=tol)
+
+
+# ── Round-trip tests for ReputationRule.from_dict() ──────────────────
+
+
+class TestReputationRuleRoundTrip:
+    """Validates from_dict(x.to_dict()) == x for ReputationRule."""
+
+    def test_minimal_rule(self):
+        """Rule with only rule_id survives round-trip."""
+        original = ReputationRule(rule_id="rule:min")
+        restored = ReputationRule.from_dict(original.to_dict())
+        assert restored == original
+
+    def test_rule_with_triggers(self):
+        """Rule with trigger conditions survives round-trip."""
+        original = ReputationRule(
+            rule_id="rule:trigger",
+            trigger_conditions={
+                "action_type": "analyze",
+                "result_status": "success",
+                "quality_threshold": 0.7,
+                "min_atp_stake": 10.0,
+            },
+            witnesses_required=2,
+            law_oracle="oracle:main",
+        )
+        restored = ReputationRule.from_dict(original.to_dict())
+        assert restored == original
+
+    def test_rule_with_impacts(self):
+        """Rule with T3/V3 impacts and modifiers survives round-trip."""
+        original = ReputationRule(
+            rule_id="rule:impact",
+            t3_impacts={
+                "talent": DimensionImpact(
+                    base_delta=0.05,
+                    modifiers=[
+                        Modifier(condition="deadline_met", multiplier=1.5),
+                        Modifier(condition="peer_reviewed", multiplier=2.0),
+                    ],
+                ),
+                "training": DimensionImpact(base_delta=0.02),
+            },
+            v3_impacts={
+                "veracity": DimensionImpact(
+                    base_delta=0.03,
+                    modifiers=[Modifier(condition="verified", multiplier=1.2)],
+                ),
+            },
+        )
+        restored = ReputationRule.from_dict(original.to_dict())
+        assert restored == original
+
+    def test_full_rule(self):
+        """Fully populated rule survives round-trip."""
+        original = ReputationRule(
+            rule_id="rule:full",
+            trigger_conditions={"action_type": "delegate", "result_status": "success"},
+            t3_impacts={
+                "talent": DimensionImpact(base_delta=0.1, modifiers=[
+                    Modifier(condition="quality_high", multiplier=1.5),
+                ]),
+                "temperament": DimensionImpact(base_delta=0.03),
+            },
+            v3_impacts={
+                "validity": DimensionImpact(base_delta=0.04, modifiers=[
+                    Modifier(condition="witnessed", multiplier=1.3),
+                ]),
+            },
+            witnesses_required=3,
+            law_oracle="oracle:governance",
+        )
+        restored = ReputationRule.from_dict(original.to_dict())
+        assert restored == original

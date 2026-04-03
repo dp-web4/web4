@@ -502,6 +502,48 @@ class HandshakeMessage:
             }
         return d
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "HandshakeMessage":
+        """Deserialize from dict produced by to_dict()."""
+        phase = HandshakePhase[d["phase"]]
+        transport = Transport(d.get("transport", "tls_1.3"))
+        timestamp = d.get("timestamp", "")
+        p = d.get("payload", {})
+
+        payload: Any
+        if phase == HandshakePhase.CLIENT_HELLO:
+            payload = ClientHello(
+                supported_suites=p["supported_suites"],
+                client_public_key=p["client_public_key"],
+                client_w4id_ephemeral=p["client_w4id_ephemeral"],
+                nonce=p["nonce"],
+                supported_extensions=p.get("supported_extensions", []),
+                grease_extensions=p.get("grease_extensions", []),
+            )
+        elif phase == HandshakePhase.SERVER_HELLO:
+            payload = ServerHello(
+                selected_suite=p["selected_suite"],
+                server_public_key=p["server_public_key"],
+                server_w4id_ephemeral=p["server_w4id_ephemeral"],
+                nonce=p["nonce"],
+                encrypted_credentials=p.get("encrypted_credentials", ""),
+                selected_extensions=p.get("selected_extensions", []),
+            )
+        elif phase == HandshakePhase.CLIENT_FINISHED:
+            payload = ClientFinished(
+                encrypted_credentials=p["encrypted_credentials"],
+                transcript_mac=p["transcript_mac"],
+            )
+        elif phase == HandshakePhase.SERVER_FINISHED:
+            payload = ServerFinished(
+                transcript_mac=p["transcript_mac"],
+                session_id=p["session_id"],
+            )
+        else:
+            raise ValueError(f"Unknown handshake phase: {phase}")
+
+        return cls(phase=phase, payload=payload, transport=transport, timestamp=timestamp)
+
 
 # ── JSON round-trip helpers ──────────────────────────────────────
 

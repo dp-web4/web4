@@ -126,6 +126,31 @@ class ReputationRule:
             "law_oracle": self.law_oracle,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ReputationRule":
+        """Deserialize from dict produced by to_dict()."""
+        def _parse_impacts(raw: Dict[str, Any]) -> Dict[str, DimensionImpact]:
+            result: Dict[str, DimensionImpact] = {}
+            for dim, impact_d in raw.items():
+                modifiers = [
+                    Modifier(condition=m["condition"], multiplier=m["multiplier"])
+                    for m in impact_d.get("modifiers", [])
+                ]
+                result[dim] = DimensionImpact(
+                    base_delta=impact_d.get("base_delta", 0.0),
+                    modifiers=modifiers,
+                )
+            return result
+
+        return cls(
+            rule_id=d["rule_id"],
+            trigger_conditions=d.get("trigger_conditions", {}),
+            t3_impacts=_parse_impacts(d.get("t3_impacts", {})),
+            v3_impacts=_parse_impacts(d.get("v3_impacts", {})),
+            witnesses_required=d.get("witnesses_required", 0),
+            law_oracle=d.get("law_oracle", ""),
+        )
+
 
 # ── Factor Analysis ──────────────────────────────────────────────
 
