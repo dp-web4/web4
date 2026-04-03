@@ -5,7 +5,7 @@
 ## Epistemic Principles (Collective)
 
 1. Ask before accepting  2. Uncertainty is valuable  3. Suppress then activate
-4. Compress with meaning  5. Witness everything
+4. Compress with meaning  5. Witness everything  6. Persistence ≠ perseveration
 
 Validated across 500+ sessions. See: `github.com/dp-web4/HRM/docs/what/HRM_RESEARCH_FRAMEWORK_COMPLETE.md`
 
