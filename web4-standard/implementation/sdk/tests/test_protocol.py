@@ -477,3 +477,75 @@ class TestVectors:
     def test_all_vectors_loaded(self, vectors):
         """Sanity: ensure test vector file has expected count."""
         assert len(vectors) == 12
+
+
+# ── Round-trip tests for HandshakeMessage.from_dict() ────────────────
+
+
+class TestHandshakeMessageRoundTrip:
+    """Validates from_dict(x.to_dict()) == x for HandshakeMessage."""
+
+    def test_client_hello_roundtrip(self):
+        """ClientHello payload survives round-trip."""
+        payload = ClientHello(
+            supported_suites=["W4-BASE-1", "W4-FIPS-1"],
+            client_public_key="pk_client_abc",
+            client_w4id_ephemeral="did:web4:key:eph1",
+            nonce="abcd1234" * 4,
+            supported_extensions=["ext1"],
+            grease_extensions=["grease1"],
+        )
+        original = HandshakeMessage(
+            phase=HandshakePhase.CLIENT_HELLO,
+            payload=payload,
+            transport=Transport.TLS_1_3,
+            timestamp="2026-01-01T00:00:00Z",
+        )
+        restored = HandshakeMessage.from_dict(original.to_dict())
+        assert restored == original
+
+    def test_server_hello_roundtrip(self):
+        """ServerHello payload survives round-trip."""
+        payload = ServerHello(
+            selected_suite="W4-BASE-1",
+            server_public_key="pk_server_xyz",
+            server_w4id_ephemeral="did:web4:key:eph2",
+            nonce="efgh5678" * 4,
+            encrypted_credentials="enc_creds",
+            selected_extensions=["ext1"],
+        )
+        original = HandshakeMessage(
+            phase=HandshakePhase.SERVER_HELLO,
+            payload=payload,
+            transport=Transport.QUIC,
+        )
+        restored = HandshakeMessage.from_dict(original.to_dict())
+        assert restored == original
+
+    def test_client_finished_roundtrip(self):
+        """ClientFinished payload survives round-trip."""
+        payload = ClientFinished(
+            encrypted_credentials="enc_client_creds",
+            transcript_mac="mac_value_123",
+        )
+        original = HandshakeMessage(
+            phase=HandshakePhase.CLIENT_FINISHED,
+            payload=payload,
+        )
+        restored = HandshakeMessage.from_dict(original.to_dict())
+        assert restored == original
+
+    def test_server_finished_roundtrip(self):
+        """ServerFinished payload survives round-trip."""
+        payload = ServerFinished(
+            transcript_mac="mac_final_456",
+            session_id="session:abc123",
+        )
+        original = HandshakeMessage(
+            phase=HandshakePhase.SERVER_FINISHED,
+            payload=payload,
+            transport=Transport.WEB_SOCKET,
+            timestamp="2026-06-15T12:00:00Z",
+        )
+        restored = HandshakeMessage.from_dict(original.to_dict())
+        assert restored == original
