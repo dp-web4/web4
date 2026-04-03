@@ -198,6 +198,18 @@ class W4ID:
             "method_specific_id": self.method_specific_id,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, str]) -> "W4ID":
+        """Reconstruct W4ID from a dict produced by to_dict().
+
+        Accepts dicts with 'method' and 'method_specific_id' keys.
+        The 'did' key is ignored (recomputed from components).
+        """
+        return cls(
+            method=d["method"],
+            method_specific_id=d["method_specific_id"],
+        )
+
     def __str__(self) -> str:
         return self.did
 
@@ -283,6 +295,18 @@ class KeyPolicy:
             "is_hardware_backed": self.is_hardware_backed,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "KeyPolicy":
+        """Reconstruct KeyPolicy from a dict produced by to_dict().
+
+        The 'is_hardware_backed' key is ignored (recomputed from storage_level).
+        """
+        return cls(
+            storage_level=KeyStorageLevel(d["storage_level"]),
+            rotation_days=d["rotation_days"],
+            allowed_suites=[CryptoSuiteId(s) for s in d["allowed_suites"]],
+        )
+
 
 # ── Signature Envelope ───────────────────────────────────────────
 
@@ -309,6 +333,17 @@ class SignatureEnvelope:
             "suite_id": self.suite_id.value,
             "timestamp": self.timestamp,
         }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, str]) -> "SignatureEnvelope":
+        """Reconstruct SignatureEnvelope from a dict produced by to_dict()."""
+        return cls(
+            payload_hash=d["payload_hash"],
+            signature=d["signature"],
+            signer=d["signer"],
+            suite_id=CryptoSuiteId(d.get("suite_id", CryptoSuiteId.W4_BASE_1.value)),
+            timestamp=d.get("timestamp", ""),
+        )
 
 
 # ── Verifiable Credential Structure ──────────────────────────────
@@ -355,3 +390,41 @@ class VerifiableCredential:
         if self.proof:
             d["proof"] = self.proof.to_dict()
         return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "VerifiableCredential":
+        """Reconstruct VerifiableCredential from a dict produced by to_dict().
+
+        Parses the W3C VC structure back into the dataclass fields:
+        - credential_type extracted from the 'type' list (non-"VerifiableCredential" entry)
+        - subject and claims extracted from 'credentialSubject'
+        - proof reconstructed via SignatureEnvelope.from_dict() if present
+        """
+        # Extract credential type: second entry in type list, or default
+        types = d.get("type", ["VerifiableCredential", "Web4Credential"])
+        credential_type = "Web4Credential"
+        for t in types:
+            if t != "VerifiableCredential":
+                credential_type = t
+                break
+
+        # Extract subject and claims from credentialSubject
+        cred_subject = d.get("credentialSubject", {})
+        subject = cred_subject.get("id", "")
+        claims = {k: v for k, v in cred_subject.items() if k != "id"}
+
+        # Reconstruct proof if present
+        proof: Optional[SignatureEnvelope] = None
+        if "proof" in d:
+            proof = SignatureEnvelope.from_dict(d["proof"])
+
+        return cls(
+            id=d["id"],
+            issuer=d["issuer"],
+            subject=subject,
+            credential_type=credential_type,
+            issuance_date=d.get("issuanceDate", ""),
+            expiration_date=d.get("expirationDate", ""),
+            claims=claims,
+            proof=proof,
+        )

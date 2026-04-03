@@ -476,3 +476,200 @@ class TestVerifiableCredential:
         )
         d = vc.to_dict()
         assert "Web4Credential" in d["type"]
+
+
+# ── from_dict() Round-Trip Tests ────────────────────────────────
+
+class TestW4IDRoundTrip:
+    """Round-trip tests for W4ID.from_dict()."""
+
+    def test_key_method_roundtrip(self):
+        """W4ID with key method survives to_dict/from_dict round-trip."""
+        original = W4ID(method="key", method_specific_id="z6Mkf5abc123")
+        restored = W4ID.from_dict(original.to_dict())
+        assert restored == original
+        assert restored.did == original.did
+
+    def test_web_method_roundtrip(self):
+        """W4ID with web method survives round-trip."""
+        original = parse_w4id("did:web4:web:example.com")
+        restored = W4ID.from_dict(original.to_dict())
+        assert restored == original
+
+    def test_colons_in_method_specific_id(self):
+        """W4ID with colons in method_specific_id survives round-trip."""
+        original = parse_w4id("did:web4:web:example.com:path:to:doc")
+        restored = W4ID.from_dict(original.to_dict())
+        assert restored.method_specific_id == "example.com:path:to:doc"
+        assert restored == original
+
+    def test_unknown_method_roundtrip(self):
+        """W4ID with unknown method survives round-trip."""
+        original = parse_w4id("did:web4:custom:something")
+        restored = W4ID.from_dict(original.to_dict())
+        assert restored == original
+        assert not restored.is_known_method
+
+
+class TestKeyPolicyRoundTrip:
+    """Round-trip tests for KeyPolicy.from_dict()."""
+
+    def test_default_policy_roundtrip(self):
+        """Default KeyPolicy survives round-trip."""
+        original = KeyPolicy(storage_level=KeyStorageLevel.ENCRYPTED)
+        restored = KeyPolicy.from_dict(original.to_dict())
+        assert restored.storage_level == original.storage_level
+        assert restored.rotation_days == original.rotation_days
+        assert restored.allowed_suites == original.allowed_suites
+        assert restored.is_hardware_backed == original.is_hardware_backed
+
+    def test_hsm_policy_roundtrip(self):
+        """HSM-backed policy with custom rotation survives round-trip."""
+        original = KeyPolicy(
+            storage_level=KeyStorageLevel.HSM,
+            rotation_days=90,
+            allowed_suites=[CryptoSuiteId.W4_BASE_1, CryptoSuiteId.W4_FIPS_1],
+        )
+        restored = KeyPolicy.from_dict(original.to_dict())
+        assert restored.storage_level == KeyStorageLevel.HSM
+        assert restored.rotation_days == 90
+        assert len(restored.allowed_suites) == 2
+        assert restored.is_hardware_backed is True
+
+    def test_all_storage_levels_roundtrip(self):
+        """All 4 storage levels survive round-trip."""
+        for level in KeyStorageLevel:
+            original = KeyPolicy(storage_level=level)
+            restored = KeyPolicy.from_dict(original.to_dict())
+            assert restored.storage_level == level
+            assert restored.is_hardware_backed == original.is_hardware_backed
+
+
+class TestSignatureEnvelopeRoundTrip:
+    """Round-trip tests for SignatureEnvelope.from_dict()."""
+
+    def test_full_envelope_roundtrip(self):
+        """Envelope with all fields survives round-trip."""
+        original = SignatureEnvelope(
+            payload_hash="sha256:abc123",
+            signature="base64signaturedata",
+            signer="did:web4:key:alice",
+            suite_id=CryptoSuiteId.W4_BASE_1,
+            timestamp="2026-03-18T00:00:00Z",
+        )
+        restored = SignatureEnvelope.from_dict(original.to_dict())
+        assert restored.payload_hash == original.payload_hash
+        assert restored.signature == original.signature
+        assert restored.signer == original.signer
+        assert restored.suite_id == original.suite_id
+        assert restored.timestamp == original.timestamp
+
+    def test_fips_suite_roundtrip(self):
+        """Envelope with FIPS suite survives round-trip."""
+        original = SignatureEnvelope(
+            payload_hash="hash", signature="sig", signer="signer",
+            suite_id=CryptoSuiteId.W4_FIPS_1,
+        )
+        restored = SignatureEnvelope.from_dict(original.to_dict())
+        assert restored.suite_id == CryptoSuiteId.W4_FIPS_1
+
+    def test_minimal_envelope_roundtrip(self):
+        """Envelope with defaults survives round-trip."""
+        original = SignatureEnvelope(
+            payload_hash="h", signature="s", signer="x",
+        )
+        restored = SignatureEnvelope.from_dict(original.to_dict())
+        assert restored.payload_hash == "h"
+        assert restored.suite_id == CryptoSuiteId.W4_BASE_1
+        assert restored.timestamp == ""
+
+
+class TestVerifiableCredentialRoundTrip:
+    """Round-trip tests for VerifiableCredential.from_dict()."""
+
+    def test_minimal_vc_roundtrip(self):
+        """Minimal VC (no claims, no proof, no expiration) survives round-trip."""
+        original = VerifiableCredential(
+            id="vc:1", issuer="did:web4:key:issuer", subject="did:web4:key:subject",
+        )
+        restored = VerifiableCredential.from_dict(original.to_dict())
+        assert restored.id == original.id
+        assert restored.issuer == original.issuer
+        assert restored.subject == original.subject
+        assert restored.credential_type == "Web4Credential"
+        assert restored.claims == {}
+        assert restored.proof is None
+
+    def test_vc_with_claims_roundtrip(self):
+        """VC with claims survives round-trip (claims preserved in credentialSubject)."""
+        original = VerifiableCredential(
+            id="vc:2", issuer="issuer", subject="subject",
+            claims={"role": "analyst", "level": 3, "active": True},
+        )
+        restored = VerifiableCredential.from_dict(original.to_dict())
+        assert restored.claims == original.claims
+        assert restored.subject == "subject"
+
+    def test_vc_with_expiration_roundtrip(self):
+        """VC with expiration date survives round-trip."""
+        original = VerifiableCredential(
+            id="vc:3", issuer="i", subject="s",
+            expiration_date="2027-01-01T00:00:00Z",
+        )
+        restored = VerifiableCredential.from_dict(original.to_dict())
+        assert restored.expiration_date == "2027-01-01T00:00:00Z"
+
+    def test_vc_with_proof_roundtrip(self):
+        """VC with SignatureEnvelope proof survives round-trip."""
+        proof = SignatureEnvelope(
+            payload_hash="sha256:credential_hash",
+            signature="issuer_signature",
+            signer="did:web4:key:issuer",
+            suite_id=CryptoSuiteId.W4_FIPS_1,
+            timestamp="2026-04-03T00:00:00Z",
+        )
+        original = VerifiableCredential(
+            id="vc:4", issuer="did:web4:key:issuer", subject="did:web4:key:subject",
+            proof=proof,
+        )
+        restored = VerifiableCredential.from_dict(original.to_dict())
+        assert restored.proof is not None
+        assert restored.proof.payload_hash == proof.payload_hash
+        assert restored.proof.signature == proof.signature
+        assert restored.proof.suite_id == CryptoSuiteId.W4_FIPS_1
+
+    def test_full_vc_roundtrip(self):
+        """Full VC with all fields survives round-trip."""
+        proof = SignatureEnvelope(
+            payload_hash="hash", signature="sig", signer="issuer",
+            timestamp="2026-04-03T00:00:00Z",
+        )
+        original = VerifiableCredential(
+            id="vc:full",
+            issuer="did:web4:key:issuer",
+            subject="did:web4:key:subject",
+            credential_type="TrustCredential",
+            issuance_date="2026-04-03T00:00:00Z",
+            expiration_date="2027-04-03T00:00:00Z",
+            claims={"trust_level": 0.85, "domain": "financial"},
+            proof=proof,
+        )
+        restored = VerifiableCredential.from_dict(original.to_dict())
+        assert restored.id == original.id
+        assert restored.issuer == original.issuer
+        assert restored.subject == original.subject
+        assert restored.credential_type == "TrustCredential"
+        assert restored.issuance_date == original.issuance_date
+        assert restored.expiration_date == original.expiration_date
+        assert restored.claims == original.claims
+        assert restored.proof is not None
+        assert restored.proof.signer == "issuer"
+
+    def test_custom_credential_type_roundtrip(self):
+        """Custom credential type survives round-trip."""
+        original = VerifiableCredential(
+            id="vc:custom", issuer="i", subject="s",
+            credential_type="HardwareAttestationCredential",
+        )
+        restored = VerifiableCredential.from_dict(original.to_dict())
+        assert restored.credential_type == "HardwareAttestationCredential"
