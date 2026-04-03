@@ -111,6 +111,11 @@ class Constraint:
         """Serialize to dict with 'type' and 'value' keys."""
         return {"type": self.constraint_type, "value": self.value}
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Constraint":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(constraint_type=d["type"], value=d["value"])
+
 
 @dataclass
 class Rules:
@@ -151,6 +156,17 @@ class Rules:
             "prohibitions": self.prohibitions,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Rules":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(
+            law_hash=d.get("lawHash", ""),
+            society=d.get("society", ""),
+            constraints=[Constraint.from_dict(c) for c in d.get("constraints", [])],
+            permissions=d.get("permissions", []),
+            prohibitions=d.get("prohibitions", []),
+        )
+
 
 # ── 2. Role ─────────────────────────────────────────────────────
 
@@ -181,6 +197,19 @@ class Role:
             d["v3InRole"] = self.v3_in_role.as_dict()
         return d
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Role":
+        """Deserialize from dict produced by to_dict()."""
+        t3 = T3.from_jsonld(d["t3InRole"]) if "t3InRole" in d else None
+        v3 = V3.from_jsonld(d["v3InRole"]) if "v3InRole" in d else None
+        return cls(
+            actor=d["actor"],
+            role_lct=d["roleLCT"],
+            paired_at=d.get("pairedAt", ""),
+            t3_in_role=t3,
+            v3_in_role=v3,
+        )
+
 
 # ── 3. Request ──────────────────────────────────────────────────
 
@@ -200,6 +229,16 @@ class ProofOfAgency:
             "scope": self.scope,
             "audience": self.audience,
         }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ProofOfAgency":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(
+            grant_id=d["grantId"],
+            inclusion_proof=d.get("inclusionProof", ""),
+            scope=d.get("scope", ""),
+            audience=d.get("audience", []),
+        )
 
 
 @dataclass
@@ -232,6 +271,20 @@ class Request:
             d["proofOfAgency"] = self.proof_of_agency.to_dict()
         return d
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Request":
+        """Deserialize from dict produced by to_dict()."""
+        poa = ProofOfAgency.from_dict(d["proofOfAgency"]) if "proofOfAgency" in d else None
+        return cls(
+            action=d["action"],
+            target=d.get("target", ""),
+            parameters=d.get("parameters", {}),
+            atp_stake=d.get("atpStake", 0.0),
+            nonce=d.get("nonce", ""),
+            constraints=d.get("constraints", {}),
+            proof_of_agency=poa,
+        )
+
 
 # ── 4. Reference ────────────────────────────────────────────────
 
@@ -245,6 +298,15 @@ class Precedent:
     def to_dict(self) -> Dict[str, Any]:
         """Serialize precedent to dict with action hash, outcome, and relevance score."""
         return {"actionHash": self.action_hash, "outcome": self.outcome, "relevance": self.relevance}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Precedent":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(
+            action_hash=d["actionHash"],
+            outcome=d.get("outcome", ""),
+            relevance=d.get("relevance", 0.0),
+        )
 
 
 @dataclass(frozen=True)
@@ -263,6 +325,16 @@ class WitnessAttestation:
             "signature": self.signature,
             "timestamp": self.timestamp,
         }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "WitnessAttestation":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(
+            lct=d["lct"],
+            attestation=d.get("attestation", "verified"),
+            signature=d.get("signature", ""),
+            timestamp=d.get("timestamp", ""),
+        )
 
 
 @dataclass
@@ -287,6 +359,17 @@ class Reference:
             },
             "witnesses": [w.to_dict() for w in self.witnesses],
         }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Reference":
+        """Deserialize from dict produced by to_dict()."""
+        mrh = d.get("mrhContext", {})
+        return cls(
+            precedents=[Precedent.from_dict(p) for p in d.get("precedents", [])],
+            mrh_depth=mrh.get("depth", 0),
+            relevant_entities=mrh.get("relevantEntities", []),
+            witnesses=[WitnessAttestation.from_dict(w) for w in d.get("witnesses", [])],
+        )
 
 
 # ── 5. Resource ─────────────────────────────────────────────────
@@ -319,6 +402,22 @@ class ResourceRequirements:
                 "release_condition": self.escrow_condition,
             }
         return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ResourceRequirements":
+        """Deserialize from dict produced by to_dict()."""
+        required = d.get("required", {})
+        available = d.get("available", {})
+        escrow = d.get("escrow", {})
+        compute = dict(required)
+        compute.pop("atp", None)
+        return cls(
+            required_atp=required.get("atp", 0.0),
+            available_atp=available.get("atp_balance", 0.0),
+            compute=compute.get("compute", {}),
+            escrow_amount=escrow.get("amount", 0.0),
+            escrow_condition=escrow.get("release_condition", "result_verified"),
+        )
 
 
 # ── 6. Result ───────────────────────────────────────────────────
@@ -356,6 +455,25 @@ class Result:
             d["attestations"] = [a.to_dict() for a in self.attestations]
         return d
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Result":
+        """Deserialize from dict produced by to_dict()."""
+        output = dict(d.get("output", {}))
+        output_hash = output.pop("hash", "")
+        resource_consumed = dict(d.get("resourceConsumed", {}))
+        atp_consumed = resource_consumed.pop("atp", 0.0)
+        error_obj = d.get("error")
+        error_msg = error_obj["message"] if isinstance(error_obj, dict) else error_obj
+        return cls(
+            status=ActionStatus(d["status"]),
+            output=output,
+            output_hash=output_hash,
+            error=error_msg,
+            atp_consumed=atp_consumed,
+            resource_consumed=resource_consumed,
+            attestations=[WitnessAttestation.from_dict(a) for a in d.get("attestations", [])],
+        )
+
 
 # ── 7. Reputation ──────────────────────────────────────────────
 
@@ -370,6 +488,11 @@ class TensorDelta:
         """Serialize tensor delta to dict with change magnitude and from/to values."""
         return {"change": self.change, "from": self.from_value, "to": self.to_value}
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "TensorDelta":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(change=d["change"], from_value=d["from"], to_value=d["to"])
+
 
 @dataclass(frozen=True)
 class ContributingFactor:
@@ -380,6 +503,11 @@ class ContributingFactor:
     def to_dict(self) -> Dict[str, Any]:
         """Serialize contributing factor to dict with factor name and weight."""
         return {"factor": self.factor, "weight": self.weight}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ContributingFactor":
+        """Deserialize from dict produced by to_dict()."""
+        return cls(factor=d["factor"], weight=d["weight"])
 
 
 @dataclass
