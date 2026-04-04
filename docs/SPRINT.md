@@ -1,13 +1,13 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-04 (Sprint 16 started)
+**Updated**: 2026-04-04 (Sprint 16 T2)
 **Phase**: Development
 **Track**: web4 (Legion)
 
 ---
 
-## Sprint 16: Quality Gate Completion + Coverage Baseline (2026-04-04)
+## Sprint 16: Quality Gates + Generic Deserialization (2026-04-04)
 
 With Sprints 1-15 delivering a complete 20-module SDK (v0.17.0, 2183 tests, 344 exports,
 56 from_dict() methods, 278 schema vectors), Sprint 16 closes the last quality gate
@@ -56,6 +56,19 @@ across 22 source files. Coverage baseline: **96.2% overall** (4491 statements, 1
 - `validation.py` at 83%: schema loading fallback paths and jsonschema-absent branches
 - `__main__.py` at 22.5%: expected — CLI tests use subprocess, not counted by pytest-cov
 - `attestation.py` misses are verification stubs (TPM2/FIDO2/SE) — by design
+
+### T2: Generic JSON-LD deserialization dispatcher
+**Status**: DONE
+**Completed**: 2026-04-04
+**Scope**: Add a top-level `from_jsonld(doc)` function that reads the `@type` field from any
+web4 JSON-LD document and dispatches to the correct class's `from_jsonld()` method. Covers
+all 22 types across 10 modules. Also add `from_jsonld_string(s)` convenience wrapper,
+`supported_types()` introspection, and `UnknownTypeError` exception.
+**Result**: New module `web4/deserialize.py` with lazy registry pattern (avoids circular imports).
+22 types mapped (19 class-based + 3 function-based), bare + `web4:` prefixed = 44 registry entries.
+62 parametrized tests, 2245 total tests passing, mypy strict clean (23 files).
+**Edge case**: LCT.to_jsonld() omits `@type` at top level (spec §2.3 canonical format). The
+dispatcher supports `LinkedContextToken` when a producer adds `@type` to the document.
 
 ---
 

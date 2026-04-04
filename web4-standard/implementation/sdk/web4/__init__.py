@@ -475,6 +475,14 @@ from .validation import (  # noqa: F401
     validate,
 )
 
+# ── Deserialization ──────────────────────────────────────────
+from .deserialize import (
+    UnknownTypeError,
+    from_jsonld,
+    from_jsonld_string,
+    supported_types,
+)
+
 
 # ── Public API ─────────────────────────────────────────────────
 __all__ = [
@@ -628,4 +636,6 @@ __all__ = [
     "ValidationResult", "ValidationError",
     "SchemaValidationUnavailable", "SchemaNotFound",
     "validate", "list_schemas", "get_schema", "get_schema_dir",
+    # deserialization
+    "UnknownTypeError", "from_jsonld", "from_jsonld_string", "supported_types",
 ]
