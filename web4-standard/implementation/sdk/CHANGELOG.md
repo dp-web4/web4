@@ -7,9 +7,9 @@ All notable changes to the Web4 Python SDK.
 from_dict() round-trip completeness and schema validation vector integration.
 
 ### Added
-- **from_dict() round-trip completeness** (N1-R1) — 31 new `from_dict()` classmethods
-  across 6 modules, bringing the SDK total to 52. Every class with `to_dict()` now has
-  a matching `from_dict()` for lossless round-trip serialization:
+- **from_dict() round-trip completeness** (N1-R1, S1) — 35 new `from_dict()` classmethods
+  across 8 modules. Every class with `to_dict()` or `as_dict()` now has a matching
+  `from_dict()` for lossless round-trip serialization:
   - security.py (N1): W4ID, KeyPolicy, SignatureEnvelope, VerifiableCredential (4 methods, 16 tests)
   - r6.py (O1): Constraint, Rules, Role, ProofOfAgency, Request, Precedent,
     WitnessAttestation, Reference, ResourceRequirements, Result, TensorDelta,
@@ -18,13 +18,15 @@ from_dict() round-trip completeness and schema validation vector integration.
   - acp.py (Q1): PlanStep, AgentPlan, Intent, Decision, ExecutionRecord (5 methods, 18 tests)
   - lct.py (R1): Binding, MRHPairing, MRH, BirthCertificate, Attestation, LineageEntry,
     Policy, LCT (8 methods, 27 tests)
+  - trust.py (S1): T3, V3 (2 methods, 16 tests)
+  - mrh.py (S1): MRHNode, MRHEdge (2 methods, 11 tests)
 - **Schema validation vectors in pytest** (M1) — 278 cross-language validation vectors
   (92 valid + 186 invalid across 9 schemas) integrated into the pytest suite. Vectors
   run as parametrized tests, replacing the standalone validation runner script.
 
 ### Changed
 - Version bumped from 0.16.0 to 0.17.0.
-- 2157 tests passing (up from 1770 in v0.16.0). 20 SDK modules, 344 exports.
+- 2183 tests passing (up from 1770 in v0.16.0). 20 SDK modules, 344 exports.
 
 ## [0.16.0] - 2026-03-29
 

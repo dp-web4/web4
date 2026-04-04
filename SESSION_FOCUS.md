@@ -20,7 +20,7 @@
 | Q1: ACP from_dict() | DONE | PlanStep, AgentPlan, Intent, Decision, ExecutionRecord — 5 methods, 18 tests, PR #123 |
 | R1: LCT from_dict() | DONE | Binding, MRHPairing, MRH, BirthCertificate, Attestation, LineageEntry, Policy, LCT — 8 methods, 27 tests, PR #124 |
 | M1: Schema validation vectors in pytest | DONE | 278 vectors as parametrized tests, PR #117 |
-| S1: SDK v0.17.0 release housekeeping | DONE | Version bump, CHANGELOG, SPRINT.md, SESSION_FOCUS.md |
+| S1: Trust/MRH from_dict() + v0.17.0 | DONE | T3, V3, MRHNode, MRHEdge from_dict() — 4 methods, 27 tests. Version bump, CHANGELOG |
 
 ### Sprint 14 Summary: Optional Extras and Release Polish (COMPLETE)
 
@@ -104,7 +104,7 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 - All 15 sprints COMPLETE (Sprints 1-15)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
-- All `to_dict()` methods have `from_dict()` inverses (52 round-trip methods total)
+- All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (56 round-trip methods total)
 - All 20 submodules have `__all__` declarations, 344 root exports
 - All public methods have docstrings and return type annotations
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
