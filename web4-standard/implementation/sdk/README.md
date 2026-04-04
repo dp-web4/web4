@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.16.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.17.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
 
 ## Installation
 

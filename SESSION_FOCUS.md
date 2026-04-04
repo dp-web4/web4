@@ -20,7 +20,7 @@
 | Q1: ACP from_dict() | DONE | PlanStep, AgentPlan, Intent, Decision, ExecutionRecord — 5 methods, 18 tests, PR #123 |
 | R1: LCT from_dict() | DONE | Binding, MRHPairing, MRH, BirthCertificate, Attestation, LineageEntry, Policy, LCT — 8 methods, 27 tests, PR #124 |
 | M1: Schema validation vectors in pytest | DONE | 278 vectors as parametrized tests, PR #117 |
-| S1: Trust/MRH from_dict() + v0.17.0 | DONE | T3, V3, MRHNode, MRHEdge from_dict() — 4 methods, 27 tests. Version bump, CHANGELOG |
+| S1: SDK v0.17.0 release housekeeping | DONE | Version bump, CHANGELOG, SPRINT.md, SESSION_FOCUS.md |
 
 ### Sprint 14 Summary: Optional Extras and Release Polish (COMPLETE)
 

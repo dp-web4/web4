@@ -10,8 +10,8 @@
 ## Sprint 15: from_dict() Round-Trip Completeness + Schema Vector Integration (2026-04-04)
 
 Post-Sprint 14 work completed the from_dict() round-trip series across all SDK modules
-(including as_dict()-based classes T3, V3, MRHNode, MRHEdge) and integrated the 278
-cross-language schema validation vectors into the pytest suite. SDK bumped to v0.17.0.
+and integrated the 278 cross-language schema validation vectors into the pytest suite.
+This sprint retroactively documents that work and bumps the SDK to v0.17.0.
 
 ### N1: Security module from_dict() round-trip completeness
 **Status**: DONE
@@ -66,15 +66,14 @@ JSON-LD schemas (92 valid + 186 invalid vectors).
 **Result**: 278 vector tests + 4 coverage assertions = 282 new tests in
 `test_schema_validation_vectors.py`. PR #117, merged.
 
-### S1: Trust/MRH from_dict() + SDK v0.17.0 release
+### S1: SDK v0.17.0 release housekeeping
 **Status**: DONE
 **Completed**: 2026-04-04
 **Depends on**: N1-R1, M1
-**Scope**: Add `from_dict()` classmethods to T3 and V3 in `web4/trust.py` and MRHNode
-and MRHEdge in `web4/mrh.py` — the last 4 classes with `as_dict()` but no `from_dict()`.
-Version bump 0.16.0 → 0.17.0, CHANGELOG.md entry, SPRINT.md updates.
-**Result**: 4 from_dict() methods, 27 round-trip tests. CHANGELOG v0.17.0 documents
-35 total from_dict() methods across 8 modules and 278 schema vectors. 2183 tests passing.
+**Scope**: Version bump 0.16.0 → 0.17.0, CHANGELOG.md entry, SESSION_FOCUS.md and
+SPRINT.md updates to reflect current state.
+**Result**: CHANGELOG v0.17.0 documents 31 from_dict() methods and 278 schema vectors.
+2157 tests passing. Sprint plan and session focus synchronized.
 
 ---
 
