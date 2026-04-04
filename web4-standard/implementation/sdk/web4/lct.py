@@ -76,6 +76,17 @@ class Binding:
     binding_proof: str = ""
     hardware_anchor: Optional[str] = None
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> Binding:
+        """Deserialize from dictionary."""
+        return cls(
+            entity_type=EntityType(d["entity_type"]),
+            public_key=d["public_key"],
+            created_at=d["created_at"],
+            binding_proof=d.get("binding_proof", ""),
+            hardware_anchor=d.get("hardware_anchor"),
+        )
+
 
 @dataclass(frozen=True)
 class MRHPairing:
@@ -84,6 +95,16 @@ class MRHPairing:
     pairing_type: str
     permanent: bool = False
     ts: str = ""
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> MRHPairing:
+        """Deserialize from dictionary."""
+        return cls(
+            lct_id=d["lct_id"],
+            pairing_type=d["pairing_type"],
+            permanent=d.get("permanent", False),
+            ts=d.get("ts", ""),
+        )
 
 
 @dataclass
@@ -94,6 +115,17 @@ class MRH:
     witnessing: List[str] = field(default_factory=list)
     horizon_depth: int = 3
     last_updated: str = ""
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> MRH:
+        """Deserialize from dictionary."""
+        return cls(
+            bound=d.get("bound", []),
+            paired=[MRHPairing.from_dict(p) for p in d.get("paired", [])],
+            witnessing=d.get("witnessing", []),
+            horizon_depth=d.get("horizon_depth", 3),
+            last_updated=d.get("last_updated", ""),
+        )
 
 
 @dataclass(frozen=True)
@@ -106,6 +138,18 @@ class BirthCertificate:
     birth_context: str = "platform"
     genesis_block_hash: Optional[str] = None
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> BirthCertificate:
+        """Deserialize from dictionary."""
+        return cls(
+            issuing_society=d["issuing_society"],
+            citizen_role=d["citizen_role"],
+            birth_timestamp=d["birth_timestamp"],
+            birth_witnesses=d.get("birth_witnesses", []),
+            birth_context=d.get("birth_context", "platform"),
+            genesis_block_hash=d.get("genesis_block_hash"),
+        )
+
 
 @dataclass(frozen=True)
 class Attestation:
@@ -116,6 +160,17 @@ class Attestation:
     sig: str = ""
     ts: str = ""
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> Attestation:
+        """Deserialize from dictionary."""
+        return cls(
+            witness=d["witness"],
+            type=d["type"],
+            claims=d.get("claims", {}),
+            sig=d.get("sig", ""),
+            ts=d.get("ts", ""),
+        )
+
 
 @dataclass(frozen=True)
 class LineageEntry:
@@ -124,12 +179,29 @@ class LineageEntry:
     reason: str  # genesis | rotation | fork | upgrade
     ts: str = ""
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> LineageEntry:
+        """Deserialize from dictionary."""
+        return cls(
+            parent=d["parent"],
+            reason=d["reason"],
+            ts=d.get("ts", ""),
+        )
+
 
 @dataclass
 class Policy:
     """Capabilities and constraints for this LCT."""
     capabilities: List[str] = field(default_factory=list)
     constraints: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> Policy:
+        """Deserialize from dictionary."""
+        return cls(
+            capabilities=d.get("capabilities", []),
+            constraints=d.get("constraints", {}),
+        )
 
 
 # ── LCT ──────────────────────────────────────────────────────────
@@ -382,6 +454,63 @@ class LCT:
                 "birth_context": self.birth_certificate.birth_context,
             }
         return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> LCT:
+        """Deserialize from dictionary (inverse of to_dict()).
+
+        Parses all fields produced by to_dict(). Also tolerant of optional
+        fields (attestations, lineage, revocation_ts, revocation_reason,
+        hardware_anchor) if present — enabling forward-compatible usage.
+        """
+        binding = Binding.from_dict(d["binding"])
+        mrh = MRH.from_dict(d.get("mrh", {}))
+        policy = Policy.from_dict(d.get("policy", {}))
+
+        t3_data = d.get("t3_tensor", {})
+        t3 = T3(
+            talent=t3_data.get("talent", 0.5),
+            training=t3_data.get("training", 0.5),
+            temperament=t3_data.get("temperament", 0.5),
+        )
+
+        v3_data = d.get("v3_tensor", {})
+        v3 = V3(
+            valuation=v3_data.get("valuation", 0.5),
+            veracity=v3_data.get("veracity", 0.5),
+            validity=v3_data.get("validity", 0.5),
+        )
+
+        birth_certificate = None
+        bc_data = d.get("birth_certificate")
+        if bc_data:
+            birth_certificate = BirthCertificate.from_dict(bc_data)
+
+        rev_data = d.get("revocation", {})
+        revocation_status = RevocationStatus(rev_data.get("status", "active"))
+
+        attestations = [
+            Attestation.from_dict(a) for a in d.get("attestations", [])
+        ]
+        lineage = [
+            LineageEntry.from_dict(le) for le in d.get("lineage", [])
+        ]
+
+        return cls(
+            lct_id=d["lct_id"],
+            subject=d["subject"],
+            binding=binding,
+            mrh=mrh,
+            policy=policy,
+            t3=t3,
+            v3=v3,
+            birth_certificate=birth_certificate,
+            revocation_status=revocation_status,
+            revocation_ts=d.get("revocation_ts") or rev_data.get("ts"),
+            revocation_reason=d.get("revocation_reason") or rev_data.get("reason"),
+            attestations=attestations,
+            lineage=lineage,
+        )
 
     # ── Spec-Compliant Serialization (§2.3) ──────────────────────
 
