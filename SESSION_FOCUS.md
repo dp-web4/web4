@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-04*
+*Last updated: 2026-04-04 (Sprint 16 T1)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 16 Summary: Quality Gate Completion + Coverage Baseline (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: mypy strict zero-error + coverage baseline | DONE | `mypy --strict` 0 errors (22 files), coverage 96.2% (4491 stmts) |
 
 ### Sprint 15 Summary: from_dict() Completeness + Schema Vectors (COMPLETE)
 
@@ -101,15 +107,17 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ## Completeness Summary
 
-- All 15 sprints COMPLETE (Sprints 1-15)
+- All 15 sprints COMPLETE (Sprints 1-15), Sprint 16 in progress
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (56 round-trip methods total)
 - All 20 submodules have `__all__` declarations, 344 root exports
 - All public methods have docstrings and return type annotations
+- `mypy --strict` passes with 0 errors across 22 source files
+- Test coverage: 96.2% overall (4 modules at 100%, 16 at 95%+)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
 - CLI via `web4 info/validate/list-schemas`
 
 ---
 
-*Updated by autonomous session, 2026-04-04*
+*Updated by autonomous session, 2026-04-04 (Sprint 16 T1)*

@@ -67,6 +67,13 @@ select = ["E", "F", "W", "I"]
 [tool.ruff.lint.isort]
 known-first-party = ["web4"]
 
+[tool.mypy]
+strict = true
+
+[[tool.mypy.overrides]]
+module = "jsonschema.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
