@@ -101,7 +101,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     except SchemaValidationUnavailable:
         print(
             "Error: jsonschema package not installed. "
-            "Install with: pip install 'web4[dev]'",
+            "Install with: pip install 'web4[validation]'",
             file=sys.stderr,
         )
         return 1
