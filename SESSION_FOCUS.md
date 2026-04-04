@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-03-29*
+*Last updated: 2026-04-04*
 
 ---
 
@@ -10,90 +10,37 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
+### Sprint 15 Summary: from_dict() Completeness + Schema Vectors (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| N1: Security from_dict() | DONE | W4ID, KeyPolicy, SignatureEnvelope, VerifiableCredential — 4 methods, 16 tests, PR #119 |
+| O1: R6 from_dict() | DONE | 12 component from_dict() methods, 32 tests, PR #120 |
+| P1: Reputation + protocol from_dict() | DONE | ReputationRule, HandshakeMessage — 2 methods, 8 tests, PR #121 |
+| Q1: ACP from_dict() | DONE | PlanStep, AgentPlan, Intent, Decision, ExecutionRecord — 5 methods, 18 tests, PR #123 |
+| R1: LCT from_dict() | DONE | Binding, MRHPairing, MRH, BirthCertificate, Attestation, LineageEntry, Policy, LCT — 8 methods, 27 tests, PR #124 |
+| M1: Schema validation vectors in pytest | DONE | 278 vectors as parametrized tests, PR #117 |
+| S1: Trust/MRH from_dict() + v0.17.0 | DONE | T3, V3, MRHNode, MRHEdge from_dict() — 4 methods, 27 tests. Version bump, CHANGELOG |
+
 ### Sprint 14 Summary: Optional Extras and Release Polish (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
 | K1: Validation extra + README + v0.16.0 | DONE | `pip install web4[validation]`, README coherence, version bump |
 
-### Sprint 13 Summary: SDK CLI Module (COMPLETE)
+### Sprints 4-13: All COMPLETE
 
-| Task | Status | Notes |
-|------|--------|-------|
-| J1: CLI module | DONE | `web4 info/validate/list-schemas`, 22 tests, merged #105 |
-| I1: Bundle JSON Schemas as package data | DONE | PR #104, pending review |
-
-### Sprint 12 Summary: Schema Validation Integration (COMPLETE)
-
-| Task | Status | Notes |
-|------|--------|-------|
-| H1: Schema validation module | DONE | 20th SDK module, 8 public symbols, 33 tests |
-| H2: SDK v0.15.0 release housekeeping | DONE | Version bump, CHANGELOG, sprint closure |
-
-### Sprint 11 Summary: Code Quality Gates (COMPLETE)
-
-| Task | Status | Notes |
-|------|--------|-------|
-| G1+G2: Ruff linting + coverage reporting | DONE | PR #98, pending review |
-| G3: Mypy strict compliance | DONE | 65 type fixes, mypy --strict passes |
-| G4: SDK README coherence update | DONE | README rewritten for actual web4 package |
-
-### Sprint 10 Summary: CI/CD & Packaging Quality (COMPLETE)
-
-| Task | Status | Notes |
-|------|--------|-------|
-| F1: GitHub Actions CI workflow | DONE | pytest across Python 3.10-3.13 matrix |
-| F2: Packaging metadata improvements | DONE | URLs, keywords, LICENSE, MANIFEST.in |
-| F3: Single-source version management | DONE | importlib.metadata, removed setup.py |
-| F4: SDK v0.14.0 release housekeeping | DONE | Version bump 0.13.0 → 0.14.0, CHANGELOG |
-
-### Sprint 9 Summary: SDK Documentation Completeness (COMPLETE)
-
-| Task | Status | Notes |
-|------|--------|-------|
-| E1: Docstring coverage (r6, mrh, security) | DONE | 32 docstrings across 3 modules, PR #89 |
-| E2: Docstring coverage (reputation, protocol, acp) | DONE | 17 docstrings across 3 modules, PR #89 |
-| E3: Return type annotations | DONE | 33 annotations across 5 modules |
-| E4: SDK v0.13.0 release housekeeping | DONE | Version bump 0.12.0 → 0.13.0, CHANGELOG |
-
-### Sprint 8 Summary: SDK Developer Experience (COMPLETE)
-
-| Task | Status | Notes |
-|------|--------|-------|
-| D1: Export completeness | DONE | 52 new exports (284 → 336), 35 new tests |
-| D2: Submodule `__all__` declarations | DONE | All 19 submodules, 375 symbols, 21 new tests |
-| D3: Docstring coverage for mcp.py | DONE | 32 methods documented, 100% coverage |
-| D4: SDK v0.12.0 release housekeeping | DONE | Version bump 0.11.0 → 0.12.0, CHANGELOG |
-
-### Sprint 7 Summary: SDK API Completeness (COMPLETE)
-
-| Task | Status | Notes |
-|------|--------|-------|
-| C1: Missing from_jsonld() inverse functions | DONE | 3 inverses + 3 string wrappers, CapabilityAssessment dataclass, 14 tests |
-| C2: ATP core unit tests | DONE | 74 tests covering all 8 ATP public functions/classes |
-| C3: BirthCertificate field rename | DONE | context → birth_context, backward compat in from_jsonld() |
-| C4: SDK v0.11.0 release housekeeping | DONE | Version bump, CHANGELOG, sprint closure |
-
-### Sprint 6 Summary: JSON-LD Context Consolidation & SDK Quality (COMPLETE)
-
-All tasks DONE: B1-B6 (context files, namespace reconciliation, round-trip tests, Dictionary JSON-LD, release housekeeping).
-
-### Sprint 5 Summary: Core Type JSON-LD Phase 2 (COMPLETE)
-
-All tasks DONE: A1 (ATP/ADP JSON-LD), A2 (ACP JSON-LD), A3 (Entity+Capability JSON-LD), A4 (127 validation vectors), A5 (SDK v0.9.0).
-
-### Sprint 4 Summary: Cross-Language Schema Standardization (COMPLETE)
-
-All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V4 (160 validation vectors), V5 (SDK v0.8.0).
+See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all 10 types (Sprints 4-6), API completeness (Sprint 7), developer experience (Sprint 8), documentation (Sprint 9), CI/CD (Sprint 10), quality gates (Sprint 11), schema validation (Sprint 12), CLI + distribution (Sprint 13).
 
 ---
 
 ## SDK Status
 
-- **Version**: 0.16.0
+- **Version**: 0.17.0
 - **Modules**: 20 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation)
-- **Tests**: 1770 passing
+- **Tests**: 2183 passing
 - **Exports**: 344 symbols via `web4/__init__.py`
+- **from_dict()**: 56 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **CLI**: `web4 info/validate/list-schemas` (console script + `python -m web4`)
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[dev]` (full toolchain)
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
@@ -115,7 +62,7 @@ All tasks DONE: V1 (JSON Schemas), V2 (T3/V3 JSON-LD), V3 (R7 Action JSON-LD), V
 | Capability | DONE | DONE | schemas/contexts/ | DONE (36 vectors) |
 | Dictionary | DONE | DONE | schemas/contexts/ | DONE (50 vectors) |
 
-**Total schema validation vectors**: 278 across 9 schemas (ALL COMPLETE)
+**Total schema validation vectors**: 278 across 9 schemas (ALL COMPLETE — integrated into pytest via M1)
 
 **All 10 context files now in `schemas/contexts/` using `https://web4.io/ns/` namespace.**
 Namespace decision documented in `docs/history/design_decisions/JSONLD-NAMESPACE-RECONCILIATION.md`.
@@ -135,30 +82,29 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
-bdf3c8d J1: SDK CLI module — python -m web4 validate/info/list-schemas (#105)
-0bef0a9 H2: SDK v0.15.0 release housekeeping — Sprint 12 complete (#103)
-e6f4fc5 H1: Schema validation module — Sprint 12 (#102)
-bf42c0d G4: SDK README coherence update — document actual web4 package (#101)
-803b095 G3: Mypy strict compliance — 65 type fixes across 13 SDK modules (#100)
+7677335 K1: Validation optional extra + README coherence + SDK v0.16.0 (#113)
+e7f1b97 R1: LCT module from_dict() round-trip completeness (#124)
+f05c3f8 M1: Integrate 278 schema validation vectors into pytest suite (#117)
+9417027 Q1: ACP module from_dict() round-trip completeness (#123)
+8184181 P1: Reputation + protocol from_dict() round-trip completeness (#121)
+e7ddf1a O1: R6 module from_dict() round-trip completeness (#120)
+b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 ```
 
 ---
 
 ## Open PRs
 
-- PR #104: I1: Bundle JSON Schemas as package data — Sprint 13 (REVIEW_REQUIRED)
-- PR #98: G1+G2: Ruff linting + coverage reporting — Sprint 11 (REVIEW_REQUIRED)
+- PR #112: L1: Strict warnings + CI quality gates — Sprint 15 (REVIEW_REQUIRED)
 
 ---
 
-## Pending Items
+## Completeness Summary
 
-- Sprint 14 COMPLETE (K1 done): Optional Extras and Release Polish, SDK v0.16.0
-- Sprint 13 COMPLETE (I1+J1 done): CLI module merged, schema bundling in PR #104
-- Sprint 12 COMPLETE (H1-H2 all done): Schema Validation Integration, SDK v0.15.0
-- Sprint 11 COMPLETE (G1-G4 all done): Code Quality Gates (G1+G2 in PR #98)
-- All 9 JSON-LD schemas have cross-language validation vectors (278 total)
-- All `to_jsonld()` functions now have `from_jsonld()` inverses (API symmetry complete)
+- All 15 sprints COMPLETE (Sprints 1-15)
+- All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
+- All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
+- All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (56 round-trip methods total)
 - All 20 submodules have `__all__` declarations, 344 root exports
 - All public methods have docstrings and return type annotations
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
@@ -166,4 +112,4 @@ bf42c0d G4: SDK README coherence update — document actual web4 package (#101)
 
 ---
 
-*Updated by autonomous session, 2026-03-29*
+*Updated by autonomous session, 2026-04-04*

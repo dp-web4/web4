@@ -1,9 +1,75 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-03-29 (Sprint 14 complete)
+**Updated**: 2026-04-04 (Sprint 15 complete)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 15: from_dict() Round-Trip Completeness + Schema Vector Integration (2026-04-04)
+
+Post-Sprint 14 work completed the from_dict() round-trip series across all SDK modules
+and integrated the 278 cross-language schema validation vectors into the pytest suite.
+This sprint retroactively documents that work and bumps the SDK to v0.17.0.
+
+### N1: Security module from_dict() round-trip completeness
+**Status**: DONE
+**Completed**: 2026-04-03
+**Scope**: Add `from_dict()` classmethods to W4ID, KeyPolicy, SignatureEnvelope, and
+VerifiableCredential in `web4/security.py`. 16 round-trip tests.
+**Result**: 4 from_dict() methods, 16 tests. PR #119, merged.
+
+### O1: R6 module from_dict() round-trip completeness
+**Status**: DONE
+**Completed**: 2026-04-03
+**Scope**: Add `from_dict()` classmethods to all 12 R6 component types in `web4/r6.py`.
+32 round-trip tests.
+**Result**: 12 from_dict() methods (Constraint, Rules, Role, ProofOfAgency, Request,
+Precedent, WitnessAttestation, Reference, ResourceRequirements, Result, TensorDelta,
+ContributingFactor). 32 tests. PR #120, merged.
+
+### P1: Reputation + protocol from_dict() round-trip completeness
+**Status**: DONE
+**Completed**: 2026-04-03
+**Scope**: Add `from_dict()` classmethods to ReputationRule and HandshakeMessage.
+8 round-trip tests.
+**Result**: 2 from_dict() methods, 8 tests. PR #121, merged.
+
+### Q1: ACP module from_dict() round-trip completeness
+**Status**: DONE
+**Completed**: 2026-04-03
+**Scope**: Add `from_dict()` classmethods to PlanStep, AgentPlan, Intent, Decision,
+and ExecutionRecord in `web4/acp.py`. 18 round-trip tests.
+**Result**: 5 from_dict() methods, 18 tests. PR #123, merged.
+
+### R1: LCT module from_dict() round-trip completeness
+**Status**: DONE
+**Completed**: 2026-04-03
+**Scope**: Add `from_dict()` classmethods to Binding, MRHPairing, MRH, BirthCertificate,
+Attestation, LineageEntry, Policy, and LCT in `web4/lct.py`. 27 round-trip tests.
+**Result**: 8 from_dict() methods, 27 tests. Completes the N1-R1 series — all SDK classes
+with to_dict() now have matching from_dict(). PR #124, merged.
+
+### M1: Integrate schema validation vectors into pytest suite
+**Status**: DONE
+**Completed**: 2026-04-03
+**Scope**: Migrate the 278 cross-language schema validation vectors from the standalone
+`validate_schema_vectors.py` runner into pytest as parametrized tests. Covers all 9
+JSON-LD schemas (92 valid + 186 invalid vectors).
+**Result**: 278 vector tests + 4 coverage assertions = 282 new tests in
+`test_schema_validation_vectors.py`. PR #117, merged.
+
+### S1: Trust/MRH from_dict() + SDK v0.17.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-04
+**Depends on**: N1-R1, M1
+**Scope**: Add `from_dict()` classmethods to T3 and V3 in `web4/trust.py` and MRHNode
+and MRHEdge in `web4/mrh.py` — the last 4 classes with serialization methods but no
+`from_dict()`. Version bump 0.16.0 to 0.17.0, CHANGELOG.md entry, SESSION_FOCUS.md and
+SPRINT.md updates.
+**Result**: 4 from_dict() methods, 27 round-trip tests (16 trust + 11 mrh). CHANGELOG
+v0.17.0 documents 35 total from_dict() methods and 278 schema vectors. 2183 tests passing.
 
 ---
 

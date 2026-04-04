@@ -447,3 +447,116 @@ class TestVectors:
         assert result.talent == pytest.approx(v["expected"]["talent"], abs=v["tolerance"])
         assert result.training == pytest.approx(v["expected"]["training"], abs=v["tolerance"])
         assert result.temperament == pytest.approx(v["expected"]["temperament"], abs=v["tolerance"])
+
+
+# ── T3/V3 from_dict() round-trip tests ─────────────────────────
+
+
+class TestT3FromDict:
+    """Round-trip tests: T3 -> as_dict() -> from_dict() -> T3."""
+
+    def test_roundtrip_defaults(self):
+        t = T3()
+        restored = T3.from_dict(t.as_dict())
+        assert restored.talent == t.talent
+        assert restored.training == t.training
+        assert restored.temperament == t.temperament
+
+    def test_roundtrip_custom_values(self):
+        t = T3(talent=0.9, training=0.1, temperament=0.75)
+        restored = T3.from_dict(t.as_dict())
+        assert restored.talent == t.talent
+        assert restored.training == t.training
+        assert restored.temperament == t.temperament
+
+    def test_roundtrip_boundary_values(self):
+        t = T3(talent=0.0, training=1.0, temperament=0.0)
+        restored = T3.from_dict(t.as_dict())
+        assert restored.talent == 0.0
+        assert restored.training == 1.0
+        assert restored.temperament == 0.0
+
+    def test_from_dict_missing_keys_uses_defaults(self):
+        restored = T3.from_dict({})
+        assert restored.talent == 0.5
+        assert restored.training == 0.5
+        assert restored.temperament == 0.5
+
+    def test_from_dict_ignores_unknown_keys(self):
+        d = T3().as_dict()
+        d["future_field"] = "something"
+        restored = T3.from_dict(d)
+        assert restored.talent == 0.5
+
+    def test_roundtrip_composite_preserved(self):
+        t = T3(talent=0.8, training=0.6, temperament=0.9)
+        restored = T3.from_dict(t.as_dict())
+        assert restored.composite == pytest.approx(t.composite, abs=TOL)
+
+    def test_roundtrip_after_evolve(self):
+        t = T3(0.7, 0.8, 0.9).evolve(ActionOutcome.NOVEL_SUCCESS)
+        restored = T3.from_dict(t.as_dict())
+        assert restored.talent == pytest.approx(t.talent, abs=TOL)
+        assert restored.training == pytest.approx(t.training, abs=TOL)
+        assert restored.temperament == pytest.approx(t.temperament, abs=TOL)
+
+    def test_roundtrip_after_decay(self):
+        t = T3(0.5, 0.8, 0.3).decay(6.0)
+        restored = T3.from_dict(t.as_dict())
+        assert restored.training == pytest.approx(t.training, abs=TOL)
+        assert restored.temperament == pytest.approx(t.temperament, abs=TOL)
+
+
+class TestV3FromDict:
+    """Round-trip tests: V3 -> as_dict() -> from_dict() -> V3."""
+
+    def test_roundtrip_defaults(self):
+        v = V3()
+        restored = V3.from_dict(v.as_dict())
+        assert restored.valuation == v.valuation
+        assert restored.veracity == v.veracity
+        assert restored.validity == v.validity
+
+    def test_roundtrip_custom_values(self):
+        v = V3(valuation=0.85, veracity=0.92, validity=0.7)
+        restored = V3.from_dict(v.as_dict())
+        assert restored.valuation == v.valuation
+        assert restored.veracity == v.veracity
+        assert restored.validity == v.validity
+
+    def test_roundtrip_boundary_values(self):
+        v = V3(valuation=0.0, veracity=1.0, validity=0.0)
+        restored = V3.from_dict(v.as_dict())
+        assert restored.valuation == 0.0
+        assert restored.veracity == 1.0
+        assert restored.validity == 0.0
+
+    def test_from_dict_missing_keys_uses_defaults(self):
+        restored = V3.from_dict({})
+        assert restored.valuation == 0.5
+        assert restored.veracity == 0.5
+        assert restored.validity == 0.5
+
+    def test_from_dict_ignores_unknown_keys(self):
+        d = V3().as_dict()
+        d["future_field"] = "something"
+        restored = V3.from_dict(d)
+        assert restored.valuation == 0.5
+
+    def test_roundtrip_composite_preserved(self):
+        v = V3(valuation=0.8, veracity=0.6, validity=0.9)
+        restored = V3.from_dict(v.as_dict())
+        assert restored.composite == pytest.approx(v.composite, abs=TOL)
+
+    def test_roundtrip_via_calculate(self):
+        v = V3.calculate(
+            atp_earned=90.0, atp_expected=100.0,
+            recipient_satisfaction=0.85,
+            verified_claims=8, total_claims=10,
+            witness_confidence=0.9,
+            value_transferred=True,
+        )
+        restored = V3.from_dict(v.as_dict())
+        assert restored.valuation == pytest.approx(v.valuation, abs=TOL)
+        assert restored.veracity == pytest.approx(v.veracity, abs=TOL)
+        assert restored.validity == pytest.approx(v.validity, abs=TOL)
