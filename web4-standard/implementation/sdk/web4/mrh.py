@@ -109,6 +109,20 @@ class MRHNode:
             "metadata": self.metadata,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> MRHNode:
+        """Deserialize from dict (inverse of as_dict()).
+
+        Accepts camelCase keys from as_dict() output.
+        Unknown keys are ignored for forward-compatibility.
+        """
+        return cls(
+            lct_id=d.get("lctId", ""),
+            entity_type=d.get("entityType", "unknown"),
+            trust_scores=dict(d.get("trustScores", {})),
+            metadata=dict(d.get("metadata", {})),
+        )
+
 
 @dataclass
 class MRHEdge:
@@ -145,6 +159,23 @@ class MRHEdge:
         if self.metadata:
             d["metadata"] = self.metadata
         return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> MRHEdge:
+        """Deserialize from dict (inverse of as_dict()).
+
+        Accepts the dict format produced by as_dict(). The 'category' key
+        is ignored (recomputed from relation). Unknown keys are ignored
+        for forward-compatibility.
+        """
+        return cls(
+            source=d.get("source", ""),
+            target=d.get("target", ""),
+            relation=RelationType(d["relation"]),
+            weight=d.get("weight", 1.0),
+            timestamp=d.get("timestamp"),
+            metadata=dict(d.get("metadata", {})),
+        )
 
 
 # ── Trust Propagation Strategies ────────────────────────────────

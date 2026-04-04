@@ -339,3 +339,105 @@ class TestMRHVectors:
                                RelationType(e["relation"]), e["weight"]))
         summary = g.relationship_summary(vec["input"]["entity"])
         assert summary == vec["expected"]["summary"]
+
+
+# ── MRHNode/MRHEdge from_dict() round-trip tests ──────────────
+
+
+class TestMRHNodeFromDict:
+    """Round-trip tests: MRHNode -> as_dict() -> from_dict() -> MRHNode."""
+
+    def test_roundtrip_defaults(self):
+        node = MRHNode(lct_id="lct:alice")
+        restored = MRHNode.from_dict(node.as_dict())
+        assert restored.lct_id == node.lct_id
+        assert restored.entity_type == node.entity_type
+        assert restored.trust_scores == node.trust_scores
+        assert restored.metadata == node.metadata
+
+    def test_roundtrip_full(self):
+        node = MRHNode(
+            lct_id="lct:bob",
+            entity_type="human",
+            trust_scores={"surgeon": 0.95, "mechanic": 0.3},
+            metadata={"region": "us-west", "status": "active"},
+        )
+        restored = MRHNode.from_dict(node.as_dict())
+        assert restored.lct_id == "lct:bob"
+        assert restored.entity_type == "human"
+        assert restored.trust_scores == {"surgeon": 0.95, "mechanic": 0.3}
+        assert restored.metadata == {"region": "us-west", "status": "active"}
+
+    def test_from_dict_missing_keys_uses_defaults(self):
+        restored = MRHNode.from_dict({"lctId": "lct:x"})
+        assert restored.lct_id == "lct:x"
+        assert restored.entity_type == "unknown"
+        assert restored.trust_scores == {}
+        assert restored.metadata == {}
+
+    def test_from_dict_ignores_unknown_keys(self):
+        d = MRHNode(lct_id="lct:x").as_dict()
+        d["futureField"] = "something"
+        restored = MRHNode.from_dict(d)
+        assert restored.lct_id == "lct:x"
+
+    def test_roundtrip_empty_dicts(self):
+        node = MRHNode(lct_id="lct:empty", trust_scores={}, metadata={})
+        restored = MRHNode.from_dict(node.as_dict())
+        assert restored.trust_scores == {}
+        assert restored.metadata == {}
+
+
+class TestMRHEdgeFromDict:
+    """Round-trip tests: MRHEdge -> as_dict() -> from_dict() -> MRHEdge."""
+
+    def test_roundtrip_minimal(self):
+        edge = MRHEdge(source="lct:a", target="lct:b", relation=RelationType.PAIRED_WITH)
+        restored = MRHEdge.from_dict(edge.as_dict())
+        assert restored.source == edge.source
+        assert restored.target == edge.target
+        assert restored.relation == edge.relation
+        assert restored.weight == edge.weight
+        assert restored.timestamp is None
+        assert restored.metadata == {}
+
+    def test_roundtrip_full(self):
+        edge = MRHEdge(
+            source="lct:alice",
+            target="lct:bob",
+            relation=RelationType.ENERGY_PAIRING,
+            weight=0.85,
+            timestamp="2026-04-04T00:00:00Z",
+            metadata={"session": "abc123"},
+        )
+        restored = MRHEdge.from_dict(edge.as_dict())
+        assert restored.source == "lct:alice"
+        assert restored.target == "lct:bob"
+        assert restored.relation == RelationType.ENERGY_PAIRING
+        assert restored.weight == 0.85
+        assert restored.timestamp == "2026-04-04T00:00:00Z"
+        assert restored.metadata == {"session": "abc123"}
+
+    def test_roundtrip_all_relation_types(self):
+        for rel in RelationType:
+            edge = MRHEdge(source="lct:x", target="lct:y", relation=rel, weight=0.7)
+            restored = MRHEdge.from_dict(edge.as_dict())
+            assert restored.relation == rel
+            assert restored.category == edge.category
+
+    def test_from_dict_ignores_category(self):
+        """category is computed, not stored — from_dict should not require it."""
+        d = {"source": "lct:a", "target": "lct:b", "relation": "pairedWith", "weight": 0.5}
+        restored = MRHEdge.from_dict(d)
+        assert restored.category == "pairing"
+
+    def test_roundtrip_boundary_weight(self):
+        edge = MRHEdge(source="lct:a", target="lct:b", relation=RelationType.BOUND_TO, weight=0.0)
+        restored = MRHEdge.from_dict(edge.as_dict())
+        assert restored.weight == 0.0
+
+    def test_from_dict_ignores_unknown_keys(self):
+        d = MRHEdge(source="lct:a", target="lct:b", relation=RelationType.BOUND_TO).as_dict()
+        d["futureField"] = "something"
+        restored = MRHEdge.from_dict(d)
+        assert restored.source == "lct:a"

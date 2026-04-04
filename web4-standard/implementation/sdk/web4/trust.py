@@ -205,6 +205,19 @@ class T3:
         return json.dumps(self.to_jsonld(**kwargs), indent=indent)
 
     @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> T3:
+        """Deserialize from dict (inverse of as_dict()).
+
+        Accepts the plain dict format produced by as_dict().
+        Unknown keys are ignored for forward-compatibility.
+        """
+        return cls(
+            talent=d.get("talent", 0.5),
+            training=d.get("training", 0.5),
+            temperament=d.get("temperament", 0.5),
+        )
+
+    @classmethod
     def from_jsonld(cls, doc: Dict[str, Any]) -> T3:
         """Deserialize from JSON-LD document.
 
@@ -314,6 +327,19 @@ class V3:
     def to_jsonld_string(self, indent: int = 2, **kwargs: Any) -> str:
         """Serialize to JSON-LD string."""
         return json.dumps(self.to_jsonld(**kwargs), indent=indent)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> V3:
+        """Deserialize from dict (inverse of as_dict()).
+
+        Accepts the plain dict format produced by as_dict().
+        Unknown keys are ignored for forward-compatibility.
+        """
+        return cls(
+            valuation=d.get("valuation", 0.5),
+            veracity=d.get("veracity", 0.5),
+            validity=d.get("validity", 0.5),
+        )
 
     @classmethod
     def from_jsonld(cls, doc: Dict[str, Any]) -> V3:
