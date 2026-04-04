@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-04 (Sprint 16 T1)*
+*Last updated: 2026-04-04 (Sprint 16 T2)*
 
 ---
 
@@ -10,11 +10,12 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 16 Summary: Quality Gate Completion + Coverage Baseline (IN PROGRESS)
+### Sprint 16 Summary: Quality Gates + Generic Deserialization (IN PROGRESS)
 
 | Task | Status | Notes |
 |------|--------|-------|
 | T1: mypy strict zero-error + coverage baseline | DONE | `mypy --strict` 0 errors (22 files), coverage 96.2% (4491 stmts) |
+| T2: Generic JSON-LD deserialization dispatcher | DONE | `web4.from_jsonld(doc)` dispatches 22 types, 62 tests, 2245 total |
 
 ### Sprint 15 Summary: from_dict() Completeness + Schema Vectors (COMPLETE)
 
@@ -43,9 +44,9 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 ## SDK Status
 
 - **Version**: 0.17.0
-- **Modules**: 20 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation)
-- **Tests**: 2183 passing
-- **Exports**: 344 symbols via `web4/__init__.py`
+- **Modules**: 21 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize)
+- **Tests**: 2245 passing
+- **Exports**: 348 symbols via `web4/__init__.py`
 - **from_dict()**: 56 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **CLI**: `web4 info/validate/list-schemas` (console script + `python -m web4`)
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[dev]` (full toolchain)
@@ -111,13 +112,14 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (56 round-trip methods total)
-- All 20 submodules have `__all__` declarations, 344 root exports
+- Generic `from_jsonld(doc)` dispatches 22 types by `@type` field (web4.deserialize)
+- All 21 submodules have `__all__` declarations, 348 root exports
 - All public methods have docstrings and return type annotations
-- `mypy --strict` passes with 0 errors across 22 source files
+- `mypy --strict` passes with 0 errors across 23 source files
 - Test coverage: 96.2% overall (4 modules at 100%, 16 at 95%+)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
 - CLI via `web4 info/validate/list-schemas`
 
 ---
 
-*Updated by autonomous session, 2026-04-04 (Sprint 16 T1)*
+*Updated by autonomous session, 2026-04-04 (Sprint 16 T2)*
