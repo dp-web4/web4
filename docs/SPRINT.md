@@ -1,9 +1,61 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-04 (Sprint 15 complete)
+**Updated**: 2026-04-04 (Sprint 16 started)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 16: Quality Gate Completion + Coverage Baseline (2026-04-04)
+
+With Sprints 1-15 delivering a complete 20-module SDK (v0.17.0, 2183 tests, 344 exports,
+56 from_dict() methods, 278 schema vectors), Sprint 16 closes the last quality gate
+(mypy strict zero-error) and establishes a test coverage baseline to inform future work.
+
+### T1: mypy strict zero-error + test coverage baseline
+**Status**: DONE
+**Completed**: 2026-04-04
+**Scope**: Fix the one remaining `mypy --strict` error (jsonschema `import-untyped` in
+`validation.py`) by adding a mypy override in `pyproject.toml`. Run pytest-cov to
+establish a per-module coverage baseline.
+**Result**: Added `[tool.mypy]` config with `strict = true` and `[[tool.mypy.overrides]]`
+for `jsonschema.*` (ignore_missing_imports). `mypy --strict web4/` now reports 0 errors
+across 22 source files. Coverage baseline: **96.2% overall** (4491 statements, 169 missed).
+
+**Coverage baseline (2026-04-04)**:
+
+| Module | Stmts | Miss | Cover | Notes |
+|--------|-------|------|-------|-------|
+| atp.py | 119 | 0 | 100.0% | |
+| errors.py | 93 | 0 | 100.0% | |
+| lct.py | 247 | 0 | 100.0% | |
+| metabolic.py | 102 | 0 | 100.0% | |
+| dictionary.py | 280 | 1 | 99.6% | |
+| protocol.py | 212 | 1 | 99.5% | |
+| r6.py | 464 | 3 | 99.4% | |
+| acp.py | 460 | 5 | 98.9% | |
+| mcp.py | 282 | 3 | 98.9% | |
+| security.py | 145 | 2 | 98.6% | |
+| entity.py | 75 | 1 | 98.7% | |
+| attestation.py | 203 | 4 | 98.0% | Verification stubs (TPM2/FIDO2/SE) |
+| capability.py | 152 | 3 | 98.0% | |
+| reputation.py | 198 | 4 | 98.0% | |
+| trust.py | 194 | 4 | 97.9% | |
+| society.py | 249 | 7 | 97.2% | |
+| binding.py | 225 | 9 | 96.0% | |
+| federation.py | 345 | 14 | 95.9% | |
+| mrh.py | 244 | 12 | 95.1% | |
+| validation.py | 100 | 17 | 83.0% | Fallback paths + jsonschema-absent |
+| __main__.py | 102 | 79 | 22.5% | CLI tested via subprocess (not counted) |
+| **TOTAL** | **4491** | **169** | **96.2%** | |
+
+**Key findings**:
+- 4 modules at 100% coverage (atp, errors, lct, metabolic)
+- 16 modules at 95%+ (excellent)
+- `validation.py` at 83%: schema loading fallback paths and jsonschema-absent branches
+- `__main__.py` at 22.5%: expected — CLI tests use subprocess, not counted by pytest-cov
+- `attestation.py` misses are verification stubs (TPM2/FIDO2/SE) — by design
 
 ---
 
