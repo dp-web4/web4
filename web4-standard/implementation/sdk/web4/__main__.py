@@ -3,9 +3,11 @@
 
 Subcommands::
 
-    python -m web4 info             # Show SDK version, modules, exports
-    python -m web4 list-schemas     # List available JSON Schemas
-    python -m web4 validate F.json  # Validate a JSON-LD document
+    python -m web4 info               # Show SDK version, modules, exports
+    python -m web4 list-schemas       # List available JSON Schemas
+    python -m web4 validate F.json    # Validate a JSON-LD document
+    python -m web4 roundtrip F.json   # Deserialize + re-serialize (normalize)
+    python -m web4 roundtrip --check  # Verify round-trip fidelity
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 
 def _cmd_info(args: argparse.Namespace) -> int:
@@ -53,12 +55,14 @@ def _cmd_list_schemas(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_validate(args: argparse.Namespace) -> int:
-    """Validate a JSON-LD document against a Web4 JSON Schema."""
-    file_path: str = args.file
-    schema_name: Optional[str] = args.schema
+def _read_json_doc(
+    file_path: str,
+) -> "tuple[Dict[str, object], None] | tuple[None, int]":
+    """Read and parse a JSON object from *file_path* (or ``-`` for stdin).
 
-    # Read and parse the JSON file
+    Returns ``(doc, None)`` on success or ``(None, exit_code)`` on failure
+    (error already printed to stderr).
+    """
     try:
         if file_path == "-":
             raw = sys.stdin.read()
@@ -67,20 +71,32 @@ def _cmd_validate(args: argparse.Namespace) -> int:
                 raw = f.read()
     except FileNotFoundError:
         print(f"Error: file not found: {file_path}", file=sys.stderr)
-        return 1
+        return None, 1
     except OSError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        return 1
+        return None, 1
 
     try:
         doc = json.loads(raw)
     except json.JSONDecodeError as exc:
         print(f"Error: invalid JSON: {exc}", file=sys.stderr)
-        return 1
+        return None, 1
 
     if not isinstance(doc, dict):
         print("Error: document must be a JSON object", file=sys.stderr)
-        return 1
+        return None, 1
+
+    return doc, None
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    """Validate a JSON-LD document against a Web4 JSON Schema."""
+    file_path: str = args.file
+    schema_name: Optional[str] = args.schema
+
+    doc, err = _read_json_doc(file_path)
+    if doc is None:
+        return err  # type: ignore[return-value]
 
     # Auto-detect schema from @type if not specified
     if schema_name is None:
@@ -114,9 +130,71 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         return 0
     else:
         print(f"INVALID: {len(result.errors)} error(s) against {schema_name} schema")
-        for err in result.errors:
-            print(f"  - {err}")
+        for validation_err in result.errors:
+            print(f"  - {validation_err}")
         return 1
+
+
+# ── roundtrip subcommand ───────────────────────────────────────
+
+
+def _cmd_roundtrip(args: argparse.Namespace) -> int:
+    """Deserialize a JSON-LD document and re-serialize it."""
+    file_path: str = args.file
+    check: bool = args.check
+
+    doc, err = _read_json_doc(file_path)
+    if doc is None:
+        return err  # type: ignore[return-value]
+
+    from web4.deserialize import from_jsonld, UnknownTypeError
+
+    try:
+        obj = from_jsonld(doc)
+    except (UnknownTypeError, ValueError, TypeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if not hasattr(obj, "to_jsonld"):
+        type_val = doc.get("@type", "<unknown>")
+        print(
+            f"Error: {type_val} does not support re-serialization "
+            f"(no to_jsonld method on {type(obj).__name__})",
+            file=sys.stderr,
+        )
+        return 1
+
+    roundtripped: Dict[str, object] = obj.to_jsonld()
+
+    if check:
+        if roundtripped == doc:
+            print("OK: round-trip preserves document")
+            return 0
+        # Report differences
+        print("MISMATCH: round-trip produced a different document")
+        _report_diff(doc, roundtripped)
+        return 1
+
+    # Default: print the normalized (re-serialized) document
+    print(json.dumps(roundtripped, indent=2))
+    return 0
+
+
+def _report_diff(
+    original: Dict[str, object],
+    roundtripped: Dict[str, object],
+) -> None:
+    """Print a human-readable diff between two dicts."""
+    all_keys = sorted(set(list(original.keys()) + list(roundtripped.keys())))
+    for key in all_keys:
+        in_orig = key in original
+        in_rt = key in roundtripped
+        if in_orig and not in_rt:
+            print(f"  - {key}: {original[key]!r}  (removed)")
+        elif in_rt and not in_orig:
+            print(f"  + {key}: {roundtripped[key]!r}  (added)")
+        elif original[key] != roundtripped[key]:
+            print(f"  ~ {key}: {original[key]!r} -> {roundtripped[key]!r}")
 
 
 # ── Schema auto-detection ──────────────────────────────────────
@@ -206,6 +284,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Schema name (e.g. lct, atp). Auto-detected from @type if omitted.",
     )
 
+    # roundtrip
+    p_rt = sub.add_parser(
+        "roundtrip",
+        help="Deserialize and re-serialize a JSON-LD document",
+    )
+    p_rt.add_argument("file", help="Path to JSON file (or '-' for stdin)")
+    p_rt.add_argument(
+        "--check",
+        action="store_true",
+        help="Compare input vs output; exit 0 if equal, 1 if different.",
+    )
+
     return parser
 
 
@@ -222,6 +312,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "info": _cmd_info,
         "list-schemas": _cmd_list_schemas,
         "validate": _cmd_validate,
+        "roundtrip": _cmd_roundtrip,
     }
 
     handler = dispatch.get(args.command)

@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-04 (Sprint 17 T1)*
+*Last updated: 2026-04-05 (Sprint 18 T2)*
 
 ---
 
@@ -10,7 +10,14 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 17 Summary: Release Housekeeping (IN PROGRESS)
+### Sprint 18 Summary: CLI Conformance Tooling (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: CLI `web4 roundtrip` command | DONE | Deserialize + re-serialize with --check mode, 10 new tests, 2255 total |
+| T2: JSON-LD lifecycle integration tests | DONE | 67 integration tests, full SDK pipeline coverage, 2322 total |
+
+### Sprint 17 Summary: Release Housekeeping (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -51,10 +58,10 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.18.0
 - **Modules**: 21 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize)
-- **Tests**: 2245 passing
+- **Tests**: 2322 passing
 - **Exports**: 348 symbols via `web4/__init__.py`
 - **from_dict()**: 56 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
-- **CLI**: `web4 info/validate/list-schemas` (console script + `python -m web4`)
+- **CLI**: `web4 info/validate/list-schemas/roundtrip` (console script + `python -m web4`)
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[dev]` (full toolchain)
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
@@ -114,7 +121,7 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ## Completeness Summary
 
-- All 16 sprints COMPLETE (Sprints 1-16), Sprint 17 in progress
+- All 17 sprints COMPLETE (Sprints 1-17), Sprint 18 in progress
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (56 round-trip methods total)
@@ -124,8 +131,8 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 - `mypy --strict` passes with 0 errors across 23 source files
 - Test coverage: 96.2% overall (4 modules at 100%, 16 at 95%+)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
-- CLI via `web4 info/validate/list-schemas`
+- CLI via `web4 info/validate/list-schemas/roundtrip` (roundtrip enables cross-language conformance)
 
 ---
 
-*Updated by autonomous session, 2026-04-04 (Sprint 17 T1)*
+*Updated by autonomous session, 2026-04-05 (Sprint 18 T2)*
