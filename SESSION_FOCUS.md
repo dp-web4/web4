@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-05 (Sprint 19 T1)*
+*Last updated: 2026-04-05 (Sprint 20 T1)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 20 Summary: Document Generation (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: `web4 generate <type>` CLI + generate module | DONE | 23 type factories, 4 new exports (359 total), 102 new tests, 2459 total |
 
 ### Sprint 19 Summary: Trust Query Data Types (COMPLETE)
 
@@ -63,12 +69,13 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 ## SDK Status
 
 - **Version**: 0.18.0
-- **Modules**: 21 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize)
-- **Tests**: 2355 passing
-- **Exports**: 355 symbols via `web4/__init__.py`
+- **Modules**: 22 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate)
+- **Tests**: 2459 passing
+- **Exports**: 359 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
-- **CLI**: `web4 info/validate/list-schemas/roundtrip` (console script + `python -m web4`)
+- **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents
+- **CLI**: `web4 info/validate/list-schemas/roundtrip/generate` (console script + `python -m web4`)
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[dev]` (full toolchain)
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
@@ -128,19 +135,20 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ## Completeness Summary
 
-- All 19 sprints COMPLETE (Sprints 1-19)
+- All 20 sprints COMPLETE (Sprints 1-20)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
 - Generic `from_jsonld(doc)` dispatches 23 types by `@type` field (web4.deserialize)
+- `web4.generate(type_name)` produces minimal valid JSON-LD for any of 23 types
 - TrustQuery: to_jsonld() for dispatcher + to_dict() for schema validation (trust-query.schema.json)
-- All 21 submodules have `__all__` declarations, 355 root exports
+- All 22 submodules have `__all__` declarations, 359 root exports
 - All public methods have docstrings and return type annotations
-- `mypy --strict` passes with 0 errors across 23 source files
+- `mypy --strict` passes with 0 errors across 24 source files
 - Test coverage: 96.2% overall (4 modules at 100%, 16 at 95%+)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
-- CLI via `web4 info/validate/list-schemas/roundtrip` (roundtrip enables cross-language conformance)
+- CLI via `web4 info/validate/list-schemas/roundtrip/generate`
 
 ---
 
-*Updated by autonomous session, 2026-04-05 (Sprint 19 T1)*
+*Updated by autonomous session, 2026-04-05 (Sprint 20 T1)*

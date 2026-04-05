@@ -8,6 +8,7 @@ Subcommands::
     python -m web4 validate F.json    # Validate a JSON-LD document
     python -m web4 roundtrip F.json   # Deserialize + re-serialize (normalize)
     python -m web4 roundtrip --check  # Verify round-trip fidelity
+    python -m web4 generate T3Tensor  # Generate a minimal valid JSON-LD document
 """
 
 from __future__ import annotations
@@ -197,6 +198,37 @@ def _report_diff(
             print(f"  ~ {key}: {original[key]!r} -> {roundtripped[key]!r}")
 
 
+# ── generate subcommand ───────────────────────────────────────
+
+
+def _cmd_generate(args: argparse.Namespace) -> int:
+    """Generate a minimal valid JSON-LD document for a given type."""
+    from web4.generate import UnsupportedTypeError, available_types, generate
+
+    if args.list_types:
+        for t in available_types():
+            print(t)
+        return 0
+
+    if args.type is None:
+        print("Error: type argument required (or use --list)", file=sys.stderr)
+        return 1
+
+    type_name: str = args.type
+    compact: bool = args.compact
+
+    try:
+        doc = generate(type_name)
+    except UnsupportedTypeError:
+        print(f"Error: unknown type {type_name!r}", file=sys.stderr)
+        print(f"Available types: {', '.join(available_types())}", file=sys.stderr)
+        return 1
+
+    indent = None if compact else 2
+    print(json.dumps(doc, indent=indent))
+    return 0
+
+
 # ── Schema auto-detection ──────────────────────────────────────
 
 # @type value -> schema name mapping
@@ -286,6 +318,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Schema name (e.g. lct, atp). Auto-detected from @type if omitted.",
     )
 
+    # generate
+    p_gen = sub.add_parser(
+        "generate",
+        help="Generate a minimal valid JSON-LD document for a type",
+    )
+    p_gen.add_argument(
+        "type", nargs="?", default=None,
+        help="Type name (e.g. T3Tensor, R7Action, LinkedContextToken)",
+    )
+    p_gen.add_argument(
+        "--compact",
+        action="store_true",
+        help="Output compact JSON (no indentation).",
+    )
+    p_gen.add_argument(
+        "--list",
+        action="store_true",
+        dest="list_types",
+        help="List available types instead of generating.",
+    )
+
     # roundtrip
     p_rt = sub.add_parser(
         "roundtrip",
@@ -315,6 +368,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "list-schemas": _cmd_list_schemas,
         "validate": _cmd_validate,
         "roundtrip": _cmd_roundtrip,
+        "generate": _cmd_generate,
     }
 
     handler = dispatch.get(args.command)

@@ -1,9 +1,35 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-05 (Sprint 19 T1)
+**Updated**: 2026-04-05 (Sprint 20 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 20: Document Generation (2026-04-05)
+
+The SDK can deserialize any JSON-LD document via `from_jsonld()` (23 types) and
+serialize via `to_jsonld()`, but there was no way for developers to bootstrap a
+valid document from scratch without knowing each type's constructor. Sprint 20
+adds a `generate` module and CLI command that produces minimal valid JSON-LD
+documents for any supported type — useful for bootstrapping, cross-language
+conformance testing, and documentation examples.
+
+### T1: `web4 generate <type>` CLI command + generate module
+**Status**: DONE
+**Completed**: 2026-04-05
+**Scope**: New `web4/generate.py` module with factory functions for all 23
+dispatcher types. Each factory produces a minimal but schema-valid instance
+serialized via `to_jsonld()`. Public API: `generate(type_name)`,
+`generate_string(type_name)`, `available_types()`, `UnsupportedTypeError`.
+CLI subcommand `web4 generate <type>` with `--compact` and `--list` flags.
+Accepts both bare and `web4:`-prefixed type names. 4 new exports in
+`__init__.py` `__all__` (359 total, up from 355).
+**Result**: 1 new module (web4/generate.py), 1 new test file (test_generate.py).
+102 new tests (23 types x 3 parametrized suites + 6 unit + 19 schema validation
++ 6 CLI integration). 2459 total tests passing (up from 2355). mypy strict clean
+(24 files, up from 23). 22 modules in SDK (up from 21).
 
 ---
 
