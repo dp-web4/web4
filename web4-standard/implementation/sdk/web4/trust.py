@@ -31,6 +31,7 @@ __all__ = [
     "compute_team_t3", "operational_health", "is_healthy",
     "diminishing_returns", "trust_bridge", "mrh_trust_decay", "mrh_zone",
     # Constants
+    "TRUST_QUERY_JSONLD_CONTEXT",
     "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT", "WEB4_ONTOLOGY_NS",
     "T3_WEIGHTS", "V3_WEIGHTS", "T3_UPDATE_FACTORS", "T3_UPDATE_RATE",
     "BRIDGE_PRIMARY_WEIGHT", "BRIDGE_SECONDARY_WEIGHT_EACH",

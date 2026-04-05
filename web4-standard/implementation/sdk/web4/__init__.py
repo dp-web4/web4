@@ -66,6 +66,10 @@ from .trust import (
     is_healthy,
     diminishing_returns,
     trust_bridge,
+    TRUST_QUERY_JSONLD_CONTEXT,
+    TRUST_QUERY_MIN_STAKE,
+    TRUST_QUERY_MIN_VALIDITY,
+    TRUST_QUERY_MAX_VALIDITY,
     T3_JSONLD_CONTEXT,
     V3_JSONLD_CONTEXT,
 )
@@ -494,8 +498,11 @@ __all__ = [
     "__version__",
     # trust
     "T3", "V3", "TrustProfile", "ActionOutcome", "RoleRequirement",
-    "RoleTensors", "compute_team_t3", "operational_health", "is_healthy",
+    "RoleTensors", "TrustQuery", "TrustQueryResponse", "DisclosureLevel",
+    "compute_team_t3", "operational_health", "is_healthy",
     "diminishing_returns", "trust_bridge",
+    "TRUST_QUERY_JSONLD_CONTEXT", "TRUST_QUERY_MIN_STAKE",
+    "TRUST_QUERY_MIN_VALIDITY", "TRUST_QUERY_MAX_VALIDITY",
     "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT",
     # lct
     "LCT", "EntityType", "RevocationStatus", "BirthCertificate",

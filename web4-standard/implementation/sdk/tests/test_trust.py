@@ -668,6 +668,35 @@ class TestTrustQuery:
         assert DisclosureLevel.RANGE.value == "range"
         assert DisclosureLevel.PRECISE.value == "precise"
 
+    def test_jsonld_roundtrip(self):
+        q = self._make_query(
+            query_justification="Need trust info",
+            disclosure_level=DisclosureLevel.PRECISE,
+            timestamp="2025-09-14T12:00:00Z",
+        )
+        doc = q.to_jsonld()
+        assert doc["@type"] == "TrustQuery"
+        assert "@context" in doc
+        restored = TrustQuery.from_jsonld(doc)
+        assert restored.querier == q.querier
+        assert restored.atp_stake == q.atp_stake
+        assert restored.disclosure_level == q.disclosure_level
+
+    def test_jsonld_string_roundtrip(self):
+        q = self._make_query()
+        s = q.to_jsonld_string()
+        restored = TrustQuery.from_jsonld_string(s)
+        assert restored.querier == q.querier
+        assert restored.atp_stake == q.atp_stake
+
+    def test_jsonld_dispatcher(self):
+        from web4.deserialize import from_jsonld
+        q = self._make_query()
+        doc = q.to_jsonld()
+        obj = from_jsonld(doc)
+        assert isinstance(obj, TrustQuery)
+        assert obj.querier == q.querier
+
 
 class TestTrustQueryResponse:
 
@@ -840,3 +869,99 @@ class TestTrustQueryVectors:
         assert not resp.is_approved
         assert resp.error_code == "INSUFFICIENT_STAKE"
         assert resp.minimum_required == 10
+
+
+# ── TrustQuery JSON-LD ─────────────────────────────────────────
+
+
+class TestTrustQueryJsonLd:
+    """Tests for TrustQuery to_jsonld/from_jsonld round-trip."""
+
+    def _make_query(self, **overrides: Any) -> TrustQuery:
+        defaults: Dict[str, Any] = {
+            "querier": "lct:web4:alice",
+            "target_entity": "lct:web4:bob",
+            "requested_role": "web4:Surgeon",
+            "intended_interaction": "surgical-procedure",
+            "atp_stake": 100,
+            "validity_period": 3600,
+            "signature": "abc123",
+        }
+        defaults.update(overrides)
+        return TrustQuery(**defaults)
+
+    def test_to_jsonld_has_type_and_context(self):
+        q = self._make_query()
+        doc = q.to_jsonld()
+        assert doc["@type"] == "TrustQuery"
+        assert "@context" in doc
+        assert "https://web4.io/contexts/trust-query.jsonld" in doc["@context"]
+
+    def test_to_jsonld_preserves_query_structure(self):
+        q = self._make_query(
+            query_justification="Need trust info",
+            disclosure_level=DisclosureLevel.PRECISE,
+            timestamp="2025-09-14T12:00:00Z",
+        )
+        doc = q.to_jsonld()
+        assert doc["query"]["querier"] == "lct:web4:alice"
+        assert doc["query"]["atp_stake"] == 100
+        assert doc["query"]["query_justification"] == "Need trust info"
+        assert doc["query"]["disclosure_level"] == "precise"
+        assert doc["signature"] == "abc123"
+        assert doc["timestamp"] == "2025-09-14T12:00:00Z"
+
+    def test_jsonld_roundtrip(self):
+        q = self._make_query(
+            query_justification="Patient needs surgery",
+            disclosure_level=DisclosureLevel.PRECISE,
+            timestamp="2025-09-14T12:00:00Z",
+        )
+        doc = q.to_jsonld()
+        restored = TrustQuery.from_jsonld(doc)
+        assert restored.querier == q.querier
+        assert restored.target_entity == q.target_entity
+        assert restored.requested_role == q.requested_role
+        assert restored.atp_stake == q.atp_stake
+        assert restored.validity_period == q.validity_period
+        assert restored.query_justification == q.query_justification
+        assert restored.disclosure_level == q.disclosure_level
+        assert restored.signature == q.signature
+        assert restored.timestamp == q.timestamp
+
+    def test_jsonld_roundtrip_defaults(self):
+        q = self._make_query()
+        doc = q.to_jsonld()
+        restored = TrustQuery.from_jsonld(doc)
+        assert restored.querier == q.querier
+        assert restored.disclosure_level == DisclosureLevel.RANGE
+        assert restored.query_justification is None
+
+    def test_jsonld_string_roundtrip(self):
+        q = self._make_query(timestamp="2025-09-14T12:00:00Z")
+        s = q.to_jsonld_string()
+        restored = TrustQuery.from_jsonld_string(s)
+        assert restored.querier == q.querier
+        assert restored.atp_stake == q.atp_stake
+
+    def test_generic_dispatcher_roundtrip(self):
+        """TrustQuery.to_jsonld() output is accepted by the generic from_jsonld()."""
+        from web4.deserialize import from_jsonld
+        q = self._make_query(timestamp="2025-09-14T12:00:00Z")
+        doc = q.to_jsonld()
+        obj = from_jsonld(doc)
+        assert isinstance(obj, TrustQuery)
+        assert obj.querier == "lct:web4:alice"
+        assert obj.atp_stake == 100
+
+    def test_schema_validation_with_to_dict(self):
+        """to_dict() output validates against trust-query.schema.json."""
+        from web4.validation import validate
+        q = self._make_query(
+            query_justification="Testing",
+            disclosure_level=DisclosureLevel.PRECISE,
+            timestamp="2025-09-14T12:00:00Z",
+        )
+        d = q.to_dict()
+        result = validate(d, "trust-query")
+        assert result.valid, f"Validation failed: {result.errors}"
