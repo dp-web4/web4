@@ -173,6 +173,95 @@ class TestDetectSchema:
         assert _detect_schema({"key": "value"}) is None
 
 
+# ── roundtrip subcommand ─────────────────────────────────────────
+
+
+class TestRoundtrip:
+    def test_normalize_t3(self) -> None:
+        """Roundtrip a T3 document in normalize mode (prints JSON)."""
+        from web4.trust import T3
+
+        doc = T3(talent=0.8, training=0.7, temperament=0.9).to_jsonld()
+        path = _make_json_file(doc)
+        r = run_cli(["roundtrip", path])
+        assert r.returncode == 0
+        output = json.loads(r.stdout)
+        assert output["@type"] == "T3Tensor"
+        assert output["talent"] == 0.8
+
+    def test_check_pass(self) -> None:
+        """--check returns 0 when round-trip preserves the document."""
+        from web4.trust import V3
+
+        doc = V3(valuation=0.5, veracity=0.6, validity=0.7).to_jsonld()
+        path = _make_json_file(doc)
+        r = run_cli(["roundtrip", "--check", path])
+        assert r.returncode == 0
+        assert "OK" in r.stdout
+
+    def test_check_mismatch(self) -> None:
+        """--check returns 1 when input has extra keys not in round-trip."""
+        from web4.trust import T3
+
+        doc = T3(talent=0.8, training=0.7, temperament=0.9).to_jsonld()
+        doc["extra_key"] = "should_be_lost"
+        path = _make_json_file(doc)
+        r = run_cli(["roundtrip", "--check", path])
+        assert r.returncode == 1
+        assert "MISMATCH" in r.stdout
+
+    def test_unknown_type(self) -> None:
+        """Unknown @type produces a clear error."""
+        doc = {"@type": "NotARealType", "data": 123}
+        path = _make_json_file(doc)
+        r = run_cli(["roundtrip", path])
+        assert r.returncode == 1
+        assert "Unknown @type" in r.stderr
+
+    def test_no_type(self) -> None:
+        """Document without @type produces a clear error."""
+        path = _make_json_file({"key": "value"})
+        r = run_cli(["roundtrip", path])
+        assert r.returncode == 1
+        assert "no @type" in r.stderr
+
+    def test_file_not_found(self) -> None:
+        r = run_cli(["roundtrip", "/tmp/web4_nonexistent_roundtrip.json"])
+        assert r.returncode == 1
+        assert "not found" in r.stderr
+
+    def test_invalid_json(self) -> None:
+        f = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        f.write("{broken json")
+        f.close()
+        r = run_cli(["roundtrip", f.name])
+        assert r.returncode == 1
+        assert "invalid JSON" in r.stderr
+
+    def test_non_object_json(self) -> None:
+        f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump([1, 2, 3], f)
+        f.close()
+        r = run_cli(["roundtrip", f.name])
+        assert r.returncode == 1
+        assert "must be a JSON object" in r.stderr
+
+    def test_atp_account_roundtrip(self) -> None:
+        """Test a different type (ATPAccount) to verify dispatcher coverage."""
+        from web4.atp import ATPAccount
+
+        acct = ATPAccount(available=80.0, locked=20.0)
+        doc = acct.to_jsonld()
+        path = _make_json_file(doc)
+        r = run_cli(["roundtrip", "--check", path])
+        assert r.returncode == 0
+        assert "OK" in r.stdout
+
+    def test_help_mentions_roundtrip(self) -> None:
+        r = run_cli(["--help"])
+        assert "roundtrip" in r.stdout
+
+
 # ── Parser and help ──────────────────────────────────────────────
 
 

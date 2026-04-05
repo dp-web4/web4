@@ -1,9 +1,28 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-04 (Sprint 17 T1)
+**Updated**: 2026-04-05 (Sprint 18 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 18: CLI Conformance Tooling (2026-04-05)
+
+The SDK has complete serialization round-trips (22 types via `from_jsonld()`, 19 class-based
+types with `to_jsonld()`). Sprint 18 exposes this capability through the CLI for
+cross-language conformance testing.
+
+### T1: CLI `web4 roundtrip` conformance command
+**Status**: DONE
+**Completed**: 2026-04-05
+**Scope**: Add `web4 roundtrip <file>` CLI command that reads a JSON-LD document,
+deserializes via `from_jsonld()`, re-serializes via `to_jsonld()`, and outputs the
+normalized result. With `--check` flag, compares input vs output semantically and
+returns exit 0 (match) or 1 (mismatch with diff). Supports stdin via `-`.
+**Result**: New CLI command with normalize and check modes. Refactored shared
+`_read_json_doc()` helper (DRY improvement for validate + roundtrip). 10 new tests
+(32 total CLI tests), 2255 total tests passing, mypy strict clean (23 files).
 
 ---
 
