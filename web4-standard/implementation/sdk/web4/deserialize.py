@@ -55,7 +55,7 @@ def _build_registry() -> Dict[str, Callable[..., Any]]:
     from .entity import EntityTypeInfo, entity_registry_from_jsonld
     from .lct import LCT
     from .r6 import ActionChain, R7Action, ReputationDelta
-    from .trust import T3, V3
+    from .trust import T3, TrustQuery, V3
 
     registry: Dict[str, Callable[..., Any]] = {}
 
@@ -65,6 +65,7 @@ def _build_registry() -> Dict[str, Callable[..., Any]]:
         "AttestationEnvelope": AttestationEnvelope,
         "T3Tensor": T3,
         "V3Tensor": V3,
+        "TrustQuery": TrustQuery,
         "ATPAccount": ATPAccount,
         "TransferResult": TransferResult,
         "AgentPlan": AgentPlan,

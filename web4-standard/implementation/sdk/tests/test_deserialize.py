@@ -207,6 +207,21 @@ def _make_action_chain_doc() -> Dict[str, Any]:
     return ac.to_jsonld()
 
 
+def _make_trust_query_doc() -> Dict[str, Any]:
+    from web4.trust import TrustQuery
+
+    q = TrustQuery(
+        querier="lct:web4:alice",
+        target_entity="lct:web4:bob",
+        requested_role="web4:Surgeon",
+        intended_interaction="surgical-procedure",
+        atp_stake=100,
+        validity_period=3600,
+        signature="test-sig",
+    )
+    return q.to_jsonld()
+
+
 # ---------------------------------------------------------------------------
 # All-types parametrized fixture
 # ---------------------------------------------------------------------------
@@ -235,6 +250,7 @@ ALL_TYPES = [
     ("R7Action", _make_r7_action_doc, "R7Action"),
     ("ReputationDelta", _make_reputation_delta_doc, "ReputationDelta"),
     ("ActionChain", _make_action_chain_doc, "ActionChain"),
+    ("TrustQuery", _make_trust_query_doc, "TrustQuery"),
 ]
 
 
@@ -341,7 +357,7 @@ class TestSupportedTypes:
 
     def test_count_matches_all_types(self) -> None:
         types = supported_types()
-        assert len(types) == 22
+        assert len(types) == 23
 
     def test_all_test_types_in_supported(self) -> None:
         """Every type in ALL_TYPES is in supported_types()."""

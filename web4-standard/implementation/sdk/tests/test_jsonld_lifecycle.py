@@ -742,6 +742,20 @@ def _make_action_chain_doc() -> dict:
     return chain.to_jsonld()
 
 
+def _make_trust_query_doc() -> dict:
+    from web4.trust import TrustQuery
+    q = TrustQuery(
+        querier="lct:web4:alice",
+        target_entity="lct:web4:bob",
+        requested_role="web4:Surgeon",
+        intended_interaction="surgical-procedure",
+        atp_stake=100,
+        validity_period=3600,
+        signature="test-sig",
+    )
+    return q.to_jsonld()
+
+
 # Map: (type_name, factory) — Note: LCT omitted since to_jsonld() excludes @type
 _ALL_DISPATCHER_TYPES = [
     ("T3Tensor", _make_t3_doc),
@@ -765,6 +779,7 @@ _ALL_DISPATCHER_TYPES = [
     ("R7Action", _make_r7_action_doc),
     ("ReputationDelta", _make_reputation_delta_doc),
     ("ActionChain", _make_action_chain_doc),
+    ("TrustQuery", _make_trust_query_doc),
 ]
 
 
@@ -942,9 +957,9 @@ class TestDispatcherCompleteness:
     """Verify dispatcher metadata is consistent with test coverage."""
 
     def test_supported_types_count(self):
-        """supported_types() returns the expected 22 types."""
+        """supported_types() returns the expected 23 types."""
         types = supported_types()
-        assert len(types) == 22, f"Expected 22 types, got {len(types)}: {types}"
+        assert len(types) == 23, f"Expected 23 types, got {len(types)}: {types}"
 
     def test_all_dispatcher_types_in_supported(self):
         """Every type tested in the parametrized suite is in supported_types()."""

@@ -1,9 +1,32 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-05 (Sprint 18 T2)
+**Updated**: 2026-04-05 (Sprint 19 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 19: Trust Query Data Types (2026-04-05)
+
+The trust-query JSON schema exists in the schema registry with 2 test vectors,
+but had no corresponding Python data class — the only schema type without one.
+Sprint 19 closes this gap.
+
+### T1: TrustQuery and TrustQueryResponse data classes
+**Status**: DONE
+**Completed**: 2026-04-05
+**Scope**: Add `TrustQuery`, `TrustQueryResponse`, and `DisclosureLevel` to
+`web4/trust.py`. TrustQuery models the ATP-staked trust information request per
+trust-query.schema.json, with validation (minimum stake, validity period bounds).
+TrustQueryResponse models approved/rejected responses with embedded T3 tensors.
+Both have `to_dict()`/`from_dict()` round-trips. TrustQuery additionally has
+`to_jsonld()`/`from_jsonld()` for JSON-LD dispatch, registered in the
+`web4.deserialize` dispatcher (23 types, up from 22). Schema validation uses
+`to_dict()` against the raw trust-query.schema.json (which has no @context/@type).
+7 new exports in `__init__.py` `__all__` (355 total, up from 348).
+**Result**: 3 new types, 3 new constants, 1 new context URI. 2355 total tests
+passing (up from 2322). 23 dispatcher types. mypy strict clean (23 files).
 
 ---
 

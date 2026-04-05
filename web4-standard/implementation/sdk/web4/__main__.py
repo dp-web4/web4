@@ -241,6 +241,8 @@ _TYPE_TO_SCHEMA = {
     "DictionaryEntity": "dictionary",
     "web4:R7Action": "r7-action",
     "R7Action": "r7-action",
+    "web4:TrustQuery": "trust-query",
+    "TrustQuery": "trust-query",
 }
 
 
