@@ -1,8 +1,9 @@
 """
-Web4 Trust Tensors (T3/V3)
+Web4 Trust Tensors (T3/V3) and Trust Queries
 
 Canonical implementation of the T3 (Trust) and V3 (Value) tensor systems
-per web4-standard/core-spec/t3-v3-tensors.md.
+per web4-standard/core-spec/t3-v3-tensors.md, plus the TrustQuery request
+type per trust-query.schema.json.
 
 T3 dimensions: Talent, Training, Temperament
 V3 dimensions: Valuation, Veracity, Validity
@@ -12,6 +13,7 @@ as a surgeon has no bearing on trust as a mechanic. All operations
 accept an optional role parameter for proper context binding.
 
 Validated against: web4-standard/test-vectors/t3v3/tensor-operations.json
+                   web4-standard/test-vectors/trust-query/
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from typing import Any, Dict, List, Optional
 __all__ = [
     # Classes
     "T3", "V3", "TrustProfile", "ActionOutcome", "RoleRequirement", "RoleTensors",
+    "TrustQuery", "TrustQueryResponse", "DisclosureLevel",
     # Functions
     "compute_team_t3", "operational_health", "is_healthy",
     "diminishing_returns", "trust_bridge", "mrh_trust_decay", "mrh_zone",
@@ -34,6 +37,7 @@ __all__ = [
     "MRH_MAX_HOPS", "HEALTH_WEIGHTS", "HEALTH_THRESHOLD",
     "DIMINISHING_BASE", "DIMINISHING_FLOOR",
     "TRAINING_DECAY_PER_MONTH", "TEMPERAMENT_RECOVERY_PER_MONTH",
+    "TRUST_QUERY_MIN_STAKE", "TRUST_QUERY_MIN_VALIDITY", "TRUST_QUERY_MAX_VALIDITY",
 ]
 
 # ── Canonical weights (from test vectors) ────────────────────────
@@ -563,3 +567,185 @@ def diminishing_returns(repeat_count: int, base_factor: float = DIMINISHING_BASE
         return 1.0
     raw = base_factor ** (repeat_count - 1)
     return max(raw, DIMINISHING_FLOOR)
+
+
+# ── Trust Query ─────────────────────────────────────────────────
+# Schema: trust-query.schema.json
+# Test vectors: web4-standard/test-vectors/trust-query/
+
+# Schema constraints
+TRUST_QUERY_MIN_STAKE = 10
+TRUST_QUERY_MIN_VALIDITY = 300
+TRUST_QUERY_MAX_VALIDITY = 86400
+
+
+class DisclosureLevel(Enum):
+    """Requested level of trust detail in a query response."""
+    BINARY = "binary"
+    RANGE = "range"
+    PRECISE = "precise"
+
+
+@dataclass
+class TrustQuery:
+    """ATP-staked request for role-contextual trust information.
+
+    Per trust-query.schema.json: a querier stakes ATP to request trust
+    information about a target entity in a specific role context.
+    The stake ensures queries have economic weight — no free trust lookups.
+
+    The query body contains the request parameters; the outer structure
+    adds a cryptographic signature and timestamp.
+    """
+
+    querier: str
+    target_entity: str
+    requested_role: str
+    intended_interaction: str
+    atp_stake: int
+    validity_period: int
+    signature: str
+    query_justification: Optional[str] = None
+    disclosure_level: DisclosureLevel = DisclosureLevel.RANGE
+    timestamp: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if self.atp_stake < TRUST_QUERY_MIN_STAKE:
+            raise ValueError(
+                f"atp_stake must be >= {TRUST_QUERY_MIN_STAKE}, got {self.atp_stake}"
+            )
+        if not (TRUST_QUERY_MIN_VALIDITY <= self.validity_period <= TRUST_QUERY_MAX_VALIDITY):
+            raise ValueError(
+                f"validity_period must be {TRUST_QUERY_MIN_VALIDITY}-{TRUST_QUERY_MAX_VALIDITY}, "
+                f"got {self.validity_period}"
+            )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dict matching trust-query.schema.json structure."""
+        query: Dict[str, Any] = {
+            "querier": self.querier,
+            "target_entity": self.target_entity,
+            "requested_role": self.requested_role,
+            "intended_interaction": self.intended_interaction,
+            "atp_stake": self.atp_stake,
+            "validity_period": self.validity_period,
+        }
+        if self.query_justification is not None:
+            query["query_justification"] = self.query_justification
+        if self.disclosure_level != DisclosureLevel.RANGE:
+            query["disclosure_level"] = self.disclosure_level.value
+        doc: Dict[str, Any] = {
+            "query": query,
+            "signature": self.signature,
+        }
+        if self.timestamp is not None:
+            doc["timestamp"] = self.timestamp
+        return doc
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> TrustQuery:
+        """Deserialize from dict (inverse of to_dict()).
+
+        Accepts the nested structure from trust-query.schema.json.
+        Unknown keys are ignored for forward-compatibility.
+        """
+        q = d.get("query", d)  # accept both nested and flat
+        dl_raw = q.get("disclosure_level", "range")
+        return cls(
+            querier=q["querier"],
+            target_entity=q["target_entity"],
+            requested_role=q["requested_role"],
+            intended_interaction=q["intended_interaction"],
+            atp_stake=q["atp_stake"],
+            validity_period=q["validity_period"],
+            query_justification=q.get("query_justification"),
+            disclosure_level=DisclosureLevel(dl_raw),
+            signature=d.get("signature", q.get("signature", "")),
+            timestamp=d.get("timestamp"),
+        )
+
+
+@dataclass
+class TrustQueryResponse:
+    """Response to a TrustQuery — approved or rejected.
+
+    Per test vectors: approved queries return trust data (T3 in role,
+    validity period, stake lock). Rejected queries return error details.
+    """
+
+    status: str  # "APPROVED" or "REJECTED"
+    # Approved response fields
+    entity: Optional[str] = None
+    role: Optional[str] = None
+    t3_in_role: Optional[T3] = None
+    validity_until: Optional[str] = None
+    stake_locked: Optional[int] = None
+    commitment: Optional[str] = None
+    # Rejected response fields
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    minimum_required: Optional[int] = None
+    provided: Optional[int] = None
+    # Audit
+    audit_log: Optional[Dict[str, Any]] = None
+
+    @property
+    def is_approved(self) -> bool:
+        return self.status == "APPROVED"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dict matching test vector response format."""
+        doc: Dict[str, Any] = {"status": self.status}
+        if self.is_approved:
+            response: Dict[str, Any] = {}
+            if self.entity is not None:
+                response["entity"] = self.entity
+            if self.role is not None:
+                response["role"] = self.role
+            if self.t3_in_role is not None:
+                response["t3_in_role"] = self.t3_in_role.as_dict()
+            if self.validity_until is not None:
+                response["validity_until"] = self.validity_until
+            if self.stake_locked is not None:
+                response["stake_locked"] = self.stake_locked
+            if self.commitment is not None:
+                response["commitment"] = self.commitment
+            doc["response"] = response
+        else:
+            error: Dict[str, Any] = {}
+            if self.error_code is not None:
+                error["code"] = self.error_code
+            if self.error_message is not None:
+                error["message"] = self.error_message
+            if self.minimum_required is not None:
+                error["minimum_required"] = self.minimum_required
+            if self.provided is not None:
+                error["provided"] = self.provided
+            doc["error"] = error
+        if self.audit_log is not None:
+            doc["audit_log"] = self.audit_log
+        return doc
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> TrustQueryResponse:
+        """Deserialize from dict (inverse of to_dict())."""
+        status = d["status"]
+        kwargs: Dict[str, Any] = {"status": status}
+        if status == "APPROVED":
+            resp = d.get("response", {})
+            kwargs["entity"] = resp.get("entity")
+            kwargs["role"] = resp.get("role")
+            t3_raw = resp.get("t3_in_role")
+            if t3_raw is not None:
+                kwargs["t3_in_role"] = T3.from_dict(t3_raw)
+            kwargs["validity_until"] = resp.get("validity_until")
+            kwargs["stake_locked"] = resp.get("stake_locked")
+            kwargs["commitment"] = resp.get("commitment")
+        else:
+            err = d.get("error", {})
+            kwargs["error_code"] = err.get("code")
+            kwargs["error_message"] = err.get("message")
+            kwargs["minimum_required"] = err.get("minimum_required")
+            kwargs["provided"] = err.get("provided")
+        kwargs["audit_log"] = d.get("audit_log")
+        return cls(**kwargs)

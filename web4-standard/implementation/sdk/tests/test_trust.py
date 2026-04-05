@@ -6,12 +6,15 @@ V3 calculation, team tensor composition, plus existing functionality.
 
 import json
 import os
+from typing import Any, Dict
 import pytest
 
 from web4.trust import (
     T3, V3, ActionOutcome, OUTCOME_DELTAS,
     TRAINING_DECAY_PER_MONTH, TEMPERAMENT_RECOVERY_PER_MONTH,
     RoleRequirement, RoleTensors, TrustProfile,
+    TrustQuery, TrustQueryResponse, DisclosureLevel,
+    TRUST_QUERY_MIN_STAKE, TRUST_QUERY_MIN_VALIDITY, TRUST_QUERY_MAX_VALIDITY,
     compute_team_t3, trust_bridge, mrh_trust_decay, mrh_zone,
     operational_health, is_healthy, diminishing_returns,
     T3_WEIGHTS, V3_WEIGHTS, HEALTH_THRESHOLD,
@@ -560,3 +563,280 @@ class TestV3FromDict:
         assert restored.valuation == pytest.approx(v.valuation, abs=TOL)
         assert restored.veracity == pytest.approx(v.veracity, abs=TOL)
         assert restored.validity == pytest.approx(v.validity, abs=TOL)
+
+
+# ── TrustQuery ──────────────────────────────────────────────────
+
+
+class TestTrustQuery:
+
+    def _make_query(self, **overrides: Any) -> TrustQuery:
+        defaults: Dict[str, Any] = {
+            "querier": "lct:web4:alice",
+            "target_entity": "lct:web4:bob",
+            "requested_role": "web4:Surgeon",
+            "intended_interaction": "surgical-procedure",
+            "atp_stake": 100,
+            "validity_period": 3600,
+            "signature": "abc123",
+        }
+        defaults.update(overrides)
+        return TrustQuery(**defaults)
+
+    def test_basic_construction(self):
+        q = self._make_query()
+        assert q.querier == "lct:web4:alice"
+        assert q.target_entity == "lct:web4:bob"
+        assert q.requested_role == "web4:Surgeon"
+        assert q.atp_stake == 100
+        assert q.disclosure_level == DisclosureLevel.RANGE
+
+    def test_optional_fields(self):
+        q = self._make_query(
+            query_justification="Patient requiring surgery",
+            disclosure_level=DisclosureLevel.PRECISE,
+            timestamp="2025-09-14T12:00:00Z",
+        )
+        assert q.query_justification == "Patient requiring surgery"
+        assert q.disclosure_level == DisclosureLevel.PRECISE
+        assert q.timestamp == "2025-09-14T12:00:00Z"
+
+    def test_stake_validation_rejects_below_minimum(self):
+        with pytest.raises(ValueError, match="atp_stake must be >= 10"):
+            self._make_query(atp_stake=5)
+
+    def test_stake_validation_rejects_zero(self):
+        with pytest.raises(ValueError, match="atp_stake must be >= 10"):
+            self._make_query(atp_stake=0)
+
+    def test_validity_period_too_short(self):
+        with pytest.raises(ValueError, match="validity_period"):
+            self._make_query(validity_period=100)
+
+    def test_validity_period_too_long(self):
+        with pytest.raises(ValueError, match="validity_period"):
+            self._make_query(validity_period=100000)
+
+    def test_roundtrip_to_dict(self):
+        q = self._make_query(
+            query_justification="Need trust info",
+            disclosure_level=DisclosureLevel.PRECISE,
+            timestamp="2025-09-14T12:00:00Z",
+        )
+        d = q.to_dict()
+        restored = TrustQuery.from_dict(d)
+        assert restored.querier == q.querier
+        assert restored.target_entity == q.target_entity
+        assert restored.requested_role == q.requested_role
+        assert restored.atp_stake == q.atp_stake
+        assert restored.validity_period == q.validity_period
+        assert restored.query_justification == q.query_justification
+        assert restored.disclosure_level == q.disclosure_level
+        assert restored.signature == q.signature
+        assert restored.timestamp == q.timestamp
+
+    def test_roundtrip_defaults_only(self):
+        q = self._make_query()
+        d = q.to_dict()
+        restored = TrustQuery.from_dict(d)
+        assert restored.querier == q.querier
+        assert restored.disclosure_level == DisclosureLevel.RANGE
+        assert restored.query_justification is None
+        assert restored.timestamp is None
+
+    def test_to_dict_structure(self):
+        q = self._make_query()
+        d = q.to_dict()
+        assert "query" in d
+        assert "signature" in d
+        assert d["query"]["querier"] == "lct:web4:alice"
+        assert d["query"]["atp_stake"] == 100
+        assert d["signature"] == "abc123"
+
+    def test_to_dict_omits_default_disclosure(self):
+        q = self._make_query()
+        d = q.to_dict()
+        assert "disclosure_level" not in d["query"]
+
+    def test_to_dict_includes_non_default_disclosure(self):
+        q = self._make_query(disclosure_level=DisclosureLevel.BINARY)
+        d = q.to_dict()
+        assert d["query"]["disclosure_level"] == "binary"
+
+    def test_disclosure_level_enum(self):
+        assert DisclosureLevel.BINARY.value == "binary"
+        assert DisclosureLevel.RANGE.value == "range"
+        assert DisclosureLevel.PRECISE.value == "precise"
+
+
+class TestTrustQueryResponse:
+
+    def test_approved_response(self):
+        r = TrustQueryResponse(
+            status="APPROVED",
+            entity="lct:web4:bob",
+            role="web4:Surgeon",
+            t3_in_role=T3(0.95, 0.92, 0.88),
+            validity_until="2025-09-14T13:00:00Z",
+            stake_locked=100,
+            commitment="Must engage within 3600 seconds",
+        )
+        assert r.is_approved
+        assert r.t3_in_role is not None
+        assert r.t3_in_role.talent == 0.95
+
+    def test_rejected_response(self):
+        r = TrustQueryResponse(
+            status="REJECTED",
+            error_code="INSUFFICIENT_STAKE",
+            error_message="Trust queries require minimum ATP stake",
+            minimum_required=10,
+            provided=0,
+        )
+        assert not r.is_approved
+        assert r.error_code == "INSUFFICIENT_STAKE"
+
+    def test_approved_roundtrip(self):
+        r = TrustQueryResponse(
+            status="APPROVED",
+            entity="lct:web4:bob",
+            role="web4:Surgeon",
+            t3_in_role=T3(0.95, 0.92, 0.88),
+            stake_locked=100,
+            audit_log={"query_id": "query:web4:1"},
+        )
+        d = r.to_dict()
+        restored = TrustQueryResponse.from_dict(d)
+        assert restored.status == "APPROVED"
+        assert restored.entity == "lct:web4:bob"
+        assert restored.t3_in_role is not None
+        assert restored.t3_in_role.talent == pytest.approx(0.95, abs=TOL)
+        assert restored.stake_locked == 100
+        assert restored.audit_log == {"query_id": "query:web4:1"}
+
+    def test_rejected_roundtrip(self):
+        r = TrustQueryResponse(
+            status="REJECTED",
+            error_code="INSUFFICIENT_STAKE",
+            error_message="Trust queries require minimum ATP stake",
+            minimum_required=10,
+            provided=0,
+        )
+        d = r.to_dict()
+        restored = TrustQueryResponse.from_dict(d)
+        assert restored.status == "REJECTED"
+        assert restored.error_code == "INSUFFICIENT_STAKE"
+        assert restored.minimum_required == 10
+        assert restored.provided == 0
+
+    def test_to_dict_approved_structure(self):
+        r = TrustQueryResponse(
+            status="APPROVED",
+            entity="lct:web4:bob",
+            role="web4:Surgeon",
+            t3_in_role=T3(0.95, 0.92, 0.88),
+        )
+        d = r.to_dict()
+        assert d["status"] == "APPROVED"
+        assert "response" in d
+        assert "error" not in d
+        assert d["response"]["entity"] == "lct:web4:bob"
+        assert d["response"]["t3_in_role"]["talent"] == 0.95
+
+    def test_to_dict_rejected_structure(self):
+        r = TrustQueryResponse(
+            status="REJECTED",
+            error_code="INSUFFICIENT_STAKE",
+        )
+        d = r.to_dict()
+        assert d["status"] == "REJECTED"
+        assert "error" in d
+        assert "response" not in d
+
+
+# ── Trust Query Test Vectors ────────────────────────────────────
+
+
+class TestTrustQueryVectors:
+    """Exercise the 2 trust-query test vectors."""
+
+    @pytest.fixture
+    def valid_vector(self) -> Dict[str, Any]:
+        path = os.path.join(
+            os.path.dirname(__file__),
+            "..", "..", "..",
+            "test-vectors", "trust-query", "valid-staked-query.json",
+        )
+        with open(path) as f:
+            return json.load(f)
+
+    @pytest.fixture
+    def invalid_vector(self) -> Dict[str, Any]:
+        path = os.path.join(
+            os.path.dirname(__file__),
+            "..", "..", "..",
+            "test-vectors", "trust-query", "invalid-no-stake.json",
+        )
+        with open(path) as f:
+            return json.load(f)
+
+    def test_valid_query_constructs(self, valid_vector: Dict[str, Any]):
+        inp = valid_vector["input"]
+        q = TrustQuery(
+            querier=inp["query"]["querier"],
+            target_entity=inp["query"]["target_entity"],
+            requested_role=inp["query"]["requested_role"],
+            intended_interaction=inp["query"]["intended_interaction"],
+            atp_stake=inp["query"]["atp_stake"],
+            validity_period=inp["query"]["validity_period"],
+            query_justification=inp["query"].get("query_justification"),
+            disclosure_level=DisclosureLevel(inp["query"].get("disclosure_level", "range")),
+            signature="test-sig",
+            timestamp=inp.get("timestamp"),
+        )
+        assert q.querier == "lct:web4:alice"
+        assert q.atp_stake == 100
+        assert valid_vector["should_succeed"] is True
+
+    def test_valid_response_constructs(self, valid_vector: Dict[str, Any]):
+        exp = valid_vector["expected_output"]
+        resp = TrustQueryResponse(
+            status=exp["status"],
+            entity=exp["response"]["entity"],
+            role=exp["response"]["role"],
+            t3_in_role=T3(**exp["response"]["t3_in_role"]),
+            validity_until=exp["response"]["validity_until"],
+            stake_locked=exp["response"]["stake_locked"],
+            commitment=exp["response"]["commitment"],
+            audit_log=exp.get("audit_log"),
+        )
+        assert resp.is_approved
+        assert resp.t3_in_role is not None
+        assert resp.t3_in_role.talent == 0.95
+
+    def test_invalid_query_rejected_for_zero_stake(self, invalid_vector: Dict[str, Any]):
+        inp = invalid_vector["input"]
+        with pytest.raises(ValueError, match="atp_stake must be >= 10"):
+            TrustQuery(
+                querier=inp["query"]["querier"],
+                target_entity=inp["query"]["target_entity"],
+                requested_role=inp["query"]["requested_role"],
+                intended_interaction=inp["query"]["intended_interaction"],
+                atp_stake=inp["query"]["atp_stake"],
+                validity_period=inp["query"]["validity_period"],
+                signature="test-sig",
+            )
+        assert invalid_vector["should_succeed"] is False
+
+    def test_invalid_response_constructs(self, invalid_vector: Dict[str, Any]):
+        exp = invalid_vector["expected_output"]
+        resp = TrustQueryResponse(
+            status=exp["status"],
+            error_code=exp["error"]["code"],
+            error_message=exp["error"]["message"],
+            minimum_required=exp["error"]["minimum_required"],
+            provided=exp["error"]["provided"],
+        )
+        assert not resp.is_approved
+        assert resp.error_code == "INSUFFICIENT_STAKE"
+        assert resp.minimum_required == 10
