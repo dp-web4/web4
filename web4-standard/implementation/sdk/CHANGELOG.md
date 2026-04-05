@@ -2,6 +2,26 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.18.0] - 2026-04-04
+
+Sprint 16: mypy strict zero-error and generic JSON-LD deserialization.
+
+### Added
+- **Generic JSON-LD deserialization** (T2) — new `web4/deserialize.py` module (21st SDK
+  module). Top-level `from_jsonld(doc)` dispatches any JSON-LD document to the correct
+  class by `@type` field. Covers 22 types across 10 modules (19 class-based + 3
+  function-based). Also provides `from_jsonld_string(s)`, `supported_types()`, and
+  `UnknownTypeError`. 62 parametrized tests.
+- **mypy strict zero-error** (T1) — `mypy --strict web4/` now reports 0 errors across
+  23 source files. Added `[tool.mypy]` config with `strict = true` and override for
+  `jsonschema.*` (ignore_missing_imports) in `pyproject.toml`.
+- **Test coverage baseline** (T1) — 96.2% overall (4491 statements, 169 missed). 4
+  modules at 100%, 16 at 95%+.
+
+### Changed
+- Version bumped from 0.17.0 to 0.18.0.
+- 2245 tests passing (up from 2183 in v0.17.0). 21 SDK modules, 348 exports.
+
 ## [0.17.0] - 2026-04-04
 
 from_dict() round-trip completeness and schema validation vector integration.

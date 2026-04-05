@@ -1,9 +1,27 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-04 (Sprint 16 T2)
+**Updated**: 2026-04-04 (Sprint 17 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 17: Release Housekeeping (2026-04-04)
+
+Sprint 16 added two significant features (mypy strict compliance and the deserialize
+module) without a version bump. Sprint 17 T1 brings all SDK metadata into alignment
+with the current state: version 0.18.0, CHANGELOG, README, docstrings.
+
+### T1: SDK v0.18.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-04
+**Scope**: Bump version 0.17.0 → 0.18.0. Add CHANGELOG v0.18.0 entry documenting
+Sprint 16 T1 (mypy strict) and T2 (deserialize). Update README.md module count
+(20→21), export count (344→348), test count (→2245), add deserialize to module table,
+update coverage and project structure sections. Update `__init__.py` docstring.
+**Result**: All SDK metadata now accurately reflects 21 modules, 348 exports, 2245 tests,
+mypy strict zero-error, and the deserialize module. Version 0.18.0.
 
 ---
 

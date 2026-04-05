@@ -23,6 +23,7 @@ Provides offline-capable primitives for:
 - MCP protocol types — Web4 context headers, resources, sessions, ATP metering
 - Attestation — unified hardware trust envelope, verification dispatcher
 - Validation — JSON Schema validation for all Web4 JSON-LD document types
+- Deserialization — generic JSON-LD dispatcher for all Web4 types
 
 These modules define the canonical data types and algorithms specified
 in the web4-standard. They work offline (no network services required)
