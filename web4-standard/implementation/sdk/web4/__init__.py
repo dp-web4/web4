@@ -24,6 +24,7 @@ Provides offline-capable primitives for:
 - Attestation — unified hardware trust envelope, verification dispatcher
 - Validation — JSON Schema validation for all Web4 JSON-LD document types
 - Deserialization — generic JSON-LD dispatcher for all Web4 types
+- Generation — produce minimal valid JSON-LD documents for any Web4 type
 
 These modules define the canonical data types and algorithms specified
 in the web4-standard. They work offline (no network services required)
@@ -491,6 +492,14 @@ from .deserialize import (
     supported_types,
 )
 
+# ── Document Generation ─────────────────────────────────────
+from .generate import (
+    UnsupportedTypeError,
+    available_types,
+    generate,
+    generate_string,
+)
+
 
 # ── Public API ─────────────────────────────────────────────────
 __all__ = [
@@ -649,4 +658,6 @@ __all__ = [
     "validate", "list_schemas", "get_schema", "get_schema_dir",
     # deserialization
     "UnknownTypeError", "from_jsonld", "from_jsonld_string", "supported_types",
+    # generation
+    "UnsupportedTypeError", "available_types", "generate", "generate_string",
 ]
