@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-05 (Sprint 18 T1)
+**Updated**: 2026-04-05 (Sprint 18 T2)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -23,6 +23,19 @@ returns exit 0 (match) or 1 (mismatch with diff). Supports stdin via `-`.
 **Result**: New CLI command with normalize and check modes. Refactored shared
 `_read_json_doc()` helper (DRY improvement for validate + roundtrip). 10 new tests
 (32 total CLI tests), 2255 total tests passing, mypy strict clean (23 files).
+
+### T2: JSON-LD document lifecycle integration tests
+**Status**: DONE
+**Completed**: 2026-04-05
+**Scope**: Integration tests exercising the full SDK pipeline for JSON-LD documents:
+create object → `to_jsonld()` → `web4.validation.validate()` → `web4.from_jsonld()`
+(generic dispatcher) → verify round-trip fidelity. Covers all 21 dispatcher types and
+all 19 schema-validated types through the SDK's public API (not direct schema loading).
+**Result**: 67 tests in `test_jsonld_lifecycle.py`. Deep per-type lifecycle tests for 8
+representative types (LCT, T3, V3, AttestationEnvelope, ATP, R7Action, ACP, Dictionary),
+parametrized dispatcher coverage for all 21 types, parametrized schema validation for 19
+types, cross-module composition tests, and dispatcher completeness checks. 2322 total
+tests passing, mypy strict clean (23 files).
 
 ---
 

@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-05 (Sprint 18 T1)*
+*Last updated: 2026-04-05 (Sprint 18 T2)*
 
 ---
 
@@ -15,6 +15,7 @@
 | Task | Status | Notes |
 |------|--------|-------|
 | T1: CLI `web4 roundtrip` command | DONE | Deserialize + re-serialize with --check mode, 10 new tests, 2255 total |
+| T2: JSON-LD lifecycle integration tests | DONE | 67 integration tests, full SDK pipeline coverage, 2322 total |
 
 ### Sprint 17 Summary: Release Housekeeping (COMPLETE)
 
@@ -57,7 +58,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.18.0
 - **Modules**: 21 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize)
-- **Tests**: 2255 passing
+- **Tests**: 2322 passing
 - **Exports**: 348 symbols via `web4/__init__.py`
 - **from_dict()**: 56 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **CLI**: `web4 info/validate/list-schemas/roundtrip` (console script + `python -m web4`)
@@ -134,4 +135,4 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ---
 
-*Updated by autonomous session, 2026-04-05 (Sprint 18 T1)*
+*Updated by autonomous session, 2026-04-05 (Sprint 18 T2)*
