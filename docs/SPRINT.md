@@ -20,12 +20,13 @@ Sprint 19 closes this gap.
 `web4/trust.py`. TrustQuery models the ATP-staked trust information request per
 trust-query.schema.json, with validation (minimum stake, validity period bounds).
 TrustQueryResponse models approved/rejected responses with embedded T3 tensors.
-Both have `to_dict()`/`from_dict()` round-trips. Note: trust-query is a plain
-JSON schema (not JSON-LD), so no `to_jsonld()`/`from_jsonld()` or dispatcher
-registration — this is correct per the schema design.
-**Result**: 3 new types (TrustQuery, TrustQueryResponse, DisclosureLevel),
-3 new constants (TRUST_QUERY_MIN_STAKE, MIN_VALIDITY, MAX_VALIDITY). 20 new tests
-including 2 test vector exercises. 2344 total tests passing, mypy strict clean (23 files).
+Both have `to_dict()`/`from_dict()` round-trips. TrustQuery additionally has
+`to_jsonld()`/`from_jsonld()` for JSON-LD dispatch, registered in the
+`web4.deserialize` dispatcher (23 types, up from 22). Schema validation uses
+`to_dict()` against the raw trust-query.schema.json (which has no @context/@type).
+7 new exports in `__init__.py` `__all__` (355 total, up from 348).
+**Result**: 3 new types, 3 new constants, 1 new context URI. 2355 total tests
+passing (up from 2322). 23 dispatcher types. mypy strict clean (23 files).
 
 ---
 
