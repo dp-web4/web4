@@ -24,7 +24,7 @@ def _cmd_info(args: argparse.Namespace) -> int:
         "trust", "lct", "atp", "federation", "r6", "mrh", "acp",
         "dictionary", "entity", "capability", "errors", "metabolic",
         "binding", "society", "reputation", "security", "protocol",
-        "mcp", "attestation", "validation",
+        "mcp", "attestation", "validation", "deserialize",
     ]
 
     print(f"web4 {web4.__version__}")

@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-04 (Sprint 16 T2)*
+*Last updated: 2026-04-04 (Sprint 17 T1)*
 
 ---
 
@@ -10,7 +10,13 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 16 Summary: Quality Gates + Generic Deserialization (IN PROGRESS)
+### Sprint 17 Summary: Release Housekeeping (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: SDK v0.18.0 release housekeeping | DONE | Version bump, CHANGELOG, README, docstring updates for Sprint 16 work |
+
+### Sprint 16 Summary: Quality Gates + Generic Deserialization (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -43,7 +49,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 ## SDK Status
 
-- **Version**: 0.17.0
+- **Version**: 0.18.0
 - **Modules**: 21 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize)
 - **Tests**: 2245 passing
 - **Exports**: 348 symbols via `web4/__init__.py`
@@ -108,7 +114,7 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ## Completeness Summary
 
-- All 15 sprints COMPLETE (Sprints 1-15), Sprint 16 in progress
+- All 16 sprints COMPLETE (Sprints 1-16), Sprint 17 in progress
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (56 round-trip methods total)
@@ -122,4 +128,4 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ---
 
-*Updated by autonomous session, 2026-04-04 (Sprint 16 T2)*
+*Updated by autonomous session, 2026-04-04 (Sprint 17 T1)*

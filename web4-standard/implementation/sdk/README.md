@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.17.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.18.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
 
 ## Installation
 
@@ -59,7 +59,7 @@ assert reconstructed.talent == trust.talent
 
 ## Modules
 
-The SDK contains 20 modules, all importable from the `web4` namespace:
+The SDK contains 21 modules, all importable from the `web4` namespace:
 
 | Module | Description | Key Types |
 |--------|-------------|-----------|
@@ -83,8 +83,9 @@ The SDK contains 20 modules, all importable from the `web4` namespace:
 | `mcp` | MCP context headers, sessions, ATP metering | `MCPSession`, `Web4Context` |
 | `attestation` | Hardware trust envelope and verification | `AttestationEnvelope`, `verify_envelope` |
 | `validation` | Schema validation for JSON-LD documents | `validate`, `list_schemas`, `get_schema` |
+| `deserialize` | Generic JSON-LD deserialization dispatcher | `from_jsonld`, `from_jsonld_string`, `supported_types` |
 
-344 symbols are exported from `web4.__init__`. All 20 submodules have `__all__` declarations.
+348 symbols are exported from `web4.__init__`. All 21 submodules have `__all__` declarations.
 
 ## Command-Line Interface
 
@@ -129,6 +130,10 @@ doc = trust.to_jsonld()
 
 # Round-trip fidelity
 assert T3.from_jsonld(doc) == trust
+
+# Generic deserialization (any @type)
+from web4 import from_jsonld
+obj = from_jsonld(doc)  # dispatches to T3.from_jsonld() by @type
 ```
 
 JSON Schemas for all 10 types are in `schemas/` with 278 cross-language validation
@@ -162,7 +167,7 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-1770 tests, 98% coverage, mypy strict compliant, CI across Python 3.10-3.13.
+2245 tests, 96% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
 
 ## Client SDK
 
@@ -187,15 +192,16 @@ The client SDK re-exports canonical types from the `web4` package, so both
 ## Project Structure
 
 ```
-web4/                  # Python package (20 modules)
-  __init__.py          # 344 re-exports
+web4/                  # Python package (21 modules)
+  __init__.py          # 348 re-exports
   __main__.py          # CLI entry point (web4 info/validate/list-schemas)
   py.typed             # PEP 561 marker
   trust.py             # T3/V3 tensors
   lct.py               # Linked Context Tokens
+  deserialize.py       # Generic JSON-LD dispatcher
   validation.py        # Schema validation
   ...                  # (17 more modules)
-tests/                 # 1770 tests
+tests/                 # 2245 tests
 schemas/               # JSON Schemas + JSON-LD contexts
 web4_sdk.py            # Async HTTP client (separate)
 pyproject.toml         # Package metadata (single version source)
