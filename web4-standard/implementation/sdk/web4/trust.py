@@ -73,6 +73,7 @@ DIMINISHING_FLOOR = 0.1
 
 T3_JSONLD_CONTEXT = "https://web4.io/contexts/t3.jsonld"
 V3_JSONLD_CONTEXT = "https://web4.io/contexts/v3.jsonld"
+TRUST_QUERY_JSONLD_CONTEXT = "https://web4.io/contexts/trust-query.jsonld"
 WEB4_ONTOLOGY_NS = "https://web4.io/ontology#"  # Kept for OWL/RDF tooling reference
 
 # ── Outcome-based evolution (spec §2.3) ──────────────────────────
@@ -663,6 +664,37 @@ class TrustQuery:
             signature=d.get("signature", q.get("signature", "")),
             timestamp=d.get("timestamp"),
         )
+
+    def to_jsonld(self) -> Dict[str, Any]:
+        """Serialize to JSON-LD with @context and @type.
+
+        Wraps the trust-query.schema.json structure with JSON-LD metadata
+        so the document can be dispatched by the generic from_jsonld()
+        deserializer.
+        """
+        doc = self.to_dict()
+        doc["@context"] = [TRUST_QUERY_JSONLD_CONTEXT]
+        doc["@type"] = "TrustQuery"
+        return doc
+
+    @classmethod
+    def from_jsonld(cls, doc: Dict[str, Any]) -> TrustQuery:
+        """Deserialize from JSON-LD document.
+
+        Accepts both JSON-LD format (with @context/@type) and plain dict
+        format (from to_dict). Strips JSON-LD metadata before delegating
+        to from_dict.
+        """
+        return cls.from_dict(doc)
+
+    def to_jsonld_string(self, indent: int = 2) -> str:
+        """Serialize to JSON-LD string."""
+        return json.dumps(self.to_jsonld(), indent=indent)
+
+    @classmethod
+    def from_jsonld_string(cls, s: str) -> TrustQuery:
+        """Deserialize from JSON-LD string."""
+        return cls.from_jsonld(json.loads(s))
 
 
 @dataclass
