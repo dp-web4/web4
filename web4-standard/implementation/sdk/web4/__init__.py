@@ -26,16 +26,17 @@ Provides offline-capable primitives for:
 - Deserialization — generic JSON-LD dispatcher for all Web4 types
 - Generation — produce minimal valid JSON-LD documents for any Web4 type
 
-These modules define the canonical data types and algorithms specified
-in the web4-standard. They work offline (no network services required)
-and are designed to be imported by applications, services, and other
-SDKs that build on web4.
+22 modules, 359 exports. These modules define the canonical data types
+and algorithms specified in the web4-standard. They work offline (no
+network services required) and are designed to be imported by
+applications, services, and other SDKs that build on web4.
 
 Usage::
 
     from web4 import T3, LCT, Society, R7Action
     from web4 import W4ID, parse_w4id
     from web4 import ATPAccount, energy_ratio
+    from web4 import from_jsonld, generate
 
 For module-specific imports (recommended for large applications)::
 

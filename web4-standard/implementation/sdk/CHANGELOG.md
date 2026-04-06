@@ -2,6 +2,33 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.19.0] - 2026-04-05
+
+Sprints 18-20: CLI conformance tooling, trust query data types, and document generation.
+
+### Added
+- **Document generation** (Sprint 20 T1) — new `web4/generate.py` module (22nd SDK module).
+  `generate(type_name)` produces minimal valid JSON-LD documents for any of 23 supported
+  types. Also provides `generate_string()`, `available_types()`, and `UnsupportedTypeError`.
+  CLI subcommand `web4 generate <type>` with `--compact` and `--list` flags. 102 tests.
+- **Trust query data types** (Sprint 19 T1) — `TrustQuery`, `TrustQueryResponse`, and
+  `DisclosureLevel` in `web4/trust.py`. ATP-staked trust information requests with
+  validation (minimum stake, validity period bounds). `to_dict()`/`from_dict()` round-trips,
+  `to_jsonld()`/`from_jsonld()` for JSON-LD dispatch. Registered in deserialize dispatcher
+  (23 types, up from 22). 7 new exports, 35 tests.
+- **CLI `web4 roundtrip` command** (Sprint 18 T1) — reads a JSON-LD document, deserializes
+  via `from_jsonld()`, re-serializes via `to_jsonld()`, outputs normalized result. `--check`
+  flag for semantic comparison with diff output. Supports stdin via `-`. 10 tests.
+- **JSON-LD lifecycle integration tests** (Sprint 18 T2) — 67 integration tests exercising
+  the full SDK pipeline: create → `to_jsonld()` → `validate()` → `from_jsonld()` → verify
+  round-trip fidelity. Covers all 21 dispatcher types and 19 schema-validated types.
+
+### Changed
+- Version bumped from 0.18.0 to 0.19.0.
+- 2459 tests passing (up from 2245 in v0.18.0). 22 SDK modules, 359 exports.
+- CLI now has 5 subcommands: `info`, `validate`, `list-schemas`, `roundtrip`, `generate`.
+- Deserialize dispatcher covers 23 types (up from 22).
+
 ## [0.18.0] - 2026-04-04
 
 Sprint 16: mypy strict zero-error and generic JSON-LD deserialization.

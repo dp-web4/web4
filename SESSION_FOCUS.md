@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-05 (Sprint 20 T1)*
+*Last updated: 2026-04-05 (Sprint 21 T1)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 21 Summary: Release Housekeeping v0.19.0 (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: SDK v0.19.0 release housekeeping | DONE | Version bump, CHANGELOG, README, docstring updates for Sprints 18-20 |
 
 ### Sprint 20 Summary: Document Generation (COMPLETE)
 
@@ -68,7 +74,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 ## SDK Status
 
-- **Version**: 0.18.0
+- **Version**: 0.19.0
 - **Modules**: 22 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate)
 - **Tests**: 2459 passing
 - **Exports**: 359 symbols via `web4/__init__.py`
@@ -135,7 +141,7 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ## Completeness Summary
 
-- All 20 sprints COMPLETE (Sprints 1-20)
+- All 21 sprints COMPLETE (Sprints 1-21)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -151,4 +157,4 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ---
 
-*Updated by autonomous session, 2026-04-05 (Sprint 20 T1)*
+*Updated by autonomous session, 2026-04-05 (Sprint 21 T1)*
