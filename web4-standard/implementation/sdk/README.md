@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.18.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.19.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
 
 ## Installation
 
@@ -59,11 +59,11 @@ assert reconstructed.talent == trust.talent
 
 ## Modules
 
-The SDK contains 21 modules, all importable from the `web4` namespace:
+The SDK contains 22 modules, all importable from the `web4` namespace:
 
 | Module | Description | Key Types |
 |--------|-------------|-----------|
-| `trust` | Multi-dimensional trust and value assessment | `T3`, `V3`, `TrustProfile` |
+| `trust` | Multi-dimensional trust and value assessment | `T3`, `V3`, `TrustQuery`, `TrustQueryResponse` |
 | `lct` | Linked Context Tokens — identity and presence | `LCT`, `EntityType`, `BirthCertificate` |
 | `atp` | ATP/ADP energy metabolism | `ATPAccount`, `transfer`, `energy_ratio` |
 | `federation` | Society, Authority, Law governance | `Society`, `LawDataset`, `Delegation` |
@@ -84,8 +84,9 @@ The SDK contains 21 modules, all importable from the `web4` namespace:
 | `attestation` | Hardware trust envelope and verification | `AttestationEnvelope`, `verify_envelope` |
 | `validation` | Schema validation for JSON-LD documents | `validate`, `list_schemas`, `get_schema` |
 | `deserialize` | Generic JSON-LD deserialization dispatcher | `from_jsonld`, `from_jsonld_string`, `supported_types` |
+| `generate` | Produce minimal valid JSON-LD documents | `generate`, `generate_string`, `available_types` |
 
-348 symbols are exported from `web4.__init__`. All 21 submodules have `__all__` declarations.
+359 symbols are exported from `web4.__init__`. All 22 submodules have `__all__` declarations.
 
 ## Command-Line Interface
 
@@ -94,6 +95,10 @@ web4 info             # Show SDK version, modules, exports, schemas
 web4 list-schemas     # List available JSON Schemas
 web4 validate F.json  # Validate a JSON-LD document (auto-detects schema from @type)
 web4 validate F.json --schema lct  # Validate against a specific schema
+web4 roundtrip F.json         # Deserialize + re-serialize (normalize)
+web4 roundtrip F.json --check # Compare input vs output (exit 0=match, 1=diff)
+web4 generate T3Tensor        # Generate a minimal valid JSON-LD document
+web4 generate --list          # List all 23 supported types
 ```
 
 Also available as `python -m web4`.
@@ -167,7 +172,7 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-2245 tests, 96% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
+2459 tests, 96% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
 
 ## Client SDK
 
@@ -192,16 +197,17 @@ The client SDK re-exports canonical types from the `web4` package, so both
 ## Project Structure
 
 ```
-web4/                  # Python package (21 modules)
-  __init__.py          # 348 re-exports
-  __main__.py          # CLI entry point (web4 info/validate/list-schemas)
+web4/                  # Python package (22 modules)
+  __init__.py          # 359 re-exports
+  __main__.py          # CLI entry point (web4 info/validate/list-schemas/roundtrip/generate)
   py.typed             # PEP 561 marker
-  trust.py             # T3/V3 tensors
+  trust.py             # T3/V3 tensors, TrustQuery/TrustQueryResponse
   lct.py               # Linked Context Tokens
-  deserialize.py       # Generic JSON-LD dispatcher
+  deserialize.py       # Generic JSON-LD dispatcher (23 types)
+  generate.py          # Minimal valid JSON-LD document generation
   validation.py        # Schema validation
   ...                  # (17 more modules)
-tests/                 # 2245 tests
+tests/                 # 2459 tests
 schemas/               # JSON Schemas + JSON-LD contexts
 web4_sdk.py            # Async HTTP client (separate)
 pyproject.toml         # Package metadata (single version source)

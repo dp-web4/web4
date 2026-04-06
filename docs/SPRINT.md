@@ -1,9 +1,27 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-05 (Sprint 20 T1)
+**Updated**: 2026-04-05 (Sprint 21 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 21: Release Housekeeping v0.19.0 (2026-04-05)
+
+SDK v0.18.0 was set in Sprint 17 but only covered Sprint 16 features. Sprints 18-20
+added significant functionality (roundtrip CLI, lifecycle tests, TrustQuery types,
+generate module) without a version bump. Sprint 21 brings all metadata into alignment.
+
+### T1: SDK v0.19.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-05
+**Scope**: Bump version 0.18.0 → 0.19.0. Add CHANGELOG v0.19.0 entry documenting
+Sprints 18-20 features. Update README.md module count (21→22), export count (348→359),
+test count (2245→2459), add generate module to module table, add roundtrip/generate CLI
+docs, update project structure section. Update `__init__.py` docstring with current counts.
+**Result**: All SDK metadata now accurately reflects 22 modules, 359 exports, 2459 tests,
+5 CLI subcommands, and the generate module. Version 0.19.0.
 
 ---
 
