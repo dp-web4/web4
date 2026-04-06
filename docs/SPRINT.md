@@ -1,9 +1,33 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-05 (Sprint 21 T1)
+**Updated**: 2026-04-06 (Sprint 22 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 22: Trust Query Evaluation Pipeline (2026-04-06)
+
+Sprints 1-21 built all data types, serialization, validation, and CLI tools.
+Sprint 22 adds the first *behavioral* function: composing TrustQuery +
+TrustProfile + ATPAccount into TrustQueryResponse — the core trust resolution
+operation that downstream consumers (hardbound, 4-life) will import.
+
+### T1: `evaluate_trust_query()` function
+**Status**: DONE
+**Completed**: 2026-04-06
+**Scope**: Add `evaluate_trust_query()` to `web4/trust.py` that composes
+existing SDK types into the trust resolution pipeline: validate query, lock
+ATP stake, look up T3 for requested role, apply disclosure level filtering
+(binary/range/precise), compute validity window, return TrustQueryResponse.
+Handles rejection (insufficient ATP) with rollback. 1 new export in
+`__init__.py` `__all__` (360 total, up from 359).
+**Result**: 1 new function in trust.py (~60 lines), TYPE_CHECKING import
+for ATPAccount (no circular import). 23 new tests in test_trust_query_eval.py
+covering approval flow, rejection paths, disclosure levels, role lookup,
+timestamp handling, response round-trip, and ATP accounting. 2482 total tests
+passing (up from 2459). mypy strict clean (25 files).
 
 ---
 

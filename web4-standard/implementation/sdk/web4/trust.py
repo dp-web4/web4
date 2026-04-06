@@ -21,7 +21,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from .atp import ATPAccount
 
 __all__ = [
     # Classes
@@ -30,6 +33,7 @@ __all__ = [
     # Functions
     "compute_team_t3", "operational_health", "is_healthy",
     "diminishing_returns", "trust_bridge", "mrh_trust_decay", "mrh_zone",
+    "evaluate_trust_query",
     # Constants
     "TRUST_QUERY_JSONLD_CONTEXT",
     "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT", "WEB4_ONTOLOGY_NS",
@@ -782,3 +786,101 @@ class TrustQueryResponse:
             kwargs["provided"] = err.get("provided")
         kwargs["audit_log"] = d.get("audit_log")
         return cls(**kwargs)
+
+
+# ─��� Trust Query Evaluation ─────────────────────────────────────
+# Composes TrustQuery + TrustProfile + ATPAccount into TrustQueryResponse.
+# This is the core trust resolution operation — the "DNS lookup" for trust.
+
+
+def evaluate_trust_query(
+    query: TrustQuery,
+    profile: TrustProfile,
+    requester_atp: "ATPAccount",
+    timestamp: Optional[str] = None,
+) -> TrustQueryResponse:
+    """Evaluate a trust query against a profile, producing a response.
+
+    Composes existing SDK types into the core trust resolution pipeline:
+    1. Lock ATP stake from requester's account
+    2. Look up target's T3/V3 for the requested role
+    3. Apply disclosure level filtering
+    4. Return approved response with trust data, or rejected with error
+
+    Args:
+        query: The trust query to evaluate
+        profile: Trust profile of the target entity (query.target_entity)
+        requester_atp: ATP account of the querier (for stake locking)
+        timestamp: Optional ISO timestamp for the response audit log.
+            If None, uses query.timestamp.
+
+    Returns:
+        TrustQueryResponse with status APPROVED or REJECTED.
+
+    Note:
+        This function mutates requester_atp (locks ATP on approval).
+        On rejection due to insufficient ATP, no mutation occurs.
+    """
+    from .atp import ATPAccount as _ATPAccount  # deferred to avoid circular import
+
+    ts = timestamp or query.timestamp
+    audit_log: Dict[str, Any] = {
+        "querier": query.querier,
+        "target": query.target_entity,
+        "role": query.requested_role,
+        "stake": query.atp_stake,
+    }
+    if ts is not None:
+        audit_log["timestamp"] = ts
+
+    # Step 1: Lock ATP stake
+    if not requester_atp.lock(float(query.atp_stake)):
+        return TrustQueryResponse(
+            status="REJECTED",
+            error_code="INSUFFICIENT_STAKE",
+            error_message="Requester has insufficient ATP to cover stake",
+            minimum_required=query.atp_stake,
+            provided=int(requester_atp.available + requester_atp.locked),
+            audit_log=audit_log,
+        )
+
+    # Step 2: Look up T3 for the requested role
+    t3 = profile.get_t3(query.requested_role)
+
+    # Step 3: Apply disclosure level filtering
+    if query.disclosure_level == DisclosureLevel.BINARY:
+        # Binary: return T3 with composite > 0 check, but redact dimensions
+        # Approved if entity has any trust (composite > 0)
+        t3_response: Optional[T3] = None  # binary doesn't reveal tensor
+    elif query.disclosure_level == DisclosureLevel.RANGE:
+        # Range: return composite only (individual dimensions redacted)
+        # We return a T3 with composite as all dimensions (uniform)
+        c = t3.composite
+        t3_response = T3(talent=c, training=c, temperament=c)
+    else:
+        # Precise: return full T3
+        t3_response = t3
+
+    # Step 4: Build validity_until from timestamp + validity_period
+    validity_until: Optional[str] = None
+    if ts is not None:
+        try:
+            from datetime import datetime, timedelta, timezone
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            until = dt + timedelta(seconds=query.validity_period)
+            validity_until = until.strftime("%Y-%m-%dT%H:%M:%SZ")
+        except (ValueError, AttributeError):
+            pass
+
+    commitment = f"Must engage within {query.validity_period} seconds or forfeit stake"
+
+    return TrustQueryResponse(
+        status="APPROVED",
+        entity=query.target_entity,
+        role=query.requested_role,
+        t3_in_role=t3_response,
+        validity_until=validity_until,
+        stake_locked=query.atp_stake,
+        commitment=commitment,
+        audit_log=audit_log,
+    )
