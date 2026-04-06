@@ -43,10 +43,12 @@ Changelog = "https://github.com/dp-web4/web4/blob/main/web4-standard/implementat
 
 [project.scripts]
 web4 = "web4.__main__:main"
+web4-mcp = "web4.mcp_server:run"
 
 [project.optional-dependencies]
 validation = ["jsonschema>=4.0"]
-dev = ["pytest>=7.0", "pytest-cov>=4.0", "mypy>=1.0", "ruff>=0.4", "jsonschema>=4.0"]
+mcp = ["mcp>=1.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "mypy>=1.0", "ruff>=0.4", "jsonschema>=4.0", "mcp>=1.0"]
 
 [tool.setuptools.packages.find]
 include = ["web4*"]
@@ -72,6 +74,10 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = "jsonschema.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mcp.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
