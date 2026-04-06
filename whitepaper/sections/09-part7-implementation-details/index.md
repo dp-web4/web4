@@ -28,17 +28,19 @@
 
 ### 7.0.2. Hardware Binding Status
 
-**Current State**: The Web4 trust model depends on **witness-hardened presence**. Hardware binding is now **partially implemented**:
+**Current State**: The Web4 trust model depends on **witness-hardened presence**. Hardware binding is now **partially implemented**, unified through the **AttestationEnvelope** — a single data structure that normalizes across hardware anchor types so verifiers never need to know which hardware produced the attestation.
+
+**AttestationEnvelope**: Answers one question for any verifier: *"Is this entity who it claims to be, on hardware it claims to be on, in a state I can trust?"* The envelope is anchor-agnostic at the consumer level — anchor-specific logic lives in the producer (signer) and verification module. Different anchors produce different trust ceilings; the envelope carries the ceiling, the consumer decides what to require. Challenge-response freshness is mandatory. Spec: `docs/specs/attestation-envelope.md`.
 
 **Implemented (hardbound-core):**
 - TPM 2.0 integration via `tss-esapi` (Rust)
 - Hardware-sealed key storage
 - PCR-based attestation
 - Verified working on x86_64 systems with TPM 2.0
+- AttestationEnvelope supporting 4 anchor types: TPM 2.0, FIDO2/YubiKey, Secure Enclave, software fallback (45/45 checks)
 
 **Not Yet Implemented:**
 - TrustZone/OP-TEE for ARM platforms
-- Broad hardware attestation protocols
 - Automatic capability level detection
 
 **Capability Levels:**

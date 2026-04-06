@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-02-21
+**Last Updated**: 2026-04-06
 **Whitepaper Status**: Active Development
 
 ---
@@ -203,6 +203,13 @@ After any change:
 
 ## 6. Recent Changes
 
+### 2026-04-06: Publisher Maintenance - AttestationEnvelope + Glossary
+- Added AttestationEnvelope to §7.0.2 (unified hardware trust primitive, 4 anchor types)
+- Added R6/R7 Action Framework glossary entry (canonical term, was missing)
+- Added AttestationEnvelope glossary entry (implemented protocol primitive)
+- Updated PUBLISHER_CONTEXT.md (recent changes, pending updates, governance stack 9→10-layer)
+- Rebuilt all artifacts (md, pdf)
+
 ### 2026-02-21: Publisher Maintenance - R7/ACP/Federation Expansion
 - Executive Summary: expanded "Emerging Implementation" with 10 new capabilities (R7, ACP, Sybil proofs, game theory, Dictionary Entity, federation, multi-device, trust decay, Law Oracle, MRH graph)
 - Moved Dictionary Entity from "Vision" to "Emerging Implementation" (now has 30/30-check reference impl)
@@ -362,15 +369,16 @@ Web4 whitepaper uses **direct edit** model (simpler than Synchronism):
 
 The whitepaper should reflect implementation reality. Current gaps:
 
-1. **R6 Framework**: Documented, Hardbound CLI demonstrates role-based R6 in practice
-2. **Governance Stack Detail**: 9-layer stack operational in Hardbound CLI — whitepaper mentions concepts but not the operational stack
-3. **Claude Code Plugins**: Working, consider adding to implementation examples
+1. **R6/R7 Framework**: Documented; R7 in status table and glossary; Part 7 body examples still use R6 language
+2. **Governance Stack Detail**: 10-layer stack operational in Hardbound CLI — documented in status table
+3. **AttestationEnvelope**: Now documented in §7.0.2 and glossary (as of 2026-04-06)
+4. **Claude Code Plugins**: Working, consider adding to implementation examples
 
 ### Pending Updates
 
 | Area | Priority | Status |
 |------|----------|--------|
-| R7 section in Part 7 body | Medium | Reference impl exists; Part 7 body still uses R6 language |
+| R7 language in Part 7 body examples | Medium | Reference impl exists; Part 7 body examples (7.1-7.3) still use R6 language |
 | ACP protocol section in Part 7 | Medium | Full lifecycle implemented; no dedicated whitepaper section yet |
 | 10-layer governance diagram | Low | Described in status table; could benefit from visual representation |
 | Plugin examples | Low | Nice to have |

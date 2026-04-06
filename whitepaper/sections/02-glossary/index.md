@@ -66,6 +66,16 @@ The W3C standard for expressing relationships as typed subject-predicate-object 
 
 The RDF property that creates the fractal sub-dimension graph in T3 and V3 tensors. Links a child dimension to its parent (analogous to `skos:broader`). Anyone can extend the dimension tree by declaring new dimensions with this property—a medical institution defining SurgicalPrecision, a law firm defining ContractDrafting—without modifying the core ontology. See also: T3 Tensor, V3 Tensor.
 
+### R6 / R7 Action Framework
+> *"Every action has six roots. Reputation makes seven."*
+
+The structured action model for Web4 operations. **R6** decomposes every action into six components: **Rules** (what governs), **Role** (who acts), **Request** (what's asked), **Reference** (prior context), **Resource** (what's consumed), and **Result** (what's produced). **R7** extends R6 with **Reputation** as a seventh, feedback component — every action's result feeds back into the actor's trust profile, creating a learning loop. R7 is the operational form used in the 10-layer governance stack.
+
+### Attestation Envelope
+> *"One structure to answer: is this entity who it claims to be, on hardware it claims to be on?"*
+
+The unified hardware trust primitive that normalizes across anchor types (TPM 2.0, FIDO2/YubiKey, Secure Enclave, software fallback) so that consumers never need to know which hardware produced the attestation. Carries layered trust ceilings (not binary pass/fail), mandatory challenge-response freshness, and platform state when available. The envelope is the **dictionary entity for hardware trust** — the same normalization pattern as T3/V3 for entity trust. Spec: `docs/specs/attestation-envelope.md`.
+
 ### Entity
 > *"Anything with presence can be an entity—anything that can leave a footprint."*
 

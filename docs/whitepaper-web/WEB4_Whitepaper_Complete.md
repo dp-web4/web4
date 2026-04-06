@@ -194,6 +194,16 @@ The W3C standard for expressing relationships as typed subject-predicate-object 
 
 The RDF property that creates the fractal sub-dimension graph in T3 and V3 tensors. Links a child dimension to its parent (analogous to `skos:broader`). Anyone can extend the dimension tree by declaring new dimensions with this property—a medical institution defining SurgicalPrecision, a law firm defining ContractDrafting—without modifying the core ontology. See also: T3 Tensor, V3 Tensor.
 
+### R6 / R7 Action Framework
+> *"Every action has six roots. Reputation makes seven."*
+
+The structured action model for Web4 operations. **R6** decomposes every action into six components: **Rules** (what governs), **Role** (who acts), **Request** (what's asked), **Reference** (prior context), **Resource** (what's consumed), and **Result** (what's produced). **R7** extends R6 with **Reputation** as a seventh, feedback component — every action's result feeds back into the actor's trust profile, creating a learning loop. R7 is the operational form used in the 10-layer governance stack.
+
+### Attestation Envelope
+> *"One structure to answer: is this entity who it claims to be, on hardware it claims to be on?"*
+
+The unified hardware trust primitive that normalizes across anchor types (TPM 2.0, FIDO2/YubiKey, Secure Enclave, software fallback) so that consumers never need to know which hardware produced the attestation. Carries layered trust ceilings (not binary pass/fail), mandatory challenge-response freshness, and platform state when available. The envelope is the **dictionary entity for hardware trust** — the same normalization pattern as T3/V3 for entity trust. Spec: `docs/specs/attestation-envelope.md`.
+
 ### Entity
 > *"Anything with presence can be an entity—anything that can leave a footprint."*
 
@@ -2320,17 +2330,19 @@ This typology ensures that each piece of data finds its natural persistence leve
 
 ### 7.0.2. Hardware Binding Status
 
-**Current State**: The Web4 trust model depends on **witness-hardened presence**. Hardware binding is now **partially implemented**:
+**Current State**: The Web4 trust model depends on **witness-hardened presence**. Hardware binding is now **partially implemented**, unified through the **AttestationEnvelope** — a single data structure that normalizes across hardware anchor types so verifiers never need to know which hardware produced the attestation.
+
+**AttestationEnvelope**: Answers one question for any verifier: *"Is this entity who it claims to be, on hardware it claims to be on, in a state I can trust?"* The envelope is anchor-agnostic at the consumer level — anchor-specific logic lives in the producer (signer) and verification module. Different anchors produce different trust ceilings; the envelope carries the ceiling, the consumer decides what to require. Challenge-response freshness is mandatory. Spec: `docs/specs/attestation-envelope.md`.
 
 **Implemented (hardbound-core):**
 - TPM 2.0 integration via `tss-esapi` (Rust)
 - Hardware-sealed key storage
 - PCR-based attestation
 - Verified working on x86_64 systems with TPM 2.0
+- AttestationEnvelope supporting 4 anchor types: TPM 2.0, FIDO2/YubiKey, Secure Enclave, software fallback (45/45 checks)
 
 **Not Yet Implemented:**
 - TrustZone/OP-TEE for ARM platforms
-- Broad hardware attestation protocols
 - Automatic capability level detection
 
 **Capability Levels:**
@@ -3738,4 +3750,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-04-04 04:32:23*
+*Generated: 2026-04-06 04:37:42*
