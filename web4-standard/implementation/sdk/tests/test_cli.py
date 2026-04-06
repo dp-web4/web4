@@ -46,7 +46,7 @@ class TestInfo:
 
     def test_info_shows_module_count(self) -> None:
         r = run_cli(["info"])
-        assert "Modules: 21" in r.stdout
+        assert "Modules: 22" in r.stdout
 
     def test_info_shows_export_count(self) -> None:
         r = run_cli(["info"])
