@@ -1,9 +1,33 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-05 (Sprint 21 T1)
+**Updated**: 2026-04-06 (Sprint 22 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 22: MCP Server (2026-04-06)
+
+The canonical equation `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` places MCP
+first as the "I/O membrane." The SDK has 22 modules of types, serialization, validation,
+generation, and a CLI — but no MCP server exposing these as tools. Sprint 22 makes web4
+accessible from any MCP client.
+
+### T1: Web4 MCP Server module
+**Status**: DONE
+**Completed**: 2026-04-06
+**Scope**: New `web4/mcp_server.py` module using the `mcp` Python SDK (FastMCP) to
+expose 5 tools wrapping existing SDK functions: `web4_info` (SDK metadata),
+`web4_validate` (schema validation with auto-detection), `web4_generate` (minimal
+JSON-LD document generation for 23 types), `web4_roundtrip` (conformance testing via
+deserialize + re-serialize), `web4_list_types` (introspection of available types).
+Console script entry point `web4-mcp` in pyproject.toml. Optional dependency via
+`pip install 'web4[mcp]'`. Stdio transport by default.
+**Result**: 1 new module (web4/mcp_server.py), 1 new test file (test_mcp_server.py).
+43 new tests (6 info + 8 validate + 5 generate + 7 roundtrip + 4 list-types + 4
+registration + 9 pipeline integration). 2502 total tests passing (up from 2459).
+mypy strict clean (25 files, up from 24). 23 modules in SDK (up from 22).
 
 ---
 
