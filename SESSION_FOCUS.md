@@ -10,11 +10,11 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
-### Sprint 23 Summary: Release Housekeeping v0.20.0 (IN PROGRESS)
+### Sprint 23 Summary: Release Housekeeping v0.20.0 (COMPLETE)
 
 | Task | Status | Notes |
 |------|--------|-------|
-| T1: SDK v0.20.0 release housekeeping | IN PROGRESS | Version bump, CHANGELOG, README, docstring updates for Sprint 22 |
+| T1: SDK v0.20.0 release housekeeping | DONE | Version bump, CHANGELOG, README, docstring updates for Sprint 22. PR #136 |
 
 ### Sprint 22 Summary: Trust Query Evaluation Pipeline + MCP Server (COMPLETE)
 
