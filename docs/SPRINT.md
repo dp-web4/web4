@@ -1,9 +1,38 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-07 (Sprint 23 T1)
+**Updated**: 2026-04-07 (Sprint 25 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 25: Indirect Trust Resolution (2026-04-07)
+
+Sprints 22 and 24 added the first two behavioral functions: `evaluate_trust_query()`
+(direct trust lookup) and `process_action_outcome()` (action → reputation pipeline).
+Sprint 25 adds the third: `resolve_trust()`, which composes MRH graph topology with
+TrustProfile T3 tensors to resolve **indirect** trust through intermediary chains —
+the "transitive DNS lookup" for trust when observer and target are not directly connected.
+
+### T1: `resolve_trust()` function + `TrustResolution` dataclass
+**Status**: DONE
+**Completed**: 2026-04-07
+**Scope**: Add `resolve_trust()` to `web4/trust.py` that composes
+`MRHGraph.trust_between()` (scalar path trust with decay) with
+`TrustProfile.get_t3()` (per-role T3 tensors) to produce tensor-aware
+indirect trust resolution. New `TrustResolution` dataclass captures the
+resolution method (direct/indirect/none), effective T3, path trust scalar,
+hop count, and propagation strategy used. Handles self-trust (direct),
+graph-mediated indirect trust, and no-path cases. `to_dict()`/`from_dict()`
+round-trip on TrustResolution. Uses `TYPE_CHECKING` import for MRHGraph
+(same pattern as evaluate_trust_query's ATPAccount). 2 new exports in
+`__init__.py` `__all__` (364 total, up from 362).
+**Result**: 1 new function (~50 lines), 1 new dataclass (~40 lines) in trust.py.
+22 new tests in test_trust_resolution.py covering direct trust (3), 1-hop
+indirect (3), multi-hop decay (3), multi-path aggregation (3), no-path (2),
+decay factor (2), round-trip serialization (3), and integration (3).
+2565 total tests passing (up from 2543). mypy strict clean (25 files).
 
 ---
 
