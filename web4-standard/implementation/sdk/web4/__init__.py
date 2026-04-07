@@ -69,6 +69,8 @@ from .trust import (
     diminishing_returns,
     trust_bridge,
     evaluate_trust_query,
+    TrustResolution,
+    resolve_trust,
     TRUST_QUERY_JSONLD_CONTEXT,
     TRUST_QUERY_MIN_STAKE,
     TRUST_QUERY_MIN_VALIDITY,
@@ -239,7 +241,9 @@ from .reputation import (
     Modifier,
     ReputationEngine,
     ReputationStore,
+    ActionOutcomeResult,
     analyze_factors,
+    process_action_outcome,
 )
 
 # ── Entity Taxonomy ────────────────────────────────────────────
@@ -510,8 +514,10 @@ __all__ = [
     # trust
     "T3", "V3", "TrustProfile", "ActionOutcome", "RoleRequirement",
     "RoleTensors", "TrustQuery", "TrustQueryResponse", "DisclosureLevel",
+    "TrustResolution",
     "compute_team_t3", "operational_health", "is_healthy",
     "diminishing_returns", "trust_bridge", "evaluate_trust_query",
+    "resolve_trust",
     "TRUST_QUERY_JSONLD_CONTEXT", "TRUST_QUERY_MIN_STAKE",
     "TRUST_QUERY_MIN_VALIDITY", "TRUST_QUERY_MAX_VALIDITY",
     "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT",
@@ -565,7 +571,8 @@ __all__ = [
     "AmbiguityHandling", "ChainStep", "EvolutionConfig", "FeedbackRecord",
     # reputation
     "ReputationRule", "DimensionImpact", "Modifier",
-    "ReputationEngine", "ReputationStore", "analyze_factors",
+    "ReputationEngine", "ReputationStore", "ActionOutcomeResult",
+    "analyze_factors", "process_action_outcome",
     # entity
     "BehavioralMode", "EnergyPattern", "InteractionType",
     "EntityTypeInfo", "ENTITY_JSONLD_CONTEXT",

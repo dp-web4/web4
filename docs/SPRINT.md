@@ -1,9 +1,33 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-07 (Sprint 23 T1)
+**Updated**: 2026-04-07 (Sprint 24 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 24: Action Outcome Processing Pipeline (2026-04-07)
+
+Sprint 22 added `evaluate_trust_query()` as the first behavioral composition
+function. Sprint 24 adds the second: `process_action_outcome()`, which connects
+R7 actions to reputation and trust updates — the core "action → consequence"
+loop.
+
+### T1: `process_action_outcome()` function
+**Status**: DONE
+**Completed**: 2026-04-07
+**Scope**: Add `process_action_outcome()` to `web4/reputation.py` that composes
+a completed R7Action through the reputation pipeline: evaluate rules via
+ReputationEngine → apply T3/V3 deltas to TrustProfile → settle ATP (commit on
+success, rollback on failure) → optionally record in ReputationStore. New
+`ActionOutcomeResult` dataclass as return type. 2 new exports in `__init__.py`
+`__all__` (362 total, up from 360).
+**Result**: 1 new function (~80 lines), 1 new dataclass in reputation.py.
+18 new tests in test_process_action_outcome.py covering success path (5 tests),
+failure path (3 tests), edge cases (5 tests), store integration (3 tests), and
+root imports (2 tests). 2543 total tests passing (up from 2525). mypy strict
+clean (25 files).
 
 ---
 

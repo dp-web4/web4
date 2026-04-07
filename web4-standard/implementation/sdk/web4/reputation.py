@@ -23,20 +23,24 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from .atp import ATPAccount
 from .r6 import (
+    ActionStatus,
     ContributingFactor,
     R7Action,
     ReputationDelta,
     TensorDelta,
 )
-from .trust import T3, V3, _clamp
+from .trust import T3, TrustProfile, V3, _clamp
 
 __all__ = [
     # Classes
     "ReputationRule", "DimensionImpact", "Modifier",
     "ReputationEngine", "ReputationStore",
+    "ActionOutcomeResult",
     # Functions
     "analyze_factors",
+    "process_action_outcome",
 ]
 
 
@@ -483,3 +487,119 @@ class ReputationStore:
     def has_history(self, entity_lct: str, role_lct: str) -> bool:
         """Check if store has any deltas for this entity+role pair."""
         return (entity_lct, role_lct) in self._deltas
+
+
+# ── Action Outcome Processing ──────────────────────────────────
+
+
+@dataclass
+class ActionOutcomeResult:
+    """Result of processing a completed R7Action through the reputation pipeline.
+
+    Contains the reputation delta (if rules matched), the updated T3/V3
+    tensors for the actor's role, and ATP settlement details.
+    """
+    delta: Optional[ReputationDelta]
+    updated_t3: T3
+    updated_v3: V3
+    atp_committed: float
+    atp_rolled_back: float
+
+
+def process_action_outcome(
+    action: R7Action,
+    engine: ReputationEngine,
+    profile: TrustProfile,
+    account: ATPAccount,
+    *,
+    store: Optional[ReputationStore] = None,
+) -> ActionOutcomeResult:
+    """Process a completed R7Action through the reputation and trust pipeline.
+
+    This is the core "action → consequence" composition function. It takes
+    a completed action (status SUCCESS or FAILURE) and:
+
+    1. Evaluates reputation rules via the engine → ReputationDelta
+    2. Applies T3/V3 deltas to the actor's TrustProfile
+    3. Settles ATP: commits locked stake on success, rolls back on failure
+    4. Optionally records the delta in a ReputationStore
+
+    Does NOT evaluate policy (that's PolicyGate). Operates on the OUTCOME
+    of an already-completed action.
+
+    Args:
+        action: A completed R7Action (status must be SUCCESS or FAILURE).
+        engine: ReputationEngine with rules to evaluate.
+        profile: Actor's TrustProfile (mutated in place with updated tensors).
+        account: Actor's ATPAccount (mutated in place with ATP settlement).
+        store: Optional ReputationStore to record the delta for aggregation.
+
+    Returns:
+        ActionOutcomeResult with delta, updated tensors, and ATP settlement.
+
+    Raises:
+        ValueError: If action status is not SUCCESS or FAILURE.
+    """
+    status = action.result.status
+    if status not in (ActionStatus.SUCCESS, ActionStatus.FAILURE):
+        raise ValueError(
+            f"Cannot process action with status '{status.value}'; "
+            f"expected 'success' or 'failure'"
+        )
+
+    # Step 1: Evaluate reputation rules
+    delta = engine.evaluate(action)
+
+    # Step 2: Apply T3/V3 deltas to the actor's trust profile
+    role = action.role.role_lct
+    current_t3 = profile.get_t3(role)
+    current_v3 = profile.get_v3(role)
+
+    if delta is not None:
+        # Apply T3 deltas
+        t3_kwargs = {
+            "talent": current_t3.talent,
+            "training": current_t3.training,
+            "temperament": current_t3.temperament,
+        }
+        for dim, td in delta.t3_delta.items():
+            t3_kwargs[dim] = td.to_value
+
+        # Apply V3 deltas
+        v3_kwargs = {
+            "veracity": current_v3.veracity,
+            "validity": current_v3.validity,
+            "valuation": current_v3.valuation,
+        }
+        for dim, td in delta.v3_delta.items():
+            v3_kwargs[dim] = td.to_value
+
+        updated_t3 = T3(**t3_kwargs)
+        updated_v3 = V3(**v3_kwargs)
+        profile.set_role(role, t3=updated_t3, v3=updated_v3)
+    else:
+        updated_t3 = current_t3
+        updated_v3 = current_v3
+
+    # Step 3: Settle ATP — commit on success, rollback on failure
+    atp_stake = action.request.atp_stake
+    atp_committed = 0.0
+    atp_rolled_back = 0.0
+
+    if atp_stake > 0:
+        if status == ActionStatus.SUCCESS:
+            atp_committed = account.commit(atp_stake)
+        else:
+            atp_rolled_back = account.rollback(atp_stake)
+
+    # Step 4: Optionally record in store for time-weighted aggregation
+    if delta is not None and store is not None:
+        store.record(delta)
+
+    return ActionOutcomeResult(
+        delta=delta,
+        updated_t3=updated_t3,
+        updated_v3=updated_v3,
+        atp_committed=atp_committed,
+        atp_rolled_back=atp_rolled_back,
+    )
