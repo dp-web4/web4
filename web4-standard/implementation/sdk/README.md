@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.20.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.21.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
 
 ## Installation
 
@@ -59,7 +59,7 @@ The SDK contains 22 modules, all importable from the `web4` namespace:
 
 | Module | Description | Key Types |
 |--------|-------------|-----------|
-| `trust` | Multi-dimensional trust and value assessment | `T3`, `V3`, `TrustQuery`, `evaluate_trust_query` |
+| `trust` | Multi-dimensional trust and value assessment | `T3`, `V3`, `TrustQuery`, `evaluate_trust_query`, `resolve_trust` |
 | `lct` | Linked Context Tokens — identity and presence | `LCT`, `EntityType`, `BirthCertificate` |
 | `atp` | ATP/ADP energy metabolism | `ATPAccount`, `transfer`, `energy_ratio` |
 | `federation` | Society, Authority, Law governance | `Society`, `LawDataset`, `Delegation` |
@@ -82,7 +82,7 @@ The SDK contains 22 modules, all importable from the `web4` namespace:
 | `deserialize` | Generic JSON-LD deserialization dispatcher | `from_jsonld`, `from_jsonld_string`, `supported_types` |
 | `generate` | Produce minimal valid JSON-LD documents | `generate`, `generate_string`, `available_types` |
 
-360 symbols are exported from `web4.__init__`. All 22 submodules have `__all__` declarations.
+362 symbols are exported from `web4.__init__`. All 22 submodules have `__all__` declarations.
 
 ## MCP Server
 
@@ -180,7 +180,7 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-2525 tests, 96% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
+2547 tests, 96% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
 
 ## Client SDK
 
@@ -206,17 +206,17 @@ The client SDK re-exports canonical types from the `web4` package, so both
 
 ```
 web4/                  # Python package (22 modules + MCP server)
-  __init__.py          # 360 re-exports
+  __init__.py          # 362 re-exports
   __main__.py          # CLI entry point (web4 info/validate/list-schemas/roundtrip/generate)
   mcp_server.py        # MCP server entry point (web4-mcp)
   py.typed             # PEP 561 marker
-  trust.py             # T3/V3 tensors, TrustQuery, evaluate_trust_query()
+  trust.py             # T3/V3 tensors, TrustQuery, evaluate_trust_query(), resolve_trust()
   lct.py               # Linked Context Tokens
   deserialize.py       # Generic JSON-LD dispatcher (23 types)
   generate.py          # Minimal valid JSON-LD document generation
   validation.py        # Schema validation
   ...                  # (17 more modules)
-tests/                 # 2525 tests
+tests/                 # 2547 tests
 schemas/               # JSON Schemas + JSON-LD contexts
 web4_sdk.py            # Async HTTP client (separate)
 pyproject.toml         # Package metadata (single version source)
