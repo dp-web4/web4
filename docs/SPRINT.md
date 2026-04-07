@@ -1,18 +1,37 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-06 (Sprint 22 T1)
+**Updated**: 2026-04-07 (Sprint 23 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
 
 ---
 
-## Sprint 22: Trust Query Evaluation Pipeline (2026-04-06)
+## Sprint 23: Release Housekeeping v0.20.0 (2026-04-07)
+
+Sprint 22 added two significant features — `evaluate_trust_query()` (first behavioral
+function) and the MCP server module (5 tools via FastMCP) — without a version bump.
+Sprint 23 brings all metadata into alignment.
+
+### T1: SDK v0.20.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-07
+**Scope**: Bump version 0.19.0 → 0.20.0. Add CHANGELOG v0.20.0 entry documenting
+Sprint 22 features (evaluate_trust_query + MCP server). Update README.md with MCP
+server section, updated test count (2459→2525), export count (359→360), MCP optional
+extra docs. Update `__init__.py` docstring. Update SESSION_FOCUS.md to reflect PR #133
+merge and MCP server on main.
+**Result**: All SDK metadata now accurately reflects 22 modules + MCP server, 360
+exports, 2525 tests, `web4-mcp` entry point, and `evaluate_trust_query()`. Version 0.20.0.
+
+---
+
+## Sprint 22: Trust Query Evaluation Pipeline + MCP Server (2026-04-06)
 
 Sprints 1-21 built all data types, serialization, validation, and CLI tools.
-Sprint 22 adds the first *behavioral* function: composing TrustQuery +
-TrustProfile + ATPAccount into TrustQueryResponse — the core trust resolution
-operation that downstream consumers (hardbound, 4-life) will import.
+Sprint 22 adds the first *behavioral* function and an MCP server: composing
+TrustQuery + TrustProfile + ATPAccount into TrustQueryResponse (the core trust
+resolution operation), and exposing SDK operations as MCP tools for any client.
 
 ### T1: `evaluate_trust_query()` function
 **Status**: DONE
@@ -26,8 +45,20 @@ Handles rejection (insufficient ATP) with rollback. 1 new export in
 **Result**: 1 new function in trust.py (~60 lines), TYPE_CHECKING import
 for ATPAccount (no circular import). 23 new tests in test_trust_query_eval.py
 covering approval flow, rejection paths, disclosure levels, role lookup,
-timestamp handling, response round-trip, and ATP accounting. 2482 total tests
-passing (up from 2459). mypy strict clean (25 files).
+timestamp handling, response round-trip, and ATP accounting. mypy strict clean
+(25 files).
+
+### T1b: Web4 MCP Server module
+**Status**: DONE
+**Completed**: 2026-04-06
+**Scope**: New `web4/mcp_server.py` module exposing SDK operations as MCP
+tools via FastMCP (mcp v1.27.0, stdio transport). 5 tools: `web4_info`,
+`web4_validate`, `web4_generate`, `web4_roundtrip`, `web4_list_types`.
+Entry point: `web4-mcp` console script or `python -m web4.mcp_server`.
+Optional extra: `pip install 'web4[mcp]'`.
+**Result**: 1 new module (web4/mcp_server.py), 1 new test file
+(test_mcp_server.py). 43 new tests. 2525 total tests passing (up from 2459).
+mypy strict clean (25 files).
 
 ---
 

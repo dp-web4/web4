@@ -2,6 +2,29 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.20.0] - 2026-04-07
+
+Sprint 22: Trust query evaluation pipeline and MCP server.
+
+### Added
+- **Trust query evaluation** (Sprint 22 T1) — `evaluate_trust_query()` in `web4/trust.py`.
+  First behavioral function in the SDK: composes `TrustQuery` + `TrustProfile` + `ATPAccount`
+  into `TrustQueryResponse`. Validates query, locks ATP stake, looks up T3 for requested role,
+  applies disclosure level filtering (binary/range/precise), computes validity window, returns
+  response. Handles rejection (insufficient ATP) with rollback. `TYPE_CHECKING` import for
+  `ATPAccount` avoids circular imports. 1 new export (`evaluate_trust_query`), 23 tests.
+- **MCP server** (Sprint 22 T1b) — new `web4/mcp_server.py` module. Exposes SDK trust
+  operations as MCP tools via FastMCP (stdio transport). 5 tools: `web4_info` (SDK metadata),
+  `web4_validate` (JSON-LD schema validation), `web4_generate` (minimal document generation),
+  `web4_roundtrip` (deserialize + re-serialize), `web4_list_types` (supported types).
+  Entry point: `web4-mcp` console script or `python -m web4.mcp_server`.
+  Requires `pip install 'web4[mcp]'` (mcp>=1.0). 43 tests.
+
+### Changed
+- Version bumped from 0.19.0 to 0.20.0.
+- 2525 tests passing (up from 2459 in v0.19.0). 360 exports.
+- `pyproject.toml` gains `web4-mcp` console script and `mcp` optional extra.
+
 ## [0.19.0] - 2026-04-05
 
 Sprints 18-20: CLI conformance tooling, trust query data types, and document generation.

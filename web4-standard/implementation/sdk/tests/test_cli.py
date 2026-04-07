@@ -42,7 +42,7 @@ class TestInfo:
         r = run_cli(["info"])
         assert r.returncode == 0
         assert "web4" in r.stdout
-        assert "0.19.0" in r.stdout
+        assert "0.20.0" in r.stdout
 
     def test_info_shows_module_count(self) -> None:
         r = run_cli(["info"])
