@@ -2,6 +2,27 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.21.0] - 2026-04-07
+
+Sprint 25: Indirect trust resolution through MRH graphs.
+
+### Added
+- **Indirect trust resolution** (Sprint 25 T1) — `resolve_trust()` in `web4/trust.py`.
+  Third behavioral function in the SDK: composes `MRHGraph.trust_between()` (scalar path
+  trust with decay) with `TrustProfile.get_t3()` (per-role T3 tensors) to produce
+  tensor-aware indirect trust resolution. Handles self-trust (direct), graph-mediated
+  indirect trust through intermediaries, and no-path cases. Supports multiplicative,
+  probabilistic, and maximal propagation strategies. 1 new function, 22 tests.
+- **TrustResolution dataclass** — captures resolution metadata: method (direct/indirect/none),
+  effective T3, path trust scalar, hop count, and propagation strategy used. `to_dict()` /
+  `from_dict()` round-trip serialization. 1 new type.
+
+### Changed
+- Version bumped from 0.20.0 to 0.21.0.
+- 2547 tests passing (up from 2525 in v0.20.0). 362 exports (up from 360).
+- 3 behavioral functions: `evaluate_trust_query()` (direct), `resolve_trust()` (indirect),
+  `process_action_outcome()` (action consequences — in PR #137).
+
 ## [0.20.0] - 2026-04-07
 
 Sprint 22: Trust query evaluation pipeline and MCP server.

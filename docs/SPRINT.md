@@ -1,9 +1,26 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-07 (Sprint 25 T1)
+**Updated**: 2026-04-07 (Sprint 26 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 26: Release Housekeeping v0.21.0 (2026-04-07)
+
+Sprint 25 added the third behavioral function (`resolve_trust()` + `TrustResolution`)
+without a version bump. Sprint 26 brings all metadata into alignment.
+
+### T1: SDK v0.21.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-07
+**Scope**: Bump version 0.20.0 → 0.21.0. Add CHANGELOG v0.21.0 entry documenting
+Sprint 25 features (resolve_trust, TrustResolution). Update README.md with 3rd
+behavioral function, updated test count (2525→2547), export count (360→362). Update
+`__init__.py` docstring. Update SESSION_FOCUS.md to reflect Sprint 25 merge.
+**Result**: All SDK metadata now accurately reflects 22 modules + MCP server, 362
+exports, 2547 tests, 3 behavioral functions, and `resolve_trust()`. Version 0.21.0.
 
 ---
 

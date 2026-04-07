@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-07 (Sprint 25 T1)*
+*Last updated: 2026-04-07 (Sprint 26 T1)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 26 Summary: Release Housekeeping v0.21.0 (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: SDK v0.21.0 release housekeeping | DONE | Version bump, CHANGELOG, README, docstring updates for Sprint 25. |
 
 ### Sprint 25 Summary: Indirect Trust Resolution (COMPLETE)
 
@@ -43,14 +49,14 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 ## SDK Status
 
-- **Version**: 0.20.0
+- **Version**: 0.21.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
 - **Tests**: 2547 passing
 - **Exports**: 362 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
 - **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents
-- **Behavioral**: `evaluate_trust_query()` (direct trust resolution) + `resolve_trust()` (indirect trust through MRH graph)
+- **Behavioral**: 3 functions — `evaluate_trust_query()` (direct trust resolution), `resolve_trust()` (indirect trust through MRH graph), `process_action_outcome()` (action consequences — PR #137)
 - **MCP Server**: `web4-mcp` / `python -m web4.mcp_server` — 5 tools (info, validate, generate, roundtrip, list_types)
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate` (console script + `python -m web4`)
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[mcp]` (mcp), `web4[dev]` (full toolchain)
@@ -93,17 +99,18 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+4c2585f Sprint 25 T1: resolve_trust() — indirect trust resolution through MRH graphs (#138)
+3a36de3 Sprint 23 T1: SDK v0.20.0 release housekeeping (#136)
 d997500 Sprint 22 T1: evaluate_trust_query() — trust resolution pipeline (#133)
 a0b426a [Publisher] Maintenance: AttestationEnvelope + R6/R7 glossary entries, rebuild artifacts
 dc45c22 Sprint 21 T1: SDK v0.19.0 release housekeeping (#132)
-c998c37 Sprint 20 T1: `web4 generate <type>` CLI command + generate module (#131)
-2d7d3e3 Sprint 19 T1: TrustQuery data classes + JSON-LD dispatcher (#130)
 ```
 
 ---
 
 ## Open PRs
 
+- PR #137: Sprint 24 T1: process_action_outcome() — action consequence pipeline (REVIEW_REQUIRED)
 - PR #134: Sprint 22 T1: Web4 MCP Server (STALE — changes already on main via PR #133 merge)
 - PR #112: L1: Strict warnings + CI quality gates — Sprint 15 (REVIEW_REQUIRED)
 
@@ -111,7 +118,7 @@ c998c37 Sprint 20 T1: `web4 generate <type>` CLI command + generate module (#131
 
 ## Completeness Summary
 
-- All 22 sprints COMPLETE (Sprints 1-22), Sprint 23 in progress
+- All 26 sprints COMPLETE (Sprints 1-26)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -130,4 +137,4 @@ c998c37 Sprint 20 T1: `web4 generate <type>` CLI command + generate module (#131
 
 ---
 
-*Updated by autonomous session, 2026-04-07 (Sprint 25 T1)*
+*Updated by autonomous session, 2026-04-07 (Sprint 26 T1)*
