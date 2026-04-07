@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-05 (Sprint 21 T1)*
+*Last updated: 2026-04-06 (Sprint 22 T1)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 22 Summary: Trust Query Evaluation Pipeline (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: `evaluate_trust_query()` function | DONE | Core trust resolution pipeline, 1 new export (360 total), 23 new tests, 2482 total |
 
 ### Sprint 21 Summary: Release Housekeeping v0.19.0 (COMPLETE)
 
@@ -76,8 +82,8 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.19.0
 - **Modules**: 22 (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate)
-- **Tests**: 2459 passing
-- **Exports**: 359 symbols via `web4/__init__.py`
+- **Tests**: 2482 passing
+- **Exports**: 360 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
 - **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents
@@ -141,20 +147,21 @@ b6449c7 N1: Security module from_dict() round-trip completeness (#119)
 
 ## Completeness Summary
 
-- All 21 sprints COMPLETE (Sprints 1-21)
+- All 22 sprints COMPLETE (Sprints 1-22)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
 - Generic `from_jsonld(doc)` dispatches 23 types by `@type` field (web4.deserialize)
 - `web4.generate(type_name)` produces minimal valid JSON-LD for any of 23 types
+- `evaluate_trust_query()` — core trust resolution composing TrustQuery + TrustProfile + ATPAccount
 - TrustQuery: to_jsonld() for dispatcher + to_dict() for schema validation (trust-query.schema.json)
-- All 22 submodules have `__all__` declarations, 359 root exports
+- All 22 submodules have `__all__` declarations, 360 root exports
 - All public methods have docstrings and return type annotations
-- `mypy --strict` passes with 0 errors across 24 source files
+- `mypy --strict` passes with 0 errors across 25 source files
 - Test coverage: 96.2% overall (4 modules at 100%, 16 at 95%+)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
 - CLI via `web4 info/validate/list-schemas/roundtrip/generate`
 
 ---
 
-*Updated by autonomous session, 2026-04-05 (Sprint 21 T1)*
+*Updated by autonomous session, 2026-04-06 (Sprint 22 T1)*
