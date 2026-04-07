@@ -25,15 +25,17 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from .atp import ATPAccount
+    from .mrh import MRHGraph
 
 __all__ = [
     # Classes
     "T3", "V3", "TrustProfile", "ActionOutcome", "RoleRequirement", "RoleTensors",
     "TrustQuery", "TrustQueryResponse", "DisclosureLevel",
+    "TrustResolution",
     # Functions
     "compute_team_t3", "operational_health", "is_healthy",
     "diminishing_returns", "trust_bridge", "mrh_trust_decay", "mrh_zone",
-    "evaluate_trust_query",
+    "evaluate_trust_query", "resolve_trust",
     # Constants
     "TRUST_QUERY_JSONLD_CONTEXT",
     "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT", "WEB4_ONTOLOGY_NS",
@@ -883,4 +885,159 @@ def evaluate_trust_query(
         stake_locked=query.atp_stake,
         commitment=commitment,
         audit_log=audit_log,
+    )
+
+
+# ── Indirect Trust Resolution ──────────────────────────────────
+# Composes MRHGraph (path-finding + scalar trust) with TrustProfile
+# (per-role T3 tensors) into tensor-aware trust resolution.
+# This is the "indirect DNS lookup" for trust — when you don't know
+# the target directly, resolve through intermediaries.
+
+
+@dataclass
+class TrustResolution:
+    """Result of trust resolution through an MRH graph.
+
+    Captures the resolution method (direct/indirect/none), effective T3
+    tensor, path trust scalar, hop count, and strategy used.
+
+    Direct: observer has the target's role in their own profile's knowledge
+    (0 hops, path_trust=1.0).
+    Indirect: trust resolved through MRH graph paths, T3 attenuated by
+    path trust.
+    None: no path exists between observer and target.
+    """
+
+    observer: str
+    target: str
+    role: str
+    method: str  # "direct", "indirect", "none"
+    effective_t3: Optional[T3] = None
+    path_trust: float = 0.0
+    hops: int = 0
+    strategy: str = "probabilistic"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dict."""
+        doc: Dict[str, Any] = {
+            "observer": self.observer,
+            "target": self.target,
+            "role": self.role,
+            "method": self.method,
+            "path_trust": self.path_trust,
+            "hops": self.hops,
+            "strategy": self.strategy,
+        }
+        if self.effective_t3 is not None:
+            doc["effective_t3"] = self.effective_t3.as_dict()
+        return doc
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "TrustResolution":
+        """Deserialize from dict (inverse of to_dict())."""
+        t3_raw = d.get("effective_t3")
+        effective_t3 = T3.from_dict(t3_raw) if t3_raw is not None else None
+        return cls(
+            observer=d["observer"],
+            target=d["target"],
+            role=d["role"],
+            method=d["method"],
+            effective_t3=effective_t3,
+            path_trust=d.get("path_trust", 0.0),
+            hops=d.get("hops", 0),
+            strategy=d.get("strategy", "probabilistic"),
+        )
+
+
+def resolve_trust(
+    graph: "MRHGraph",
+    profiles: Dict[str, TrustProfile],
+    observer: str,
+    target: str,
+    role: str,
+    strategy: str = "probabilistic",
+    decay_factor: float = 0.7,
+) -> TrustResolution:
+    """Resolve an observer's effective trust in a target for a role.
+
+    Combines MRH graph topology (path-finding, decay) with TrustProfile
+    tensor data to produce tensor-aware trust resolution.
+
+    Resolution modes:
+    - Direct: observer == target → self-trust (path_trust=1.0, hops=0)
+    - Indirect: uses graph.trust_between() for scalar path trust, then
+      attenuates the target's T3 per-dimension by that scalar
+    - None: no path exists → effective_t3=None, path_trust=0.0
+
+    The target's T3 for the role comes from profiles[target]. If the
+    target has no profile or no T3 for the role, the default T3(0.5, 0.5, 0.5)
+    is used (per TrustProfile.get_t3 semantics).
+
+    Args:
+        graph: MRH graph with entity relationships
+        profiles: mapping of entity IDs to their TrustProfiles
+        observer: the entity requesting trust information
+        target: the entity being evaluated
+        role: the role context for trust lookup
+        strategy: propagation strategy ("probabilistic", "multiplicative",
+            "maximal") — passed to graph.trust_between()
+        decay_factor: per-hop decay factor — passed to graph.trust_between()
+
+    Returns:
+        TrustResolution with method, effective T3, path trust, and metadata.
+    """
+    # Self-trust: observer is the target
+    if observer == target:
+        target_profile = profiles.get(target, TrustProfile(target))
+        t3 = target_profile.get_t3(role)
+        return TrustResolution(
+            observer=observer,
+            target=target,
+            role=role,
+            method="direct",
+            effective_t3=t3,
+            path_trust=1.0,
+            hops=0,
+            strategy=strategy,
+        )
+
+    # Use MRH graph for path-based trust
+    path_trust = graph.trust_between(observer, target, strategy, decay_factor)
+
+    if path_trust <= 0.0:
+        return TrustResolution(
+            observer=observer,
+            target=target,
+            role=role,
+            method="none",
+            path_trust=0.0,
+            hops=0,
+            strategy=strategy,
+        )
+
+    # Look up target's T3 for the requested role
+    target_profile = profiles.get(target, TrustProfile(target))
+    t3 = target_profile.get_t3(role)
+
+    # Attenuate T3 dimensions by path trust
+    effective_t3 = T3(
+        talent=t3.talent * path_trust,
+        training=t3.training * path_trust,
+        temperament=t3.temperament * path_trust,
+    )
+
+    # Determine hop count from graph
+    horizon = graph.horizon(observer)
+    hops = horizon.get(target, 0)
+
+    return TrustResolution(
+        observer=observer,
+        target=target,
+        role=role,
+        method="indirect",
+        effective_t3=effective_t3,
+        path_trust=path_trust,
+        hops=hops,
+        strategy=strategy,
     )
