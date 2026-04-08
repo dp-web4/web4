@@ -241,7 +241,9 @@ from .reputation import (
     Modifier,
     ReputationEngine,
     ReputationStore,
+    ActionOutcomeResult,
     analyze_factors,
+    process_action_outcome,
 )
 
 # ── Entity Taxonomy ────────────────────────────────────────────
@@ -569,7 +571,8 @@ __all__ = [
     "AmbiguityHandling", "ChainStep", "EvolutionConfig", "FeedbackRecord",
     # reputation
     "ReputationRule", "DimensionImpact", "Modifier",
-    "ReputationEngine", "ReputationStore", "analyze_factors",
+    "ReputationEngine", "ReputationStore", "ActionOutcomeResult",
+    "analyze_factors", "process_action_outcome",
     # entity
     "BehavioralMode", "EnergyPattern", "InteractionType",
     "EntityTypeInfo", "ENTITY_JSONLD_CONTEXT",
