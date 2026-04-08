@@ -2,13 +2,21 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-07 (Sprint 27 T1)*
+*Last updated: 2026-04-08 (Sprint 24 T1 resubmit)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 24 Summary: Action Consequence Pipeline (COMPLETE — resubmitted)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: `process_action_outcome()` function + `ActionOutcomeResult` dataclass | DONE | R7Action → ReputationEngine → TrustProfile → ATPAccount composition, 2 new exports (364 total), 18 new tests |
+
+*Original PR #137 was closed due to Sprint 25 overlap. Resubmitted as clean PR on current main.*
 
 ### Sprint 27 Summary: MCP Behavioral Tools (COMPLETE)
 
@@ -57,12 +65,12 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.21.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2567 passing
-- **Exports**: 362 symbols via `web4/__init__.py`
+- **Tests**: 2585 passing
+- **Exports**: 364 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
 - **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents
-- **Behavioral**: 3 functions — `evaluate_trust_query()` (direct trust resolution), `resolve_trust()` (indirect trust through MRH graph), `process_action_outcome()` (action consequences — PR #137)
+- **Behavioral**: 3 functions — `evaluate_trust_query()` (direct trust resolution), `resolve_trust()` (indirect trust through MRH graph), `process_action_outcome()` (action consequences)
 - **MCP Server**: `web4-mcp` / `python -m web4.mcp_server` — 7 tools (info, validate, generate, roundtrip, list_types, evaluate_trust, resolve_trust)
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate` (console script + `python -m web4`)
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[mcp]` (mcp), `web4[dev]` (full toolchain)
@@ -105,18 +113,18 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+16b4d96 Sprint 27 T1: Expose behavioral functions as MCP tools (#140)
+0fc2545 Sprint 26 T1: SDK v0.21.0 release housekeeping (#139)
 4c2585f Sprint 25 T1: resolve_trust() — indirect trust resolution through MRH graphs (#138)
 3a36de3 Sprint 23 T1: SDK v0.20.0 release housekeeping (#136)
 d997500 Sprint 22 T1: evaluate_trust_query() — trust resolution pipeline (#133)
-a0b426a [Publisher] Maintenance: AttestationEnvelope + R6/R7 glossary entries, rebuild artifacts
-dc45c22 Sprint 21 T1: SDK v0.19.0 release housekeeping (#132)
 ```
 
 ---
 
 ## Open PRs
 
-- PR #137: Sprint 24 T1: process_action_outcome() — action consequence pipeline (REVIEW_REQUIRED)
+- *(new PR pending — Sprint 24 T1 resubmit)*
 
 ---
 
@@ -132,7 +140,8 @@ dc45c22 Sprint 21 T1: SDK v0.19.0 release housekeeping (#132)
 - `resolve_trust()` — indirect trust resolution composing MRHGraph + TrustProfile T3 tensors
 - MCP server: 7 tools exposing SDK data operations + behavioral trust resolution to MCP clients
 - TrustQuery: to_jsonld() for dispatcher + to_dict() for schema validation (trust-query.schema.json)
-- All 22 submodules have `__all__` declarations, 362 root exports
+- `process_action_outcome()` — action consequence pipeline composing R7Action + ReputationEngine + TrustProfile + ATPAccount
+- All 22 submodules have `__all__` declarations, 364 root exports
 - All public methods have docstrings and return type annotations
 - `mypy --strict` passes with 0 errors across 25 source files
 - Test coverage: 96.2% overall (4 modules at 100%, 16 at 95%+)
@@ -141,4 +150,4 @@ dc45c22 Sprint 21 T1: SDK v0.19.0 release housekeeping (#132)
 
 ---
 
-*Updated by autonomous session, 2026-04-07 (Sprint 27 T1)*
+*Updated by autonomous session, 2026-04-08 (Sprint 24 T1 resubmit)*

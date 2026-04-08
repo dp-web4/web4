@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-07 (Sprint 27 T1)
+**Updated**: 2026-04-08 (Sprint 24 T1 resubmit)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -71,6 +71,28 @@ round-trip on TrustResolution. Uses `TYPE_CHECKING` import for MRHGraph
 indirect (3), multi-hop decay (3), multi-path aggregation (3), no-path (2),
 decay factor (2), round-trip serialization (3), and integration (3).
 2565 total tests passing (up from 2543). mypy strict clean (25 files).
+
+---
+
+## Sprint 24: Action Consequence Pipeline (2026-04-08)
+
+Sprint 22 added `evaluate_trust_query()` (direct trust resolution). Sprint 24 adds the
+second behavioral function: `process_action_outcome()`, which connects completed R7Actions
+to reputation/trust updates through the full composition pipeline.
+
+### T1: `process_action_outcome()` function + `ActionOutcomeResult` dataclass
+**Status**: DONE
+**Completed**: 2026-04-08
+**Scope**: Add `process_action_outcome()` to `web4/reputation.py` composing
+R7Action → ReputationEngine.evaluate() → TrustProfile T3/V3 delta application →
+ATPAccount settlement (commit on success, rollback on failure) → optional
+ReputationStore recording. New `ActionOutcomeResult` dataclass captures the
+reputation delta, updated T3/V3, ATP committed/rolled-back amounts. 2 new exports
+in `__init__.py` `__all__` (364 total, up from 362). 18 new tests covering success
+paths (5), failure paths (3), edge cases (5), store integration (3), root imports (2).
+**Result**: 2585 total tests passing (up from 2567). mypy strict clean (25 files).
+**Note**: Original PR #137 was closed due to Sprint 25 overlap. Resubmitted as clean
+PR on current main.
 
 ---
 
