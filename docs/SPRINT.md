@@ -1,9 +1,30 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-07 (Sprint 26 T1)
+**Updated**: 2026-04-07 (Sprint 27 T1)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 27: MCP Behavioral Tools (2026-04-07)
+
+The MCP server had 5 data-oriented tools (info, validate, generate, roundtrip,
+list_types) but did not expose the behavioral functions. Sprint 27 adds MCP tools
+for `evaluate_trust_query()` and `resolve_trust()`, making the full trust resolution
+pipeline accessible to MCP clients.
+
+### T1: Expose behavioral functions as MCP tools
+**Status**: DONE
+**Completed**: 2026-04-07
+**Scope**: Add `web4_evaluate_trust` and `web4_resolve_trust` tools to
+`web4/mcp_server.py`. Each wraps the corresponding behavioral function,
+accepting JSON inputs and returning structured dicts. Update docstring,
+server instructions, and `__all__`. 20 new tests covering approval/rejection,
+disclosure levels, direct/indirect/no-path resolution, custom strategies,
+error handling, and MCP call integration.
+**Result**: MCP server now has 7 tools (5 data + 2 behavioral). 2567 tests
+passing (up from 2547). mypy strict clean (25 files). 0 new files.
 
 ---
 
