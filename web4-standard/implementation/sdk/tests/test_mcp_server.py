@@ -268,9 +268,9 @@ class TestServerRegistration:
     def test_server_name(self) -> None:
         assert mcp.name == "web4"
 
-    def test_seven_tools_registered(self) -> None:
+    def test_eight_tools_registered(self) -> None:
         tools = asyncio.run(mcp.list_tools())
-        assert len(tools) == 7
+        assert len(tools) == 8
 
     def test_tool_names(self) -> None:
         tools = asyncio.run(mcp.list_tools())
@@ -283,6 +283,7 @@ class TestServerRegistration:
             "web4_list_types",
             "web4_evaluate_trust",
             "web4_resolve_trust",
+            "web4_process_action_outcome",
         }
 
     def test_all_tools_have_descriptions(self) -> None:

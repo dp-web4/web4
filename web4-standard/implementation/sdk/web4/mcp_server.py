@@ -16,7 +16,8 @@ Tools provided:
 - ``web4_roundtrip``        — deserialize + re-serialize for conformance testing
 - ``web4_list_types``       — list all supported types for generation and deserialization
 - ``web4_evaluate_trust``   — evaluate a trust query (ATP stake + T3 lookup + disclosure)
-- ``web4_resolve_trust``    — resolve trust through MRH graph (direct/indirect/none)
+- ``web4_resolve_trust``           — resolve trust through MRH graph (direct/indirect/none)
+- ``web4_process_action_outcome``  — process action through reputation pipeline (T3/V3 + ATP)
 
 Requires the ``mcp`` package: ``pip install 'web4[mcp]'``
 """
@@ -28,7 +29,10 @@ from typing import Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-__all__ = ["mcp", "run", "web4_evaluate_trust", "web4_resolve_trust"]
+__all__ = [
+    "mcp", "run",
+    "web4_evaluate_trust", "web4_resolve_trust", "web4_process_action_outcome",
+]
 
 # ---------------------------------------------------------------------------
 # Server instance
@@ -372,6 +376,138 @@ def web4_resolve_trust(
         strategy=strategy, decay_factor=decay_factor,
     )
     return resolution.to_dict()
+
+
+@mcp.tool(
+    name="web4_process_action_outcome",
+    description=(
+        "Process a completed R7 action through the reputation pipeline. "
+        "Evaluates reputation rules, applies T3/V3 deltas to the actor's "
+        "trust profile, and settles ATP (commit on success, rollback on failure)."
+    ),
+)
+def web4_process_action_outcome(
+    action: str,
+    rules: str,
+    profile_entity_id: str,
+    profile_roles: str = "{}",
+    atp_available: float = 0.0,
+    atp_locked: float = 0.0,
+) -> Dict[str, Any]:
+    """Process a completed action through the reputation and trust pipeline.
+
+    Args:
+        action: JSON string of R7Action fields (must include role with
+            role_lct, request with atp_stake, result with status).
+        rules: JSON string -- list of reputation rule objects, each with
+            rule_id, trigger_conditions, and t3_impacts/v3_impacts.
+        profile_entity_id: Entity ID for the actor's trust profile.
+        profile_roles: JSON string mapping role names to T3/V3 dicts, e.g.
+            ``{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}``.
+        atp_available: Available (unlocked) ATP balance. Default 0.
+        atp_locked: Locked ATP balance (the stake). Default 0.
+    """
+    from web4.atp import ATPAccount
+    from web4.r6 import (
+        R7Action as R7ActionCls,
+        Reference,
+        Request,
+        ResourceRequirements,
+        Result,
+        Role,
+        Rules,
+    )
+    from web4.reputation import (
+        DimensionImpact,
+        Modifier,
+        ReputationEngine,
+        ReputationRule,
+        process_action_outcome,
+    )
+    from web4.trust import T3, V3, TrustProfile
+
+    # Parse action from component dicts
+    try:
+        action_dict = json.loads(action)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid action JSON: {exc}"}
+    try:
+        r7 = R7ActionCls(
+            rules=Rules.from_dict(action_dict.get("rules", {})),
+            role=Role.from_dict(action_dict.get("role", {"actor": "", "role_lct": ""})),
+            request=Request.from_dict(action_dict.get("request", {"action": ""})),
+            reference=Reference.from_dict(action_dict.get("reference", {})),
+            resource=ResourceRequirements.from_dict(action_dict.get("resource", {})),
+            result=Result.from_dict(action_dict.get("result", {})),
+        )
+    except (KeyError, ValueError, TypeError) as exc:
+        return {"error": f"Invalid R7Action: {exc}"}
+
+    # Build reputation engine from rules
+    try:
+        rules_list = json.loads(rules)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid rules JSON: {exc}"}
+    if not isinstance(rules_list, list):
+        return {"error": "rules must be a JSON array of rule objects"}
+
+    engine = ReputationEngine()
+    for rule_data in rules_list:
+        try:
+            t3_impacts = {}
+            for dim, impact_data in rule_data.get("t3_impacts", {}).items():
+                modifiers = [
+                    Modifier(**m) for m in impact_data.get("modifiers", [])
+                ]
+                t3_impacts[dim] = DimensionImpact(
+                    base_delta=impact_data["base_delta"],
+                    modifiers=modifiers,
+                )
+            v3_impacts = {}
+            for dim, impact_data in rule_data.get("v3_impacts", {}).items():
+                modifiers = [
+                    Modifier(**m) for m in impact_data.get("modifiers", [])
+                ]
+                v3_impacts[dim] = DimensionImpact(
+                    base_delta=impact_data["base_delta"],
+                    modifiers=modifiers,
+                )
+            engine.add_rule(ReputationRule(
+                rule_id=rule_data["rule_id"],
+                trigger_conditions=rule_data.get("trigger_conditions", {}),
+                t3_impacts=t3_impacts,
+                v3_impacts=v3_impacts,
+            ))
+        except (KeyError, ValueError, TypeError) as exc:
+            return {"error": f"Invalid rule: {exc} -- data: {rule_data}"}
+
+    # Build actor profile
+    profile = TrustProfile(profile_entity_id)
+    try:
+        roles_dict = json.loads(profile_roles)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid profile_roles JSON: {exc}"}
+    for role_name, tensor_data in roles_dict.items():
+        t3 = T3.from_dict(tensor_data) if "talent" in tensor_data else None
+        v3 = V3.from_dict(tensor_data) if "valuation" in tensor_data else None
+        profile.set_role(role_name, t3=t3, v3=v3)
+
+    # Build ATP account
+    account = ATPAccount(available=atp_available, locked=atp_locked)
+
+    # Process
+    try:
+        result = process_action_outcome(r7, engine, profile, account)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+    return {
+        "delta": result.delta.to_dict() if result.delta is not None else None,
+        "updated_t3": result.updated_t3.as_dict(),
+        "updated_v3": result.updated_v3.as_dict(),
+        "atp_committed": result.atp_committed,
+        "atp_rolled_back": result.atp_rolled_back,
+    }
 
 
 @mcp.tool(

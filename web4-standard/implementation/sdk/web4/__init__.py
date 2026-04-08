@@ -26,7 +26,7 @@ Provides offline-capable primitives for:
 - Deserialization — generic JSON-LD dispatcher for all Web4 types
 - Generation — produce minimal valid JSON-LD documents for any Web4 type
 
-22 modules + MCP server, 362 exports, 3 behavioral functions. These modules
+22 modules + MCP server, 364 exports, 3 behavioral functions. These modules
 define the canonical data types and algorithms specified in the web4-standard.
 They work offline (no network services required) and are designed to be
 imported by applications, services, and other SDKs that build on web4.
@@ -241,7 +241,9 @@ from .reputation import (
     Modifier,
     ReputationEngine,
     ReputationStore,
+    ActionOutcomeResult,
     analyze_factors,
+    process_action_outcome,
 )
 
 # ── Entity Taxonomy ────────────────────────────────────────────
@@ -569,7 +571,8 @@ __all__ = [
     "AmbiguityHandling", "ChainStep", "EvolutionConfig", "FeedbackRecord",
     # reputation
     "ReputationRule", "DimensionImpact", "Modifier",
-    "ReputationEngine", "ReputationStore", "analyze_factors",
+    "ReputationEngine", "ReputationStore", "ActionOutcomeResult",
+    "analyze_factors", "process_action_outcome",
     # entity
     "BehavioralMode", "EnergyPattern", "InteractionType",
     "EntityTypeInfo", "ENTITY_JSONLD_CONTEXT",
