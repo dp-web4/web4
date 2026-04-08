@@ -2,6 +2,28 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.22.0] - 2026-04-08
+
+Sprints 24, 27, 28: Action consequence pipeline, MCP behavioral tools, release housekeeping.
+
+### Added
+- **Action consequence pipeline** (Sprint 24 T1) — `process_action_outcome()` in
+  `web4/reputation.py`. Second behavioral function: composes R7Action + ReputationEngine
+  + TrustProfile + ATPAccount into `ActionOutcomeResult`. ATP settlement (commit on
+  success, rollback on failure), T3/V3 delta application, optional ReputationStore
+  recording. 2 new exports, 18 tests. PR #143.
+- **MCP behavioral tools** (Sprint 27 T1) — `web4_evaluate_trust` and `web4_resolve_trust`
+  MCP tools wrapping the behavioral functions for MCP clients. 20 tests. PR #140.
+- **MCP process action tool** (Sprint 28 T1) — `web4_process_action` MCP tool wrapping
+  `process_action_outcome()`. Accepts action parameters and reputation rules as JSON,
+  returns reputation delta, updated T3/V3, and ATP settlement. 8th MCP tool, completing
+  3-for-3 behavioral function coverage. 15 tests.
+
+### Changed
+- Version bumped from 0.21.0 to 0.22.0.
+- MCP server: 8 tools (5 data + 3 behavioral). Instructions updated.
+- 2600 tests passing (up from 2547 in v0.21.0). 364 exports (up from 362).
+
 ## [0.21.0] - 2026-04-07
 
 Sprint 25: Indirect trust resolution through MRH graphs.
@@ -21,7 +43,7 @@ Sprint 25: Indirect trust resolution through MRH graphs.
 - Version bumped from 0.20.0 to 0.21.0.
 - 2547 tests passing (up from 2525 in v0.20.0). 362 exports (up from 360).
 - 3 behavioral functions: `evaluate_trust_query()` (direct), `resolve_trust()` (indirect),
-  `process_action_outcome()` (action consequences — in PR #137).
+  `process_action_outcome()` (action consequences — merged in v0.22.0).
 
 ## [0.20.0] - 2026-04-07
 
