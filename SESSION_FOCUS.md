@@ -124,7 +124,7 @@ d997500 Sprint 22 T1: evaluate_trust_query() — trust resolution pipeline (#133
 
 ## Open PRs
 
-- *(new PR pending — Sprint 24 T1 resubmit)*
+- PR #143: Sprint 24 T1: process_action_outcome() — action consequence pipeline (resubmit of #137)
 
 ---
 
