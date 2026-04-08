@@ -1,7 +1,7 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-08 (Sprint 28 T1 — v0.22.0 release housekeeping)
+**Updated**: 2026-04-08 (Sprint 28 — MCP process_action tool + v0.22.0)
 **Phase**: Development
 **Track**: web4 (Legion)
 
@@ -13,17 +13,16 @@ Sprint 24 landed `process_action_outcome()` on main via PR #143 but without a
 version bump, CHANGELOG entry, or MCP tool exposure. Sprint 28 brings all
 metadata into alignment and exposes the third behavioral function via MCP.
 
-### T1: SDK v0.22.0 release housekeeping
+### T1: `web4_process_action` MCP tool + SDK v0.22.0 release
 **Status**: DONE
 **Completed**: 2026-04-08
-**Scope**: Bump version 0.21.0 → 0.22.0. Add CHANGELOG v0.22.0 entry documenting
-Sprint 24 features (process_action_outcome, ActionOutcomeResult). Add
-`web4_process_action` MCP tool to `mcp_server.py` (8 tools total, 5 data + 3
-behavioral). Update README.md with updated version, test count (2547→2600),
-export count (362→364), and MCP tool list (5→8). Update `__init__.py` docstring.
-Update SESSION_FOCUS.md and SPRINT.md.
-**Result**: All SDK metadata now accurately reflects 22 modules + MCP server, 364
-exports, 2600 tests, 3 behavioral functions, and 8 MCP tools. Version 0.22.0.
+**Scope**: Add `web4_process_action` MCP tool to `mcp_server.py`, wrapping
+`process_action_outcome()` for MCP clients (8 tools total, 5 data + 3
+behavioral). Bump version 0.21.0 → 0.22.0. CHANGELOG v0.22.0 entry documenting
+Sprints 24 (process_action_outcome merged), 27 (MCP behavioral tools), and 28
+(process_action MCP tool). Update test assertions and README counts.
+**Result**: 8 MCP tools (3-for-3 behavioral coverage), v0.22.0, 2600 tests
+(2585 + 15 new), mypy strict clean (25 files). 0 new modules, 1 new test file.
 
 ---
 

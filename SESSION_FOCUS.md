@@ -2,7 +2,7 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-08 (Sprint 28 T1 — v0.22.0 release housekeeping)*
+*Last updated: 2026-04-08 (Sprint 28 — MCP process_action tool + v0.22.0)*
 
 ---
 
@@ -14,7 +14,7 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| T1: SDK v0.22.0 release housekeeping | DONE | Version bump, CHANGELOG, MCP tool (web4_process_action), 8 MCP tools total |
+| T1: `web4_process_action` MCP tool + v0.22.0 release | DONE | 8th MCP tool wrapping process_action_outcome(), version bump, CHANGELOG, 15 new tests |
 
 ### Sprint 24 Summary: Action Consequence Pipeline (COMPLETE)
 

@@ -180,7 +180,7 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-2585 tests, 96% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
+2600 tests, 96% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
 
 ## Client SDK
 
@@ -216,7 +216,7 @@ web4/                  # Python package (22 modules + MCP server)
   generate.py          # Minimal valid JSON-LD document generation
   validation.py        # Schema validation
   ...                  # (17 more modules)
-tests/                 # 2585 tests
+tests/                 # 2600 tests
 schemas/               # JSON Schemas + JSON-LD contexts
 web4_sdk.py            # Async HTTP client (separate)
 pyproject.toml         # Package metadata (single version source)
