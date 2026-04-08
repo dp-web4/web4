@@ -10,9 +10,11 @@ import pytest
 
 from web4.mcp_server import (
     mcp,
+    web4_evaluate_trust,
     web4_generate,
     web4_info,
     web4_list_types,
+    web4_resolve_trust,
     web4_roundtrip,
     web4_validate,
 )
@@ -266,9 +268,9 @@ class TestServerRegistration:
     def test_server_name(self) -> None:
         assert mcp.name == "web4"
 
-    def test_five_tools_registered(self) -> None:
+    def test_seven_tools_registered(self) -> None:
         tools = asyncio.run(mcp.list_tools())
-        assert len(tools) == 5
+        assert len(tools) == 7
 
     def test_tool_names(self) -> None:
         tools = asyncio.run(mcp.list_tools())
@@ -279,6 +281,8 @@ class TestServerRegistration:
             "web4_generate",
             "web4_roundtrip",
             "web4_list_types",
+            "web4_evaluate_trust",
+            "web4_resolve_trust",
         }
 
     def test_all_tools_have_descriptions(self) -> None:
@@ -286,6 +290,280 @@ class TestServerRegistration:
         for tool in tools:
             assert tool.description, f"Tool {tool.name} missing description"
             assert len(tool.description) > 20
+
+
+# ---------------------------------------------------------------------------
+# web4_evaluate_trust
+# ---------------------------------------------------------------------------
+
+
+def _make_query_json(
+    querier: str = "lct:alice",
+    target: str = "lct:bob",
+    role: str = "analyst",
+    stake: int = 100,
+    validity: int = 3600,
+    disclosure: str = "precise",
+) -> str:
+    """Build a TrustQuery JSON string for testing."""
+    return json.dumps({
+        "querier": querier,
+        "target_entity": target,
+        "requested_role": role,
+        "intended_interaction": "test interaction",
+        "atp_stake": stake,
+        "validity_period": validity,
+        "signature": "test-sig-001",
+        "disclosure_level": disclosure,
+    })
+
+
+class TestWeb4EvaluateTrust:
+    """Tests for the web4_evaluate_trust tool."""
+
+    def test_approved_precise(self) -> None:
+        result = web4_evaluate_trust(
+            query=_make_query_json(),
+            profile_entity_id="lct:bob",
+            profile_roles=json.dumps({
+                "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
+            }),
+            atp_balance=1000.0,
+        )
+        assert result["status"] == "APPROVED"
+        resp = result["response"]
+        assert resp["entity"] == "lct:bob"
+        assert resp["role"] == "analyst"
+        assert resp["t3_in_role"]["talent"] == 0.8
+
+    def test_approved_binary_disclosure(self) -> None:
+        result = web4_evaluate_trust(
+            query=_make_query_json(disclosure="binary"),
+            profile_entity_id="lct:bob",
+            profile_roles=json.dumps({
+                "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
+            }),
+        )
+        assert result["status"] == "APPROVED"
+        # Binary disclosure doesn't reveal T3 dimensions
+        assert result["response"].get("t3_in_role") is None
+
+    def test_approved_range_disclosure(self) -> None:
+        result = web4_evaluate_trust(
+            query=_make_query_json(disclosure="range"),
+            profile_entity_id="lct:bob",
+            profile_roles=json.dumps({
+                "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
+            }),
+        )
+        assert result["status"] == "APPROVED"
+        t3 = result["response"]["t3_in_role"]
+        # Range: all dimensions equal the composite
+        assert t3["talent"] == t3["training"] == t3["temperament"]
+
+    def test_rejected_insufficient_atp(self) -> None:
+        result = web4_evaluate_trust(
+            query=_make_query_json(stake=500),
+            profile_entity_id="lct:bob",
+            atp_balance=100.0,  # less than stake
+        )
+        assert result["status"] == "REJECTED"
+        assert result["error"]["code"] == "INSUFFICIENT_STAKE"
+
+    def test_default_profile_roles(self) -> None:
+        """Empty profile_roles uses default T3(0.5, 0.5, 0.5)."""
+        result = web4_evaluate_trust(
+            query=_make_query_json(),
+            profile_entity_id="lct:bob",
+        )
+        assert result["status"] == "APPROVED"
+        t3 = result["response"]["t3_in_role"]
+        assert t3["talent"] == 0.5
+
+    def test_invalid_query_json(self) -> None:
+        result = web4_evaluate_trust(
+            query="not json",
+            profile_entity_id="lct:bob",
+        )
+        assert "error" in result
+        assert "Invalid query JSON" in result["error"]
+
+    def test_invalid_query_fields(self) -> None:
+        result = web4_evaluate_trust(
+            query='{"querier": "alice"}',  # missing required fields
+            profile_entity_id="lct:bob",
+        )
+        assert "error" in result
+        assert "Invalid TrustQuery" in result["error"]
+
+    def test_invalid_profile_roles_json(self) -> None:
+        result = web4_evaluate_trust(
+            query=_make_query_json(),
+            profile_entity_id="lct:bob",
+            profile_roles="not json",
+        )
+        assert "error" in result
+        assert "Invalid profile_roles JSON" in result["error"]
+
+    def test_with_timestamp(self) -> None:
+        result = web4_evaluate_trust(
+            query=_make_query_json(),
+            profile_entity_id="lct:bob",
+            timestamp="2026-04-07T18:00:00Z",
+        )
+        assert result["status"] == "APPROVED"
+        assert result["response"]["validity_until"] is not None
+
+    def test_via_mcp_call(self) -> None:
+        result = _call_tool("web4_evaluate_trust", {
+            "query": _make_query_json(),
+            "profile_entity_id": "lct:bob",
+            "profile_roles": json.dumps({
+                "analyst": {"talent": 0.85, "training": 0.9, "temperament": 0.75},
+            }),
+        })
+        assert result["status"] == "APPROVED"
+
+
+# ---------------------------------------------------------------------------
+# web4_resolve_trust
+# ---------------------------------------------------------------------------
+
+
+def _make_edges_json(*edges: tuple[str, str, float]) -> str:
+    """Build MRH edges JSON. Each tuple is (source, target, weight)."""
+    return json.dumps([
+        {"source": s, "target": t, "relation": "pairedWith", "weight": w}
+        for s, t, w in edges
+    ])
+
+
+class TestWeb4ResolveTrust:
+    """Tests for the web4_resolve_trust tool."""
+
+    def test_direct_self_trust(self) -> None:
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:alice",
+            role="analyst",
+            edges="[]",
+            profiles=json.dumps({
+                "lct:alice": {"analyst": {"talent": 0.9, "training": 0.8, "temperament": 0.7}},
+            }),
+        )
+        assert result["method"] == "direct"
+        assert result["path_trust"] == 1.0
+        assert result["hops"] == 0
+        assert result["effective_t3"]["talent"] == 0.9
+
+    def test_indirect_one_hop(self) -> None:
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:bob",
+            role="analyst",
+            edges=_make_edges_json(("lct:alice", "lct:bob", 0.8)),
+            profiles=json.dumps({
+                "lct:bob": {"analyst": {"talent": 0.9, "training": 0.8, "temperament": 0.7}},
+            }),
+        )
+        assert result["method"] == "indirect"
+        assert result["path_trust"] > 0.0
+        assert result["effective_t3"] is not None
+        # T3 is attenuated by path trust
+        assert result["effective_t3"]["talent"] <= 0.9
+
+    def test_no_path(self) -> None:
+        """No edge between observer and target → method 'none'."""
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:charlie",
+            role="analyst",
+            edges=_make_edges_json(("lct:alice", "lct:bob", 0.9)),
+        )
+        assert result["method"] == "none"
+        assert result["path_trust"] == 0.0
+        assert result.get("effective_t3") is None
+
+    def test_multi_hop(self) -> None:
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:charlie",
+            role="analyst",
+            edges=_make_edges_json(
+                ("lct:alice", "lct:bob", 0.9),
+                ("lct:bob", "lct:charlie", 0.8),
+            ),
+            profiles=json.dumps({
+                "lct:charlie": {"analyst": {"talent": 0.9, "training": 0.9, "temperament": 0.9}},
+            }),
+        )
+        assert result["method"] == "indirect"
+        assert result["hops"] >= 2
+        # Multi-hop decays more
+        assert result["path_trust"] < 0.8
+
+    def test_custom_strategy_and_decay(self) -> None:
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:bob",
+            role="analyst",
+            edges=_make_edges_json(("lct:alice", "lct:bob", 0.9)),
+            strategy="multiplicative",
+            decay_factor=0.5,
+        )
+        assert result["strategy"] == "multiplicative"
+        assert result["method"] == "indirect"
+
+    def test_invalid_edges_json(self) -> None:
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:bob",
+            role="analyst",
+            edges="not json",
+        )
+        assert "error" in result
+
+    def test_edges_not_array(self) -> None:
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:bob",
+            role="analyst",
+            edges='{"not": "array"}',
+        )
+        assert "error" in result
+        assert "array" in result["error"]
+
+    def test_invalid_edge_data(self) -> None:
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:bob",
+            role="analyst",
+            edges='[{"source": "a"}]',  # missing required fields
+        )
+        assert "error" in result
+
+    def test_invalid_profiles_json(self) -> None:
+        result = web4_resolve_trust(
+            observer="lct:alice",
+            target="lct:bob",
+            role="analyst",
+            edges="[]",
+            profiles="not json",
+        )
+        assert "error" in result
+
+    def test_via_mcp_call(self) -> None:
+        result = _call_tool("web4_resolve_trust", {
+            "observer": "lct:alice",
+            "target": "lct:bob",
+            "role": "analyst",
+            "edges": _make_edges_json(("lct:alice", "lct:bob", 0.85)),
+            "profiles": json.dumps({
+                "lct:bob": {"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}},
+            }),
+        })
+        assert result["method"] == "indirect"
+        assert result["path_trust"] > 0.0
 
 
 # ---------------------------------------------------------------------------

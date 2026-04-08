@@ -10,11 +10,13 @@ Usage::
 
 Tools provided:
 
-- ``web4_info``       — SDK version, module count, export count, schema count
-- ``web4_validate``   — validate a JSON-LD document against web4 schemas
-- ``web4_generate``   — generate a minimal valid JSON-LD document for any type
-- ``web4_roundtrip``  — deserialize + re-serialize for conformance testing
-- ``web4_list_types`` — list all supported types for generation and deserialization
+- ``web4_info``             — SDK version, module count, export count, schema count
+- ``web4_validate``         — validate a JSON-LD document against web4 schemas
+- ``web4_generate``         — generate a minimal valid JSON-LD document for any type
+- ``web4_roundtrip``        — deserialize + re-serialize for conformance testing
+- ``web4_list_types``       — list all supported types for generation and deserialization
+- ``web4_evaluate_trust``   — evaluate a trust query (ATP stake + T3 lookup + disclosure)
+- ``web4_resolve_trust``    — resolve trust through MRH graph (direct/indirect/none)
 
 Requires the ``mcp`` package: ``pip install 'web4[mcp]'``
 """
@@ -26,7 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-__all__ = ["mcp", "run"]
+__all__ = ["mcp", "run", "web4_evaluate_trust", "web4_resolve_trust"]
 
 # ---------------------------------------------------------------------------
 # Server instance
@@ -37,8 +39,8 @@ mcp = FastMCP(
     instructions=(
         "Web4 SDK trust operations server. "
         "Provides tools for generating, validating, and round-tripping "
-        "web4 JSON-LD documents (trust tensors, LCTs, attestation envelopes, "
-        "ATP accounts, agent plans, and more)."
+        "web4 JSON-LD documents, plus behavioral trust resolution operations "
+        "(evaluate trust queries, resolve trust through MRH graphs)."
     ),
 )
 
@@ -225,6 +227,151 @@ def web4_roundtrip(document: str) -> Dict[str, Any]:
         result["differences"] = diffs
 
     return result
+
+
+@mcp.tool(
+    name="web4_evaluate_trust",
+    description=(
+        "Evaluate a trust query: lock ATP stake, look up the target's T3 "
+        "for the requested role, apply disclosure filtering, and return an "
+        "APPROVED or REJECTED response. Pass the trust query, target's trust "
+        "profile, and requester's ATP balance as JSON."
+    ),
+)
+def web4_evaluate_trust(
+    query: str,
+    profile_entity_id: str,
+    profile_roles: str = "{}",
+    atp_balance: float = 1000.0,
+    timestamp: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Evaluate a trust query against a profile with ATP stake locking.
+
+    Args:
+        query: JSON string of TrustQuery fields (querier, target_entity,
+            requested_role, intended_interaction, atp_stake, validity_period,
+            signature; optional: disclosure_level, query_justification, timestamp).
+        profile_entity_id: Entity ID for the target's trust profile.
+        profile_roles: JSON string mapping role names to T3 dicts, e.g.
+            ``{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}``.
+        atp_balance: Initial ATP balance for the requester (default 1000).
+        timestamp: Optional ISO timestamp for the response audit log.
+    """
+    from web4.atp import ATPAccount
+    from web4.trust import (
+        T3,
+        TrustProfile,
+        TrustQuery,
+        evaluate_trust_query,
+    )
+
+    # Parse query
+    try:
+        query_dict = json.loads(query)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid query JSON: {exc}"}
+    try:
+        tq = TrustQuery.from_dict(query_dict)
+    except (KeyError, ValueError, TypeError) as exc:
+        return {"error": f"Invalid TrustQuery: {exc}"}
+
+    # Build target profile
+    profile = TrustProfile(profile_entity_id)
+    try:
+        roles_dict = json.loads(profile_roles)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid profile_roles JSON: {exc}"}
+    for role_name, t3_data in roles_dict.items():
+        profile.set_role(role_name, T3.from_dict(t3_data))
+
+    # Build requester ATP account
+    account = ATPAccount(available=atp_balance)
+
+    # Evaluate
+    response = evaluate_trust_query(tq, profile, account, timestamp=timestamp)
+    return response.to_dict()
+
+
+@mcp.tool(
+    name="web4_resolve_trust",
+    description=(
+        "Resolve trust between two entities through an MRH graph. Finds "
+        "direct or indirect trust paths, attenuates the target's T3 tensor "
+        "by path decay, and returns the effective trust resolution."
+    ),
+)
+def web4_resolve_trust(
+    observer: str,
+    target: str,
+    role: str,
+    edges: str,
+    profiles: str = "{}",
+    strategy: str = "probabilistic",
+    decay_factor: float = 0.7,
+) -> Dict[str, Any]:
+    """Resolve trust between observer and target through an MRH graph.
+
+    Args:
+        observer: Entity ID of the observer requesting trust information.
+        target: Entity ID of the entity being evaluated.
+        role: Role context for trust lookup.
+        edges: JSON string — list of edge objects, each with ``source``,
+            ``target``, ``relation`` (e.g. "PAIRED_WITH"), and ``weight``.
+        profiles: JSON string mapping entity IDs to role→T3 dicts, e.g.
+            ``{"lct:bob": {"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}}``.
+        strategy: Propagation strategy ("probabilistic", "multiplicative",
+            "maximal"). Default "probabilistic".
+        decay_factor: Per-hop decay factor (0.0–1.0). Default 0.7.
+    """
+    from web4.mrh import MRHEdge, MRHGraph, MRHNode
+    from web4.trust import T3, TrustProfile, resolve_trust
+
+    # Parse edges
+    try:
+        edges_list = json.loads(edges)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid edges JSON: {exc}"}
+    if not isinstance(edges_list, list):
+        return {"error": "edges must be a JSON array of edge objects"}
+
+    # Build graph
+    graph = MRHGraph()
+    node_ids: set[str] = set()
+    for edge_data in edges_list:
+        try:
+            edge = MRHEdge.from_dict(edge_data)
+        except (KeyError, ValueError, TypeError) as exc:
+            return {"error": f"Invalid edge: {exc} — data: {edge_data}"}
+        for nid in (edge.source, edge.target):
+            if nid not in node_ids:
+                graph.add_node(MRHNode(lct_id=nid))
+                node_ids.add(nid)
+        graph.add_edge(edge)
+
+    # Ensure observer and target are in graph
+    for nid in (observer, target):
+        if nid not in node_ids:
+            graph.add_node(MRHNode(lct_id=nid))
+            node_ids.add(nid)
+
+    # Parse profiles
+    try:
+        profiles_dict = json.loads(profiles)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid profiles JSON: {exc}"}
+    trust_profiles: Dict[str, TrustProfile] = {}
+    for entity_id, roles_data in profiles_dict.items():
+        tp = TrustProfile(entity_id)
+        for role_name, t3_data in roles_data.items():
+            tp.set_role(role_name, T3.from_dict(t3_data))
+        trust_profiles[entity_id] = tp
+
+    # Resolve
+    resolution = resolve_trust(
+        graph, trust_profiles, observer, target, role,
+        strategy=strategy, decay_factor=decay_factor,
+    )
+    return resolution.to_dict()
 
 
 @mcp.tool(
