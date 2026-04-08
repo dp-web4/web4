@@ -17,6 +17,7 @@ Tools provided:
 - ``web4_list_types``       — list all supported types for generation and deserialization
 - ``web4_evaluate_trust``   — evaluate a trust query (ATP stake + T3 lookup + disclosure)
 - ``web4_resolve_trust``    — resolve trust through MRH graph (direct/indirect/none)
+- ``web4_process_action``   — process a completed action through reputation/trust/ATP pipeline
 
 Requires the ``mcp`` package: ``pip install 'web4[mcp]'``
 """
@@ -28,7 +29,9 @@ from typing import Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-__all__ = ["mcp", "run", "web4_evaluate_trust", "web4_resolve_trust"]
+__all__ = [
+    "mcp", "run", "web4_evaluate_trust", "web4_process_action", "web4_resolve_trust",
+]
 
 # ---------------------------------------------------------------------------
 # Server instance
@@ -39,8 +42,9 @@ mcp = FastMCP(
     instructions=(
         "Web4 SDK trust operations server. "
         "Provides tools for generating, validating, and round-tripping "
-        "web4 JSON-LD documents, plus behavioral trust resolution operations "
-        "(evaluate trust queries, resolve trust through MRH graphs)."
+        "web4 JSON-LD documents, plus behavioral trust resolution and "
+        "reputation operations (evaluate trust queries, resolve trust "
+        "through MRH graphs, process action outcomes)."
     ),
 )
 
@@ -372,6 +376,130 @@ def web4_resolve_trust(
         strategy=strategy, decay_factor=decay_factor,
     )
     return resolution.to_dict()
+
+
+@mcp.tool(
+    name="web4_process_action",
+    description=(
+        "Process a completed R7Action through the reputation and trust pipeline. "
+        "Evaluates reputation rules, applies T3/V3 deltas to the actor's trust "
+        "profile, and settles ATP (commit on success, rollback on failure). "
+        "Returns the reputation delta, updated tensors, and ATP settlement."
+    ),
+)
+def web4_process_action(
+    action_type: str,
+    status: str,
+    actor: str,
+    role: str,
+    rules: str,
+    profile_roles: str = "{}",
+    atp_stake: float = 10.0,
+    atp_locked: float = 0.0,
+    quality: float = 0.8,
+) -> Dict[str, Any]:
+    """Process a completed action through the reputation/trust/ATP pipeline.
+
+    Args:
+        action_type: The type of action performed (e.g. "data_analysis").
+        status: Action outcome — "success" or "failure".
+        actor: Entity ID of the actor (e.g. "lct:alice").
+        role: Role LCT of the actor (e.g. "web4:DataAnalyst").
+        rules: JSON string — list of ReputationRule dicts, each with rule_id,
+            trigger_conditions, t3_impacts, v3_impacts. Use ReputationRule.to_dict()
+            format.
+        profile_roles: JSON string mapping role names to T3 dicts for the actor's
+            trust profile, e.g. ``{"web4:DataAnalyst": {"talent": 0.7, ...}}``.
+        atp_stake: ATP staked on this action (default 10.0).
+        atp_locked: ATP already locked in the actor's account (default 0.0;
+            if 0, set to atp_stake automatically).
+        quality: Action output quality score (default 0.8).
+    """
+    from web4.atp import ATPAccount
+    from web4.r6 import (
+        ActionStatus,
+        R7Action,
+        Request,
+        ResourceRequirements,
+        Result,
+        Role as R7Role,
+        Rules,
+    )
+    from web4.reputation import (
+        ReputationRule,
+        ReputationEngine,
+        process_action_outcome,
+    )
+    from web4.trust import T3, TrustProfile, V3
+
+    # Validate status
+    status_lower = status.lower()
+    if status_lower not in ("success", "failure"):
+        return {"error": f"status must be 'success' or 'failure', got {status!r}"}
+
+    action_status = (
+        ActionStatus.SUCCESS if status_lower == "success"
+        else ActionStatus.FAILURE
+    )
+
+    # Parse rules
+    try:
+        rules_list = json.loads(rules)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid rules JSON: {exc}"}
+    if not isinstance(rules_list, list):
+        return {"error": "rules must be a JSON array of ReputationRule dicts"}
+
+    engine = ReputationEngine()
+    for rule_data in rules_list:
+        try:
+            engine.add_rule(ReputationRule.from_dict(rule_data))
+        except (KeyError, ValueError, TypeError) as exc:
+            return {"error": f"Invalid rule: {exc} — data: {rule_data}"}
+
+    # Build action
+    locked = atp_locked if atp_locked > 0 else atp_stake
+    action = R7Action(
+        rules=Rules(permissions=[action_type]),
+        role=R7Role(actor=actor, role_lct=role),
+        request=Request(action=action_type, atp_stake=atp_stake),
+        resource=ResourceRequirements(
+            required_atp=atp_stake, available_atp=atp_stake,
+        ),
+        result=Result(status=action_status, output={"quality": quality}),
+    )
+
+    # Build profile
+    profile = TrustProfile(actor)
+    try:
+        roles_dict = json.loads(profile_roles)
+    except json.JSONDecodeError as exc:
+        return {"error": f"Invalid profile_roles JSON: {exc}"}
+    for role_name, t3_data in roles_dict.items():
+        profile.set_role(role_name, T3.from_dict(t3_data))
+
+    # Build ATP account
+    account = ATPAccount(available=0.0, locked=locked)
+
+    # Process
+    try:
+        outcome = process_action_outcome(action, engine, profile, account)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+    # Serialize result
+    result: Dict[str, Any] = {
+        "updated_t3": outcome.updated_t3.as_dict(),
+        "updated_v3": outcome.updated_v3.as_dict(),
+        "atp_committed": outcome.atp_committed,
+        "atp_rolled_back": outcome.atp_rolled_back,
+    }
+    if outcome.delta is not None:
+        result["delta"] = outcome.delta.to_dict()
+    else:
+        result["delta"] = None
+
+    return result
 
 
 @mcp.tool(

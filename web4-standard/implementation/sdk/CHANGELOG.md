@@ -2,6 +2,24 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.22.0] - 2026-04-08
+
+Sprint 28: MCP process_action tool and v0.22.0 release housekeeping.
+
+### Added
+- **`web4_process_action` MCP tool** (Sprint 28 T1) — 8th MCP server tool. Wraps
+  `process_action_outcome()` for MCP clients. Accepts simple parameters (action_type,
+  status, actor, role, rules JSON, profile_roles JSON, atp_stake), constructs R7Action +
+  ReputationEngine + TrustProfile + ATPAccount internally, returns updated T3/V3 tensors,
+  ATP settlement (commit/rollback), and reputation delta. Completes 3-for-3 behavioral
+  function coverage in the MCP server. 15 tests.
+
+### Changed
+- Version bumped from 0.21.0 to 0.22.0.
+- MCP server: 7 → 8 tools (added `web4_process_action`).
+- 2600 tests passing (up from 2585 in v0.21.0). 364 exports.
+- CHANGELOG v0.21.0 entry updated: corrected PR #137 → #143.
+
 ## [0.21.0] - 2026-04-07
 
 Sprint 25: Indirect trust resolution through MRH graphs.
@@ -21,7 +39,7 @@ Sprint 25: Indirect trust resolution through MRH graphs.
 - Version bumped from 0.20.0 to 0.21.0.
 - 2547 tests passing (up from 2525 in v0.20.0). 362 exports (up from 360).
 - 3 behavioral functions: `evaluate_trust_query()` (direct), `resolve_trust()` (indirect),
-  `process_action_outcome()` (action consequences — in PR #137).
+  `process_action_outcome()` (action consequences — PR #143).
 
 ## [0.20.0] - 2026-04-07
 
