@@ -1,9 +1,42 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-08 (Sprint 24 T1 resubmit)
+**Updated**: 2026-04-08 (Sprint 28)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 28: MCP process_action Tool + v0.22.0 Release (2026-04-08)
+
+Sprints 24 and 27 added `process_action_outcome()` (3rd behavioral function) and exposed
+`evaluate_trust_query()` / `resolve_trust()` as MCP tools. Sprint 28 completes the set:
+`web4_process_action` wraps `process_action_outcome()` for MCP clients, achieving 3-for-3
+behavioral function coverage. Release housekeeping brings version to 0.22.0.
+
+### T1: `web4_process_action` MCP tool
+**Status**: DONE
+**Completed**: 2026-04-08
+**Scope**: Add 8th MCP tool to `web4/mcp_server.py` wrapping `process_action_outcome()`.
+Accepts simple parameters (action_type, status, actor, role, rules JSON, profile_roles JSON,
+atp_stake, atp_locked, quality), constructs R7Action + ReputationEngine + TrustProfile +
+ATPAccount internally, calls `process_action_outcome()`, returns updated T3/V3 tensors,
+ATP settlement, and reputation delta. Input validation for status (success/failure),
+rules JSON parsing with error messages, profile_roles JSON parsing.
+**Result**: 1 new tool function (~120 lines), 1 new test file (test_mcp_process_action.py).
+15 new tests across 5 classes (success path, failure path, error handling, edge cases,
+MCP integration). MCP server now has 8 tools (5 data + 3 behavioral). Updated docstring,
+`__all__`, server instructions.
+
+### T2: SDK v0.22.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-08
+**Scope**: Version bump 0.21.0 → 0.22.0. CHANGELOG v0.22.0 entry documenting Sprint 28
+(MCP process_action tool). README.md updates (8 tools, 2600 tests, 364 exports). Update
+`__init__.py` docstring. Update SESSION_FOCUS.md and SPRINT.md. Fix stale PR #137
+reference in CHANGELOG v0.21.0 entry (now #143).
+**Result**: All SDK metadata now accurately reflects 22 modules + MCP server, 364 exports,
+2600 tests, 8 MCP tools, 3 behavioral functions. Version 0.22.0.
 
 ---
 
