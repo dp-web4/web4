@@ -593,6 +593,9 @@ class DictionaryEntity:
             compression=spec.compression,
             dictionary_type=spec.dictionary_type,
         )
+        # Restore original lct_id if present (roundtrip fidelity)
+        if "lct_id" in doc:
+            entity.lct.lct_id = doc["lct_id"]
         entity.translation_count = doc.get("translation_count", 0)
         entity.successful_translations = doc.get("successful_translations", 0)
         return entity

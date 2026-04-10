@@ -3,7 +3,7 @@
     "format": "lct-jsonld-vectors",
     "version": "1.0",
     "description": "Cross-language test vectors for LCT JSON-LD serialization per spec section 2.3",
-    "generated_by": "web4 Python SDK v0.6.0",
+    "generated_by": "web4 Python SDK v0.22.0",
     "spec_reference": "web4-standard/core-spec/LCT-linked-context-token.md section 2.3",
     "tolerance": 1e-10
   },
@@ -15,6 +15,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:ai:minimal001",
         "subject": "did:web4:key:z6MkMinimal001",
         "binding": {
@@ -83,6 +84,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:human:full002",
         "subject": "did:web4:key:z6MkFull002",
         "binding": {
@@ -204,6 +206,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:ai:revoked003",
         "subject": "did:web4:key:z6MkRevoked003",
         "binding": {
@@ -273,6 +276,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:service:attested004",
         "subject": "did:web4:key:z6MkService004",
         "binding": {
@@ -370,6 +374,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:ai:lineage005",
         "subject": "did:web4:key:z6MkLineage005",
         "binding": {
@@ -455,6 +460,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:organization:mrh006",
         "subject": "did:web4:key:z6MkOrg006",
         "binding": {
@@ -544,6 +550,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:device:boundary007",
         "subject": "did:web4:key:z6MkDevice007",
         "binding": {
@@ -611,6 +618,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:hybrid:suspended008",
         "subject": "did:web4:key:z6MkHybrid008",
         "binding": {
@@ -678,6 +686,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:human:genesis009",
         "subject": "did:web4:key:z6MkGenesis009",
         "binding": {
@@ -748,6 +757,7 @@
         "@context": [
           "https://web4.io/contexts/lct.jsonld"
         ],
+        "@type": "web4:LinkedContextToken",
         "lct_id": "lct:web4:oracle:nobc010",
         "subject": "did:web4:key:z6MkOracle010",
         "binding": {

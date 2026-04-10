@@ -22,6 +22,11 @@
       "minItems": 1,
       "description": "JSON-LD context URIs. First MUST be the LCT context."
     },
+    "@type": {
+      "type": "string",
+      "const": "web4:LinkedContextToken",
+      "description": "JSON-LD type identifier."
+    },
     "lct_id": {
       "type": "string",
       "pattern": "^lct:",

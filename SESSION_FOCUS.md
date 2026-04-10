@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-10 (Sprint 29)*
+*Last updated: 2026-04-10 (Sprint 30)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 30 Summary: Distribution Verification + Roundtrip Fidelity (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Wheel verification + roundtrip fixes | DONE | 4 bugs fixed (LCT @type, LCT schema, DictionaryEntity lct_id, license format), 2610 total tests |
 
 ### Sprint 29 Summary: CLI Test Coverage Hardening (COMPLETE)
 
@@ -76,7 +82,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.22.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2608 passing
+- **Tests**: 2610 passing
 - **Exports**: 364 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
@@ -141,7 +147,7 @@ None.
 
 ## Completeness Summary
 
-- All 29 sprints COMPLETE (Sprints 1-29)
+- All 30 sprints COMPLETE (Sprints 1-30)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -155,10 +161,12 @@ None.
 - All 22 submodules have `__all__` declarations, 364 root exports
 - All public methods have docstrings and return type annotations
 - `mypy --strict` passes with 0 errors across 25 source files
-- Test coverage: 96.2% overall (4 modules at 100%, 16 at 95%+)
+- Test coverage: 97.8% overall (4 modules at 100%, 16 at 95%+)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
 - CLI via `web4 info/validate/list-schemas/roundtrip/generate`
+- Wheel distribution verified: imports, CLI, schema validation, roundtrip all pass from installed wheel
+- All 23 generate() types pass roundtrip fidelity (generate → from_jsonld → to_jsonld = identical)
 
 ---
 
-*Updated by autonomous session, 2026-04-10 (Sprint 29 — CLI test coverage hardening)*
+*Updated by autonomous session, 2026-04-10 (Sprint 30 — distribution verification + roundtrip fidelity)*
