@@ -311,6 +311,147 @@ class TestGenerate:
         assert "type argument required" in err
 
 
+# ── trust subcommand (in-process) ──────────────────────────────────
+
+
+class TestTrust:
+    def test_trust_with_flags(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["trust", "--actor", "lct:alice", "--target", "lct:bob", "--role", "analyst"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        doc = json.loads(out)
+        assert doc["status"] == "APPROVED"
+        assert doc["response"]["entity"] == "lct:bob"
+        assert doc["response"]["role"] == "analyst"
+
+    def test_trust_with_profile_roles(self, capsys: pytest.CaptureFixture[str]) -> None:
+        roles = '{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}'
+        rc = main([
+            "trust", "--actor", "lct:alice", "--target", "lct:bob",
+            "--role", "analyst", "--profile-roles", roles,
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0
+        doc = json.loads(out)
+        assert doc["status"] == "APPROVED"
+        t3 = doc["response"]["t3_in_role"]
+        # With range disclosure (default), T3 composite is returned
+        assert "talent" in t3 or "composite" in t3
+
+    def test_trust_precise_disclosure(self, capsys: pytest.CaptureFixture[str]) -> None:
+        roles = '{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}'
+        rc = main([
+            "trust", "--actor", "lct:alice", "--target", "lct:bob",
+            "--role", "analyst", "--disclosure-level", "precise",
+            "--profile-roles", roles,
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0
+        doc = json.loads(out)
+        assert doc["status"] == "APPROVED"
+        t3 = doc["response"]["t3_in_role"]
+        assert t3["talent"] == 0.8
+
+    def test_trust_binary_disclosure(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([
+            "trust", "--actor", "lct:alice", "--target", "lct:bob",
+            "--role", "analyst", "--disclosure-level", "binary",
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0
+        doc = json.loads(out)
+        assert doc["status"] == "APPROVED"
+        # Binary disclosure does not reveal T3 dimensions
+        assert doc["response"].get("t3_in_role") is None
+
+    def test_trust_insufficient_atp(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([
+            "trust", "--actor", "lct:alice", "--target", "lct:bob",
+            "--role", "analyst", "--atp-balance", "5",
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0  # command succeeds, but query is rejected
+        doc = json.loads(out)
+        assert doc["status"] == "REJECTED"
+        assert doc["error"]["code"] == "INSUFFICIENT_STAKE"
+
+    def test_trust_compact_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([
+            "trust", "--actor", "lct:alice", "--target", "lct:bob",
+            "--role", "analyst", "--compact",
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "\n" not in out.strip()
+
+    def test_trust_missing_required_flags(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["trust"])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "--actor" in err
+
+    def test_trust_from_json_file(self, capsys: pytest.CaptureFixture[str]) -> None:
+        query_doc = {
+            "query": {
+                "querier": "lct:alice",
+                "target_entity": "lct:bob",
+                "requested_role": "admin",
+                "intended_interaction": "test",
+                "atp_stake": 10,
+                "validity_period": 3600,
+            },
+            "signature": "test-sig",
+        }
+        path = _make_json_file(query_doc)
+        rc = main(["trust", "--file", path])
+        out = capsys.readouterr().out
+        assert rc == 0
+        doc = json.loads(out)
+        assert doc["status"] == "APPROVED"
+        assert doc["response"]["role"] == "admin"
+
+    def test_trust_invalid_json_file(self, capsys: pytest.CaptureFixture[str]) -> None:
+        path = _make_text_file("{broken json")
+        rc = main(["trust", "--file", path])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "invalid JSON" in err
+
+    def test_trust_invalid_query_in_file(self, capsys: pytest.CaptureFixture[str]) -> None:
+        path = _make_json_file({"not": "a trust query"})
+        rc = main(["trust", "--file", path])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "invalid TrustQuery" in err
+
+    def test_trust_invalid_disclosure_level(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([
+            "trust", "--actor", "lct:alice", "--target", "lct:bob",
+            "--role", "analyst", "--disclosure-level", "invalid",
+        ])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "invalid disclosure level" in err.lower()
+
+    def test_trust_invalid_profile_roles_json(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([
+            "trust", "--actor", "lct:alice", "--target", "lct:bob",
+            "--role", "analyst", "--profile-roles", "{broken",
+        ])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "profile-roles" in err.lower() or "json" in err.lower()
+
+    def test_trust_invalid_t3_in_profile_roles(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([
+            "trust", "--actor", "lct:alice", "--target", "lct:bob",
+            "--role", "analyst", "--profile-roles", '{"analyst": "not-a-dict"}',
+        ])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "invalid T3" in err or "Error" in err
+
+
 # ── Parser and help (in-process) ─────────────────────────────────
 
 
