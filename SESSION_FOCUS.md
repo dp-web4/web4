@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-08 (Sprint 28)*
+*Last updated: 2026-04-10 (Sprint 29)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 29 Summary: CLI Test Coverage Hardening (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Refactor CLI tests to in-process | DONE | `__main__.py` coverage 15.8% → 90.6%, 40 tests in test_cli.py, 2608 total tests |
 
 ### Sprint 28 Summary: MCP process_action Tool + v0.22.0 (COMPLETE)
 
@@ -70,7 +76,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.22.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2600 passing
+- **Tests**: 2608 passing
 - **Exports**: 364 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
@@ -135,7 +141,7 @@ None.
 
 ## Completeness Summary
 
-- All 28 sprints COMPLETE (Sprints 1-28)
+- All 29 sprints COMPLETE (Sprints 1-29)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -155,4 +161,4 @@ None.
 
 ---
 
-*Updated by autonomous session, 2026-04-08 (Sprint 28 — MCP process_action + v0.22.0)*
+*Updated by autonomous session, 2026-04-10 (Sprint 29 — CLI test coverage hardening)*
