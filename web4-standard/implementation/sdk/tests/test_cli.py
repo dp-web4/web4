@@ -1,4 +1,10 @@
-"""Tests for web4.__main__ CLI module."""
+"""Tests for web4.__main__ CLI module.
+
+Tests are split into two categories:
+- In-process tests: call ``main(argv)`` directly so coverage tracks __main__.py
+- Subprocess smoke tests (TestSmoke): run ``python -m web4`` in a child process
+  to verify the entry point works end-to-end
+"""
 
 from __future__ import annotations
 
@@ -16,16 +22,6 @@ from web4.__main__ import main, build_parser, _detect_schema
 # ── Helpers ──────────────────────────────────────────────────────
 
 
-def run_cli(args: List[str]) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
-    """Run ``python -m web4`` in a subprocess and capture output."""
-    return subprocess.run(
-        [sys.executable, "-m", "web4"] + args,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-
-
 def _make_json_file(data: object, suffix: str = ".json") -> str:
     """Write *data* to a temp file and return the path."""
     f = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False)
@@ -34,62 +30,78 @@ def _make_json_file(data: object, suffix: str = ".json") -> str:
     return f.name
 
 
-# ── info subcommand ──────────────────────────────────────────────
+def _make_text_file(text: str, suffix: str = ".txt") -> str:
+    """Write raw text to a temp file and return the path."""
+    f = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False)
+    f.write(text)
+    f.close()
+    return f.name
+
+
+# ── info subcommand (in-process) ─────────────────────────────────
 
 
 class TestInfo:
-    def test_info_shows_version(self) -> None:
-        r = run_cli(["info"])
-        assert r.returncode == 0
-        assert "web4" in r.stdout
-        assert "0.22.0" in r.stdout
+    def test_info_shows_version(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["info"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "web4" in out
+        assert "0.22.0" in out
 
-    def test_info_shows_module_count(self) -> None:
-        r = run_cli(["info"])
-        assert "Modules: 22" in r.stdout
+    def test_info_shows_module_count(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["info"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Modules: 22" in out
 
-    def test_info_shows_export_count(self) -> None:
-        r = run_cli(["info"])
-        # At least 344 exports
-        assert "Exports:" in r.stdout
+    def test_info_shows_export_count(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["info"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Exports:" in out
 
-    def test_info_shows_schema_count(self) -> None:
-        r = run_cli(["info"])
-        assert "Schemas:" in r.stdout
+    def test_info_shows_schema_count(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["info"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Schemas:" in out
 
 
-# ── list-schemas subcommand ──────────────────────────────────────
+# ── list-schemas subcommand (in-process) ─────────────────────────
 
 
 class TestListSchemas:
-    def test_lists_all_schemas(self) -> None:
-        r = run_cli(["list-schemas"])
-        assert r.returncode == 0
-        lines = r.stdout.strip().splitlines()
+    def test_lists_all_schemas(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["list-schemas"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        lines = out.strip().splitlines()
         assert len(lines) >= 12
 
-    def test_contains_known_schemas(self) -> None:
-        r = run_cli(["list-schemas"])
+    def test_contains_known_schemas(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["list-schemas"])
+        out = capsys.readouterr().out
+        assert rc == 0
         for name in ["lct", "atp", "acp", "t3v3", "entity", "capability"]:
-            assert name in r.stdout
+            assert name in out
 
 
-# ── validate subcommand ──────────────────────────────────────────
+# ── validate subcommand (in-process) ─────────────────────────────
 
 
 class TestValidate:
-    def test_valid_document(self) -> None:
-        """Validate a T3 document (has @type for auto-detection)."""
+    def test_valid_document(self, capsys: pytest.CaptureFixture[str]) -> None:
         from web4.trust import T3
 
         doc = T3(talent=0.8, training=0.7, temperament=0.9).to_jsonld()
         path = _make_json_file(doc)
-        r = run_cli(["validate", path])
-        assert r.returncode == 0
-        assert "OK" in r.stdout
+        rc = main(["validate", path])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "OK" in out
 
-    def test_valid_with_explicit_schema(self) -> None:
-        """Validate LCT with --schema flag (LCT has no @type)."""
+    def test_valid_with_explicit_schema(self, capsys: pytest.CaptureFixture[str]) -> None:
         from web4.lct import LCT, Binding
         from web4.entity import EntityType
 
@@ -103,54 +115,56 @@ class TestValidate:
             ),
         )
         path = _make_json_file(lct.to_jsonld())
-        r = run_cli(["validate", path, "--schema", "lct"])
-        assert r.returncode == 0
-        assert "OK" in r.stdout
+        rc = main(["validate", path, "--schema", "lct"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "OK" in out
 
-    def test_invalid_document(self) -> None:
-        """Invalid document produces error output and exit code 1."""
+    def test_invalid_document(self, capsys: pytest.CaptureFixture[str]) -> None:
         path = _make_json_file({"@type": "web4:LinkedContextToken"})
-        r = run_cli(["validate", path, "--schema", "lct"])
-        assert r.returncode == 1
-        assert "INVALID" in r.stdout
+        rc = main(["validate", path, "--schema", "lct"])
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert "INVALID" in out
 
-    def test_file_not_found(self) -> None:
-        r = run_cli(["validate", "/tmp/web4_nonexistent_file.json"])
-        assert r.returncode == 1
-        assert "not found" in r.stderr
+    def test_file_not_found(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["validate", "/tmp/web4_nonexistent_file.json"])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "not found" in err
 
-    def test_invalid_json(self) -> None:
-        f = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-        f.write("not json at all")
-        f.close()
-        r = run_cli(["validate", f.name, "--schema", "lct"])
-        assert r.returncode == 1
-        assert "invalid JSON" in r.stderr
+    def test_invalid_json(self, capsys: pytest.CaptureFixture[str]) -> None:
+        path = _make_text_file("not json at all")
+        rc = main(["validate", path, "--schema", "lct"])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "invalid JSON" in err
 
-    def test_unknown_schema(self) -> None:
+    def test_unknown_schema(self, capsys: pytest.CaptureFixture[str]) -> None:
         path = _make_json_file({"key": "value"})
-        r = run_cli(["validate", path, "--schema", "nonexistent"])
-        assert r.returncode == 1
-        assert "Error" in r.stderr
+        rc = main(["validate", path, "--schema", "nonexistent"])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "Error" in err
 
-    def test_no_type_no_schema_flag(self) -> None:
-        """Document without @type and no --schema flag gives clear error."""
+    def test_no_type_no_schema_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
         path = _make_json_file({"key": "value"})
-        r = run_cli(["validate", path])
-        assert r.returncode == 1
-        assert "cannot detect" in r.stderr
+        rc = main(["validate", path])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "cannot detect" in err
 
-    def test_non_object_json(self) -> None:
-        """JSON array (not object) is rejected."""
+    def test_non_object_json(self, capsys: pytest.CaptureFixture[str]) -> None:
         f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
         json.dump([1, 2, 3], f)
         f.close()
-        r = run_cli(["validate", f.name, "--schema", "lct"])
-        assert r.returncode == 1
-        assert "must be a JSON object" in r.stderr
+        rc = main(["validate", f.name, "--schema", "lct"])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "must be a JSON object" in err
 
 
-# ── Schema auto-detection ────────────────────────────────────────
+# ── Schema auto-detection (in-process, no I/O) ──────────────────
 
 
 class TestDetectSchema:
@@ -173,107 +187,183 @@ class TestDetectSchema:
         assert _detect_schema({"key": "value"}) is None
 
 
-# ── roundtrip subcommand ─────────────────────────────────────────
+# ── roundtrip subcommand (in-process) ────────────────────────────
 
 
 class TestRoundtrip:
-    def test_normalize_t3(self) -> None:
-        """Roundtrip a T3 document in normalize mode (prints JSON)."""
+    def test_normalize_t3(self, capsys: pytest.CaptureFixture[str]) -> None:
         from web4.trust import T3
 
         doc = T3(talent=0.8, training=0.7, temperament=0.9).to_jsonld()
         path = _make_json_file(doc)
-        r = run_cli(["roundtrip", path])
-        assert r.returncode == 0
-        output = json.loads(r.stdout)
+        rc = main(["roundtrip", path])
+        out = capsys.readouterr().out
+        assert rc == 0
+        output = json.loads(out)
         assert output["@type"] == "T3Tensor"
         assert output["talent"] == 0.8
 
-    def test_check_pass(self) -> None:
-        """--check returns 0 when round-trip preserves the document."""
+    def test_check_pass(self, capsys: pytest.CaptureFixture[str]) -> None:
         from web4.trust import V3
 
         doc = V3(valuation=0.5, veracity=0.6, validity=0.7).to_jsonld()
         path = _make_json_file(doc)
-        r = run_cli(["roundtrip", "--check", path])
-        assert r.returncode == 0
-        assert "OK" in r.stdout
+        rc = main(["roundtrip", "--check", path])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "OK" in out
 
-    def test_check_mismatch(self) -> None:
-        """--check returns 1 when input has extra keys not in round-trip."""
+    def test_check_mismatch(self, capsys: pytest.CaptureFixture[str]) -> None:
         from web4.trust import T3
 
         doc = T3(talent=0.8, training=0.7, temperament=0.9).to_jsonld()
         doc["extra_key"] = "should_be_lost"
         path = _make_json_file(doc)
-        r = run_cli(["roundtrip", "--check", path])
-        assert r.returncode == 1
-        assert "MISMATCH" in r.stdout
+        rc = main(["roundtrip", "--check", path])
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert "MISMATCH" in out
 
-    def test_unknown_type(self) -> None:
-        """Unknown @type produces a clear error."""
+    def test_unknown_type(self, capsys: pytest.CaptureFixture[str]) -> None:
         doc = {"@type": "NotARealType", "data": 123}
         path = _make_json_file(doc)
-        r = run_cli(["roundtrip", path])
-        assert r.returncode == 1
-        assert "Unknown @type" in r.stderr
+        rc = main(["roundtrip", path])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "Unknown @type" in err
 
-    def test_no_type(self) -> None:
-        """Document without @type produces a clear error."""
+    def test_no_type(self, capsys: pytest.CaptureFixture[str]) -> None:
         path = _make_json_file({"key": "value"})
-        r = run_cli(["roundtrip", path])
-        assert r.returncode == 1
-        assert "no @type" in r.stderr
+        rc = main(["roundtrip", path])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "no @type" in err
 
-    def test_file_not_found(self) -> None:
-        r = run_cli(["roundtrip", "/tmp/web4_nonexistent_roundtrip.json"])
-        assert r.returncode == 1
-        assert "not found" in r.stderr
+    def test_file_not_found(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["roundtrip", "/tmp/web4_nonexistent_roundtrip.json"])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "not found" in err
 
-    def test_invalid_json(self) -> None:
-        f = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-        f.write("{broken json")
-        f.close()
-        r = run_cli(["roundtrip", f.name])
-        assert r.returncode == 1
-        assert "invalid JSON" in r.stderr
+    def test_invalid_json(self, capsys: pytest.CaptureFixture[str]) -> None:
+        path = _make_text_file("{broken json")
+        rc = main(["roundtrip", path])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "invalid JSON" in err
 
-    def test_non_object_json(self) -> None:
+    def test_non_object_json(self, capsys: pytest.CaptureFixture[str]) -> None:
         f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
         json.dump([1, 2, 3], f)
         f.close()
-        r = run_cli(["roundtrip", f.name])
-        assert r.returncode == 1
-        assert "must be a JSON object" in r.stderr
+        rc = main(["roundtrip", f.name])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "must be a JSON object" in err
 
-    def test_atp_account_roundtrip(self) -> None:
-        """Test a different type (ATPAccount) to verify dispatcher coverage."""
+    def test_atp_account_roundtrip(self, capsys: pytest.CaptureFixture[str]) -> None:
         from web4.atp import ATPAccount
 
         acct = ATPAccount(available=80.0, locked=20.0)
         doc = acct.to_jsonld()
         path = _make_json_file(doc)
-        r = run_cli(["roundtrip", "--check", path])
-        assert r.returncode == 0
-        assert "OK" in r.stdout
-
-    def test_help_mentions_roundtrip(self) -> None:
-        r = run_cli(["--help"])
-        assert "roundtrip" in r.stdout
+        rc = main(["roundtrip", "--check", path])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "OK" in out
 
 
-# ── Parser and help ──────────────────────────────────────────────
+# ── generate subcommand (in-process) ─────────────────────────────
+
+
+class TestGenerate:
+    def test_list_types(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["generate", "--list"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "T3Tensor" in out
+        assert "R7Action" in out
+
+    def test_generate_t3(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["generate", "T3Tensor"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        doc = json.loads(out)
+        assert doc["@type"] == "T3Tensor"
+
+    def test_generate_compact(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["generate", "T3Tensor", "--compact"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        # Compact output should be a single line
+        assert "\n" not in out.strip()
+
+    def test_generate_unknown_type(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["generate", "NotARealType"])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "unknown type" in err.lower()
+
+    def test_generate_no_type_arg(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["generate"])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "type argument required" in err
+
+
+# ── Parser and help (in-process) ─────────────────────────────────
 
 
 class TestParser:
-    def test_no_args_shows_help(self) -> None:
-        r = run_cli([])
+    def test_no_args_shows_help(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "web4" in out
+
+    def test_build_parser_has_subcommands(self) -> None:
+        parser = build_parser()
+        # Parser should have all expected subcommands
+        assert parser.prog == "web4"
+
+    def test_help_mentions_roundtrip(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main([])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "roundtrip" in out
+
+
+# ── Subprocess smoke tests (end-to-end entry point) ──────────────
+
+
+def _run_cli(args: List[str]) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
+    """Run ``python -m web4`` in a subprocess and capture output."""
+    return subprocess.run(
+        [sys.executable, "-m", "web4"] + args,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+class TestSmoke:
+    """Subprocess smoke tests verify the entry point works end-to-end."""
+
+    def test_no_args(self) -> None:
+        r = _run_cli([])
         assert r.returncode == 0
         assert "web4" in r.stdout
 
-    def test_help_flag(self) -> None:
-        r = run_cli(["--help"])
+    def test_info(self) -> None:
+        r = _run_cli(["info"])
         assert r.returncode == 0
-        assert "validate" in r.stdout
-        assert "info" in r.stdout
-        assert "list-schemas" in r.stdout
+        assert "0.22.0" in r.stdout
+
+    def test_validate_valid_doc(self) -> None:
+        from web4.trust import T3
+
+        doc = T3(talent=0.8, training=0.7, temperament=0.9).to_jsonld()
+        path = _make_json_file(doc)
+        r = _run_cli(["validate", path])
+        assert r.returncode == 0
+        assert "OK" in r.stdout

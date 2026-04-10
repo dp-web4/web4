@@ -1,9 +1,29 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-08 (Sprint 28)
+**Updated**: 2026-04-10 (Sprint 29)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 29: CLI Test Coverage Hardening (2026-04-10)
+
+The CLI module (`__main__.py`) was at 15.8% measured coverage despite having
+comprehensive tests — because all tests used `subprocess.run()`, running in
+child processes invisible to coverage. Sprint 29 refactors these tests to
+call `main(argv)` in-process so coverage tracks accurately.
+
+### T1: Refactor CLI tests from subprocess to in-process
+**Status**: DONE
+**Completed**: 2026-04-10
+**Scope**: Convert all `test_cli.py` test classes from `subprocess.run()` calls
+to in-process `main(argv)` + `capsys` calls. Keep a small `TestSmoke` class (3
+subprocess tests) for end-to-end entry point validation. Add `TestGenerate`
+class (5 tests) for the previously untested generate subcommand CLI paths.
+**Result**: `__main__.py` coverage: 15.8% → 90.6%. 40 total tests in test_cli.py
+(was 32 — net +8: 5 generate tests + 3 smoke tests). 2608 total tests passing
+(up from 2600). mypy strict clean (25 files). 0 new files.
 
 ---
 
