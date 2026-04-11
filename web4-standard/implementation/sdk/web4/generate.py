@@ -273,10 +273,7 @@ def _make_lct() -> Dict[str, Any]:
         society="lct:web4:society:example",
         witnesses=["witness-1", "witness-2"],
     )
-    doc = lct.to_jsonld()
-    # LCT.to_jsonld() omits @type per spec §2.3; add it for generate output
-    doc["@type"] = "web4:LinkedContextToken"
-    return doc
+    return lct.to_jsonld()
 
 
 # ---------------------------------------------------------------------------

@@ -527,6 +527,7 @@ class LCT:
         """
         doc: Dict[str, Any] = {
             "@context": [LCT_JSONLD_CONTEXT],
+            "@type": "web4:LinkedContextToken",
             "lct_id": self.lct_id,
             "subject": self.subject,
         }

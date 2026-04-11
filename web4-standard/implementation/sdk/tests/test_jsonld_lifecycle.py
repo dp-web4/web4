@@ -113,9 +113,6 @@ class TestLCTLifecycle:
         )
         doc = lct.to_jsonld()
 
-        # Note: LCT.to_jsonld() omits @type per spec §2.3 canonical format.
-        # The generic dispatcher requires @type, so we test the class-specific
-        # from_jsonld here and the dispatcher for types that include @type.
         restored = LCT.from_jsonld(doc)
         assert restored.lct_id == lct.lct_id
         assert restored.subject == lct.subject
@@ -603,6 +600,10 @@ class TestDictionaryLifecycle:
 # ═══════════════════════════════════════════════════════════════════
 
 
+def _make_lct_doc() -> dict:
+    return LCT.create(entity_type=EntityType.AI, public_key="test-key").to_jsonld()
+
+
 def _make_t3_doc() -> dict:
     return T3(0.8, 0.8, 0.8).to_jsonld()
 
@@ -756,8 +757,8 @@ def _make_trust_query_doc() -> dict:
     return q.to_jsonld()
 
 
-# Map: (type_name, factory) — Note: LCT omitted since to_jsonld() excludes @type
 _ALL_DISPATCHER_TYPES = [
+    ("LinkedContextToken", _make_lct_doc),
     ("T3Tensor", _make_t3_doc),
     ("V3Tensor", _make_v3_doc),
     ("AttestationEnvelope", _make_attestation_doc),

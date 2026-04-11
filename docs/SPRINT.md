@@ -1,9 +1,32 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-10 (Sprint 29)
+**Updated**: 2026-04-10 (Sprint 30)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 30: Distribution Verification + Roundtrip Fidelity (2026-04-10)
+
+Wheel distribution verification uncovered real bugs: LCT JSON-LD roundtrip
+losing `@type`, DictionaryEntity roundtrip losing `lct_id`, and LCT schema
+rejecting valid `@type` fields. Also fixed setuptools license deprecation.
+
+### T1: Wheel distribution verification + roundtrip bug fixes
+**Status**: DONE
+**Completed**: 2026-04-10
+**Scope**: Build a wheel, install in isolated venv, verify all SDK features.
+Fix all roundtrip fidelity issues and packaging warnings discovered.
+**Result**: 4 bugs fixed:
+1. `LCT.to_jsonld()` now includes `@type: "web4:LinkedContextToken"` (roundtrip fidelity)
+2. LCT JSON Schema now allows optional `@type` property (was rejecting valid documents)
+3. `DictionaryEntity.from_jsonld()` now preserves `lct_id` from original document
+4. `pyproject.toml` license updated to SPDX format (fixes setuptools deprecation)
+Removed `@type` workaround from `generate.py`. Rebuilt `schema_registry.json`.
+Updated LCT test vectors (10 vectors, all with `@type`). Added LCT to dispatcher
+lifecycle test. 2610 tests passing (up from 2608). mypy strict clean (25 files).
+Wheel verified: 14 import tests + CLI + schema validation + roundtrip all pass.
 
 ---
 

@@ -39,11 +39,7 @@ def _make_v3_doc() -> Dict[str, Any]:
 def _make_lct_doc() -> Dict[str, Any]:
     from web4.lct import LCT, EntityType
 
-    # LCT.to_jsonld() doesn't include @type at the top level (spec §2.3 format).
-    # The dispatcher needs @type, so we add it explicitly for the round-trip test.
-    doc = LCT.create(entity_type=EntityType.AI, public_key="test-key").to_jsonld()
-    doc["@type"] = "LinkedContextToken"
-    return doc
+    return LCT.create(entity_type=EntityType.AI, public_key="test-key").to_jsonld()
 
 
 def _make_atp_account_doc() -> Dict[str, Any]:
