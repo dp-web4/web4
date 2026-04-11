@@ -2,6 +2,32 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.23.0] - 2026-04-11
+
+Sprint 29: CLI test coverage hardening. Sprint 30: Distribution verification and
+roundtrip fidelity bug fixes.
+
+### Fixed
+- **LCT `to_jsonld()` roundtrip fidelity** (Sprint 30 T1b) — `to_jsonld()` now
+  includes `@type: "web4:LinkedContextToken"` so that `from_jsonld()` can dispatch
+  correctly. Previously omitted per spec §2.3, but broke roundtrip fidelity.
+- **LCT JSON Schema `@type` rejection** (Sprint 30 T1b) — schema now allows
+  optional `@type` property instead of rejecting valid documents that include it.
+- **DictionaryEntity `from_jsonld()` lct_id loss** (Sprint 30 T1b) — `from_jsonld()`
+  now preserves `lct_id` from the original document instead of silently dropping it.
+- **`pyproject.toml` license deprecation** (Sprint 30 T1b) — license field updated
+  to SPDX format (`"MIT"` string), fixing setuptools deprecation warning.
+
+### Changed
+- Version bumped from 0.22.0 to 0.23.0.
+- **CLI test coverage** (Sprint 29 T1) — refactored `test_cli.py` from subprocess-only
+  to in-process `main(argv)` + `capsys`, making coverage visible to pytest-cov.
+  `__main__.py` coverage: 15.8% → 90.6%. Overall SDK coverage: 96.2% → 97.8%.
+- 2610 tests passing (up from 2600 in v0.22.0). 364 exports.
+- All 23 `generate()` types now pass roundtrip fidelity (generate → from_jsonld →
+  to_jsonld = identical). Verified from installed wheel in isolated venv.
+- LCT test vectors updated (10 vectors, all with `@type`). `schema_registry.json` rebuilt.
+
 ## [0.22.0] - 2026-04-08
 
 Sprint 28: MCP process_action tool and v0.22.0 release housekeeping.
