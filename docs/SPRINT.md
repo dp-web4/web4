@@ -1,9 +1,29 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-11 (Sprint 31)
+**Updated**: 2026-04-11 (Sprint 32)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 32: Deployment Verification CLI (2026-04-11)
+
+The SDK has been feature-complete since Sprint 31 (v0.23.0). Sprint 30 performed
+manual deployment verification (build wheel → install → test imports/CLI/schemas/roundtrip)
+and found 4 bugs. Sprint 32 automates that verification as a CLI subcommand so any
+user can verify their `pip install web4` works correctly.
+
+### T1: `web4 selftest` deployment verification command
+**Status**: DONE
+**Completed**: 2026-04-11
+**Scope**: Add `selftest` subcommand to `web4/__main__.py` that verifies: (1) all
+22 modules import successfully, (2) schema registry loads, (3) all 23 dispatcher
+types generate and round-trip with fidelity. Supports `--verbose`/`-v` for per-phase
+progress. Exits 0 with summary on success, exits 1 with error details on failure.
+**Result**: ~60 lines in `__main__.py` (function + module list + parser entry).
+4 new tests in `test_cli.py` (success path, verbose mode, simulated import failure,
+short flag). 2614 tests passing (up from 2610). mypy strict clean (25 files). 0 new files.
 
 ---
 
