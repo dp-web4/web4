@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.23.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.24.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
 
 ## Installation
 
@@ -108,6 +108,8 @@ web4 roundtrip F.json         # Deserialize + re-serialize (normalize)
 web4 roundtrip F.json --check # Compare input vs output (exit 0=match, 1=diff)
 web4 generate T3Tensor        # Generate a minimal valid JSON-LD document
 web4 generate --list          # List all 23 supported types
+web4 selftest                 # Verify SDK installation (imports, schemas, roundtrips)
+web4 selftest -v              # Verbose: show per-phase progress
 ```
 
 Also available as `python -m web4`.
@@ -181,7 +183,7 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-2610 tests, 97.8% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
+2614 tests, 97.8% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
 
 ## Client SDK
 
@@ -208,7 +210,7 @@ The client SDK re-exports canonical types from the `web4` package, so both
 ```
 web4/                  # Python package (22 modules + MCP server)
   __init__.py          # 364 re-exports
-  __main__.py          # CLI entry point (web4 info/validate/list-schemas/roundtrip/generate)
+  __main__.py          # CLI entry point (web4 info/validate/list-schemas/roundtrip/generate/selftest)
   mcp_server.py        # MCP server entry point (web4-mcp)
   py.typed             # PEP 561 marker
   trust.py             # T3/V3 tensors, TrustQuery, evaluate_trust_query(), resolve_trust()
@@ -217,7 +219,7 @@ web4/                  # Python package (22 modules + MCP server)
   generate.py          # Minimal valid JSON-LD document generation
   validation.py        # Schema validation
   ...                  # (17 more modules)
-tests/                 # 2610 tests
+tests/                 # 2614 tests
 schemas/               # JSON Schemas + JSON-LD contexts
 web4_sdk.py            # Async HTTP client (separate)
 pyproject.toml         # Package metadata (single version source)
