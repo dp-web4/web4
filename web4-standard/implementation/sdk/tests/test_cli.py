@@ -333,6 +333,54 @@ class TestParser:
         assert "roundtrip" in out
 
 
+# ── selftest subcommand (in-process) ──────────────────────────────
+
+
+class TestSelftest:
+    def test_selftest_passes(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["selftest"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "OK" in out
+        assert "22 modules" in out
+        assert "23 types roundtripped" in out
+
+    def test_selftest_verbose(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["selftest", "--verbose"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Modules: 22/22" in out
+        assert "Schemas:" in out
+        assert "Roundtrip: 23/23" in out
+        assert "OK" in out
+
+    def test_selftest_reports_import_failure(
+        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Simulate a broken module to verify error reporting."""
+        import importlib
+
+        original_import = importlib.import_module
+
+        def _broken_import(name: str, *args: object, **kwargs: object) -> object:
+            if name == "web4.metabolic":
+                raise ImportError("simulated failure")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(importlib, "import_module", _broken_import)
+        rc = main(["selftest"])
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert "FAIL" in out
+        assert "web4.metabolic" in out
+
+    def test_selftest_short_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = main(["selftest", "-v"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Modules:" in out
+
+
 # ── Subprocess smoke tests (end-to-end entry point) ──────────────
 
 

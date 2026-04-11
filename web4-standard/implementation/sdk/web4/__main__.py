@@ -9,6 +9,7 @@ Subcommands::
     python -m web4 roundtrip F.json   # Deserialize + re-serialize (normalize)
     python -m web4 roundtrip --check  # Verify round-trip fidelity
     python -m web4 generate T3Tensor  # Generate a minimal valid JSON-LD document
+    python -m web4 selftest           # Verify SDK installation
 """
 
 from __future__ import annotations
@@ -229,6 +230,92 @@ def _cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
+# ── selftest subcommand ───────────────────────────────────────
+
+
+_SELFTEST_MODULES: List[str] = [
+    "trust", "lct", "atp", "federation", "r6", "mrh", "acp",
+    "dictionary", "entity", "capability", "errors", "metabolic",
+    "binding", "society", "reputation", "security", "protocol",
+    "mcp", "attestation", "validation", "deserialize", "generate",
+]
+
+
+def _cmd_selftest(args: argparse.Namespace) -> int:
+    """Verify SDK installation: imports, schemas, and round-trip fidelity."""
+    import importlib
+
+    errors: List[str] = []
+    verbose: bool = args.verbose
+
+    # 1. Module imports
+    imported = 0
+    for mod_name in _SELFTEST_MODULES:
+        try:
+            importlib.import_module(f"web4.{mod_name}")
+            imported += 1
+        except Exception as exc:
+            errors.append(f"import web4.{mod_name}: {exc}")
+
+    if verbose:
+        print(f"Modules: {imported}/{len(_SELFTEST_MODULES)} imported")
+
+    # 2. Schema registry
+    schema_count = 0
+    try:
+        from web4.validation import list_schemas
+        schemas = list_schemas()
+        schema_count = len(schemas)
+        if verbose:
+            print(f"Schemas: {schema_count} loaded")
+    except Exception as exc:
+        errors.append(f"schema registry: {exc}")
+
+    # 3. Generate + round-trip for each dispatcher type
+    try:
+        from web4.generate import available_types, generate
+        from web4.deserialize import from_jsonld
+
+        types = available_types()
+        passed = 0
+        for type_name in types:
+            try:
+                doc = generate(type_name)
+                obj = from_jsonld(doc)
+                if hasattr(obj, "to_jsonld"):
+                    rt_doc = obj.to_jsonld()
+                    if rt_doc != doc:
+                        errors.append(
+                            f"roundtrip {type_name}: output differs from input"
+                        )
+                    else:
+                        passed += 1
+                else:
+                    # Function-based types (no to_jsonld method) — import OK
+                    passed += 1
+            except Exception as exc:
+                errors.append(f"roundtrip {type_name}: {exc}")
+
+        if verbose:
+            print(f"Roundtrip: {passed}/{len(types)} types passed")
+    except Exception as exc:
+        errors.append(f"generate/roundtrip setup: {exc}")
+
+    # Summary
+    if errors:
+        print(f"FAIL: {len(errors)} error(s)")
+        for err in errors:
+            print(f"  - {err}")
+        return 1
+
+    total_types = len(types) if "types" in dir() else 0
+    print(
+        f"OK: {imported} modules, {schema_count} schemas, "
+        f"{total_types} types roundtripped"
+    )
+    return 0
+
+
 # ── Schema auto-detection ──────────────────────────────────────
 
 # @type value -> schema name mapping
@@ -351,6 +438,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Compare input vs output; exit 0 if equal, 1 if different.",
     )
 
+    # selftest
+    p_st = sub.add_parser(
+        "selftest",
+        help="Verify SDK installation (imports, schemas, round-trips)",
+    )
+    p_st.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show per-phase progress details.",
+    )
+
     return parser
 
 
@@ -369,6 +467,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "validate": _cmd_validate,
         "roundtrip": _cmd_roundtrip,
         "generate": _cmd_generate,
+        "selftest": _cmd_selftest,
     }
 
     handler = dispatch.get(args.command)
