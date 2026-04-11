@@ -1,9 +1,31 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-10 (Sprint 30)
+**Updated**: 2026-04-11 (Sprint 31)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 31: SDK v0.23.0 Release Housekeeping (2026-04-11)
+
+Sprints 29 and 30 landed significant changes on main (CLI test refactoring for
+coverage accuracy, 4 roundtrip fidelity bug fixes) without a version bump.
+Sprint 31 brings all SDK metadata into alignment with the current state.
+
+### T1: SDK v0.23.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-11
+**Scope**: Version bump 0.22.0 → 0.23.0. CHANGELOG v0.23.0 entry documenting
+Sprint 29 (CLI test refactoring, `__main__.py` coverage 15.8% → 90.6%) and
+Sprint 30 T1b (4 bug fixes: LCT `@type` roundtrip, LCT schema `@type` rejection,
+DictionaryEntity `lct_id` loss, `pyproject.toml` license deprecation). Update
+README.md (2610 tests, 97.8% coverage). Update `__init__.py` docstring. Update
+SESSION_FOCUS.md (correct Open PRs, test count, coverage). Fix test version
+assertions (0.22.0 → 0.23.0).
+**Result**: All SDK metadata now accurately reflects 22 modules + MCP server,
+364 exports, 2610 tests, 97.8% coverage, 8 MCP tools, 3 behavioral functions.
+Version 0.23.0. 0 new files.
 
 ---
 

@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-10 (Sprint 30)*
+*Last updated: 2026-04-11 (Sprint 31)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 31 Summary: SDK v0.23.0 Release Housekeeping (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: v0.23.0 release housekeeping | DONE | Version bump, CHANGELOG for Sprints 29+30, README/docstring updates, 2610 tests |
 
 ### Sprint 30 Summary: Distribution Verification + Roundtrip Fidelity (COMPLETE)
 
@@ -80,9 +86,9 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 ## SDK Status
 
-- **Version**: 0.22.0
+- **Version**: 0.23.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2610 passing
+- **Tests**: 2610 passing (97.8% coverage)
 - **Exports**: 364 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
@@ -130,24 +136,24 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+af62184 Sprint 30 T1: Distribution verification — fix roundtrip fidelity + packaging (#148)
+37cddbc Sprint 29 T1: Refactor CLI tests to in-process for coverage accuracy (#146)
+b80db02 Sprint 28: web4_process_action MCP tool + SDK v0.22.0 (#145)
 45ee7fe Sprint 24 T1: process_action_outcome() — action consequence pipeline (#143)
 16b4d96 Sprint 27 T1: Expose behavioral functions as MCP tools (#140)
-0fc2545 Sprint 26 T1: SDK v0.21.0 release housekeeping (#139)
-4c2585f Sprint 25 T1: resolve_trust() — indirect trust resolution through MRH graphs (#138)
-3a36de3 Sprint 23 T1: SDK v0.20.0 release housekeeping (#136)
 ```
 
 ---
 
 ## Open PRs
 
-None.
+- PR #147: "Sprint 30 T1: web4 trust CLI subcommand" — REVIEW_REQUIRED
 
 ---
 
 ## Completeness Summary
 
-- All 30 sprints COMPLETE (Sprints 1-30)
+- All 31 sprints COMPLETE (Sprints 1-31)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -161,7 +167,7 @@ None.
 - All 22 submodules have `__all__` declarations, 364 root exports
 - All public methods have docstrings and return type annotations
 - `mypy --strict` passes with 0 errors across 25 source files
-- Test coverage: 97.8% overall (4 modules at 100%, 16 at 95%+)
+- Test coverage: 97.8% overall (4 modules at 100%, 16 at 95%+, __main__.py at 90.6%)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
 - CLI via `web4 info/validate/list-schemas/roundtrip/generate`
 - Wheel distribution verified: imports, CLI, schema validation, roundtrip all pass from installed wheel
@@ -169,4 +175,4 @@ None.
 
 ---
 
-*Updated by autonomous session, 2026-04-10 (Sprint 30 — distribution verification + roundtrip fidelity)*
+*Updated by autonomous session, 2026-04-11 (Sprint 31 — v0.23.0 release housekeeping)*

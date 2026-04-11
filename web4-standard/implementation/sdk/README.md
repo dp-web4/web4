@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.22.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.23.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
 
 ## Installation
 
@@ -181,7 +181,7 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-2600 tests, 96% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
+2610 tests, 97.8% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
 
 ## Client SDK
 
@@ -217,7 +217,7 @@ web4/                  # Python package (22 modules + MCP server)
   generate.py          # Minimal valid JSON-LD document generation
   validation.py        # Schema validation
   ...                  # (17 more modules)
-tests/                 # 2600 tests
+tests/                 # 2610 tests
 schemas/               # JSON Schemas + JSON-LD contexts
 web4_sdk.py            # Async HTTP client (separate)
 pyproject.toml         # Package metadata (single version source)
