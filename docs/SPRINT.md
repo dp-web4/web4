@@ -1,9 +1,29 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-11 (Sprint 32)
+**Updated**: 2026-04-11 (Sprint 33)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 33: SDK v0.24.0 Release Housekeeping (2026-04-11)
+
+Sprint 32 added `web4 selftest` (deployment verification CLI) and merged to main
+after the v0.23.0 version bump. Sprint 33 brings all SDK metadata into alignment
+with the current state.
+
+### T1: SDK v0.24.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-11
+**Scope**: Version bump 0.23.0 → 0.24.0. CHANGELOG v0.24.0 entry documenting
+Sprint 32 (selftest CLI command). README.md updates (test count 2610 → 2614,
+selftest in CLI docs and project structure). `__init__.py` docstring update
+(test count, CLI subcommand count). Fix test version assertions (0.23.0 → 0.24.0).
+Update SESSION_FOCUS.md (version, open PRs, recent commits, completeness).
+**Result**: All SDK metadata now accurately reflects 22 modules + MCP server,
+364 exports, 2614 tests, 97.8% coverage, 8 MCP tools, 3 behavioral functions,
+6 CLI subcommands. Version 0.24.0. 0 new files.
 
 ---
 

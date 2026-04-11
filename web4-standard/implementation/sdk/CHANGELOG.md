@@ -2,6 +2,23 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.24.0] - 2026-04-11
+
+Sprint 32: Deployment verification CLI command.
+
+### Added
+- **`web4 selftest` CLI command** (Sprint 32 T1) — automated deployment verification
+  that checks: (1) all 22 modules import successfully, (2) schema registry loads with
+  expected schema count, (3) all 23 dispatcher types generate and round-trip with
+  fidelity. Supports `--verbose`/`-v` for per-phase progress. Exits 0 with summary
+  on success, exits 1 with error details on failure. The SDK equivalent of `git fsck`
+  — any user can verify their `pip install web4` works correctly.
+
+### Changed
+- Version bumped from 0.23.0 to 0.24.0.
+- CLI: 6 subcommands (info, list-schemas, validate, roundtrip, generate, selftest).
+- 2614 tests passing (up from 2610 in v0.23.0). 364 exports.
+
 ## [0.23.0] - 2026-04-11
 
 Sprint 29: CLI test coverage hardening. Sprint 30: Distribution verification and

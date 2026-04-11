@@ -26,7 +26,7 @@ Provides offline-capable primitives for:
 - Deserialization — generic JSON-LD dispatcher for all Web4 types
 - Generation — produce minimal valid JSON-LD documents for any Web4 type
 
-22 modules + MCP server, 364 exports, 2610 tests, 3 behavioral functions, 8 MCP tools.
+22 modules + MCP server, 364 exports, 2614 tests, 3 behavioral functions, 8 MCP tools, 6 CLI subcommands.
 These modules define the canonical data types and algorithms specified in the web4-standard.
 They work offline (no network services required) and are designed to be
 imported by applications, services, and other SDKs that build on web4.
