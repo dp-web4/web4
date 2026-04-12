@@ -155,18 +155,18 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+2b5292f Sprint 34 T1: SDK v0.25.0 release housekeeping (#156)
 77d6f2a Sprint 33 T1: Archive remaining implementation/ session sprawl (#153)
 65cd548 Sprint 32 T1: Archive reference implementation sprawl (#151)
 9359540 Sprint 30 T1: `web4 trust` CLI subcommand for trust query evaluation (#147)
 aabf352 Sprint 33 T1: SDK v0.24.0 release housekeeping (#154)
-fbc847e Sprint 32 T1: web4 selftest — deployment verification CLI command (#152)
 ```
 
 ---
 
 ## Open PRs
 
-- PR #155: "Web4: worker/web4-20260411-180024" (CLAUDE.md/AGENTS.md cleanup) — REVIEW_REQUIRED
+None. All PRs merged or closed as of 2026-04-12.
 
 ---
 
@@ -194,4 +194,4 @@ fbc847e Sprint 32 T1: web4 selftest — deployment verification CLI command (#15
 
 ---
 
-*Updated by autonomous session, 2026-04-12 (Sprint 34 — SDK v0.25.0 release housekeeping)*
+*Updated by autonomous session, 2026-04-12 (metadata correction — PR status, recent commits)*
