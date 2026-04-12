@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-11 (Sprint 33)*
+*Last updated: 2026-04-12 (Sprint 34)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 34 Summary: SDK v0.25.0 Release Housekeeping (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: v0.25.0 release housekeeping | DONE | Version bump, CHANGELOG for PRs #147/#151/#153, README/docstring updates, 2627 tests, 7 CLI subcommands |
 
 ### Sprint 33 Summary: SDK v0.24.0 Release Housekeeping (COMPLETE)
 
@@ -98,10 +104,10 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 ## SDK Status
 
-- **Version**: 0.24.0
+- **Version**: 0.25.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2614 passing (97.8% coverage)
-- **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest` (6 subcommands)
+- **Tests**: 2627 passing (97.8% coverage)
+- **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
 - **Exports**: 364 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
@@ -149,25 +155,24 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+77d6f2a Sprint 33 T1: Archive remaining implementation/ session sprawl (#153)
+65cd548 Sprint 32 T1: Archive reference implementation sprawl (#151)
+9359540 Sprint 30 T1: `web4 trust` CLI subcommand for trust query evaluation (#147)
+aabf352 Sprint 33 T1: SDK v0.24.0 release housekeeping (#154)
 fbc847e Sprint 32 T1: web4 selftest — deployment verification CLI command (#152)
-39d4e9e Sprint 31 T1: SDK v0.23.0 release housekeeping (#150)
-af62184 Sprint 30 T1: Distribution verification — fix roundtrip fidelity + packaging (#148)
-37cddbc Sprint 29 T1: Refactor CLI tests to in-process for coverage accuracy (#146)
-b80db02 Sprint 28: web4_process_action MCP tool + SDK v0.22.0 (#145)
 ```
 
 ---
 
 ## Open PRs
 
-- PR #151: "Sprint 32 T1: Archive reference implementation sprawl" — REVIEW_REQUIRED
-- PR #147: "Sprint 30 T1: web4 trust CLI subcommand" — REVIEW_REQUIRED
+- PR #155: "Web4: worker/web4-20260411-180024" (CLAUDE.md/AGENTS.md cleanup) — REVIEW_REQUIRED
 
 ---
 
 ## Completeness Summary
 
-- All 33 sprints COMPLETE (Sprints 1-33)
+- All 34 sprints COMPLETE (Sprints 1-34)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -183,10 +188,10 @@ b80db02 Sprint 28: web4_process_action MCP tool + SDK v0.22.0 (#145)
 - `mypy --strict` passes with 0 errors across 25 source files
 - Test coverage: 97.8% overall (4 modules at 100%, 16 at 95%+, __main__.py at 90.6%)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
-- CLI via `web4 info/validate/list-schemas/roundtrip/generate/selftest` (6 subcommands)
+- CLI via `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
 - Wheel distribution verified: imports, CLI, schema validation, roundtrip all pass from installed wheel
 - All 23 generate() types pass roundtrip fidelity (generate → from_jsonld → to_jsonld = identical)
 
 ---
 
-*Updated by autonomous session, 2026-04-11 (Sprint 33 — SDK v0.24.0 release housekeeping)*
+*Updated by autonomous session, 2026-04-12 (Sprint 34 — SDK v0.25.0 release housekeeping)*

@@ -1,9 +1,30 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-11 (Sprint 33)
+**Updated**: 2026-04-12 (Sprint 34)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 34: SDK v0.25.0 Release Housekeeping (2026-04-12)
+
+Three PRs merged since v0.24.0: trust CLI subcommand (#147), archive reference
+implementation sprawl (#151), archive remaining implementation/ session sprawl (#153).
+Sprint 34 brings all SDK metadata into alignment with the current state.
+
+### T1: SDK v0.25.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-12
+**Scope**: Version bump 0.24.0 → 0.25.0. CHANGELOG v0.25.0 entry documenting
+PR #147 (trust CLI as 7th subcommand, 13 tests) and PRs #151/#153 (archive cleanup).
+README.md updates (7 CLI subcommands, 2627 tests, trust CLI docs in CLI section and
+project structure). `__init__.py` docstring update (test count 2614 → 2627, CLI
+subcommand count 6 → 7). Fix test version assertions (0.24.0 → 0.25.0). Update
+SESSION_FOCUS.md and SPRINT.md.
+**Result**: All SDK metadata now accurately reflects 22 modules + MCP server,
+364 exports, 2627 tests, 97.8% coverage, 8 MCP tools, 3 behavioral functions,
+7 CLI subcommands. Version 0.25.0. 0 new files.
 
 ---
 
