@@ -10,6 +10,8 @@ Subcommands::
     python -m web4 roundtrip --check  # Verify round-trip fidelity
     python -m web4 generate T3Tensor  # Generate a minimal valid JSON-LD document
     python -m web4 selftest           # Verify SDK installation
+    python -m web4 trust Q.json       # Evaluate a trust query from JSON file
+    python -m web4 trust --actor A --target B --role R  # Quick trust evaluation
 """
 
 from __future__ import annotations
@@ -316,6 +318,92 @@ def _cmd_selftest(args: argparse.Namespace) -> int:
     return 0
 
 
+# ── trust subcommand ─────────────────────────────────────────
+
+
+def _cmd_trust(args: argparse.Namespace) -> int:
+    """Evaluate a trust query against a profile with ATP stake locking."""
+    from web4.atp import ATPAccount
+    from web4.trust import (
+        DisclosureLevel,
+        T3,
+        TrustProfile,
+        TrustQuery,
+        evaluate_trust_query,
+    )
+
+    # If --file provided, read query from JSON file/stdin
+    file_path: Optional[str] = args.file
+    if file_path is not None:
+        doc, err = _read_json_doc(file_path)
+        if doc is None:
+            return err  # type: ignore[return-value]
+        try:
+            query = TrustQuery.from_dict(doc)
+        except (KeyError, ValueError, TypeError) as exc:
+            print(f"Error: invalid TrustQuery: {exc}", file=sys.stderr)
+            return 1
+    else:
+        # Build query from CLI flags
+        actor: Optional[str] = args.actor
+        target: Optional[str] = args.target
+        role: Optional[str] = args.role
+        if not all([actor, target, role]):
+            print(
+                "Error: --actor, --target, and --role are required "
+                "(or use --file to provide a JSON query)",
+                file=sys.stderr,
+            )
+            return 1
+        # These assertions are safe — we checked all() above
+        assert actor is not None
+        assert target is not None
+        assert role is not None
+        dl_str: str = args.disclosure_level
+        try:
+            dl = DisclosureLevel(dl_str)
+        except ValueError:
+            valid = ", ".join(d.value for d in DisclosureLevel)
+            print(f"Error: invalid disclosure level {dl_str!r}. Valid: {valid}", file=sys.stderr)
+            return 1
+        query = TrustQuery(
+            querier=actor,
+            target_entity=target,
+            requested_role=role,
+            intended_interaction=args.interaction,
+            atp_stake=args.stake,
+            validity_period=args.validity,
+            signature="cli-generated",
+            disclosure_level=dl,
+        )
+
+    # Build target profile from --profile-roles JSON if provided
+    profile = TrustProfile(query.target_entity)
+    roles_json: Optional[str] = args.profile_roles
+    if roles_json is not None:
+        try:
+            roles_dict = json.loads(roles_json)
+        except json.JSONDecodeError as exc:
+            print(f"Error: invalid --profile-roles JSON: {exc}", file=sys.stderr)
+            return 1
+        for role_name, t3_data in roles_dict.items():
+            try:
+                profile.set_role(role_name, T3.from_dict(t3_data))
+            except (KeyError, ValueError, TypeError, AttributeError) as exc:
+                print(f"Error: invalid T3 for role {role_name!r}: {exc}", file=sys.stderr)
+                return 1
+
+    # Build requester ATP account
+    atp_balance: float = args.atp_balance
+    account = ATPAccount(available=atp_balance)
+
+    # Evaluate
+    response = evaluate_trust_query(query, profile, account)
+    indent = None if args.compact else 2
+    print(json.dumps(response.to_dict(), indent=indent))
+    return 0
+
+
 # ── Schema auto-detection ──────────────────────────────────────
 
 # @type value -> schema name mapping
@@ -449,6 +537,49 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show per-phase progress details.",
     )
 
+    # trust
+    p_trust = sub.add_parser(
+        "trust",
+        help="Evaluate a trust query (from JSON or CLI flags)",
+    )
+    p_trust.add_argument(
+        "--file", default=None,
+        help="Path to TrustQuery JSON file (or '-' for stdin). "
+             "Overrides --actor/--target/--role flags.",
+    )
+    p_trust.add_argument("--actor", default=None, help="Querier entity ID")
+    p_trust.add_argument("--target", default=None, help="Target entity ID")
+    p_trust.add_argument("--role", default=None, help="Requested role")
+    p_trust.add_argument(
+        "--interaction", default="cli-query",
+        help="Intended interaction description (default: cli-query)",
+    )
+    p_trust.add_argument(
+        "--disclosure-level", default="range", dest="disclosure_level",
+        help="Disclosure level: binary, range, or precise (default: range)",
+    )
+    p_trust.add_argument(
+        "--stake", type=int, default=10,
+        help="ATP stake amount (default: 10, minimum allowed)",
+    )
+    p_trust.add_argument(
+        "--validity", type=int, default=3600,
+        help="Validity period in seconds (default: 3600)",
+    )
+    p_trust.add_argument(
+        "--profile-roles", default=None,
+        help='JSON mapping role->T3 for target, e.g. '
+             '\'{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}\'',
+    )
+    p_trust.add_argument(
+        "--atp-balance", type=float, default=1000.0, dest="atp_balance",
+        help="Requester ATP balance (default: 1000.0)",
+    )
+    p_trust.add_argument(
+        "--compact", action="store_true",
+        help="Output compact JSON (no indentation)",
+    )
+
     return parser
 
 
@@ -468,6 +599,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "roundtrip": _cmd_roundtrip,
         "generate": _cmd_generate,
         "selftest": _cmd_selftest,
+        "trust": _cmd_trust,
     }
 
     handler = dispatch.get(args.command)
