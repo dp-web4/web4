@@ -101,13 +101,14 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 - **Version**: 0.24.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
 - **Tests**: 2614 passing (97.8% coverage)
+- **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest` (6 subcommands)
 - **Exports**: 364 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
 - **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents
 - **Behavioral**: 3 functions — `evaluate_trust_query()` (direct trust resolution), `resolve_trust()` (indirect trust through MRH graph), `process_action_outcome()` (action consequences)
 - **MCP Server**: `web4-mcp` / `python -m web4.mcp_server` — 8 tools (info, validate, generate, roundtrip, list_types, evaluate_trust, resolve_trust, process_action)
-- **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest` (console script + `python -m web4`)
+- **CLI entry points**: console script `web4` + `python -m web4`
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[mcp]` (mcp), `web4[dev]` (full toolchain)
 - **License**: MIT (SDK), AGPL-3.0 (root repo)
 
