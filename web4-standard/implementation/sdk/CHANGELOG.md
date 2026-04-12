@@ -2,6 +2,25 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.25.0] - 2026-04-12
+
+Sprint 30 T1a: Trust CLI subcommand. Sprints 32-33: Archive cleanup.
+
+### Added
+- **`web4 trust` CLI subcommand** (Sprint 30 T1a, PR #147) — 7th CLI command.
+  Wraps `evaluate_trust_query()` for command-line trust evaluation. Two modes:
+  CLI flags (`--actor`/`--target`/`--role` + optional `--dimension`/`--disclosure`/
+  `--stake`) and `--file` for JSON input. Outputs JSON trust query response. 13 tests.
+
+### Changed
+- Version bumped from 0.24.0 to 0.25.0.
+- CLI: 7 subcommands (info, list-schemas, validate, roundtrip, generate, selftest, trust).
+- 2627 tests passing (up from 2614 in v0.24.0). 364 exports.
+
+### Removed
+- **Archive cleanup** (PRs #151, #153) — moved 130+ standalone reference implementation
+  files from `implementation/` to `archive/`. No SDK code changes; repository hygiene only.
+
 ## [0.24.0] - 2026-04-11
 
 Sprint 32: Deployment verification CLI command.
