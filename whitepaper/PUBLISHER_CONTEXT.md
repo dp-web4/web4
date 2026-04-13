@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-04-06
+**Last Updated**: 2026-04-13
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,11 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-04-13: Publisher Maintenance - PDF Date Fix
+- Fixed hardcoded PDF date in make-pdf.sh ("February 2026" → "April 2026")
+- No content changes needed — SDK updates (v0.22-v0.25, trust CLI, selftest CLI, web4_process_action MCP) are tooling, not protocol
+- Rebuilt all artifacts (md, pdf)
 
 ### 2026-04-06: Publisher Maintenance - AttestationEnvelope + Glossary
 - Added AttestationEnvelope to §7.0.2 (unified hardware trust primitive, 4 anchor types)
