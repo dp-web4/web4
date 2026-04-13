@@ -1,9 +1,35 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-12 (Sprint 34)
+**Updated**: 2026-04-13 (Sprint 35)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 35: CI Workflow Hardening (2026-04-13)
+
+CI quality gates were weaker than local development standards. Sprint 35 aligns
+them: strict mypy in CI (matching pyproject.toml), and a new wheel verification
+job that builds a wheel, installs in an isolated venv, and runs `web4 selftest`.
+Sprint 30 found 4 real packaging bugs via manual wheel testing — this automates
+that verification for every PR.
+
+### T1: CI workflow hardening
+**Status**: DONE
+**Completed**: 2026-04-13
+**Scope**: Update `.github/workflows/sdk-test.yml`:
+(1) mypy job now uses `mypy web4/` (picks up `strict = true` from pyproject.toml)
+instead of `mypy web4/ --ignore-missing-imports` (which was weaker than local).
+(2) New `wheel` job: builds wheel via `python -m build`, installs in isolated
+venv (`python -m venv`), runs `web4 selftest` and `web4 info` from installed wheel.
+(3) Dropped planned `ruff format --check` — 70 files need reformatting, deferred
+to avoid scope expansion.
+**Result**: CI now matches local quality gates for type checking. Packaging
+regressions (like Sprint 30's 4 bugs) will be caught automatically. 0 new files.
+
+### Follow-up (not this sprint)
+- `ruff format` codebase-wide (70 files) + `ruff format --check` in CI
 
 ---
 

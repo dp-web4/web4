@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-12 (Sprint 34)*
+*Last updated: 2026-04-13 (Sprint 35)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 35 Summary: CI Workflow Hardening (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: CI workflow hardening | DONE | mypy --strict in CI (was --ignore-missing-imports), new wheel build+selftest job, 0 new files |
 
 ### Sprint 34 Summary: SDK v0.25.0 Release Housekeeping (COMPLETE)
 
@@ -172,7 +178,7 @@ None. All PRs merged or closed as of 2026-04-12.
 
 ## Completeness Summary
 
-- All 34 sprints COMPLETE (Sprints 1-34)
+- All 35 sprints COMPLETE (Sprints 1-35)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
