@@ -28,6 +28,7 @@ from web4.acp import (
 
 # ── Helpers ──────────────────────────────────────────────────────
 
+
 def make_plan(**overrides) -> AgentPlan:
     defaults = dict(
         plan_id="plan-001",
@@ -138,10 +139,12 @@ class TestAgentPlanJsonLd:
         assert doc["steps"][0]["mcp"] == "invoice.search"
 
     def test_step_dependencies(self):
-        plan = make_plan(steps=[
-            PlanStep(step_id="s1", mcp_tool="a.get"),
-            PlanStep(step_id="s2", mcp_tool="b.put", depends_on=["s1"]),
-        ])
+        plan = make_plan(
+            steps=[
+                PlanStep(step_id="s1", mcp_tool="a.get"),
+                PlanStep(step_id="s2", mcp_tool="b.put", depends_on=["s1"]),
+            ]
+        )
         doc = plan.to_jsonld()
         assert doc["steps"][1]["dependsOn"] == ["s1"]
 
@@ -164,9 +167,11 @@ class TestAgentPlanJsonLd:
         assert doc["triggers"][0]["expr"] == "0 * * * *"
 
     def test_triggers_with_authorized(self):
-        plan = make_plan(triggers=[
-            Trigger(kind=TriggerKind.MANUAL, authorized=["lct:user:u1"]),
-        ])
+        plan = make_plan(
+            triggers=[
+                Trigger(kind=TriggerKind.MANUAL, authorized=["lct:user:u1"]),
+            ]
+        )
         doc = plan.to_jsonld()
         assert doc["triggers"][0]["authorized"] == ["lct:user:u1"]
 
@@ -256,18 +261,28 @@ class TestIntentJsonLd:
         assert poa["nonce"] == "fixed_nonce_1234"
 
     def test_proof_audience_included(self):
-        intent = make_intent(proof=ProofOfAgency(
-            grant_id="g1", plan_id="p1", intent_id="i1", nonce="n1",
-            audience=["lct:aud:a1"],
-        ))
+        intent = make_intent(
+            proof=ProofOfAgency(
+                grant_id="g1",
+                plan_id="p1",
+                intent_id="i1",
+                nonce="n1",
+                audience=["lct:aud:a1"],
+            )
+        )
         doc = intent.to_jsonld()
         assert doc["proofOfAgency"]["audience"] == ["lct:aud:a1"]
 
     def test_proof_expires_at_included(self):
-        intent = make_intent(proof=ProofOfAgency(
-            grant_id="g1", plan_id="p1", intent_id="i1", nonce="n1",
-            expires_at="2026-12-31T00:00:00+00:00",
-        ))
+        intent = make_intent(
+            proof=ProofOfAgency(
+                grant_id="g1",
+                plan_id="p1",
+                intent_id="i1",
+                nonce="n1",
+                expires_at="2026-12-31T00:00:00+00:00",
+            )
+        )
         doc = intent.to_jsonld()
         assert doc["proofOfAgency"]["expiresAt"] == "2026-12-31T00:00:00+00:00"
 
@@ -485,26 +500,68 @@ class TestSchemaCompliance:
 
     def test_agent_plan_no_additional_properties(self):
         doc = make_plan().to_jsonld()
-        known = {"@context", "@type", "planId", "principal", "agent", "grantId",
-                 "steps", "guards", "canonicalHash", "createdAt", "triggers"}
+        known = {
+            "@context",
+            "@type",
+            "planId",
+            "principal",
+            "agent",
+            "grantId",
+            "steps",
+            "guards",
+            "canonicalHash",
+            "createdAt",
+            "triggers",
+        }
         assert set(doc.keys()).issubset(known)
 
     def test_intent_no_additional_properties(self):
         doc = make_intent().to_jsonld()
-        known = {"@context", "@type", "intentId", "planId", "stepId",
-                 "proposedAction", "proofOfAgency", "explanation", "confidence",
-                 "riskAssessment", "needsApproval", "createdAt"}
+        known = {
+            "@context",
+            "@type",
+            "intentId",
+            "planId",
+            "stepId",
+            "proposedAction",
+            "proofOfAgency",
+            "explanation",
+            "confidence",
+            "riskAssessment",
+            "needsApproval",
+            "createdAt",
+        }
         assert set(doc.keys()).issubset(known)
 
     def test_decision_no_additional_properties(self):
         doc = make_decision().to_jsonld()
-        known = {"@context", "@type", "intentId", "decision", "decidedBy",
-                 "rationale", "modifications", "witnesses", "timestamp"}
+        known = {
+            "@context",
+            "@type",
+            "intentId",
+            "decision",
+            "decidedBy",
+            "rationale",
+            "modifications",
+            "witnesses",
+            "timestamp",
+        }
         assert set(doc.keys()).issubset(known)
 
     def test_execution_record_no_additional_properties(self):
         doc = make_execution_record().to_jsonld()
-        known = {"@context", "@type", "recordId", "intentId", "grantId",
-                 "lawHash", "mcpCall", "result", "t3v3Delta", "witnesses",
-                 "canonicalHash", "timestamp"}
+        known = {
+            "@context",
+            "@type",
+            "recordId",
+            "intentId",
+            "grantId",
+            "lawHash",
+            "mcpCall",
+            "result",
+            "t3v3Delta",
+            "witnesses",
+            "canonicalHash",
+            "timestamp",
+        }
         assert set(doc.keys()).issubset(known)

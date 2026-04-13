@@ -27,10 +27,7 @@ class UnsupportedTypeError(Exception):
 
     def __init__(self, type_name: str) -> None:
         self.type_name = type_name
-        super().__init__(
-            f"Unsupported type: {type_name!r}. "
-            f"Use available_types() to list recognized types."
-        )
+        super().__init__(f"Unsupported type: {type_name!r}. Use available_types() to list recognized types.")
 
 
 # ---------------------------------------------------------------------------
@@ -42,16 +39,19 @@ _registry: Optional[Dict[str, Callable[[], Dict[str, Any]]]] = None
 
 def _make_t3() -> Dict[str, Any]:
     from .trust import T3
+
     return T3(talent=0.8, training=0.7, temperament=0.9).to_jsonld()
 
 
 def _make_v3() -> Dict[str, Any]:
     from .trust import V3
+
     return V3(valuation=0.7, veracity=0.85, validity=0.8).to_jsonld()
 
 
 def _make_trust_query() -> Dict[str, Any]:
     from .trust import TrustQuery
+
     q = TrustQuery(
         querier="lct:web4:alice",
         target_entity="lct:web4:bob",
@@ -70,6 +70,7 @@ def _make_trust_query() -> Dict[str, Any]:
 
 def _make_attestation_envelope() -> Dict[str, Any]:
     from .attestation import AnchorInfo, AttestationEnvelope, Proof
+
     return AttestationEnvelope(
         entity_id="lct://web4:example@active",
         public_key="MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE_example",
@@ -88,11 +89,13 @@ def _make_attestation_envelope() -> Dict[str, Any]:
 
 def _make_atp_account() -> Dict[str, Any]:
     from .atp import ATPAccount
+
     return ATPAccount(available=1000.0).to_jsonld()
 
 
 def _make_transfer_result() -> Dict[str, Any]:
     from .atp import ATPAccount, transfer
+
     sender = ATPAccount(available=1000.0)
     receiver = ATPAccount(available=0.0)
     return transfer(sender, receiver, 200.0).to_jsonld()
@@ -100,6 +103,7 @@ def _make_transfer_result() -> Dict[str, Any]:
 
 def _make_agent_plan() -> Dict[str, Any]:
     from .acp import AgentPlan, PlanStep
+
     return AgentPlan(
         plan_id="plan:example-001",
         principal="lct:web4:human:alice",
@@ -111,6 +115,7 @@ def _make_agent_plan() -> Dict[str, Any]:
 
 def _make_intent() -> Dict[str, Any]:
     from .acp import AgentPlan, PlanStep, build_intent
+
     plan = AgentPlan(
         plan_id="plan:example-001",
         principal="lct:web4:human:alice",
@@ -123,6 +128,7 @@ def _make_intent() -> Dict[str, Any]:
 
 def _make_decision() -> Dict[str, Any]:
     from .acp import Decision, DecisionType
+
     return Decision(
         intent_id="intent-001",
         decision=DecisionType.APPROVE,
@@ -133,6 +139,7 @@ def _make_decision() -> Dict[str, Any]:
 
 def _make_execution_record() -> Dict[str, Any]:
     from .acp import ExecutionRecord
+
     return ExecutionRecord(
         record_id="rec:example-001",
         intent_id="intent-001",
@@ -147,16 +154,19 @@ def _make_execution_record() -> Dict[str, Any]:
 def _make_entity_type_info() -> Dict[str, Any]:
     from .entity import get_info
     from .lct import EntityType as ET
+
     return get_info(ET.HUMAN).to_jsonld()
 
 
 def _make_entity_type_registry() -> Dict[str, Any]:
     from .entity import entity_registry_to_jsonld
+
     return entity_registry_to_jsonld()
 
 
 def _make_level_requirement() -> Dict[str, Any]:
     from .capability import CapabilityLevel, LevelRequirement
+
     return LevelRequirement(
         level=CapabilityLevel.BASIC,
         name="Basic",
@@ -170,6 +180,7 @@ def _make_capability_assessment() -> Dict[str, Any]:
     from .capability import capability_assessment_to_jsonld
     from .lct import LCT
     from .lct import EntityType as ET
+
     lct = LCT.create(
         entity_type=ET.AI,
         public_key="example_key",
@@ -180,11 +191,13 @@ def _make_capability_assessment() -> Dict[str, Any]:
 
 def _make_capability_framework() -> Dict[str, Any]:
     from .capability import capability_framework_to_jsonld
+
     return capability_framework_to_jsonld()
 
 
 def _make_dictionary_spec() -> Dict[str, Any]:
     from .dictionary import DictionarySpec, DictionaryType
+
     return DictionarySpec(
         source_domain="medical",
         target_domain="legal",
@@ -197,6 +210,7 @@ def _make_translation_result() -> Dict[str, Any]:
         DictionaryEntity,
         TranslationRequest,
     )
+
     entity = DictionaryEntity.create("medical", "legal", "dict_key_001")
     result = entity.record_translation(
         TranslationRequest("informed consent", "medical", "legal"),
@@ -208,6 +222,7 @@ def _make_translation_result() -> Dict[str, Any]:
 
 def _make_translation_chain() -> Dict[str, Any]:
     from .dictionary import TranslationChain
+
     chain = TranslationChain()
     chain.add_step("medical", "legal", "lct:dict:med-legal", 0.92)
     chain.add_step("legal", "regulatory", "lct:dict:legal-reg", 0.88)
@@ -216,12 +231,14 @@ def _make_translation_chain() -> Dict[str, Any]:
 
 def _make_dictionary_entity() -> Dict[str, Any]:
     from .dictionary import DictionaryEntity
+
     return DictionaryEntity.create("medical", "legal", "dict_key_001").to_jsonld()
 
 
 def _make_r7_action() -> Dict[str, Any]:
     from .r6 import build_action
     from .trust import T3, V3
+
     return build_action(
         actor="lct:web4:agent:analyzer",
         role_lct="role:data-analyst",
@@ -237,6 +254,7 @@ def _make_r7_action() -> Dict[str, Any]:
 def _make_reputation_delta() -> Dict[str, Any]:
     from .r6 import build_action
     from .trust import T3, V3
+
     action = build_action(
         actor="lct:web4:agent:analyzer",
         role_lct="role:data-analyst",
@@ -251,6 +269,7 @@ def _make_reputation_delta() -> Dict[str, Any]:
 def _make_action_chain() -> Dict[str, Any]:
     from .r6 import ActionChain, ActionStatus, Result, build_action
     from .trust import T3, V3
+
     action = build_action(
         actor="lct:web4:agent:analyzer",
         role_lct="role:data-analyst",
@@ -267,6 +286,7 @@ def _make_action_chain() -> Dict[str, Any]:
 
 def _make_lct() -> Dict[str, Any]:
     from .lct import LCT, EntityType
+
     lct = LCT.create(
         entity_type=EntityType.HUMAN,
         public_key="example_public_key_001",

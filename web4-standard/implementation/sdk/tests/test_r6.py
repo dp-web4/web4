@@ -18,15 +18,29 @@ from web4.lct import LCT, EntityType
 from web4.atp import ATPAccount
 from web4.r6 import (
     # Enums & errors
-    ActionStatus, R7Error, RuleViolation, RoleUnauthorized,
-    RequestMalformed, ResourceInsufficient,
+    ActionStatus,
+    R7Error,
+    RuleViolation,
+    RoleUnauthorized,
+    RequestMalformed,
+    ResourceInsufficient,
     # Components
-    Constraint, Rules, Role, Request, ProofOfAgency,
-    Precedent, WitnessAttestation, Reference,
-    ResourceRequirements, Result,
-    TensorDelta, ContributingFactor, ReputationDelta,
+    Constraint,
+    Rules,
+    Role,
+    Request,
+    ProofOfAgency,
+    Precedent,
+    WitnessAttestation,
+    Reference,
+    ResourceRequirements,
+    Result,
+    TensorDelta,
+    ContributingFactor,
+    ReputationDelta,
     # Composite
-    R7Action, ActionChain,
+    R7Action,
+    ActionChain,
     # Builder
     build_action,
     # JSON-LD
@@ -48,6 +62,7 @@ def load_vectors(path: str) -> dict:
 #  COMPONENT CONSTRUCTION
 # ══════════════════════════════════════════════════════════════════
 
+
 class TestRules:
     """Rules component — constraints, permissions, prohibitions."""
 
@@ -68,25 +83,31 @@ class TestRules:
         assert not rules.has_permission("delete")
 
     def test_constraint_minimum(self):
-        rules = Rules(constraints=[
-            Constraint(constraint_type="atp_minimum", value=50),
-        ])
+        rules = Rules(
+            constraints=[
+                Constraint(constraint_type="atp_minimum", value=50),
+            ]
+        )
         assert rules.check_constraint("atp_minimum", 100)
         assert rules.check_constraint("atp_minimum", 50)
         assert not rules.check_constraint("atp_minimum", 49)
 
     def test_constraint_maximum(self):
-        rules = Rules(constraints=[
-            Constraint(constraint_type="rate_limit", value=100),
-        ])
+        rules = Rules(
+            constraints=[
+                Constraint(constraint_type="rate_limit", value=100),
+            ]
+        )
         assert rules.check_constraint("rate_limit", 50)
         assert rules.check_constraint("rate_limit", 100)
         assert not rules.check_constraint("rate_limit", 101)
 
     def test_no_matching_constraint(self):
-        rules = Rules(constraints=[
-            Constraint(constraint_type="atp_minimum", value=50),
-        ])
+        rules = Rules(
+            constraints=[
+                Constraint(constraint_type="atp_minimum", value=50),
+            ]
+        )
         # No constraint for "rate_limit" → passes
         assert rules.check_constraint("rate_limit", 999)
 
@@ -236,6 +257,7 @@ class TestReputationDelta:
 #  R7 ACTION COMPOSITE
 # ══════════════════════════════════════════════════════════════════
 
+
 class TestR7Action:
     """Complete R7 action — all 7 components."""
 
@@ -326,6 +348,7 @@ class TestR7Action:
 #  REPUTATION COMPUTATION
 # ══════════════════════════════════════════════════════════════════
 
+
 class TestReputationComputation:
     """R7 reputation computation from action outcomes."""
 
@@ -381,7 +404,9 @@ class TestReputationComputation:
     def test_reputation_stored_on_action(self):
         """compute_reputation() sets action.reputation."""
         action = build_action(
-            actor="lct:alice", role_lct="lct:role:x", action="test",
+            actor="lct:alice",
+            role_lct="lct:role:x",
+            action="test",
         )
         action.result = Result(status=ActionStatus.SUCCESS)
         assert action.reputation is None
@@ -392,7 +417,9 @@ class TestReputationComputation:
     def test_reputation_with_factors(self):
         """Contributing factors are preserved."""
         action = build_action(
-            actor="lct:alice", role_lct="lct:role:x", action="train_model",
+            actor="lct:alice",
+            role_lct="lct:role:x",
+            action="train_model",
             t3=T3(0.85, 0.88, 0.90),
         )
         action.result = Result(status=ActionStatus.SUCCESS)
@@ -412,7 +439,9 @@ class TestReputationComputation:
     def test_reputation_bounded(self):
         """T3/V3 values clamped to [0, 1] after update."""
         action = build_action(
-            actor="lct:alice", role_lct="lct:role:x", action="test",
+            actor="lct:alice",
+            role_lct="lct:role:x",
+            action="test",
             t3=T3(0.99, 0.99, 0.99),
             v3=V3(0.99, 0.99, 0.99),
         )
@@ -428,6 +457,7 @@ class TestReputationComputation:
 # ══════════════════════════════════════════════════════════════════
 #  HASH CHAIN
 # ══════════════════════════════════════════════════════════════════
+
 
 class TestActionChain:
     """ActionChain — tamper-evident audit trail."""
@@ -489,6 +519,7 @@ class TestActionChain:
 #  BUILDER
 # ══════════════════════════════════════════════════════════════════
 
+
 class TestBuildAction:
     """build_action() convenience function."""
 
@@ -510,8 +541,10 @@ class TestBuildAction:
             role_lct="lct:role:analyst",
             action="analyze",
             target="data:quarterly",
-            t3=t3, v3=v3,
-            atp_stake=100, available_atp=500,
+            t3=t3,
+            v3=v3,
+            atp_stake=100,
+            available_atp=500,
         )
         assert action.role.t3_in_role.talent == 0.85
         assert action.role.v3_in_role.veracity == 0.85
@@ -533,6 +566,7 @@ class TestBuildAction:
 # ══════════════════════════════════════════════════════════════════
 #  CROSS-MODULE INTEGRATION
 # ══════════════════════════════════════════════════════════════════
+
 
 class TestCrossModuleIntegration:
     """R7 actions integrating with trust, lct, atp, federation modules."""
@@ -593,8 +627,11 @@ class TestCrossModuleIntegration:
 
         # Action 1: successful read
         a1 = build_action(
-            actor="lct:alice", role_lct="lct:role:reader", action="read",
-            t3=T3(0.5, 0.5, 0.5), v3=V3(0.5, 0.5, 0.5),
+            actor="lct:alice",
+            role_lct="lct:role:reader",
+            action="read",
+            t3=T3(0.5, 0.5, 0.5),
+            v3=V3(0.5, 0.5, 0.5),
         )
         a1.result = Result(status=ActionStatus.SUCCESS)
         a1.compute_reputation(quality=0.8)
@@ -602,8 +639,11 @@ class TestCrossModuleIntegration:
 
         # Action 2: failed write
         a2 = build_action(
-            actor="lct:alice", role_lct="lct:role:writer", action="write",
-            t3=T3(0.5, 0.5, 0.5), v3=V3(0.5, 0.5, 0.5),
+            actor="lct:alice",
+            role_lct="lct:role:writer",
+            action="write",
+            t3=T3(0.5, 0.5, 0.5),
+            v3=V3(0.5, 0.5, 0.5),
         )
         a2.result = Result(status=ActionStatus.FAILURE, error="disk full")
         a2.compute_reputation(quality=0.2)
@@ -624,6 +664,7 @@ class TestCrossModuleIntegration:
 # ══════════════════════════════════════════════════════════════════
 #  TEST VECTORS
 # ══════════════════════════════════════════════════════════════════
+
 
 class TestR6Vectors:
     """Tests against r6/action-operations.json vectors."""
@@ -693,8 +734,7 @@ class TestR6Vectors:
         for act_data in inp["actions"]:
             a = R7Action(
                 rules=Rules(law_hash=act_data.get("law_hash", "")),
-                role=Role(actor=act_data["actor"], role_lct=act_data["role_lct"],
-                          paired_at="2025-01-01T00:00:00Z"),
+                role=Role(actor=act_data["actor"], role_lct=act_data["role_lct"], paired_at="2025-01-01T00:00:00Z"),
                 request=Request(action=act_data["action"], nonce=act_data.get("nonce", "")),
                 resource=ResourceRequirements(),
                 timestamp=act_data.get("timestamp", "2025-01-01T00:00:00Z"),
@@ -708,6 +748,7 @@ class TestR6Vectors:
 # ══════════════════════════════════════════════════════════════════
 #  JSON-LD SERIALIZATION
 # ══════════════════════════════════════════════════════════════════
+
 
 class TestReputationDeltaJsonLD:
     """ReputationDelta JSON-LD serialization and roundtrip."""
@@ -1160,7 +1201,9 @@ class TestActionChainJsonLD:
         """Chain roundtrip preserves actions and hash linking."""
         chain = ActionChain()
         a1 = build_action(
-            actor="lct:alice", role_lct="lct:role:x", action="read",
+            actor="lct:alice",
+            role_lct="lct:role:x",
+            action="read",
             t3=T3(0.5, 0.5, 0.5),
         )
         a1.result = Result(status=ActionStatus.SUCCESS)
@@ -1168,7 +1211,9 @@ class TestActionChainJsonLD:
         chain.append(a1)
 
         a2 = build_action(
-            actor="lct:alice", role_lct="lct:role:x", action="write",
+            actor="lct:alice",
+            role_lct="lct:role:x",
+            action="write",
         )
         chain.append(a2)
 
@@ -1187,16 +1232,22 @@ class TestActionChainJsonLD:
         chain = ActionChain()
 
         a1 = build_action(
-            actor="lct:alice", role_lct="lct:role:analyst", action="analyze",
-            t3=T3(0.8, 0.8, 0.8), v3=V3(0.7, 0.7, 0.7),
+            actor="lct:alice",
+            role_lct="lct:role:analyst",
+            action="analyze",
+            t3=T3(0.8, 0.8, 0.8),
+            v3=V3(0.7, 0.7, 0.7),
         )
         a1.result = Result(status=ActionStatus.SUCCESS)
         a1.compute_reputation(quality=0.9)
         chain.append(a1)
 
         a2 = build_action(
-            actor="lct:alice", role_lct="lct:role:analyst", action="report",
-            t3=T3(0.8, 0.8, 0.8), v3=V3(0.7, 0.7, 0.7),
+            actor="lct:alice",
+            role_lct="lct:role:analyst",
+            action="report",
+            t3=T3(0.8, 0.8, 0.8),
+            v3=V3(0.7, 0.7, 0.7),
         )
         a2.result = Result(status=ActionStatus.FAILURE, error="report format invalid")
         a2.compute_reputation(quality=0.3)
@@ -1218,12 +1269,17 @@ class TestJsonLDSchemaValidation:
     def setup_class(cls):
         try:
             import jsonschema
+
             cls.jsonschema = jsonschema
         except ImportError:
             pytest.skip("jsonschema not installed")
 
         schema_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "schemas",
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "schemas",
             "r7-action-jsonld.schema.json",
         )
         with open(schema_path) as f:
@@ -1323,10 +1379,7 @@ class TestJsonLDSchemaValidation:
 
 # ── B3: R7 Context File Consistency Tests ─────────────────────
 
-R7_CONTEXT_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..",
-    "schemas", "contexts", "r7-action.jsonld"
-)
+R7_CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "schemas", "contexts", "r7-action.jsonld")
 
 
 class TestR7ContextConsistency:
@@ -1344,38 +1397,52 @@ class TestR7ContextConsistency:
             timestamp="2026-01-01T00:00:00Z",
             prev_action_hash="abc123",
             rules=Rules(
-                law_hash="lh1", society="soc1",
+                law_hash="lh1",
+                society="soc1",
                 constraints=[Constraint("trust_min", 0.5)],
-                permissions=["read"], prohibitions=["delete"],
+                permissions=["read"],
+                prohibitions=["delete"],
             ),
             role=Role(
-                actor="lct:actor", role_lct="lct:role",
+                actor="lct:actor",
+                role_lct="lct:role",
                 paired_at="2026-01-01",
                 t3_in_role=T3(0.8, 0.7, 0.6),
                 v3_in_role=V3(0.7, 0.8, 0.9),
             ),
             request=Request(
-                action="analyze", target="dataset:1",
-                parameters={"depth": 3}, atp_stake=10.0, nonce="n1",
+                action="analyze",
+                target="dataset:1",
+                parameters={"depth": 3},
+                atp_stake=10.0,
+                nonce="n1",
             ),
             reference=Reference(
                 precedents=[Precedent("hash1", "success", 0.9)],
-                mrh_depth=2, relevant_entities=["e1"],
+                mrh_depth=2,
+                relevant_entities=["e1"],
                 witnesses=[WitnessAttestation("lct:w1", "verified", "sig1", "2026")],
             ),
             resource=ResourceRequirements(
-                required_atp=5.0, available_atp=100.0,
-                compute={"cpu": "2_cores"}, escrow_amount=2.0,
+                required_atp=5.0,
+                available_atp=100.0,
+                compute={"cpu": "2_cores"},
+                escrow_amount=2.0,
             ),
             result=Result(
-                output={"data": "ok"}, output_hash="h1",
+                output={"data": "ok"},
+                output_hash="h1",
                 atp_consumed=5.0,
                 attestations=[WitnessAttestation("lct:w2")],
             ),
             reputation=ReputationDelta(
-                subject_lct="lct:sub", role_lct="lct:role",
-                action_type="analyze", action_target="dataset:1",
-                action_id="test-001", rule_triggered="rule1", reason="good work",
+                subject_lct="lct:sub",
+                role_lct="lct:role",
+                action_type="analyze",
+                action_target="dataset:1",
+                action_id="test-001",
+                rule_triggered="rule1",
+                reason="good work",
                 t3_delta={"talent": TensorDelta(0.05, 0.8, 0.85)},
                 v3_delta={"valuation": TensorDelta(0.03, 0.7, 0.73)},
                 contributing_factors=[ContributingFactor("quality", 0.8)],

@@ -45,6 +45,7 @@ class TestBundledRegistry:
 
     def test_registry_loads(self) -> None:
         import web4.validation as v
+
         v._bundled_registry = None  # force reload
         registry = _load_bundled_registry()
         assert registry is not None
@@ -52,6 +53,7 @@ class TestBundledRegistry:
 
     def test_registry_contains_all_schemas(self) -> None:
         import web4.validation as v
+
         v._bundled_registry = None
         registry = _load_bundled_registry()
         assert registry is not None
@@ -60,13 +62,12 @@ class TestBundledRegistry:
 
     def test_registry_schemas_have_schema_key(self) -> None:
         import web4.validation as v
+
         v._bundled_registry = None
         registry = _load_bundled_registry()
         assert registry is not None
         for filename, schema in registry.items():
-            assert "$schema" in schema or "type" in schema, (
-                f"Schema {filename} missing $schema or type key"
-            )
+            assert "$schema" in schema or "type" in schema, f"Schema {filename} missing $schema or type key"
 
     def test_get_schema_uses_registry(self) -> None:
         _schema_cache.clear()
@@ -85,8 +86,15 @@ class TestListSchemas:
     def test_contains_all_jsonld_schemas(self) -> None:
         schemas = list_schemas()
         expected = [
-            "acp", "atp", "attestation-envelope", "capability",
-            "dictionary", "entity", "lct", "r7-action", "t3v3",
+            "acp",
+            "atp",
+            "attestation-envelope",
+            "capability",
+            "dictionary",
+            "entity",
+            "lct",
+            "r7-action",
+            "t3v3",
         ]
         for name in expected:
             assert name in schemas, f"Missing schema: {name}"
@@ -167,8 +175,17 @@ class TestValidateLCT:
 
     def test_full_lct(self) -> None:
         from web4.lct import (
-            LCT, BirthCertificate, Binding, MRH, MRHPairing,
-            Policy, Attestation, LineageEntry, EntityType, T3, V3,
+            LCT,
+            BirthCertificate,
+            Binding,
+            MRH,
+            MRHPairing,
+            Policy,
+            Attestation,
+            LineageEntry,
+            EntityType,
+            T3,
+            V3,
         )
 
         lct = LCT(
@@ -190,12 +207,14 @@ class TestValidateLCT:
             ),
             mrh=MRH(
                 bound=["lct:web4:hw:device1"],
-                paired=[MRHPairing(
-                    lct_id="lct:web4:role:citizen:platform",
-                    pairing_type="birth_certificate",
-                    permanent=True,
-                    ts="2026-03-20T12:00:00Z",
-                )],
+                paired=[
+                    MRHPairing(
+                        lct_id="lct:web4:role:citizen:platform",
+                        pairing_type="birth_certificate",
+                        permanent=True,
+                        ts="2026-03-20T12:00:00Z",
+                    )
+                ],
                 witnessing=["did:web4:witness1"],
                 horizon_depth=3,
                 last_updated="2026-03-20T12:00:00Z",
@@ -206,18 +225,22 @@ class TestValidateLCT:
             ),
             t3=T3(talent=0.85, training=0.92, temperament=0.78),
             v3=V3(valuation=0.89, veracity=0.91, validity=0.76),
-            attestations=[Attestation(
-                witness="did:web4:bob",
-                type="existence",
-                claims={"observed_at": "2026-03-20T12:00:00Z"},
-                sig="cose:ES256:sig",
-                ts="2026-03-20T12:00:00Z",
-            )],
-            lineage=[LineageEntry(
-                parent="lct:web4:ai:previous",
-                reason="rotation",
-                ts="2026-03-19T00:00:00Z",
-            )],
+            attestations=[
+                Attestation(
+                    witness="did:web4:bob",
+                    type="existence",
+                    claims={"observed_at": "2026-03-20T12:00:00Z"},
+                    sig="cose:ES256:sig",
+                    ts="2026-03-20T12:00:00Z",
+                )
+            ],
+            lineage=[
+                LineageEntry(
+                    parent="lct:web4:ai:previous",
+                    reason="rotation",
+                    ts="2026-03-19T00:00:00Z",
+                )
+            ],
         )
         result = validate(lct.to_jsonld(), "lct")
         assert result.valid, f"Errors: {result.errors}"
@@ -260,7 +283,10 @@ class TestValidateAttestationEnvelope:
 
     def test_full_tpm2_envelope(self) -> None:
         from web4.attestation import (
-            AttestationEnvelope, AnchorInfo, Proof, PlatformState,
+            AttestationEnvelope,
+            AnchorInfo,
+            Proof,
+            PlatformState,
         )
         import time
 
@@ -268,16 +294,21 @@ class TestValidateAttestationEnvelope:
             entity_id="lct:test:tpm",
             public_key="ed25519:tpmkey",
             anchor=AnchorInfo(
-                type="tpm2", manufacturer="Intel",
-                model="INTC TPM 2.0", firmware_version="1.38",
+                type="tpm2",
+                manufacturer="Intel",
+                model="INTC TPM 2.0",
+                firmware_version="1.38",
             ),
             proof=Proof(
-                format="tpm2_quote", signature="sig",
-                challenge="nonce", pcr_digest="sha256:digest",
+                format="tpm2_quote",
+                signature="sig",
+                challenge="nonce",
+                pcr_digest="sha256:digest",
                 pcr_selection=[0, 7, 14],
             ),
             platform_state=PlatformState(
-                available=True, boot_verified=True,
+                available=True,
+                boot_verified=True,
                 pcr_values={0: "abc", 7: "def", 14: "ghi"},
             ),
             timestamp=time.time(),
@@ -303,12 +334,14 @@ class TestValidateT3V3:
 
     def test_t3_valid(self) -> None:
         from web4.trust import T3
+
         t3 = T3(talent=0.8, training=0.9, temperament=0.7)
         result = validate(t3.to_jsonld(), "t3v3")
         assert result.valid, f"Errors: {result.errors}"
 
     def test_v3_valid(self) -> None:
         from web4.trust import V3
+
         v3 = V3(valuation=0.85, veracity=0.9, validity=0.75)
         result = validate(v3.to_jsonld(), "t3v3")
         assert result.valid, f"Errors: {result.errors}"
@@ -319,6 +352,7 @@ class TestValidateATP:
 
     def test_atp_account(self) -> None:
         from web4.atp import ATPAccount
+
         acct = ATPAccount(available=100.0)
         result = validate(acct.to_jsonld(), "atp")
         assert result.valid, f"Errors: {result.errors}"
@@ -366,6 +400,7 @@ class TestValidateCapability:
 
     def test_framework_valid(self) -> None:
         from web4.capability import capability_framework_to_jsonld
+
         doc = capability_framework_to_jsonld()
         result = validate(doc, "capability")
         assert result.valid, f"Errors: {result.errors}"
@@ -431,6 +466,7 @@ class TestErrorHandling:
     def test_schema_dir_override(self) -> None:
         d = get_schema_dir()
         from web4.lct import LCT, Binding, EntityType
+
         lct = LCT(
             lct_id="lct:test:override",
             subject="did:web4:test",

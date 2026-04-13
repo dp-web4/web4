@@ -37,20 +37,24 @@ def _make_rules_json(
     veracity_delta: float = 0.02,
 ) -> str:
     """Build a reputation rules JSON array string for testing."""
-    return json.dumps([{
-        "rule_id": "R001",
-        "trigger_conditions": {
-            "action_type": action_type,
-            "result_status": result_status,
-        },
-        "t3_impacts": {
-            "talent": {"base_delta": talent_delta, "modifiers": []},
-            "training": {"base_delta": training_delta, "modifiers": []},
-        },
-        "v3_impacts": {
-            "veracity": {"base_delta": veracity_delta, "modifiers": []},
-        },
-    }])
+    return json.dumps(
+        [
+            {
+                "rule_id": "R001",
+                "trigger_conditions": {
+                    "action_type": action_type,
+                    "result_status": result_status,
+                },
+                "t3_impacts": {
+                    "talent": {"base_delta": talent_delta, "modifiers": []},
+                    "training": {"base_delta": training_delta, "modifiers": []},
+                },
+                "v3_impacts": {
+                    "veracity": {"base_delta": veracity_delta, "modifiers": []},
+                },
+            }
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -68,9 +72,11 @@ class TestSuccessPath:
             actor="lct:alice",
             role="web4:DataAnalyst",
             rules=_make_rules_json(),
-            profile_roles=json.dumps({
-                "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
-            }),
+            profile_roles=json.dumps(
+                {
+                    "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
+                }
+            ),
         )
         assert "error" not in result
         assert result["atp_committed"] == 10.0
@@ -84,9 +90,11 @@ class TestSuccessPath:
             actor="lct:alice",
             role="web4:DataAnalyst",
             rules=_make_rules_json(talent_delta=0.05),
-            profile_roles=json.dumps({
-                "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
-            }),
+            profile_roles=json.dumps(
+                {
+                    "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
+                }
+            ),
         )
         # Engine evaluates delta from the R7Action's role T3 (default 0.5),
         # but process_action_outcome applies delta to TrustProfile (0.7).
@@ -101,9 +109,11 @@ class TestSuccessPath:
             actor="lct:alice",
             role="web4:DataAnalyst",
             rules=_make_rules_json(veracity_delta=0.02),
-            profile_roles=json.dumps({
-                "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
-            }),
+            profile_roles=json.dumps(
+                {
+                    "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
+                }
+            ),
         )
         # Veracity defaults to 0.5 (no V3 set), +0.02 = 0.52
         assert result["updated_v3"]["veracity"] == pytest.approx(0.52, abs=1e-6)
@@ -150,9 +160,11 @@ class TestFailurePath:
             actor="lct:alice",
             role="web4:DataAnalyst",
             rules=_make_rules_json(),
-            profile_roles=json.dumps({
-                "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
-            }),
+            profile_roles=json.dumps(
+                {
+                    "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
+                }
+            ),
         )
         # No rule matched → T3 unchanged
         assert result["updated_t3"]["talent"] == pytest.approx(0.7, abs=1e-6)
@@ -277,16 +289,21 @@ class TestMCPIntegration:
     """Tests that the tool works through the MCP call mechanism."""
 
     def test_via_mcp_call(self) -> None:
-        result = _call_tool("web4_process_action", {
-            "action_type": "data_analysis",
-            "status": "success",
-            "actor": "lct:alice",
-            "role": "web4:DataAnalyst",
-            "rules": _make_rules_json(),
-            "profile_roles": json.dumps({
-                "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
-            }),
-        })
+        result = _call_tool(
+            "web4_process_action",
+            {
+                "action_type": "data_analysis",
+                "status": "success",
+                "actor": "lct:alice",
+                "role": "web4:DataAnalyst",
+                "rules": _make_rules_json(),
+                "profile_roles": json.dumps(
+                    {
+                        "web4:DataAnalyst": {"talent": 0.7, "training": 0.8, "temperament": 0.9},
+                    }
+                ),
+            },
+        )
         assert "error" not in result
         assert result["atp_committed"] == 10.0
         assert result["delta"] is not None

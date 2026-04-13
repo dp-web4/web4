@@ -26,45 +26,62 @@ from typing import Any, Dict, List, Optional
 
 __all__ = [
     # Classes
-    "CommunicationPattern", "TrustDimension", "MCPResourceType",
-    "ResourceRequirements", "TrustRequirements",
-    "MCPToolResource", "MCPPromptResource",
+    "CommunicationPattern",
+    "TrustDimension",
+    "MCPResourceType",
+    "ResourceRequirements",
+    "TrustRequirements",
+    "MCPToolResource",
+    "MCPPromptResource",
     "ProofOfAgency",
-    "TrustContext", "Web4Context",
-    "WitnessedInteraction", "WitnessAttestation",
-    "MCPCapabilities", "CapabilityBroadcast",
-    "MCPAuthority", "MCPSession", "SessionHandoff",
-    "PricingModifiers", "MCPErrorContext",
+    "TrustContext",
+    "Web4Context",
+    "WitnessedInteraction",
+    "WitnessAttestation",
+    "MCPCapabilities",
+    "CapabilityBroadcast",
+    "MCPAuthority",
+    "MCPSession",
+    "SessionHandoff",
+    "PricingModifiers",
+    "MCPErrorContext",
     # Functions
     "calculate_mcp_cost",
-    "web4_context_to_json", "web4_context_from_json",
+    "web4_context_to_json",
+    "web4_context_from_json",
 ]
 
 
 # ── Communication Patterns (spec §2.2) ──────────────────────────
 
+
 class CommunicationPattern(str, Enum):
     """MCP communication patterns aligned with Web4 relationships (§2.2)."""
+
     REQUEST_RESPONSE = "request_response"  # Pairing relationship
-    DELEGATION = "delegation"              # Binding relationship
-    OBSERVATION = "observation"            # Witnessing relationship
-    BROADCAST = "broadcast"               # Announcement relationship
+    DELEGATION = "delegation"  # Binding relationship
+    OBSERVATION = "observation"  # Witnessing relationship
+    BROADCAST = "broadcast"  # Announcement relationship
 
 
 # ── Trust Dimensions (spec §2.3) ─────────────────────────────────
 
+
 class TrustDimension(str, Enum):
     """Trust dimensions carried in MCP interactions (§2.3)."""
-    SENDER = "sender"      # T3/V3 of requesting entity
-    CHANNEL = "channel"    # Security/reliability of connection
-    CONTENT = "content"    # Verifiability of exchanged data
-    RESULT = "result"      # Confidence in response accuracy
+
+    SENDER = "sender"  # T3/V3 of requesting entity
+    CHANNEL = "channel"  # Security/reliability of connection
+    CONTENT = "content"  # Verifiability of exchanged data
+    RESULT = "result"  # Confidence in response accuracy
 
 
 # ── MCP Resource Types (spec §6) ─────────────────────────────────
 
+
 class MCPResourceType(str, Enum):
     """Types of resources exposed via MCP (§6)."""
+
     TOOL = "mcp_tool"
     PROMPT = "mcp_prompt"
     CONTEXT = "mcp_context"
@@ -73,7 +90,8 @@ class MCPResourceType(str, Enum):
 @dataclass(frozen=True)
 class ResourceRequirements:
     """Compute/memory/ATP requirements for an MCP resource (§6.1)."""
-    compute: str = "low"         # low / medium / high
+
+    compute: str = "low"  # low / medium / high
     memory: str = "256MB"
     atp_cost: int = 1
 
@@ -94,6 +112,7 @@ class ResourceRequirements:
 @dataclass(frozen=True)
 class TrustRequirements:
     """Minimum trust thresholds for accessing an MCP resource (§4.2, §6.1)."""
+
     minimum_t3: Dict[str, float] = field(default_factory=dict)  # dimension → min value
     atp_stake: int = 0
     role_required: Optional[str] = None
@@ -133,6 +152,7 @@ class TrustRequirements:
 @dataclass(frozen=True)
 class MCPToolResource:
     """An MCP tool resource definition (§6.1)."""
+
     name: str
     description: str = ""
     resource_requirements: ResourceRequirements = field(default_factory=ResourceRequirements)
@@ -162,6 +182,7 @@ class MCPToolResource:
 @dataclass(frozen=True)
 class MCPPromptResource:
     """An MCP prompt resource definition (§6.2)."""
+
     name: str
     template: str = ""
     variables: List[str] = field(default_factory=list)
@@ -193,9 +214,11 @@ class MCPPromptResource:
 
 # ── Web4 Context Headers (spec §4.1) ────────────────────────────
 
+
 @dataclass(frozen=True)
 class ProofOfAgency:
     """Agency delegation proof attached to MCP requests (§4.1)."""
+
     grant_id: str
     scope: str
 
@@ -212,6 +235,7 @@ class ProofOfAgency:
 @dataclass(frozen=True)
 class TrustContext:
     """Trust information carried in Web4 MCP context (§4.1)."""
+
     t3_in_role: Dict[str, float] = field(default_factory=dict)
     atp_stake: int = 0
 
@@ -239,6 +263,7 @@ class Web4Context:
 
     Every MCP interaction carries identity, trust, scope, and governance context.
     """
+
     sender_lct: str
     sender_role: str = ""
     trust_context: TrustContext = field(default_factory=TrustContext)
@@ -281,9 +306,11 @@ class Web4Context:
 
 # ── Witness Attestation (spec §4.3) ─────────────────────────────
 
+
 @dataclass(frozen=True)
 class WitnessedInteraction:
     """A witnessed MCP interaction record (§4.3)."""
+
     client: str
     server: str
     action: str
@@ -315,6 +342,7 @@ class WitnessedInteraction:
 @dataclass(frozen=True)
 class WitnessAttestation:
     """Witness attestation for an MCP interaction (§4.3)."""
+
     witnessed_interaction: WitnessedInteraction
     witness: str
     signature: str = ""
@@ -345,9 +373,11 @@ class WitnessAttestation:
 
 # ── MCP Server/Client Capabilities (spec §3, §8) ────────────────
 
+
 @dataclass(frozen=True)
 class MCPCapabilities:
     """Capability advertisement for an MCP entity (§3, §8.1)."""
+
     tools: List[str] = field(default_factory=list)
     protocols: List[str] = field(default_factory=lambda: ["mcp/1.0", "web4/1.0"])
     trust_requirements: TrustRequirements = field(default_factory=TrustRequirements)
@@ -376,6 +406,7 @@ class MCPCapabilities:
 @dataclass(frozen=True)
 class CapabilityBroadcast:
     """Capability broadcast message from an MCP server (§8.1)."""
+
     server_lct: str
     capabilities: MCPCapabilities
     ttl: int = 3600
@@ -406,9 +437,11 @@ class CapabilityBroadcast:
 
 # ── MCP Authority (spec §7.2) ───────────────────────────────────
 
+
 @dataclass(frozen=True)
 class MCPAuthority:
     """Delegated authority held by an MCP server (§7.2)."""
+
     server_lct: str
     delegated_from: str
     resources: List[str] = field(default_factory=list)
@@ -445,9 +478,11 @@ class MCPAuthority:
 
 # ── Session Management (spec §11) ───────────────────────────────
 
+
 @dataclass
 class MCPSession:
     """Stateful MCP session with context preservation (§11.1)."""
+
     session_id: str
     client_lct: str
     server_lct: str
@@ -500,6 +535,7 @@ class MCPSession:
 @dataclass(frozen=True)
 class SessionHandoff:
     """Session transfer between MCP servers (§11.2)."""
+
     session_id: str
     from_server: str
     to_server: str
@@ -533,9 +569,11 @@ class SessionHandoff:
 
 # ── ATP Metering (spec §9) ──────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class PricingModifiers:
     """Dynamic pricing modifiers for MCP interactions (§9.2)."""
+
     high_trust_discount: float = 0.8
     peak_demand_surge: float = 1.5
     bulk_discount: float = 0.9
@@ -579,9 +617,11 @@ def calculate_mcp_cost(
 
 # ── MCP Error Context (spec §10) ────────────────────────────────
 
+
 @dataclass(frozen=True)
 class MCPErrorContext:
     """Web4-specific error context attached to MCP error responses (§10.2)."""
+
     error_type: str
     required_t3: Dict[str, float] = field(default_factory=dict)
     provided_t3: Dict[str, float] = field(default_factory=dict)
@@ -621,6 +661,7 @@ class MCPErrorContext:
 
 
 # ── JSON Helpers ─────────────────────────────────────────────────
+
 
 def web4_context_to_json(ctx: Web4Context) -> str:
     """Serialize Web4Context to JSON string."""

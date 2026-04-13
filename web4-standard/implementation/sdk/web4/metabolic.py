@@ -29,31 +29,47 @@ from typing import Dict, FrozenSet, List, Optional, Set
 
 __all__ = [
     # Classes
-    "MetabolicState", "Transition", "TrustEffect",
-    "MetabolicProfile", "ReliabilityFactors",
+    "MetabolicState",
+    "Transition",
+    "TrustEffect",
+    "MetabolicProfile",
+    "ReliabilityFactors",
     # Functions
-    "valid_transition", "reachable_states", "transition_trigger", "all_transitions",
-    "energy_cost", "wake_penalty", "metabolic_reliability",
-    "required_witnesses", "all_profiles",
-    "is_dormant", "accepts_transactions", "accepts_new_citizens",
+    "valid_transition",
+    "reachable_states",
+    "transition_trigger",
+    "all_transitions",
+    "energy_cost",
+    "wake_penalty",
+    "metabolic_reliability",
+    "required_witnesses",
+    "all_profiles",
+    "is_dormant",
+    "accepts_transactions",
+    "accepts_new_citizens",
     # Constants
-    "ENERGY_MULTIPLIERS", "TRUST_EFFECTS", "WITNESS_REQUIREMENTS",
-    "DORMANT_STATES", "ACTIVE_STATES",
+    "ENERGY_MULTIPLIERS",
+    "TRUST_EFFECTS",
+    "WITNESS_REQUIREMENTS",
+    "DORMANT_STATES",
+    "ACTIVE_STATES",
 ]
 
 
 # ── Metabolic States (§2) ──────────────────────────────────────
 
+
 class MetabolicState(str, Enum):
     """Eight society metabolic states per spec §2."""
-    ACTIVE = "active"            # Full operational capacity (§2.1)
-    REST = "rest"                # Low-activity period (§2.2)
-    SLEEP = "sleep"              # Scheduled downtime (§2.3)
+
+    ACTIVE = "active"  # Full operational capacity (§2.1)
+    REST = "rest"  # Low-activity period (§2.2)
+    SLEEP = "sleep"  # Scheduled downtime (§2.3)
     HIBERNATION = "hibernation"  # Extended dormancy (§2.4)
-    TORPOR = "torpor"            # Emergency conservation (§2.5)
-    ESTIVATION = "estivation"    # Adverse conditions (§2.6)
-    DREAMING = "dreaming"        # Memory consolidation (§2.7)
-    MOLTING = "molting"          # Structural renewal (§2.8)
+    TORPOR = "torpor"  # Emergency conservation (§2.5)
+    ESTIVATION = "estivation"  # Adverse conditions (§2.6)
+    DREAMING = "dreaming"  # Memory consolidation (§2.7)
+    MOLTING = "molting"  # Structural renewal (§2.8)
 
 
 # ── Energy Multipliers (§4.1) ──────────────────────────────────
@@ -75,52 +91,43 @@ ENERGY_MULTIPLIERS: Dict[MetabolicState, float] = {
 # Values represent the fraction of normal update rate.
 # Negative values indicate temporary penalties.
 
+
 @dataclass(frozen=True)
 class TrustEffect:
     """Trust tensor behavior in a given metabolic state."""
-    update_rate: float     # Fraction of normal T3/V3 update rate (0.0 = frozen)
-    decay_rate: float      # Fraction of normal trust decay rate
+
+    update_rate: float  # Fraction of normal T3/V3 update rate (0.0 = frozen)
+    decay_rate: float  # Fraction of normal trust decay rate
     temporary_penalty: float = 0.0  # Temporary T3 penalty (e.g., molting = -0.20)
     description: str = ""
 
+
 TRUST_EFFECTS: Dict[MetabolicState, TrustEffect] = {
-    MetabolicState.ACTIVE: TrustEffect(
-        update_rate=1.0, decay_rate=1.0,
-        description="Normal updates"),
-    MetabolicState.REST: TrustEffect(
-        update_rate=0.9, decay_rate=1.0,
-        description="Slightly delayed"),
-    MetabolicState.SLEEP: TrustEffect(
-        update_rate=0.0, decay_rate=0.1,
-        description="Minimal activity"),
-    MetabolicState.HIBERNATION: TrustEffect(
-        update_rate=0.0, decay_rate=0.0,
-        description="Frozen"),
-    MetabolicState.TORPOR: TrustEffect(
-        update_rate=0.0, decay_rate=0.0,
-        description="Frozen + alert bonus"),
-    MetabolicState.ESTIVATION: TrustEffect(
-        update_rate=0.0, decay_rate=0.0,
-        description="Internal only"),
-    MetabolicState.DREAMING: TrustEffect(
-        update_rate=0.0, decay_rate=0.0,
-        description="Recalibration"),
+    MetabolicState.ACTIVE: TrustEffect(update_rate=1.0, decay_rate=1.0, description="Normal updates"),
+    MetabolicState.REST: TrustEffect(update_rate=0.9, decay_rate=1.0, description="Slightly delayed"),
+    MetabolicState.SLEEP: TrustEffect(update_rate=0.0, decay_rate=0.1, description="Minimal activity"),
+    MetabolicState.HIBERNATION: TrustEffect(update_rate=0.0, decay_rate=0.0, description="Frozen"),
+    MetabolicState.TORPOR: TrustEffect(update_rate=0.0, decay_rate=0.0, description="Frozen + alert bonus"),
+    MetabolicState.ESTIVATION: TrustEffect(update_rate=0.0, decay_rate=0.0, description="Internal only"),
+    MetabolicState.DREAMING: TrustEffect(update_rate=0.0, decay_rate=0.0, description="Recalibration"),
     MetabolicState.MOLTING: TrustEffect(
-        update_rate=1.0, decay_rate=1.0,
-        temporary_penalty=-0.20,
-        description="Vulnerable period"),
+        update_rate=1.0, decay_rate=1.0, temporary_penalty=-0.20, description="Vulnerable period"
+    ),
 }
 
 
 # ── State Transition Graph (§3.1) ──────────────────────────────
 # Defines which transitions are valid and their trigger descriptions.
 
+
 @dataclass(frozen=True)
 class Transition:
     """A valid state transition with its trigger condition."""
+
     from_state: MetabolicState
     to_state: MetabolicState
     trigger: str  # Human-readable trigger condition from spec §3.1
+
 
 _TRANSITIONS: List[Transition] = [
     # From Active
@@ -186,6 +193,7 @@ def all_transitions() -> List[Transition]:
 
 
 # ── Energy Cost Calculation (§6.1) ─────────────────────────────
+
 
 def energy_cost(
     state: MetabolicState,
@@ -255,6 +263,7 @@ def wake_penalty(
 
 # ── Metabolic Reliability Score (§5.2) ─────────────────────────
 
+
 @dataclass
 class ReliabilityFactors:
     """
@@ -262,10 +271,11 @@ class ReliabilityFactors:
 
     Each factor is a boolean or rate that contributes to the score.
     """
-    maintains_schedule: bool = False        # Predictable sleep cycles (+0.3)
+
+    maintains_schedule: bool = False  # Predictable sleep cycles (+0.3)
     hibernation_recovery_rate: float = 0.0  # Rate of successful wakes from hibernation (+0.2 if >0.9)
-    energy_efficiency: float = 0.0          # Energy usage efficiency metric (+0.3 if >0.8)
-    molt_success_rate: float = 0.0          # Rate of successful structural renewals (+0.2 if >0.95)
+    energy_efficiency: float = 0.0  # Energy usage efficiency metric (+0.3 if >0.8)
+    molt_success_rate: float = 0.0  # Rate of successful structural renewals (+0.2 if >0.95)
 
 
 def metabolic_reliability(factors: ReliabilityFactors) -> float:
@@ -294,14 +304,14 @@ def metabolic_reliability(factors: ReliabilityFactors) -> float:
 # Expressed as a fraction of total witnesses (0.0 = none needed, 1.0 = all needed).
 
 WITNESS_REQUIREMENTS: Dict[MetabolicState, float] = {
-    MetabolicState.ACTIVE: 1.0,     # All witnesses active
-    MetabolicState.REST: 0.3,       # 3 of 10 (duty rotation)
-    MetabolicState.SLEEP: 0.2,      # Minimal quorum (2 of 10)
+    MetabolicState.ACTIVE: 1.0,  # All witnesses active
+    MetabolicState.REST: 0.3,  # 3 of 10 (duty rotation)
+    MetabolicState.SLEEP: 0.2,  # Minimal quorum (2 of 10)
     MetabolicState.HIBERNATION: 0.0,  # Single sentinel (handled externally)
-    MetabolicState.TORPOR: 0.0,     # Reactive only
-    MetabolicState.ESTIVATION: 0.0, # Defensive — internal only
-    MetabolicState.DREAMING: 0.0,   # No new transactions
-    MetabolicState.MOLTING: 1.0,    # Heightened security
+    MetabolicState.TORPOR: 0.0,  # Reactive only
+    MetabolicState.ESTIVATION: 0.0,  # Defensive — internal only
+    MetabolicState.DREAMING: 0.0,  # No new transactions
+    MetabolicState.MOLTING: 1.0,  # Heightened security
 }
 
 
@@ -328,6 +338,7 @@ def required_witnesses(state: MetabolicState, total_witnesses: int) -> int:
 
 # ── Metabolic Profile (combined view) ──────────────────────────
 
+
 @dataclass(frozen=True)
 class MetabolicProfile:
     """
@@ -335,6 +346,7 @@ class MetabolicProfile:
 
     Provides a single view of all metabolic parameters for a given state.
     """
+
     state: MetabolicState
     energy_multiplier: float
     trust_effect: TrustEffect
@@ -359,19 +371,23 @@ def all_profiles() -> Dict[MetabolicState, MetabolicProfile]:
 # ── Dormancy Classification ────────────────────────────────────
 # Convenience grouping: which states are "dormant" (reduced operations)
 
-DORMANT_STATES: FrozenSet[MetabolicState] = frozenset({
-    MetabolicState.REST,
-    MetabolicState.SLEEP,
-    MetabolicState.HIBERNATION,
-    MetabolicState.TORPOR,
-    MetabolicState.ESTIVATION,
-})
+DORMANT_STATES: FrozenSet[MetabolicState] = frozenset(
+    {
+        MetabolicState.REST,
+        MetabolicState.SLEEP,
+        MetabolicState.HIBERNATION,
+        MetabolicState.TORPOR,
+        MetabolicState.ESTIVATION,
+    }
+)
 
-ACTIVE_STATES: FrozenSet[MetabolicState] = frozenset({
-    MetabolicState.ACTIVE,
-    MetabolicState.DREAMING,
-    MetabolicState.MOLTING,
-})
+ACTIVE_STATES: FrozenSet[MetabolicState] = frozenset(
+    {
+        MetabolicState.ACTIVE,
+        MetabolicState.DREAMING,
+        MetabolicState.MOLTING,
+    }
+)
 
 
 def is_dormant(state: MetabolicState) -> bool:

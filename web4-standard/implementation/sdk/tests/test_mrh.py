@@ -19,6 +19,7 @@ from web4.trust import mrh_zone
 
 # ── RelationType Tests ──────────────────────────────────────────
 
+
 class TestRelationType:
     def test_binding_category(self):
         assert relation_category(RelationType.BOUND_TO) == "binding"
@@ -39,6 +40,7 @@ class TestRelationType:
 
 
 # ── Node/Edge Tests ─────────────────────────────────────────────
+
 
 class TestMRHNode:
     def test_basic_node(self):
@@ -74,8 +76,7 @@ class TestMRHEdge:
         assert edge.relation == RelationType.BOUND_TO
 
     def test_edge_serialization(self):
-        edge = MRHEdge("lct:alice", "lct:hw1", RelationType.BOUND_TO, 1.0,
-                       timestamp="2026-01-01T00:00:00Z")
+        edge = MRHEdge("lct:alice", "lct:hw1", RelationType.BOUND_TO, 1.0, timestamp="2026-01-01T00:00:00Z")
         d = edge.as_dict()
         assert d["relation"] == "boundTo"
         assert d["category"] == "binding"
@@ -83,6 +84,7 @@ class TestMRHEdge:
 
 
 # ── Propagation Strategy Tests ──────────────────────────────────
+
 
 class TestPropagation:
     def test_multiplicative_single_hop(self):
@@ -118,6 +120,7 @@ class TestPropagation:
 
 
 # ── MRH Graph Tests ─────────────────────────────────────────────
+
 
 def _build_sample_graph() -> MRHGraph:
     """
@@ -262,15 +265,15 @@ class TestContextAnalysis:
     def test_relationship_summary(self):
         g = _build_sample_graph()
         summary = g.relationship_summary("lct:alice")
-        assert summary["binding"] == 1   # boundTo hw1
-        assert summary["pairing"] == 1   # pairedWith bob
+        assert summary["binding"] == 1  # boundTo hw1
+        assert summary["pairing"] == 1  # pairedWith bob
         assert summary["witness"] == 0
 
     def test_relationship_summary_bob(self):
         g = _build_sample_graph()
         summary = g.relationship_summary("lct:bob")
-        assert summary["pairing"] == 2   # from alice + to carol
-        assert summary["witness"] == 1   # witnessedBy timeserver
+        assert summary["pairing"] == 2  # from alice + to carol
+        assert summary["witness"] == 1  # witnessedBy timeserver
 
     def test_witness_count(self):
         g = _build_sample_graph()
@@ -292,13 +295,11 @@ class TestContextAnalysis:
 
 # ── Test Vectors ────────────────────────────────────────────────
 
+
 class TestMRHVectors:
     @pytest.fixture
     def vectors(self):
-        path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..",
-            "test-vectors", "mrh", "graph-operations.json"
-        )
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "test-vectors", "mrh", "graph-operations.json")
         with open(path) as f:
             return json.load(f)
 
@@ -308,8 +309,7 @@ class TestMRHVectors:
         for n in vec["input"]["nodes"]:
             g.add_node(MRHNode(n["lctId"], n.get("entityType", "unknown")))
         for e in vec["input"]["edges"]:
-            g.add_edge(MRHEdge(e["source"], e["target"],
-                               RelationType(e["relation"]), e["weight"]))
+            g.add_edge(MRHEdge(e["source"], e["target"], RelationType(e["relation"]), e["weight"]))
         h = g.horizon(vec["input"]["origin"], depth=vec["input"]["horizonDepth"])
         for entity_id, expected_dist in vec["expected"]["distances"].items():
             assert h[entity_id] == expected_dist
@@ -320,10 +320,10 @@ class TestMRHVectors:
         for n in vec["input"]["nodes"]:
             g.add_node(MRHNode(n["lctId"]))
         for e in vec["input"]["edges"]:
-            g.add_edge(MRHEdge(e["source"], e["target"],
-                               RelationType(e["relation"]), e["weight"]))
+            g.add_edge(MRHEdge(e["source"], e["target"], RelationType(e["relation"]), e["weight"]))
         trust = g.trust_between(
-            vec["input"]["source"], vec["input"]["target"],
+            vec["input"]["source"],
+            vec["input"]["target"],
             strategy=vec["input"]["strategy"],
             decay_factor=vec["input"]["decayFactor"],
         )
@@ -335,8 +335,7 @@ class TestMRHVectors:
         for n in vec["input"]["nodes"]:
             g.add_node(MRHNode(n["lctId"]))
         for e in vec["input"]["edges"]:
-            g.add_edge(MRHEdge(e["source"], e["target"],
-                               RelationType(e["relation"]), e["weight"]))
+            g.add_edge(MRHEdge(e["source"], e["target"], RelationType(e["relation"]), e["weight"]))
         summary = g.relationship_summary(vec["input"]["entity"])
         assert summary == vec["expected"]["summary"]
 

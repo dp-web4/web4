@@ -35,8 +35,11 @@ from .trust import T3, TrustProfile, V3, _clamp
 
 __all__ = [
     # Classes
-    "ReputationRule", "DimensionImpact", "Modifier",
-    "ReputationEngine", "ReputationStore",
+    "ReputationRule",
+    "DimensionImpact",
+    "Modifier",
+    "ReputationEngine",
+    "ReputationStore",
     "ActionOutcomeResult",
     # Functions
     "analyze_factors",
@@ -46,16 +49,19 @@ __all__ = [
 
 # ── Reputation Rule ──────────────────────────────────────────────
 
+
 @dataclass
 class Modifier:
     """A conditional multiplier for a reputation dimension delta."""
-    condition: str       # factor name that must be present (e.g. "deadline_met")
-    multiplier: float    # multiplied into base_delta when condition active
+
+    condition: str  # factor name that must be present (e.g. "deadline_met")
+    multiplier: float  # multiplied into base_delta when condition active
 
 
 @dataclass
 class DimensionImpact:
     """Impact definition for a single T3 or V3 dimension."""
+
     base_delta: float = 0.0
     modifiers: List[Modifier] = field(default_factory=list)
 
@@ -73,6 +79,7 @@ class ReputationRule:
 
     Per spec section 4: "Reputation changes are rule-triggered, not arbitrary."
     """
+
     rule_id: str
     trigger_conditions: Dict[str, Any] = field(default_factory=dict)
     t3_impacts: Dict[str, DimensionImpact] = field(default_factory=dict)
@@ -113,17 +120,17 @@ class ReputationRule:
             "rule_id": self.rule_id,
             "trigger_conditions": self.trigger_conditions,
             "t3_impacts": {
-                k: {"base_delta": v.base_delta, "modifiers": [
-                    {"condition": m.condition, "multiplier": m.multiplier}
-                    for m in v.modifiers
-                ]}
+                k: {
+                    "base_delta": v.base_delta,
+                    "modifiers": [{"condition": m.condition, "multiplier": m.multiplier} for m in v.modifiers],
+                }
                 for k, v in self.t3_impacts.items()
             },
             "v3_impacts": {
-                k: {"base_delta": v.base_delta, "modifiers": [
-                    {"condition": m.condition, "multiplier": m.multiplier}
-                    for m in v.modifiers
-                ]}
+                k: {
+                    "base_delta": v.base_delta,
+                    "modifiers": [{"condition": m.condition, "multiplier": m.multiplier} for m in v.modifiers],
+                }
                 for k, v in self.v3_impacts.items()
             },
             "witnesses_required": self.witnesses_required,
@@ -133,6 +140,7 @@ class ReputationRule:
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ReputationRule":
         """Deserialize from dict produced by to_dict()."""
+
         def _parse_impacts(raw: Dict[str, Any]) -> Dict[str, DimensionImpact]:
             result: Dict[str, DimensionImpact] = {}
             for dim, impact_d in raw.items():
@@ -157,6 +165,7 @@ class ReputationRule:
 
 
 # ── Factor Analysis ──────────────────────────────────────────────
+
 
 def analyze_factors(action: R7Action) -> List[ContributingFactor]:
     """
@@ -186,15 +195,18 @@ def analyze_factors(action: R7Action) -> List[ContributingFactor]:
     required = action.resource.required_atp
     if required > 0 and consumed < required:
         efficiency = 1.0 - (consumed / required)
-        factors.append(ContributingFactor(
-            factor="resource_efficiency",
-            weight=round(efficiency * 0.2, 4),
-        ))
+        factors.append(
+            ContributingFactor(
+                factor="resource_efficiency",
+                weight=round(efficiency * 0.2, 4),
+            )
+        )
 
     return factors
 
 
 # ── Reputation Engine ────────────────────────────────────────────
+
 
 class ReputationEngine:
     """
@@ -264,7 +276,9 @@ class ReputationEngine:
                 change = round(new - old, 10)
                 if change != 0:
                     t3_delta[dim] = TensorDelta(
-                        change=change, from_value=old, to_value=new,
+                        change=change,
+                        from_value=old,
+                        to_value=new,
                     )
 
         # Compute V3 deltas across all triggered rules
@@ -289,7 +303,9 @@ class ReputationEngine:
                 change = round(new - old, 10)
                 if change != 0:
                     v3_delta[dim] = TensorDelta(
-                        change=change, from_value=old, to_value=new,
+                        change=change,
+                        from_value=old,
+                        to_value=new,
                     )
 
         ts = datetime.now(timezone.utc).isoformat()
@@ -314,9 +330,11 @@ class ReputationEngine:
 
 # ── Reputation Store (Aggregation + Decay) ───────────────────────
 
+
 @dataclass
 class _StoredDelta:
     """Internal: a delta with its timestamp for time-weighted aggregation."""
+
     dimension: str
     change: float
     timestamp: datetime
@@ -371,15 +389,23 @@ class ReputationStore:
 
         # Store T3 deltas
         for dim, td in delta.t3_delta.items():
-            self._deltas[key].append(_StoredDelta(
-                dimension=dim, change=td.change, timestamp=ts,
-            ))
+            self._deltas[key].append(
+                _StoredDelta(
+                    dimension=dim,
+                    change=td.change,
+                    timestamp=ts,
+                )
+            )
 
         # Store V3 deltas
         for dim, td in delta.v3_delta.items():
-            self._deltas[key].append(_StoredDelta(
-                dimension=dim, change=td.change, timestamp=ts,
-            ))
+            self._deltas[key].append(
+                _StoredDelta(
+                    dimension=dim,
+                    change=td.change,
+                    timestamp=ts,
+                )
+            )
 
     def current(
         self,
@@ -404,10 +430,7 @@ class ReputationStore:
 
         # Filter by dimension and horizon
         cutoff = now_dt - timedelta(days=horizon_days)
-        relevant = [
-            d for d in stored
-            if d.dimension == dimension and d.timestamp >= cutoff
-        ]
+        relevant = [d for d in stored if d.dimension == dimension and d.timestamp >= cutoff]
 
         if not relevant:
             return 0.5  # Neutral starting point per spec
@@ -476,7 +499,9 @@ class ReputationStore:
         """Current reputation with inactivity decay applied."""
         now_dt = now or datetime.now(timezone.utc)
         base = self.current(
-            entity_lct, role_lct, dimension,
+            entity_lct,
+            role_lct,
+            dimension,
             horizon_days=horizon_days,
             half_life_days=half_life_days,
             now=now_dt,
@@ -499,6 +524,7 @@ class ActionOutcomeResult:
     Contains the reputation delta (if rules matched), the updated T3/V3
     tensors for the actor's role, and ATP settlement details.
     """
+
     delta: Optional[ReputationDelta]
     updated_t3: T3
     updated_v3: V3
@@ -542,10 +568,7 @@ def process_action_outcome(
     """
     status = action.result.status
     if status not in (ActionStatus.SUCCESS, ActionStatus.FAILURE):
-        raise ValueError(
-            f"Cannot process action with status '{status.value}'; "
-            f"expected 'success' or 'failure'"
-        )
+        raise ValueError(f"Cannot process action with status '{status.value}'; expected 'success' or 'failure'")
 
     # Step 1: Evaluate reputation rules
     delta = engine.evaluate(action)

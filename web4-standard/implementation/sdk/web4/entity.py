@@ -26,12 +26,22 @@ from .lct import EntityType
 
 __all__ = [
     # Classes
-    "BehavioralMode", "EnergyPattern", "InteractionType", "EntityTypeInfo",
+    "BehavioralMode",
+    "EnergyPattern",
+    "InteractionType",
+    "EntityTypeInfo",
     # Functions
-    "behavioral_modes", "energy_pattern",
-    "is_agentic", "can_initiate", "can_delegate", "can_process_r6",
-    "valid_interaction", "all_entity_types", "get_info",
-    "entity_registry_to_jsonld", "entity_registry_from_jsonld",
+    "behavioral_modes",
+    "energy_pattern",
+    "is_agentic",
+    "can_initiate",
+    "can_delegate",
+    "can_process_r6",
+    "valid_interaction",
+    "all_entity_types",
+    "get_info",
+    "entity_registry_to_jsonld",
+    "entity_registry_from_jsonld",
     "entity_registry_from_jsonld_string",
     # Constants
     "ENTITY_JSONLD_CONTEXT",
@@ -45,32 +55,39 @@ ENTITY_JSONLD_CONTEXT = "https://web4.io/contexts/entity.jsonld"
 
 # ── Behavioral Modes (spec §2.2) ────────────────────────────────
 
+
 class BehavioralMode(str, Enum):
     """How an entity interacts with the world."""
-    AGENTIC = "agentic"         # Takes initiative, self-directed
-    RESPONSIVE = "responsive"   # Reacts to external stimuli
-    DELEGATIVE = "delegative"   # Authorizes others to act on its behalf
+
+    AGENTIC = "agentic"  # Takes initiative, self-directed
+    RESPONSIVE = "responsive"  # Reacts to external stimuli
+    DELEGATIVE = "delegative"  # Authorizes others to act on its behalf
 
 
 # ── Energy Metabolism (spec §2.3) ────────────────────────────────
 
+
 class EnergyPattern(str, Enum):
     """How an entity participates in ATP/ADP energy metabolism."""
-    ACTIVE = "active"   # Can expend ATP to produce results via R6
+
+    ACTIVE = "active"  # Can expend ATP to produce results via R6
     PASSIVE = "passive"  # Infrastructure; ADP slashed, no reputation
 
 
 # ── Interaction Types (spec §5.1) ────────────────────────────────
 
+
 class InteractionType(str, Enum):
     """Valid interaction patterns between entities."""
-    BINDING = "binding"         # Parent → Child (permanent attachment)
-    PAIRING = "pairing"         # Peer ↔ Peer (authorized relationship)
-    WITNESSING = "witnessing"   # Any → Any (trust through observation)
-    DELEGATION = "delegation"   # Delegative → Agentic (authority transfer)
+
+    BINDING = "binding"  # Parent → Child (permanent attachment)
+    PAIRING = "pairing"  # Peer ↔ Peer (authorized relationship)
+    WITNESSING = "witnessing"  # Any → Any (trust through observation)
+    DELEGATION = "delegation"  # Delegative → Agentic (authority transfer)
 
 
 # ── Entity Type Info ─────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class EntityTypeInfo:
@@ -86,6 +103,7 @@ class EntityTypeInfo:
         can_r6: Whether this type can process R6 transactions.
         description: Human-readable description from spec §2.1.
     """
+
     entity_type: EntityType
     modes: FrozenSet[BehavioralMode]
     energy: EnergyPattern
@@ -240,6 +258,7 @@ _REGISTRY: dict[EntityType, EntityTypeInfo] = {
 
 # ── Query Functions ──────────────────────────────────────────────
 
+
 def get_info(entity_type: EntityType) -> EntityTypeInfo:
     """Look up the full metadata for an entity type.
 
@@ -315,16 +334,13 @@ def valid_interaction(
 
     if interaction == InteractionType.PAIRING:
         # Pairing: at least one side must be able to initiate
-        source_can = (BehavioralMode.AGENTIC in source_info.modes
-                      or BehavioralMode.DELEGATIVE in source_info.modes)
-        target_can = (BehavioralMode.AGENTIC in target_info.modes
-                      or BehavioralMode.DELEGATIVE in target_info.modes)
+        source_can = BehavioralMode.AGENTIC in source_info.modes or BehavioralMode.DELEGATIVE in source_info.modes
+        target_can = BehavioralMode.AGENTIC in target_info.modes or BehavioralMode.DELEGATIVE in target_info.modes
         return source_can or target_can
 
     if interaction == InteractionType.DELEGATION:
         # Delegation: delegative → agentic
-        return (BehavioralMode.DELEGATIVE in source_info.modes
-                and BehavioralMode.AGENTIC in target_info.modes)
+        return BehavioralMode.DELEGATIVE in source_info.modes and BehavioralMode.AGENTIC in target_info.modes
 
     return False
 
@@ -353,8 +369,7 @@ def entity_registry_from_jsonld(doc: Dict[str, Any]) -> Dict[EntityType, EntityT
         Dict mapping EntityType to EntityTypeInfo for each entry in the registry.
     """
     return {
-        EntityType(info_doc["entity_type"]): EntityTypeInfo.from_jsonld(info_doc)
-        for info_doc in doc["entity_types"]
+        EntityType(info_doc["entity_type"]): EntityTypeInfo.from_jsonld(info_doc) for info_doc in doc["entity_types"]
     }
 
 

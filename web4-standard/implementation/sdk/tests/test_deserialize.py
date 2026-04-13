@@ -51,17 +51,13 @@ def _make_atp_account_doc() -> Dict[str, Any]:
 def _make_transfer_result_doc() -> Dict[str, Any]:
     from web4.atp import TransferResult
 
-    return TransferResult(
-        fee=0.05, sender_balance=99.95, receiver_balance=100.0, actual_credit=100.0
-    ).to_jsonld()
+    return TransferResult(fee=0.05, sender_balance=99.95, receiver_balance=100.0, actual_credit=100.0).to_jsonld()
 
 
 def _make_attestation_doc() -> Dict[str, Any]:
     from web4.attestation import AttestationEnvelope
 
-    return AttestationEnvelope(
-        entity_id="lct:entity:abc", public_key="test-key"
-    ).to_jsonld()
+    return AttestationEnvelope(entity_id="lct:entity:abc", public_key="test-key").to_jsonld()
 
 
 def _make_agent_plan_doc() -> Dict[str, Any]:
@@ -84,9 +80,7 @@ def _make_intent_doc() -> Dict[str, Any]:
         plan_id="plan-001",
         step_id="s1",
         proposed_action={"mcp": "test.tool", "args": {}},
-        proof=ProofOfAgency(
-            grant_id="grant-001", plan_id="plan-001", intent_id="acp:intent:abc123"
-        ),
+        proof=ProofOfAgency(grant_id="grant-001", plan_id="plan-001", intent_id="acp:intent:abc123"),
     ).to_jsonld()
 
 
@@ -154,7 +148,9 @@ def _make_translation_result_doc() -> Dict[str, Any]:
     from web4.dictionary import TranslationResult
 
     return TranslationResult(
-        content="translated", confidence=0.95, degradation=0.05,
+        content="translated",
+        confidence=0.95,
+        degradation=0.05,
         dictionary_lct_id="lct:dict:abc",
     ).to_jsonld()
 
@@ -168,17 +164,13 @@ def _make_translation_chain_doc() -> Dict[str, Any]:
 def _make_dictionary_entity_doc() -> Dict[str, Any]:
     from web4.dictionary import DictionaryEntity
 
-    return DictionaryEntity.create(
-        source_domain="medical", target_domain="legal", public_key="mb64dictkey"
-    ).to_jsonld()
+    return DictionaryEntity.create(source_domain="medical", target_domain="legal", public_key="mb64dictkey").to_jsonld()
 
 
 def _make_r7_action_doc() -> Dict[str, Any]:
     from web4.r6 import Result, build_action
 
-    action = build_action(
-        actor="lct:actor:abc", role_lct="lct:role:xyz", action="analyze"
-    )
+    action = build_action(actor="lct:actor:abc", role_lct="lct:role:xyz", action="analyze")
     action.result = Result()
     return action.to_jsonld()
 
@@ -186,17 +178,13 @@ def _make_r7_action_doc() -> Dict[str, Any]:
 def _make_reputation_delta_doc() -> Dict[str, Any]:
     from web4.r6 import ReputationDelta
 
-    return ReputationDelta(
-        subject_lct="lct:actor:abc", role_lct="lct:role:xyz"
-    ).to_jsonld()
+    return ReputationDelta(subject_lct="lct:actor:abc", role_lct="lct:role:xyz").to_jsonld()
 
 
 def _make_action_chain_doc() -> Dict[str, Any]:
     from web4.r6 import ActionChain, Result, build_action
 
-    action = build_action(
-        actor="lct:actor:abc", role_lct="lct:role:xyz", action="analyze"
-    )
+    action = build_action(actor="lct:actor:abc", role_lct="lct:role:xyz", action="analyze")
     action.result = Result()
     ac = ActionChain()
     ac.actions.append(action)
@@ -263,9 +251,7 @@ class TestFromJsonldAllTypes:
         ALL_TYPES,
         ids=[t[0] for t in ALL_TYPES],
     )
-    def test_bare_type_dispatch(
-        self, bare_type: str, doc_factory: Any, expected_class: str
-    ) -> None:
+    def test_bare_type_dispatch(self, bare_type: str, doc_factory: Any, expected_class: str) -> None:
         """from_jsonld dispatches correctly for bare @type values."""
         doc = doc_factory()
         result = from_jsonld(doc)
@@ -277,9 +263,7 @@ class TestFromJsonldAllTypes:
         ALL_TYPES,
         ids=[f"web4:{t[0]}" for t in ALL_TYPES],
     )
-    def test_prefixed_type_dispatch(
-        self, bare_type: str, doc_factory: Any, expected_class: str
-    ) -> None:
+    def test_prefixed_type_dispatch(self, bare_type: str, doc_factory: Any, expected_class: str) -> None:
         """from_jsonld dispatches correctly for web4:-prefixed @type values."""
         doc = doc_factory()
         original_type = doc["@type"]

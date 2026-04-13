@@ -32,28 +32,41 @@ from typing import Any, Dict, List, Optional
 
 __all__ = [
     # Classes
-    "CryptoSuiteId", "CryptoSuite", "EncodingProfile",
-    "W4IDError", "W4ID",
-    "KeyStorageLevel", "KeyPolicy",
-    "SignatureEnvelope", "VerifiableCredential",
+    "CryptoSuiteId",
+    "CryptoSuite",
+    "EncodingProfile",
+    "W4IDError",
+    "W4ID",
+    "KeyStorageLevel",
+    "KeyPolicy",
+    "SignatureEnvelope",
+    "VerifiableCredential",
     # Functions
-    "get_suite", "negotiate_suite",
-    "parse_w4id", "derive_pairwise_w4id",
+    "get_suite",
+    "negotiate_suite",
+    "parse_w4id",
+    "derive_pairwise_w4id",
     # Constants
-    "SUITE_BASE", "SUITE_FIPS", "SUITES", "KNOWN_METHODS",
+    "SUITE_BASE",
+    "SUITE_FIPS",
+    "SUITES",
+    "KNOWN_METHODS",
 ]
 
 
 # ── Crypto Suites ─────────────────────────────────────────────────
 
+
 class CryptoSuiteId(str, Enum):
     """Standardized cryptographic suite identifiers per spec §1.1."""
-    W4_BASE_1 = "W4-BASE-1"   # MUST — Ed25519 + X25519 + ChaCha20-Poly1305
-    W4_FIPS_1 = "W4-FIPS-1"   # SHOULD — ECDSA-P256 + AES-128-GCM
+
+    W4_BASE_1 = "W4-BASE-1"  # MUST — Ed25519 + X25519 + ChaCha20-Poly1305
+    W4_FIPS_1 = "W4-FIPS-1"  # SHOULD — ECDSA-P256 + AES-128-GCM
 
 
 class EncodingProfile(str, Enum):
     """Payload encoding profiles per spec §1.3."""
+
     COSE = "COSE"  # MUST — CBOR-based (RFC 8152)
     JOSE = "JOSE"  # SHOULD — JSON-based (RFC 7515/7516)
 
@@ -66,12 +79,13 @@ class CryptoSuite:
     Per spec §1.1: defines KEM, signature, AEAD, hash, KDF, and encoding
     for a given suite ID. Implementations MUST support W4-BASE-1.
     """
+
     suite_id: CryptoSuiteId
-    kem: str            # Key Encapsulation Mechanism (e.g. "X25519")
-    sig: str            # Signature algorithm (e.g. "Ed25519")
-    aead: str           # Authenticated encryption (e.g. "ChaCha20-Poly1305")
-    hash_alg: str       # Hash function (e.g. "SHA-256")
-    kdf: str            # Key Derivation Function (e.g. "HKDF-SHA256")
+    kem: str  # Key Encapsulation Mechanism (e.g. "X25519")
+    sig: str  # Signature algorithm (e.g. "Ed25519")
+    aead: str  # Authenticated encryption (e.g. "ChaCha20-Poly1305")
+    hash_alg: str  # Hash function (e.g. "SHA-256")
+    kdf: str  # Key Derivation Function (e.g. "HKDF-SHA256")
     encoding: EncodingProfile
 
     def to_dict(self) -> Dict[str, str]:
@@ -148,9 +162,7 @@ def negotiate_suite(
 # ── W4ID (Web4 Identifier) ───────────────────────────────────────
 
 # W4ID ABNF: "did:web4:" method-name ":" method-specific-id
-_W4ID_PATTERN = re.compile(
-    r"^did:web4:([a-z][a-z0-9]*):(.+)$"
-)
+_W4ID_PATTERN = re.compile(r"^did:web4:([a-z][a-z0-9]*):(.+)$")
 
 # Known methods per spec §1.2 of data-formats.md
 KNOWN_METHODS = frozenset({"key", "web"})
@@ -171,6 +183,7 @@ class W4ID:
     - key: method-specific-id is a public key (self-certifying)
     - web: method-specific-id is a domain name (web-resolvable)
     """
+
     method: str
     method_specific_id: str
 
@@ -234,10 +247,7 @@ def parse_w4id(did_string: str) -> W4ID:
     """
     match = _W4ID_PATTERN.match(did_string)
     if not match:
-        raise W4IDError(
-            f"invalid W4ID format: {did_string!r} "
-            f"(expected did:web4:<method>:<method-specific-id>)"
-        )
+        raise W4IDError(f"invalid W4ID format: {did_string!r} (expected did:web4:<method>:<method-specific-id>)")
     return W4ID(method=match.group(1), method_specific_id=match.group(2))
 
 
@@ -255,12 +265,14 @@ def derive_pairwise_w4id(master_secret: bytes, peer_identifier: str) -> W4ID:
 
 # ── Key Management Policy ────────────────────────────────────────
 
+
 class KeyStorageLevel(str, Enum):
     """Key storage security levels per spec §2.2."""
-    HSM = "hsm"                    # Hardware Security Module
+
+    HSM = "hsm"  # Hardware Security Module
     SECURE_ENCLAVE = "secure_enclave"  # TEE / Secure Enclave
-    ENCRYPTED = "encrypted"        # Software-encrypted storage
-    PLAINTEXT = "plaintext"        # Unprotected (testing only)
+    ENCRYPTED = "encrypted"  # Software-encrypted storage
+    PLAINTEXT = "plaintext"  # Unprotected (testing only)
 
 
 @dataclass(frozen=True)
@@ -271,11 +283,10 @@ class KeyPolicy:
     Defines storage level, rotation interval, and allowed suites
     for an entity's key management strategy.
     """
+
     storage_level: KeyStorageLevel
-    rotation_days: int = 365       # Key rotation interval in days
-    allowed_suites: List[CryptoSuiteId] = field(
-        default_factory=lambda: [CryptoSuiteId.W4_BASE_1]
-    )
+    rotation_days: int = 365  # Key rotation interval in days
+    allowed_suites: List[CryptoSuiteId] = field(default_factory=lambda: [CryptoSuiteId.W4_BASE_1])
 
     def __post_init__(self) -> None:
         if self.rotation_days < 1:
@@ -310,6 +321,7 @@ class KeyPolicy:
 
 # ── Signature Envelope ───────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class SignatureEnvelope:
     """
@@ -318,11 +330,12 @@ class SignatureEnvelope:
     Wraps a payload with its signature, signer identity, suite used,
     and timestamp. Does NOT perform signing — that's the crypto layer's job.
     """
-    payload_hash: str              # SHA-256 of canonical payload
-    signature: str                 # Base64/hex-encoded signature bytes
-    signer: str                    # W4ID or LCT of signer
+
+    payload_hash: str  # SHA-256 of canonical payload
+    signature: str  # Base64/hex-encoded signature bytes
+    signer: str  # W4ID or LCT of signer
     suite_id: CryptoSuiteId = CryptoSuiteId.W4_BASE_1
-    timestamp: str = ""            # ISO 8601 timestamp
+    timestamp: str = ""  # ISO 8601 timestamp
 
     def to_dict(self) -> Dict[str, str]:
         """Serialize signature envelope to dict with payload hash, signature, and signer identity."""
@@ -348,6 +361,7 @@ class SignatureEnvelope:
 
 # ── Verifiable Credential Structure ──────────────────────────────
 
+
 @dataclass
 class VerifiableCredential:
     """
@@ -356,12 +370,13 @@ class VerifiableCredential:
     Follows W3C VC Data Model v1.1. This is a structural type —
     actual verification requires crypto operations not provided here.
     """
-    id: str                                     # Unique credential ID
-    issuer: str                                 # W4ID of issuer
-    subject: str                                # W4ID of subject
-    credential_type: str = "Web4Credential"     # Credential type
-    issuance_date: str = ""                     # ISO 8601
-    expiration_date: str = ""                   # ISO 8601 (optional)
+
+    id: str  # Unique credential ID
+    issuer: str  # W4ID of issuer
+    subject: str  # W4ID of subject
+    credential_type: str = "Web4Credential"  # Credential type
+    issuance_date: str = ""  # ISO 8601
+    expiration_date: str = ""  # ISO 8601 (optional)
     claims: Dict[str, Any] = field(default_factory=dict)
     proof: Optional[SignatureEnvelope] = None
 

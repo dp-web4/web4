@@ -25,18 +25,35 @@ import os
 import pytest
 
 from web4.society import (
-    SocietyPhase, LedgerEventType,
-    LedgerEntry, SocietyLedger, Treasury, SocietyState,
+    SocietyPhase,
+    LedgerEventType,
+    LedgerEntry,
+    SocietyLedger,
+    Treasury,
+    SocietyState,
     create_society,
-    admit_citizen, suspend_citizen, reinstate_citizen, terminate_citizen,
+    admit_citizen,
+    suspend_citizen,
+    reinstate_citizen,
+    terminate_citizen,
     transition_metabolic_state,
-    deposit_treasury, allocate_treasury,
+    deposit_treasury,
+    allocate_treasury,
     record_law_change,
-    compute_society_t3, society_energy_cost, society_health,
-    incorporate_child, society_depth, society_ancestry,
+    compute_society_t3,
+    society_energy_cost,
+    society_health,
+    incorporate_child,
+    society_depth,
+    society_ancestry,
 )
 from web4.federation import (
-    LedgerType, LawDataset, Norm, Procedure, QuorumPolicy, QuorumMode,
+    LedgerType,
+    LawDataset,
+    Norm,
+    Procedure,
+    QuorumPolicy,
+    QuorumMode,
     CitizenshipStatus,
 )
 from web4.metabolic import MetabolicState
@@ -68,18 +85,22 @@ def _make_law(law_id="law-v1", version="1.0") -> LawDataset:
         law_id=law_id,
         version=version,
         society_id="lct:society:test",
-        norms=[Norm(
-            norm_id="NORM-001",
-            selector="atp_minimum",
-            op=">=",
-            value=10,
-            description="Minimum ATP",
-        )],
-        procedures=[Procedure(
-            procedure_id="PROC-001",
-            requires_witnesses=2,
-            description="Witness requirement",
-        )],
+        norms=[
+            Norm(
+                norm_id="NORM-001",
+                selector="atp_minimum",
+                op=">=",
+                value=10,
+                description="Minimum ATP",
+            )
+        ],
+        procedures=[
+            Procedure(
+                procedure_id="PROC-001",
+                requires_witnesses=2,
+                description="Witness requirement",
+            )
+        ],
     )
 
 
@@ -150,13 +171,15 @@ class TestSocietyLedger:
     def test_append_and_count(self):
         ledger = SocietyLedger(ledger_type=LedgerType.CONFINED)
         assert ledger.entry_count == 0
-        ledger.append(LedgerEntry(
-            entry_id="e1",
-            event_type=LedgerEventType.FORMATION,
-            action="genesis",
-            data={},
-            timestamp=TIMESTAMP,
-        ))
+        ledger.append(
+            LedgerEntry(
+                entry_id="e1",
+                event_type=LedgerEventType.FORMATION,
+                action="genesis",
+                data={},
+                timestamp=TIMESTAMP,
+            )
+        )
         assert ledger.entry_count == 1
 
     def test_query_by_event_type(self):
@@ -198,10 +221,15 @@ class TestSocietyLedger:
 
     def test_amend_entry(self):
         ledger = SocietyLedger(ledger_type=LedgerType.CONFINED)
-        ledger.append(LedgerEntry(
-            "original", LedgerEventType.ECONOMIC, "allocate",
-            {"amount": 100}, TIMESTAMP,
-        ))
+        ledger.append(
+            LedgerEntry(
+                "original",
+                LedgerEventType.ECONOMIC,
+                "allocate",
+                {"amount": 100},
+                TIMESTAMP,
+            )
+        )
 
         amendment = LedgerEntry(
             entry_id="amendment-1",
@@ -431,8 +459,7 @@ class TestAdmitCitizen:
 
     def test_admit_custom_rights(self):
         state = _make_society()
-        admit_citizen(state, "lct:charlie", TIMESTAMP, WITNESSES,
-                      rights=["read"], obligations=["contribute"])
+        admit_citizen(state, "lct:charlie", TIMESTAMP, WITNESSES, rights=["read"], obligations=["contribute"])
         record = state.society.get_citizenship("lct:charlie")
         assert "read" in record.rights
         assert "contribute" in record.obligations
@@ -773,8 +800,13 @@ class TestVectors:
     @pytest.fixture
     def vectors(self):
         vec_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..",
-            "test-vectors", "society", "society-vectors.json",
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "test-vectors",
+            "society",
+            "society-vectors.json",
         )
         with open(vec_path) as f:
             return json.load(f)
@@ -784,12 +816,14 @@ class TestVectors:
 
     def test_minimal_society(self, vectors):
         vec = next(v for v in vectors["vectors"] if v["name"] == "minimal_society")
-        state = create_society(**{
-            "society_id": vec["input"]["society_id"],
-            "name": vec["input"]["name"],
-            "founders": vec["input"]["founders"],
-            "timestamp": vec["input"]["timestamp"],
-        })
+        state = create_society(
+            **{
+                "society_id": vec["input"]["society_id"],
+                "name": vec["input"]["name"],
+                "founders": vec["input"]["founders"],
+                "timestamp": vec["input"]["timestamp"],
+            }
+        )
         assert state.phase.value == vec["expected"]["phase"]
         assert state.citizen_count == vec["expected"]["citizen_count"]
         assert state.metabolic_state.value == vec["expected"]["metabolic_state"]
@@ -797,24 +831,28 @@ class TestVectors:
 
     def test_society_with_treasury(self, vectors):
         vec = next(v for v in vectors["vectors"] if v["name"] == "society_with_treasury")
-        state = create_society(**{
-            "society_id": vec["input"]["society_id"],
-            "name": vec["input"]["name"],
-            "founders": vec["input"]["founders"],
-            "timestamp": vec["input"]["timestamp"],
-            "initial_treasury": vec["input"]["initial_treasury"],
-        })
+        state = create_society(
+            **{
+                "society_id": vec["input"]["society_id"],
+                "name": vec["input"]["name"],
+                "founders": vec["input"]["founders"],
+                "timestamp": vec["input"]["timestamp"],
+                "initial_treasury": vec["input"]["initial_treasury"],
+            }
+        )
         assert state.treasury.balance == vec["expected"]["treasury_balance"]
         assert state.treasury.total_deposited == vec["expected"]["total_deposited"]
 
     def test_citizen_admission(self, vectors):
         vec = next(v for v in vectors["vectors"] if v["name"] == "citizen_admission")
-        state = create_society(**{
-            "society_id": vec["input"]["society_id"],
-            "name": vec["input"]["name"],
-            "founders": vec["input"]["founders"],
-            "timestamp": vec["input"]["timestamp"],
-        })
+        state = create_society(
+            **{
+                "society_id": vec["input"]["society_id"],
+                "name": vec["input"]["name"],
+                "founders": vec["input"]["founders"],
+                "timestamp": vec["input"]["timestamp"],
+            }
+        )
         result = admit_citizen(
             state,
             vec["input"]["new_citizen"],
@@ -826,13 +864,15 @@ class TestVectors:
 
     def test_treasury_allocation(self, vectors):
         vec = next(v for v in vectors["vectors"] if v["name"] == "treasury_allocation")
-        state = create_society(**{
-            "society_id": vec["input"]["society_id"],
-            "name": vec["input"]["name"],
-            "founders": vec["input"]["founders"],
-            "timestamp": vec["input"]["timestamp"],
-            "initial_treasury": vec["input"]["initial_treasury"],
-        })
+        state = create_society(
+            **{
+                "society_id": vec["input"]["society_id"],
+                "name": vec["input"]["name"],
+                "founders": vec["input"]["founders"],
+                "timestamp": vec["input"]["timestamp"],
+                "initial_treasury": vec["input"]["initial_treasury"],
+            }
+        )
         result = allocate_treasury(
             state,
             vec["input"]["allocate_to"],
@@ -844,12 +884,14 @@ class TestVectors:
 
     def test_metabolic_transition(self, vectors):
         vec = next(v for v in vectors["vectors"] if v["name"] == "metabolic_transition")
-        state = create_society(**{
-            "society_id": vec["input"]["society_id"],
-            "name": vec["input"]["name"],
-            "founders": vec["input"]["founders"],
-            "timestamp": vec["input"]["timestamp"],
-        })
+        state = create_society(
+            **{
+                "society_id": vec["input"]["society_id"],
+                "name": vec["input"]["name"],
+                "founders": vec["input"]["founders"],
+                "timestamp": vec["input"]["timestamp"],
+            }
+        )
         result = transition_metabolic_state(
             state,
             MetabolicState(vec["input"]["target_state"]),
@@ -861,18 +903,22 @@ class TestVectors:
 
     def test_fractal_hierarchy(self, vectors):
         vec = next(v for v in vectors["vectors"] if v["name"] == "fractal_hierarchy")
-        parent = create_society(**{
-            "society_id": vec["input"]["parent_id"],
-            "name": vec["input"]["parent_name"],
-            "founders": vec["input"]["founders"],
-            "timestamp": vec["input"]["timestamp"],
-        })
-        child = create_society(**{
-            "society_id": vec["input"]["child_id"],
-            "name": vec["input"]["child_name"],
-            "founders": vec["input"]["founders"],
-            "timestamp": vec["input"]["timestamp"],
-        })
+        parent = create_society(
+            **{
+                "society_id": vec["input"]["parent_id"],
+                "name": vec["input"]["parent_name"],
+                "founders": vec["input"]["founders"],
+                "timestamp": vec["input"]["timestamp"],
+            }
+        )
+        child = create_society(
+            **{
+                "society_id": vec["input"]["child_id"],
+                "name": vec["input"]["child_name"],
+                "founders": vec["input"]["founders"],
+                "timestamp": vec["input"]["timestamp"],
+            }
+        )
         result = incorporate_child(parent, child, vec["input"]["timestamp"])
         assert result == vec["expected"]["incorporate_success"]
         assert society_depth(child) == vec["expected"]["child_depth"]

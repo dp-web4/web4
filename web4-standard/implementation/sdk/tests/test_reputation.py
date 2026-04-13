@@ -19,17 +19,29 @@ import pytest
 
 from web4.trust import T3, V3
 from web4.r6 import (
-    R7Action, Role, Request, Rules, Result, ResourceRequirements,
-    ActionStatus, ReputationDelta, ContributingFactor, TensorDelta,
+    R7Action,
+    Role,
+    Request,
+    Rules,
+    Result,
+    ResourceRequirements,
+    ActionStatus,
+    ReputationDelta,
+    ContributingFactor,
+    TensorDelta,
 )
 from web4.reputation import (
-    ReputationRule, DimensionImpact, Modifier,
-    ReputationEngine, ReputationStore,
+    ReputationRule,
+    DimensionImpact,
+    Modifier,
+    ReputationEngine,
+    ReputationStore,
     analyze_factors,
 )
 
 
 # ── Fixtures ─────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def alice_analyst_action():
@@ -115,8 +127,8 @@ def failure_rule():
 
 # ── Rule Matching ────────────────────────────────────────────────
 
-class TestReputationRuleMatching:
 
+class TestReputationRuleMatching:
     def test_rule_matches_action_type(self, success_rule, alice_analyst_action):
         assert success_rule.matches(alice_analyst_action)
 
@@ -184,8 +196,8 @@ class TestReputationRuleMatching:
 
 # ── Factor Analysis ──────────────────────────────────────────────
 
-class TestFactorAnalysis:
 
+class TestFactorAnalysis:
     def test_high_accuracy_factor(self, alice_analyst_action):
         factors = analyze_factors(alice_analyst_action)
         names = {f.factor for f in factors}
@@ -225,8 +237,8 @@ class TestFactorAnalysis:
 
 # ── Reputation Engine ────────────────────────────────────────────
 
-class TestReputationEngine:
 
+class TestReputationEngine:
     def test_no_rules_returns_none(self, alice_analyst_action):
         engine = ReputationEngine()
         assert engine.evaluate(alice_analyst_action) is None
@@ -264,7 +276,8 @@ class TestReputationEngine:
 
         action = R7Action(
             role=Role(
-                actor="lct:bob", role_lct="lct:role:analyst",
+                actor="lct:bob",
+                role_lct="lct:role:analyst",
                 t3_in_role=T3(0.5, 0.5, 0.5),
             ),
             request=Request(
@@ -286,7 +299,8 @@ class TestReputationEngine:
 
         action = R7Action(
             role=Role(
-                actor="lct:carol", role_lct="lct:role:analyst",
+                actor="lct:carol",
+                role_lct="lct:role:analyst",
                 t3_in_role=T3(0.7, 0.7, 0.7),
                 v3_in_role=V3(0.5, 0.7, 0.7),
             ),
@@ -317,7 +331,8 @@ class TestReputationEngine:
 
         action = R7Action(
             role=Role(
-                actor="lct:alice", role_lct="lct:role:analyst",
+                actor="lct:alice",
+                role_lct="lct:role:analyst",
                 t3_in_role=T3(0.85, 0.9, 0.88),
                 v3_in_role=V3(0.5, 0.8, 1.0),
             ),
@@ -352,7 +367,8 @@ class TestReputationEngine:
 
         action = R7Action(
             role=Role(
-                actor="lct:x", role_lct="lct:r",
+                actor="lct:x",
+                role_lct="lct:r",
                 t3_in_role=T3(0.9, 0.5, 0.5),
             ),
             request=Request(action="x"),
@@ -381,8 +397,8 @@ class TestReputationEngine:
 
 # ── Reputation Store ─────────────────────────────────────────────
 
-class TestReputationStore:
 
+class TestReputationStore:
     def test_neutral_for_unknown(self):
         store = ReputationStore()
         score = store.current("lct:unknown", "lct:role", "training")
@@ -424,18 +440,26 @@ class TestReputationStore:
         old = now - timedelta(days=60)
 
         # Old negative delta
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"training": TensorDelta(change=-0.1, from_value=0.5, to_value=0.4)},
-            timestamp=old.isoformat(),
-        ), now=old)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"training": TensorDelta(change=-0.1, from_value=0.5, to_value=0.4)},
+                timestamp=old.isoformat(),
+            ),
+            now=old,
+        )
 
         # Recent positive delta
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"training": TensorDelta(change=0.1, from_value=0.4, to_value=0.5)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"training": TensorDelta(change=0.1, from_value=0.4, to_value=0.5)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
         score = store.current("lct:alice", "lct:role", "training", now=now)
         # Recent positive should outweigh old negative
@@ -446,11 +470,15 @@ class TestReputationStore:
         now = datetime(2026, 3, 15, tzinfo=timezone.utc)
         very_old = now - timedelta(days=200)
 
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"talent": TensorDelta(change=0.5, from_value=0.5, to_value=1.0)},
-            timestamp=very_old.isoformat(),
-        ), now=very_old)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"talent": TensorDelta(change=0.5, from_value=0.5, to_value=1.0)},
+                timestamp=very_old.isoformat(),
+            ),
+            now=very_old,
+        )
 
         score = store.current("lct:alice", "lct:role", "talent", now=now)
         # Beyond 90-day horizon, should return neutral
@@ -461,17 +489,25 @@ class TestReputationStore:
         store = ReputationStore()
         now = datetime(2026, 3, 15, tzinfo=timezone.utc)
 
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role:analyst",
-            t3_delta={"training": TensorDelta(change=0.2, from_value=0.5, to_value=0.7)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role:analyst",
+                t3_delta={"training": TensorDelta(change=0.2, from_value=0.5, to_value=0.7)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role:surgeon",
-            t3_delta={"training": TensorDelta(change=-0.2, from_value=0.5, to_value=0.3)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role:surgeon",
+                t3_delta={"training": TensorDelta(change=-0.2, from_value=0.5, to_value=0.3)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
         analyst = store.current("lct:alice", "lct:role:analyst", "training", now=now)
         surgeon = store.current("lct:alice", "lct:role:surgeon", "training", now=now)
@@ -482,26 +518,34 @@ class TestReputationStore:
         store = ReputationStore()
         now = datetime(2026, 3, 15, tzinfo=timezone.utc)
         assert not store.has_history("lct:alice", "lct:role")
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
         assert store.has_history("lct:alice", "lct:role")
 
 
 # ── Inactivity Decay ─────────────────────────────────────────────
 
-class TestInactivityDecay:
 
+class TestInactivityDecay:
     def test_no_decay_within_grace_period(self):
         store = ReputationStore()
         now = datetime(2026, 3, 15, tzinfo=timezone.utc)
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
         check = now + timedelta(days=15)
         decay = store.inactivity_decay("lct:alice", "lct:role", now=check)
@@ -510,11 +554,15 @@ class TestInactivityDecay:
     def test_decay_after_grace_period(self):
         store = ReputationStore()
         now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
         # 60 days later = 2 months inactive
         check = now + timedelta(days=60)
@@ -525,11 +573,15 @@ class TestInactivityDecay:
     def test_decay_accelerates_after_6_months(self):
         store = ReputationStore()
         now = datetime(2025, 1, 1, tzinfo=timezone.utc)
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
         # 240 days = 8 months (past 6-month threshold)
         check = now + timedelta(days=240)
@@ -540,11 +592,15 @@ class TestInactivityDecay:
     def test_decay_capped(self):
         store = ReputationStore()
         now = datetime(2020, 1, 1, tzinfo=timezone.utc)
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
         # 5 years later
         check = now + timedelta(days=365 * 5)
@@ -559,16 +615,20 @@ class TestInactivityDecay:
 
 # ── Effective Reputation ─────────────────────────────────────────
 
-class TestEffectiveReputation:
 
+class TestEffectiveReputation:
     def test_effective_includes_decay(self):
         store = ReputationStore()
         now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"training": TensorDelta(change=0.1, from_value=0.5, to_value=0.6)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"training": TensorDelta(change=0.1, from_value=0.5, to_value=0.6)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
         # 90 days later — within horizon, but past grace period
         check = now + timedelta(days=60)
@@ -579,11 +639,15 @@ class TestEffectiveReputation:
     def test_effective_clamped_to_zero(self):
         store = ReputationStore()
         now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        store.record(ReputationDelta(
-            subject_lct="lct:alice", role_lct="lct:role",
-            t3_delta={"training": TensorDelta(change=-0.4, from_value=0.5, to_value=0.1)},
-            timestamp=now.isoformat(),
-        ), now=now)
+        store.record(
+            ReputationDelta(
+                subject_lct="lct:alice",
+                role_lct="lct:role",
+                t3_delta={"training": TensorDelta(change=-0.4, from_value=0.5, to_value=0.1)},
+                timestamp=now.isoformat(),
+            ),
+            now=now,
+        )
 
         # Long inactivity + negative base → should clamp to 0
         check = now + timedelta(days=300)
@@ -593,13 +657,18 @@ class TestEffectiveReputation:
 
 # ── Test Vector Validation ───────────────────────────────────────
 
-class TestVectors:
 
+class TestVectors:
     @pytest.fixture
     def vectors(self):
         path = os.path.join(
             os.path.dirname(__file__),
-            "..", "..", "..", "test-vectors", "reputation", "reputation-operations.json",
+            "..",
+            "..",
+            "..",
+            "test-vectors",
+            "reputation",
+            "reputation-operations.json",
         )
         with open(path) as f:
             return json.load(f)["vectors"]
@@ -672,22 +741,27 @@ class TestVectors:
         now = datetime.fromisoformat(v["input"]["now"])
 
         for entry in v["input"]["deltas"]:
-            store.record(ReputationDelta(
-                subject_lct=v["input"]["entity"],
-                role_lct=v["input"]["role"],
-                t3_delta={
-                    entry["dimension"]: TensorDelta(
-                        change=entry["change"],
-                        from_value=0.5,
-                        to_value=0.5 + entry["change"],
-                    ),
-                },
-                timestamp=entry["timestamp"],
-            ), now=datetime.fromisoformat(entry["timestamp"]))
+            store.record(
+                ReputationDelta(
+                    subject_lct=v["input"]["entity"],
+                    role_lct=v["input"]["role"],
+                    t3_delta={
+                        entry["dimension"]: TensorDelta(
+                            change=entry["change"],
+                            from_value=0.5,
+                            to_value=0.5 + entry["change"],
+                        ),
+                    },
+                    timestamp=entry["timestamp"],
+                ),
+                now=datetime.fromisoformat(entry["timestamp"]),
+            )
 
         score = store.current(
-            v["input"]["entity"], v["input"]["role"],
-            v["input"]["query_dimension"], now=now,
+            v["input"]["entity"],
+            v["input"]["role"],
+            v["input"]["query_dimension"],
+            now=now,
         )
         tol = v.get("tolerance", 0.01)
         assert score == pytest.approx(v["expected"]["score"], abs=tol)
@@ -698,16 +772,21 @@ class TestVectors:
         store = ReputationStore()
         action_time = datetime.fromisoformat(v["input"]["last_action_timestamp"])
 
-        store.record(ReputationDelta(
-            subject_lct=v["input"]["entity"],
-            role_lct=v["input"]["role"],
-            t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
-            timestamp=action_time.isoformat(),
-        ), now=action_time)
+        store.record(
+            ReputationDelta(
+                subject_lct=v["input"]["entity"],
+                role_lct=v["input"]["role"],
+                t3_delta={"talent": TensorDelta(change=0.01, from_value=0.5, to_value=0.51)},
+                timestamp=action_time.isoformat(),
+            ),
+            now=action_time,
+        )
 
         check_time = datetime.fromisoformat(v["input"]["check_timestamp"])
         decay = store.inactivity_decay(
-            v["input"]["entity"], v["input"]["role"], now=check_time,
+            v["input"]["entity"],
+            v["input"]["role"],
+            now=check_time,
         )
         tol = v.get("tolerance", 0.005)
         assert decay == pytest.approx(v["expected"]["decay"], abs=tol)
@@ -810,15 +889,21 @@ class TestReputationRuleRoundTrip:
             rule_id="rule:full",
             trigger_conditions={"action_type": "delegate", "result_status": "success"},
             t3_impacts={
-                "talent": DimensionImpact(base_delta=0.1, modifiers=[
-                    Modifier(condition="quality_high", multiplier=1.5),
-                ]),
+                "talent": DimensionImpact(
+                    base_delta=0.1,
+                    modifiers=[
+                        Modifier(condition="quality_high", multiplier=1.5),
+                    ],
+                ),
                 "temperament": DimensionImpact(base_delta=0.03),
             },
             v3_impacts={
-                "validity": DimensionImpact(base_delta=0.04, modifiers=[
-                    Modifier(condition="witnessed", multiplier=1.3),
-                ]),
+                "validity": DimensionImpact(
+                    base_delta=0.04,
+                    modifiers=[
+                        Modifier(condition="witnessed", multiplier=1.3),
+                    ],
+                ),
             },
             witnesses_required=3,
             law_oracle="oracle:governance",

@@ -30,7 +30,11 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
 
 __all__ = [
-    "mcp", "run", "web4_evaluate_trust", "web4_process_action", "web4_resolve_trust",
+    "mcp",
+    "run",
+    "web4_evaluate_trust",
+    "web4_process_action",
+    "web4_resolve_trust",
 ]
 
 # ---------------------------------------------------------------------------
@@ -63,10 +67,28 @@ def web4_info() -> Dict[str, Any]:
     import web4
 
     modules = [
-        "trust", "lct", "atp", "federation", "r6", "mrh", "acp",
-        "dictionary", "entity", "capability", "errors", "metabolic",
-        "binding", "society", "reputation", "security", "protocol",
-        "mcp", "attestation", "validation", "deserialize", "generate",
+        "trust",
+        "lct",
+        "atp",
+        "federation",
+        "r6",
+        "mrh",
+        "acp",
+        "dictionary",
+        "entity",
+        "capability",
+        "errors",
+        "metabolic",
+        "binding",
+        "society",
+        "reputation",
+        "security",
+        "protocol",
+        "mcp",
+        "attestation",
+        "validation",
+        "deserialize",
+        "generate",
     ]
 
     result: Dict[str, Any] = {
@@ -78,6 +100,7 @@ def web4_info() -> Dict[str, Any]:
 
     try:
         from web4.validation import list_schemas
+
         schemas = list_schemas()
         result["schemas"] = len(schemas)
         result["schema_names"] = schemas
@@ -160,6 +183,7 @@ def web4_generate(type_name: str, compact: bool = False) -> Dict[str, Any]:
         doc = generate(type_name)
     except UnsupportedTypeError:
         from web4.generate import available_types
+
         return {
             "error": f"Unknown type: {type_name!r}",
             "available_types": available_types(),
@@ -200,10 +224,7 @@ def web4_roundtrip(document: str) -> Dict[str, Any]:
         type_val = doc.get("@type", "<unknown>")
         return {
             "success": False,
-            "error": (
-                f"{type_val} does not support re-serialization "
-                f"(no to_jsonld method on {type(obj).__name__})"
-            ),
+            "error": (f"{type_val} does not support re-serialization (no to_jsonld method on {type(obj).__name__})"),
         }
 
     roundtripped: Dict[str, object] = obj.to_jsonld()
@@ -372,8 +393,13 @@ def web4_resolve_trust(
 
     # Resolve
     resolution = resolve_trust(
-        graph, trust_profiles, observer, target, role,
-        strategy=strategy, decay_factor=decay_factor,
+        graph,
+        trust_profiles,
+        observer,
+        target,
+        role,
+        strategy=strategy,
+        decay_factor=decay_factor,
     )
     return resolution.to_dict()
 
@@ -437,10 +463,7 @@ def web4_process_action(
     if status_lower not in ("success", "failure"):
         return {"error": f"status must be 'success' or 'failure', got {status!r}"}
 
-    action_status = (
-        ActionStatus.SUCCESS if status_lower == "success"
-        else ActionStatus.FAILURE
-    )
+    action_status = ActionStatus.SUCCESS if status_lower == "success" else ActionStatus.FAILURE
 
     # Parse rules
     try:
@@ -464,7 +487,8 @@ def web4_process_action(
         role=R7Role(actor=actor, role_lct=role),
         request=Request(action=action_type, atp_stake=atp_stake),
         resource=ResourceRequirements(
-            required_atp=atp_stake, available_atp=atp_stake,
+            required_atp=atp_stake,
+            available_atp=atp_stake,
         ),
         result=Result(status=action_status, output={"quality": quality}),
     )
@@ -505,8 +529,7 @@ def web4_process_action(
 @mcp.tool(
     name="web4_list_types",
     description=(
-        "List all web4 types available for generation (via web4_generate) "
-        "and deserialization (via web4_roundtrip)."
+        "List all web4 types available for generation (via web4_generate) and deserialization (via web4_roundtrip)."
     ),
 )
 def web4_list_types() -> Dict[str, Any]:

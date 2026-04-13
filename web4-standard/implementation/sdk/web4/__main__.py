@@ -27,10 +27,28 @@ def _cmd_info(args: argparse.Namespace) -> int:
     import web4
 
     modules = [
-        "trust", "lct", "atp", "federation", "r6", "mrh", "acp",
-        "dictionary", "entity", "capability", "errors", "metabolic",
-        "binding", "society", "reputation", "security", "protocol",
-        "mcp", "attestation", "validation", "deserialize", "generate",
+        "trust",
+        "lct",
+        "atp",
+        "federation",
+        "r6",
+        "mrh",
+        "acp",
+        "dictionary",
+        "entity",
+        "capability",
+        "errors",
+        "metabolic",
+        "binding",
+        "society",
+        "reputation",
+        "security",
+        "protocol",
+        "mcp",
+        "attestation",
+        "validation",
+        "deserialize",
+        "generate",
     ]
 
     print(f"web4 {web4.__version__}")
@@ -40,6 +58,7 @@ def _cmd_info(args: argparse.Namespace) -> int:
     # Show available schemas if validation module can locate them
     try:
         from web4.validation import list_schemas
+
         schemas = list_schemas()
         print(f"Schemas: {len(schemas)}")
     except Exception:
@@ -107,8 +126,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         schema_name = _detect_schema(doc)
         if schema_name is None:
             print(
-                "Error: cannot detect schema type. "
-                "Use --schema to specify (e.g. --schema lct).",
+                "Error: cannot detect schema type. Use --schema to specify (e.g. --schema lct).",
                 file=sys.stderr,
             )
             return 1
@@ -120,8 +138,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         result = validate(doc, schema_name)
     except SchemaValidationUnavailable:
         print(
-            "Error: jsonschema package not installed. "
-            "Install with: pip install 'web4[validation]'",
+            "Error: jsonschema package not installed. Install with: pip install 'web4[validation]'",
             file=sys.stderr,
         )
         return 1
@@ -162,8 +179,7 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
     if not hasattr(obj, "to_jsonld"):
         type_val = doc.get("@type", "<unknown>")
         print(
-            f"Error: {type_val} does not support re-serialization "
-            f"(no to_jsonld method on {type(obj).__name__})",
+            f"Error: {type_val} does not support re-serialization (no to_jsonld method on {type(obj).__name__})",
             file=sys.stderr,
         )
         return 1
@@ -236,10 +252,28 @@ def _cmd_generate(args: argparse.Namespace) -> int:
 
 
 _SELFTEST_MODULES: List[str] = [
-    "trust", "lct", "atp", "federation", "r6", "mrh", "acp",
-    "dictionary", "entity", "capability", "errors", "metabolic",
-    "binding", "society", "reputation", "security", "protocol",
-    "mcp", "attestation", "validation", "deserialize", "generate",
+    "trust",
+    "lct",
+    "atp",
+    "federation",
+    "r6",
+    "mrh",
+    "acp",
+    "dictionary",
+    "entity",
+    "capability",
+    "errors",
+    "metabolic",
+    "binding",
+    "society",
+    "reputation",
+    "security",
+    "protocol",
+    "mcp",
+    "attestation",
+    "validation",
+    "deserialize",
+    "generate",
 ]
 
 
@@ -266,6 +300,7 @@ def _cmd_selftest(args: argparse.Namespace) -> int:
     schema_count = 0
     try:
         from web4.validation import list_schemas
+
         schemas = list_schemas()
         schema_count = len(schemas)
         if verbose:
@@ -287,9 +322,7 @@ def _cmd_selftest(args: argparse.Namespace) -> int:
                 if hasattr(obj, "to_jsonld"):
                     rt_doc = obj.to_jsonld()
                     if rt_doc != doc:
-                        errors.append(
-                            f"roundtrip {type_name}: output differs from input"
-                        )
+                        errors.append(f"roundtrip {type_name}: output differs from input")
                     else:
                         passed += 1
                 else:
@@ -311,10 +344,7 @@ def _cmd_selftest(args: argparse.Namespace) -> int:
         return 1
 
     total_types = len(types) if "types" in dir() else 0
-    print(
-        f"OK: {imported} modules, {schema_count} schemas, "
-        f"{total_types} types roundtripped"
-    )
+    print(f"OK: {imported} modules, {schema_count} schemas, {total_types} types roundtripped")
     return 0
 
 
@@ -350,8 +380,7 @@ def _cmd_trust(args: argparse.Namespace) -> int:
         role: Optional[str] = args.role
         if not all([actor, target, role]):
             print(
-                "Error: --actor, --target, and --role are required "
-                "(or use --file to provide a JSON query)",
+                "Error: --actor, --target, and --role are required (or use --file to provide a JSON query)",
                 file=sys.stderr,
             )
             return 1
@@ -499,7 +528,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate a minimal valid JSON-LD document for a type",
     )
     p_gen.add_argument(
-        "type", nargs="?", default=None,
+        "type",
+        nargs="?",
+        default=None,
         help="Type name (e.g. T3Tensor, R7Action, LinkedContextToken)",
     )
     p_gen.add_argument(
@@ -532,7 +563,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Verify SDK installation (imports, schemas, round-trips)",
     )
     p_st.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show per-phase progress details.",
     )
@@ -543,40 +575,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="Evaluate a trust query (from JSON or CLI flags)",
     )
     p_trust.add_argument(
-        "--file", default=None,
-        help="Path to TrustQuery JSON file (or '-' for stdin). "
-             "Overrides --actor/--target/--role flags.",
+        "--file",
+        default=None,
+        help="Path to TrustQuery JSON file (or '-' for stdin). Overrides --actor/--target/--role flags.",
     )
     p_trust.add_argument("--actor", default=None, help="Querier entity ID")
     p_trust.add_argument("--target", default=None, help="Target entity ID")
     p_trust.add_argument("--role", default=None, help="Requested role")
     p_trust.add_argument(
-        "--interaction", default="cli-query",
+        "--interaction",
+        default="cli-query",
         help="Intended interaction description (default: cli-query)",
     )
     p_trust.add_argument(
-        "--disclosure-level", default="range", dest="disclosure_level",
+        "--disclosure-level",
+        default="range",
+        dest="disclosure_level",
         help="Disclosure level: binary, range, or precise (default: range)",
     )
     p_trust.add_argument(
-        "--stake", type=int, default=10,
+        "--stake",
+        type=int,
+        default=10,
         help="ATP stake amount (default: 10, minimum allowed)",
     )
     p_trust.add_argument(
-        "--validity", type=int, default=3600,
+        "--validity",
+        type=int,
+        default=3600,
         help="Validity period in seconds (default: 3600)",
     )
     p_trust.add_argument(
-        "--profile-roles", default=None,
-        help='JSON mapping role->T3 for target, e.g. '
-             '\'{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}\'',
+        "--profile-roles",
+        default=None,
+        help="JSON mapping role->T3 for target, e.g. "
+        '\'{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}\'',
     )
     p_trust.add_argument(
-        "--atp-balance", type=float, default=1000.0, dest="atp_balance",
+        "--atp-balance",
+        type=float,
+        default=1000.0,
+        dest="atp_balance",
         help="Requester ATP balance (default: 1000.0)",
     )
     p_trust.add_argument(
-        "--compact", action="store_true",
+        "--compact",
+        action="store_true",
         help="Output compact JSON (no indentation)",
     )
 

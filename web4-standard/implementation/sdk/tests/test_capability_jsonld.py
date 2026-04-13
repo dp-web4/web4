@@ -154,9 +154,15 @@ class TestCapabilityAssessmentJsonLd:
         lct = self._make_stub_lct()
         doc = capability_assessment_to_jsonld(lct)
         required = [
-            "@context", "@type", "lct_id", "assessed_level",
-            "level_name", "trust_tier", "trust_range",
-            "requirements_met", "missing_requirements",
+            "@context",
+            "@type",
+            "lct_id",
+            "assessed_level",
+            "level_name",
+            "trust_tier",
+            "trust_range",
+            "requirements_met",
+            "missing_requirements",
         ]
         for field in required:
             assert field in doc, f"Missing field: {field}"
@@ -220,8 +226,9 @@ class TestCapabilityFrameworkJsonLd:
         for i in range(2, len(levels)):
             prev_max = levels[i - 1]["trust_range"][1]
             curr_min = levels[i]["trust_range"][0]
-            assert prev_max == pytest.approx(curr_min), \
-                f"Gap between level {i-1} max ({prev_max}) and level {i} min ({curr_min})"
+            assert prev_max == pytest.approx(curr_min), (
+                f"Gap between level {i - 1} max ({prev_max}) and level {i} min ({curr_min})"
+            )
 
 
 # ── CapabilityAssessment from_jsonld() roundtrip ──────────────────
@@ -326,8 +333,9 @@ class TestCapabilityFrameworkRoundtrip:
         assert len(levels[0].requirements) >= 1
         assert "Valid lct_id" in levels[0].requirements
         assert len(levels[5].requirements) >= 1
-        assert "Hardware anchor in binding" in levels[5].requirements[1] or \
-               any("hardware" in r.lower() for r in levels[5].requirements)
+        assert "Hardware anchor in binding" in levels[5].requirements[1] or any(
+            "hardware" in r.lower() for r in levels[5].requirements
+        )
 
     def test_roundtrip_preserves_trust_ranges(self):
         """Round-trip preserves trust range tuples."""

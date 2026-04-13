@@ -101,20 +101,35 @@ def make_intent(plan: AgentPlan, step_id: str = "fetch") -> Intent:
 #  ERROR HIERARCHY
 # ══════════════════════════════════════════════════════════════════
 
+
 class TestACPErrors:
     """ACP error types and hierarchy."""
 
     def test_all_inherit_from_acp_error(self):
-        errors = [NoValidGrant, ScopeViolation, ApprovalRequired,
-                  WitnessDeficit, PlanExpired, LedgerWriteFailure,
-                  InvalidTransition, ResourceCapExceeded]
+        errors = [
+            NoValidGrant,
+            ScopeViolation,
+            ApprovalRequired,
+            WitnessDeficit,
+            PlanExpired,
+            LedgerWriteFailure,
+            InvalidTransition,
+            ResourceCapExceeded,
+        ]
         for err_cls in errors:
             assert issubclass(err_cls, ACPError)
 
     def test_error_codes_unique(self):
-        errors = [NoValidGrant, ScopeViolation, ApprovalRequired,
-                  WitnessDeficit, PlanExpired, LedgerWriteFailure,
-                  InvalidTransition, ResourceCapExceeded]
+        errors = [
+            NoValidGrant,
+            ScopeViolation,
+            ApprovalRequired,
+            WitnessDeficit,
+            PlanExpired,
+            LedgerWriteFailure,
+            InvalidTransition,
+            ResourceCapExceeded,
+        ]
         codes = [e.error_code for e in errors]
         assert len(codes) == len(set(codes)), "Duplicate error codes"
 
@@ -127,8 +142,8 @@ class TestACPErrors:
 #  TRIGGERS
 # ══════════════════════════════════════════════════════════════════
 
-class TestTrigger:
 
+class TestTrigger:
     def test_cron_trigger(self):
         t = Trigger(kind=TriggerKind.CRON, expr="0 */6 * * *")
         assert t.kind == TriggerKind.CRON
@@ -147,8 +162,8 @@ class TestTrigger:
 #  GUARDS
 # ══════════════════════════════════════════════════════════════════
 
-class TestResourceCaps:
 
+class TestResourceCaps:
     def test_atp_within_cap(self):
         caps = ResourceCaps(max_atp=100)
         assert caps.check_atp(50) is True
@@ -166,7 +181,6 @@ class TestResourceCaps:
 
 
 class TestHumanApproval:
-
     def test_auto_mode(self):
         ha = HumanApproval(mode=ApprovalMode.AUTO)
         assert ha.needs_human(999) is False
@@ -185,7 +199,6 @@ class TestHumanApproval:
 
 
 class TestGuards:
-
     def test_not_expired(self):
         g = Guards(expires_at="2099-12-31T23:59:59Z")
         assert g.is_expired() is False
@@ -209,8 +222,8 @@ class TestGuards:
 #  PLAN STEPS
 # ══════════════════════════════════════════════════════════════════
 
-class TestPlanStep:
 
+class TestPlanStep:
     def test_basic_step(self):
         s = PlanStep(step_id="fetch", mcp_tool="data.search", args={"limit": 10})
         assert s.step_id == "fetch"
@@ -233,8 +246,8 @@ class TestPlanStep:
 #  AGENT PLAN
 # ══════════════════════════════════════════════════════════════════
 
-class TestAgentPlan:
 
+class TestAgentPlan:
     def test_basic_plan(self):
         plan = make_plan()
         assert plan.plan_id == "acp:plan:test"
@@ -281,8 +294,8 @@ class TestAgentPlan:
 #  PROOF OF AGENCY
 # ══════════════════════════════════════════════════════════════════
 
-class TestProofOfAgency:
 
+class TestProofOfAgency:
     def test_auto_nonce(self):
         p = ProofOfAgency(grant_id="g1", plan_id="p1", intent_id="i1")
         assert len(p.nonce) == 16
@@ -297,8 +310,8 @@ class TestProofOfAgency:
 #  INTENT
 # ══════════════════════════════════════════════════════════════════
 
-class TestIntent:
 
+class TestIntent:
     def test_basic_intent(self):
         plan = make_plan()
         intent = make_intent(plan)
@@ -319,8 +332,8 @@ class TestIntent:
 #  DECISION
 # ══════════════════════════════════════════════════════════════════
 
-class TestDecision:
 
+class TestDecision:
     def test_approve(self):
         d = Decision(
             intent_id="i1",
@@ -369,8 +382,8 @@ class TestDecision:
 #  EXECUTION RECORD
 # ══════════════════════════════════════════════════════════════════
 
-class TestExecutionRecord:
 
+class TestExecutionRecord:
     def test_success_record(self):
         r = ExecutionRecord(
             record_id="rec:001",
@@ -428,8 +441,8 @@ class TestExecutionRecord:
 #  STATE MACHINE
 # ══════════════════════════════════════════════════════════════════
 
-class TestACPStateMachine:
 
+class TestACPStateMachine:
     def test_initial_state(self):
         plan = make_plan()
         sm = ACPStateMachine(plan)
@@ -498,18 +511,14 @@ class TestACPStateMachine:
             sm.complete()  # Can't go from IDLE to COMPLETE
 
     def test_expired_plan(self):
-        plan = make_plan(
-            guards=Guards(expires_at="2020-01-01T00:00:00Z")
-        )
+        plan = make_plan(guards=Guards(expires_at="2020-01-01T00:00:00Z"))
         sm = ACPStateMachine(plan)
         with pytest.raises(PlanExpired):
             sm.start_planning()
         assert sm.state == ACPState.FAILED
 
     def test_resource_cap_exceeded(self):
-        plan = make_plan(
-            guards=Guards(resource_caps=ResourceCaps(max_atp=10))
-        )
+        plan = make_plan(guards=Guards(resource_caps=ResourceCaps(max_atp=10)))
         sm = ACPStateMachine(plan)
         sm.start_planning()
 
@@ -534,10 +543,15 @@ class TestACPStateMachine:
         sm.create_intent(intent)
         sm.enter_approval_gate()
         sm.approve(Decision(intent_id="i", decision=DecisionType.APPROVE, decided_by="a"))
-        sm.record_execution(ExecutionRecord(
-            record_id="r", intent_id="i", grant_id="g",
-            law_hash="h", mcp_call={"resource": "x", "args": {}},
-        ))
+        sm.record_execution(
+            ExecutionRecord(
+                record_id="r",
+                intent_id="i",
+                grant_id="g",
+                law_hash="h",
+                mcp_call={"resource": "x", "args": {}},
+            )
+        )
         sm.complete()
         assert sm.state == ACPState.COMPLETE
 
@@ -587,8 +601,8 @@ class TestACPStateMachine:
 #  PLAN VALIDATION
 # ══════════════════════════════════════════════════════════════════
 
-class TestPlanValidation:
 
+class TestPlanValidation:
     def test_valid_plan(self):
         plan = make_plan()
         errors = validate_plan(plan)
@@ -610,17 +624,21 @@ class TestPlanValidation:
         assert any("step" in e.lower() for e in errors)
 
     def test_unknown_dependency(self):
-        plan = make_plan(steps=[
-            PlanStep(step_id="a", mcp_tool="x", depends_on=["nonexistent"]),
-        ])
+        plan = make_plan(
+            steps=[
+                PlanStep(step_id="a", mcp_tool="x", depends_on=["nonexistent"]),
+            ]
+        )
         errors = validate_plan(plan)
         assert any("nonexistent" in e for e in errors)
 
     def test_cycle_detection(self):
-        plan = make_plan(steps=[
-            PlanStep(step_id="a", mcp_tool="x", depends_on=["b"]),
-            PlanStep(step_id="b", mcp_tool="y", depends_on=["a"]),
-        ])
+        plan = make_plan(
+            steps=[
+                PlanStep(step_id="a", mcp_tool="x", depends_on=["b"]),
+                PlanStep(step_id="b", mcp_tool="y", depends_on=["a"]),
+            ]
+        )
         errors = validate_plan(plan)
         assert any("cycle" in e.lower() for e in errors)
 
@@ -629,8 +647,8 @@ class TestPlanValidation:
 #  INTENT BUILDER
 # ══════════════════════════════════════════════════════════════════
 
-class TestBuildIntent:
 
+class TestBuildIntent:
     def test_basic_build(self):
         plan = make_plan()
         intent = build_intent(plan, "fetch", explanation="Get data")
@@ -657,10 +675,11 @@ class TestBuildIntent:
             build_intent(plan, "nonexistent")
 
     def test_approval_from_step(self):
-        plan = make_plan(steps=[
-            PlanStep(step_id="approve", mcp_tool="invoice.approve",
-                     requires_approval="if_amount > 10"),
-        ])
+        plan = make_plan(
+            steps=[
+                PlanStep(step_id="approve", mcp_tool="invoice.approve", requires_approval="if_amount > 10"),
+            ]
+        )
         intent = build_intent(plan, "approve")
         assert intent.needs_approval is True
 
@@ -669,11 +688,12 @@ class TestBuildIntent:
 #  CROSS-MODULE INTEGRATION
 # ══════════════════════════════════════════════════════════════════
 
-class TestCrossModuleIntegration:
 
+class TestCrossModuleIntegration:
     def test_acp_with_trust_delta(self):
         """ExecutionRecord can carry T3/V3 deltas."""
         from web4.trust import T3
+
         t3 = T3(talent=0.8, training=0.7, temperament=0.9)
         updated = t3.update(quality=0.8, success=True)
 
@@ -699,6 +719,7 @@ class TestCrossModuleIntegration:
     def test_acp_with_lct_identity(self):
         """ACP plan references LCT entity IDs."""
         from web4.lct import LCT, EntityType
+
         lct = LCT.create(entity_type=EntityType.AI, public_key="testkey")
 
         plan = AgentPlan(
@@ -713,6 +734,7 @@ class TestCrossModuleIntegration:
     def test_acp_with_atp_resource_tracking(self):
         """ExecutionRecord tracks ATP consumption."""
         from web4.atp import ATPAccount
+
         acct = ATPAccount(available=100)
         acct.lock(25)  # Reserve ATP for operation
 
@@ -752,6 +774,7 @@ class TestCrossModuleIntegration:
 #  CANONICAL TEST VECTORS
 # ══════════════════════════════════════════════════════════════════
 
+
 class TestACPVectors:
     """Tests against acp/plan-operations.json vectors."""
 
@@ -771,12 +794,15 @@ class TestACPVectors:
             principal=inp["principal"],
             agent=inp["agent"],
             grant_id=inp["grantId"],
-            steps=[PlanStep(
-                step_id=s["id"],
-                mcp_tool=s["mcp"],
-                args=s.get("args", {}),
-                depends_on=s.get("dependsOn", []),
-            ) for s in inp["steps"]],
+            steps=[
+                PlanStep(
+                    step_id=s["id"],
+                    mcp_tool=s["mcp"],
+                    args=s.get("args", {}),
+                    depends_on=s.get("dependsOn", []),
+                )
+                for s in inp["steps"]
+            ],
             guards=Guards(
                 law_hash=inp["guards"]["lawHash"],
                 witness_level=inp["guards"]["witnessLevel"],
@@ -805,11 +831,14 @@ class TestACPVectors:
         v = self._vec("acp-003")
 
         for case in v["input"]["cases"]:
-            steps = [PlanStep(
-                step_id=s["id"],
-                mcp_tool=s.get("mcp", ""),
-                depends_on=s.get("dependsOn", []),
-            ) for s in case.get("steps", [])]
+            steps = [
+                PlanStep(
+                    step_id=s["id"],
+                    mcp_tool=s.get("mcp", ""),
+                    depends_on=s.get("dependsOn", []),
+                )
+                for s in case.get("steps", [])
+            ]
 
             plan = AgentPlan(
                 plan_id=case.get("planId", ""),
@@ -819,8 +848,9 @@ class TestACPVectors:
                 steps=steps,
             )
             errors = validate_plan(plan)
-            assert (len(errors) > 0) == case["expectErrors"], \
+            assert (len(errors) > 0) == case["expectErrors"], (
                 f"Case '{case['name']}': expected errors={case['expectErrors']}, got {errors}"
+            )
 
 
 # ── Round-trip tests (from_dict ↔ to_dict) ─────────────────────
@@ -926,9 +956,7 @@ class TestIntentRoundTrip:
     """Verify Intent.from_dict(x.to_dict()) == x."""
 
     def test_minimal(self) -> None:
-        proof = ProofOfAgency(
-            grant_id="g1", plan_id="p1", intent_id="i1", nonce="abc123"
-        )
+        proof = ProofOfAgency(grant_id="g1", plan_id="p1", intent_id="i1", nonce="abc123")
         intent = Intent(
             intent_id="i1",
             plan_id="p1",
@@ -940,9 +968,7 @@ class TestIntentRoundTrip:
         assert Intent.from_dict(intent.to_dict()) == intent
 
     def test_with_explanation(self) -> None:
-        proof = ProofOfAgency(
-            grant_id="g1", plan_id="p1", intent_id="i2", nonce="def456"
-        )
+        proof = ProofOfAgency(grant_id="g1", plan_id="p1", intent_id="i2", nonce="def456")
         intent = Intent(
             intent_id="i2",
             plan_id="p1",
@@ -959,9 +985,7 @@ class TestIntentRoundTrip:
 
     def test_proof_nonce_preserved(self) -> None:
         """ProofOfAgency nonce must survive round-trip."""
-        proof = ProofOfAgency(
-            grant_id="g1", plan_id="p1", intent_id="i3", nonce="unique_nonce_42"
-        )
+        proof = ProofOfAgency(grant_id="g1", plan_id="p1", intent_id="i3", nonce="unique_nonce_42")
         intent = Intent(
             intent_id="i3",
             plan_id="p1",

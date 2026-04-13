@@ -17,14 +17,24 @@ import os
 import pytest
 
 from web4.errors import (
-    ErrorCategory, ErrorCode, ErrorMeta,
-    Web4Error, BindingError, PairingError, WitnessError,
-    AuthzError, CryptoError, ProtoError,
-    get_error_meta, codes_for_category, make_error,
+    ErrorCategory,
+    ErrorCode,
+    ErrorMeta,
+    Web4Error,
+    BindingError,
+    PairingError,
+    WitnessError,
+    AuthzError,
+    CryptoError,
+    ProtoError,
+    get_error_meta,
+    codes_for_category,
+    make_error,
 )
 
 
 # ── Registry Completeness ────────────────────────────────────────
+
 
 class TestRegistryCompleteness:
     """Every ErrorCode must have metadata in the registry."""
@@ -57,6 +67,7 @@ class TestRegistryCompleteness:
 
 
 # ── Error Code Metadata ──────────────────────────────────────────
+
 
 class TestErrorMetadata:
     """Spot-check specific error codes against the spec."""
@@ -99,6 +110,7 @@ class TestErrorMetadata:
 
 
 # ── Web4Error Construction ────────────────────────────────────────
+
 
 class TestWeb4Error:
     """Web4Error base class with RFC 9457 fields."""
@@ -143,17 +155,21 @@ class TestWeb4Error:
 
 # ── Category Subclasses ───────────────────────────────────────────
 
+
 class TestCategorySubclasses:
     """Each category has a subclass of Web4Error."""
 
-    @pytest.mark.parametrize("cls,code", [
-        (BindingError, ErrorCode.BINDING_EXISTS),
-        (PairingError, ErrorCode.PAIRING_DENIED),
-        (WitnessError, ErrorCode.WITNESS_UNAVAIL),
-        (AuthzError, ErrorCode.AUTHZ_DENIED),
-        (CryptoError, ErrorCode.CRYPTO_SUITE),
-        (ProtoError, ErrorCode.PROTO_VERSION),
-    ])
+    @pytest.mark.parametrize(
+        "cls,code",
+        [
+            (BindingError, ErrorCode.BINDING_EXISTS),
+            (PairingError, ErrorCode.PAIRING_DENIED),
+            (WitnessError, ErrorCode.WITNESS_UNAVAIL),
+            (AuthzError, ErrorCode.AUTHZ_DENIED),
+            (CryptoError, ErrorCode.CRYPTO_SUITE),
+            (ProtoError, ErrorCode.PROTO_VERSION),
+        ],
+    )
     def test_subclass_is_web4error(self, cls, code):
         err = cls(code)
         assert isinstance(err, Web4Error)
@@ -169,6 +185,7 @@ class TestCategorySubclasses:
 
 
 # ── RFC 9457 Serialization ────────────────────────────────────────
+
 
 class TestSerialization:
     """to_problem_json / from_problem_json round-trip."""
@@ -233,6 +250,7 @@ class TestSerialization:
 
 # ── make_error Convenience ────────────────────────────────────────
 
+
 class TestMakeError:
     """make_error returns the right subclass."""
 
@@ -258,7 +276,11 @@ class TestMakeError:
 
 VECTORS_DIR = os.path.join(
     os.path.dirname(__file__),
-    "..", "..", "..", "test-vectors", "errors",
+    "..",
+    "..",
+    "..",
+    "test-vectors",
+    "errors",
 )
 
 

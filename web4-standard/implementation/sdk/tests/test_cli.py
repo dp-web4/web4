@@ -326,10 +326,19 @@ class TestTrust:
 
     def test_trust_with_profile_roles(self, capsys: pytest.CaptureFixture[str]) -> None:
         roles = '{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}'
-        rc = main([
-            "trust", "--actor", "lct:alice", "--target", "lct:bob",
-            "--role", "analyst", "--profile-roles", roles,
-        ])
+        rc = main(
+            [
+                "trust",
+                "--actor",
+                "lct:alice",
+                "--target",
+                "lct:bob",
+                "--role",
+                "analyst",
+                "--profile-roles",
+                roles,
+            ]
+        )
         out = capsys.readouterr().out
         assert rc == 0
         doc = json.loads(out)
@@ -340,11 +349,21 @@ class TestTrust:
 
     def test_trust_precise_disclosure(self, capsys: pytest.CaptureFixture[str]) -> None:
         roles = '{"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}}'
-        rc = main([
-            "trust", "--actor", "lct:alice", "--target", "lct:bob",
-            "--role", "analyst", "--disclosure-level", "precise",
-            "--profile-roles", roles,
-        ])
+        rc = main(
+            [
+                "trust",
+                "--actor",
+                "lct:alice",
+                "--target",
+                "lct:bob",
+                "--role",
+                "analyst",
+                "--disclosure-level",
+                "precise",
+                "--profile-roles",
+                roles,
+            ]
+        )
         out = capsys.readouterr().out
         assert rc == 0
         doc = json.loads(out)
@@ -353,10 +372,19 @@ class TestTrust:
         assert t3["talent"] == 0.8
 
     def test_trust_binary_disclosure(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main([
-            "trust", "--actor", "lct:alice", "--target", "lct:bob",
-            "--role", "analyst", "--disclosure-level", "binary",
-        ])
+        rc = main(
+            [
+                "trust",
+                "--actor",
+                "lct:alice",
+                "--target",
+                "lct:bob",
+                "--role",
+                "analyst",
+                "--disclosure-level",
+                "binary",
+            ]
+        )
         out = capsys.readouterr().out
         assert rc == 0
         doc = json.loads(out)
@@ -365,10 +393,19 @@ class TestTrust:
         assert doc["response"].get("t3_in_role") is None
 
     def test_trust_insufficient_atp(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main([
-            "trust", "--actor", "lct:alice", "--target", "lct:bob",
-            "--role", "analyst", "--atp-balance", "5",
-        ])
+        rc = main(
+            [
+                "trust",
+                "--actor",
+                "lct:alice",
+                "--target",
+                "lct:bob",
+                "--role",
+                "analyst",
+                "--atp-balance",
+                "5",
+            ]
+        )
         out = capsys.readouterr().out
         assert rc == 0  # command succeeds, but query is rejected
         doc = json.loads(out)
@@ -376,10 +413,18 @@ class TestTrust:
         assert doc["error"]["code"] == "INSUFFICIENT_STAKE"
 
     def test_trust_compact_output(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main([
-            "trust", "--actor", "lct:alice", "--target", "lct:bob",
-            "--role", "analyst", "--compact",
-        ])
+        rc = main(
+            [
+                "trust",
+                "--actor",
+                "lct:alice",
+                "--target",
+                "lct:bob",
+                "--role",
+                "analyst",
+                "--compact",
+            ]
+        )
         out = capsys.readouterr().out
         assert rc == 0
         assert "\n" not in out.strip()
@@ -425,28 +470,55 @@ class TestTrust:
         assert "invalid TrustQuery" in err
 
     def test_trust_invalid_disclosure_level(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main([
-            "trust", "--actor", "lct:alice", "--target", "lct:bob",
-            "--role", "analyst", "--disclosure-level", "invalid",
-        ])
+        rc = main(
+            [
+                "trust",
+                "--actor",
+                "lct:alice",
+                "--target",
+                "lct:bob",
+                "--role",
+                "analyst",
+                "--disclosure-level",
+                "invalid",
+            ]
+        )
         err = capsys.readouterr().err
         assert rc == 1
         assert "invalid disclosure level" in err.lower()
 
     def test_trust_invalid_profile_roles_json(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main([
-            "trust", "--actor", "lct:alice", "--target", "lct:bob",
-            "--role", "analyst", "--profile-roles", "{broken",
-        ])
+        rc = main(
+            [
+                "trust",
+                "--actor",
+                "lct:alice",
+                "--target",
+                "lct:bob",
+                "--role",
+                "analyst",
+                "--profile-roles",
+                "{broken",
+            ]
+        )
         err = capsys.readouterr().err
         assert rc == 1
         assert "profile-roles" in err.lower() or "json" in err.lower()
 
     def test_trust_invalid_t3_in_profile_roles(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = main([
-            "trust", "--actor", "lct:alice", "--target", "lct:bob",
-            "--role", "analyst", "--profile-roles", '{"analyst": "not-a-dict"}',
-        ])
+        rc = main(
+            [
+                "trust",
+                "--actor",
+                "lct:alice",
+                "--target",
+                "lct:bob",
+                "--role",
+                "analyst",
+                "--profile-roles",
+                '{"analyst": "not-a-dict"}',
+            ]
+        )
         err = capsys.readouterr().err
         assert rc == 1
         assert "invalid T3" in err or "Error" in err

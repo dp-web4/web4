@@ -10,20 +10,38 @@ from typing import Any, Dict
 import pytest
 
 from web4.trust import (
-    T3, V3, ActionOutcome, OUTCOME_DELTAS,
-    TRAINING_DECAY_PER_MONTH, TEMPERAMENT_RECOVERY_PER_MONTH,
-    RoleRequirement, RoleTensors, TrustProfile,
-    TrustQuery, TrustQueryResponse, DisclosureLevel,
-    TRUST_QUERY_MIN_STAKE, TRUST_QUERY_MIN_VALIDITY, TRUST_QUERY_MAX_VALIDITY,
-    compute_team_t3, trust_bridge, mrh_trust_decay, mrh_zone,
-    operational_health, is_healthy, diminishing_returns,
-    T3_WEIGHTS, V3_WEIGHTS, HEALTH_THRESHOLD,
+    T3,
+    V3,
+    ActionOutcome,
+    OUTCOME_DELTAS,
+    TRAINING_DECAY_PER_MONTH,
+    TEMPERAMENT_RECOVERY_PER_MONTH,
+    RoleRequirement,
+    RoleTensors,
+    TrustProfile,
+    TrustQuery,
+    TrustQueryResponse,
+    DisclosureLevel,
+    TRUST_QUERY_MIN_STAKE,
+    TRUST_QUERY_MIN_VALIDITY,
+    TRUST_QUERY_MAX_VALIDITY,
+    compute_team_t3,
+    trust_bridge,
+    mrh_trust_decay,
+    mrh_zone,
+    operational_health,
+    is_healthy,
+    diminishing_returns,
+    T3_WEIGHTS,
+    V3_WEIGHTS,
+    HEALTH_THRESHOLD,
 )
 
 TOL = 0.0001
 
 
 # ── T3 basics ────────────────────────────────────────────────────
+
 
 class TestT3:
     def test_defaults(self):
@@ -68,6 +86,7 @@ class TestT3:
 
 
 # ── Outcome-based evolution (spec §2.3) ──────────────────────────
+
 
 class TestT3Evolution:
     def test_novel_success(self):
@@ -126,6 +145,7 @@ class TestT3Evolution:
 
 # ── Decay/refresh (spec §2.3) ────────────────────────────────────
 
+
 class TestT3Decay:
     def test_training_decays(self):
         t = T3(0.8, 0.8, 0.8)
@@ -157,6 +177,7 @@ class TestT3Decay:
 
 # ── V3 basics ────────────────────────────────────────────────────
 
+
 class TestV3:
     def test_defaults(self):
         v = V3()
@@ -172,12 +193,15 @@ class TestV3:
 
 # ── V3 calculation (spec §3.3) ───────────────────────────────────
 
+
 class TestV3Calculate:
     def test_basic_calculation(self):
         v = V3.calculate(
-            atp_earned=50, atp_expected=55,
+            atp_earned=50,
+            atp_expected=55,
             recipient_satisfaction=0.95,
-            verified_claims=9, total_claims=10,
+            verified_claims=9,
+            total_claims=10,
             witness_confidence=0.9,
             value_transferred=True,
         )
@@ -187,9 +211,11 @@ class TestV3Calculate:
 
     def test_value_not_transferred(self):
         v = V3.calculate(
-            atp_earned=50, atp_expected=55,
+            atp_earned=50,
+            atp_expected=55,
             recipient_satisfaction=0.95,
-            verified_claims=9, total_claims=10,
+            verified_claims=9,
+            total_claims=10,
             witness_confidence=0.9,
             value_transferred=False,
         )
@@ -197,9 +223,11 @@ class TestV3Calculate:
 
     def test_zero_expected_atp(self):
         v = V3.calculate(
-            atp_earned=10, atp_expected=0,
+            atp_earned=10,
+            atp_expected=0,
             recipient_satisfaction=0.5,
-            verified_claims=5, total_claims=10,
+            verified_claims=5,
+            total_claims=10,
             witness_confidence=0.8,
             value_transferred=True,
         )
@@ -207,9 +235,11 @@ class TestV3Calculate:
 
     def test_zero_total_claims(self):
         v = V3.calculate(
-            atp_earned=10, atp_expected=20,
+            atp_earned=10,
+            atp_expected=20,
             recipient_satisfaction=0.5,
-            verified_claims=0, total_claims=0,
+            verified_claims=0,
+            total_claims=0,
             witness_confidence=0.8,
             value_transferred=True,
         )
@@ -217,9 +247,11 @@ class TestV3Calculate:
 
     def test_clamped_valuation(self):
         v = V3.calculate(
-            atp_earned=100, atp_expected=50,
+            atp_earned=100,
+            atp_expected=50,
             recipient_satisfaction=1.0,
-            verified_claims=10, total_claims=10,
+            verified_claims=10,
+            total_claims=10,
             witness_confidence=1.0,
             value_transferred=True,
         )
@@ -228,9 +260,11 @@ class TestV3Calculate:
 
     def test_perfect_action(self):
         v = V3.calculate(
-            atp_earned=100, atp_expected=100,
+            atp_earned=100,
+            atp_expected=100,
             recipient_satisfaction=1.0,
-            verified_claims=10, total_claims=10,
+            verified_claims=10,
+            total_claims=10,
             witness_confidence=1.0,
             value_transferred=True,
         )
@@ -240,6 +274,7 @@ class TestV3Calculate:
 
 
 # ── Role requirements (spec §5.1) ────────────────────────────────
+
 
 class TestRoleRequirement:
     def test_qualified(self):
@@ -278,6 +313,7 @@ class TestRoleRequirement:
 
 
 # ── Team tensor composition (spec §8.2) ──────────────────────────
+
 
 class TestTeamComposition:
     def _make_team(self):
@@ -325,6 +361,7 @@ class TestTeamComposition:
 
 # ── TrustProfile ─────────────────────────────────────────────────
 
+
 class TestTrustProfile:
     def test_set_and_get(self):
         p = TrustProfile("alice")
@@ -344,6 +381,7 @@ class TestTrustProfile:
 
 
 # ── Existing operations ──────────────────────────────────────────
+
 
 class TestExistingOperations:
     def test_trust_bridge(self):
@@ -378,13 +416,18 @@ class TestExistingOperations:
 
 # ── Cross-language test vectors ──────────────────────────────────
 
+
 class TestVectors:
     @pytest.fixture
     def vectors(self):
         path = os.path.join(
             os.path.dirname(__file__),
-            "..", "..", "..",
-            "test-vectors", "t3v3", "tensor-operations.json",
+            "..",
+            "..",
+            "..",
+            "test-vectors",
+            "t3v3",
+            "tensor-operations.json",
         )
         with open(path) as f:
             return json.load(f)["vectors"]
@@ -553,9 +596,11 @@ class TestV3FromDict:
 
     def test_roundtrip_via_calculate(self):
         v = V3.calculate(
-            atp_earned=90.0, atp_expected=100.0,
+            atp_earned=90.0,
+            atp_expected=100.0,
             recipient_satisfaction=0.85,
-            verified_claims=8, total_claims=10,
+            verified_claims=8,
+            total_claims=10,
             witness_confidence=0.9,
             value_transferred=True,
         )
@@ -569,7 +614,6 @@ class TestV3FromDict:
 
 
 class TestTrustQuery:
-
     def _make_query(self, **overrides: Any) -> TrustQuery:
         defaults: Dict[str, Any] = {
             "querier": "lct:web4:alice",
@@ -691,6 +735,7 @@ class TestTrustQuery:
 
     def test_jsonld_dispatcher(self):
         from web4.deserialize import from_jsonld
+
         q = self._make_query()
         doc = q.to_jsonld()
         obj = from_jsonld(doc)
@@ -699,7 +744,6 @@ class TestTrustQuery:
 
 
 class TestTrustQueryResponse:
-
     def test_approved_response(self):
         r = TrustQueryResponse(
             status="APPROVED",
@@ -793,8 +837,12 @@ class TestTrustQueryVectors:
     def valid_vector(self) -> Dict[str, Any]:
         path = os.path.join(
             os.path.dirname(__file__),
-            "..", "..", "..",
-            "test-vectors", "trust-query", "valid-staked-query.json",
+            "..",
+            "..",
+            "..",
+            "test-vectors",
+            "trust-query",
+            "valid-staked-query.json",
         )
         with open(path) as f:
             return json.load(f)
@@ -803,8 +851,12 @@ class TestTrustQueryVectors:
     def invalid_vector(self) -> Dict[str, Any]:
         path = os.path.join(
             os.path.dirname(__file__),
-            "..", "..", "..",
-            "test-vectors", "trust-query", "invalid-no-stake.json",
+            "..",
+            "..",
+            "..",
+            "test-vectors",
+            "trust-query",
+            "invalid-no-stake.json",
         )
         with open(path) as f:
             return json.load(f)
@@ -947,6 +999,7 @@ class TestTrustQueryJsonLd:
     def test_generic_dispatcher_roundtrip(self):
         """TrustQuery.to_jsonld() output is accepted by the generic from_jsonld()."""
         from web4.deserialize import from_jsonld
+
         q = self._make_query(timestamp="2025-09-14T12:00:00Z")
         doc = q.to_jsonld()
         obj = from_jsonld(doc)
@@ -957,6 +1010,7 @@ class TestTrustQueryJsonLd:
     def test_schema_validation_with_to_dict(self):
         """to_dict() output validates against trust-query.schema.json."""
         from web4.validation import validate
+
         q = self._make_query(
             query_justification="Testing",
             disclosure_level=DisclosureLevel.PRECISE,

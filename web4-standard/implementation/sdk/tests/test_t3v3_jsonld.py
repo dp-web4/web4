@@ -19,14 +19,12 @@ from web4.trust import T3, V3, T3_JSONLD_CONTEXT, V3_JSONLD_CONTEXT
 # Conditional import for JSON Schema validation
 try:
     import jsonschema
+
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
 
-SCHEMA_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..",
-    "schemas", "t3v3-jsonld.schema.json"
-)
+SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "schemas", "t3v3-jsonld.schema.json")
 
 
 @pytest.fixture
@@ -453,15 +451,9 @@ class TestV3SchemaValidation:
 
 # ── B3: Context File Consistency Tests ─────────────────────────
 
-T3_CONTEXT_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..",
-    "schemas", "contexts", "t3.jsonld"
-)
+T3_CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "schemas", "contexts", "t3.jsonld")
 
-V3_CONTEXT_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..",
-    "schemas", "contexts", "v3.jsonld"
-)
+V3_CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "schemas", "contexts", "v3.jsonld")
 
 
 class TestT3ContextConsistency:

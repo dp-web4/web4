@@ -180,7 +180,11 @@ class TestMultiPathAggregation:
         graph = _make_graph_diamond()
         profiles = _make_profiles()
         result = resolve_trust(
-            graph, profiles, "lct:alice", "lct:dave", "web4:Analyst",
+            graph,
+            profiles,
+            "lct:alice",
+            "lct:dave",
+            "web4:Analyst",
             strategy="probabilistic",
         )
         assert result.method == "indirect"
@@ -193,7 +197,11 @@ class TestMultiPathAggregation:
         graph = _make_graph_diamond()
         profiles = _make_profiles()
         result = resolve_trust(
-            graph, profiles, "lct:alice", "lct:dave", "web4:Analyst",
+            graph,
+            profiles,
+            "lct:alice",
+            "lct:dave",
+            "web4:Analyst",
             strategy="maximal",
         )
         assert result.strategy == "maximal"
@@ -203,11 +211,19 @@ class TestMultiPathAggregation:
         graph = _make_graph_diamond()
         profiles = _make_profiles()
         r_prob = resolve_trust(
-            graph, profiles, "lct:alice", "lct:dave", "web4:Analyst",
+            graph,
+            profiles,
+            "lct:alice",
+            "lct:dave",
+            "web4:Analyst",
             strategy="probabilistic",
         )
         r_max = resolve_trust(
-            graph, profiles, "lct:alice", "lct:dave", "web4:Analyst",
+            graph,
+            profiles,
+            "lct:alice",
+            "lct:dave",
+            "web4:Analyst",
             strategy="maximal",
         )
         # Probabilistic >= maximal (can only be higher with multiple paths)
@@ -250,11 +266,19 @@ class TestDecayFactor:
         graph = _make_graph_linear()
         profiles = _make_profiles()
         r_low = resolve_trust(
-            graph, profiles, "lct:alice", "lct:bob", "web4:Analyst",
+            graph,
+            profiles,
+            "lct:alice",
+            "lct:bob",
+            "web4:Analyst",
             decay_factor=0.5,
         )
         r_high = resolve_trust(
-            graph, profiles, "lct:alice", "lct:bob", "web4:Analyst",
+            graph,
+            profiles,
+            "lct:alice",
+            "lct:bob",
+            "web4:Analyst",
             decay_factor=0.9,
         )
         assert r_high.path_trust > r_low.path_trust
@@ -263,7 +287,11 @@ class TestDecayFactor:
         graph = _make_graph_linear()
         profiles = _make_profiles()
         result = resolve_trust(
-            graph, profiles, "lct:alice", "lct:bob", "web4:Analyst",
+            graph,
+            profiles,
+            "lct:alice",
+            "lct:bob",
+            "web4:Analyst",
             decay_factor=0.0,
         )
         assert result.method == "none"
@@ -351,7 +379,8 @@ class TestIntegration:
         assert restored.path_trust == pytest.approx(result.path_trust)
         assert restored.effective_t3 is not None
         assert restored.effective_t3.talent == pytest.approx(
-            result.effective_t3.talent, abs=0.001  # type: ignore[union-attr]
+            result.effective_t3.talent,
+            abs=0.001,  # type: ignore[union-attr]
         )
 
     def test_direct_result_round_trips(self) -> None:

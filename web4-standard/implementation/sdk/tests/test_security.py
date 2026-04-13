@@ -35,7 +35,9 @@ from web4.security import (
 
 VECTORS_PATH = (
     pathlib.Path(__file__).resolve().parent.parent.parent.parent
-    / "test-vectors" / "security" / "security-primitives.json"
+    / "test-vectors"
+    / "security"
+    / "security-primitives.json"
 )
 
 
@@ -47,6 +49,7 @@ def vectors():
 
 
 # ── Crypto Suite Tests ───────────────────────────────────────────
+
 
 class TestCryptoSuites:
     """Tests for CryptoSuite definitions per spec §1."""
@@ -111,6 +114,7 @@ class TestCryptoSuites:
 
 # ── Suite Negotiation Tests ──────────────────────────────────────
 
+
 class TestSuiteNegotiation:
     """Tests for negotiate_suite per spec §1.1."""
 
@@ -160,6 +164,7 @@ class TestSuiteNegotiation:
 
 
 # ── W4ID Tests ───────────────────────────────────────────────────
+
 
 class TestW4ID:
     """Tests for W4ID parsing and validation per data-formats.md §1."""
@@ -264,6 +269,7 @@ class TestW4ID:
 
 # ── Pairwise Derivation Tests ────────────────────────────────────
 
+
 class TestPairwiseDerivation:
     """Tests for derive_pairwise_w4id per data-formats.md §4."""
 
@@ -304,6 +310,7 @@ class TestPairwiseDerivation:
 
 
 # ── Key Policy Tests ─────────────────────────────────────────────
+
 
 class TestKeyPolicy:
     """Tests for KeyPolicy per spec §2."""
@@ -347,8 +354,12 @@ class TestKeyPolicy:
 
     def test_all_storage_levels(self):
         """All storage levels are valid enum values."""
-        levels = [KeyStorageLevel.HSM, KeyStorageLevel.SECURE_ENCLAVE,
-                  KeyStorageLevel.ENCRYPTED, KeyStorageLevel.PLAINTEXT]
+        levels = [
+            KeyStorageLevel.HSM,
+            KeyStorageLevel.SECURE_ENCLAVE,
+            KeyStorageLevel.ENCRYPTED,
+            KeyStorageLevel.PLAINTEXT,
+        ]
         assert len(levels) == 4
         for level in levels:
             policy = KeyPolicy(storage_level=level)
@@ -356,6 +367,7 @@ class TestKeyPolicy:
 
 
 # ── Signature Envelope Tests ─────────────────────────────────────
+
 
 class TestSignatureEnvelope:
     """Tests for SignatureEnvelope per spec §1.3."""
@@ -375,14 +387,18 @@ class TestSignatureEnvelope:
     def test_default_suite_is_base(self):
         """Default suite is W4-BASE-1."""
         env = SignatureEnvelope(
-            payload_hash="h", signature="s", signer="signer",
+            payload_hash="h",
+            signature="s",
+            signer="signer",
         )
         assert env.suite_id == CryptoSuiteId.W4_BASE_1
 
     def test_envelope_to_dict(self):
         """Envelope serializes to dict."""
         env = SignatureEnvelope(
-            payload_hash="hash", signature="sig", signer="signer",
+            payload_hash="hash",
+            signature="sig",
+            signer="signer",
             suite_id=CryptoSuiteId.W4_FIPS_1,
         )
         d = env.to_dict()
@@ -392,13 +408,16 @@ class TestSignatureEnvelope:
     def test_envelope_is_frozen(self):
         """Envelopes are immutable."""
         env = SignatureEnvelope(
-            payload_hash="h", signature="s", signer="x",
+            payload_hash="h",
+            signature="s",
+            signer="x",
         )
         with pytest.raises(AttributeError):
             env.signature = "new"  # type: ignore
 
 
 # ── Verifiable Credential Tests ──────────────────────────────────
+
 
 class TestVerifiableCredential:
     """Tests for VerifiableCredential per data-formats.md §2."""
@@ -423,7 +442,9 @@ class TestVerifiableCredential:
     def test_vc_includes_claims_in_subject(self):
         """Claims are merged into credentialSubject."""
         vc = VerifiableCredential(
-            id="vc:1", issuer="issuer", subject="subject",
+            id="vc:1",
+            issuer="issuer",
+            subject="subject",
             claims={"role": "analyst", "level": 3},
         )
         d = vc.to_dict()
@@ -434,7 +455,9 @@ class TestVerifiableCredential:
     def test_vc_optional_expiration(self):
         """Expiration is omitted when not set."""
         vc = VerifiableCredential(
-            id="vc:1", issuer="i", subject="s",
+            id="vc:1",
+            issuer="i",
+            subject="s",
         )
         d = vc.to_dict()
         assert "expirationDate" not in d
@@ -442,7 +465,9 @@ class TestVerifiableCredential:
     def test_vc_with_expiration(self):
         """Expiration is included when set."""
         vc = VerifiableCredential(
-            id="vc:1", issuer="i", subject="s",
+            id="vc:1",
+            issuer="i",
+            subject="s",
             expiration_date="2027-01-01T00:00:00Z",
         )
         d = vc.to_dict()
@@ -451,10 +476,14 @@ class TestVerifiableCredential:
     def test_vc_with_proof(self):
         """VC includes proof when signature envelope is provided."""
         proof = SignatureEnvelope(
-            payload_hash="hash", signature="sig", signer="issuer",
+            payload_hash="hash",
+            signature="sig",
+            signer="issuer",
         )
         vc = VerifiableCredential(
-            id="vc:1", issuer="issuer", subject="subject",
+            id="vc:1",
+            issuer="issuer",
+            subject="subject",
             proof=proof,
         )
         d = vc.to_dict()
@@ -464,7 +493,9 @@ class TestVerifiableCredential:
     def test_vc_without_proof(self):
         """VC omits proof when not provided."""
         vc = VerifiableCredential(
-            id="vc:1", issuer="i", subject="s",
+            id="vc:1",
+            issuer="i",
+            subject="s",
         )
         d = vc.to_dict()
         assert "proof" not in d
@@ -472,13 +503,16 @@ class TestVerifiableCredential:
     def test_vc_default_type(self):
         """Default credential type is Web4Credential."""
         vc = VerifiableCredential(
-            id="vc:1", issuer="i", subject="s",
+            id="vc:1",
+            issuer="i",
+            subject="s",
         )
         d = vc.to_dict()
         assert "Web4Credential" in d["type"]
 
 
 # ── from_dict() Round-Trip Tests ────────────────────────────────
+
 
 class TestW4IDRoundTrip:
     """Round-trip tests for W4ID.from_dict()."""
@@ -567,7 +601,9 @@ class TestSignatureEnvelopeRoundTrip:
     def test_fips_suite_roundtrip(self):
         """Envelope with FIPS suite survives round-trip."""
         original = SignatureEnvelope(
-            payload_hash="hash", signature="sig", signer="signer",
+            payload_hash="hash",
+            signature="sig",
+            signer="signer",
             suite_id=CryptoSuiteId.W4_FIPS_1,
         )
         restored = SignatureEnvelope.from_dict(original.to_dict())
@@ -576,7 +612,9 @@ class TestSignatureEnvelopeRoundTrip:
     def test_minimal_envelope_roundtrip(self):
         """Envelope with defaults survives round-trip."""
         original = SignatureEnvelope(
-            payload_hash="h", signature="s", signer="x",
+            payload_hash="h",
+            signature="s",
+            signer="x",
         )
         restored = SignatureEnvelope.from_dict(original.to_dict())
         assert restored.payload_hash == "h"
@@ -590,7 +628,9 @@ class TestVerifiableCredentialRoundTrip:
     def test_minimal_vc_roundtrip(self):
         """Minimal VC (no claims, no proof, no expiration) survives round-trip."""
         original = VerifiableCredential(
-            id="vc:1", issuer="did:web4:key:issuer", subject="did:web4:key:subject",
+            id="vc:1",
+            issuer="did:web4:key:issuer",
+            subject="did:web4:key:subject",
         )
         restored = VerifiableCredential.from_dict(original.to_dict())
         assert restored.id == original.id
@@ -603,7 +643,9 @@ class TestVerifiableCredentialRoundTrip:
     def test_vc_with_claims_roundtrip(self):
         """VC with claims survives round-trip (claims preserved in credentialSubject)."""
         original = VerifiableCredential(
-            id="vc:2", issuer="issuer", subject="subject",
+            id="vc:2",
+            issuer="issuer",
+            subject="subject",
             claims={"role": "analyst", "level": 3, "active": True},
         )
         restored = VerifiableCredential.from_dict(original.to_dict())
@@ -613,7 +655,9 @@ class TestVerifiableCredentialRoundTrip:
     def test_vc_with_expiration_roundtrip(self):
         """VC with expiration date survives round-trip."""
         original = VerifiableCredential(
-            id="vc:3", issuer="i", subject="s",
+            id="vc:3",
+            issuer="i",
+            subject="s",
             expiration_date="2027-01-01T00:00:00Z",
         )
         restored = VerifiableCredential.from_dict(original.to_dict())
@@ -629,7 +673,9 @@ class TestVerifiableCredentialRoundTrip:
             timestamp="2026-04-03T00:00:00Z",
         )
         original = VerifiableCredential(
-            id="vc:4", issuer="did:web4:key:issuer", subject="did:web4:key:subject",
+            id="vc:4",
+            issuer="did:web4:key:issuer",
+            subject="did:web4:key:subject",
             proof=proof,
         )
         restored = VerifiableCredential.from_dict(original.to_dict())
@@ -641,7 +687,9 @@ class TestVerifiableCredentialRoundTrip:
     def test_full_vc_roundtrip(self):
         """Full VC with all fields survives round-trip."""
         proof = SignatureEnvelope(
-            payload_hash="hash", signature="sig", signer="issuer",
+            payload_hash="hash",
+            signature="sig",
+            signer="issuer",
             timestamp="2026-04-03T00:00:00Z",
         )
         original = VerifiableCredential(
@@ -668,7 +716,9 @@ class TestVerifiableCredentialRoundTrip:
     def test_custom_credential_type_roundtrip(self):
         """Custom credential type survives round-trip."""
         original = VerifiableCredential(
-            id="vc:custom", issuer="i", subject="s",
+            id="vc:custom",
+            issuer="i",
+            subject="s",
             credential_type="HardwareAttestationCredential",
         )
         restored = VerifiableCredential.from_dict(original.to_dict())

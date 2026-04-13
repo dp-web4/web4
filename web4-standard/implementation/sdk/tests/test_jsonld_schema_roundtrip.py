@@ -28,7 +28,10 @@ import pytest
 # ── Schema loading ──────────────────────────────────────────────────
 
 SCHEMA_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..",
+    os.path.dirname(__file__),
+    "..",
+    "..",
+    "..",
     "schemas",
 )
 
@@ -48,7 +51,10 @@ def validate(doc: dict, schema: dict) -> None:
 # ── 1. LCT ──────────────────────────────────────────────────────────
 
 from web4.lct import (
-    LCT, EntityType, Attestation, LineageEntry,
+    LCT,
+    EntityType,
+    Attestation,
+    LineageEntry,
     LCT_JSONLD_CONTEXT,
 )
 from web4.trust import T3, V3
@@ -116,7 +122,10 @@ class TestLCTSchemaRoundtrip:
 # ── 2. AttestationEnvelope ──────────────────────────────────────────
 
 from web4.attestation import (
-    AttestationEnvelope, AnchorInfo, Proof, PlatformState,
+    AttestationEnvelope,
+    AnchorInfo,
+    Proof,
+    PlatformState,
     ATTESTATION_JSONLD_CONTEXT,
 )
 
@@ -266,8 +275,11 @@ class TestV3SchemaRoundtrip:
 # ── 5. R7Action ─────────────────────────────────────────────────────
 
 from web4.r6 import (
-    R7Action, build_action, R7_JSONLD_CONTEXT,
-    ActionChain, ReputationDelta,
+    R7Action,
+    build_action,
+    R7_JSONLD_CONTEXT,
+    ActionChain,
+    ReputationDelta,
 )
 
 
@@ -393,9 +405,19 @@ class TestTransferResultSchemaRoundtrip:
 
 from web4.acp import (
     ACP_JSONLD_CONTEXT,
-    AgentPlan, PlanStep, Trigger, TriggerKind,
-    Guards, ResourceCaps, HumanApproval, ApprovalMode,
-    ProofOfAgency, Intent, Decision, DecisionType, ExecutionRecord,
+    AgentPlan,
+    PlanStep,
+    Trigger,
+    TriggerKind,
+    Guards,
+    ResourceCaps,
+    HumanApproval,
+    ApprovalMode,
+    ProofOfAgency,
+    Intent,
+    Decision,
+    DecisionType,
+    ExecutionRecord,
 )
 
 
@@ -554,8 +576,10 @@ class TestACPSchemaRoundtrip:
 # ── 9. Entity ───────────────────────────────────────────────────────
 
 from web4.entity import (
-    EntityTypeInfo, ENTITY_JSONLD_CONTEXT,
-    get_info, entity_registry_to_jsonld,
+    EntityTypeInfo,
+    ENTITY_JSONLD_CONTEXT,
+    get_info,
+    entity_registry_to_jsonld,
 )
 
 
@@ -598,8 +622,10 @@ class TestEntitySchemaRoundtrip:
 # ── 10. Capability ──────────────────────────────────────────────────
 
 from web4.capability import (
-    LevelRequirement, CAPABILITY_JSONLD_CONTEXT,
-    level_requirements, capability_assessment_to_jsonld,
+    LevelRequirement,
+    CAPABILITY_JSONLD_CONTEXT,
+    level_requirements,
+    capability_assessment_to_jsonld,
     capability_framework_to_jsonld,
 )
 from web4.lct import Binding, MRH, Policy
@@ -658,8 +684,12 @@ class TestCapabilitySchemaRoundtrip:
 # ── 11. Dictionary ──────────────────────────────────────────────────
 
 from web4.dictionary import (
-    DictionarySpec, TranslationResult, TranslationChain,
-    DictionaryEntity, DomainCoverage, CompressionProfile,
+    DictionarySpec,
+    TranslationResult,
+    TranslationChain,
+    DictionaryEntity,
+    DomainCoverage,
+    CompressionProfile,
     DICTIONARY_JSONLD_CONTEXT,
 )
 
@@ -876,30 +906,40 @@ class TestAllTypesSchemaValidation:
         docs.append(("capability-jsonld.schema.json", "CapabilityFramework", capability_framework_to_jsonld()))
 
         # Dictionary - Spec
-        docs.append(("dictionary-jsonld.schema.json", "DictionarySpec",
-                      DictionarySpec(source_domain="a", target_domain="b").to_jsonld()))
+        docs.append(
+            (
+                "dictionary-jsonld.schema.json",
+                "DictionarySpec",
+                DictionarySpec(source_domain="a", target_domain="b").to_jsonld(),
+            )
+        )
 
         # Dictionary - TranslationResult
-        docs.append(("dictionary-jsonld.schema.json", "TranslationResult",
-                      TranslationResult(
-                          content="translated text",
-                          confidence=0.9,
-                          degradation=0.1,
-                          dictionary_lct_id="lct:web4:dictionary:a-b:abc",
-                      ).to_jsonld()))
+        docs.append(
+            (
+                "dictionary-jsonld.schema.json",
+                "TranslationResult",
+                TranslationResult(
+                    content="translated text",
+                    confidence=0.9,
+                    degradation=0.1,
+                    dictionary_lct_id="lct:web4:dictionary:a-b:abc",
+                ).to_jsonld(),
+            )
+        )
 
         # Dictionary - TranslationChain
         chain = TranslationChain()
         chain.add_step(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             dictionary_lct_id="lct:web4:dictionary:a-b:abc",
             confidence=0.9,
         )
         docs.append(("dictionary-jsonld.schema.json", "TranslationChain", chain.to_jsonld()))
 
         # Dictionary - DictionaryEntity
-        de = DictionaryEntity.create(source_domain="a", target_domain="b",
-                                     public_key="mb64:dict_param")
+        de = DictionaryEntity.create(source_domain="a", target_domain="b", public_key="mb64:dict_param")
         docs.append(("dictionary-jsonld.schema.json", "DictionaryEntity", de.to_jsonld()))
 
         return docs
@@ -915,5 +955,4 @@ class TestAllTypesSchemaValidation:
                 failures.append(f"{type_name}: {e.message}")
 
         if failures:
-            pytest.fail(f"{len(failures)} schema validation failure(s):\n" +
-                        "\n".join(f"  - {f}" for f in failures))
+            pytest.fail(f"{len(failures)} schema validation failure(s):\n" + "\n".join(f"  - {f}" for f in failures))

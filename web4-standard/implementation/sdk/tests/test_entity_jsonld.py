@@ -210,9 +210,7 @@ class TestEntityRegistryJsonLd:
         doc = entity_registry_to_jsonld()
         restored = entity_registry_from_jsonld(doc)
         # Device has {agentic, responsive}
-        assert restored[EntityType.DEVICE].modes == frozenset({
-            BehavioralMode.AGENTIC, BehavioralMode.RESPONSIVE
-        })
+        assert restored[EntityType.DEVICE].modes == frozenset({BehavioralMode.AGENTIC, BehavioralMode.RESPONSIVE})
         # Infrastructure has empty modes
         assert restored[EntityType.INFRASTRUCTURE].modes == frozenset()
 

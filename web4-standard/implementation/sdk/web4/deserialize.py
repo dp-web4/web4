@@ -23,10 +23,7 @@ class UnknownTypeError(Exception):
 
     def __init__(self, type_value: str) -> None:
         self.type_value = type_value
-        super().__init__(
-            f"Unknown @type: {type_value!r}. "
-            f"Use supported_types() to list recognized types."
-        )
+        super().__init__(f"Unknown @type: {type_value!r}. Use supported_types() to list recognized types.")
 
 
 # ---------------------------------------------------------------------------
@@ -158,9 +155,7 @@ def from_jsonld(doc: Dict[str, Any]) -> Any:
                     return deserializer(doc)
         raise UnknownTypeError(str(type_val))
 
-    raise ValueError(
-        f"@type must be a string or list, got {type(type_val).__name__}"
-    )
+    raise ValueError(f"@type must be a string or list, got {type(type_val).__name__}")
 
 
 def from_jsonld_string(s: str) -> Any:
