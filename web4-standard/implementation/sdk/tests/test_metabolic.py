@@ -43,6 +43,7 @@ from web4.metabolic import (
 
 # ── MetabolicState Enum ────────────────────────────────────────
 
+
 class TestMetabolicStateEnum:
     """All 8 states exist and have correct string values."""
 
@@ -51,8 +52,14 @@ class TestMetabolicStateEnum:
 
     def test_state_values(self):
         expected = {
-            "active", "rest", "sleep", "hibernation",
-            "torpor", "estivation", "dreaming", "molting",
+            "active",
+            "rest",
+            "sleep",
+            "hibernation",
+            "torpor",
+            "estivation",
+            "dreaming",
+            "molting",
         }
         assert {s.value for s in MetabolicState} == expected
 
@@ -62,6 +69,7 @@ class TestMetabolicStateEnum:
 
 
 # ── Energy Multipliers ─────────────────────────────────────────
+
 
 class TestEnergyMultipliers:
     """Every state has an energy multiplier per spec §4.1."""
@@ -100,6 +108,7 @@ class TestEnergyMultipliers:
 
 # ── Trust Effects ──────────────────────────────────────────────
 
+
 class TestTrustEffects:
     """Trust behavior per state per spec §5.1."""
 
@@ -134,6 +143,7 @@ class TestTrustEffects:
 
 
 # ── State Transitions ──────────────────────────────────────────
+
 
 class TestStateTransitions:
     """Transition validation per spec §3.1."""
@@ -203,6 +213,7 @@ class TestStateTransitions:
 
 # ── Energy Cost ────────────────────────────────────────────────
 
+
 class TestEnergyCost:
     """Energy cost calculation per spec §6.1."""
 
@@ -228,6 +239,7 @@ class TestEnergyCost:
 
 
 # ── Wake Penalty ───────────────────────────────────────────────
+
 
 class TestWakePenalty:
     """Wake penalty calculation per spec §6.2."""
@@ -269,6 +281,7 @@ class TestWakePenalty:
 
 
 # ── Metabolic Reliability ──────────────────────────────────────
+
 
 class TestMetabolicReliability:
     """Metabolic reliability score per spec §5.2."""
@@ -323,6 +336,7 @@ class TestMetabolicReliability:
 
 # ── Witness Requirements ───────────────────────────────────────
 
+
 class TestWitnessRequirements:
     """Witness duty rotation per state per spec §4.2."""
 
@@ -352,6 +366,7 @@ class TestWitnessRequirements:
 
 # ── Metabolic Profiles ─────────────────────────────────────────
 
+
 class TestMetabolicProfiles:
     """MetabolicProfile combines energy, trust, and witnesses."""
 
@@ -372,6 +387,7 @@ class TestMetabolicProfiles:
 
 
 # ── Dormancy Classification ───────────────────────────────────
+
 
 class TestDormancy:
     """Dormant vs active state classification."""
@@ -410,6 +426,7 @@ class TestDormancy:
 
 # ── Test Vector Validation ─────────────────────────────────────
 
+
 class TestVectors:
     """Validate against cross-language test vectors."""
 
@@ -417,7 +434,12 @@ class TestVectors:
     def vectors(self):
         path = os.path.join(
             os.path.dirname(__file__),
-            "..", "..", "..", "test-vectors", "metabolic", "society-metabolic-states.json",
+            "..",
+            "..",
+            "..",
+            "test-vectors",
+            "metabolic",
+            "society-metabolic-states.json",
         )
         with open(path) as f:
             return json.load(f)["vectors"]
@@ -435,8 +457,9 @@ class TestVectors:
                     society_size=v["society_size"],
                     hours=v.get("hours", 1.0),
                 )
-                assert result == pytest.approx(v["expected"]["cost"], rel=1e-6), \
+                assert result == pytest.approx(v["expected"]["cost"], rel=1e-6), (
                     f"Vector {v['id']} failed: {result} != {v['expected']['cost']}"
+                )
 
     def test_wake_penalty_vectors(self, vectors):
         for v in vectors:
@@ -447,8 +470,9 @@ class TestVectors:
                     planned_duration_hours=v["planned_hours"],
                     actual_duration_hours=v["actual_hours"],
                 )
-                assert result == pytest.approx(v["expected"]["penalty"], rel=1e-6), \
+                assert result == pytest.approx(v["expected"]["penalty"], rel=1e-6), (
                     f"Vector {v['id']} failed: {result} != {v['expected']['penalty']}"
+                )
 
     def test_transition_vectors(self, vectors):
         for v in vectors:
@@ -456,8 +480,9 @@ class TestVectors:
                 from_s = MetabolicState(v["from_state"])
                 to_s = MetabolicState(v["to_state"])
                 result = valid_transition(from_s, to_s)
-                assert result == v["expected"]["valid"], \
+                assert result == v["expected"]["valid"], (
                     f"Vector {v['id']} failed: {result} != {v['expected']['valid']}"
+                )
 
     def test_reliability_vectors(self, vectors):
         for v in vectors:
@@ -470,5 +495,6 @@ class TestVectors:
                     molt_success_rate=f["molt_success_rate"],
                 )
                 result = metabolic_reliability(factors)
-                assert result == pytest.approx(v["expected"]["score"], rel=1e-6), \
+                assert result == pytest.approx(v["expected"]["score"], rel=1e-6), (
                     f"Vector {v['id']} failed: {result} != {v['expected']['score']}"
+                )

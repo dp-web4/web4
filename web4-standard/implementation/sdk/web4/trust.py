@@ -29,22 +29,47 @@ if TYPE_CHECKING:
 
 __all__ = [
     # Classes
-    "T3", "V3", "TrustProfile", "ActionOutcome", "RoleRequirement", "RoleTensors",
-    "TrustQuery", "TrustQueryResponse", "DisclosureLevel",
+    "T3",
+    "V3",
+    "TrustProfile",
+    "ActionOutcome",
+    "RoleRequirement",
+    "RoleTensors",
+    "TrustQuery",
+    "TrustQueryResponse",
+    "DisclosureLevel",
     "TrustResolution",
     # Functions
-    "compute_team_t3", "operational_health", "is_healthy",
-    "diminishing_returns", "trust_bridge", "mrh_trust_decay", "mrh_zone",
-    "evaluate_trust_query", "resolve_trust",
+    "compute_team_t3",
+    "operational_health",
+    "is_healthy",
+    "diminishing_returns",
+    "trust_bridge",
+    "mrh_trust_decay",
+    "mrh_zone",
+    "evaluate_trust_query",
+    "resolve_trust",
     # Constants
     "TRUST_QUERY_JSONLD_CONTEXT",
-    "T3_JSONLD_CONTEXT", "V3_JSONLD_CONTEXT", "WEB4_ONTOLOGY_NS",
-    "T3_WEIGHTS", "V3_WEIGHTS", "T3_UPDATE_FACTORS", "T3_UPDATE_RATE",
-    "BRIDGE_PRIMARY_WEIGHT", "BRIDGE_SECONDARY_WEIGHT_EACH",
-    "MRH_MAX_HOPS", "HEALTH_WEIGHTS", "HEALTH_THRESHOLD",
-    "DIMINISHING_BASE", "DIMINISHING_FLOOR",
-    "TRAINING_DECAY_PER_MONTH", "TEMPERAMENT_RECOVERY_PER_MONTH",
-    "TRUST_QUERY_MIN_STAKE", "TRUST_QUERY_MIN_VALIDITY", "TRUST_QUERY_MAX_VALIDITY",
+    "T3_JSONLD_CONTEXT",
+    "V3_JSONLD_CONTEXT",
+    "WEB4_ONTOLOGY_NS",
+    "T3_WEIGHTS",
+    "V3_WEIGHTS",
+    "T3_UPDATE_FACTORS",
+    "T3_UPDATE_RATE",
+    "BRIDGE_PRIMARY_WEIGHT",
+    "BRIDGE_SECONDARY_WEIGHT_EACH",
+    "MRH_MAX_HOPS",
+    "HEALTH_WEIGHTS",
+    "HEALTH_THRESHOLD",
+    "DIMINISHING_BASE",
+    "DIMINISHING_FLOOR",
+    "TRAINING_DECAY_PER_MONTH",
+    "TEMPERAMENT_RECOVERY_PER_MONTH",
+    "TRUST_QUERY_MIN_STAKE",
+    "TRUST_QUERY_MIN_VALIDITY",
+    "TRUST_QUERY_MAX_VALIDITY",
 ]
 
 # ── Canonical weights (from test vectors) ────────────────────────
@@ -88,6 +113,7 @@ WEB4_ONTOLOGY_NS = "https://web4.io/ontology#"  # Kept for OWL/RDF tooling refer
 
 class ActionOutcome(Enum):
     """Categorized action outcomes per spec §2.3 evolution table."""
+
     NOVEL_SUCCESS = "novel_success"
     STANDARD_SUCCESS = "standard_success"
     EXPECTED_FAILURE = "expected_failure"
@@ -116,6 +142,7 @@ def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
 
 
 # ── T3 Tensor ────────────────────────────────────────────────────
+
 
 @dataclass
 class T3:
@@ -249,6 +276,7 @@ class T3:
 
 # ── V3 Tensor ────────────────────────────────────────────────────
 
+
 @dataclass
 class V3:
     """Value tensor: Valuation / Veracity / Validity."""
@@ -373,6 +401,7 @@ class V3:
 
 # ── Role-Contextual Tensor Store ─────────────────────────────────
 
+
 @dataclass
 class RoleTensors:
     """T3/V3 pair for a specific role context."""
@@ -422,9 +451,11 @@ class TrustProfile:
 
 # ── Role Requirements (spec §5.1) ────────────────────────────────
 
+
 @dataclass
 class RoleRequirement:
     """Minimum T3 thresholds for a role per spec §5.1."""
+
     role: str
     min_talent: float = 0.0
     min_training: float = 0.0
@@ -433,9 +464,7 @@ class RoleRequirement:
     def is_qualified(self, t3: T3) -> bool:
         """Check if a T3 tensor meets all minimum thresholds."""
         return (
-            t3.talent >= self.min_talent
-            and t3.training >= self.min_training
-            and t3.temperament >= self.min_temperament
+            t3.talent >= self.min_talent and t3.training >= self.min_training and t3.temperament >= self.min_temperament
         )
 
     def evaluate(self, t3: T3) -> Dict[str, object]:
@@ -454,6 +483,7 @@ class RoleRequirement:
 
 
 # ── Team Tensor Composition (spec §8.2) ──────────────────────────
+
 
 def compute_team_t3(
     profiles: List[TrustProfile],
@@ -492,6 +522,7 @@ def compute_team_t3(
 
 # ── Trust Operations ─────────────────────────────────────────────
 
+
 def trust_bridge(
     competence: float,
     reliability: float,
@@ -526,7 +557,7 @@ def mrh_trust_decay(base_trust: float, hops: int, decay_factor: float = 0.7) -> 
     """
     if hops > MRH_MAX_HOPS:
         return 0.0
-    return base_trust * (decay_factor ** hops)
+    return base_trust * (decay_factor**hops)
 
 
 def mrh_zone(hops: int) -> str:
@@ -589,6 +620,7 @@ TRUST_QUERY_MAX_VALIDITY = 86400
 
 class DisclosureLevel(Enum):
     """Requested level of trust detail in a query response."""
+
     BINARY = "binary"
     RANGE = "range"
     PRECISE = "precise"
@@ -619,9 +651,7 @@ class TrustQuery:
 
     def __post_init__(self) -> None:
         if self.atp_stake < TRUST_QUERY_MIN_STAKE:
-            raise ValueError(
-                f"atp_stake must be >= {TRUST_QUERY_MIN_STAKE}, got {self.atp_stake}"
-            )
+            raise ValueError(f"atp_stake must be >= {TRUST_QUERY_MIN_STAKE}, got {self.atp_stake}")
         if not (TRUST_QUERY_MIN_VALIDITY <= self.validity_period <= TRUST_QUERY_MAX_VALIDITY):
             raise ValueError(
                 f"validity_period must be {TRUST_QUERY_MIN_VALIDITY}-{TRUST_QUERY_MAX_VALIDITY}, "
@@ -867,6 +897,7 @@ def evaluate_trust_query(
     if ts is not None:
         try:
             from datetime import datetime, timedelta
+
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             until = dt + timedelta(seconds=query.validity_period)
             validity_until = until.strftime("%Y-%m-%dT%H:%M:%SZ")

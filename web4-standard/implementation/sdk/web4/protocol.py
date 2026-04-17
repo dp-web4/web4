@@ -33,25 +33,41 @@ from typing import Any, Dict, List, Optional
 __all__ = [
     # Classes
     "HandshakePhase",
-    "ClientHello", "ServerHello", "ClientFinished", "ServerFinished",
-    "HandshakeMessage", "PairingMethod",
-    "Transport", "TransportCompliance", "TransportProfile",
-    "DiscoveryMethod", "PrivacyLevel",
-    "DiscoveryRequest", "DiscoveryResponse",
+    "ClientHello",
+    "ServerHello",
+    "ClientFinished",
+    "ServerFinished",
+    "HandshakeMessage",
+    "PairingMethod",
+    "Transport",
+    "TransportCompliance",
+    "TransportProfile",
+    "DiscoveryMethod",
+    "PrivacyLevel",
+    "DiscoveryRequest",
+    "DiscoveryResponse",
     "Web4URI",
     # Functions
-    "get_transport_profile", "required_transports", "negotiate_transport",
-    "required_discovery_methods", "discovery_privacy",
-    "web4_uri_to_dict", "web4_uri_from_dict", "transport_profile_to_dict",
+    "get_transport_profile",
+    "required_transports",
+    "negotiate_transport",
+    "required_discovery_methods",
+    "discovery_privacy",
+    "web4_uri_to_dict",
+    "web4_uri_from_dict",
+    "transport_profile_to_dict",
     # Constants
-    "TRANSPORT_PROFILES", "DISCOVERY_METADATA",
+    "TRANSPORT_PROFILES",
+    "DISCOVERY_METADATA",
 ]
 
 
 # ── Handshake Phases ──────────────────────────────────────────────
 
+
 class HandshakePhase(IntEnum):
     """HPKE handshake phases per spec §2."""
+
     CLIENT_HELLO = 1
     SERVER_HELLO = 2
     CLIENT_FINISHED = 3
@@ -66,6 +82,7 @@ class ClientHello:
     Per spec §2: includes supported_suites, client_public_key,
     client_w4id_ephemeral, nonce, and optional GREASE extensions.
     """
+
     supported_suites: List[str]
     client_public_key: str
     client_w4id_ephemeral: str
@@ -93,6 +110,7 @@ class ServerHello:
     Per spec §2: includes selected_suite, server_public_key,
     server_w4id_ephemeral, nonce, and encrypted_credentials.
     """
+
     selected_suite: str
     server_public_key: str
     server_w4id_ephemeral: str
@@ -119,6 +137,7 @@ class ClientFinished:
 
     Per spec §2: encrypted client_credentials + MAC(transcript).
     """
+
     encrypted_credentials: str
     transcript_mac: str
 
@@ -140,6 +159,7 @@ class ServerFinished:
     Per spec §2: MAC(transcript) + session_id. After this, application
     data can flow.
     """
+
     transcript_mac: str
     session_id: str
 
@@ -157,17 +177,21 @@ class ServerFinished:
 
 # ── Pairing Methods ──────────────────────────────────────────────
 
+
 class PairingMethod(str, Enum):
     """Pairing methods per spec §1.3."""
-    DIRECT = "direct"        # Two entities connect directly
-    MEDIATED = "mediated"    # Trusted third-party mediator
-    QR_CODE = "qr_code"      # QR code out-of-band pairing
+
+    DIRECT = "direct"  # Two entities connect directly
+    MEDIATED = "mediated"  # Trusted third-party mediator
+    QR_CODE = "qr_code"  # QR code out-of-band pairing
 
 
 # ── Transport ────────────────────────────────────────────────────
 
+
 class TransportCompliance(str, Enum):
     """RFC 2119 compliance levels for transports."""
+
     MUST = "MUST"
     SHOULD = "SHOULD"
     MAY = "MAY"
@@ -182,6 +206,7 @@ class TransportProfile:
     whether it supports standard or compressed handshake, and full
     or limited metering.
     """
+
     transport_id: str
     compliance: TransportCompliance
     use_cases: List[str]
@@ -196,6 +221,7 @@ class TransportProfile:
 
 class Transport(str, Enum):
     """Transport identifiers per spec §4.1."""
+
     TLS_1_3 = "tls_1.3"
     QUIC = "quic"
     WEB_TRANSPORT = "web_transport"
@@ -262,8 +288,7 @@ def get_transport_profile(transport: Transport) -> TransportProfile:
 
 def required_transports() -> List[Transport]:
     """Return transports that all implementations MUST support."""
-    return [t for t, p in TRANSPORT_PROFILES.items()
-            if p.compliance == TransportCompliance.MUST]
+    return [t for t, p in TRANSPORT_PROFILES.items() if p.compliance == TransportCompliance.MUST]
 
 
 def negotiate_transport(
@@ -287,21 +312,24 @@ def negotiate_transport(
 
 # ── Discovery Mechanisms ─────────────────────────────────────────
 
+
 class DiscoveryMethod(str, Enum):
     """Entity discovery mechanisms per spec §4.2."""
-    DNS_SD = "dns_sd"            # DNS-SD/mDNS — local network (SHOULD)
+
+    DNS_SD = "dns_sd"  # DNS-SD/mDNS — local network (SHOULD)
     QR_CODE_OOB = "qr_code_oob"  # QR code out-of-band (SHOULD)
     WITNESS_RELAY = "witness_relay"  # Bootstrap via witnesses (MUST)
     DNS_BOOTSTRAP = "dns_bootstrap"  # DNS TXT records (MAY)
-    DHT_LOOKUP = "dht_lookup"    # Distributed hash table (MAY)
-    BROADCAST = "broadcast"      # Unidirectional announcement (MAY)
+    DHT_LOOKUP = "dht_lookup"  # Distributed hash table (MAY)
+    BROADCAST = "broadcast"  # Unidirectional announcement (MAY)
 
 
 class PrivacyLevel(str, Enum):
     """Privacy characterization for discovery methods."""
-    HIGH = "high"      # Requires proximity or physical access
+
+    HIGH = "high"  # Requires proximity or physical access
     MEDIUM = "medium"  # Trusted intermediary sees query
-    LOW = "low"        # Broadcasts presence or queries visibly
+    LOW = "low"  # Broadcasts presence or queries visibly
 
 
 # Discovery method metadata from spec §4.2
@@ -341,8 +369,7 @@ DISCOVERY_METADATA: Dict[DiscoveryMethod, Dict[str, Any]] = {
 
 def required_discovery_methods() -> List[DiscoveryMethod]:
     """Return discovery methods that all implementations MUST support."""
-    return [m for m, meta in DISCOVERY_METADATA.items()
-            if meta["compliance"] == TransportCompliance.MUST]
+    return [m for m, meta in DISCOVERY_METADATA.items() if meta["compliance"] == TransportCompliance.MUST]
 
 
 def discovery_privacy(method: DiscoveryMethod) -> PrivacyLevel:
@@ -359,6 +386,7 @@ class DiscoveryRequest:
     An entity generates a discovery request with desired capabilities,
     acceptable witnesses, and a nonce for replay protection.
     """
+
     desired_capabilities: List[str]
     acceptable_witnesses: List[str] = field(default_factory=list)
     nonce: str = ""
@@ -373,6 +401,7 @@ class DiscoveryResponse:
     Includes entity endpoints, current witness attestations,
     and connection info.
     """
+
     entities: List[Dict[str, Any]] = field(default_factory=list)
     witness_attestations: List[Dict[str, Any]] = field(default_factory=list)
 
@@ -381,10 +410,10 @@ class DiscoveryResponse:
 
 # web4://<w4id>/<path>[?query][#fragment]
 _WEB4_URI_PATTERN = re.compile(
-    r'^web4://([^/?#]+)'    # w4id (authority)
-    r'(/[^?#]*)?'           # optional path
-    r'(\?[^#]*)?'           # optional query
-    r'(#.*)?$'              # optional fragment
+    r"^web4://([^/?#]+)"  # w4id (authority)
+    r"(/[^?#]*)?"  # optional path
+    r"(\?[^#]*)?"  # optional query
+    r"(#.*)?$"  # optional fragment
 )
 
 
@@ -399,6 +428,7 @@ class Web4URI:
     RFC 3986 parser. The w4id component is validated as non-empty;
     further W4ID validation (DID format) should use web4.security.W4ID.
     """
+
     w4id: str
     path: str = "/"
     query: Optional[str] = None
@@ -449,6 +479,7 @@ class Web4URI:
 
 # ── Handshake Message Envelope ───────────────────────────────────
 
+
 @dataclass
 class HandshakeMessage:
     """
@@ -457,6 +488,7 @@ class HandshakeMessage:
     Wraps any handshake phase message (ClientHello, ServerHello,
     ClientFinished, ServerFinished) with transport metadata.
     """
+
     phase: HandshakePhase
     payload: Any  # One of ClientHello | ServerHello | ClientFinished | ServerFinished
     transport: Transport = Transport.TLS_1_3
@@ -546,6 +578,7 @@ class HandshakeMessage:
 
 
 # ── JSON round-trip helpers ──────────────────────────────────────
+
 
 def web4_uri_to_dict(uri: Web4URI) -> Dict[str, Any]:
     """Serialize a Web4URI to a JSON-compatible dict."""

@@ -341,41 +341,56 @@ class TestCheckConservation:
     """check_conservation() function."""
 
     def test_valid_conservation(self):
-        assert check_conservation(
-            initial_balances=[100.0, 100.0],
-            final_balances=[90.0, 105.0],
-            total_fees=5.0,
-        ) is True
+        assert (
+            check_conservation(
+                initial_balances=[100.0, 100.0],
+                final_balances=[90.0, 105.0],
+                total_fees=5.0,
+            )
+            is True
+        )
 
     def test_violated_conservation(self):
-        assert check_conservation(
-            initial_balances=[100.0, 100.0],
-            final_balances=[90.0, 100.0],
-            total_fees=5.0,
-        ) is False
+        assert (
+            check_conservation(
+                initial_balances=[100.0, 100.0],
+                final_balances=[90.0, 100.0],
+                total_fees=5.0,
+            )
+            is False
+        )
 
     def test_exact_conservation(self):
-        assert check_conservation(
-            initial_balances=[100.0],
-            final_balances=[95.0],
-            total_fees=5.0,
-        ) is True
+        assert (
+            check_conservation(
+                initial_balances=[100.0],
+                final_balances=[95.0],
+                total_fees=5.0,
+            )
+            is True
+        )
 
     def test_within_tolerance(self):
-        assert check_conservation(
-            initial_balances=[100.0],
-            final_balances=[95.00005],
-            total_fees=5.0,
-            tolerance=0.0001,
-        ) is True
+        assert (
+            check_conservation(
+                initial_balances=[100.0],
+                final_balances=[95.00005],
+                total_fees=5.0,
+                tolerance=0.0001,
+            )
+            is True
+        )
 
     def test_outside_tolerance(self):
-        assert check_conservation(
-            initial_balances=[100.0],
-            final_balances=[95.001],
-            total_fees=5.0,
-            tolerance=0.0001,
-        ) is False
+        assert (
+            check_conservation(
+                initial_balances=[100.0],
+                final_balances=[95.001],
+                total_fees=5.0,
+                tolerance=0.0001,
+            )
+            is False
+        )
 
 
 # ── Energy Ratio (Standalone) ────────────────────────────────────
@@ -487,8 +502,7 @@ class TestATPVectors:
         exp = v["expected"]
         sender = ATPAccount(available=inp["sender_balance"])
         receiver = ATPAccount(available=inp["receiver_balance"])
-        result = transfer(sender, receiver, inp["amount"],
-                          fee_rate=inp["fee_rate"], max_balance=inp["max_balance"])
+        result = transfer(sender, receiver, inp["amount"], fee_rate=inp["fee_rate"], max_balance=inp["max_balance"])
         assert result.fee == pytest.approx(exp["fee"], abs=v["tolerance"])
         assert result.actual_credit == pytest.approx(exp["actual_credit"], abs=v["tolerance"])
         assert result.overflow == pytest.approx(exp["overflow"], abs=v["tolerance"])
@@ -502,8 +516,7 @@ class TestATPVectors:
         exp = v["expected"]
         sender = ATPAccount(available=inp["sender_balance"])
         receiver = ATPAccount(available=inp["receiver_balance"])
-        result = transfer(sender, receiver, inp["amount"],
-                          fee_rate=inp["fee_rate"], max_balance=inp["max_balance"])
+        result = transfer(sender, receiver, inp["amount"], fee_rate=inp["fee_rate"], max_balance=inp["max_balance"])
         assert result.fee == pytest.approx(exp["fee"], abs=v["tolerance"])
         assert result.actual_credit == pytest.approx(exp["actual_credit"], abs=v["tolerance"])
         assert result.overflow == pytest.approx(exp["overflow"], abs=v["tolerance"])
@@ -517,13 +530,10 @@ class TestATPVectors:
         accounts = [ATPAccount(available=b) for b in inp["initial_balances"]]
         total_fees = 0.0
         for t in inp["transfers"]:
-            result = transfer(accounts[t["from"]], accounts[t["to"]],
-                              t["amount"], fee_rate=inp["fee_rate"])
+            result = transfer(accounts[t["from"]], accounts[t["to"]], t["amount"], fee_rate=inp["fee_rate"])
             total_fees += result.fee
         final_balances = [a.available for a in accounts]
-        assert sum(inp["initial_balances"]) == pytest.approx(
-            sum(final_balances) + total_fees, abs=v["tolerance"]
-        )
+        assert sum(inp["initial_balances"]) == pytest.approx(sum(final_balances) + total_fees, abs=v["tolerance"])
         assert total_fees == pytest.approx(exp["total_fees"], abs=v["tolerance"])
 
     def test_atp005_sliding_below(self):
@@ -531,9 +541,12 @@ class TestATPVectors:
         v = self._get_vector("atp-005")
         inp = v["input"]
         exp = v["expected"]
-        payment = sliding_scale(inp["quality"], inp["base_payment"],
-                                zero_threshold=inp["zero_threshold"],
-                                full_threshold=inp["full_threshold"])
+        payment = sliding_scale(
+            inp["quality"],
+            inp["base_payment"],
+            zero_threshold=inp["zero_threshold"],
+            full_threshold=inp["full_threshold"],
+        )
         assert payment == pytest.approx(exp["payment"], abs=v["tolerance"])
 
     def test_atp006_sliding_ramp(self):
@@ -541,9 +554,12 @@ class TestATPVectors:
         v = self._get_vector("atp-006")
         inp = v["input"]
         exp = v["expected"]
-        payment = sliding_scale(inp["quality"], inp["base_payment"],
-                                zero_threshold=inp["zero_threshold"],
-                                full_threshold=inp["full_threshold"])
+        payment = sliding_scale(
+            inp["quality"],
+            inp["base_payment"],
+            zero_threshold=inp["zero_threshold"],
+            full_threshold=inp["full_threshold"],
+        )
         assert payment == pytest.approx(exp["payment"], abs=v["tolerance"])
 
     def test_atp007_sliding_above(self):
@@ -551,9 +567,12 @@ class TestATPVectors:
         v = self._get_vector("atp-007")
         inp = v["input"]
         exp = v["expected"]
-        payment = sliding_scale(inp["quality"], inp["base_payment"],
-                                zero_threshold=inp["zero_threshold"],
-                                full_threshold=inp["full_threshold"])
+        payment = sliding_scale(
+            inp["quality"],
+            inp["base_payment"],
+            zero_threshold=inp["zero_threshold"],
+            full_threshold=inp["full_threshold"],
+        )
         assert payment == pytest.approx(exp["payment"], abs=v["tolerance"])
 
     def test_atp008_lock_lifecycle(self):
@@ -592,10 +611,8 @@ class TestATPVectors:
         v = self._get_vector("atp-009")
         inp = v["input"]
         exp = v["expected"]
-        acct = ATPAccount(available=inp["current_balance"],
-                          initial_balance=inp["initial_balance"])
-        recharged = acct.recharge(rate=inp["recharge_rate"],
-                                  max_multiplier=inp["max_recharge_multiplier"])
+        acct = ATPAccount(available=inp["current_balance"], initial_balance=inp["initial_balance"])
+        recharged = acct.recharge(rate=inp["recharge_rate"], max_multiplier=inp["max_recharge_multiplier"])
         assert recharged == pytest.approx(exp["recharge_amount"], abs=v["tolerance"])
         assert acct.available == pytest.approx(exp["new_balance"], abs=v["tolerance"])
 
@@ -604,10 +621,8 @@ class TestATPVectors:
         v = self._get_vector("atp-010")
         inp = v["input"]
         exp = v["expected"]
-        acct = ATPAccount(available=inp["current_balance"],
-                          initial_balance=inp["initial_balance"])
-        recharged = acct.recharge(rate=inp["recharge_rate"],
-                                  max_multiplier=inp["max_recharge_multiplier"])
+        acct = ATPAccount(available=inp["current_balance"], initial_balance=inp["initial_balance"])
+        recharged = acct.recharge(rate=inp["recharge_rate"], max_multiplier=inp["max_recharge_multiplier"])
         assert recharged == pytest.approx(exp["recharge_amount"], abs=v["tolerance"])
         assert acct.available == pytest.approx(exp["new_balance"], abs=v["tolerance"])
 
@@ -616,10 +631,12 @@ class TestATPVectors:
         v = self._get_vector("atp-011")
         inp = v["input"]
         exp = v["expected"]
-        result = sybil_cost(inp["num_identities"],
-                            inp["hardware_cost_per_identity"],
-                            inp["atp_stake_per_identity"],
-                            fee_rate=inp["transfer_fee_rate"])
+        result = sybil_cost(
+            inp["num_identities"],
+            inp["hardware_cost_per_identity"],
+            inp["atp_stake_per_identity"],
+            fee_rate=inp["transfer_fee_rate"],
+        )
         assert result["total_setup_cost"] == pytest.approx(exp["total_setup_cost"], abs=v["tolerance"])
         assert result["per_identity_cost"] == pytest.approx(exp["per_identity_cost"], abs=v["tolerance"])
         assert result["circular_flow_loss_per_cycle"] == pytest.approx(
@@ -651,9 +668,7 @@ class TestATPVectors:
         results = fee_sensitivity(inp["amount"], inp["fee_rates"])
         for i, r in enumerate(results):
             assert r["fee"] == pytest.approx(exp["fees"][i], abs=v["tolerance"])
-            assert r["total_sender_cost"] == pytest.approx(
-                exp["total_sender_costs"][i], abs=v["tolerance"]
-            )
+            assert r["total_sender_cost"] == pytest.approx(exp["total_sender_costs"][i], abs=v["tolerance"])
 
     def test_atp015_quality_settlement(self):
         """atp-015: Quality-based settlement via sliding_scale."""
@@ -661,7 +676,7 @@ class TestATPVectors:
         inp = v["input"]
         exp = v["expected"]
         for quality, expected_payment in zip(inp["quality_scores"], exp["payments"]):
-            payment = sliding_scale(quality, inp["task_payment"],
-                                    zero_threshold=inp["zero_threshold"],
-                                    full_threshold=inp["full_threshold"])
+            payment = sliding_scale(
+                quality, inp["task_payment"], zero_threshold=inp["zero_threshold"], full_threshold=inp["full_threshold"]
+            )
             assert payment == pytest.approx(expected_payment, abs=v["tolerance"])

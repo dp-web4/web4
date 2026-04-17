@@ -27,9 +27,16 @@ from .trust import T3, V3
 
 __all__ = [
     # Classes
-    "LCT", "EntityType", "RevocationStatus", "BirthCertificate",
-    "Attestation", "LineageEntry",
-    "Binding", "MRH", "MRHPairing", "Policy",
+    "LCT",
+    "EntityType",
+    "RevocationStatus",
+    "BirthCertificate",
+    "Attestation",
+    "LineageEntry",
+    "Binding",
+    "MRH",
+    "MRHPairing",
+    "Policy",
     # Constants
     "LCT_JSONLD_CONTEXT",
 ]
@@ -40,8 +47,10 @@ LCT_JSONLD_CONTEXT = "https://web4.io/contexts/lct.jsonld"
 
 # ── Entity Types ─────────────────────────────────────────────────
 
+
 class EntityType(str, Enum):
     """Web4 entity type taxonomy."""
+
     HUMAN = "human"
     AI = "ai"
     SOCIETY = "society"
@@ -67,9 +76,11 @@ class RevocationStatus(str, Enum):
 
 # ── LCT Sub-Structures ──────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class Binding:
     """Cryptographic anchor binding entity to LCT."""
+
     entity_type: EntityType
     public_key: str
     created_at: str
@@ -91,6 +102,7 @@ class Binding:
 @dataclass(frozen=True)
 class MRHPairing:
     """A pairing in the MRH graph."""
+
     lct_id: str
     pairing_type: str
     permanent: bool = False
@@ -110,6 +122,7 @@ class MRHPairing:
 @dataclass
 class MRH:
     """Markov Relevancy Horizon — the entity's relationship context."""
+
     bound: List[str] = field(default_factory=list)
     paired: List[MRHPairing] = field(default_factory=list)
     witnessing: List[str] = field(default_factory=list)
@@ -131,6 +144,7 @@ class MRH:
 @dataclass(frozen=True)
 class BirthCertificate:
     """Society-issued foundational presence document."""
+
     issuing_society: str
     citizen_role: str
     birth_timestamp: str
@@ -154,6 +168,7 @@ class BirthCertificate:
 @dataclass(frozen=True)
 class Attestation:
     """Witness observation recorded on the LCT. Spec §2.3."""
+
     witness: str
     type: str
     claims: Dict[str, Any] = field(default_factory=dict)
@@ -175,6 +190,7 @@ class Attestation:
 @dataclass(frozen=True)
 class LineageEntry:
     """LCT evolution history entry. Spec §2.3."""
+
     parent: str
     reason: str  # genesis | rotation | fork | upgrade
     ts: str = ""
@@ -192,6 +208,7 @@ class LineageEntry:
 @dataclass
 class Policy:
     """Capabilities and constraints for this LCT."""
+
     capabilities: List[str] = field(default_factory=list)
     constraints: Dict[str, Any] = field(default_factory=dict)
 
@@ -205,6 +222,7 @@ class Policy:
 
 
 # ── LCT ──────────────────────────────────────────────────────────
+
 
 @dataclass
 class LCT:
@@ -331,9 +349,7 @@ class LCT:
     def add_pairing(self, target_lct_id: str, pairing_type: str, permanent: bool = False) -> None:
         """Add a pairing to the MRH."""
         ts = datetime.now(timezone.utc).isoformat()
-        self.mrh.paired.append(
-            MRHPairing(lct_id=target_lct_id, pairing_type=pairing_type, permanent=permanent, ts=ts)
-        )
+        self.mrh.paired.append(MRHPairing(lct_id=target_lct_id, pairing_type=pairing_type, permanent=permanent, ts=ts))
         self.mrh.last_updated = ts
 
     def add_witness(self, witness_lct_id: str) -> None:
@@ -342,8 +358,9 @@ class LCT:
             self.mrh.witnessing.append(witness_lct_id)
             self.mrh.last_updated = datetime.now(timezone.utc).isoformat()
 
-    def add_attestation(self, witness: str, type: str, claims: Optional[Dict[str, Any]] = None,
-                        sig: str = "", ts: Optional[str] = None) -> Attestation:
+    def add_attestation(
+        self, witness: str, type: str, claims: Optional[Dict[str, Any]] = None, sig: str = "", ts: Optional[str] = None
+    ) -> Attestation:
         """Add a witness attestation to this LCT."""
         att = Attestation(
             witness=witness,
@@ -374,8 +391,7 @@ class LCT:
             "mrh": {
                 "bound": self.mrh.bound,
                 "paired": [
-                    {"lct_id": p.lct_id, "pairing_type": p.pairing_type,
-                     "permanent": p.permanent, "ts": p.ts}
+                    {"lct_id": p.lct_id, "pairing_type": p.pairing_type, "permanent": p.permanent, "ts": p.ts}
                     for p in self.mrh.paired
                 ],
                 "horizon_depth": self.mrh.horizon_depth,
@@ -423,8 +439,7 @@ class LCT:
             "mrh": {
                 "bound": self.mrh.bound,
                 "paired": [
-                    {"lct_id": p.lct_id, "pairing_type": p.pairing_type,
-                     "permanent": p.permanent, "ts": p.ts}
+                    {"lct_id": p.lct_id, "pairing_type": p.pairing_type, "permanent": p.permanent, "ts": p.ts}
                     for p in self.mrh.paired
                 ],
                 "witnessing": self.mrh.witnessing,
@@ -436,12 +451,16 @@ class LCT:
                 "constraints": self.policy.constraints,
             },
             "t3_tensor": {
-                "talent": self.t3.talent, "training": self.t3.training,
-                "temperament": self.t3.temperament, "composite_score": self.t3.composite,
+                "talent": self.t3.talent,
+                "training": self.t3.training,
+                "temperament": self.t3.temperament,
+                "composite_score": self.t3.composite,
             },
             "v3_tensor": {
-                "valuation": self.v3.valuation, "veracity": self.v3.veracity,
-                "validity": self.v3.validity, "composite_score": self.v3.composite,
+                "valuation": self.v3.valuation,
+                "veracity": self.v3.veracity,
+                "validity": self.v3.validity,
+                "composite_score": self.v3.composite,
             },
             "revocation": {"status": self.revocation_status.value},
         }
@@ -489,12 +508,8 @@ class LCT:
         rev_data = d.get("revocation", {})
         revocation_status = RevocationStatus(rev_data.get("status", "active"))
 
-        attestations = [
-            Attestation.from_dict(a) for a in d.get("attestations", [])
-        ]
-        lineage = [
-            LineageEntry.from_dict(le) for le in d.get("lineage", [])
-        ]
+        attestations = [Attestation.from_dict(a) for a in d.get("attestations", [])]
+        lineage = [LineageEntry.from_dict(le) for le in d.get("lineage", [])]
 
         return cls(
             lct_id=d["lct_id"],
@@ -558,10 +573,7 @@ class LCT:
 
         # MRH — spec §2.3 (structured entries)
         mrh: Dict[str, Any] = {
-            "bound": [
-                {"lct_id": b} if isinstance(b, str) else b
-                for b in self.mrh.bound
-            ],
+            "bound": [{"lct_id": b} if isinstance(b, str) else b for b in self.mrh.bound],
             "paired": [
                 {
                     "lct_id": p.lct_id,
@@ -571,10 +583,7 @@ class LCT:
                 }
                 for p in self.mrh.paired
             ],
-            "witnessing": [
-                {"lct_id": w} if isinstance(w, str) else w
-                for w in self.mrh.witnessing
-            ],
+            "witnessing": [{"lct_id": w} if isinstance(w, str) else w for w in self.mrh.witnessing],
             "horizon_depth": self.mrh.horizon_depth,
             "last_updated": self.mrh.last_updated,
         }
@@ -617,10 +626,7 @@ class LCT:
 
         # Lineage — spec §2.3 (optional, included when populated)
         if self.lineage:
-            doc["lineage"] = [
-                {"parent": le.parent, "reason": le.reason, "ts": le.ts}
-                for le in self.lineage
-            ]
+            doc["lineage"] = [{"parent": le.parent, "reason": le.reason, "ts": le.ts} for le in self.lineage]
 
         # Revocation — spec §2.3
         doc["revocation"] = {
@@ -667,12 +673,14 @@ class LCT:
         # Parse paired entries
         paired: List[MRHPairing] = []
         for p in mrh_data.get("paired", []):
-            paired.append(MRHPairing(
-                lct_id=p["lct_id"],
-                pairing_type=p["pairing_type"],
-                permanent=p.get("permanent", False),
-                ts=p.get("ts", ""),
-            ))
+            paired.append(
+                MRHPairing(
+                    lct_id=p["lct_id"],
+                    pairing_type=p["pairing_type"],
+                    permanent=p.get("permanent", False),
+                    ts=p.get("ts", ""),
+                )
+            )
 
         # Parse witnessing entries — accept both strings and objects
         raw_witnessing = mrh_data.get("witnessing", [])
@@ -737,22 +745,26 @@ class LCT:
         # Attestations (optional)
         attestations: List[Attestation] = []
         for a in doc.get("attestations", []):
-            attestations.append(Attestation(
-                witness=a["witness"],
-                type=a["type"],
-                claims=a.get("claims", {}),
-                sig=a.get("sig", ""),
-                ts=a.get("ts", ""),
-            ))
+            attestations.append(
+                Attestation(
+                    witness=a["witness"],
+                    type=a["type"],
+                    claims=a.get("claims", {}),
+                    sig=a.get("sig", ""),
+                    ts=a.get("ts", ""),
+                )
+            )
 
         # Lineage (optional)
         lineage: List[LineageEntry] = []
         for le in doc.get("lineage", []):
-            lineage.append(LineageEntry(
-                parent=le["parent"],
-                reason=le["reason"],
-                ts=le.get("ts", ""),
-            ))
+            lineage.append(
+                LineageEntry(
+                    parent=le["parent"],
+                    reason=le["reason"],
+                    ts=le.get("ts", ""),
+                )
+            )
 
         return cls(
             lct_id=doc["lct_id"],

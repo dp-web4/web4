@@ -31,15 +31,22 @@ from .trust import mrh_trust_decay, mrh_zone
 
 __all__ = [
     # Classes
-    "MRHGraph", "MRHNode", "MRHEdge", "RelationType",
+    "MRHGraph",
+    "MRHNode",
+    "MRHEdge",
+    "RelationType",
     # Functions
     "relation_category",
-    "mrh_trust_decay", "mrh_zone",
-    "propagate_multiplicative", "propagate_probabilistic", "propagate_maximal",
+    "mrh_trust_decay",
+    "mrh_zone",
+    "propagate_multiplicative",
+    "propagate_probabilistic",
+    "propagate_maximal",
 ]
 
 
 # ── Relationship Types ──────────────────────────────────────────
+
 
 class RelationType(str, Enum):
     """Semantic relationship types from the MRH ontology."""
@@ -65,16 +72,22 @@ class RelationType(str, Enum):
 
 # Classify relation types into categories
 _BINDING_TYPES = {
-    RelationType.BOUND_TO, RelationType.PARENT_BINDING,
-    RelationType.CHILD_BINDING, RelationType.SIBLING_BINDING,
+    RelationType.BOUND_TO,
+    RelationType.PARENT_BINDING,
+    RelationType.CHILD_BINDING,
+    RelationType.SIBLING_BINDING,
 }
 _PAIRING_TYPES = {
-    RelationType.PAIRED_WITH, RelationType.ENERGY_PAIRING,
-    RelationType.DATA_PAIRING, RelationType.SERVICE_PAIRING,
+    RelationType.PAIRED_WITH,
+    RelationType.ENERGY_PAIRING,
+    RelationType.DATA_PAIRING,
+    RelationType.SERVICE_PAIRING,
 }
 _WITNESS_TYPES = {
-    RelationType.WITNESSED_BY, RelationType.TIME_WITNESS,
-    RelationType.AUDIT_WITNESS, RelationType.ORACLE_WITNESS,
+    RelationType.WITNESSED_BY,
+    RelationType.TIME_WITNESS,
+    RelationType.AUDIT_WITNESS,
+    RelationType.ORACLE_WITNESS,
 }
 
 
@@ -90,6 +103,7 @@ def relation_category(rel: RelationType) -> str:
 
 
 # ── Graph Components ────────────────────────────────────────────
+
 
 @dataclass
 class MRHNode:
@@ -128,8 +142,8 @@ class MRHNode:
 class MRHEdge:
     """A directed edge in the MRH graph — a typed relationship."""
 
-    source: str          # Source LCT ID
-    target: str          # Target LCT ID
+    source: str  # Source LCT ID
+    target: str  # Target LCT ID
     relation: RelationType
     weight: float = 1.0  # Edge weight (trust probability)
     timestamp: Optional[str] = None  # ISO 8601
@@ -180,6 +194,7 @@ class MRHEdge:
 
 # ── Trust Propagation Strategies ────────────────────────────────
 
+
 def propagate_multiplicative(
     path_weights: List[float],
     decay_factor: float = 0.7,
@@ -206,7 +221,7 @@ def propagate_probabilistic(path_trusts: List[float]) -> float:
         return 0.0
     combined = 1.0
     for pt in path_trusts:
-        combined *= (1.0 - pt)
+        combined *= 1.0 - pt
     return 1.0 - combined
 
 
@@ -218,6 +233,7 @@ def propagate_maximal(path_trusts: List[float]) -> float:
 
 
 # ── MRH Graph ──────────────────────────────────────────────────
+
 
 class MRHGraph:
     """
@@ -373,7 +389,10 @@ class MRHGraph:
         """
         h = self.horizon(origin, depth)
         zones: Dict[str, List[str]] = {
-            "SELF": [], "DIRECT": [], "INDIRECT": [], "PERIPHERAL": [],
+            "SELF": [],
+            "DIRECT": [],
+            "INDIRECT": [],
+            "PERIPHERAL": [],
         }
         for lct_id, hops in h.items():
             zone = mrh_zone(hops)
@@ -400,9 +419,7 @@ class MRHGraph:
             return []
 
         paths: List[List[MRHEdge]] = []
-        stack: List[Tuple[str, List[MRHEdge], Set[str]]] = [
-            (source, [], {source})
-        ]
+        stack: List[Tuple[str, List[MRHEdge], Set[str]]] = [(source, [], {source})]
 
         while stack:
             current, path, visited = stack.pop()
@@ -416,20 +433,24 @@ class MRHGraph:
             for neighbor, edge_idx in self._adj.get(current, []):
                 if neighbor not in visited:
                     edge = self._edges[edge_idx]
-                    stack.append((
-                        neighbor,
-                        path + [edge],
-                        visited | {neighbor},
-                    ))
+                    stack.append(
+                        (
+                            neighbor,
+                            path + [edge],
+                            visited | {neighbor},
+                        )
+                    )
             # Reverse edges
             for neighbor, edge_idx in self._rev.get(current, []):
                 if neighbor not in visited:
                     edge = self._edges[edge_idx]
-                    stack.append((
-                        neighbor,
-                        path + [edge],
-                        visited | {neighbor},
-                    ))
+                    stack.append(
+                        (
+                            neighbor,
+                            path + [edge],
+                            visited | {neighbor},
+                        )
+                    )
 
         return paths
 

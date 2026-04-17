@@ -16,7 +16,6 @@ Tests verify:
   TranslationChain, DictionaryEntity)
 """
 
-
 from web4.dictionary import (
     SELECTION_WEIGHT_COST,
     SELECTION_WEIGHT_COVERAGE,
@@ -40,8 +39,8 @@ from web4.trust import T3, V3
 
 # ── DictionarySpec ───────────────────────────────────────────────
 
-class TestDictionarySpec:
 
+class TestDictionarySpec:
     def test_covers_forward(self):
         spec = DictionarySpec(source_domain="medical", target_domain="legal")
         assert spec.covers_domains("medical", "legal")
@@ -64,7 +63,8 @@ class TestDictionarySpec:
 
     def test_meta_dictionary_type(self):
         spec = DictionarySpec(
-            source_domain="dict_a", target_domain="dict_b",
+            source_domain="dict_a",
+            target_domain="dict_b",
             dictionary_type=DictionaryType.META,
         )
         assert spec.dictionary_type == DictionaryType.META
@@ -72,8 +72,8 @@ class TestDictionarySpec:
 
 # ── DictionaryEntity Creation ────────────────────────────────────
 
-class TestDictionaryEntityCreation:
 
+class TestDictionaryEntityCreation:
     def test_create_basic(self):
         d = DictionaryEntity.create(
             source_domain="medical",
@@ -107,8 +107,10 @@ class TestDictionaryEntityCreation:
 
     def test_initial_version(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
-            public_key="key1", version="2.3.1",
+            source_domain="a",
+            target_domain="b",
+            public_key="key1",
+            version="2.3.1",
         )
         assert d.current_version == "2.3.1"
         assert len(d.versions) == 1
@@ -117,22 +119,27 @@ class TestDictionaryEntityCreation:
         t3 = T3(talent=0.8, training=0.9, temperament=0.85)
         v3 = V3(valuation=0.7, veracity=0.8, validity=0.9)
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
-            public_key="key1", t3=t3, v3=v3,
+            source_domain="a",
+            target_domain="b",
+            public_key="key1",
+            t3=t3,
+            v3=v3,
         )
         assert d.t3.talent == 0.8
         assert d.v3.validity == 0.9
 
     def test_lct_id_shortcut(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             public_key="key1",
         )
         assert d.lct_id == d.lct.lct_id
 
     def test_can_translate(self):
         d = DictionaryEntity.create(
-            source_domain="medical", target_domain="legal",
+            source_domain="medical",
+            target_domain="legal",
             public_key="key1",
         )
         assert d.can_translate("medical", "legal")
@@ -142,11 +149,12 @@ class TestDictionaryEntityCreation:
 
 # ── Translation Recording ────────────────────────────────────────
 
-class TestTranslationRecording:
 
+class TestTranslationRecording:
     def test_record_translation(self):
         d = DictionaryEntity.create(
-            source_domain="medical", target_domain="legal",
+            source_domain="medical",
+            target_domain="legal",
             public_key="key1",
         )
         req = TranslationRequest(
@@ -163,7 +171,8 @@ class TestTranslationRecording:
 
     def test_low_confidence_requires_witness(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             public_key="key1",
         )
         req = TranslationRequest(source_content="x", source_domain="a", target_domain="b")
@@ -172,11 +181,14 @@ class TestTranslationRecording:
 
     def test_explicit_witness_requirement(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             public_key="key1",
         )
         req = TranslationRequest(
-            source_content="x", source_domain="a", target_domain="b",
+            source_content="x",
+            source_domain="a",
+            target_domain="b",
             require_witness=True,
         )
         result = d.record_translation(req, "y", 0.99)
@@ -184,11 +196,14 @@ class TestTranslationRecording:
 
     def test_success_rate_tracking(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             public_key="key1",
         )
         req = TranslationRequest(
-            source_content="x", source_domain="a", target_domain="b",
+            source_content="x",
+            source_domain="a",
+            target_domain="b",
             minimum_fidelity=0.9,
         )
         d.record_translation(req, "y1", 0.95)
@@ -197,7 +212,8 @@ class TestTranslationRecording:
 
     def test_witnesses_added_to_mrh(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             public_key="key1",
         )
         req = TranslationRequest(source_content="x", source_domain="a", target_domain="b")
@@ -207,8 +223,8 @@ class TestTranslationRecording:
 
 # ── Translation Chain ────────────────────────────────────────────
 
-class TestTranslationChain:
 
+class TestTranslationChain:
     def test_empty_chain(self):
         chain = TranslationChain()
         assert chain.cumulative_confidence == 1.0
@@ -249,12 +265,13 @@ class TestTranslationChain:
 
 # ── Dictionary Evolution ─────────────────────────────────────────
 
-class TestDictionaryEvolution:
 
+class TestDictionaryEvolution:
     def test_feedback_correction_lowers_trust(self):
         """Test vector dict-005: corrections decrease composite."""
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             public_key="key1",
         )
         initial_composite = d.t3.composite
@@ -270,7 +287,8 @@ class TestDictionaryEvolution:
     def test_feedback_validation_raises_trust(self):
         """Test vector dict-005: validations increase composite."""
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             public_key="key1",
         )
         initial_composite = d.t3.composite
@@ -284,8 +302,10 @@ class TestDictionaryEvolution:
 
     def test_version_creation(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
-            public_key="key1", version="1.0.0",
+            source_domain="a",
+            target_domain="b",
+            public_key="key1",
+            version="1.0.0",
         )
         v = d.create_new_version("1.1.0", changelog="Added 50 terms")
         assert d.current_version == "1.1.0"
@@ -294,7 +314,8 @@ class TestDictionaryEvolution:
 
     def test_feedback_history(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             public_key="key1",
         )
         d.apply_feedback(FeedbackRecord(feedback_type="correction", mapping_id="m1"))
@@ -304,8 +325,8 @@ class TestDictionaryEvolution:
 
 # ── Dictionary Selection ─────────────────────────────────────────
 
-class TestDictionarySelection:
 
+class TestDictionarySelection:
     def test_selection_score(self):
         """Test vector dict-002."""
         score = dictionary_selection_score(
@@ -318,18 +339,21 @@ class TestDictionarySelection:
         assert abs(score - expected) < 0.001
 
     def test_selection_score_weights_sum_to_one(self):
-        total = (SELECTION_WEIGHT_TRUST + SELECTION_WEIGHT_COVERAGE
-                 + SELECTION_WEIGHT_RECENCY + SELECTION_WEIGHT_COST)
+        total = SELECTION_WEIGHT_TRUST + SELECTION_WEIGHT_COVERAGE + SELECTION_WEIGHT_RECENCY + SELECTION_WEIGHT_COST
         assert abs(total - 1.0) < 0.001
 
     def test_select_best_dictionary(self):
         d1 = DictionaryEntity.create(
-            source_domain="medical", target_domain="legal",
-            public_key="key1", t3=T3(talent=0.9, training=0.9, temperament=0.9),
+            source_domain="medical",
+            target_domain="legal",
+            public_key="key1",
+            t3=T3(talent=0.9, training=0.9, temperament=0.9),
         )
         d2 = DictionaryEntity.create(
-            source_domain="medical", target_domain="legal",
-            public_key="key2", t3=T3(talent=0.5, training=0.5, temperament=0.5),
+            source_domain="medical",
+            target_domain="legal",
+            public_key="key2",
+            t3=T3(talent=0.5, training=0.5, temperament=0.5),
         )
         best = select_best_dictionary(
             candidates=[d1, d2],
@@ -340,11 +364,13 @@ class TestDictionarySelection:
 
     def test_select_filters_by_domain(self):
         d1 = DictionaryEntity.create(
-            source_domain="medical", target_domain="legal",
+            source_domain="medical",
+            target_domain="legal",
             public_key="key1",
         )
         d2 = DictionaryEntity.create(
-            source_domain="engineering", target_domain="business",
+            source_domain="engineering",
+            target_domain="business",
             public_key="key2",
         )
         best = select_best_dictionary(
@@ -356,7 +382,8 @@ class TestDictionarySelection:
 
     def test_select_no_eligible(self):
         d1 = DictionaryEntity.create(
-            source_domain="engineering", target_domain="business",
+            source_domain="engineering",
+            target_domain="business",
             public_key="key1",
         )
         best = select_best_dictionary(
@@ -368,14 +395,17 @@ class TestDictionarySelection:
 
     def test_meets_trust_requirement(self):
         d = DictionaryEntity.create(
-            source_domain="a", target_domain="b",
-            public_key="key1", t3=T3(talent=0.8, training=0.9, temperament=0.85),
+            source_domain="a",
+            target_domain="b",
+            public_key="key1",
+            t3=T3(talent=0.8, training=0.9, temperament=0.85),
         )
         assert d.meets_trust_requirement(0.8)
         assert not d.meets_trust_requirement(0.95)
 
 
 # ── JSON-LD Serialization Tests ──────────────────────────────────
+
 
 class TestDictionarySpecJsonLd:
     """DictionarySpec JSON-LD roundtrip tests."""
@@ -473,7 +503,9 @@ class TestTranslationResultJsonLd:
 
     def test_result_string_roundtrip(self):
         result = TranslationResult(
-            content="test", confidence=0.9, degradation=0.1,
+            content="test",
+            confidence=0.9,
+            degradation=0.1,
             dictionary_lct_id="lct:001",
             timestamp="2026-03-23T12:00:00+00:00",
         )
@@ -578,7 +610,9 @@ class TestDictionaryEntityJsonLd:
     def test_entity_spec_inline_no_context_type(self):
         """Spec inside DictionaryEntity should NOT have @context/@type."""
         entity = DictionaryEntity.create(
-            source_domain="a", target_domain="b", public_key="k",
+            source_domain="a",
+            target_domain="b",
+            public_key="k",
         )
         doc = entity.to_jsonld()
         assert "@context" not in doc["spec"]
@@ -586,7 +620,9 @@ class TestDictionaryEntityJsonLd:
 
     def test_entity_string_roundtrip(self):
         entity = DictionaryEntity.create(
-            source_domain="en", target_domain="fr", public_key="k",
+            source_domain="en",
+            target_domain="fr",
+            public_key="k",
         )
         s = entity.to_jsonld_string()
         restored = DictionaryEntity.from_jsonld_string(s)

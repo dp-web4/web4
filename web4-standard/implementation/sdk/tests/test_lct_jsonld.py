@@ -76,11 +76,13 @@ def full_lct():
         sig="cose:ES256:sig2",
         ts="2025-10-02T00:00:00Z",
     )
-    lct.lineage.append(LineageEntry(
-        parent="lct:web4:mb32:previous123",
-        reason="genesis",
-        ts="2025-09-01T00:00:00Z",
-    ))
+    lct.lineage.append(
+        LineageEntry(
+            parent="lct:web4:mb32:previous123",
+            reason="genesis",
+            ts="2025-09-01T00:00:00Z",
+        )
+    )
     return lct
 
 
@@ -422,10 +424,12 @@ class TestFromJsonLdCompat:
             "lct_id": "lct:web4:ai:test",
             "subject": "did:web4:key:test",
             "binding": {"entity_type": "ai", "public_key": "k", "created_at": "t"},
-            "mrh": {"bound": [
-                {"lct_id": "lct:web4:hw:1", "type": "parent", "binding_context": "tpm"},
-                {"lct_id": "lct:web4:hw:2"},
-            ]},
+            "mrh": {
+                "bound": [
+                    {"lct_id": "lct:web4:hw:1", "type": "parent", "binding_context": "tpm"},
+                    {"lct_id": "lct:web4:hw:2"},
+                ]
+            },
         }
         lct = LCT.from_jsonld(doc)
         assert lct.mrh.bound == ["lct:web4:hw:1", "lct:web4:hw:2"]
@@ -477,9 +481,11 @@ class TestFromJsonLdCompat:
             "lct_id": "lct:web4:ai:test",
             "subject": "did:web4:key:test",
             "binding": {"entity_type": "ai", "public_key": "k", "created_at": "t"},
-            "mrh": {"witnessing": [
-                {"lct_id": "lct:web4:witness:w1", "role": "audit", "witness_count": 5},
-            ]},
+            "mrh": {
+                "witnessing": [
+                    {"lct_id": "lct:web4:witness:w1", "role": "audit", "witness_count": 5},
+                ]
+            },
         }
         lct = LCT.from_jsonld(doc)
         assert lct.mrh.witnessing == ["lct:web4:witness:w1"]
@@ -599,12 +605,14 @@ class TestSpecCanonicalExample:
             ),
             mrh=MRH(
                 bound=["lct:web4:hardware:tpm1"],
-                paired=[MRHPairing(
-                    lct_id="lct:web4:role:citizen:nation",
-                    pairing_type="birth_certificate",
-                    permanent=True,
-                    ts="2025-10-01T00:00:00Z",
-                )],
+                paired=[
+                    MRHPairing(
+                        lct_id="lct:web4:role:citizen:nation",
+                        pairing_type="birth_certificate",
+                        permanent=True,
+                        ts="2025-10-01T00:00:00Z",
+                    )
+                ],
                 witnessing=["lct:web4:witness:oracle1"],
                 horizon_depth=3,
                 last_updated="2025-10-01T00:00:00Z",
@@ -697,10 +705,7 @@ class TestSpecCanonicalExample:
 
 import pathlib
 
-CONTEXT_FILE = (
-    pathlib.Path(__file__).resolve().parents[3]
-    / "schemas" / "contexts" / "lct.jsonld"
-)
+CONTEXT_FILE = pathlib.Path(__file__).resolve().parents[3] / "schemas" / "contexts" / "lct.jsonld"
 
 
 class TestLCTContextFileConsistency:
@@ -724,8 +729,14 @@ class TestLCTContextFileConsistency:
     def test_top_level_fields_covered(self):
         """All top-level to_jsonld() keys (except @context) must be in context."""
         required_keys = [
-            "lct_id", "subject", "binding", "mrh", "policy",
-            "t3_tensor", "v3_tensor", "revocation",
+            "lct_id",
+            "subject",
+            "binding",
+            "mrh",
+            "policy",
+            "t3_tensor",
+            "v3_tensor",
+            "revocation",
         ]
         for key in required_keys:
             assert key in self.context, f"Missing context term: {key}"
@@ -737,24 +748,34 @@ class TestLCTContextFileConsistency:
 
     def test_binding_subfields_covered(self):
         binding_keys = [
-            "entity_type", "public_key", "created_at",
-            "binding_proof", "hardware_anchor",
+            "entity_type",
+            "public_key",
+            "created_at",
+            "binding_proof",
+            "hardware_anchor",
         ]
         for key in binding_keys:
             assert key in self.context, f"Missing binding term: {key}"
 
     def test_birth_certificate_subfields_covered(self):
         bc_keys = [
-            "issuing_society", "citizen_role", "birth_timestamp",
-            "birth_witnesses", "birth_context", "genesis_block_hash",
+            "issuing_society",
+            "citizen_role",
+            "birth_timestamp",
+            "birth_witnesses",
+            "birth_context",
+            "genesis_block_hash",
         ]
         for key in bc_keys:
             assert key in self.context, f"Missing birth_certificate term: {key}"
 
     def test_mrh_subfields_covered(self):
         mrh_keys = [
-            "bound", "paired", "witnessing",
-            "horizon_depth", "last_updated",
+            "bound",
+            "paired",
+            "witnessing",
+            "horizon_depth",
+            "last_updated",
         ]
         for key in mrh_keys:
             assert key in self.context, f"Missing MRH term: {key}"
@@ -766,8 +787,13 @@ class TestLCTContextFileConsistency:
 
     def test_tensor_subfields_covered(self):
         tensor_keys = [
-            "talent", "training", "temperament",
-            "valuation", "veracity", "validity", "composite_score",
+            "talent",
+            "training",
+            "temperament",
+            "valuation",
+            "veracity",
+            "validity",
+            "composite_score",
         ]
         for key in tensor_keys:
             assert key in self.context, f"Missing tensor term: {key}"
@@ -799,12 +825,19 @@ class TestLCTContextFileConsistency:
             v3=V3(valuation=0.85, veracity=0.9, validity=0.8),
         )
         lct.add_attestation(
-            witness="lct:web4:witness:w1", type="identity",
-            claims={"verified": True}, sig="sig123", ts="2025-01-01",
+            witness="lct:web4:witness:w1",
+            type="identity",
+            claims={"verified": True},
+            sig="sig123",
+            ts="2025-01-01",
         )
-        lct.lineage.append(LineageEntry(
-            parent="lct:old", reason="upgrade", ts="2025-01-01",
-        ))
+        lct.lineage.append(
+            LineageEntry(
+                parent="lct:old",
+                reason="upgrade",
+                ts="2025-01-01",
+            )
+        )
         doc = lct.to_jsonld()
 
         # User-data dicts whose keys are NOT schema terms
@@ -817,9 +850,7 @@ class TestLCTContextFileConsistency:
                         continue
                     if any(path.endswith(c) for c in data_containers):
                         continue
-                    assert k in self.context, (
-                        f"Key '{k}' (at {path}) not in context file"
-                    )
+                    assert k in self.context, f"Key '{k}' (at {path}) not in context file"
                     _check_keys(v, f"{path}.{k}")
             elif isinstance(obj, list):
                 for item in obj:

@@ -29,17 +29,28 @@ from .lct import LCT, EntityType
 
 __all__ = [
     # Classes
-    "CapabilityLevel", "TrustTier", "LevelRequirement", "CapabilityAssessment",
+    "CapabilityLevel",
+    "TrustTier",
+    "LevelRequirement",
+    "CapabilityAssessment",
     # Functions
-    "assess_level", "validate_level", "can_upgrade",
-    "level_requirements", "trust_tier",
-    "entity_level_range", "is_level_typical", "common_ground",
-    "capability_assessment_to_jsonld", "capability_assessment_from_jsonld",
+    "assess_level",
+    "validate_level",
+    "can_upgrade",
+    "level_requirements",
+    "trust_tier",
+    "entity_level_range",
+    "is_level_typical",
+    "common_ground",
+    "capability_assessment_to_jsonld",
+    "capability_assessment_from_jsonld",
     "capability_assessment_from_jsonld_string",
-    "capability_framework_to_jsonld", "capability_framework_from_jsonld",
+    "capability_framework_to_jsonld",
+    "capability_framework_from_jsonld",
     "capability_framework_from_jsonld_string",
     # Constants
-    "CAPABILITY_JSONLD_CONTEXT", "ENTITY_LEVEL_RANGES",
+    "CAPABILITY_JSONLD_CONTEXT",
+    "ENTITY_LEVEL_RANGES",
 ]
 
 
@@ -50,18 +61,21 @@ CAPABILITY_JSONLD_CONTEXT = "https://web4.io/contexts/capability.jsonld"
 
 # ── Capability Levels ────────────────────────────────────────────
 
+
 class CapabilityLevel(IntEnum):
     """LCT capability levels per spec §2.1."""
-    STUB = 0       # Placeholder reference, pending entity
-    MINIMAL = 1    # Self-issued bootstrap, basic plugin identity
-    BASIC = 2      # Operational plugins with relationships
-    STANDARD = 3   # Autonomous agents with full tensors
-    FULL = 4       # Society-issued with birth certificate
-    HARDWARE = 5   # Hardware-bound identity (TPM/TrustZone)
+
+    STUB = 0  # Placeholder reference, pending entity
+    MINIMAL = 1  # Self-issued bootstrap, basic plugin identity
+    BASIC = 2  # Operational plugins with relationships
+    STANDARD = 3  # Autonomous agents with full tensors
+    FULL = 4  # Society-issued with birth certificate
+    HARDWARE = 5  # Hardware-bound identity (TPM/TrustZone)
 
 
 class TrustTier(str):
     """Trust tier labels mapped from capability levels."""
+
     UNTRUSTED = "untrusted"
     LOW = "low"
     MODERATE = "moderate"
@@ -74,12 +88,12 @@ class TrustTier(str):
 
 # Spec §2.1: each level maps to a trust score range
 _TRUST_TIERS: Dict[CapabilityLevel, Tuple[str, float, float]] = {
-    CapabilityLevel.STUB:     (TrustTier.UNTRUSTED, 0.0, 0.0),
-    CapabilityLevel.MINIMAL:  (TrustTier.LOW,       0.0, 0.2),
-    CapabilityLevel.BASIC:    (TrustTier.MODERATE,   0.2, 0.4),
-    CapabilityLevel.STANDARD: (TrustTier.MEDIUM,     0.4, 0.6),
-    CapabilityLevel.FULL:     (TrustTier.HIGH,       0.6, 0.8),
-    CapabilityLevel.HARDWARE: (TrustTier.MAXIMUM,    0.8, 1.0),
+    CapabilityLevel.STUB: (TrustTier.UNTRUSTED, 0.0, 0.0),
+    CapabilityLevel.MINIMAL: (TrustTier.LOW, 0.0, 0.2),
+    CapabilityLevel.BASIC: (TrustTier.MODERATE, 0.2, 0.4),
+    CapabilityLevel.STANDARD: (TrustTier.MEDIUM, 0.4, 0.6),
+    CapabilityLevel.FULL: (TrustTier.HIGH, 0.6, 0.8),
+    CapabilityLevel.HARDWARE: (TrustTier.MAXIMUM, 0.8, 1.0),
 }
 
 
@@ -87,29 +101,31 @@ _TRUST_TIERS: Dict[CapabilityLevel, Tuple[str, float, float]] = {
 
 # Spec §3.3: typical capability level ranges per entity type
 ENTITY_LEVEL_RANGES: Dict[EntityType, Tuple[int, int]] = {
-    EntityType.HUMAN:          (4, 5),
-    EntityType.AI:             (2, 4),
-    EntityType.SOCIETY:        (4, 5),
-    EntityType.ORGANIZATION:   (4, 4),
-    EntityType.ROLE:           (1, 3),
-    EntityType.TASK:           (1, 2),
-    EntityType.RESOURCE:       (1, 3),
-    EntityType.DEVICE:         (3, 5),
-    EntityType.SERVICE:        (2, 4),
-    EntityType.ORACLE:         (3, 4),
-    EntityType.ACCUMULATOR:    (2, 3),
-    EntityType.DICTIONARY:     (3, 4),
-    EntityType.HYBRID:         (1, 5),
-    EntityType.POLICY:         (3, 4),
+    EntityType.HUMAN: (4, 5),
+    EntityType.AI: (2, 4),
+    EntityType.SOCIETY: (4, 5),
+    EntityType.ORGANIZATION: (4, 4),
+    EntityType.ROLE: (1, 3),
+    EntityType.TASK: (1, 2),
+    EntityType.RESOURCE: (1, 3),
+    EntityType.DEVICE: (3, 5),
+    EntityType.SERVICE: (2, 4),
+    EntityType.ORACLE: (3, 4),
+    EntityType.ACCUMULATOR: (2, 3),
+    EntityType.DICTIONARY: (3, 4),
+    EntityType.HYBRID: (1, 5),
+    EntityType.POLICY: (3, 4),
     EntityType.INFRASTRUCTURE: (3, 5),
 }
 
 
 # ── Level Requirements ───────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class LevelRequirement:
     """Human-readable requirements for a capability level."""
+
     level: CapabilityLevel
     name: str
     description: str
@@ -221,6 +237,7 @@ _LEVEL_REQUIREMENTS: Dict[CapabilityLevel, LevelRequirement] = {
 
 # ── Assessment Helpers ───────────────────────────────────────────
 
+
 def _has_binding(lct: LCT) -> bool:
     """Check if LCT has a valid binding with public key."""
     return lct.binding is not None and bool(lct.binding.public_key)
@@ -233,9 +250,7 @@ def _has_mrh_relationship(lct: LCT) -> bool:
 
 def _has_nonzero_t3(lct: LCT) -> bool:
     """Check if all T3 dimensions are non-zero."""
-    return (lct.t3.talent != 0.0
-            and lct.t3.training != 0.0
-            and lct.t3.temperament != 0.0)
+    return lct.t3.talent != 0.0 and lct.t3.training != 0.0 and lct.t3.temperament != 0.0
 
 
 def _has_policy_capability(lct: LCT) -> bool:
@@ -250,9 +265,7 @@ def _has_witnessing(lct: LCT) -> bool:
 
 def _has_nonzero_v3(lct: LCT) -> bool:
     """Check if V3 has non-zero energy (any dimension)."""
-    return (lct.v3.valuation != 0.0
-            or lct.v3.veracity != 0.0
-            or lct.v3.validity != 0.0)
+    return lct.v3.valuation != 0.0 or lct.v3.veracity != 0.0 or lct.v3.validity != 0.0
 
 
 def _has_birth_certificate(lct: LCT) -> bool:
@@ -260,17 +273,12 @@ def _has_birth_certificate(lct: LCT) -> bool:
     bc = lct.birth_certificate
     if bc is None:
         return False
-    return (bool(bc.issuing_society)
-            and bool(bc.citizen_role)
-            and len(bc.birth_witnesses) >= 3)
+    return bool(bc.issuing_society) and bool(bc.citizen_role) and len(bc.birth_witnesses) >= 3
 
 
 def _has_permanent_citizen_pairing(lct: LCT) -> bool:
     """Check if LCT has a permanent citizen role pairing."""
-    return any(
-        p.permanent and "citizen" in p.lct_id
-        for p in lct.mrh.paired
-    )
+    return any(p.permanent and "citizen" in p.lct_id for p in lct.mrh.paired)
 
 
 def _has_hardware_anchor(lct: LCT) -> bool:
@@ -279,6 +287,7 @@ def _has_hardware_anchor(lct: LCT) -> bool:
 
 
 # ── Public API ───────────────────────────────────────────────────
+
 
 def assess_level(lct: LCT) -> CapabilityLevel:
     """
@@ -294,42 +303,45 @@ def assess_level(lct: LCT) -> CapabilityLevel:
         The highest CapabilityLevel the LCT qualifies for.
     """
     # Level 5: Hardware — requires hardware anchor + all Level 4
-    if (_has_hardware_anchor(lct)
-            and _has_birth_certificate(lct)
-            and _has_permanent_citizen_pairing(lct)
-            and _has_witnessing(lct)
-            and _has_nonzero_v3(lct)
-            and _has_mrh_relationship(lct)
-            and _has_nonzero_t3(lct)
-            and _has_policy_capability(lct)
-            and _has_binding(lct)):
+    if (
+        _has_hardware_anchor(lct)
+        and _has_birth_certificate(lct)
+        and _has_permanent_citizen_pairing(lct)
+        and _has_witnessing(lct)
+        and _has_nonzero_v3(lct)
+        and _has_mrh_relationship(lct)
+        and _has_nonzero_t3(lct)
+        and _has_policy_capability(lct)
+        and _has_binding(lct)
+    ):
         return CapabilityLevel.HARDWARE
 
     # Level 4: Full — requires birth certificate + permanent citizen pairing
-    if (_has_birth_certificate(lct)
-            and _has_permanent_citizen_pairing(lct)
-            and _has_witnessing(lct)
-            and _has_nonzero_v3(lct)
-            and _has_mrh_relationship(lct)
-            and _has_nonzero_t3(lct)
-            and _has_policy_capability(lct)
-            and _has_binding(lct)):
+    if (
+        _has_birth_certificate(lct)
+        and _has_permanent_citizen_pairing(lct)
+        and _has_witnessing(lct)
+        and _has_nonzero_v3(lct)
+        and _has_mrh_relationship(lct)
+        and _has_nonzero_t3(lct)
+        and _has_policy_capability(lct)
+        and _has_binding(lct)
+    ):
         return CapabilityLevel.FULL
 
     # Level 3: Standard — requires witnessing + non-zero V3
-    if (_has_witnessing(lct)
-            and _has_nonzero_v3(lct)
-            and _has_mrh_relationship(lct)
-            and _has_nonzero_t3(lct)
-            and _has_policy_capability(lct)
-            and _has_binding(lct)):
+    if (
+        _has_witnessing(lct)
+        and _has_nonzero_v3(lct)
+        and _has_mrh_relationship(lct)
+        and _has_nonzero_t3(lct)
+        and _has_policy_capability(lct)
+        and _has_binding(lct)
+    ):
         return CapabilityLevel.STANDARD
 
     # Level 2: Basic — requires MRH relationship + non-zero T3 + capability
-    if (_has_mrh_relationship(lct)
-            and _has_nonzero_t3(lct)
-            and _has_policy_capability(lct)
-            and _has_binding(lct)):
+    if _has_mrh_relationship(lct) and _has_nonzero_t3(lct) and _has_policy_capability(lct) and _has_binding(lct):
         return CapabilityLevel.BASIC
 
     # Level 1: Minimal — requires binding
@@ -507,6 +519,7 @@ class CapabilityAssessment:
         requirements_met: Whether all requirements for this level are met.
         missing_requirements: List of unmet requirement descriptions.
     """
+
     lct_id: str
     assessed_level: int
     level_name: str

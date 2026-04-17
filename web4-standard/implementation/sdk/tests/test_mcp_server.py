@@ -81,6 +81,7 @@ class TestWeb4Validate:
 
     def test_valid_t3_document(self) -> None:
         from web4.generate import generate
+
         doc = generate("T3Tensor")
         result = web4_validate(json.dumps(doc))
         assert result["valid"] is True
@@ -88,6 +89,7 @@ class TestWeb4Validate:
 
     def test_valid_with_explicit_schema(self) -> None:
         from web4.generate import generate
+
         doc = generate("T3Tensor")
         result = web4_validate(json.dumps(doc), schema_name="t3v3")
         assert result["valid"] is True
@@ -120,6 +122,7 @@ class TestWeb4Validate:
 
     def test_via_mcp_call(self) -> None:
         from web4.generate import generate
+
         doc = generate("ATPAccount")
         result = _call_tool("web4_validate", {"document": json.dumps(doc)})
         assert result["valid"] is True
@@ -154,6 +157,7 @@ class TestWeb4Generate:
 
     def test_generate_all_types(self) -> None:
         from web4.generate import available_types
+
         for type_name in available_types():
             result = web4_generate(type_name)
             assert "error" not in result, f"Failed for {type_name}: {result}"
@@ -175,6 +179,7 @@ class TestWeb4Roundtrip:
 
     def test_roundtrip_t3(self) -> None:
         from web4.generate import generate
+
         doc = generate("T3Tensor")
         result = web4_roundtrip(json.dumps(doc))
         assert result["success"] is True
@@ -186,7 +191,9 @@ class TestWeb4Roundtrip:
 
         # These types use function-based deserialization (return dicts, not objects)
         function_based = {
-            "CapabilityAssessment", "CapabilityFramework", "EntityTypeRegistry",
+            "CapabilityAssessment",
+            "CapabilityFramework",
+            "EntityTypeRegistry",
         }
         for type_name in available_types():
             if type_name in function_based:
@@ -198,6 +205,7 @@ class TestWeb4Roundtrip:
     def test_roundtrip_function_based_types_report_error(self) -> None:
         """Function-based types can't roundtrip (no to_jsonld on the result)."""
         from web4.generate import generate
+
         for type_name in ("CapabilityAssessment", "CapabilityFramework", "EntityTypeRegistry"):
             doc = generate(type_name)
             result = web4_roundtrip(json.dumps(doc))
@@ -220,6 +228,7 @@ class TestWeb4Roundtrip:
 
     def test_via_mcp_call(self) -> None:
         from web4.generate import generate
+
         doc = generate("V3Tensor")
         result = _call_tool("web4_roundtrip", {"document": json.dumps(doc)})
         assert result["success"] is True
@@ -306,16 +315,18 @@ def _make_query_json(
     disclosure: str = "precise",
 ) -> str:
     """Build a TrustQuery JSON string for testing."""
-    return json.dumps({
-        "querier": querier,
-        "target_entity": target,
-        "requested_role": role,
-        "intended_interaction": "test interaction",
-        "atp_stake": stake,
-        "validity_period": validity,
-        "signature": "test-sig-001",
-        "disclosure_level": disclosure,
-    })
+    return json.dumps(
+        {
+            "querier": querier,
+            "target_entity": target,
+            "requested_role": role,
+            "intended_interaction": "test interaction",
+            "atp_stake": stake,
+            "validity_period": validity,
+            "signature": "test-sig-001",
+            "disclosure_level": disclosure,
+        }
+    )
 
 
 class TestWeb4EvaluateTrust:
@@ -325,9 +336,11 @@ class TestWeb4EvaluateTrust:
         result = web4_evaluate_trust(
             query=_make_query_json(),
             profile_entity_id="lct:bob",
-            profile_roles=json.dumps({
-                "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
-            }),
+            profile_roles=json.dumps(
+                {
+                    "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
+                }
+            ),
             atp_balance=1000.0,
         )
         assert result["status"] == "APPROVED"
@@ -340,9 +353,11 @@ class TestWeb4EvaluateTrust:
         result = web4_evaluate_trust(
             query=_make_query_json(disclosure="binary"),
             profile_entity_id="lct:bob",
-            profile_roles=json.dumps({
-                "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
-            }),
+            profile_roles=json.dumps(
+                {
+                    "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
+                }
+            ),
         )
         assert result["status"] == "APPROVED"
         # Binary disclosure doesn't reveal T3 dimensions
@@ -352,9 +367,11 @@ class TestWeb4EvaluateTrust:
         result = web4_evaluate_trust(
             query=_make_query_json(disclosure="range"),
             profile_entity_id="lct:bob",
-            profile_roles=json.dumps({
-                "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
-            }),
+            profile_roles=json.dumps(
+                {
+                    "analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7},
+                }
+            ),
         )
         assert result["status"] == "APPROVED"
         t3 = result["response"]["t3_in_role"]
@@ -415,13 +432,18 @@ class TestWeb4EvaluateTrust:
         assert result["response"]["validity_until"] is not None
 
     def test_via_mcp_call(self) -> None:
-        result = _call_tool("web4_evaluate_trust", {
-            "query": _make_query_json(),
-            "profile_entity_id": "lct:bob",
-            "profile_roles": json.dumps({
-                "analyst": {"talent": 0.85, "training": 0.9, "temperament": 0.75},
-            }),
-        })
+        result = _call_tool(
+            "web4_evaluate_trust",
+            {
+                "query": _make_query_json(),
+                "profile_entity_id": "lct:bob",
+                "profile_roles": json.dumps(
+                    {
+                        "analyst": {"talent": 0.85, "training": 0.9, "temperament": 0.75},
+                    }
+                ),
+            },
+        )
         assert result["status"] == "APPROVED"
 
 
@@ -432,10 +454,7 @@ class TestWeb4EvaluateTrust:
 
 def _make_edges_json(*edges: tuple[str, str, float]) -> str:
     """Build MRH edges JSON. Each tuple is (source, target, weight)."""
-    return json.dumps([
-        {"source": s, "target": t, "relation": "pairedWith", "weight": w}
-        for s, t, w in edges
-    ])
+    return json.dumps([{"source": s, "target": t, "relation": "pairedWith", "weight": w} for s, t, w in edges])
 
 
 class TestWeb4ResolveTrust:
@@ -447,9 +466,11 @@ class TestWeb4ResolveTrust:
             target="lct:alice",
             role="analyst",
             edges="[]",
-            profiles=json.dumps({
-                "lct:alice": {"analyst": {"talent": 0.9, "training": 0.8, "temperament": 0.7}},
-            }),
+            profiles=json.dumps(
+                {
+                    "lct:alice": {"analyst": {"talent": 0.9, "training": 0.8, "temperament": 0.7}},
+                }
+            ),
         )
         assert result["method"] == "direct"
         assert result["path_trust"] == 1.0
@@ -462,9 +483,11 @@ class TestWeb4ResolveTrust:
             target="lct:bob",
             role="analyst",
             edges=_make_edges_json(("lct:alice", "lct:bob", 0.8)),
-            profiles=json.dumps({
-                "lct:bob": {"analyst": {"talent": 0.9, "training": 0.8, "temperament": 0.7}},
-            }),
+            profiles=json.dumps(
+                {
+                    "lct:bob": {"analyst": {"talent": 0.9, "training": 0.8, "temperament": 0.7}},
+                }
+            ),
         )
         assert result["method"] == "indirect"
         assert result["path_trust"] > 0.0
@@ -493,9 +516,11 @@ class TestWeb4ResolveTrust:
                 ("lct:alice", "lct:bob", 0.9),
                 ("lct:bob", "lct:charlie", 0.8),
             ),
-            profiles=json.dumps({
-                "lct:charlie": {"analyst": {"talent": 0.9, "training": 0.9, "temperament": 0.9}},
-            }),
+            profiles=json.dumps(
+                {
+                    "lct:charlie": {"analyst": {"talent": 0.9, "training": 0.9, "temperament": 0.9}},
+                }
+            ),
         )
         assert result["method"] == "indirect"
         assert result["hops"] >= 2
@@ -553,15 +578,20 @@ class TestWeb4ResolveTrust:
         assert "error" in result
 
     def test_via_mcp_call(self) -> None:
-        result = _call_tool("web4_resolve_trust", {
-            "observer": "lct:alice",
-            "target": "lct:bob",
-            "role": "analyst",
-            "edges": _make_edges_json(("lct:alice", "lct:bob", 0.85)),
-            "profiles": json.dumps({
-                "lct:bob": {"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}},
-            }),
-        })
+        result = _call_tool(
+            "web4_resolve_trust",
+            {
+                "observer": "lct:alice",
+                "target": "lct:bob",
+                "role": "analyst",
+                "edges": _make_edges_json(("lct:alice", "lct:bob", 0.85)),
+                "profiles": json.dumps(
+                    {
+                        "lct:bob": {"analyst": {"talent": 0.8, "training": 0.9, "temperament": 0.7}},
+                    }
+                ),
+            },
+        )
         assert result["method"] == "indirect"
         assert result["path_trust"] > 0.0
 
@@ -574,10 +604,18 @@ class TestWeb4ResolveTrust:
 class TestPipeline:
     """Integration tests for the generate → validate → roundtrip pipeline."""
 
-    @pytest.mark.parametrize("type_name", [
-        "T3Tensor", "V3Tensor", "R7Action", "ATPAccount", "AgentPlan",
-        "AttestationEnvelope", "DictionarySpec",
-    ])
+    @pytest.mark.parametrize(
+        "type_name",
+        [
+            "T3Tensor",
+            "V3Tensor",
+            "R7Action",
+            "ATPAccount",
+            "AgentPlan",
+            "AttestationEnvelope",
+            "DictionarySpec",
+        ],
+    )
     def test_generate_validate_roundtrip(self, type_name: str) -> None:
         """Generate a document, validate it, then roundtrip it."""
         # Generate

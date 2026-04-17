@@ -47,6 +47,7 @@ def load_vectors(path: str) -> dict:
 #  T3/V3 TENSOR TESTS (from tensor-operations.json)
 # ══════════════════════════════════════════════════════════════════
 
+
 class TestT3V3Vectors:
     """Tests against t3v3/tensor-operations.json vectors."""
 
@@ -122,7 +123,7 @@ class TestT3V3Vectors:
         expected_factors = v["expected"]["factors"]
         for i, expected in enumerate(expected_factors):
             actual = diminishing_returns(i + 1, inp["base_factor"])
-            assert abs(actual - expected) < v["tolerance"], f"repeat {i+1}: {actual} != {expected}"
+            assert abs(actual - expected) < v["tolerance"], f"repeat {i + 1}: {actual} != {expected}"
 
     # t3v3-008: Trust bridge (6-dim → 3-dim)
     def test_trust_bridge(self):
@@ -161,6 +162,7 @@ class TestT3V3Vectors:
 # ══════════════════════════════════════════════════════════════════
 #  ATP TESTS (from transfer-operations.json)
 # ══════════════════════════════════════════════════════════════════
+
 
 class TestATPVectors:
     """Tests against atp/transfer-operations.json vectors."""
@@ -236,9 +238,7 @@ class TestATPVectors:
 
         assert abs(total_fees - expected["total_fees"]) < tol
         assert abs(sum(final_balances) - expected["final_total"]) < tol
-        assert check_conservation(
-            inp["initial_balances"], final_balances, total_fees, tol
-        )
+        assert check_conservation(inp["initial_balances"], final_balances, total_fees, tol)
 
     # atp-005 through atp-007: Sliding scale
     def test_sliding_scale_below(self):
@@ -320,8 +320,10 @@ class TestATPVectors:
         tol = v["tolerance"]
 
         result = sybil_cost(
-            inp["num_identities"], inp["hardware_cost_per_identity"],
-            inp["atp_stake_per_identity"], inp["transfer_fee_rate"],
+            inp["num_identities"],
+            inp["hardware_cost_per_identity"],
+            inp["atp_stake_per_identity"],
+            inp["transfer_fee_rate"],
         )
         assert abs(result["total_setup_cost"] - expected["total_setup_cost"]) < tol
         assert abs(result["per_identity_cost"] - expected["per_identity_cost"]) < tol
@@ -359,6 +361,7 @@ class TestATPVectors:
 # ══════════════════════════════════════════════════════════════════
 #  LCT TESTS
 # ══════════════════════════════════════════════════════════════════
+
 
 class TestLCT:
     """Tests for LCT creation and operations."""
@@ -427,10 +430,14 @@ class TestLCT:
     def test_canonical_hash_deterministic(self):
         """Same inputs → same hash."""
         kwargs = dict(
-            entity_type=EntityType.AI, public_key="mb64testkey",
-            society="lct:web4:society-genesis", context="platform",
-            witnesses=["w1", "w2", "w3"], timestamp="2026-02-19T00:00:00Z",
-            lct_id="lct:web4:ai:test", subject="did:web4:key:test",
+            entity_type=EntityType.AI,
+            public_key="mb64testkey",
+            society="lct:web4:society-genesis",
+            context="platform",
+            witnesses=["w1", "w2", "w3"],
+            timestamp="2026-02-19T00:00:00Z",
+            lct_id="lct:web4:ai:test",
+            subject="did:web4:key:test",
         )
         lct1 = LCT.create(**kwargs)
         lct2 = LCT.create(**kwargs)
@@ -438,8 +445,10 @@ class TestLCT:
 
     def test_to_dict(self):
         lct = LCT.create(
-            entity_type=EntityType.AI, public_key="k",
-            lct_id="lct:test", subject="did:test",
+            entity_type=EntityType.AI,
+            public_key="k",
+            lct_id="lct:test",
+            subject="did:test",
         )
         d = lct.to_dict()
         assert d["lct_id"] == "lct:test"
@@ -458,6 +467,7 @@ class TestLCT:
 # ══════════════════════════════════════════════════════════════════
 #  TRUST PROFILE TESTS
 # ══════════════════════════════════════════════════════════════════
+
 
 class TestTrustProfile:
     """Tests for role-contextual trust profiles."""

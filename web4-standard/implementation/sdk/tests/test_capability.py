@@ -37,6 +37,7 @@ from web4.trust import T3, V3
 
 # ── Fixtures ─────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def stub_lct():
     """Level 0: no binding, no MRH, no tensors."""
@@ -214,6 +215,7 @@ def hardware_lct():
 
 # ── Level Assessment Tests ───────────────────────────────────────
 
+
 class TestAssessLevel:
     """Test assess_level() returns correct capability level."""
 
@@ -245,6 +247,7 @@ class TestAssessLevel:
 
 
 # ── Validation Tests ─────────────────────────────────────────────
+
 
 class TestValidateLevel:
     """Test validate_level() checks requirements correctly."""
@@ -294,6 +297,7 @@ class TestValidateLevel:
 
 # ── Upgrade Tests ────────────────────────────────────────────────
 
+
 class TestCanUpgrade:
     """Test can_upgrade() checks upgrade constraints."""
 
@@ -327,6 +331,7 @@ class TestCanUpgrade:
 
 # ── Trust Tier Tests ─────────────────────────────────────────────
 
+
 class TestTrustTier:
     """Test trust_tier() mapping."""
 
@@ -356,6 +361,7 @@ class TestTrustTier:
 
 
 # ── Entity-Level Range Tests ─────────────────────────────────────
+
 
 class TestEntityLevelRanges:
     """Test entity type to capability level range mapping."""
@@ -395,6 +401,7 @@ class TestEntityLevelRanges:
 
 # ── Level Requirements Tests ─────────────────────────────────────
 
+
 class TestLevelRequirements:
     """Test level_requirements() returns correct descriptions."""
 
@@ -421,6 +428,7 @@ class TestLevelRequirements:
 
 
 # ── Common Ground Tests ──────────────────────────────────────────
+
 
 class TestCommonGround:
     """Test common_ground() for cross-domain interaction."""

@@ -1,9 +1,37 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-16 (Sprint 37)
+**Updated**: 2026-04-17 (Sprint 38)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 38: Ruff Format Codebase-Wide + CI Enforcement (2026-04-17)
+
+Sprints 35 and 37 both listed `ruff format` codebase-wide + `ruff format --check` in CI
+as an explicit pending follow-up. A prior PR #159 attempted it but was closed
+without merging (bundled accidental session-report artifacts and shipped with
+10 failing `ruff check` lint errors; the lint portion was later fixed independently
+in Sprint 37 T1 / PR #161). Sprint 38 closes the follow-up cleanly on a fresh branch.
+
+### T1: `ruff format` codebase-wide + CI enforcement
+**Status**: DONE
+**Completed**: 2026-04-17
+**Scope**:
+(1) Apply `ruff format` to `web4/` and `tests/test_*.py` (70 files reformatted).
+(2) Extend `.github/workflows/sdk-test.yml` lint job with a new
+`ruff format --check web4/ tests/test_*.py` step immediately after the existing
+`ruff check` step, using the same path scope so the two gates stay aligned.
+(3) No semantic code changes — `ruff format` is purely mechanical (whitespace,
+quote style, line wrapping per line-length=120 in pyproject.toml).
+(4) No pyproject.toml changes.
+(5) Update SESSION_FOCUS.md to correct stale open-PR metadata (PR #159 is CLOSED,
+not pending; add PR #160 which is the only open PR).
+**Result**: `ruff format --check web4/ tests/test_*.py` passes with 0 needed
+changes. CI now enforces both lint (`ruff check`) and formatting (`ruff format --check`)
+on every PR. All 2627 tests pass. `mypy --strict` clean (25 files). 0 new files,
+0 manual source edits.
 
 ---
 
@@ -30,7 +58,7 @@ unused V3 import in mcp_server.py and dead _ATPAccount import in trust.py). All 
 both source and tests. All 2627 tests pass. mypy --strict clean (25 files). 0 new files.
 
 ### Follow-up (not this sprint)
-- `ruff format` codebase-wide (Sprint 36, PR #159 pending review)
+- `ruff format` codebase-wide — ADDRESSED in Sprint 38 (2026-04-17)
 
 ---
 
@@ -56,7 +84,7 @@ to avoid scope expansion.
 regressions (like Sprint 30's 4 bugs) will be caught automatically. 0 new files.
 
 ### Follow-up (not this sprint)
-- `ruff format` codebase-wide (70 files) + `ruff format --check` in CI
+- `ruff format` codebase-wide (70 files) + `ruff format --check` in CI — ADDRESSED in Sprint 38 (2026-04-17)
 
 ---
 

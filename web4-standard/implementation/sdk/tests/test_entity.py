@@ -33,6 +33,7 @@ from web4.lct import EntityType
 
 # ── Registry Completeness ────────────────────────────────────────
 
+
 class TestRegistryCompleteness:
     """Every EntityType must have an entry in the registry."""
 
@@ -57,6 +58,7 @@ class TestRegistryCompleteness:
 
 
 # ── Behavioral Modes ─────────────────────────────────────────────
+
 
 class TestBehavioralModes:
     """Spec §2.2: Agentic, Responsive, Delegative classification."""
@@ -117,27 +119,44 @@ class TestBehavioralModes:
 
 # ── Energy Patterns ──────────────────────────────────────────────
 
+
 class TestEnergyPatterns:
     """Spec §2.3: Active vs Passive energy metabolism."""
 
-    @pytest.mark.parametrize("et", [
-        EntityType.HUMAN, EntityType.AI, EntityType.SOCIETY,
-        EntityType.ORGANIZATION, EntityType.ROLE, EntityType.TASK,
-        EntityType.DEVICE, EntityType.SERVICE, EntityType.ORACLE,
-        EntityType.DICTIONARY, EntityType.HYBRID, EntityType.POLICY,
-    ])
+    @pytest.mark.parametrize(
+        "et",
+        [
+            EntityType.HUMAN,
+            EntityType.AI,
+            EntityType.SOCIETY,
+            EntityType.ORGANIZATION,
+            EntityType.ROLE,
+            EntityType.TASK,
+            EntityType.DEVICE,
+            EntityType.SERVICE,
+            EntityType.ORACLE,
+            EntityType.DICTIONARY,
+            EntityType.HYBRID,
+            EntityType.POLICY,
+        ],
+    )
     def test_active_entities(self, et):
         assert energy_pattern(et) == EnergyPattern.ACTIVE
 
-    @pytest.mark.parametrize("et", [
-        EntityType.RESOURCE, EntityType.ACCUMULATOR,
-        EntityType.INFRASTRUCTURE,
-    ])
+    @pytest.mark.parametrize(
+        "et",
+        [
+            EntityType.RESOURCE,
+            EntityType.ACCUMULATOR,
+            EntityType.INFRASTRUCTURE,
+        ],
+    )
     def test_passive_entities(self, et):
         assert energy_pattern(et) == EnergyPattern.PASSIVE
 
 
 # ── R6 Processing ────────────────────────────────────────────────
+
 
 class TestR6Processing:
     """Spec §2.3: Active resources can process R6; passive cannot."""
@@ -154,6 +173,7 @@ class TestR6Processing:
 
 
 # ── Initiation ───────────────────────────────────────────────────
+
 
 class TestInitiation:
     """Spec §2.2: Who can initiate vs only accept interactions."""
@@ -177,6 +197,7 @@ class TestInitiation:
 
 # ── Interaction Validity ─────────────────────────────────────────
 
+
 class TestInteractionValidity:
     """Spec §5.1: Valid interaction patterns between entity types."""
 
@@ -188,53 +209,34 @@ class TestInteractionValidity:
 
     def test_binding_requires_delegative_source(self):
         # Organization can bind a Role
-        assert valid_interaction(
-            EntityType.ORGANIZATION, EntityType.ROLE, InteractionType.BINDING
-        )
+        assert valid_interaction(EntityType.ORGANIZATION, EntityType.ROLE, InteractionType.BINDING)
         # Human (agentic, not delegative) cannot bind
-        assert not valid_interaction(
-            EntityType.HUMAN, EntityType.ROLE, InteractionType.BINDING
-        )
+        assert not valid_interaction(EntityType.HUMAN, EntityType.ROLE, InteractionType.BINDING)
 
     def test_delegation_requires_delegative_to_agentic(self):
         # Role (delegative) → Human (agentic) = valid
-        assert valid_interaction(
-            EntityType.ROLE, EntityType.HUMAN, InteractionType.DELEGATION
-        )
+        assert valid_interaction(EntityType.ROLE, EntityType.HUMAN, InteractionType.DELEGATION)
         # Role (delegative) → Task (responsive) = invalid
-        assert not valid_interaction(
-            EntityType.ROLE, EntityType.TASK, InteractionType.DELEGATION
-        )
+        assert not valid_interaction(EntityType.ROLE, EntityType.TASK, InteractionType.DELEGATION)
         # Human (agentic) → AI (agentic) = invalid (source not delegative)
-        assert not valid_interaction(
-            EntityType.HUMAN, EntityType.AI, InteractionType.DELEGATION
-        )
+        assert not valid_interaction(EntityType.HUMAN, EntityType.AI, InteractionType.DELEGATION)
 
     def test_pairing_needs_at_least_one_initiator(self):
         # Human ↔ AI = valid (both agentic)
-        assert valid_interaction(
-            EntityType.HUMAN, EntityType.AI, InteractionType.PAIRING
-        )
+        assert valid_interaction(EntityType.HUMAN, EntityType.AI, InteractionType.PAIRING)
         # Human ↔ Service = valid (human can initiate)
-        assert valid_interaction(
-            EntityType.HUMAN, EntityType.SERVICE, InteractionType.PAIRING
-        )
+        assert valid_interaction(EntityType.HUMAN, EntityType.SERVICE, InteractionType.PAIRING)
         # Infrastructure ↔ Accumulator = invalid (neither can initiate)
-        assert not valid_interaction(
-            EntityType.INFRASTRUCTURE, EntityType.ACCUMULATOR, InteractionType.PAIRING
-        )
+        assert not valid_interaction(EntityType.INFRASTRUCTURE, EntityType.ACCUMULATOR, InteractionType.PAIRING)
 
     def test_society_can_bind_and_delegate(self):
         """Society is delegative: can bind roles and delegate to agents."""
-        assert valid_interaction(
-            EntityType.SOCIETY, EntityType.ROLE, InteractionType.BINDING
-        )
-        assert valid_interaction(
-            EntityType.SOCIETY, EntityType.AI, InteractionType.DELEGATION
-        )
+        assert valid_interaction(EntityType.SOCIETY, EntityType.ROLE, InteractionType.BINDING)
+        assert valid_interaction(EntityType.SOCIETY, EntityType.AI, InteractionType.DELEGATION)
 
 
 # ── Test Vectors ─────────────────────────────────────────────────
+
 
 class TestVectors:
     """Cross-language test vector validation."""
@@ -242,8 +244,7 @@ class TestVectors:
     @pytest.fixture
     def vectors(self):
         vec_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..",
-            "test-vectors", "entity", "entity-taxonomy.json"
+            os.path.dirname(__file__), "..", "..", "..", "test-vectors", "entity", "entity-taxonomy.json"
         )
         with open(vec_path) as f:
             return json.load(f)
@@ -276,6 +277,5 @@ class TestVectors:
                 expected = interaction["valid"]
                 actual = valid_interaction(et, target, itype)
                 assert actual == expected, (
-                    f"{et.value} → {target.value} via {itype.value}: "
-                    f"expected {expected}, got {actual}"
+                    f"{et.value} → {target.value} via {itype.value}: expected {expected}, got {actual}"
                 )

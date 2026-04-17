@@ -139,17 +139,14 @@ def get_schema_dir() -> Path:
         p = Path(env_dir)
         if p.is_dir():
             return p
-        raise SchemaNotFound(
-            f"WEB4_SCHEMA_DIR={env_dir!r} does not exist or is not a directory"
-        )
+        raise SchemaNotFound(f"WEB4_SCHEMA_DIR={env_dir!r} does not exist or is not a directory")
 
     found = _find_schema_dir()
     if found is not None:
         return found
 
     raise SchemaNotFound(
-        "Cannot locate web4-standard/schemas/. "
-        "Set WEB4_SCHEMA_DIR or run from a web4 repository checkout."
+        "Cannot locate web4-standard/schemas/. Set WEB4_SCHEMA_DIR or run from a web4 repository checkout."
     )
 
 
@@ -217,9 +214,7 @@ def _load_schema(name: str, schema_dir: Optional[Path] = None) -> Dict[str, Any]
 
     filename = _SCHEMA_FILES.get(name)
     if filename is None:
-        raise SchemaNotFound(
-            f"Unknown schema {name!r}. Available: {', '.join(sorted(_SCHEMA_FILES))}"
-        )
+        raise SchemaNotFound(f"Unknown schema {name!r}. Available: {', '.join(sorted(_SCHEMA_FILES))}")
 
     # Try bundled registry first (works in wheels).
     registry = _load_bundled_registry()

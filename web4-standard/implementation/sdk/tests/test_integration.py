@@ -57,7 +57,9 @@ class TestEntityLifecycle:
         # Society with law
         society = Society("lct:web4:society:acme", "ACME")
         law = LawDataset(
-            law_id="law:acme:v1", version="1.0", society_id=society.society_id,
+            law_id="law:acme:v1",
+            version="1.0",
+            society_id=society.society_id,
             procedures=[Procedure(procedure_id="PROC-WITNESS-QUORUM", requires_witnesses=2)],
         )
         society.set_law(law)
@@ -92,8 +94,10 @@ class TestEntityLifecycle:
         """Revoked LCT should still have tensors but is_active is False."""
         society = Society("lct:web4:society:test", "Test")
         lct = society.issue_citizenship(
-            entity_type=EntityType.AI, public_key="ai_key_001",
-            t3=T3(0.9, 0.9, 0.9), v3=V3(0.9, 0.9, 0.9),
+            entity_type=EntityType.AI,
+            public_key="ai_key_001",
+            t3=T3(0.9, 0.9, 0.9),
+            v3=V3(0.9, 0.9, 0.9),
         )
         assert lct.is_active
         lct.revoke()
@@ -148,10 +152,18 @@ class TestFederationGovernsATP:
         """Society law defines max ATP transfer; check before executing."""
         society = Society("lct:web4:society:regulated", "Regulated Corp")
         law = LawDataset(
-            law_id="law:regulated:v1", version="1.0",
+            law_id="law:regulated:v1",
+            version="1.0",
             society_id=society.society_id,
-            norms=[Norm(norm_id="LAW-ATP-LIMIT", selector="r6.resource.atp",
-                        op="<=", value=500.0, description="Max 500 ATP per transfer")],
+            norms=[
+                Norm(
+                    norm_id="LAW-ATP-LIMIT",
+                    selector="r6.resource.atp",
+                    op="<=",
+                    value=500.0,
+                    description="Max 500 ATP per transfer",
+                )
+            ],
         )
         society.set_law(law)
 
@@ -175,26 +187,31 @@ class TestFederationGovernsATP:
         """High-value operations require witness quorum per law."""
         society = Society("lct:web4:society:strict", "Strict Corp")
         law = LawDataset(
-            law_id="law:strict:v1", version="1.0",
+            law_id="law:strict:v1",
+            version="1.0",
             society_id=society.society_id,
-            procedures=[Procedure(
-                procedure_id="PROC-WITNESS-QUORUM",
-                requires_witnesses=3,
-                description="3 witnesses for citizenship",
-            )],
+            procedures=[
+                Procedure(
+                    procedure_id="PROC-WITNESS-QUORUM",
+                    requires_witnesses=3,
+                    description="3 witnesses for citizenship",
+                )
+            ],
         )
         society.set_law(law)
 
         # Insufficient witnesses → rejected
         with pytest.raises(ValueError, match="Insufficient witnesses"):
             society.issue_citizenship(
-                entity_type=EntityType.HUMAN, public_key="bob_key",
+                entity_type=EntityType.HUMAN,
+                public_key="bob_key",
                 witnesses=["w1", "w2"],  # need 3
             )
 
         # Sufficient witnesses → accepted
         bob = society.issue_citizenship(
-            entity_type=EntityType.HUMAN, public_key="bob_key",
+            entity_type=EntityType.HUMAN,
+            public_key="bob_key",
             witnesses=["w1", "w2", "w3"],
         )
         assert society.is_citizen(bob.lct_id)
@@ -208,19 +225,24 @@ class TestDelegationWithTrust:
         society = Society("lct:web4:society:auth", "AuthCorp")
         with pytest.raises(ValueError, match="not a citizen"):
             society.delegate_authority(
-                "lct:unknown:entity", scope="finance", permissions=["approve_atp"],
+                "lct:unknown:entity",
+                scope="finance",
+                permissions=["approve_atp"],
             )
 
     def test_delegate_with_trust_profile(self):
         """Citizen gets delegation; trust profile tracks role-specific trust."""
         society = Society("lct:web4:society:corp", "Corp")
         alice = society.issue_citizenship(
-            entity_type=EntityType.HUMAN, public_key="alice_key",
+            entity_type=EntityType.HUMAN,
+            public_key="alice_key",
         )
 
         # Delegate authority
         _deleg = society.delegate_authority(
-            alice.lct_id, scope="finance", permissions=["approve_atp", "view_ledger"],
+            alice.lct_id,
+            scope="finance",
+            permissions=["approve_atp", "view_ledger"],
         )
 
         # Trust profile tracks role-specific trust
@@ -241,7 +263,8 @@ class TestDelegationWithTrust:
 
         # Alice gets broad delegation
         deleg = society.delegate_authority(
-            alice.lct_id, scope="finance",
+            alice.lct_id,
+            scope="finance",
             permissions=["approve_atp", "view_ledger", "audit"],
             max_depth=2,
         )
@@ -307,8 +330,7 @@ class TestMRHTrustDecayWithLCT:
     def test_witness_chain_trust_decay(self):
         """Trust decays along witness chain: direct → indirect → peripheral."""
         society = Society("lct:web4:society:net", "Network")
-        alice = society.issue_citizenship(EntityType.HUMAN, "alice_key",
-                                          t3=T3(0.9, 0.9, 0.9))
+        alice = society.issue_citizenship(EntityType.HUMAN, "alice_key", t3=T3(0.9, 0.9, 0.9))
 
         base_trust = alice.t3.composite  # ~0.9
 
@@ -360,10 +382,10 @@ class TestFractalSocietyCitizenship:
         """Child society inherits parent law when no local law is set."""
         parent = Society("lct:web4:society:parent", "Parent Org")
         parent_law = LawDataset(
-            law_id="law:parent:v1", version="1.0",
+            law_id="law:parent:v1",
+            version="1.0",
             society_id=parent.society_id,
-            norms=[Norm(norm_id="LAW-GLOBAL", selector="trust.min",
-                        op=">=", value=0.3)],
+            norms=[Norm(norm_id="LAW-GLOBAL", selector="trust.min", op=">=", value=0.3)],
         )
         parent.set_law(parent_law)
 
@@ -379,16 +401,24 @@ class TestFractalSocietyCitizenship:
     def test_child_overrides_parent_law(self):
         """Child law takes precedence over parent law."""
         parent = Society("lct:web4:society:p", "Parent")
-        parent.set_law(LawDataset(
-            law_id="law:p:v1", version="1.0", society_id=parent.society_id,
-            norms=[Norm(norm_id="LAW-LIMIT", selector="atp", op="<=", value=1000)],
-        ))
+        parent.set_law(
+            LawDataset(
+                law_id="law:p:v1",
+                version="1.0",
+                society_id=parent.society_id,
+                norms=[Norm(norm_id="LAW-LIMIT", selector="atp", op="<=", value=1000)],
+            )
+        )
 
         child = Society("lct:web4:society:c", "Child", parent=parent)
-        child.set_law(LawDataset(
-            law_id="law:c:v1", version="1.0", society_id=child.society_id,
-            norms=[Norm(norm_id="LAW-LIMIT", selector="atp", op="<=", value=500)],
-        ))
+        child.set_law(
+            LawDataset(
+                law_id="law:c:v1",
+                version="1.0",
+                society_id=child.society_id,
+                norms=[Norm(norm_id="LAW-LIMIT", selector="atp", op="<=", value=500)],
+            )
+        )
 
         # Child's own law is stricter
         assert child.effective_law().check_norm("LAW-LIMIT", 750) is False
@@ -425,13 +455,12 @@ class TestEndToEndWorkflow:
         # 1. Create society with law
         society = Society("lct:web4:society:demo", "Demo")
         law = LawDataset(
-            law_id="law:demo:v1", version="1.0",
+            law_id="law:demo:v1",
+            version="1.0",
             society_id=society.society_id,
             norms=[
-                Norm(norm_id="LAW-ATP-MAX", selector="atp.transfer",
-                     op="<=", value=200.0),
-                Norm(norm_id="LAW-TRUST-MIN", selector="trust.composite",
-                     op=">=", value=0.3),
+                Norm(norm_id="LAW-ATP-MAX", selector="atp.transfer", op="<=", value=200.0),
+                Norm(norm_id="LAW-TRUST-MIN", selector="trust.composite", op=">=", value=0.3),
             ],
             procedures=[
                 Procedure(procedure_id="PROC-WITNESS-QUORUM", requires_witnesses=2),
@@ -441,13 +470,15 @@ class TestEndToEndWorkflow:
 
         # 2. Issue citizens with trust
         alice = society.issue_citizenship(
-            EntityType.HUMAN, "alice_pub",
+            EntityType.HUMAN,
+            "alice_pub",
             witnesses=["w1", "w2"],
             t3=T3(0.85, 0.80, 0.90),
             v3=V3(0.70, 0.85, 0.80),
         )
         bob = society.issue_citizenship(
-            EntityType.AI, "bob_pub",
+            EntityType.AI,
+            "bob_pub",
             witnesses=["w1", "w2"],
             t3=T3(0.70, 0.75, 0.65),
             v3=V3(0.60, 0.70, 0.65),
@@ -455,7 +486,9 @@ class TestEndToEndWorkflow:
 
         # 3. Delegate authority to Alice
         _deleg = society.delegate_authority(
-            alice.lct_id, scope="finance", permissions=["approve_atp"],
+            alice.lct_id,
+            scope="finance",
+            permissions=["approve_atp"],
         )
         assert society.has_permission(alice.lct_id, "finance", "approve_atp")
         assert not society.has_permission(bob.lct_id, "finance", "approve_atp")
@@ -529,11 +562,11 @@ class TestAgentActionWorkflow:
         """Create society, principal, and AI agent with delegation."""
         society = Society("lct:web4:society:ops", "Operations")
         law = LawDataset(
-            law_id="law:ops:v1", version="1.0",
+            law_id="law:ops:v1",
+            version="1.0",
             society_id=society.society_id,
             norms=[
-                Norm(norm_id="LAW-ATP-CAP", selector="atp.transfer",
-                     op="<=", value=500.0),
+                Norm(norm_id="LAW-ATP-CAP", selector="atp.transfer", op="<=", value=500.0),
             ],
             procedures=[
                 Procedure(procedure_id="PROC-WITNESS", requires_witnesses=1),
@@ -543,13 +576,15 @@ class TestAgentActionWorkflow:
 
         # Principal (human) and agent (AI)
         principal = society.issue_citizenship(
-            EntityType.HUMAN, "principal_key",
+            EntityType.HUMAN,
+            "principal_key",
             witnesses=["w1"],
             t3=T3(0.9, 0.85, 0.88),
             v3=V3(0.8, 0.9, 0.85),
         )
         agent = society.issue_citizenship(
-            EntityType.AI, "agent_key",
+            EntityType.AI,
+            "agent_key",
             witnesses=["w1"],
             t3=T3(0.75, 0.80, 0.70),
             v3=V3(0.65, 0.75, 0.70),
@@ -557,7 +592,8 @@ class TestAgentActionWorkflow:
 
         # Delegate authority from principal to agent
         deleg = society.delegate_authority(
-            agent.lct_id, scope="data_processing",
+            agent.lct_id,
+            scope="data_processing",
             permissions=["query_data", "transform_data"],
         )
 
@@ -578,17 +614,14 @@ class TestAgentActionWorkflow:
             grant_id=deleg.delegation_id,
             triggers=[Trigger(kind=TriggerKind.MANUAL, expr="user_request")],
             steps=[
-                PlanStep(step_id="s1", mcp_tool="data.query",
-                         args={"table": "sensors", "limit": 100}),
-                PlanStep(step_id="s2", mcp_tool="data.transform",
-                         args={"format": "json"}, depends_on=["s1"]),
+                PlanStep(step_id="s1", mcp_tool="data.query", args={"table": "sensors", "limit": 100}),
+                PlanStep(step_id="s2", mcp_tool="data.transform", args={"format": "json"}, depends_on=["s1"]),
             ],
             guards=Guards(
                 law_hash="law:ops:v1",
                 resource_caps=ResourceCaps(max_atp=200.0, max_executions=10),
                 witness_level=1,
-                human_approval=HumanApproval(mode=ApprovalMode.CONDITIONAL,
-                                             auto_threshold=100.0),
+                human_approval=HumanApproval(mode=ApprovalMode.CONDITIONAL, auto_threshold=100.0),
             ),
         )
         assert validate_plan(plan) == []  # Valid plan
@@ -680,50 +713,62 @@ class TestAgentActionWorkflow:
         graph = MRHGraph(horizon_depth=3)
 
         # Add nodes
-        graph.add_node(MRHNode(
-            lct_id=society.society_id,
-            entity_type="society",
-            trust_scores={"governance": 1.0},
-        ))
-        graph.add_node(MRHNode(
-            lct_id=principal.lct_id,
-            entity_type="human",
-            trust_scores={
-                "talent": principal.t3.talent,
-                "training": principal.t3.training,
-                "temperament": principal.t3.temperament,
-            },
-        ))
-        graph.add_node(MRHNode(
-            lct_id=agent.lct_id,
-            entity_type="ai",
-            trust_scores={
-                "talent": agent.t3.talent,
-                "training": agent.t3.training,
-                "temperament": agent.t3.temperament,
-            },
-        ))
+        graph.add_node(
+            MRHNode(
+                lct_id=society.society_id,
+                entity_type="society",
+                trust_scores={"governance": 1.0},
+            )
+        )
+        graph.add_node(
+            MRHNode(
+                lct_id=principal.lct_id,
+                entity_type="human",
+                trust_scores={
+                    "talent": principal.t3.talent,
+                    "training": principal.t3.training,
+                    "temperament": principal.t3.temperament,
+                },
+            )
+        )
+        graph.add_node(
+            MRHNode(
+                lct_id=agent.lct_id,
+                entity_type="ai",
+                trust_scores={
+                    "talent": agent.t3.talent,
+                    "training": agent.t3.training,
+                    "temperament": agent.t3.temperament,
+                },
+            )
+        )
 
         # Add edges: society → principal (citizenship), principal → agent (delegation)
-        graph.add_edge(MRHEdge(
-            source=society.society_id,
-            target=principal.lct_id,
-            relation=RelationType.PARENT_BINDING,
-            weight=0.95,
-        ))
-        graph.add_edge(MRHEdge(
-            source=principal.lct_id,
-            target=agent.lct_id,
-            relation=RelationType.SERVICE_PAIRING,
-            weight=0.8,
-        ))
+        graph.add_edge(
+            MRHEdge(
+                source=society.society_id,
+                target=principal.lct_id,
+                relation=RelationType.PARENT_BINDING,
+                weight=0.95,
+            )
+        )
+        graph.add_edge(
+            MRHEdge(
+                source=principal.lct_id,
+                target=agent.lct_id,
+                relation=RelationType.SERVICE_PAIRING,
+                weight=0.8,
+            )
+        )
         # Agent witnesses principal (trust-building observation)
-        graph.add_edge(MRHEdge(
-            source=agent.lct_id,
-            target=principal.lct_id,
-            relation=RelationType.WITNESSED_BY,
-            weight=0.85,
-        ))
+        graph.add_edge(
+            MRHEdge(
+                source=agent.lct_id,
+                target=principal.lct_id,
+                relation=RelationType.WITNESSED_BY,
+                weight=0.85,
+            )
+        )
 
         assert graph.node_count == 3
         assert graph.edge_count == 3
@@ -757,8 +802,10 @@ class TestAgentActionWorkflow:
             role_lct="role:data-processor",
             action="query_data",
             target="sensors",
-            t3=agent.t3, v3=agent.v3,
-            atp_stake=10.0, available_atp=200.0,
+            t3=agent.t3,
+            v3=agent.v3,
+            atp_stake=10.0,
+            available_atp=200.0,
             permissions=["query_data"],
             society=society.society_id,
         )
@@ -775,8 +822,10 @@ class TestAgentActionWorkflow:
             role_lct="role:data-processor",
             action="transform_data",
             target="sensors_output",
-            t3=agent.t3, v3=agent.v3,
-            atp_stake=5.0, available_atp=190.0,
+            t3=agent.t3,
+            v3=agent.v3,
+            atp_stake=5.0,
+            available_atp=190.0,
             permissions=["transform_data"],
             society=society.society_id,
         )
@@ -794,10 +843,7 @@ class TestAgentActionWorkflow:
         assert a1.canonical_hash() != a2.canonical_hash()
 
         # Total ATP consumed across chain
-        total_atp = sum(
-            a.result.atp_consumed for a in chain.actions
-            if a.result and a.result.atp_consumed
-        )
+        total_atp = sum(a.result.atp_consumed for a in chain.actions if a.result and a.result.atp_consumed)
         assert total_atp == 15.0
 
 
@@ -819,14 +865,22 @@ class TestDictionaryTranslationWorkflow:
         """
         # Create a society for dictionary governance
         society = Society("lct:web4:society:standards", "Standards Body")
-        society.set_law(LawDataset(
-            law_id="law:standards:v1", version="1.0",
-            society_id=society.society_id,
-            norms=[
-                Norm(norm_id="LAW-FIDELITY", selector="translation.confidence",
-                     op=">=", value=0.7, description="Min translation fidelity"),
-            ],
-        ))
+        society.set_law(
+            LawDataset(
+                law_id="law:standards:v1",
+                version="1.0",
+                society_id=society.society_id,
+                norms=[
+                    Norm(
+                        norm_id="LAW-FIDELITY",
+                        selector="translation.confidence",
+                        op=">=",
+                        value=0.7,
+                        description="Min translation fidelity",
+                    ),
+                ],
+            )
+        )
 
         # Create medical→legal dictionary entity
         med_legal = DictionaryEntity.create(
@@ -936,38 +990,67 @@ class TestDictionaryTranslationWorkflow:
         graph = MRHGraph(horizon_depth=3)
         graph.add_node(MRHNode(lct_id=med_legal.lct_id, entity_type="dictionary"))
         graph.add_node(MRHNode(lct_id=legal_reg.lct_id, entity_type="dictionary"))
-        graph.add_node(MRHNode(
-            lct_id="lct:web4:domain:medical", entity_type="domain",
-        ))
-        graph.add_node(MRHNode(
-            lct_id="lct:web4:domain:legal", entity_type="domain",
-        ))
-        graph.add_node(MRHNode(
-            lct_id="lct:web4:domain:regulatory", entity_type="domain",
-        ))
+        graph.add_node(
+            MRHNode(
+                lct_id="lct:web4:domain:medical",
+                entity_type="domain",
+            )
+        )
+        graph.add_node(
+            MRHNode(
+                lct_id="lct:web4:domain:legal",
+                entity_type="domain",
+            )
+        )
+        graph.add_node(
+            MRHNode(
+                lct_id="lct:web4:domain:regulatory",
+                entity_type="domain",
+            )
+        )
 
         # Dictionaries are bound to their domains
-        graph.add_edge(MRHEdge(
-            source=med_legal.lct_id, target="lct:web4:domain:medical",
-            relation=RelationType.BOUND_TO, weight=1.0,
-        ))
-        graph.add_edge(MRHEdge(
-            source=med_legal.lct_id, target="lct:web4:domain:legal",
-            relation=RelationType.BOUND_TO, weight=1.0,
-        ))
-        graph.add_edge(MRHEdge(
-            source=legal_reg.lct_id, target="lct:web4:domain:legal",
-            relation=RelationType.BOUND_TO, weight=1.0,
-        ))
-        graph.add_edge(MRHEdge(
-            source=legal_reg.lct_id, target="lct:web4:domain:regulatory",
-            relation=RelationType.BOUND_TO, weight=1.0,
-        ))
+        graph.add_edge(
+            MRHEdge(
+                source=med_legal.lct_id,
+                target="lct:web4:domain:medical",
+                relation=RelationType.BOUND_TO,
+                weight=1.0,
+            )
+        )
+        graph.add_edge(
+            MRHEdge(
+                source=med_legal.lct_id,
+                target="lct:web4:domain:legal",
+                relation=RelationType.BOUND_TO,
+                weight=1.0,
+            )
+        )
+        graph.add_edge(
+            MRHEdge(
+                source=legal_reg.lct_id,
+                target="lct:web4:domain:legal",
+                relation=RelationType.BOUND_TO,
+                weight=1.0,
+            )
+        )
+        graph.add_edge(
+            MRHEdge(
+                source=legal_reg.lct_id,
+                target="lct:web4:domain:regulatory",
+                relation=RelationType.BOUND_TO,
+                weight=1.0,
+            )
+        )
         # Dictionaries witness each other through shared domain (legal)
-        graph.add_edge(MRHEdge(
-            source=med_legal.lct_id, target=legal_reg.lct_id,
-            relation=RelationType.DATA_PAIRING, weight=0.8,
-        ))
+        graph.add_edge(
+            MRHEdge(
+                source=med_legal.lct_id,
+                target=legal_reg.lct_id,
+                relation=RelationType.DATA_PAIRING,
+                weight=0.8,
+            )
+        )
 
         assert graph.node_count == 5
         assert graph.edge_count == 5
@@ -1070,13 +1153,15 @@ class TestDictionaryTranslationWorkflow:
 
         # Create competing dictionaries
         dict_a = DictionaryEntity.create(
-            source_domain="engineering", target_domain="finance",
+            source_domain="engineering",
+            target_domain="finance",
             public_key="dict_a_key",
             coverage=DomainCoverage(terms=800, concepts=200, relationships=150),
             t3=T3(0.90, 0.85, 0.88),
         )
         dict_b = DictionaryEntity.create(
-            source_domain="engineering", target_domain="finance",
+            source_domain="engineering",
+            target_domain="finance",
             public_key="dict_b_key",
             coverage=DomainCoverage(terms=400, concepts=100, relationships=70),
             t3=T3(0.75, 0.70, 0.80),
@@ -1113,8 +1198,8 @@ class TestDictionaryTranslationWorkflow:
         trust_2hop = mrh_trust_decay(base_trust, hops=2)
 
         assert trust_direct == base_trust  # No decay at source
-        assert trust_1hop < trust_direct   # Decays at 1 hop
-        assert trust_2hop < trust_1hop     # Further decay
+        assert trust_1hop < trust_direct  # Decays at 1 hop
+        assert trust_2hop < trust_1hop  # Further decay
 
         # Zone classification
         assert mrh_zone(0) == "SELF"
@@ -1335,7 +1420,9 @@ class TestSecurityProtocolMCPWorkflow:
             name="data.query",
             description="Query research datasets",
             resource_requirements=MCPResourceRequirements(
-                compute="medium", memory="2GB", atp_cost=25,
+                compute="medium",
+                memory="2GB",
+                atp_cost=25,
             ),
             trust_requirements=MCPTrustRequirements(
                 minimum_t3={"talent": 0.7, "training": 0.6},
@@ -1369,7 +1456,9 @@ class TestSecurityProtocolMCPWorkflow:
         assert cost > 100  # Complexity increases cost
         # But trust discount partially offsets
         cost_no_trust = calculate_mcp_cost(
-            base_cost=100, trust_average=0.0, complexity_factor=1.5,
+            base_cost=100,
+            trust_average=0.0,
+            complexity_factor=1.5,
         )
         assert cost <= cost_no_trust  # Trust earns discount
 
@@ -1496,7 +1585,9 @@ class TestDeviceBindingCapabilitySocietyWorkflow:
 
         # Cross-witness for mesh trust
         record_cross_witness(
-            constellation, "dev:phone:alice-001", "dev:laptop:alice-001",
+            constellation,
+            "dev:phone:alice-001",
+            "dev:laptop:alice-001",
             "2026-03-18T12:02:00Z",
         )
 
@@ -1512,7 +1603,8 @@ class TestDeviceBindingCapabilitySocietyWorkflow:
 
         # Recovery quorum
         assert check_recovery_quorum(
-            constellation, ["dev:phone:alice-001", "dev:laptop:alice-001"],
+            constellation,
+            ["dev:phone:alice-001", "dev:laptop:alice-001"],
         )
 
         # 4. Assess LCT capability level
@@ -1568,14 +1660,17 @@ class TestDeviceBindingCapabilitySocietyWorkflow:
 
         # 8. Treasury operations
         deposit_treasury(
-            society_state, amount=200.0,
+            society_state,
+            amount=200.0,
             timestamp="2026-03-18T12:06:00Z",
             source="membership_fee",
         )
         assert society_state.treasury.balance == 1200.0
 
         allocated = allocate_treasury(
-            society_state, entity_lct=alice_lct.lct_id, amount=50.0,
+            society_state,
+            entity_lct=alice_lct.lct_id,
+            amount=50.0,
             timestamp="2026-03-18T12:07:00Z",
             purpose="onboarding_grant",
         )
@@ -1635,26 +1730,33 @@ class TestReputationEntityErrorWorkflow:
 
         # Pairing is valid: human ↔ AI (both can initiate)
         assert valid_interaction(
-            EntityType.HUMAN, EntityType.AI, InteractionType.PAIRING,
+            EntityType.HUMAN,
+            EntityType.AI,
+            InteractionType.PAIRING,
         )
         # Delegation is valid: society → AI (delegative → agentic)
         assert valid_interaction(
-            EntityType.SOCIETY, EntityType.AI, InteractionType.DELEGATION,
+            EntityType.SOCIETY,
+            EntityType.AI,
+            InteractionType.DELEGATION,
         )
 
         # 2. Create society and citizen
         society = Society("lct:web4:society:analytics", "Analytics Dept")
-        society.set_law(LawDataset(
-            law_id="law:analytics:v1", version="1.0",
-            society_id=society.society_id,
-            norms=[
-                Norm(norm_id="LAW-TRUST-MIN", selector="trust.composite",
-                     op=">=", value=0.6),
-            ],
-        ))
+        society.set_law(
+            LawDataset(
+                law_id="law:analytics:v1",
+                version="1.0",
+                society_id=society.society_id,
+                norms=[
+                    Norm(norm_id="LAW-TRUST-MIN", selector="trust.composite", op=">=", value=0.6),
+                ],
+            )
+        )
 
         agent = society.issue_citizenship(
-            EntityType.AI, "agent_analytics_key",
+            EntityType.AI,
+            "agent_analytics_key",
             t3=T3(0.72, 0.68, 0.75),
             v3=V3(0.65, 0.70, 0.68),
         )
@@ -1662,29 +1764,39 @@ class TestReputationEntityErrorWorkflow:
 
         # 3. Configure reputation engine
         engine = ReputationEngine()
-        engine.add_rule(ReputationRule(
-            rule_id="RULE-SUCCESS-BOOST",
-            trigger_conditions={"result_status": "success"},
-            t3_impacts={
-                "talent": DimensionImpact(base_delta=0.03, modifiers=[
-                    Modifier(condition="high_quality", multiplier=1.5),
-                ]),
-                "training": DimensionImpact(base_delta=0.02, modifiers=[]),
-            },
-            v3_impacts={
-                "veracity": DimensionImpact(base_delta=0.02, modifiers=[]),
-            },
-        ))
-        engine.add_rule(ReputationRule(
-            rule_id="RULE-FAILURE-PENALTY",
-            trigger_conditions={"result_status": "failure"},
-            t3_impacts={
-                "temperament": DimensionImpact(base_delta=-0.08, modifiers=[
-                    Modifier(condition="repeat_offender", multiplier=2.0),
-                ]),
-            },
-            v3_impacts={},
-        ))
+        engine.add_rule(
+            ReputationRule(
+                rule_id="RULE-SUCCESS-BOOST",
+                trigger_conditions={"result_status": "success"},
+                t3_impacts={
+                    "talent": DimensionImpact(
+                        base_delta=0.03,
+                        modifiers=[
+                            Modifier(condition="high_quality", multiplier=1.5),
+                        ],
+                    ),
+                    "training": DimensionImpact(base_delta=0.02, modifiers=[]),
+                },
+                v3_impacts={
+                    "veracity": DimensionImpact(base_delta=0.02, modifiers=[]),
+                },
+            )
+        )
+        engine.add_rule(
+            ReputationRule(
+                rule_id="RULE-FAILURE-PENALTY",
+                trigger_conditions={"result_status": "failure"},
+                t3_impacts={
+                    "temperament": DimensionImpact(
+                        base_delta=-0.08,
+                        modifiers=[
+                            Modifier(condition="repeat_offender", multiplier=2.0),
+                        ],
+                    ),
+                },
+                v3_impacts={},
+            )
+        )
         assert len(engine.rules) == 2
 
         # 4. Agent performs successful R7 action
@@ -1693,8 +1805,10 @@ class TestReputationEntityErrorWorkflow:
             role_lct="role:data-analyst",
             action="analyze_dataset",
             target="customer_segments",
-            t3=agent.t3, v3=agent.v3,
-            atp_stake=15.0, available_atp=100.0,
+            t3=agent.t3,
+            v3=agent.v3,
+            atp_stake=15.0,
+            available_atp=100.0,
             permissions=["analyze_dataset"],
             society=society.society_id,
             law_hash="law:analytics:v1",
@@ -1719,7 +1833,9 @@ class TestReputationEntityErrorWorkflow:
         store.record(delta)
 
         rep_talent = store.effective_reputation(
-            agent.lct_id, "role:data-analyst", "talent",
+            agent.lct_id,
+            "role:data-analyst",
+            "talent",
         )
         assert rep_talent > 0  # Positive reputation from success
 
@@ -1731,7 +1847,9 @@ class TestReputationEntityErrorWorkflow:
         agent_atp = ATPAccount(available=85.0)
         agent_atp.adp = 15.0  # Work was done
         health = operational_health(
-            updated_t3.composite, agent.v3.composite, agent_atp.energy_ratio,
+            updated_t3.composite,
+            agent.v3.composite,
+            agent_atp.energy_ratio,
         )
         assert health > 0.5
 
@@ -1753,10 +1871,13 @@ class TestReputationEntityErrorWorkflow:
 
         # Check trust requirements (MCP-style)
         high_req = MCPTrustRequirements(
-            minimum_t3=required_trust, atp_stake=50,
+            minimum_t3=required_trust,
+            atp_stake=50,
         )
         assert not high_req.is_met(
-            t3=actual_trust, atp_available=100, role="web4:DataAnalyst",
+            t3=actual_trust,
+            atp_available=100,
+            role="web4:DataAnalyst",
         )
 
         # 10. Produce structured error (AUTHZ_DENIED = insufficient trust)
@@ -1798,24 +1919,33 @@ class TestReputationEntityErrorWorkflow:
 
         # 12. MRH tracks the relationship context
         graph = MRHGraph(horizon_depth=3)
-        graph.add_node(MRHNode(
-            lct_id=agent.lct_id, entity_type="ai",
-            trust_scores={"talent": agent.t3.talent},
-        ))
-        graph.add_node(MRHNode(
-            lct_id="lct:web4:human:supervisor", entity_type="human",
-            trust_scores={"talent": 0.95},
-        ))
-        graph.add_edge(MRHEdge(
-            source="lct:web4:human:supervisor",
-            target=agent.lct_id,
-            relation=RelationType.SERVICE_PAIRING,
-            weight=0.8,
-        ))
+        graph.add_node(
+            MRHNode(
+                lct_id=agent.lct_id,
+                entity_type="ai",
+                trust_scores={"talent": agent.t3.talent},
+            )
+        )
+        graph.add_node(
+            MRHNode(
+                lct_id="lct:web4:human:supervisor",
+                entity_type="human",
+                trust_scores={"talent": 0.95},
+            )
+        )
+        graph.add_edge(
+            MRHEdge(
+                source="lct:web4:human:supervisor",
+                target=agent.lct_id,
+                relation=RelationType.SERVICE_PAIRING,
+                weight=0.8,
+            )
+        )
 
         # Trust propagation through the supervision relationship
         trust = graph.trust_between(
-            "lct:web4:human:supervisor", agent.lct_id,
+            "lct:web4:human:supervisor",
+            agent.lct_id,
         )
         assert trust > 0
 

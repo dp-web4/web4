@@ -19,10 +19,15 @@ from typing import Any, Dict, List, Optional
 
 __all__ = [
     # Classes
-    "ATPAccount", "TransferResult",
+    "ATPAccount",
+    "TransferResult",
     # Functions
-    "energy_ratio", "transfer", "sliding_scale",
-    "check_conservation", "sybil_cost", "fee_sensitivity",
+    "energy_ratio",
+    "transfer",
+    "sliding_scale",
+    "check_conservation",
+    "sybil_cost",
+    "fee_sensitivity",
     # Constants
     "ATP_JSONLD_CONTEXT",
 ]
@@ -34,6 +39,7 @@ ATP_JSONLD_CONTEXT = "https://web4.io/contexts/atp.jsonld"
 
 
 # ── ATP Account ──────────────────────────────────────────────────
+
 
 @dataclass
 class ATPAccount:
@@ -168,9 +174,11 @@ class ATPAccount:
 
 # ── Transfer Operations ──────────────────────────────────────────
 
+
 @dataclass
 class TransferResult:
     """Result of an ATP transfer."""
+
     fee: float
     sender_balance: float
     receiver_balance: float
@@ -241,9 +249,7 @@ def transfer(
     total_deduction = amount + fee
 
     if total_deduction > sender.available:
-        raise ValueError(
-            f"Insufficient balance: need {total_deduction}, have {sender.available}"
-        )
+        raise ValueError(f"Insufficient balance: need {total_deduction}, have {sender.available}")
 
     # Calculate actual credit considering cap
     if max_balance is not None:
@@ -270,6 +276,7 @@ def transfer(
 
 # ── Sliding Scale Payment ────────────────────────────────────────
 
+
 def sliding_scale(
     quality: float,
     base_payment: float,
@@ -293,6 +300,7 @@ def sliding_scale(
 
 # ── Conservation Check ───────────────────────────────────────────
 
+
 def check_conservation(
     initial_balances: List[float],
     final_balances: List[float],
@@ -311,6 +319,7 @@ def check_conservation(
 
 # ── Energy Ratio (standalone) ────────────────────────────────────
 
+
 def energy_ratio(atp: float, adp: float) -> float:
     """
     Energy ratio calculation (test vectors atp-012, atp-013).
@@ -324,6 +333,7 @@ def energy_ratio(atp: float, adp: float) -> float:
 
 
 # ── Sybil Cost Analysis ─────────────────────────────────────────
+
 
 def sybil_cost(
     num_identities: int,
@@ -349,6 +359,7 @@ def sybil_cost(
 
 # ── Fee Sensitivity ──────────────────────────────────────────────
 
+
 def fee_sensitivity(amount: float, fee_rates: List[float]) -> List[dict[str, float]]:
     """
     Fee sensitivity sweep (test vector atp-014).
@@ -359,10 +370,12 @@ def fee_sensitivity(amount: float, fee_rates: List[float]) -> List[dict[str, flo
     results = []
     for rate in fee_rates:
         fee = amount * rate
-        results.append({
-            "fee_rate": rate,
-            "fee": fee,
-            "net_received": amount,  # receiver gets full amount
-            "total_sender_cost": amount + fee,
-        })
+        results.append(
+            {
+                "fee_rate": rate,
+                "fee": fee,
+                "net_received": amount,  # receiver gets full amount
+                "total_sender_cost": amount + fee,
+            }
+        )
     return results

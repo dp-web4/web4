@@ -22,18 +22,29 @@ from typing import Any, Dict, Optional
 
 __all__ = [
     # Classes
-    "ErrorCode", "ErrorCategory", "ErrorMeta",
-    "Web4Error", "BindingError", "PairingError", "WitnessError",
-    "AuthzError", "CryptoError", "ProtoError",
+    "ErrorCode",
+    "ErrorCategory",
+    "ErrorMeta",
+    "Web4Error",
+    "BindingError",
+    "PairingError",
+    "WitnessError",
+    "AuthzError",
+    "CryptoError",
+    "ProtoError",
     # Functions
-    "get_error_meta", "codes_for_category", "make_error",
+    "get_error_meta",
+    "codes_for_category",
+    "make_error",
 ]
 
 
 # ── Error Categories (spec §2) ────────────────────────────────
 
+
 class ErrorCategory(str, Enum):
     """Web4 error code categories per spec §2."""
+
     BINDING = "BINDING"
     PAIRING = "PAIRING"
     WITNESS = "WITNESS"
@@ -44,8 +55,10 @@ class ErrorCategory(str, Enum):
 
 # ── Error Codes (spec §2.1-2.6) ───────────────────────────────
 
+
 class ErrorCode(str, Enum):
     """All 24 Web4 error codes from the error taxonomy spec."""
+
     # §2.1 Binding Errors
     BINDING_EXISTS = "W4_ERR_BINDING_EXISTS"
     BINDING_INVALID = "W4_ERR_BINDING_INVALID"
@@ -85,9 +98,11 @@ class ErrorCode(str, Enum):
 
 # ── Error Metadata ─────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class ErrorMeta:
     """Metadata for a Web4 error code from the spec."""
+
     code: ErrorCode
     category: ErrorCategory
     title: str
@@ -99,134 +114,183 @@ class ErrorMeta:
 _ERROR_REGISTRY: Dict[ErrorCode, ErrorMeta] = {
     # §2.1 Binding
     ErrorCode.BINDING_EXISTS: ErrorMeta(
-        ErrorCode.BINDING_EXISTS, ErrorCategory.BINDING,
-        "Binding Already Exists", 409,
+        ErrorCode.BINDING_EXISTS,
+        ErrorCategory.BINDING,
+        "Binding Already Exists",
+        409,
         "Entity already has an active binding",
     ),
     ErrorCode.BINDING_INVALID: ErrorMeta(
-        ErrorCode.BINDING_INVALID, ErrorCategory.BINDING,
-        "Invalid Binding", 400,
+        ErrorCode.BINDING_INVALID,
+        ErrorCategory.BINDING,
+        "Invalid Binding",
+        400,
         "Binding parameters are malformed",
     ),
     ErrorCode.BINDING_REVOKED: ErrorMeta(
-        ErrorCode.BINDING_REVOKED, ErrorCategory.BINDING,
-        "Binding Revoked", 410,
+        ErrorCode.BINDING_REVOKED,
+        ErrorCategory.BINDING,
+        "Binding Revoked",
+        410,
         "Referenced binding has been revoked",
     ),
     ErrorCode.BINDING_PROOF_FAIL: ErrorMeta(
-        ErrorCode.BINDING_PROOF_FAIL, ErrorCategory.BINDING,
-        "Binding Proof Failed", 401,
+        ErrorCode.BINDING_PROOF_FAIL,
+        ErrorCategory.BINDING,
+        "Binding Proof Failed",
+        401,
         "Binding proof signature verification failed",
     ),
     # §2.2 Pairing
     ErrorCode.PAIRING_DENIED: ErrorMeta(
-        ErrorCode.PAIRING_DENIED, ErrorCategory.PAIRING,
-        "Pairing Denied", 403,
+        ErrorCode.PAIRING_DENIED,
+        ErrorCategory.PAIRING,
+        "Pairing Denied",
+        403,
         "Entity denied pairing request",
     ),
     ErrorCode.PAIRING_TIMEOUT: ErrorMeta(
-        ErrorCode.PAIRING_TIMEOUT, ErrorCategory.PAIRING,
-        "Pairing Timeout", 408,
+        ErrorCode.PAIRING_TIMEOUT,
+        ErrorCategory.PAIRING,
+        "Pairing Timeout",
+        408,
         "Pairing handshake timed out",
     ),
     ErrorCode.PAIRING_INVALID: ErrorMeta(
-        ErrorCode.PAIRING_INVALID, ErrorCategory.PAIRING,
-        "Invalid Pairing", 400,
+        ErrorCode.PAIRING_INVALID,
+        ErrorCategory.PAIRING,
+        "Invalid Pairing",
+        400,
         "Pairing parameters are malformed",
     ),
     ErrorCode.PAIRING_EXPIRED: ErrorMeta(
-        ErrorCode.PAIRING_EXPIRED, ErrorCategory.PAIRING,
-        "Pairing Expired", 410,
+        ErrorCode.PAIRING_EXPIRED,
+        ErrorCategory.PAIRING,
+        "Pairing Expired",
+        410,
         "Pairing session has expired",
     ),
     # §2.3 Witness
     ErrorCode.WITNESS_UNAVAIL: ErrorMeta(
-        ErrorCode.WITNESS_UNAVAIL, ErrorCategory.WITNESS,
-        "Witness Unavailable", 503,
+        ErrorCode.WITNESS_UNAVAIL,
+        ErrorCategory.WITNESS,
+        "Witness Unavailable",
+        503,
         "Required witness is not available",
     ),
     ErrorCode.WITNESS_REJECTED: ErrorMeta(
-        ErrorCode.WITNESS_REJECTED, ErrorCategory.WITNESS,
-        "Witness Rejected", 403,
+        ErrorCode.WITNESS_REJECTED,
+        ErrorCategory.WITNESS,
+        "Witness Rejected",
+        403,
         "Witness rejected attestation request",
     ),
     ErrorCode.WITNESS_INVALID: ErrorMeta(
-        ErrorCode.WITNESS_INVALID, ErrorCategory.WITNESS,
-        "Invalid Witness", 400,
+        ErrorCode.WITNESS_INVALID,
+        ErrorCategory.WITNESS,
+        "Invalid Witness",
+        400,
         "Witness signature or format invalid",
     ),
     ErrorCode.WITNESS_QUORUM: ErrorMeta(
-        ErrorCode.WITNESS_QUORUM, ErrorCategory.WITNESS,
-        "Quorum Not Met", 409,
+        ErrorCode.WITNESS_QUORUM,
+        ErrorCategory.WITNESS,
+        "Quorum Not Met",
+        409,
         "Insufficient witnesses for quorum",
     ),
     # §2.4 Authorization
     ErrorCode.AUTHZ_DENIED: ErrorMeta(
-        ErrorCode.AUTHZ_DENIED, ErrorCategory.AUTHZ,
-        "Authorization Denied", 401,
+        ErrorCode.AUTHZ_DENIED,
+        ErrorCategory.AUTHZ,
+        "Authorization Denied",
+        401,
         "Credential lacks required capability",
     ),
     ErrorCode.AUTHZ_EXPIRED: ErrorMeta(
-        ErrorCode.AUTHZ_EXPIRED, ErrorCategory.AUTHZ,
-        "Authorization Expired", 401,
+        ErrorCode.AUTHZ_EXPIRED,
+        ErrorCategory.AUTHZ,
+        "Authorization Expired",
+        401,
         "Authorization token has expired",
     ),
     ErrorCode.AUTHZ_SCOPE: ErrorMeta(
-        ErrorCode.AUTHZ_SCOPE, ErrorCategory.AUTHZ,
-        "Insufficient Scope", 403,
+        ErrorCode.AUTHZ_SCOPE,
+        ErrorCategory.AUTHZ,
+        "Insufficient Scope",
+        403,
         "Operation requires additional scopes",
     ),
     ErrorCode.AUTHZ_RATE: ErrorMeta(
-        ErrorCode.AUTHZ_RATE, ErrorCategory.AUTHZ,
-        "Rate Limit Exceeded", 429,
+        ErrorCode.AUTHZ_RATE,
+        ErrorCategory.AUTHZ,
+        "Rate Limit Exceeded",
+        429,
         "Metering rate limit exceeded",
     ),
     # §2.5 Cryptographic
     ErrorCode.CRYPTO_SUITE: ErrorMeta(
-        ErrorCode.CRYPTO_SUITE, ErrorCategory.CRYPTO,
-        "Unsupported Suite", 400,
+        ErrorCode.CRYPTO_SUITE,
+        ErrorCategory.CRYPTO,
+        "Unsupported Suite",
+        400,
         "Cryptographic suite not supported",
     ),
     ErrorCode.CRYPTO_VERIFY: ErrorMeta(
-        ErrorCode.CRYPTO_VERIFY, ErrorCategory.CRYPTO,
-        "Verification Failed", 401,
+        ErrorCode.CRYPTO_VERIFY,
+        ErrorCategory.CRYPTO,
+        "Verification Failed",
+        401,
         "Signature verification failed",
     ),
     ErrorCode.CRYPTO_DECRYPT: ErrorMeta(
-        ErrorCode.CRYPTO_DECRYPT, ErrorCategory.CRYPTO,
-        "Decryption Failed", 400,
+        ErrorCode.CRYPTO_DECRYPT,
+        ErrorCategory.CRYPTO,
+        "Decryption Failed",
+        400,
         "Failed to decrypt message",
     ),
     ErrorCode.CRYPTO_KEY: ErrorMeta(
-        ErrorCode.CRYPTO_KEY, ErrorCategory.CRYPTO,
-        "Invalid Key", 400,
+        ErrorCode.CRYPTO_KEY,
+        ErrorCategory.CRYPTO,
+        "Invalid Key",
+        400,
         "Public key format or encoding invalid",
     ),
     # §2.6 Protocol
     ErrorCode.PROTO_VERSION: ErrorMeta(
-        ErrorCode.PROTO_VERSION, ErrorCategory.PROTO,
-        "Version Mismatch", 400,
+        ErrorCode.PROTO_VERSION,
+        ErrorCategory.PROTO,
+        "Version Mismatch",
+        400,
         "Protocol version not supported",
     ),
     ErrorCode.PROTO_SEQUENCE: ErrorMeta(
-        ErrorCode.PROTO_SEQUENCE, ErrorCategory.PROTO,
-        "Sequence Error", 400,
+        ErrorCode.PROTO_SEQUENCE,
+        ErrorCategory.PROTO,
+        "Sequence Error",
+        400,
         "Message sequence out of order",
     ),
     ErrorCode.PROTO_REPLAY: ErrorMeta(
-        ErrorCode.PROTO_REPLAY, ErrorCategory.PROTO,
-        "Replay Detected", 409,
+        ErrorCode.PROTO_REPLAY,
+        ErrorCategory.PROTO,
+        "Replay Detected",
+        409,
         "Message replay attack detected",
     ),
     ErrorCode.PROTO_DOWNGRADE: ErrorMeta(
-        ErrorCode.PROTO_DOWNGRADE, ErrorCategory.PROTO,
-        "Downgrade Detected", 400,
+        ErrorCode.PROTO_DOWNGRADE,
+        ErrorCategory.PROTO,
+        "Downgrade Detected",
+        400,
         "Protocol downgrade attack detected",
     ),
 }
 
 
 # ── Lookup helpers ─────────────────────────────────────────────
+
 
 def get_error_meta(code: ErrorCode) -> ErrorMeta:
     """Look up the spec-defined metadata for an error code."""
@@ -235,13 +299,11 @@ def get_error_meta(code: ErrorCode) -> ErrorMeta:
 
 def codes_for_category(category: ErrorCategory) -> list[ErrorCode]:
     """Return all error codes belonging to a category."""
-    return [
-        m.code for m in _ERROR_REGISTRY.values()
-        if m.category == category
-    ]
+    return [m.code for m in _ERROR_REGISTRY.values() if m.category == category]
 
 
 # ── Base Exception ─────────────────────────────────────────────
+
 
 class Web4Error(Exception):
     """Base exception for all Web4 protocol errors.
@@ -305,33 +367,40 @@ class Web4Error(Exception):
 
 # ── Category Subclasses ────────────────────────────────────────
 
+
 class BindingError(Web4Error):
     """Error related to entity binding operations (spec §2.1)."""
+
     pass
 
 
 class PairingError(Web4Error):
     """Error related to entity pairing operations (spec §2.2)."""
+
     pass
 
 
 class WitnessError(Web4Error):
     """Error related to witness/attestation operations (spec §2.3)."""
+
     pass
 
 
 class AuthzError(Web4Error):
     """Error related to authorization operations (spec §2.4)."""
+
     pass
 
 
 class CryptoError(Web4Error):
     """Error related to cryptographic operations (spec §2.5)."""
+
     pass
 
 
 class ProtoError(Web4Error):
     """Error related to protocol-level operations (spec §2.6)."""
+
     pass
 
 
@@ -347,6 +416,7 @@ _CATEGORY_SUBCLASS: Dict[ErrorCategory, type[Web4Error]] = {
 
 
 # ── Convenience Constructor ────────────────────────────────────
+
 
 def make_error(
     code: ErrorCode,

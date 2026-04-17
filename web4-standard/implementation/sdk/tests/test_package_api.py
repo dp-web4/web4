@@ -14,6 +14,7 @@ class TestPackageVersion:
 
     def test_version_accessible(self):
         from web4 import __version__
+
         assert __version__ == "0.25.0"
 
 
@@ -34,9 +35,17 @@ class TestAllExports:
         """__all__ should include all public re-exported types (not private/internal)."""
         # Spot-check key types are in __all__
         expected = [
-            "T3", "V3", "LCT", "ATPAccount", "R7Action",
-            "Society", "MRHGraph", "ACPStateMachine",
-            "W4ID", "Web4URI", "MCPSession",
+            "T3",
+            "V3",
+            "LCT",
+            "ATPAccount",
+            "R7Action",
+            "Society",
+            "MRHGraph",
+            "ACPStateMachine",
+            "W4ID",
+            "Web4URI",
+            "MCPSession",
         ]
         for name in expected:
             assert name in web4.__all__, f"{name} missing from __all__"
@@ -45,20 +54,24 @@ class TestAllExports:
 class TestTrustImports:
     def test_t3(self):
         from web4 import T3
+
         t = T3()
         assert 0.0 <= t.talent <= 1.0
 
     def test_v3(self):
         from web4 import V3
+
         v = V3()
         assert 0.0 <= v.veracity <= 1.0
 
     def test_trust_profile(self):
         from web4 import TrustProfile
+
         assert TrustProfile is not None
 
     def test_compute_team_t3(self):
         from web4 import T3, TrustProfile, compute_team_t3
+
         p1 = TrustProfile("a")
         p1.set_role("analyst", T3(0.8, 0.9, 0.7))
         p2 = TrustProfile("b")
@@ -70,46 +83,55 @@ class TestTrustImports:
 class TestLCTImports:
     def test_lct_create(self):
         from web4 import LCT, EntityType
+
         lct = LCT.create(EntityType.HUMAN, "pubkey123")
         assert lct.lct_id.startswith("lct:")
 
     def test_entity_type(self):
         from web4 import EntityType
+
         assert EntityType.HUMAN.value == "human"
 
     def test_birth_certificate(self):
         from web4 import BirthCertificate
+
         assert BirthCertificate is not None
 
 
 class TestATPImports:
     def test_atp_account(self):
         from web4 import ATPAccount
+
         acct = ATPAccount(available=1000)
         assert acct.available == 1000
 
     def test_energy_ratio(self):
         from web4 import energy_ratio
+
         assert callable(energy_ratio)
 
 
 class TestFederationImports:
     def test_federation_society(self):
         from web4 import FederationSociety
+
         s = FederationSociety("soc:1", "Test")
         assert s.name == "Test"
 
     def test_law_dataset(self):
         from web4 import LawDataset
+
         law = LawDataset(law_id="l1", version="1.0", society_id="s1")
         assert law.hash  # content-addressed hash computed
 
     def test_citizenship_status(self):
         from web4 import CitizenshipStatus
+
         assert CitizenshipStatus.ACTIVE.value == "active"
 
     def test_quorum_policy(self):
         from web4 import QuorumMode, QuorumPolicy
+
         qp = QuorumPolicy(mode=QuorumMode.MAJORITY)
         assert qp.mode == QuorumMode.MAJORITY
 
@@ -117,6 +139,7 @@ class TestFederationImports:
 class TestR7Imports:
     def test_r7_action(self):
         from web4 import R7Action, build_action
+
         action = build_action(
             actor="lct:alice",
             role_lct="lct:role:analyst",
@@ -127,12 +150,14 @@ class TestR7Imports:
 
     def test_action_status(self):
         from web4 import ActionStatus
+
         assert ActionStatus.SUCCESS.value == "success"
 
 
 class TestMRHImports:
     def test_mrh_graph(self):
         from web4 import MRHGraph, MRHNode
+
         g = MRHGraph()
         g.add_node(MRHNode("n1", "test"))
         assert g.get_node("n1") is not None
@@ -141,24 +166,28 @@ class TestMRHImports:
 class TestACPImports:
     def test_acp_state_machine(self):
         from web4 import ACPState, ACPStateMachine
+
         # Verify the class and state enum are importable and correct
         assert ACPState.IDLE is not None
         assert ACPStateMachine is not None
 
     def test_proof_of_agency(self):
         from web4 import ProofOfAgency
+
         assert ProofOfAgency.__module__ == "web4.acp"
 
 
 class TestDictionaryImports:
     def test_dictionary_type(self):
         from web4 import DictionaryType
+
         assert DictionaryType.DOMAIN.value == "domain"
 
 
 class TestReputationImports:
     def test_reputation_engine(self):
         from web4 import ReputationEngine
+
         engine = ReputationEngine()
         assert engine is not None
 
@@ -166,30 +195,36 @@ class TestReputationImports:
 class TestEntityImports:
     def test_behavioral_mode(self):
         from web4 import BehavioralMode
+
         assert BehavioralMode.RESPONSIVE.value == "responsive"
 
     def test_is_agentic(self):
         from web4 import EntityType, is_agentic
+
         assert is_agentic(EntityType.AI)
 
 
 class TestCapabilityImports:
     def test_capability_level(self):
         from web4 import CapabilityLevel
+
         assert CapabilityLevel.HARDWARE.value in ("hardware", 5)
 
     def test_assess_level(self):
         from web4 import assess_level
+
         assert callable(assess_level)
 
 
 class TestErrorImports:
     def test_error_code(self):
         from web4 import ErrorCode
+
         assert ErrorCode.BINDING_INVALID.value == "W4_ERR_BINDING_INVALID"
 
     def test_web4_error(self):
         from web4 import ErrorCode, Web4Error
+
         err = Web4Error(ErrorCode.BINDING_INVALID)
         assert "BINDING_INVALID" in str(err.code)
 
@@ -197,28 +232,34 @@ class TestErrorImports:
 class TestMetabolicImports:
     def test_metabolic_state(self):
         from web4 import MetabolicState
+
         assert MetabolicState.ACTIVE.value == "active"
 
     def test_metabolic_transition_alias(self):
         from web4 import MetabolicTransition
+
         assert MetabolicTransition is not None
 
 
 class TestBindingImports:
     def test_anchor_type(self):
         from web4 import AnchorType
+
         assert AnchorType.TPM2.value == "tpm2"
 
     def test_device_constellation(self):
         from web4 import DeviceConstellation
+
         assert DeviceConstellation is not None
 
 
 class TestSocietyImports:
     def test_create_society(self):
         from web4 import create_society
+
         state = create_society(
-            "soc:test", "TestSociety",
+            "soc:test",
+            "TestSociety",
             founders=["lct:founder1", "lct:founder2"],
             timestamp="2026-01-01T00:00:00Z",
         )
@@ -226,49 +267,58 @@ class TestSocietyImports:
 
     def test_society_phase(self):
         from web4 import SocietyPhase
+
         assert SocietyPhase.OPERATIONAL.value == "operational"
 
 
 class TestSecurityImports:
     def test_w4id(self):
         from web4 import W4ID, parse_w4id
+
         w = parse_w4id("did:web4:key:abc123")
         assert isinstance(w, W4ID)
 
     def test_crypto_suite(self):
         from web4 import SUITE_BASE, CryptoSuiteId
+
         assert SUITE_BASE.suite_id == CryptoSuiteId.W4_BASE_1
 
 
 class TestProtocolImports:
     def test_web4_uri(self):
         from web4 import Web4URI
+
         uri = Web4URI(w4id="did:web4:key:abc123", path="/tools/test")
         assert uri.w4id == "did:web4:key:abc123"
 
     def test_transport(self):
         from web4 import Transport
+
         assert Transport.TLS_1_3.value == "tls_1.3"
 
     def test_handshake_phase(self):
         from web4 import HandshakePhase
+
         assert HandshakePhase is not None
 
 
 class TestMCPImports:
     def test_mcp_session(self):
         from web4 import MCPSession
+
         assert MCPSession is not None
 
     def test_mcp_resource_requirements_alias(self):
         """MCPResourceRequirements is the mcp version, disambiguated from r6."""
         from web4 import MCPResourceRequirements, ResourceRequirements
+
         assert MCPResourceRequirements.__module__ == "web4.mcp"
         assert ResourceRequirements.__module__ == "web4.r6"
 
     def test_mcp_proof_of_agency_alias(self):
         """MCPProofOfAgency is the mcp version, ProofOfAgency is from acp."""
         from web4 import MCPProofOfAgency, ProofOfAgency
+
         assert MCPProofOfAgency.__module__ == "web4.mcp"
         assert ProofOfAgency.__module__ == "web4.acp"
 
@@ -279,23 +329,27 @@ class TestCollisionDisambiguation:
     def test_resource_requirements(self):
         """r6.ResourceRequirements vs mcp.ResourceRequirements."""
         from web4 import MCPResourceRequirements, ResourceRequirements
+
         assert ResourceRequirements is not MCPResourceRequirements
 
     def test_proof_of_agency(self):
         """acp.ProofOfAgency vs mcp.ProofOfAgency."""
         from web4 import MCPProofOfAgency, ProofOfAgency
+
         assert ProofOfAgency is not MCPProofOfAgency
 
     def test_federation_society_alias(self):
         """federation.Society exported as FederationSociety to avoid collision with society module."""
         from web4 import FederationSociety
         from web4.federation import Society
+
         assert FederationSociety is Society
 
     def test_society_direct_import(self):
         """from web4 import Society must work (documented in docstring)."""
         from web4 import Society
         from web4.federation import Society as FedSociety
+
         assert Society is FedSociety
 
 
@@ -305,36 +359,44 @@ class TestNewExportsD1:
     # ── Trust ──
     def test_role_tensors(self):
         from web4 import RoleTensors
+
         assert RoleTensors is not None
 
     def test_diminishing_returns(self):
         from web4 import diminishing_returns
+
         assert callable(diminishing_returns)
 
     def test_trust_bridge(self):
         from web4 import trust_bridge
+
         assert callable(trust_bridge)
 
     # ── LCT aliases ──
     def test_lct_binding(self):
         from web4 import LCTBinding
+
         assert LCTBinding.__module__ == "web4.lct"
 
     def test_lct_mrh(self):
         from web4 import LCTMRH
+
         assert LCTMRH.__module__ == "web4.lct"
 
     def test_lct_mrh_pairing(self):
         from web4 import LCTMRHPairing
+
         assert LCTMRHPairing.__module__ == "web4.lct"
 
     def test_lct_policy(self):
         from web4 import LCTPolicy
+
         assert LCTPolicy.__module__ == "web4.lct"
 
     # ── ATP ──
     def test_transfer(self):
         from web4 import ATPAccount, transfer
+
         src = ATPAccount(available=100)
         dst = ATPAccount(available=0)
         result = transfer(src, dst, 50)
@@ -342,23 +404,28 @@ class TestNewExportsD1:
 
     def test_sliding_scale(self):
         from web4 import sliding_scale
+
         assert callable(sliding_scale)
 
     def test_check_conservation(self):
         from web4 import check_conservation
+
         assert callable(check_conservation)
 
     def test_sybil_cost(self):
         from web4 import sybil_cost
+
         assert callable(sybil_cost)
 
     def test_fee_sensitivity(self):
         from web4 import fee_sensitivity
+
         assert callable(fee_sensitivity)
 
     # ── Federation serialization helpers ──
     def test_norm_roundtrip(self):
         from web4 import Norm, norm_from_dict, norm_to_dict
+
         n = Norm(norm_id="n1", selector="*", op=">=", value=0.5, description="test")
         d = norm_to_dict(n)
         n2 = norm_from_dict(d)
@@ -366,6 +433,7 @@ class TestNewExportsD1:
 
     def test_procedure_roundtrip(self):
         from web4 import Procedure, procedure_from_dict, procedure_to_dict
+
         p = Procedure(procedure_id="p1", description="test")
         d = procedure_to_dict(p)
         p2 = procedure_from_dict(d)
@@ -373,6 +441,7 @@ class TestNewExportsD1:
 
     def test_interpretation_roundtrip(self):
         from web4 import Interpretation, interpretation_from_dict, interpretation_to_dict
+
         i = Interpretation(interpretation_id="i1", replaces="n1", reason="test")
         d = interpretation_to_dict(i)
         i2 = interpretation_from_dict(d)
@@ -380,6 +449,7 @@ class TestNewExportsD1:
 
     def test_law_dataset_roundtrip(self):
         from web4 import LawDataset, law_dataset_from_dict, law_dataset_to_dict
+
         ld = LawDataset(law_id="l1", version="1.0", society_id="s1")
         d = law_dataset_to_dict(ld)
         ld2 = law_dataset_from_dict(d)
@@ -387,14 +457,15 @@ class TestNewExportsD1:
 
     def test_delegation_roundtrip(self):
         from web4 import Delegation, delegation_from_dict, delegation_to_dict
-        dl = Delegation(delegation_id="d1", delegator="lct:a", delegate="lct:b",
-                        scope="read", permissions=["read"])
+
+        dl = Delegation(delegation_id="d1", delegator="lct:a", delegate="lct:b", scope="read", permissions=["read"])
         d = delegation_to_dict(dl)
         dl2 = delegation_from_dict(d)
         assert dl2.delegation_id == "d1"
 
     def test_quorum_policy_roundtrip(self):
         from web4 import QuorumMode, QuorumPolicy, quorum_policy_from_dict, quorum_policy_to_dict
+
         qp = QuorumPolicy(mode=QuorumMode.MAJORITY)
         d = quorum_policy_to_dict(qp)
         qp2 = quorum_policy_from_dict(d)
@@ -403,26 +474,32 @@ class TestNewExportsD1:
     # ── R6/R7 errors and data classes ──
     def test_r7_error(self):
         from web4 import R7Error
+
         assert issubclass(R7Error, Exception)
 
     def test_r7_constraint(self):
         from web4 import Constraint
+
         assert Constraint is not None
 
     def test_r7_contributing_factor(self):
         from web4 import ContributingFactor
+
         assert ContributingFactor is not None
 
     def test_r7_precedent(self):
         from web4 import Precedent
+
         assert Precedent is not None
 
     def test_r7_reference(self):
         from web4 import Reference
+
         assert Reference is not None
 
     def test_r7_tensor_delta(self):
         from web4 import TensorDelta
+
         assert TensorDelta is not None
 
     def test_r7_exception_types(self):
@@ -435,19 +512,28 @@ class TestNewExportsD1:
             RoleUnauthorized,
             RuleViolation,
         )
-        for exc_cls in [ReferenceInvalid, ReputationComputationError,
-                        RequestMalformed, ResourceInsufficient,
-                        ResultInvalid, RoleUnauthorized, RuleViolation]:
+
+        for exc_cls in [
+            ReferenceInvalid,
+            ReputationComputationError,
+            RequestMalformed,
+            ResourceInsufficient,
+            ResultInvalid,
+            RoleUnauthorized,
+            RuleViolation,
+        ]:
             assert issubclass(exc_cls, Exception)
 
     # ── MRH ──
     def test_relation_category(self):
         from web4 import relation_category
+
         assert callable(relation_category)
 
     # ── ACP exceptions ──
     def test_acp_human_approval(self):
         from web4 import HumanApproval
+
         assert HumanApproval is not None
 
     def test_acp_exceptions(self):
@@ -461,31 +547,44 @@ class TestNewExportsD1:
             ScopeViolation,
             WitnessDeficit,
         )
-        for exc_cls in [ApprovalRequired, InvalidTransition, LedgerWriteFailure,
-                        NoValidGrant, PlanExpired, ResourceCapExceeded,
-                        ScopeViolation, WitnessDeficit]:
+
+        for exc_cls in [
+            ApprovalRequired,
+            InvalidTransition,
+            LedgerWriteFailure,
+            NoValidGrant,
+            PlanExpired,
+            ResourceCapExceeded,
+            ScopeViolation,
+            WitnessDeficit,
+        ]:
             assert issubclass(exc_cls, Exception)
 
     # ── Dictionary ──
     def test_dictionary_ambiguity_handling(self):
         from web4 import AmbiguityHandling
+
         assert AmbiguityHandling is not None
 
     def test_dictionary_chain_step(self):
         from web4 import ChainStep
+
         assert ChainStep is not None
 
     def test_dictionary_evolution_config(self):
         from web4 import EvolutionConfig
+
         assert EvolutionConfig is not None
 
     def test_dictionary_feedback_record(self):
         from web4 import FeedbackRecord
+
         assert FeedbackRecord is not None
 
     # ── Entity ──
     def test_get_info(self):
         from web4 import EntityType, get_info
+
         info = get_info(EntityType.HUMAN)
         assert info is not None
 
@@ -493,12 +592,14 @@ class TestNewExportsD1:
     def test_lct_binding_vs_binding_module(self):
         """LCTBinding is from lct, not binding module."""
         from web4 import DeviceConstellation, LCTBinding
+
         assert LCTBinding.__module__ == "web4.lct"
         assert DeviceConstellation.__module__ == "web4.binding"
 
     def test_lct_mrh_vs_mrh_module(self):
         """LCTMRH is from lct, not mrh module."""
         from web4 import LCTMRH, MRHGraph
+
         assert LCTMRH.__module__ == "web4.lct"
         assert MRHGraph.__module__ == "web4.mrh"
 
@@ -507,14 +608,30 @@ class TestSubmoduleAll:
     """D2: Verify __all__ declarations in all 19 submodules."""
 
     SUBMODULES = [
-        "trust", "lct", "atp", "federation", "r6", "mrh", "acp",
-        "dictionary", "reputation", "entity", "capability", "errors",
-        "metabolic", "binding", "society", "security", "protocol",
-        "attestation", "mcp",
+        "trust",
+        "lct",
+        "atp",
+        "federation",
+        "r6",
+        "mrh",
+        "acp",
+        "dictionary",
+        "reputation",
+        "entity",
+        "capability",
+        "errors",
+        "metabolic",
+        "binding",
+        "society",
+        "security",
+        "protocol",
+        "attestation",
+        "mcp",
     ]
 
     def _import_submodule(self, name):
         import importlib
+
         return importlib.import_module(f"web4.{name}")
 
     def test_all_submodules_have_all(self):
@@ -551,8 +668,7 @@ class TestSubmoduleAll:
             mod = self._import_submodule(name)
             all_list = getattr(mod, "__all__", [])
             # __all__ should have no duplicates
-            assert len(all_list) == len(set(all_list)), \
-                f"web4.{name}.__all__ has duplicates"
+            assert len(all_list) == len(set(all_list)), f"web4.{name}.__all__ has duplicates"
 
     def test_init_imports_subset_of_submodule_all(self):
         """Everything __init__.py imports from a submodule should be in that submodule's __all__."""
@@ -570,6 +686,7 @@ class TestSubmoduleAll:
 
     def test_trust_all(self):
         from web4.trust import __all__ as all_trust
+
         assert "T3" in all_trust
         assert "V3" in all_trust
         assert "T3_JSONLD_CONTEXT" in all_trust
@@ -577,6 +694,7 @@ class TestSubmoduleAll:
 
     def test_lct_all(self):
         from web4.lct import __all__ as all_lct
+
         assert "LCT" in all_lct
         assert "EntityType" in all_lct
         assert "Binding" in all_lct
@@ -584,12 +702,14 @@ class TestSubmoduleAll:
 
     def test_atp_all(self):
         from web4.atp import __all__ as all_atp
+
         assert "ATPAccount" in all_atp
         assert "transfer" in all_atp
         assert "ATP_JSONLD_CONTEXT" in all_atp
 
     def test_federation_all(self):
         from web4.federation import __all__ as all_fed
+
         assert "Society" in all_fed
         assert "LawDataset" in all_fed
         assert "norm_to_dict" in all_fed
@@ -597,64 +717,76 @@ class TestSubmoduleAll:
 
     def test_r6_all(self):
         from web4.r6 import __all__ as all_r6
+
         assert "R7Action" in all_r6
         assert "R7Error" in all_r6
         assert "build_action" in all_r6
 
     def test_mrh_all(self):
         from web4.mrh import __all__ as all_mrh
+
         assert "MRHGraph" in all_mrh
         assert "propagate_multiplicative" in all_mrh
 
     def test_acp_all(self):
         from web4.acp import __all__ as all_acp
+
         assert "ACPStateMachine" in all_acp
         assert "build_intent" in all_acp
         assert "ACP_JSONLD_CONTEXT" in all_acp
 
     def test_dictionary_all(self):
         from web4.dictionary import __all__ as all_dict
+
         assert "DictionaryEntity" in all_dict
         assert "DICTIONARY_JSONLD_CONTEXT" in all_dict
 
     def test_errors_all(self):
         from web4.errors import __all__ as all_err
+
         assert "Web4Error" in all_err
         assert "make_error" in all_err
 
     def test_metabolic_all(self):
         from web4.metabolic import __all__ as all_met
+
         assert "MetabolicState" in all_met
         assert "Transition" in all_met
         assert "ENERGY_MULTIPLIERS" in all_met
 
     def test_binding_all(self):
         from web4.binding import __all__ as all_bind
+
         assert "DeviceConstellation" in all_bind
         assert "ANCHOR_TRUST_WEIGHT" in all_bind
 
     def test_society_all(self):
         from web4.society import __all__ as all_soc
+
         assert "SocietyState" in all_soc
         assert "create_society" in all_soc
 
     def test_security_all(self):
         from web4.security import __all__ as all_sec
+
         assert "W4ID" in all_sec
         assert "SUITE_BASE" in all_sec
 
     def test_protocol_all(self):
         from web4.protocol import __all__ as all_proto
+
         assert "Web4URI" in all_proto
         assert "TRANSPORT_PROFILES" in all_proto
 
     def test_attestation_all(self):
         from web4.attestation import __all__ as all_att
+
         assert "AttestationEnvelope" in all_att
         assert "verify_envelope" in all_att
 
     def test_mcp_all(self):
         from web4.mcp import __all__ as all_mcp
+
         assert "MCPSession" in all_mcp
         assert "calculate_mcp_cost" in all_mcp
 
@@ -662,5 +794,6 @@ class TestSubmoduleAll:
 class TestPyTyped:
     def test_py_typed_exists(self):
         import pathlib
+
         package_dir = pathlib.Path(web4.__file__).parent
         assert (package_dir / "py.typed").exists()

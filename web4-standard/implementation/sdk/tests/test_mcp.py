@@ -45,6 +45,7 @@ def vector_by_id(vid: str):
 
 # ── Communication Patterns ──────────────────────────────────────
 
+
 class TestCommunicationPattern:
     def test_enum_values(self):
         assert CommunicationPattern.REQUEST_RESPONSE.value == "request_response"
@@ -72,6 +73,7 @@ class TestTrustDimension:
 
 
 # ── Resource Types ───────────────────────────────────────────────
+
 
 class TestMCPResourceType:
     def test_enum_values(self):
@@ -130,6 +132,7 @@ class TestTrustRequirements:
 
 # ── MCP Resources ───────────────────────────────────────────────
 
+
 class TestMCPToolResource:
     def test_round_trip(self):
         tool = MCPToolResource(
@@ -166,6 +169,7 @@ class TestMCPPromptResource:
 
 
 # ── Web4 Context ─────────────────────────────────────────────────
+
 
 class TestWeb4Context:
     def test_full_context(self):
@@ -207,6 +211,7 @@ class TestWeb4Context:
 
 # ── Trust Context ────────────────────────────────────────────────
 
+
 class TestTrustContext:
     def test_round_trip(self):
         tc = TrustContext(t3_in_role={"training": 0.9}, atp_stake=50)
@@ -222,6 +227,7 @@ class TestTrustContext:
 
 # ── Proof of Agency ──────────────────────────────────────────────
 
+
 class TestProofOfAgency:
     def test_round_trip(self):
         poa = ProofOfAgency(grant_id="agy:1", scope="data:read")
@@ -230,6 +236,7 @@ class TestProofOfAgency:
 
 
 # ── Witness Attestation ─────────────────────────────────────────
+
 
 class TestWitnessAttestation:
     def test_vector(self):
@@ -247,8 +254,11 @@ class TestWitnessAttestation:
 
     def test_round_trip(self):
         wi = WitnessedInteraction(
-            client="lct:c", server="lct:s", action="query",
-            timestamp="2025-01-01T00:00:00Z", success=True,
+            client="lct:c",
+            server="lct:s",
+            action="query",
+            timestamp="2025-01-01T00:00:00Z",
+            success=True,
         )
         wa = WitnessAttestation(witnessed_interaction=wi, witness="lct:w")
         wa2 = WitnessAttestation.from_dict(wa.to_dict())
@@ -256,6 +266,7 @@ class TestWitnessAttestation:
 
 
 # ── Capabilities & Broadcast ────────────────────────────────────
+
 
 class TestMCPCapabilities:
     def test_defaults(self):
@@ -286,6 +297,7 @@ class TestCapabilityBroadcast:
 
 # ── MCP Authority ───────────────────────────────────────────────
 
+
 class TestMCPAuthority:
     def test_round_trip(self):
         auth = MCPAuthority(
@@ -302,6 +314,7 @@ class TestMCPAuthority:
 
 
 # ── Sessions ─────────────────────────────────────────────────────
+
 
 class TestMCPSession:
     def test_consume_atp(self):
@@ -324,7 +337,9 @@ class TestMCPSession:
 
     def test_round_trip(self):
         sess = MCPSession(
-            session_id="s1", client_lct="lct:c", server_lct="lct:s",
+            session_id="s1",
+            client_lct="lct:c",
+            server_lct="lct:s",
             established="2025-01-01T00:00:00Z",
         )
         sess2 = MCPSession.from_dict(sess.to_dict())
@@ -353,6 +368,7 @@ class TestSessionHandoff:
 
 
 # ── ATP Metering ─────────────────────────────────────────────────
+
 
 class TestCalculateMCPCost:
     def test_high_trust_discount(self):
@@ -397,6 +413,7 @@ class TestPricingModifiers:
 
 
 # ── Error Context ────────────────────────────────────────────────
+
 
 class TestMCPErrorContext:
     def test_round_trip(self):

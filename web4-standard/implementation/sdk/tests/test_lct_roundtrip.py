@@ -7,6 +7,7 @@ Note: LCT.to_dict() is a subset format (no attestations, lineage, revocation_ts/
 hardware_anchor). The round-trip test verifies that from_dict faithfully reconstructs
 all fields that to_dict produces. Tolerance of extra fields is tested separately.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -35,8 +36,12 @@ class TestBindingRoundTrip:
 
     def test_from_lct_to_dict_format(self) -> None:
         """Binding dict as produced by LCT.to_dict()."""
-        d = {"entity_type": "human", "public_key": "pk2", "created_at": "2025-06-01T00:00:00Z",
-             "binding_proof": "sig:abc"}
+        d = {
+            "entity_type": "human",
+            "public_key": "pk2",
+            "created_at": "2025-06-01T00:00:00Z",
+            "binding_proof": "sig:abc",
+        }
         b = Binding.from_dict(d)
         assert b.entity_type == EntityType.HUMAN
         assert b.public_key == "pk2"
@@ -44,8 +49,13 @@ class TestBindingRoundTrip:
         assert b.hardware_anchor is None
 
     def test_with_hardware_anchor(self) -> None:
-        d = {"entity_type": "device", "public_key": "pk3", "created_at": "2025-01-01T00:00:00Z",
-             "binding_proof": "", "hardware_anchor": "tpm:ek:abc"}
+        d = {
+            "entity_type": "device",
+            "public_key": "pk3",
+            "created_at": "2025-01-01T00:00:00Z",
+            "binding_proof": "",
+            "hardware_anchor": "tpm:ek:abc",
+        }
         b = Binding.from_dict(d)
         assert b.hardware_anchor == "tpm:ek:abc"
 
@@ -124,7 +134,9 @@ class TestBirthCertificateRoundTrip:
 
     def test_with_genesis_hash(self) -> None:
         d = {
-            "issuing_society": "s1", "citizen_role": "r1", "birth_timestamp": "2025-01-01T00:00:00Z",
+            "issuing_society": "s1",
+            "citizen_role": "r1",
+            "birth_timestamp": "2025-01-01T00:00:00Z",
             "genesis_block_hash": "0xabc123",
         }
         bc = BirthCertificate.from_dict(d)
@@ -143,8 +155,13 @@ class TestBirthCertificateRoundTrip:
 
 class TestAttestationRoundTrip:
     def test_basic(self) -> None:
-        a = Attestation(witness="lct:w1", type="identity_verification",
-                        claims={"verified": True}, sig="sig:abc", ts="2025-01-01T00:00:00Z")
+        a = Attestation(
+            witness="lct:w1",
+            type="identity_verification",
+            claims={"verified": True},
+            sig="sig:abc",
+            ts="2025-01-01T00:00:00Z",
+        )
         d = {"witness": a.witness, "type": a.type, "claims": dict(a.claims), "sig": a.sig, "ts": a.ts}
         assert Attestation.from_dict(d) == a
 
@@ -304,8 +321,12 @@ class TestLCTRoundTrip:
         d = {
             "lct_id": "lct:test:7",
             "subject": "did:web4:key:stu",
-            "binding": {"entity_type": "ai", "public_key": "pk7", "created_at": "2025-01-01T00:00:00Z",
-                        "binding_proof": ""},
+            "binding": {
+                "entity_type": "ai",
+                "public_key": "pk7",
+                "created_at": "2025-01-01T00:00:00Z",
+                "binding_proof": "",
+            },
             "revocation": {"status": "active"},
             "attestations": [
                 {"witness": "lct:w1", "type": "presence", "claims": {}, "sig": "", "ts": "2025-01-01T00:00:00Z"},
@@ -320,8 +341,12 @@ class TestLCTRoundTrip:
         d = {
             "lct_id": "lct:test:8",
             "subject": "did:web4:key:vwx",
-            "binding": {"entity_type": "human", "public_key": "pk8", "created_at": "2025-01-01T00:00:00Z",
-                        "binding_proof": ""},
+            "binding": {
+                "entity_type": "human",
+                "public_key": "pk8",
+                "created_at": "2025-01-01T00:00:00Z",
+                "binding_proof": "",
+            },
             "revocation": {"status": "active"},
             "lineage": [
                 {"parent": "lct:parent1", "reason": "genesis", "ts": "2025-01-01T00:00:00Z"},
