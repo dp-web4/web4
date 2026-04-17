@@ -27,6 +27,7 @@ Provides offline-capable primitives for:
 - Generation — produce minimal valid JSON-LD documents for any Web4 type
 
 22 modules + MCP server, 364 exports, 2627 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
+v0.26.0: CI quality gates (strict mypy, ruff lint, ruff format) enforced on every PR.
 These modules define the canonical data types and algorithms specified in the web4-standard.
 They work offline (no network services required) and are designed to be
 imported by applications, services, and other SDKs that build on web4.

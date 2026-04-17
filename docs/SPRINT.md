@@ -1,9 +1,29 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-17 (Sprint 38)
+**Updated**: 2026-04-17 (Sprint 39)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 39: SDK v0.26.0 Release Housekeeping (2026-04-17)
+
+Three quality-improvement PRs merged since v0.25.0: CI workflow hardening (#158),
+ruff lint cleanup + CI enforcement (#161), ruff format codebase-wide + CI enforcement
+(#162). Sprint 39 brings all SDK metadata into alignment with the current state.
+
+### T1: SDK v0.26.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-04-17
+**Scope**:
+(1) Version bump 0.25.0 → 0.26.0 in `pyproject.toml`.
+(2) CHANGELOG v0.26.0 entry documenting Sprints 35, 37, 38.
+(3) Update `web4/__init__.py` docstring with v0.26.0 note.
+(4) Update test version assertions in `test_cli.py` and `test_package_api.py`.
+(5) Update `docs/SPRINT.md` and `SESSION_FOCUS.md`.
+**Result**: SDK version metadata reflects the 3 CI/quality merges since v0.25.0.
+All 2627 tests pass. mypy --strict clean. ruff check + format clean. 0 new files.
 
 ---
 

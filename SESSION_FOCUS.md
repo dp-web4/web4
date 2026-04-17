@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-17 (Sprint 38)*
+*Last updated: 2026-04-17 (Sprint 39)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 39 Summary: SDK v0.26.0 Release Housekeeping (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: v0.26.0 release housekeeping | DONE | Version bump, CHANGELOG for Sprints 35/37/38 (CI hardening, ruff lint, ruff format), test assertion updates, 2627 tests, 0 new files |
 
 ### Sprint 38 Summary: Ruff Format Codebase-Wide + CI Enforcement (COMPLETE)
 
@@ -122,7 +128,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 ## SDK Status
 
-- **Version**: 0.25.0
+- **Version**: 0.26.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
 - **Tests**: 2627 passing (97.8% coverage)
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
@@ -173,11 +179,11 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+759eaef Sprint 38 T1: ruff format codebase-wide + CI enforcement (#162)
+e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
 3e6ca32 [Publisher] Fix PDF date (February→April 2026), rebuild artifacts
 4a97ff7 Sprint 35 T1: CI workflow hardening — strict mypy + wheel verification (#158)
-503ed7f docs: update SESSION_FOCUS.md — correct stale PR status, add recent commits (#157)
 2b5292f Sprint 34 T1: SDK v0.25.0 release housekeeping (#156)
-77d6f2a Sprint 33 T1: Archive remaining implementation/ session sprawl (#153)
 ```
 
 ---
@@ -194,7 +200,7 @@ Web4 SDK development aligns with ARIA grant requirements:
 
 ## Completeness Summary
 
-- All 38 sprints COMPLETE (Sprints 1-38)
+- All 39 sprints COMPLETE (Sprints 1-39)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -218,4 +224,4 @@ Web4 SDK development aligns with ARIA grant requirements:
 
 ---
 
-*Updated by autonomous session, 2026-04-17 (Sprint 38 — ruff format codebase-wide + CI enforcement)*
+*Updated by autonomous session, 2026-04-17 (Sprint 39 — SDK v0.26.0 release housekeeping)*
