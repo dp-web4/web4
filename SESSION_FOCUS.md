@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-17 (Sprint 41)*
+*Last updated: 2026-04-18 (Sprint 42)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 42 Summary: CI Quickstart Smoke (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Wire `examples/quickstart.py` into CI wheel smoke job | DONE | Added one step to the `wheel` job in `.github/workflows/sdk-test.yml`, running `examples/quickstart.py` against the installed wheel's isolated venv. Closes Sprint 36 T1 follow-up. 0 new files, no product code changes, no version bump. Originally proposed as Sprint 40 (PR #164); renumbered to Sprint 42 to reflect merge order — Sprint 41 landed on main first. |
 
 ### Sprint 41 Summary: Remove Dead web4_sdk.py + Fix v0.26.0 Documentation Gaps (COMPLETE)
 
@@ -191,21 +197,22 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+0e0383e Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps (#165)
 91ed230 Sprint 36 T1: Replace stale examples with v0.25.0 quickstart (#160)
 64add4c Sprint 39 T1: SDK v0.26.0 release housekeeping (#163)
 759eaef Sprint 38 T1: ruff format codebase-wide + CI enforcement (#162)
 e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
-4a97ff7 Sprint 35 T1: CI workflow hardening — strict mypy + wheel verification (#158)
 ```
 
 ---
 
 ## Open PRs
 
-- PR #164: Sprint 40 T1 — Wire examples/quickstart.py into CI wheel smoke job (pending review)
+- PR #164: Sprint 42 T1 — Wire examples/quickstart.py into CI wheel smoke job (rebased onto post-Sprint-41 main, renumbered from Sprint 40, pending review)
 
 ### Closed PRs (recent)
 
+- PR #165 MERGED — Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps
 - PR #163 MERGED — Sprint 39 T1: SDK v0.26.0 release housekeeping
 - PR #160 MERGED — Sprint 36 T1: Replace stale examples with v0.25.0 quickstart
 - PR #159 CLOSED (superseded) — attempted `ruff format` sweep; intent addressed in Sprint 38
@@ -214,7 +221,7 @@ e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
 
 ## Completeness Summary
 
-- All 41 sprints COMPLETE (Sprints 1-41)
+- All 42 sprints COMPLETE (Sprints 1-42; Sprint 42 pending merge via PR #164)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -236,7 +243,8 @@ e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
 - `ruff check web4/ tests/` passes with 0 errors — CI enforces lint on source + tests
 - `ruff format --check web4/ tests/test_*.py` passes with 0 changes — CI enforces formatting on source + tests
 - Dead `web4_sdk.py` removed — async HTTP client for nonexistent services, not distributed in wheel
+- `examples/quickstart.py` runs in the CI `wheel` job against the installed wheel — API breakage in the quickstart fails CI on every PR
 
 ---
 
-*Updated by autonomous session, 2026-04-17 (Sprint 41 — Remove dead web4_sdk.py + fix v0.26.0 docs)*
+*Updated by autonomous session, 2026-04-18 (Sprint 42 — CI quickstart smoke; renumbered from Sprint 40 per reviewer directive on PR #164)*
