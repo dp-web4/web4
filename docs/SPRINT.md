@@ -62,6 +62,36 @@ both source and tests. All 2627 tests pass. mypy --strict clean (25 files). 0 ne
 
 ---
 
+## Sprint 36: Quickstart Example Refresh (2026-04-16)
+
+The SDK shipped two `examples/*.py` files in Dec 2025 that referenced a
+`web4_sdk` HTTP-client module (`Web4Client`, microservice URLs, async I/O)
+that does not exist in the current v0.25.0 package. Any user who ran them
+got an immediate `ImportError`. Sprint 36 replaces them with a single
+offline quickstart that composes the three behavioral functions the SDK
+actually exports.
+
+### T1: Replace stale examples with v0.25.0 quickstart
+**Status**: DONE
+**Completed**: 2026-04-16
+**Scope**: Delete `examples/ai_agent_workflow.py` and
+`examples/multi_agent_coordination.py` (both import the nonexistent
+`web4_sdk` module). Add `examples/quickstart.py` — a ~170-line offline
+script demonstrating (1) `generate(type) → from_jsonld(doc)` roundtrip
+for `LinkedContextToken`, (2) `evaluate_trust_query()` with ATP stake
+locking and RANGE-disclosure T3 return, (3) `process_action_outcome()`
+with R7Action → ReputationEngine → TrustProfile → ATPAccount composition.
+Add `examples/README.md` documenting run instructions and contribution
+guidelines. Passes `ruff check`, `ruff format --check`, `mypy --strict`.
+**Result**: 2 files deleted, 2 files added. No changes under `web4/`,
+no new tests, no new SDK features. `python examples/quickstart.py` runs
+offline to completion.
+
+### Follow-up (not this sprint)
+- Wire `examples/quickstart.py` into a CI smoke job (run after wheel install)
+
+---
+
 ## Sprint 35: CI Workflow Hardening (2026-04-13)
 
 CI quality gates were weaker than local development standards. Sprint 35 aligns
