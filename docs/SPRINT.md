@@ -1,9 +1,35 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-17 (Sprint 39)
+**Updated**: 2026-04-17 (Sprint 41)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 41: Remove Dead web4_sdk.py + Fix v0.26.0 Documentation Gaps (2026-04-17)
+
+Sprint 36 deleted the example scripts that imported from `web4_sdk.py` because they
+caused `ImportError` (referencing nonexistent microservices). However, `web4_sdk.py`
+itself (~1500 lines) and its test file were left behind. The README still documented
+it as a usable Client SDK. Additionally, the README and quickstart docstring still
+referenced v0.25.0 despite the v0.26.0 bump in Sprint 39.
+
+### T1: Remove dead `web4_sdk.py` + fix v0.26.0 documentation gaps
+**Status**: DONE
+**Completed**: 2026-04-17
+**Scope**:
+(1) Delete `web4_sdk.py` — async HTTP client for nonexistent services, not distributed
+in wheel (`packages.find.include = ["web4*"]`), examples deleted in Sprint 36.
+(2) Delete `tests/test_sdk_integration.py` — 14 tests for the removed module.
+(3) Update `README.md`: version 0.25.0 → 0.26.0, remove "Client SDK" section,
+remove `web4_sdk.py` from Project Structure, update test count 2627 → 2613.
+(4) Update `examples/quickstart.py` docstring: v0.25.0 → v0.26.0.
+(5) Update `docs/SPRINT.md` and `SESSION_FOCUS.md`.
+**Result**: No dead code referencing nonexistent services. README accurately reflects
+what's distributed in the wheel. All version references consistent at v0.26.0.
+2613 tests pass (14 removed with deleted module). mypy --strict clean. ruff clean.
+0 new files, 2 files deleted, 4 files modified.
 
 ---
 

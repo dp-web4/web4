@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.25.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.26.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
 
 ## Installation
 
@@ -185,27 +185,7 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-2627 tests, 97.8% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
-
-## Client SDK
-
-The `web4_sdk.py` module (separate from the `web4` package) provides an async HTTP
-client for connecting to Web4 infrastructure services. It requires `aiohttp` and
-`pynacl` and is intended for applications that communicate with running Web4 nodes.
-
-```python
-from web4_sdk import Web4Client
-
-client = Web4Client(
-    identity_url="http://localhost:8001",
-    auth_url="http://localhost:8003",
-    lct_id="lct:web4:ai:society:001",
-    private_key=key_bytes
-)
-```
-
-The client SDK re-exports canonical types from the `web4` package, so both
-`from web4 import T3` and `from web4_sdk import T3` resolve to the same objects.
+2613 tests, 97.8% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
 
 ## Project Structure
 
@@ -221,9 +201,8 @@ web4/                  # Python package (22 modules + MCP server)
   generate.py          # Minimal valid JSON-LD document generation
   validation.py        # Schema validation
   ...                  # (17 more modules)
-tests/                 # 2627 tests
+tests/                 # 2613 tests
 schemas/               # JSON Schemas + JSON-LD contexts
-web4_sdk.py            # Async HTTP client (separate)
 pyproject.toml         # Package metadata (single version source)
 ```
 

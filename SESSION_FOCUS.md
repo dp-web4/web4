@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-17 (Sprint 39)*
+*Last updated: 2026-04-17 (Sprint 41)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 41 Summary: Remove Dead web4_sdk.py + Fix v0.26.0 Documentation Gaps (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Remove dead `web4_sdk.py` + fix docs | DONE | Deleted `web4_sdk.py` (dead async HTTP client for nonexistent services, not in wheel) + `test_sdk_integration.py` (14 tests). README: version 0.25.0→0.26.0, removed misleading "Client SDK" section. Quickstart docstring: v0.25.0→v0.26.0. 2613 tests, 0 new files, 2 deleted. |
 
 ### Sprint 39 Summary: SDK v0.26.0 Release Housekeeping (COMPLETE)
 
@@ -136,7 +142,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.26.0
 - **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2627 passing (97.8% coverage)
+- **Tests**: 2613 passing (97.8% coverage)
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
 - **Exports**: 364 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
@@ -185,28 +191,30 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+91ed230 Sprint 36 T1: Replace stale examples with v0.25.0 quickstart (#160)
+64add4c Sprint 39 T1: SDK v0.26.0 release housekeeping (#163)
 759eaef Sprint 38 T1: ruff format codebase-wide + CI enforcement (#162)
 e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
-3e6ca32 [Publisher] Fix PDF date (February→April 2026), rebuild artifacts
 4a97ff7 Sprint 35 T1: CI workflow hardening — strict mypy + wheel verification (#158)
-2b5292f Sprint 34 T1: SDK v0.25.0 release housekeeping (#156)
 ```
 
 ---
 
 ## Open PRs
 
-- PR #160: Sprint 36 T1 — Replace stale examples with v0.25.0 quickstart (pending review)
+- PR #164: Sprint 40 T1 — Wire examples/quickstart.py into CI wheel smoke job (pending review)
 
 ### Closed PRs (recent)
 
-- PR #159 CLOSED (superseded) — attempted `ruff format` sweep but shipped with failing lint and stray session-report artifacts; its lint debt was fixed separately in PR #161 (Sprint 37 T1, merged), and its `ruff format` intent is addressed in Sprint 38 T1 on a clean branch.
+- PR #163 MERGED — Sprint 39 T1: SDK v0.26.0 release housekeeping
+- PR #160 MERGED — Sprint 36 T1: Replace stale examples with v0.25.0 quickstart
+- PR #159 CLOSED (superseded) — attempted `ruff format` sweep; intent addressed in Sprint 38
 
 ---
 
 ## Completeness Summary
 
-- All 39 sprints COMPLETE (Sprints 1-39)
+- All 41 sprints COMPLETE (Sprints 1-41)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -227,7 +235,8 @@ e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
 - All 23 generate() types pass roundtrip fidelity (generate → from_jsonld → to_jsonld = identical)
 - `ruff check web4/ tests/` passes with 0 errors — CI enforces lint on source + tests
 - `ruff format --check web4/ tests/test_*.py` passes with 0 changes — CI enforces formatting on source + tests
+- Dead `web4_sdk.py` removed — async HTTP client for nonexistent services, not distributed in wheel
 
 ---
 
-*Updated by autonomous session, 2026-04-17 (Sprint 39 — SDK v0.26.0 release housekeeping)*
+*Updated by autonomous session, 2026-04-17 (Sprint 41 — Remove dead web4_sdk.py + fix v0.26.0 docs)*
