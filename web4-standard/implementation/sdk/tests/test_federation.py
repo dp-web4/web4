@@ -19,13 +19,23 @@ Tests verify:
 import pytest
 
 from web4.federation import (
-    Society, Delegation, LawDataset, Norm, Procedure, Interpretation, RoleType,
-    CitizenshipStatus, CitizenshipRecord, valid_citizenship_transition,
-    QuorumMode, QuorumPolicy, LedgerType,
-    AuditRequest, AuditAdjustment,
+    AuditAdjustment,
+    AuditRequest,
+    CitizenshipRecord,
+    CitizenshipStatus,
+    Interpretation,
+    LawDataset,
+    LedgerType,
+    Norm,
+    Procedure,
+    QuorumMode,
+    QuorumPolicy,
+    RoleType,
+    Society,
     merge_law,
+    valid_citizenship_transition,
 )
-from web4.lct import EntityType, RevocationStatus
+from web4.lct import EntityType
 from web4.trust import T3, V3
 
 

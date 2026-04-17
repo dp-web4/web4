@@ -15,14 +15,21 @@ import os
 
 import pytest
 
-from web4.lct import EntityType
 from web4.entity import (
-    BehavioralMode, EnergyPattern, InteractionType,
-    EntityTypeInfo, get_info, behavioral_modes, energy_pattern,
-    is_agentic, can_initiate, can_delegate, can_process_r6,
-    valid_interaction, all_entity_types,
+    BehavioralMode,
+    EnergyPattern,
+    InteractionType,
+    all_entity_types,
+    behavioral_modes,
+    can_delegate,
+    can_initiate,
+    can_process_r6,
+    energy_pattern,
+    get_info,
+    is_agentic,
+    valid_interaction,
 )
-
+from web4.lct import EntityType
 
 # ── Registry Completeness ────────────────────────────────────────
 

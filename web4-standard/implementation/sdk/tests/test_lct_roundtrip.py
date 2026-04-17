@@ -12,19 +12,18 @@ from __future__ import annotations
 import pytest
 
 from web4.lct import (
+    LCT,
+    MRH,
     Attestation,
     Binding,
     BirthCertificate,
     EntityType,
-    LCT,
     LineageEntry,
-    MRH,
     MRHPairing,
     Policy,
     RevocationStatus,
 )
 from web4.trust import T3, V3
-
 
 # ── Binding ─────────────────────────────────────────────────────
 
@@ -86,7 +85,9 @@ class TestMRHRoundTrip:
         )
         d = {
             "bound": ["lct:bound1"],
-            "paired": [{"lct_id": "lct:role1", "pairing_type": "role", "permanent": False, "ts": "2025-01-01T00:00:00Z"}],
+            "paired": [
+                {"lct_id": "lct:role1", "pairing_type": "role", "permanent": False, "ts": "2025-01-01T00:00:00Z"}
+            ],
             "witnessing": ["lct:w1", "lct:w2"],
             "horizon_depth": 5,
             "last_updated": "2025-06-01T00:00:00Z",
@@ -268,7 +269,9 @@ class TestLCTRoundTrip:
                 bound=["lct:bound1"],
                 paired=[
                     MRHPairing(lct_id="lct:role1", pairing_type="role", permanent=True, ts="2025-01-01T00:00:00Z"),
-                    MRHPairing(lct_id="lct:role2", pairing_type="delegation", permanent=False, ts="2025-06-01T00:00:00Z"),
+                    MRHPairing(
+                        lct_id="lct:role2", pairing_type="delegation", permanent=False, ts="2025-06-01T00:00:00Z"
+                    ),
                 ],
                 witnessing=["lct:w1"],
                 horizon_depth=4,

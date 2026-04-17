@@ -6,18 +6,16 @@ the attestation-envelope spec, and that from_jsonld() round-trips cleanly.
 """
 
 import json
-import time
+
 import pytest
 
 from web4.attestation import (
-    AttestationEnvelope,
-    AnchorInfo,
-    Proof,
-    PlatformState,
     ATTESTATION_JSONLD_CONTEXT,
-    TRUST_CEILINGS,
+    AnchorInfo,
+    AttestationEnvelope,
+    PlatformState,
+    Proof,
 )
-
 
 # ── Fixtures ─────────────────────────────────────────────────────
 

@@ -10,25 +10,43 @@ Sprint tasks: S2, S6, U16
 
 import pytest
 
-from web4.trust import T3, V3, TrustProfile, operational_health, is_healthy, mrh_trust_decay, mrh_zone
-from web4.lct import LCT, EntityType, RevocationStatus
-from web4.atp import ATPAccount, transfer, sliding_scale, check_conservation, energy_ratio
-from web4.federation import Society, LawDataset, Norm, Procedure, Delegation
-from web4.r6 import (
-    R7Action, ActionStatus, Rules, Role, Request, Reference, ResourceRequirements,
-    Result, ActionChain, build_action,
-)
-from web4.mrh import MRHGraph, MRHNode, MRHEdge, RelationType, propagate_multiplicative
 from web4.acp import (
-    ACPStateMachine, ACPState, AgentPlan, PlanStep, Intent, Decision,
-    DecisionType, ExecutionRecord, Guards, ResourceCaps, HumanApproval,
-    ApprovalMode, Trigger, TriggerKind, build_intent, validate_plan,
+    ACPState,
+    ACPStateMachine,
+    AgentPlan,
+    ApprovalMode,
+    Decision,
+    DecisionType,
+    ExecutionRecord,
+    Guards,
+    HumanApproval,
+    PlanStep,
+    ResourceCaps,
+    Trigger,
+    TriggerKind,
+    build_intent,
+    validate_plan,
 )
+from web4.atp import ATPAccount, check_conservation, energy_ratio, sliding_scale, transfer
 from web4.dictionary import (
-    DictionaryEntity, DictionarySpec, DictionaryType, TranslationRequest,
-    TranslationChain, CompressionProfile, DomainCoverage,
-    dictionary_selection_score, select_best_dictionary,
+    CompressionProfile,
+    DictionaryEntity,
+    DomainCoverage,
+    TranslationChain,
+    TranslationRequest,
+    dictionary_selection_score,
+    select_best_dictionary,
 )
+from web4.federation import LawDataset, Norm, Procedure, Society
+from web4.lct import LCT, EntityType
+from web4.mrh import MRHEdge, MRHGraph, MRHNode, RelationType
+from web4.r6 import (
+    ActionChain,
+    ActionStatus,
+    Result,
+    build_action,
+)
+from web4.trust import T3, V3, TrustProfile, is_healthy, mrh_trust_decay, mrh_zone, operational_health
 
 
 class TestEntityLifecycle:
@@ -201,7 +219,7 @@ class TestDelegationWithTrust:
         )
 
         # Delegate authority
-        deleg = society.delegate_authority(
+        _deleg = society.delegate_authority(
             alice.lct_id, scope="finance", permissions=["approve_atp", "view_ledger"],
         )
 
@@ -436,7 +454,7 @@ class TestEndToEndWorkflow:
         )
 
         # 3. Delegate authority to Alice
-        deleg = society.delegate_authority(
+        _deleg = society.delegate_authority(
             alice.lct_id, scope="finance", permissions=["approve_atp"],
         )
         assert society.has_permission(alice.lct_id, "finance", "approve_atp")
@@ -985,7 +1003,7 @@ class TestDictionaryTranslationWorkflow:
             source_domain="technical",
             target_domain="business",
         )
-        result = tech_biz.record_translation(
+        _result = tech_biz.record_translation(
             request=request,
             content="Service usage cap reached",
             confidence=0.75,
@@ -1048,7 +1066,7 @@ class TestDictionaryTranslationWorkflow:
         Multiple dictionaries in a society → select best → translate →
         verify with MRH decay.
         """
-        society = Society("lct:web4:society:translators", "Translator Guild")
+        _society = Society("lct:web4:society:translators", "Translator Guild")
 
         # Create competing dictionaries
         dict_a = DictionaryEntity.create(
@@ -1082,7 +1100,7 @@ class TestDictionaryTranslationWorkflow:
             target_domain="finance",
             context={"report_type": "risk_assessment"},
         )
-        result = best.record_translation(
+        _result = best.record_translation(
             request=request,
             content="Asset structural risk exceeds acceptable threshold",
             confidence=0.88,
@@ -1108,61 +1126,106 @@ class TestDictionaryTranslationWorkflow:
 # U16: Full-stack integration tests — all 18 modules
 # ═══════════════════════════════════════════════════════════════════
 
-from web4.security import (
-    CryptoSuiteId, parse_w4id, negotiate_suite, get_suite,
-    W4ID, KeyPolicy, KeyStorageLevel, SignatureEnvelope,
-    VerifiableCredential, derive_pairwise_w4id,
-)
-from web4.protocol import (
-    ClientHello, ServerHello, ClientFinished, ServerFinished,
-    HandshakeMessage, HandshakePhase, PairingMethod,
-    Transport, negotiate_transport, get_transport_profile,
-    DiscoveryMethod, discovery_privacy, PrivacyLevel,
-    Web4URI,
-)
-from web4.mcp import (
-    Web4Context, TrustContext, ProofOfAgency,
-    MCPSession, MCPToolResource, TrustRequirements as MCPTrustRequirements,
-    ResourceRequirements as MCPResourceRequirements,
-    WitnessedInteraction, WitnessAttestation,
-    MCPCapabilities, CapabilityBroadcast,
-    MCPErrorContext, calculate_mcp_cost,
-    web4_context_to_json, web4_context_from_json,
-)
-from web4.entity import (
-    get_info, is_agentic, can_delegate, can_process_r6,
-    valid_interaction, InteractionType, BehavioralMode, EnergyPattern,
+from web4.binding import (
+    AnchorType,
+    DeviceConstellation,
+    DeviceStatus,
+    HardwareAnchor,
+    check_recovery_quorum,
+    coherence_bonus,
+    compute_constellation_trust,
+    constellation_trust_ceiling,
+    enroll_device,
+    record_cross_witness,
 )
 from web4.capability import (
-    CapabilityLevel, assess_level, validate_level,
-    entity_level_range, trust_tier, common_ground,
+    CapabilityLevel,
+    assess_level,
+    entity_level_range,
+    trust_tier,
+)
+from web4.entity import (
+    BehavioralMode,
+    EnergyPattern,
+    InteractionType,
+    can_delegate,
+    can_process_r6,
+    get_info,
+    is_agentic,
+    valid_interaction,
 )
 from web4.errors import (
-    ErrorCode, ErrorCategory, Web4Error, AuthzError, ProtoError,
-    make_error, get_error_meta,
+    AuthzError,
+    ErrorCategory,
+    ErrorCode,
+    Web4Error,
+    get_error_meta,
+    make_error,
+)
+from web4.mcp import (
+    CapabilityBroadcast,
+    MCPCapabilities,
+    MCPErrorContext,
+    MCPSession,
+    MCPToolResource,
+    ProofOfAgency,
+    TrustContext,
+    Web4Context,
+    WitnessAttestation,
+    WitnessedInteraction,
+    calculate_mcp_cost,
+    web4_context_from_json,
+    web4_context_to_json,
+)
+from web4.mcp import (
+    ResourceRequirements as MCPResourceRequirements,
+)
+from web4.mcp import (
+    TrustRequirements as MCPTrustRequirements,
 )
 from web4.metabolic import (
-    MetabolicState, MetabolicProfile,
-    valid_transition, energy_cost, wake_penalty,
-    accepts_transactions, accepts_new_citizens, is_dormant,
+    MetabolicState,
+    accepts_new_citizens,
+    accepts_transactions,
+    energy_cost,
+    is_dormant,
     required_witnesses,
+    valid_transition,
 )
-from web4.binding import (
-    AnchorType, HardwareAnchor, DeviceConstellation, DeviceStatus,
-    enroll_device, compute_constellation_trust,
-    constellation_trust_ceiling, coherence_bonus,
-    record_cross_witness, check_recovery_quorum,
-)
-from web4.society import (
-    SocietyPhase, SocietyState, Treasury, SocietyLedger,
-    LedgerEventType,
-    create_society, admit_citizen, transition_metabolic_state,
-    deposit_treasury, allocate_treasury,
-    compute_society_t3, society_health,
+from web4.protocol import (
+    ClientHello,
+    HandshakeMessage,
+    HandshakePhase,
+    ServerHello,
+    Transport,
+    Web4URI,
+    get_transport_profile,
+    negotiate_transport,
 )
 from web4.reputation import (
-    ReputationRule, ReputationEngine, ReputationStore,
-    DimensionImpact, Modifier,
+    DimensionImpact,
+    Modifier,
+    ReputationEngine,
+    ReputationRule,
+    ReputationStore,
+)
+from web4.security import (
+    CryptoSuiteId,
+    derive_pairwise_w4id,
+    get_suite,
+    negotiate_suite,
+    parse_w4id,
+)
+from web4.society import (
+    LedgerEventType,
+    SocietyPhase,
+    admit_citizen,
+    allocate_treasury,
+    compute_society_t3,
+    create_society,
+    deposit_treasury,
+    society_health,
+    transition_metabolic_state,
 )
 
 
@@ -1418,7 +1481,7 @@ class TestDeviceBindingCapabilitySocietyWorkflow:
         assert phone.anchor.is_hardware_bound
 
         # Second device (requires first device as witness)
-        laptop = enroll_device(
+        _laptop = enroll_device(
             constellation=constellation,
             device_lct_id="dev:laptop:alice-001",
             anchor=HardwareAnchor(
@@ -1543,9 +1606,9 @@ class TestDeviceBindingCapabilitySocietyWorkflow:
         assert len(metabolic_entries) >= 1
 
         # 11. Society aggregate trust
-        society_t3 = compute_society_t3(society_state)
+        _society_t3 = compute_society_t3(society_state)
         # May be None if no citizen_trust profiles, but function works
-        health = society_health(society_state)
+        _health = society_health(society_state)
 
 
 class TestReputationEntityErrorWorkflow:

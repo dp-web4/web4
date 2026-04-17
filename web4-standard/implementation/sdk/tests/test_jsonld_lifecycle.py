@@ -24,39 +24,67 @@ import json
 
 import pytest
 
+from web4.acp import (
+    AgentPlan,
+    ApprovalMode,
+    Decision,
+    DecisionType,
+    ExecutionRecord,
+    Guards,
+    HumanApproval,
+    Intent,
+    PlanStep,
+    ResourceCaps,
+    Trigger,
+    TriggerKind,
+    build_intent,
+)
+from web4.atp import ATPAccount, TransferResult, transfer
+from web4.attestation import (
+    AnchorInfo,
+    AttestationEnvelope,
+    PlatformState,
+    Proof,
+)
+from web4.capability import (
+    CapabilityLevel,
+    LevelRequirement,
+    capability_assessment_to_jsonld,
+    capability_framework_to_jsonld,
+)
+
 # ── Generic dispatcher and validation ────────────────────────────
 from web4.deserialize import from_jsonld, from_jsonld_string, supported_types
-from web4.validation import validate as sdk_validate, list_schemas
+from web4.dictionary import (
+    CompressionProfile,
+    DictionaryEntity,
+    DictionarySpec,
+    DictionaryType,
+    DomainCoverage,
+    TranslationChain,
+    TranslationRequest,
+)
+from web4.entity import EntityType as ET
+from web4.entity import entity_registry_to_jsonld
+from web4.lct import (
+    LCT,
+    Attestation,
+    EntityType,
+    LineageEntry,
+)
+from web4.r6 import (
+    ActionChain,
+    ActionStatus,
+    R7Action,
+    ReputationDelta,
+    Result,
+    build_action,
+)
 
 # ── SDK types used to construct test objects ──────────────────────
 from web4.trust import T3, V3
-from web4.lct import (
-    LCT, EntityType, Attestation, LineageEntry,
-)
-from web4.attestation import (
-    AttestationEnvelope, AnchorInfo, Proof, PlatformState,
-)
-from web4.atp import ATPAccount, TransferResult, transfer
-from web4.r6 import (
-    R7Action, ActionStatus, Rules, Role, Request, Result,
-    ActionChain, ReputationDelta, build_action,
-)
-from web4.acp import (
-    AgentPlan, PlanStep, Intent, Decision, DecisionType,
-    ExecutionRecord, Guards, ResourceCaps, HumanApproval,
-    ApprovalMode, Trigger, TriggerKind, build_intent,
-)
-from web4.entity import EntityType as ET, entity_registry_to_jsonld
-from web4.capability import (
-    CapabilityLevel, LevelRequirement,
-    capability_assessment_to_jsonld, capability_framework_to_jsonld,
-)
-from web4.dictionary import (
-    DictionaryEntity, DictionarySpec, DictionaryType,
-    TranslationRequest, TranslationChain, TranslationResult,
-    CompressionProfile, DomainCoverage,
-)
-
+from web4.validation import list_schemas
+from web4.validation import validate as sdk_validate
 
 # ═══════════════════════════════════════════════════════════════════
 # Helper: type -> schema name mapping (mirrors __main__.py)

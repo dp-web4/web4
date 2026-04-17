@@ -8,28 +8,27 @@ and data-formats.md.
 
 import json
 import pathlib
+
 import pytest
 
 from web4.security import (
-    CryptoSuiteId,
-    CryptoSuite,
-    EncodingProfile,
+    KNOWN_METHODS,
     SUITE_BASE,
     SUITE_FIPS,
     SUITES,
-    get_suite,
-    negotiate_suite,
     W4ID,
-    W4IDError,
-    parse_w4id,
-    derive_pairwise_w4id,
-    KNOWN_METHODS,
-    KeyStorageLevel,
+    CryptoSuiteId,
+    EncodingProfile,
     KeyPolicy,
+    KeyStorageLevel,
     SignatureEnvelope,
     VerifiableCredential,
+    W4IDError,
+    derive_pairwise_w4id,
+    get_suite,
+    negotiate_suite,
+    parse_w4id,
 )
-
 
 # ── Test Vector Loading ──────────────────────────────────────────
 

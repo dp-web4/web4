@@ -15,22 +15,31 @@ Tests cover:
 """
 
 import json
-import math
 import os
 
 import pytest
 
 from web4.metabolic import (
+    ACTIVE_STATES,
+    DORMANT_STATES,
+    ENERGY_MULTIPLIERS,
+    TRUST_EFFECTS,
+    MetabolicProfile,
     MetabolicState,
-    ENERGY_MULTIPLIERS, TRUST_EFFECTS, WITNESS_REQUIREMENTS,
-    DORMANT_STATES, ACTIVE_STATES,
-    TrustEffect, Transition, ReliabilityFactors, MetabolicProfile,
-    valid_transition, reachable_states, transition_trigger, all_transitions,
-    energy_cost, wake_penalty, metabolic_reliability,
-    required_witnesses, all_profiles,
-    is_dormant, accepts_transactions, accepts_new_citizens,
+    ReliabilityFactors,
+    accepts_new_citizens,
+    accepts_transactions,
+    all_profiles,
+    all_transitions,
+    energy_cost,
+    is_dormant,
+    metabolic_reliability,
+    reachable_states,
+    required_witnesses,
+    transition_trigger,
+    valid_transition,
+    wake_penalty,
 )
-
 
 # ── MetabolicState Enum ────────────────────────────────────────
 

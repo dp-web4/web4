@@ -8,18 +8,29 @@ MUST produce identical results.
 
 import json
 import os
+
 import pytest
 
-from web4.trust import (
-    T3, V3, TrustProfile,
-    trust_bridge, mrh_trust_decay, mrh_zone,
-    operational_health, is_healthy, diminishing_returns,
-)
 from web4.atp import (
-    ATPAccount, transfer, sliding_scale,
-    check_conservation, energy_ratio, sybil_cost,
+    ATPAccount,
+    check_conservation,
+    energy_ratio,
+    sliding_scale,
+    sybil_cost,
+    transfer,
 )
 from web4.lct import LCT, EntityType, RevocationStatus
+from web4.trust import (
+    T3,
+    V3,
+    TrustProfile,
+    diminishing_returns,
+    is_healthy,
+    mrh_trust_decay,
+    mrh_zone,
+    operational_health,
+    trust_bridge,
+)
 
 # ── Helpers ──────────────────────────────────────────────────────
 

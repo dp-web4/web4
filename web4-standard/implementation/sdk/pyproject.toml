@@ -64,6 +64,7 @@ select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.per-file-ignores]
 "web4/__init__.py" = ["I001"]  # deliberate section-based import ordering
+"tests/*" = ["E402"]  # test files commonly import after setup code
 
 [tool.ruff.lint.isort]
 known-first-party = ["web4"]

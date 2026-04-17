@@ -11,19 +11,18 @@ Sprint task: H4 (SDK integration for AttestationEnvelope)
 
 import json
 import time
+
 import pytest
 
 from web4.attestation import (
-    AttestationEnvelope,
-    AnchorInfo,
-    Proof,
-    PlatformState,
-    VerificationResult,
-    TRUST_CEILINGS,
     FRESHNESS_MAX_AGE,
+    TRUST_CEILINGS,
+    AnchorInfo,
+    AttestationEnvelope,
+    PlatformState,
+    Proof,
     verify_envelope,
 )
-
 
 # ── Helper ─────────────────────────────────────────────────────────
 

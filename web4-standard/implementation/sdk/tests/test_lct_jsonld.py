@@ -18,19 +18,18 @@ import pytest
 
 from web4.lct import (
     LCT,
+    LCT_JSONLD_CONTEXT,
+    MRH,
     Attestation,
     Binding,
     BirthCertificate,
     EntityType,
-    LCT_JSONLD_CONTEXT,
     LineageEntry,
-    MRH,
     MRHPairing,
     Policy,
     RevocationStatus,
 )
 from web4.trust import T3, V3
-
 
 # ── Fixtures ─────────────────────────────────────────────────────
 

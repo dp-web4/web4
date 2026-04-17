@@ -58,7 +58,7 @@ class TestTrustImports:
         assert TrustProfile is not None
 
     def test_compute_team_t3(self):
-        from web4 import compute_team_t3, TrustProfile, T3
+        from web4 import T3, TrustProfile, compute_team_t3
         p1 = TrustProfile("a")
         p1.set_role("analyst", T3(0.8, 0.9, 0.7))
         p2 = TrustProfile("b")
@@ -109,14 +109,14 @@ class TestFederationImports:
         assert CitizenshipStatus.ACTIVE.value == "active"
 
     def test_quorum_policy(self):
-        from web4 import QuorumPolicy, QuorumMode
+        from web4 import QuorumMode, QuorumPolicy
         qp = QuorumPolicy(mode=QuorumMode.MAJORITY)
         assert qp.mode == QuorumMode.MAJORITY
 
 
 class TestR7Imports:
     def test_r7_action(self):
-        from web4 import R7Action, Rules, Role, Request, ResourceRequirements, build_action
+        from web4 import R7Action, build_action
         action = build_action(
             actor="lct:alice",
             role_lct="lct:role:analyst",
@@ -140,7 +140,7 @@ class TestMRHImports:
 
 class TestACPImports:
     def test_acp_state_machine(self):
-        from web4 import ACPStateMachine, ACPState
+        from web4 import ACPState, ACPStateMachine
         # Verify the class and state enum are importable and correct
         assert ACPState.IDLE is not None
         assert ACPStateMachine is not None
@@ -169,7 +169,7 @@ class TestEntityImports:
         assert BehavioralMode.RESPONSIVE.value == "responsive"
 
     def test_is_agentic(self):
-        from web4 import is_agentic, EntityType
+        from web4 import EntityType, is_agentic
         assert is_agentic(EntityType.AI)
 
 
@@ -189,7 +189,7 @@ class TestErrorImports:
         assert ErrorCode.BINDING_INVALID.value == "W4_ERR_BINDING_INVALID"
 
     def test_web4_error(self):
-        from web4 import Web4Error, ErrorCode
+        from web4 import ErrorCode, Web4Error
         err = Web4Error(ErrorCode.BINDING_INVALID)
         assert "BINDING_INVALID" in str(err.code)
 
@@ -278,12 +278,12 @@ class TestCollisionDisambiguation:
 
     def test_resource_requirements(self):
         """r6.ResourceRequirements vs mcp.ResourceRequirements."""
-        from web4 import ResourceRequirements, MCPResourceRequirements
+        from web4 import MCPResourceRequirements, ResourceRequirements
         assert ResourceRequirements is not MCPResourceRequirements
 
     def test_proof_of_agency(self):
         """acp.ProofOfAgency vs mcp.ProofOfAgency."""
-        from web4 import ProofOfAgency, MCPProofOfAgency
+        from web4 import MCPProofOfAgency, ProofOfAgency
         assert ProofOfAgency is not MCPProofOfAgency
 
     def test_federation_society_alias(self):
@@ -334,7 +334,7 @@ class TestNewExportsD1:
 
     # ── ATP ──
     def test_transfer(self):
-        from web4 import transfer, ATPAccount
+        from web4 import ATPAccount, transfer
         src = ATPAccount(available=100)
         dst = ATPAccount(available=0)
         result = transfer(src, dst, 50)
@@ -358,35 +358,35 @@ class TestNewExportsD1:
 
     # ── Federation serialization helpers ──
     def test_norm_roundtrip(self):
-        from web4 import Norm, norm_to_dict, norm_from_dict
+        from web4 import Norm, norm_from_dict, norm_to_dict
         n = Norm(norm_id="n1", selector="*", op=">=", value=0.5, description="test")
         d = norm_to_dict(n)
         n2 = norm_from_dict(d)
         assert n2.norm_id == "n1"
 
     def test_procedure_roundtrip(self):
-        from web4 import Procedure, procedure_to_dict, procedure_from_dict
+        from web4 import Procedure, procedure_from_dict, procedure_to_dict
         p = Procedure(procedure_id="p1", description="test")
         d = procedure_to_dict(p)
         p2 = procedure_from_dict(d)
         assert p2.procedure_id == "p1"
 
     def test_interpretation_roundtrip(self):
-        from web4 import Interpretation, interpretation_to_dict, interpretation_from_dict
+        from web4 import Interpretation, interpretation_from_dict, interpretation_to_dict
         i = Interpretation(interpretation_id="i1", replaces="n1", reason="test")
         d = interpretation_to_dict(i)
         i2 = interpretation_from_dict(d)
         assert i2.interpretation_id == "i1"
 
     def test_law_dataset_roundtrip(self):
-        from web4 import LawDataset, law_dataset_to_dict, law_dataset_from_dict
+        from web4 import LawDataset, law_dataset_from_dict, law_dataset_to_dict
         ld = LawDataset(law_id="l1", version="1.0", society_id="s1")
         d = law_dataset_to_dict(ld)
         ld2 = law_dataset_from_dict(d)
         assert ld2.law_id == "l1"
 
     def test_delegation_roundtrip(self):
-        from web4 import Delegation, delegation_to_dict, delegation_from_dict
+        from web4 import Delegation, delegation_from_dict, delegation_to_dict
         dl = Delegation(delegation_id="d1", delegator="lct:a", delegate="lct:b",
                         scope="read", permissions=["read"])
         d = delegation_to_dict(dl)
@@ -394,7 +394,7 @@ class TestNewExportsD1:
         assert dl2.delegation_id == "d1"
 
     def test_quorum_policy_roundtrip(self):
-        from web4 import QuorumPolicy, QuorumMode, quorum_policy_to_dict, quorum_policy_from_dict
+        from web4 import QuorumMode, QuorumPolicy, quorum_policy_from_dict, quorum_policy_to_dict
         qp = QuorumPolicy(mode=QuorumMode.MAJORITY)
         d = quorum_policy_to_dict(qp)
         qp2 = quorum_policy_from_dict(d)
@@ -427,9 +427,13 @@ class TestNewExportsD1:
 
     def test_r7_exception_types(self):
         from web4 import (
-            ReferenceInvalid, ReputationComputationError,
-            RequestMalformed, ResourceInsufficient,
-            ResultInvalid, RoleUnauthorized, RuleViolation,
+            ReferenceInvalid,
+            ReputationComputationError,
+            RequestMalformed,
+            ResourceInsufficient,
+            ResultInvalid,
+            RoleUnauthorized,
+            RuleViolation,
         )
         for exc_cls in [ReferenceInvalid, ReputationComputationError,
                         RequestMalformed, ResourceInsufficient,
@@ -448,9 +452,14 @@ class TestNewExportsD1:
 
     def test_acp_exceptions(self):
         from web4 import (
-            ApprovalRequired, InvalidTransition, LedgerWriteFailure,
-            NoValidGrant, PlanExpired, ResourceCapExceeded,
-            ScopeViolation, WitnessDeficit,
+            ApprovalRequired,
+            InvalidTransition,
+            LedgerWriteFailure,
+            NoValidGrant,
+            PlanExpired,
+            ResourceCapExceeded,
+            ScopeViolation,
+            WitnessDeficit,
         )
         for exc_cls in [ApprovalRequired, InvalidTransition, LedgerWriteFailure,
                         NoValidGrant, PlanExpired, ResourceCapExceeded,
@@ -476,14 +485,14 @@ class TestNewExportsD1:
 
     # ── Entity ──
     def test_get_info(self):
-        from web4 import get_info, EntityType
+        from web4 import EntityType, get_info
         info = get_info(EntityType.HUMAN)
         assert info is not None
 
     # ── Collision disambiguation (new aliases) ──
     def test_lct_binding_vs_binding_module(self):
         """LCTBinding is from lct, not binding module."""
-        from web4 import LCTBinding, DeviceConstellation
+        from web4 import DeviceConstellation, LCTBinding
         assert LCTBinding.__module__ == "web4.lct"
         assert DeviceConstellation.__module__ == "web4.binding"
 
@@ -547,7 +556,6 @@ class TestSubmoduleAll:
 
     def test_init_imports_subset_of_submodule_all(self):
         """Everything __init__.py imports from a submodule should be in that submodule's __all__."""
-        import web4
         # Map: which symbols __init__.py imports from each submodule
         # (use module origin to check)
         errors = []

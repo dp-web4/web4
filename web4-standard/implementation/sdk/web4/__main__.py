@@ -114,7 +114,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
             return 1
 
     # Validate
-    from web4.validation import validate, SchemaNotFound, SchemaValidationUnavailable
+    from web4.validation import SchemaNotFound, SchemaValidationUnavailable, validate
 
     try:
         result = validate(doc, schema_name)
@@ -151,7 +151,7 @@ def _cmd_roundtrip(args: argparse.Namespace) -> int:
     if doc is None:
         return err  # type: ignore[return-value]
 
-    from web4.deserialize import from_jsonld, UnknownTypeError
+    from web4.deserialize import UnknownTypeError, from_jsonld
 
     try:
         obj = from_jsonld(doc)
@@ -275,8 +275,8 @@ def _cmd_selftest(args: argparse.Namespace) -> int:
 
     # 3. Generate + round-trip for each dispatcher type
     try:
-        from web4.generate import available_types, generate
         from web4.deserialize import from_jsonld
+        from web4.generate import available_types, generate
 
         types = available_types()
         passed = 0
@@ -325,8 +325,8 @@ def _cmd_trust(args: argparse.Namespace) -> int:
     """Evaluate a trust query against a profile with ATP stake locking."""
     from web4.atp import ATPAccount
     from web4.trust import (
-        DisclosureLevel,
         T3,
+        DisclosureLevel,
         TrustProfile,
         TrustQuery,
         evaluate_trust_query,

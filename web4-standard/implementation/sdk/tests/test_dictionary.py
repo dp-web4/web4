@@ -16,34 +16,27 @@ Tests verify:
   TranslationChain, DictionaryEntity)
 """
 
-import json
-import os
-import pytest
 
 from web4.dictionary import (
+    SELECTION_WEIGHT_COST,
+    SELECTION_WEIGHT_COVERAGE,
+    SELECTION_WEIGHT_RECENCY,
+    SELECTION_WEIGHT_TRUST,
+    AmbiguityHandling,
+    CompressionProfile,
     DictionaryEntity,
     DictionarySpec,
     DictionaryType,
     DomainCoverage,
-    CompressionProfile,
-    AmbiguityHandling,
+    FeedbackRecord,
+    TranslationChain,
     TranslationRequest,
     TranslationResult,
-    TranslationChain,
-    ChainStep,
-    EvolutionConfig,
-    DictionaryVersion,
-    FeedbackRecord,
     dictionary_selection_score,
     select_best_dictionary,
-    SELECTION_WEIGHT_TRUST,
-    SELECTION_WEIGHT_COVERAGE,
-    SELECTION_WEIGHT_RECENCY,
-    SELECTION_WEIGHT_COST,
 )
 from web4.lct import EntityType
 from web4.trust import T3, V3
-
 
 # ── DictionarySpec ───────────────────────────────────────────────
 

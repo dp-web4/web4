@@ -7,17 +7,25 @@ V3 calculation, team tensor composition, plus existing functionality.
 import json
 import os
 from typing import Any, Dict
+
 import pytest
 
 from web4.trust import (
-    T3, V3, ActionOutcome, OUTCOME_DELTAS,
-    TRAINING_DECAY_PER_MONTH, TEMPERAMENT_RECOVERY_PER_MONTH,
-    RoleRequirement, RoleTensors, TrustProfile,
-    TrustQuery, TrustQueryResponse, DisclosureLevel,
-    TRUST_QUERY_MIN_STAKE, TRUST_QUERY_MIN_VALIDITY, TRUST_QUERY_MAX_VALIDITY,
-    compute_team_t3, trust_bridge, mrh_trust_decay, mrh_zone,
-    operational_health, is_healthy, diminishing_returns,
-    T3_WEIGHTS, V3_WEIGHTS, HEALTH_THRESHOLD,
+    T3,
+    V3,
+    ActionOutcome,
+    DisclosureLevel,
+    RoleRequirement,
+    TrustProfile,
+    TrustQuery,
+    TrustQueryResponse,
+    compute_team_t3,
+    diminishing_returns,
+    is_healthy,
+    mrh_trust_decay,
+    mrh_zone,
+    operational_health,
+    trust_bridge,
 )
 
 TOL = 0.0001
@@ -120,7 +128,7 @@ class TestT3Evolution:
 
     def test_evolution_immutable(self):
         t = T3(0.5, 0.5, 0.5)
-        t2 = t.evolve(ActionOutcome.NOVEL_SUCCESS)
+        _t2 = t.evolve(ActionOutcome.NOVEL_SUCCESS)
         assert t.talent == 0.5  # original unchanged
 
 

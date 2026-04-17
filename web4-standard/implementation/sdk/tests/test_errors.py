@@ -17,12 +17,19 @@ import os
 import pytest
 
 from web4.errors import (
-    ErrorCategory, ErrorCode, ErrorMeta,
-    Web4Error, BindingError, PairingError, WitnessError,
-    AuthzError, CryptoError, ProtoError,
-    get_error_meta, codes_for_category, make_error,
+    AuthzError,
+    BindingError,
+    CryptoError,
+    ErrorCategory,
+    ErrorCode,
+    PairingError,
+    ProtoError,
+    Web4Error,
+    WitnessError,
+    codes_for_category,
+    get_error_meta,
+    make_error,
 )
-
 
 # ── Registry Completeness ────────────────────────────────────────
 

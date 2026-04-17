@@ -32,7 +32,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Lint with ruff
-        run: ruff check web4/
+        run: ruff check web4/ tests/test_*.py
 
       - name: Type check with mypy (strict)
         run: mypy web4/

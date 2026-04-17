@@ -39,8 +39,8 @@ _registry: Optional[Dict[str, Callable[..., Any]]] = None
 def _build_registry() -> Dict[str, Callable[..., Any]]:
     """Build the @type -> deserializer mapping."""
     from .acp import AgentPlan, Decision, ExecutionRecord, Intent
-    from .attestation import AttestationEnvelope
     from .atp import ATPAccount, TransferResult
+    from .attestation import AttestationEnvelope
     from .capability import (
         LevelRequirement,
         capability_assessment_from_jsonld,
@@ -55,7 +55,7 @@ def _build_registry() -> Dict[str, Callable[..., Any]]:
     from .entity import EntityTypeInfo, entity_registry_from_jsonld
     from .lct import LCT
     from .r6 import ActionChain, R7Action, ReputationDelta
-    from .trust import T3, TrustQuery, V3
+    from .trust import T3, V3, TrustQuery
 
     registry: Dict[str, Callable[..., Any]] = {}
 

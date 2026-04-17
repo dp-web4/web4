@@ -1,22 +1,19 @@
 """Tests for web4.validation — schema validation module."""
 
-import json
 import pytest
-from pathlib import Path
+
 from web4.validation import (
-    ValidationResult,
-    ValidationError,
-    SchemaValidationUnavailable,
+    _SCHEMA_FILES,
     SchemaNotFound,
-    validate,
-    list_schemas,
-    get_schema,
-    get_schema_dir,
+    ValidationError,
+    ValidationResult,
     _load_bundled_registry,
     _schema_cache,
-    _SCHEMA_FILES,
+    get_schema,
+    get_schema_dir,
+    list_schemas,
+    validate,
 )
-
 
 # ── Schema directory and listing ────────────────────────────────
 
@@ -167,8 +164,17 @@ class TestValidateLCT:
 
     def test_full_lct(self) -> None:
         from web4.lct import (
-            LCT, BirthCertificate, Binding, MRH, MRHPairing,
-            Policy, Attestation, LineageEntry, EntityType, T3, V3,
+            LCT,
+            MRH,
+            T3,
+            V3,
+            Attestation,
+            Binding,
+            BirthCertificate,
+            EntityType,
+            LineageEntry,
+            MRHPairing,
+            Policy,
         )
 
         lct = LCT(
@@ -259,10 +265,14 @@ class TestValidateAttestationEnvelope:
         assert result.valid, f"Errors: {result.errors}"
 
     def test_full_tpm2_envelope(self) -> None:
-        from web4.attestation import (
-            AttestationEnvelope, AnchorInfo, Proof, PlatformState,
-        )
         import time
+
+        from web4.attestation import (
+            AnchorInfo,
+            AttestationEnvelope,
+            PlatformState,
+            Proof,
+        )
 
         env = AttestationEnvelope(
             entity_id="lct:test:tpm",
@@ -346,7 +356,7 @@ class TestValidateEntity:
     """Validate Entity to_jsonld() output."""
 
     def test_entity_valid(self) -> None:
-        from web4.entity import get_info, entity_registry_to_jsonld
+        from web4.entity import get_info
         from web4.lct import EntityType
 
         info = get_info(EntityType.AI)

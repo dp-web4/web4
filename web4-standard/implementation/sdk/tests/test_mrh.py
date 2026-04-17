@@ -2,6 +2,7 @@
 
 import json
 import os
+
 import pytest
 
 from web4.mrh import (
@@ -14,8 +15,6 @@ from web4.mrh import (
     propagate_probabilistic,
     relation_category,
 )
-from web4.trust import mrh_zone
-
 
 # ── RelationType Tests ──────────────────────────────────────────
 

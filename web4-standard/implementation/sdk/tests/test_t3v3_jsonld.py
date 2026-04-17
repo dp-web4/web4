@@ -12,9 +12,10 @@ Validates:
 
 import json
 import os
+
 import pytest
 
-from web4.trust import T3, V3, T3_JSONLD_CONTEXT, V3_JSONLD_CONTEXT
+from web4.trust import T3, T3_JSONLD_CONTEXT, V3, V3_JSONLD_CONTEXT
 
 # Conditional import for JSON Schema validation
 try:

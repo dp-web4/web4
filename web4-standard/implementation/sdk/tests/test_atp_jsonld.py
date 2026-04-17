@@ -6,15 +6,15 @@ the atp-adp-cycle spec, and that from_jsonld() round-trips cleanly.
 """
 
 import json
+
 import pytest
 
 from web4.atp import (
+    ATP_JSONLD_CONTEXT,
     ATPAccount,
     TransferResult,
-    ATP_JSONLD_CONTEXT,
     transfer,
 )
-
 
 # ── ATPAccount JSON-LD ──────────────────────────────────────────
 
@@ -246,8 +246,9 @@ class TestATPSchemaValidation:
     def _load_schema(self):
         """Load the ATP JSON-LD schema if jsonschema is available."""
         try:
-            import jsonschema
             import os
+
+            import jsonschema  # noqa: F401 — probe for availability
             schema_path = os.path.join(
                 os.path.dirname(__file__), "..", "..", "..",
                 "schemas", "atp-jsonld.schema.json"

@@ -31,7 +31,7 @@ from .r6 import (
     ReputationDelta,
     TensorDelta,
 )
-from .trust import T3, TrustProfile, V3, _clamp
+from .trust import T3, V3, TrustProfile, _clamp
 
 __all__ = [
     # Classes

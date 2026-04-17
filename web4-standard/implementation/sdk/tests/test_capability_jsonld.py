@@ -7,24 +7,23 @@ that from_jsonld() round-trips cleanly.
 """
 
 import json
+
 import pytest
 
 from web4.capability import (
-    CapabilityLevel,
+    CAPABILITY_JSONLD_CONTEXT,
     CapabilityAssessment,
     LevelRequirement,
-    CAPABILITY_JSONLD_CONTEXT,
-    level_requirements,
-    capability_assessment_to_jsonld,
     capability_assessment_from_jsonld,
     capability_assessment_from_jsonld_string,
-    capability_framework_to_jsonld,
+    capability_assessment_to_jsonld,
     capability_framework_from_jsonld,
     capability_framework_from_jsonld_string,
+    capability_framework_to_jsonld,
+    level_requirements,
 )
-from web4.lct import LCT, EntityType, Binding, MRH, Policy
+from web4.lct import LCT, MRH, Binding, EntityType, Policy
 from web4.trust import T3, V3
-
 
 # ── LevelRequirement JSON-LD ─────────────────────────────────────
 

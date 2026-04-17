@@ -11,23 +11,32 @@ Tests cover:
 """
 
 import json
-import math
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from web4.trust import T3, V3
 from web4.r6 import (
-    R7Action, Role, Request, Rules, Result, ResourceRequirements,
-    ActionStatus, ReputationDelta, ContributingFactor, TensorDelta,
+    ActionStatus,
+    ContributingFactor,
+    R7Action,
+    ReputationDelta,
+    Request,
+    ResourceRequirements,
+    Result,
+    Role,
+    Rules,
+    TensorDelta,
 )
 from web4.reputation import (
-    ReputationRule, DimensionImpact, Modifier,
-    ReputationEngine, ReputationStore,
+    DimensionImpact,
+    Modifier,
+    ReputationEngine,
+    ReputationRule,
+    ReputationStore,
     analyze_factors,
 )
-
+from web4.trust import T3, V3
 
 # ── Fixtures ─────────────────────────────────────────────────────
 

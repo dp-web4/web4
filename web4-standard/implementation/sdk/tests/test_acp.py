@@ -7,43 +7,43 @@ plan validation, and intent construction.
 
 import json
 import os
+
 import pytest
 
 from web4.acp import (
+    VALID_TRANSITIONS,
     # Errors
     ACPError,
-    NoValidGrant,
-    ScopeViolation,
-    ApprovalRequired,
-    WitnessDeficit,
-    PlanExpired,
-    LedgerWriteFailure,
-    InvalidTransition,
-    ResourceCapExceeded,
     # Enums
     ACPState,
-    TriggerKind,
-    DecisionType,
-    ApprovalMode,
-    # Data structures
-    Trigger,
-    ResourceCaps,
-    HumanApproval,
-    Guards,
-    PlanStep,
-    AgentPlan,
-    ProofOfAgency,
-    Intent,
-    Decision,
-    ExecutionRecord,
     # State machine
     ACPStateMachine,
-    VALID_TRANSITIONS,
+    AgentPlan,
+    ApprovalMode,
+    ApprovalRequired,
+    Decision,
+    DecisionType,
+    ExecutionRecord,
+    Guards,
+    HumanApproval,
+    Intent,
+    InvalidTransition,
+    LedgerWriteFailure,
+    NoValidGrant,
+    PlanExpired,
+    PlanStep,
+    ProofOfAgency,
+    ResourceCapExceeded,
+    ResourceCaps,
+    ScopeViolation,
+    # Data structures
+    Trigger,
+    TriggerKind,
+    WitnessDeficit,
+    build_intent,
     # Functions
     validate_plan,
-    build_intent,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────
 
@@ -791,7 +791,7 @@ class TestACPVectors:
     def test_state_transitions(self):
         """acp-002: State machine transition count."""
         v = self._vec("acp-002")
-        inp = v["input"]
+        _inp = v["input"]
 
         # Count valid transitions
         total = sum(len(targets) for targets in VALID_TRANSITIONS.values())

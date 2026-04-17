@@ -6,16 +6,15 @@ level filtering, timestamp handling, and rejection paths.
 """
 
 from web4 import (
+    T3,
+    V3,
     ATPAccount,
     DisclosureLevel,
-    T3,
     TrustProfile,
     TrustQuery,
     TrustQueryResponse,
-    V3,
     evaluate_trust_query,
 )
-
 
 # ── Helpers ─────────────────────────────────────────────────────
 
