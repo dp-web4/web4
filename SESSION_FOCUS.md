@@ -28,6 +28,12 @@
 |------|--------|-------|
 | T1: `ruff check` lint cleanup + CI enforcement | DONE | 239 issues fixed (source: 10, tests: 229), CI now lints both web4/ and tests/, per-file-ignore for E402 in tests, 0 new files |
 
+### Sprint 36 Summary: Quickstart Example Refresh (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Replace stale `examples/` with v0.25.0 quickstart | DONE | Deleted 2 obsolete examples (imported nonexistent `web4_sdk.Web4Client`); added `examples/quickstart.py` + `examples/README.md`. Offline, lint-clean, mypy --strict clean. |
+
 ### Sprint 35 Summary: CI Workflow Hardening (COMPLETE)
 
 | Task | Status | Notes |
