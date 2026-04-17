@@ -34,37 +34,53 @@ if TYPE_CHECKING:
 
 __all__ = [
     # Classes
-    "AnchorType", "DeviceStatus", "HardwareAnchor",
-    "DeviceRecord", "DeviceConstellation",
+    "AnchorType",
+    "DeviceStatus",
+    "HardwareAnchor",
+    "DeviceRecord",
+    "DeviceConstellation",
     # Functions
-    "witness_freshness", "default_recovery_quorum",
-    "attestation_anchor_type", "binding_anchor_type",
-    "enroll_device", "remove_device",
-    "coherence_bonus", "cross_witness_density",
-    "constellation_trust_ceiling", "compute_device_trust",
-    "compute_constellation_trust", "record_cross_witness",
-    "check_recovery_quorum", "can_recover",
+    "witness_freshness",
+    "default_recovery_quorum",
+    "attestation_anchor_type",
+    "binding_anchor_type",
+    "enroll_device",
+    "remove_device",
+    "coherence_bonus",
+    "cross_witness_density",
+    "constellation_trust_ceiling",
+    "compute_device_trust",
+    "compute_constellation_trust",
+    "record_cross_witness",
+    "check_recovery_quorum",
+    "can_recover",
     # Constants
-    "ANCHOR_TRUST_WEIGHT", "ANCHOR_TYPE_TO_ATTESTATION",
+    "ANCHOR_TRUST_WEIGHT",
+    "ANCHOR_TYPE_TO_ATTESTATION",
     "ATTESTATION_TO_ANCHOR_TYPE",
-    "CONSTELLATION_TRUST_CEILING", "WITNESS_DECAY_TABLE",
+    "CONSTELLATION_TRUST_CEILING",
+    "WITNESS_DECAY_TABLE",
 ]
 
 
 # ── Anchor Types (spec §2.2) ────────────────────────────────────
 
+
 class AnchorType(str, Enum):
     """Hardware anchor types per spec §2.2."""
+
     PHONE_SECURE_ELEMENT = "phone_secure_element"  # iOS SE / Android StrongBox
-    FIDO2 = "fido2"                                # FIDO2 security keys
-    TPM2 = "tpm2"                                  # TPM 2.0 chips
-    SOFTWARE = "software"                          # Software-only fallback
+    FIDO2 = "fido2"  # FIDO2 security keys
+    TPM2 = "tpm2"  # TPM 2.0 chips
+    SOFTWARE = "software"  # Software-only fallback
 
 
 # ── Device Status ────────────────────────────────────────────────
 
+
 class DeviceStatus(str, Enum):
     """Device lifecycle within a constellation."""
+
     ACTIVE = "active"
     SUSPENDED = "suspended"
     REVOKED = "revoked"
@@ -100,10 +116,10 @@ CONSTELLATION_TRUST_CEILING: Dict[str, float] = {
 
 # Witness freshness decay (spec §4.3)
 WITNESS_DECAY_TABLE: List[Tuple[int, float]] = [
-    (7, 1.0),       # ≤7 days: no decay
-    (30, 0.9),      # ≤30 days
-    (90, 0.7),      # ≤90 days
-    (180, 0.5),     # ≤180 days
+    (7, 1.0),  # ≤7 days: no decay
+    (30, 0.9),  # ≤30 days
+    (90, 0.7),  # ≤90 days
+    (180, 0.5),  # ≤180 days
     (999999, 0.3),  # >180 days
 ]
 
@@ -117,9 +133,7 @@ ANCHOR_TYPE_TO_ATTESTATION: Dict[AnchorType, str] = {
     AnchorType.SOFTWARE: "software",
 }
 
-ATTESTATION_TO_ANCHOR_TYPE: Dict[str, AnchorType] = {
-    v: k for k, v in ANCHOR_TYPE_TO_ATTESTATION.items()
-}
+ATTESTATION_TO_ANCHOR_TYPE: Dict[str, AnchorType] = {v: k for k, v in ANCHOR_TYPE_TO_ATTESTATION.items()}
 
 
 def attestation_anchor_type(anchor_type: AnchorType) -> str:
@@ -137,12 +151,14 @@ def binding_anchor_type(attestation_type: str) -> AnchorType:
 
 # ── Data Structures ──────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class HardwareAnchor:
     """Hardware root of trust for a device."""
+
     anchor_type: AnchorType
-    platform: str = ""              # "ios", "android", "linux", "windows"
-    attestation_format: str = ""    # "apple_app_attest", "android_key_attestation", "tpm2_quote"
+    platform: str = ""  # "ios", "android", "linux", "windows"
+    attestation_format: str = ""  # "apple_app_attest", "android_key_attestation", "tpm2_quote"
     manufacturer: str = ""
 
     @property
@@ -159,10 +175,11 @@ class HardwareAnchor:
 @dataclass
 class DeviceRecord:
     """A device within a constellation."""
+
     device_lct_id: str
     anchor: HardwareAnchor
-    enrolled_at: str                 # ISO 8601 timestamp
-    last_witnessed: str              # ISO 8601 timestamp
+    enrolled_at: str  # ISO 8601 timestamp
+    last_witnessed: str  # ISO 8601 timestamp
     status: DeviceStatus = DeviceStatus.ACTIVE
     cross_witnesses: List[str] = field(default_factory=list)  # LCT IDs that witnessed this device
     revoked_at: str = ""
@@ -175,6 +192,7 @@ class DeviceRecord:
 @dataclass
 class DeviceConstellation:
     """Collection of devices bound to a root identity."""
+
     root_lct_id: str
     devices: List[DeviceRecord] = field(default_factory=list)
     recovery_quorum: int = 1
@@ -192,6 +210,7 @@ class DeviceConstellation:
 
 # ── Witness Freshness (spec §4.3) ───────────────────────────────
 
+
 def witness_freshness(days_since_witness: int) -> float:
     """
     Decay factor based on days since last witness event.
@@ -208,6 +227,7 @@ def witness_freshness(days_since_witness: int) -> float:
 
 
 # ── Constellation Management ────────────────────────────────────
+
 
 def default_recovery_quorum(device_count: int) -> int:
     """
@@ -256,18 +276,12 @@ def enroll_device(
     if active_ids:
         witness_from_constellation = active_ids & set(witnesses)
         if not witness_from_constellation:
-            raise ValueError(
-                "Non-genesis enrollment requires at least one existing "
-                "active device as witness"
-            )
+            raise ValueError("Non-genesis enrollment requires at least one existing active device as witness")
 
     # Validate attestation envelope if provided
     if attestation is not None:
         if attestation.purpose != "enrollment":
-            raise ValueError(
-                f"Enrollment attestation must have purpose='enrollment', "
-                f"got '{attestation.purpose}'"
-            )
+            raise ValueError(f"Enrollment attestation must have purpose='enrollment', got '{attestation.purpose}'")
         expected_type = ANCHOR_TYPE_TO_ATTESTATION.get(anchor.anchor_type)
         if expected_type and attestation.anchor.type != expected_type:
             raise ValueError(
@@ -287,9 +301,7 @@ def enroll_device(
     constellation.devices.append(record)
 
     # Auto-update quorum
-    constellation.recovery_quorum = default_recovery_quorum(
-        constellation.device_count
-    )
+    constellation.recovery_quorum = default_recovery_quorum(constellation.device_count)
 
     return record
 
@@ -323,11 +335,7 @@ def remove_device(
         raise ValueError(f"Device {device_lct_id} already revoked")
 
     # Check quorum (among remaining active devices, excluding target)
-    active_ids = {
-        d.device_lct_id
-        for d in constellation.active_devices
-        if d.device_lct_id != device_lct_id
-    }
+    active_ids = {d.device_lct_id for d in constellation.active_devices if d.device_lct_id != device_lct_id}
     authorizing_active = active_ids & set(authorizing_devices)
     if len(authorizing_active) < constellation.recovery_quorum:
         raise ValueError(
@@ -341,12 +349,11 @@ def remove_device(
     target.revocation_reason = reason
 
     # Re-compute quorum for remaining active devices
-    constellation.recovery_quorum = default_recovery_quorum(
-        constellation.device_count
-    )
+    constellation.recovery_quorum = default_recovery_quorum(constellation.device_count)
 
 
 # ── Trust Computation (spec §3.4) ───────────────────────────────
+
 
 def coherence_bonus(devices: List[DeviceRecord]) -> float:
     """
@@ -423,10 +430,7 @@ def constellation_trust_ceiling(constellation: DeviceConstellation) -> float:
         return CONSTELLATION_TRUST_CEILING["3_plus_diverse"]
 
     # Phone + FIDO2
-    if (
-        AnchorType.PHONE_SECURE_ELEMENT in anchor_types
-        and AnchorType.FIDO2 in anchor_types
-    ):
+    if AnchorType.PHONE_SECURE_ELEMENT in anchor_types and AnchorType.FIDO2 in anchor_types:
         return CONSTELLATION_TRUST_CEILING["phone_fido2"]
 
     # Fallback: derive from anchor diversity
@@ -526,6 +530,7 @@ def compute_constellation_trust(
 
 # ── Cross-Device Witnessing ─────────────────────────────────────
 
+
 def record_cross_witness(
     constellation: DeviceConstellation,
     device_a_id: str,
@@ -570,6 +575,7 @@ def record_cross_witness(
 
 # ── Recovery (spec §5.2) ────────────────────────────────────────
 
+
 def check_recovery_quorum(
     constellation: DeviceConstellation,
     available_devices: List[str],
@@ -596,8 +602,7 @@ def can_recover(
     if len(available_active) < constellation.recovery_quorum:
         return (
             False,
-            f"Quorum not met: need {constellation.recovery_quorum}, "
-            f"have {len(available_active)} active",
+            f"Quorum not met: need {constellation.recovery_quorum}, have {len(available_active)} active",
         )
 
     # Check for at least one hardware-bound device

@@ -40,42 +40,62 @@ from .trust import T3, V3
 
 __all__ = [
     # Classes
-    "Society", "LawDataset", "Delegation", "RoleType",
-    "CitizenshipStatus", "CitizenshipRecord",
-    "QuorumMode", "QuorumPolicy", "LedgerType",
-    "AuditRequest", "AuditAdjustment",
-    "Norm", "Procedure", "Interpretation",
+    "Society",
+    "LawDataset",
+    "Delegation",
+    "RoleType",
+    "CitizenshipStatus",
+    "CitizenshipRecord",
+    "QuorumMode",
+    "QuorumPolicy",
+    "LedgerType",
+    "AuditRequest",
+    "AuditAdjustment",
+    "Norm",
+    "Procedure",
+    "Interpretation",
     # Functions
-    "valid_citizenship_transition", "merge_law",
-    "norm_to_dict", "norm_from_dict",
-    "procedure_to_dict", "procedure_from_dict",
-    "interpretation_to_dict", "interpretation_from_dict",
-    "law_dataset_to_dict", "law_dataset_from_dict",
-    "delegation_to_dict", "delegation_from_dict",
-    "quorum_policy_to_dict", "quorum_policy_from_dict",
+    "valid_citizenship_transition",
+    "merge_law",
+    "norm_to_dict",
+    "norm_from_dict",
+    "procedure_to_dict",
+    "procedure_from_dict",
+    "interpretation_to_dict",
+    "interpretation_from_dict",
+    "law_dataset_to_dict",
+    "law_dataset_from_dict",
+    "delegation_to_dict",
+    "delegation_from_dict",
+    "quorum_policy_to_dict",
+    "quorum_policy_from_dict",
 ]
 
 
 # ── Role Types ───────────────────────────────────────────────────
 
+
 class RoleType(str, Enum):
     """SAL role types (§5)."""
-    CITIZEN = "citizen"        # Genesis, immutable, prerequisite for all others
-    AUTHORITY = "authority"    # Scoped delegation of governance power
+
+    CITIZEN = "citizen"  # Genesis, immutable, prerequisite for all others
+    AUTHORITY = "authority"  # Scoped delegation of governance power
     LAW_ORACLE = "law_oracle"  # Publishes/verifies law datasets
-    WITNESS = "witness"        # Co-signs ledger entries, provides attestations
-    AUDITOR = "auditor"        # Traverses MRH, validates/adjusts T3/V3
+    WITNESS = "witness"  # Co-signs ledger entries, provides attestations
+    AUDITOR = "auditor"  # Traverses MRH, validates/adjusts T3/V3
 
 
 # ── Citizenship Lifecycle (SOCIETY_SPECIFICATION §2.3) ───────────
 
+
 class CitizenshipStatus(str, Enum):
     """Citizenship lifecycle states per SOCIETY_SPECIFICATION §2.3."""
-    APPLIED = "applied"          # Application submitted, pending review
+
+    APPLIED = "applied"  # Application submitted, pending review
     PROVISIONAL = "provisional"  # Accepted with limited rights
-    ACTIVE = "active"            # Full citizenship
-    SUSPENDED = "suspended"      # Temporarily restricted
-    TERMINATED = "terminated"    # Permanently ended
+    ACTIVE = "active"  # Full citizenship
+    SUSPENDED = "suspended"  # Temporarily restricted
+    TERMINATED = "terminated"  # Permanently ended
 
 
 # Valid transitions: state → set of reachable states
@@ -101,6 +121,7 @@ class CitizenshipRecord:
     Tracks an entity's membership in a society with lifecycle state,
     rights, obligations, and audit trail timestamps.
     """
+
     entity_lct: str
     society_id: str
     status: CitizenshipStatus = CitizenshipStatus.ACTIVE
@@ -136,11 +157,13 @@ class CitizenshipRecord:
 
 # ── Quorum Policy (SAL §3.1, §5.4) ──────────────────────────────
 
+
 class QuorumMode(str, Enum):
     """How witness quorum is evaluated."""
-    MAJORITY = "majority"        # >50% of registered witnesses
-    THRESHOLD = "threshold"      # Fixed count required
-    UNANIMOUS = "unanimous"      # All registered witnesses must agree
+
+    MAJORITY = "majority"  # >50% of registered witnesses
+    THRESHOLD = "threshold"  # Fixed count required
+    UNANIMOUS = "unanimous"  # All registered witnesses must agree
 
 
 @dataclass(frozen=True)
@@ -152,6 +175,7 @@ class QuorumPolicy:
     mode=MAJORITY means ">50% of registered witnesses."
     mode=UNANIMOUS means "all registered witnesses."
     """
+
     mode: QuorumMode = QuorumMode.THRESHOLD
     required: int = 2
 
@@ -172,14 +196,17 @@ class QuorumPolicy:
 
 # ── Ledger Types (SOCIETY_SPECIFICATION §4.1) ────────────────────
 
+
 class LedgerType(str, Enum):
     """Classification of society ledgers by access model."""
-    CONFINED = "confined"            # Citizens only; internal consensus
-    WITNESSED = "witnessed"          # Citizens + external witnesses
+
+    CONFINED = "confined"  # Citizens only; internal consensus
+    WITNESSED = "witnessed"  # Citizens + external witnesses
     PARTICIPATORY = "participatory"  # Participates in parent ledger
 
 
 # ── Audit (SAL §5.5) ────────────────────────────────────────────
+
 
 @dataclass
 class AuditRequest:
@@ -190,12 +217,13 @@ class AuditRequest:
     based on verifiable evidence. All adjustments must go through
     witness quorum and are recorded on the immutable ledger.
     """
+
     audit_id: str
     society_id: str
     auditor_lct: str
-    targets: List[str]            # LCT IDs of citizens being audited
-    scope: List[str]              # Context scopes (e.g., ["data_analysis"])
-    evidence: List[str]           # Evidence hashes
+    targets: List[str]  # LCT IDs of citizens being audited
+    scope: List[str]  # Context scopes (e.g., ["data_analysis"])
+    evidence: List[str]  # Evidence hashes
     proposed_t3_deltas: Dict[str, float] = field(default_factory=dict)
     proposed_v3_deltas: Dict[str, float] = field(default_factory=dict)
     timestamp: str = ""
@@ -213,6 +241,7 @@ class AuditAdjustment:
     Rate limits and caps are enforced by law: adjustments MUST reference
     verifiable evidence, negative adjustments MUST include appeal path.
     """
+
     audit_id: str
     target_lct: str
     applied_t3_deltas: Dict[str, float]
@@ -241,6 +270,7 @@ class AuditAdjustment:
 
 # ── Norms and Law ────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class Norm:
     """
@@ -248,10 +278,11 @@ class Norm:
 
     Example: {"id": "LAW-ATP-LIMIT", "selector": "r6.resource.atp", "op": "<=", "value": 100}
     """
+
     norm_id: str
-    selector: str         # what the norm applies to (e.g. "r6.resource.atp")
-    op: str               # comparison operator: "<=", ">=", "==", "!=", "in", "not_in"
-    value: Any            # threshold or allowed values
+    selector: str  # what the norm applies to (e.g. "r6.resource.atp")
+    op: str  # comparison operator: "<=", ">=", "==", "!=", "in", "not_in"
+    value: Any  # threshold or allowed values
     description: str = ""
 
     def check(self, actual_value: Any) -> bool:
@@ -282,6 +313,7 @@ class Norm:
 @dataclass(frozen=True)
 class Procedure:
     """A compliance procedure (§4.1). E.g., witness quorum requirements."""
+
     procedure_id: str
     requires_witnesses: int = 0
     description: str = ""
@@ -290,6 +322,7 @@ class Procedure:
 @dataclass(frozen=True)
 class Interpretation:
     """A precedent/update to law (§4.1)."""
+
     interpretation_id: str
     replaces: Optional[str] = None
     reason: str = ""
@@ -303,6 +336,7 @@ class LawDataset:
     This is a DATA CONTAINER — norms in, lookups out.
     Policy evaluation logic belongs in HRM/PolicyGate, not here.
     """
+
     law_id: str
     version: str
     society_id: str
@@ -318,17 +352,23 @@ class LawDataset:
     @property
     def hash(self) -> str:
         """Content-addressed hash of the law dataset."""
-        canonical = json.dumps({
-            "law_id": self.law_id,
-            "version": self.version,
-            "society_id": self.society_id,
-            "norms": [{"id": n.norm_id, "selector": n.selector, "op": n.op, "value": n.value}
-                      for n in self.norms],
-            "procedures": [{"id": p.procedure_id, "requires_witnesses": p.requires_witnesses}
-                           for p in self.procedures],
-            "interpretations": [{"id": i.interpretation_id, "replaces": i.replaces, "reason": i.reason}
-                                for i in self.interpretations],
-        }, sort_keys=True, separators=(",", ":"))
+        canonical = json.dumps(
+            {
+                "law_id": self.law_id,
+                "version": self.version,
+                "society_id": self.society_id,
+                "norms": [{"id": n.norm_id, "selector": n.selector, "op": n.op, "value": n.value} for n in self.norms],
+                "procedures": [
+                    {"id": p.procedure_id, "requires_witnesses": p.requires_witnesses} for p in self.procedures
+                ],
+                "interpretations": [
+                    {"id": i.interpretation_id, "replaces": i.replaces, "reason": i.reason}
+                    for i in self.interpretations
+                ],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return hashlib.sha256(canonical.encode()).hexdigest()
 
     def get_norm(self, norm_id: str) -> Optional[Norm]:
@@ -360,12 +400,8 @@ def merge_law(parent: LawDataset, child: LawDataset) -> LawDataset:
     child_proc_ids = {p.procedure_id for p in child.procedures}
     child_interp_ids = {i.interpretation_id for i in child.interpretations}
 
-    merged_norms = list(child.norms) + [
-        n for n in parent.norms if n.norm_id not in child_norm_ids
-    ]
-    merged_procs = list(child.procedures) + [
-        p for p in parent.procedures if p.procedure_id not in child_proc_ids
-    ]
+    merged_norms = list(child.norms) + [n for n in parent.norms if n.norm_id not in child_norm_ids]
+    merged_procs = list(child.procedures) + [p for p in parent.procedures if p.procedure_id not in child_proc_ids]
     merged_interps = list(child.interpretations) + [
         i for i in parent.interpretations if i.interpretation_id not in child_interp_ids
     ]
@@ -382,6 +418,7 @@ def merge_law(parent: LawDataset, child: LawDataset) -> LawDataset:
 
 # ── Authority (Delegation) ───────────────────────────────────────
 
+
 @dataclass
 class Delegation:
     """
@@ -390,15 +427,16 @@ class Delegation:
     Authority is domain-bounded and revocable. Each delegation specifies
     what scope the delegate has and any limits.
     """
+
     delegation_id: str
-    delegator: str          # LCT ID of the entity granting authority
-    delegate: str           # LCT ID of the entity receiving authority
-    scope: str              # domain scope (e.g., "finance", "safety", "membership")
+    delegator: str  # LCT ID of the entity granting authority
+    delegate: str  # LCT ID of the entity receiving authority
+    scope: str  # domain scope (e.g., "finance", "safety", "membership")
     permissions: List[str]  # specific permissions granted
     active: bool = True
     created_at: str = ""
     expires_at: Optional[str] = None
-    max_depth: int = 1      # how many levels of sub-delegation allowed
+    max_depth: int = 1  # how many levels of sub-delegation allowed
 
     def __post_init__(self) -> None:
         if not self.created_at:
@@ -412,8 +450,9 @@ class Delegation:
         """Can the delegate further delegate?"""
         return self.active and self.max_depth > 0
 
-    def sub_delegate(self, new_delegate: str, scope: Optional[str] = None,
-                     permissions: Optional[List[str]] = None) -> Optional[Delegation]:
+    def sub_delegate(
+        self, new_delegate: str, scope: Optional[str] = None, permissions: Optional[List[str]] = None
+    ) -> Optional[Delegation]:
         """
         Create a sub-delegation with reduced scope.
 
@@ -439,6 +478,7 @@ class Delegation:
 
 
 # ── Society ──────────────────────────────────────────────────────
+
 
 class Society:
     """
@@ -534,9 +574,7 @@ class Society:
         if law:
             proc = law.get_procedure("PROC-WITNESS-QUORUM")
             if proc and len(witnesses) < proc.requires_witnesses:
-                raise ValueError(
-                    f"Insufficient witnesses: need {proc.requires_witnesses}, got {len(witnesses)}"
-                )
+                raise ValueError(f"Insufficient witnesses: need {proc.requires_witnesses}, got {len(witnesses)}")
 
         lct = LCT.create(
             entity_type=entity_type,

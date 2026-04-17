@@ -26,6 +26,7 @@ class TestSDKReexports:
     def test_imports_from_web4_sdk(self):
         """Canonical types available via web4_sdk import."""
         from web4_sdk import LCT, T3, V3, ATPAccount, EntityType
+
         assert T3 is not None
         assert V3 is not None
         assert LCT is not None
@@ -38,6 +39,7 @@ class TestSDKReexports:
         from web4.trust import T3 as Core_T3
         from web4_sdk import T3 as SDK_T3
         from web4_sdk import EntityType as SDK_ET
+
         assert SDK_T3 is Core_T3
         assert SDK_ET is Core_ET
 
@@ -47,6 +49,7 @@ class TestLCTInfoIntegration:
 
     def _make_lct_info(self):
         from web4_sdk import LCTInfo
+
         return LCTInfo(
             lct_id="lct:web4:ai:test123",
             entity_type="ai",
@@ -65,10 +68,16 @@ class TestLCTInfoIntegration:
 
     def test_entity_type_enum_unknown(self):
         from web4_sdk import LCTInfo
+
         info = LCTInfo(
-            lct_id="x", entity_type="unknown_type", entity_identifier="",
-            society="", public_key="", birth_certificate_hash="",
-            witnesses=[], created_at="",
+            lct_id="x",
+            entity_type="unknown_type",
+            entity_identifier="",
+            society="",
+            public_key="",
+            birth_certificate_hash="",
+            witnesses=[],
+            created_at="",
         )
         assert info.entity_type_enum is None
 
@@ -95,10 +104,16 @@ class TestLCTInfoIntegration:
 
     def test_to_lct_unknown_type_returns_none(self):
         from web4_sdk import LCTInfo
+
         info = LCTInfo(
-            lct_id="x", entity_type="alien", entity_identifier="",
-            society="", public_key="", birth_certificate_hash="",
-            witnesses=[], created_at="",
+            lct_id="x",
+            entity_type="alien",
+            entity_identifier="",
+            society="",
+            public_key="",
+            birth_certificate_hash="",
+            witnesses=[],
+            created_at="",
         )
         assert info.to_lct() is None
 
@@ -108,6 +123,7 @@ class TestReputationScoreIntegration:
 
     def test_with_canonical_tensors(self):
         from web4_sdk import ReputationScore
+
         t3 = T3(talent=0.8, training=0.7, temperament=0.9)
         v3 = V3(valuation=0.6, veracity=0.85, validity=0.8)
         score = ReputationScore(
@@ -126,6 +142,7 @@ class TestReputationScoreIntegration:
 
     def test_backward_compat_no_tensors(self):
         from web4_sdk import ReputationScore
+
         score = ReputationScore(
             entity_id="lct:bob",
             role="web4:Worker",
@@ -140,6 +157,7 @@ class TestReputationScoreIntegration:
 
     def test_energy_ratio_from_metadata(self):
         from web4_sdk import ReputationScore
+
         score = ReputationScore(
             entity_id="lct:carol",
             role="role",
@@ -153,6 +171,7 @@ class TestReputationScoreIntegration:
 
     def test_health_score(self):
         from web4_sdk import ReputationScore
+
         score = ReputationScore(
             entity_id="lct:dave",
             role="role",
@@ -167,9 +186,14 @@ class TestReputationScoreIntegration:
 
     def test_no_energy_data(self):
         from web4_sdk import ReputationScore
+
         score = ReputationScore(
-            entity_id="x", role="r", t3_score=0.5, v3_score=0.5,
-            action_count=0, last_updated="now",
+            entity_id="x",
+            role="r",
+            t3_score=0.5,
+            v3_score=0.5,
+            action_count=0,
+            last_updated="now",
         )
         assert score.energy_ratio is None
         assert score.health_score is None
@@ -180,6 +204,7 @@ class TestAllEntityTypes:
 
     def test_all_types(self):
         from web4_sdk import EntityType
+
         assert EntityType.HUMAN.value == "human"
         assert EntityType.AI.value == "ai"
         assert EntityType.SOCIETY.value == "society"

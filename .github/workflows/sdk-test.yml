@@ -34,6 +34,9 @@ jobs:
       - name: Lint with ruff
         run: ruff check web4/ tests/test_*.py
 
+      - name: Check formatting with ruff
+        run: ruff format --check web4/ tests/test_*.py
+
       - name: Type check with mypy (strict)
         run: mypy web4/
 

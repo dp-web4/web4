@@ -33,16 +33,34 @@ from typing import Any, Dict, List, Optional
 
 __all__ = [
     # Classes
-    "ACPStateMachine", "ACPState", "ACPError",
-    "AgentPlan", "PlanStep", "Intent", "Decision", "DecisionType",
-    "ProofOfAgency", "ExecutionRecord",
-    "ApprovalMode", "ResourceCaps", "Guards", "Trigger", "TriggerKind",
+    "ACPStateMachine",
+    "ACPState",
+    "ACPError",
+    "AgentPlan",
+    "PlanStep",
+    "Intent",
+    "Decision",
+    "DecisionType",
+    "ProofOfAgency",
+    "ExecutionRecord",
+    "ApprovalMode",
+    "ResourceCaps",
+    "Guards",
+    "Trigger",
+    "TriggerKind",
     # Exception classes
-    "HumanApproval", "ApprovalRequired", "InvalidTransition",
-    "LedgerWriteFailure", "NoValidGrant", "PlanExpired",
-    "ResourceCapExceeded", "ScopeViolation", "WitnessDeficit",
+    "HumanApproval",
+    "ApprovalRequired",
+    "InvalidTransition",
+    "LedgerWriteFailure",
+    "NoValidGrant",
+    "PlanExpired",
+    "ResourceCapExceeded",
+    "ScopeViolation",
+    "WitnessDeficit",
     # Functions
-    "build_intent", "validate_plan",
+    "build_intent",
+    "validate_plan",
     # Constants
     "ACP_JSONLD_CONTEXT",
 ]
@@ -55,55 +73,67 @@ ACP_JSONLD_CONTEXT = "https://web4.io/contexts/acp.jsonld"
 
 # ── ACP Errors ──────────────────────────────────────────────────
 
+
 class ACPError(Exception):
     """Base class for ACP errors."""
+
     error_code: str = "W4_ERR_ACP"
 
 
 class NoValidGrant(ACPError):
     """No valid agency grant found."""
+
     error_code = "W4_ERR_ACP_NO_GRANT"
 
 
 class ScopeViolation(ACPError):
     """Action outside grant scope."""
+
     error_code = "W4_ERR_ACP_SCOPE_VIOLATION"
 
 
 class ApprovalRequired(ACPError):
     """Human approval needed but not provided."""
+
     error_code = "W4_ERR_ACP_APPROVAL_REQUIRED"
 
 
 class WitnessDeficit(ACPError):
     """Insufficient witnesses for action."""
+
     error_code = "W4_ERR_ACP_WITNESS_DEFICIT"
 
 
 class PlanExpired(ACPError):
     """Plan has expired."""
+
     error_code = "W4_ERR_ACP_PLAN_EXPIRED"
 
 
 class LedgerWriteFailure(ACPError):
     """Failed to write to immutable ledger."""
+
     error_code = "W4_ERR_ACP_LEDGER_WRITE"
 
 
 class InvalidTransition(ACPError):
     """Invalid state machine transition."""
+
     error_code = "W4_ERR_ACP_INVALID_TRANSITION"
 
 
 class ResourceCapExceeded(ACPError):
     """Action exceeds resource caps."""
+
     error_code = "W4_ERR_ACP_RESOURCE_CAP_EXCEEDED"
 
 
 # ── Enums ───────────────────────────────────────────────────────
 
+
 class ACPState(str, Enum):
     """ACP lifecycle states (§3.2)."""
+
     IDLE = "idle"
     PLANNING = "planning"
     INTENT_CREATED = "intent_created"
@@ -116,6 +146,7 @@ class ACPState(str, Enum):
 
 class TriggerKind(str, Enum):
     """Trigger types for agent plans (§2.1)."""
+
     CRON = "cron"
     EVENT = "event"
     MANUAL = "manual"
@@ -123,6 +154,7 @@ class TriggerKind(str, Enum):
 
 class DecisionType(str, Enum):
     """Decision outcomes (§2.3)."""
+
     APPROVE = "approve"
     DENY = "deny"
     MODIFY = "modify"
@@ -130,8 +162,9 @@ class DecisionType(str, Enum):
 
 class ApprovalMode(str, Enum):
     """Approval gate modes."""
-    AUTO = "auto"           # Always auto-approve
-    MANUAL = "manual"       # Always require human
+
+    AUTO = "auto"  # Always auto-approve
+    MANUAL = "manual"  # Always require human
     CONDITIONAL = "conditional"  # Auto if within limits, manual otherwise
 
 
@@ -145,11 +178,12 @@ VALID_TRANSITIONS: Dict[ACPState, List[ACPState]] = {
     ACPState.EXECUTING: [ACPState.RECORDING, ACPState.FAILED],
     ACPState.RECORDING: [ACPState.COMPLETE, ACPState.FAILED],
     ACPState.COMPLETE: [ACPState.IDLE],  # Can restart
-    ACPState.FAILED: [ACPState.IDLE],    # Can retry
+    ACPState.FAILED: [ACPState.IDLE],  # Can retry
 }
 
 
 # ── Trigger ─────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class Trigger:
@@ -159,19 +193,22 @@ class Trigger:
     Triggers define when a plan should be evaluated: on schedule (cron),
     on event, or on manual invocation.
     """
+
     kind: TriggerKind
-    expr: str = ""           # cron expression or event topic
+    expr: str = ""  # cron expression or event topic
     authorized: List[str] = field(default_factory=list)  # for manual triggers
 
 
 # ── Guards ──────────────────────────────────────────────────────
 
+
 @dataclass
 class ResourceCaps:
     """Resource caps for a plan (§2.1 guards)."""
+
     max_atp: float = 0.0
     max_executions: int = 0
-    rate_limit: str = ""      # e.g. "10/hour"
+    rate_limit: str = ""  # e.g. "10/hour"
 
     def check_atp(self, atp_amount: float) -> bool:
         """Check if ATP amount is within cap."""
@@ -189,10 +226,11 @@ class ResourceCaps:
 @dataclass
 class HumanApproval:
     """Human approval gate configuration (§2.1)."""
+
     mode: ApprovalMode = ApprovalMode.CONDITIONAL
-    auto_threshold: float = 0.0   # Auto-approve if value <= threshold
-    timeout: int = 3600           # Seconds to wait for human
-    fallback: str = "deny"        # What to do on timeout: "deny" or "abort"
+    auto_threshold: float = 0.0  # Auto-approve if value <= threshold
+    timeout: int = 3600  # Seconds to wait for human
+    fallback: str = "deny"  # What to do on timeout: "deny" or "abort"
 
     def needs_human(self, value: float) -> bool:
         """Determine if human approval is needed based on value."""
@@ -212,6 +250,7 @@ class Guards:
     Guards enforce resource caps, witness levels, law compliance,
     and human approval requirements.
     """
+
     law_hash: str = ""
     resource_caps: ResourceCaps = field(default_factory=ResourceCaps)
     witness_level: int = 0
@@ -232,6 +271,7 @@ class Guards:
 
 # ── Plan Step ───────────────────────────────────────────────────
 
+
 @dataclass
 class PlanStep:
     """
@@ -239,11 +279,12 @@ class PlanStep:
 
     Steps reference MCP tools and declare dependencies for ordering.
     """
+
     step_id: str
-    mcp_tool: str                       # e.g. "invoice.search"
+    mcp_tool: str  # e.g. "invoice.search"
     args: Dict[str, Any] = field(default_factory=dict)
     depends_on: List[str] = field(default_factory=list)
-    requires_approval: str = ""         # Condition string, e.g. "if_amount > 10"
+    requires_approval: str = ""  # Condition string, e.g. "if_amount > 10"
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize plan step to dict with MCP tool reference and dependencies."""
@@ -272,6 +313,7 @@ class PlanStep:
 
 # ── Agent Plan ──────────────────────────────────────────────────
 
+
 @dataclass
 class AgentPlan:
     """
@@ -280,10 +322,11 @@ class AgentPlan:
     An AgentPlan defines triggers, steps, guards, and the principal-agent
     relationship. It is content-addressed via canonical hash.
     """
+
     plan_id: str
-    principal: str                # LCT ID of the entity authorizing the plan
-    agent: str                    # LCT ID of the entity executing the plan
-    grant_id: str                 # AGY grant authorizing this plan
+    principal: str  # LCT ID of the entity authorizing the plan
+    agent: str  # LCT ID of the entity executing the plan
+    grant_id: str  # AGY grant authorizing this plan
     triggers: List[Trigger] = field(default_factory=list)
     steps: List[PlanStep] = field(default_factory=list)
     guards: Guards = field(default_factory=Guards)
@@ -321,21 +364,25 @@ class AgentPlan:
 
     def canonical_hash(self) -> str:
         """Content-addressed hash of the plan."""
-        canonical = json.dumps({
-            "planId": self.plan_id,
-            "principal": self.principal,
-            "agent": self.agent,
-            "grantId": self.grant_id,
-            "steps": [s.to_dict() for s in self.steps],
-            "guards": {
-                "lawHash": self.guards.law_hash,
-                "witnessLevel": self.guards.witness_level,
-                "resourceCaps": {
-                    "maxAtp": self.guards.resource_caps.max_atp,
-                    "maxExecutions": self.guards.resource_caps.max_executions,
+        canonical = json.dumps(
+            {
+                "planId": self.plan_id,
+                "principal": self.principal,
+                "agent": self.agent,
+                "grantId": self.grant_id,
+                "steps": [s.to_dict() for s in self.steps],
+                "guards": {
+                    "lawHash": self.guards.law_hash,
+                    "witnessLevel": self.guards.witness_level,
+                    "resourceCaps": {
+                        "maxAtp": self.guards.resource_caps.max_atp,
+                        "maxExecutions": self.guards.resource_caps.max_executions,
+                    },
                 },
             },
-        }, sort_keys=True, separators=(",", ":"))
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return hashlib.sha256(canonical.encode()).hexdigest()
 
     def to_dict(self) -> Dict[str, Any]:
@@ -346,10 +393,7 @@ class AgentPlan:
             "principal": self.principal,
             "agent": self.agent,
             "grantId": self.grant_id,
-            "triggers": [
-                {"kind": t.kind.value, "expr": t.expr}
-                for t in self.triggers
-            ],
+            "triggers": [{"kind": t.kind.value, "expr": t.expr} for t in self.triggers],
             "steps": [s.to_dict() for s in self.steps],
             "guards": {
                 "lawHash": self.guards.law_hash,
@@ -379,10 +423,12 @@ class AgentPlan:
         """
         triggers: List[Trigger] = []
         for t in d.get("triggers", []):
-            triggers.append(Trigger(
-                kind=TriggerKind(t["kind"]),
-                expr=t.get("expr", ""),
-            ))
+            triggers.append(
+                Trigger(
+                    kind=TriggerKind(t["kind"]),
+                    expr=t.get("expr", ""),
+                )
+            )
 
         steps: List[PlanStep] = []
         for s in d.get("steps", []):
@@ -481,21 +527,25 @@ class AgentPlan:
         """
         triggers: List[Trigger] = []
         for t in doc.get("triggers", []):
-            triggers.append(Trigger(
-                kind=TriggerKind(t["kind"]),
-                expr=t.get("expr", ""),
-                authorized=t.get("authorized", []),
-            ))
+            triggers.append(
+                Trigger(
+                    kind=TriggerKind(t["kind"]),
+                    expr=t.get("expr", ""),
+                    authorized=t.get("authorized", []),
+                )
+            )
 
         steps: List[PlanStep] = []
         for s in doc.get("steps", []):
-            steps.append(PlanStep(
-                step_id=s["id"],
-                mcp_tool=s["mcp"],
-                args=s.get("args", {}),
-                depends_on=s.get("dependsOn", []),
-                requires_approval=s.get("requiresApproval", ""),
-            ))
+            steps.append(
+                PlanStep(
+                    step_id=s["id"],
+                    mcp_tool=s["mcp"],
+                    args=s.get("args", {}),
+                    depends_on=s.get("dependsOn", []),
+                    requires_approval=s.get("requiresApproval", ""),
+                )
+            )
 
         gd = doc.get("guards", {})
         rc = gd.get("resourceCaps", {})
@@ -537,6 +587,7 @@ class AgentPlan:
 
 # ── Proof of Agency ─────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class ProofOfAgency:
     """
@@ -544,6 +595,7 @@ class ProofOfAgency:
 
     Links intent to grant, plan, and provides cryptographic proof.
     """
+
     grant_id: str
     plan_id: str
     intent_id: str
@@ -558,6 +610,7 @@ class ProofOfAgency:
 
 # ── Intent ──────────────────────────────────────────────────────
 
+
 @dataclass
 class Intent:
     """
@@ -566,10 +619,11 @@ class Intent:
     Intents are the bridge between planning and execution.
     They carry proof of agency and explain reasoning.
     """
+
     intent_id: str
     plan_id: str
     step_id: str
-    proposed_action: Dict[str, Any]     # {"mcp": "tool.name", "args": {...}}
+    proposed_action: Dict[str, Any]  # {"mcp": "tool.name", "args": {...}}
     proof: ProofOfAgency
     explanation: str = ""
     confidence: float = 0.0
@@ -707,14 +761,16 @@ class Intent:
 
 # ── Decision ────────────────────────────────────────────────────
 
+
 @dataclass
 class Decision:
     """
     Human or automated decision on an intent (§2.3).
     """
+
     intent_id: str
     decision: DecisionType
-    decided_by: str               # LCT ID of decision maker
+    decided_by: str  # LCT ID of decision maker
     rationale: str = ""
     modifications: Optional[Dict[str, Any]] = None
     witnesses: List[str] = field(default_factory=list)
@@ -814,6 +870,7 @@ class Decision:
 
 # ── Execution Record ────────────────────────────────────────────
 
+
 @dataclass
 class ExecutionRecord:
     """
@@ -821,12 +878,13 @@ class ExecutionRecord:
 
     Captures what was done, by whom, the result, and trust deltas.
     """
+
     record_id: str
     intent_id: str
     grant_id: str
     law_hash: str
-    mcp_call: Dict[str, Any]           # {"resource": "...", "args": {...}}
-    result_status: str = "success"     # "success" or "failure"
+    mcp_call: Dict[str, Any]  # {"resource": "...", "args": {...}}
+    result_status: str = "success"  # "success" or "failure"
     result_output: Dict[str, Any] = field(default_factory=dict)
     resources_consumed: Dict[str, float] = field(default_factory=dict)
     t3v3_delta: Dict[str, Any] = field(default_factory=dict)
@@ -844,15 +902,19 @@ class ExecutionRecord:
 
     def canonical_hash(self) -> str:
         """Content-addressed hash for ledger inclusion."""
-        canonical = json.dumps({
-            "recordId": self.record_id,
-            "intentId": self.intent_id,
-            "grantId": self.grant_id,
-            "lawHash": self.law_hash,
-            "mcpCall": self.mcp_call,
-            "resultStatus": self.result_status,
-            "timestamp": self.timestamp,
-        }, sort_keys=True, separators=(",", ":"))
+        canonical = json.dumps(
+            {
+                "recordId": self.record_id,
+                "intentId": self.intent_id,
+                "grantId": self.grant_id,
+                "lawHash": self.law_hash,
+                "mcpCall": self.mcp_call,
+                "resultStatus": self.result_status,
+                "timestamp": self.timestamp,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return hashlib.sha256(canonical.encode()).hexdigest()
 
     def to_dict(self) -> Dict[str, Any]:
@@ -960,6 +1022,7 @@ class ExecutionRecord:
 
 # ── ACP State Machine ──────────────────────────────────────────
 
+
 class ACPStateMachine:
     """
     ACP lifecycle state machine (§3).
@@ -980,19 +1043,19 @@ class ACPStateMachine:
         self._log_transition(ACPState.IDLE, "initialized")
 
     def _log_transition(self, to_state: ACPState, reason: str) -> None:
-        self._history.append({
-            "from": self.state.value if self._history else None,
-            "to": to_state.value,
-            "reason": reason,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        self._history.append(
+            {
+                "from": self.state.value if self._history else None,
+                "to": to_state.value,
+                "reason": reason,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     def _transition(self, to_state: ACPState, reason: str = "") -> None:
         """Validate and execute a state transition."""
         if to_state not in VALID_TRANSITIONS.get(self.state, []):
-            raise InvalidTransition(
-                f"Cannot transition from {self.state.value} to {to_state.value}"
-            )
+            raise InvalidTransition(f"Cannot transition from {self.state.value} to {to_state.value}")
         self._log_transition(to_state, reason)
         self.state = to_state
 
@@ -1015,9 +1078,7 @@ class ACPStateMachine:
         atp_requested = intent.proposed_action.get("args", {}).get("atp", 0)
         if not self.plan.guards.resource_caps.check_atp(atp_requested):
             self.fail(f"ATP cap exceeded: {atp_requested}")
-            raise ResourceCapExceeded(
-                f"ATP {atp_requested} exceeds cap {self.plan.guards.resource_caps.max_atp}"
-            )
+            raise ResourceCapExceeded(f"ATP {atp_requested} exceeds cap {self.plan.guards.resource_caps.max_atp}")
 
         self.intent = intent
         self._transition(ACPState.INTENT_CREATED, f"intent {intent.intent_id}")
@@ -1068,6 +1129,7 @@ class ACPStateMachine:
 
 
 # ── Plan Validation ─────────────────────────────────────────────
+
 
 def validate_plan(plan: AgentPlan) -> List[str]:
     """
@@ -1129,6 +1191,7 @@ def _has_cycle(steps: List[PlanStep]) -> bool:
 
 
 # ── Intent Builder ──────────────────────────────────────────────
+
 
 def build_intent(
     plan: AgentPlan,

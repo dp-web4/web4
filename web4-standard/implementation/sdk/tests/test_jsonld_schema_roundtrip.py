@@ -28,7 +28,10 @@ import pytest
 # ── Schema loading ──────────────────────────────────────────────────
 
 SCHEMA_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..",
+    os.path.dirname(__file__),
+    "..",
+    "..",
+    "..",
     "schemas",
 )
 
@@ -192,7 +195,6 @@ class TestAttestationEnvelopeSchemaRoundtrip:
 
 
 # ── 3. T3 ───────────────────────────────────────────────────────────
-
 
 
 class TestT3SchemaRoundtrip:
@@ -891,30 +893,40 @@ class TestAllTypesSchemaValidation:
         docs.append(("capability-jsonld.schema.json", "CapabilityFramework", capability_framework_to_jsonld()))
 
         # Dictionary - Spec
-        docs.append(("dictionary-jsonld.schema.json", "DictionarySpec",
-                      DictionarySpec(source_domain="a", target_domain="b").to_jsonld()))
+        docs.append(
+            (
+                "dictionary-jsonld.schema.json",
+                "DictionarySpec",
+                DictionarySpec(source_domain="a", target_domain="b").to_jsonld(),
+            )
+        )
 
         # Dictionary - TranslationResult
-        docs.append(("dictionary-jsonld.schema.json", "TranslationResult",
-                      TranslationResult(
-                          content="translated text",
-                          confidence=0.9,
-                          degradation=0.1,
-                          dictionary_lct_id="lct:web4:dictionary:a-b:abc",
-                      ).to_jsonld()))
+        docs.append(
+            (
+                "dictionary-jsonld.schema.json",
+                "TranslationResult",
+                TranslationResult(
+                    content="translated text",
+                    confidence=0.9,
+                    degradation=0.1,
+                    dictionary_lct_id="lct:web4:dictionary:a-b:abc",
+                ).to_jsonld(),
+            )
+        )
 
         # Dictionary - TranslationChain
         chain = TranslationChain()
         chain.add_step(
-            source_domain="a", target_domain="b",
+            source_domain="a",
+            target_domain="b",
             dictionary_lct_id="lct:web4:dictionary:a-b:abc",
             confidence=0.9,
         )
         docs.append(("dictionary-jsonld.schema.json", "TranslationChain", chain.to_jsonld()))
 
         # Dictionary - DictionaryEntity
-        de = DictionaryEntity.create(source_domain="a", target_domain="b",
-                                     public_key="mb64:dict_param")
+        de = DictionaryEntity.create(source_domain="a", target_domain="b", public_key="mb64:dict_param")
         docs.append(("dictionary-jsonld.schema.json", "DictionaryEntity", de.to_jsonld()))
 
         return docs
@@ -930,5 +942,4 @@ class TestAllTypesSchemaValidation:
                 failures.append(f"{type_name}: {e.message}")
 
         if failures:
-            pytest.fail(f"{len(failures)} schema validation failure(s):\n" +
-                        "\n".join(f"  - {f}" for f in failures))
+            pytest.fail(f"{len(failures)} schema validation failure(s):\n" + "\n".join(f"  - {f}" for f in failures))

@@ -138,9 +138,7 @@ _TYPE_TO_SCHEMA = {
     list(_TYPE_TO_SCHEMA.items()),
     ids=list(_TYPE_TO_SCHEMA.keys()),
 )
-def test_generated_doc_validates_against_schema(
-    type_name: str, schema_name: str
-) -> None:
+def test_generated_doc_validates_against_schema(type_name: str, schema_name: str) -> None:
     """Generated documents pass schema validation."""
     try:
         from web4.validation import validate
@@ -149,10 +147,7 @@ def test_generated_doc_validates_against_schema(
 
     doc = generate(type_name)
     result = validate(doc, schema_name)
-    assert result.valid, (
-        f"{type_name} generated doc failed {schema_name} schema: "
-        f"{result.errors}"
-    )
+    assert result.valid, f"{type_name} generated doc failed {schema_name} schema: {result.errors}"
 
 
 # ═══════════════════════════════════════════════════════════════════

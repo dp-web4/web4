@@ -142,9 +142,11 @@ class TestEnrollWithAttestation:
         """Enrollment without attestation still works (backward compat)."""
         c = _make_constellation()
         record = enroll_device(
-            c, "lct:dev-1",
+            c,
+            "lct:dev-1",
             HardwareAnchor(anchor_type=AnchorType.TPM2),
-            [], "2026-01-01T00:00:00Z",
+            [],
+            "2026-01-01T00:00:00Z",
         )
         assert record.latest_attestation is None
         assert len(c.devices) == 1
@@ -154,9 +156,11 @@ class TestEnrollWithAttestation:
         c = _make_constellation()
         envelope = _make_envelope(anchor_type="tpm2", purpose="enrollment")
         record = enroll_device(
-            c, "lct:dev-1",
+            c,
+            "lct:dev-1",
             HardwareAnchor(anchor_type=AnchorType.TPM2),
-            [], "2026-01-01T00:00:00Z",
+            [],
+            "2026-01-01T00:00:00Z",
             attestation=envelope,
         )
         assert record.latest_attestation is envelope
@@ -167,9 +171,11 @@ class TestEnrollWithAttestation:
         envelope = _make_envelope(anchor_type="tpm2", purpose="session_start")
         with pytest.raises(ValueError, match="purpose='enrollment'"):
             enroll_device(
-                c, "lct:dev-1",
+                c,
+                "lct:dev-1",
                 HardwareAnchor(anchor_type=AnchorType.TPM2),
-                [], "2026-01-01T00:00:00Z",
+                [],
+                "2026-01-01T00:00:00Z",
                 attestation=envelope,
             )
 
@@ -180,9 +186,11 @@ class TestEnrollWithAttestation:
         envelope = _make_envelope(anchor_type="fido2", purpose="enrollment")
         with pytest.raises(ValueError, match="does not match"):
             enroll_device(
-                c, "lct:dev-1",
+                c,
+                "lct:dev-1",
                 HardwareAnchor(anchor_type=AnchorType.TPM2),
-                [], "2026-01-01T00:00:00Z",
+                [],
+                "2026-01-01T00:00:00Z",
                 attestation=envelope,
             )
 
@@ -191,9 +199,11 @@ class TestEnrollWithAttestation:
         c = _make_constellation()
         envelope = _make_envelope(anchor_type="secure_enclave", purpose="enrollment")
         record = enroll_device(
-            c, "lct:dev-1",
+            c,
+            "lct:dev-1",
             HardwareAnchor(anchor_type=AnchorType.PHONE_SECURE_ELEMENT),
-            [], "2026-01-01T00:00:00Z",
+            [],
+            "2026-01-01T00:00:00Z",
             attestation=envelope,
         )
         assert record.latest_attestation is envelope
@@ -312,9 +322,11 @@ class TestConstellationTrustWithAttestation:
         """Without attestation, result is identical to pre-H5 behavior."""
         c = _make_constellation()
         enroll_device(
-            c, "lct:dev-1",
+            c,
+            "lct:dev-1",
             HardwareAnchor(anchor_type=AnchorType.TPM2),
-            [], "2026-01-01T00:00:00Z",
+            [],
+            "2026-01-01T00:00:00Z",
         )
         trust = compute_constellation_trust(c)
         # Single TPM2 device, fresh witness, no attestation → 0.93 × 1.0 × 1.0
@@ -327,9 +339,11 @@ class TestConstellationTrustWithAttestation:
         # Enroll with enrollment attestation, then update to stale session_start
         enroll_env = _make_envelope(anchor_type="fido2", purpose="enrollment")
         record = enroll_device(
-            c, "lct:dev-1",
+            c,
+            "lct:dev-1",
             HardwareAnchor(anchor_type=AnchorType.FIDO2),
-            [], "2026-01-01T00:00:00Z",
+            [],
+            "2026-01-01T00:00:00Z",
             attestation=enroll_env,
         )
         # Simulate: device later gets a session_start attestation that's 4h old
@@ -354,17 +368,21 @@ class TestConstellationTrustWithAttestation:
         # Device 1: TPM2 with fresh attestation
         env1 = _make_envelope(anchor_type="tpm2", purpose="enrollment")
         enroll_device(
-            c, "lct:dev-1",
+            c,
+            "lct:dev-1",
             HardwareAnchor(anchor_type=AnchorType.TPM2),
-            [], "2026-01-01T00:00:00Z",
+            [],
+            "2026-01-01T00:00:00Z",
             attestation=env1,
         )
 
         # Device 2: FIDO2 without attestation
         enroll_device(
-            c, "lct:dev-2",
+            c,
+            "lct:dev-2",
             HardwareAnchor(anchor_type=AnchorType.FIDO2),
-            ["lct:dev-1"], "2026-01-01T00:00:00Z",
+            ["lct:dev-1"],
+            "2026-01-01T00:00:00Z",
         )
 
         trust = compute_constellation_trust(c)
@@ -415,16 +433,20 @@ class TestEdgeCases:
         c = _make_constellation()
         env = _make_envelope(anchor_type="tpm2", purpose="enrollment")
         enroll_device(
-            c, "lct:dev-1",
+            c,
+            "lct:dev-1",
             HardwareAnchor(anchor_type=AnchorType.TPM2),
-            [], "2026-01-01T00:00:00Z",
+            [],
+            "2026-01-01T00:00:00Z",
             attestation=env,
         )
         # Add second device so we can revoke without quorum issues
         enroll_device(
-            c, "lct:dev-2",
+            c,
+            "lct:dev-2",
             HardwareAnchor(anchor_type=AnchorType.FIDO2),
-            ["lct:dev-1"], "2026-01-01T00:00:00Z",
+            ["lct:dev-1"],
+            "2026-01-01T00:00:00Z",
         )
         # Manually revoke device 1
         c.devices[0].status = DeviceStatus.REVOKED

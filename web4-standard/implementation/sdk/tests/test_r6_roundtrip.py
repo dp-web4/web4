@@ -3,6 +3,7 @@
 Validates from_dict(x.to_dict()) == x for all 12 R6 component classes.
 Follows N1 (security.py) precedent — PR #119.
 """
+
 from __future__ import annotations
 
 from web4.r6 import (

@@ -50,15 +50,28 @@ from web4.trust import T3, TrustProfile, compute_team_t3, operational_health
 
 __all__ = [
     # Classes
-    "SocietyPhase", "LedgerEventType",
-    "LedgerEntry", "SocietyLedger", "Treasury", "SocietyState",
+    "SocietyPhase",
+    "LedgerEventType",
+    "LedgerEntry",
+    "SocietyLedger",
+    "Treasury",
+    "SocietyState",
     # Functions
     "create_society",
-    "admit_citizen", "suspend_citizen", "reinstate_citizen", "terminate_citizen",
+    "admit_citizen",
+    "suspend_citizen",
+    "reinstate_citizen",
+    "terminate_citizen",
     "transition_metabolic_state",
-    "deposit_treasury", "allocate_treasury", "record_law_change",
-    "compute_society_t3", "society_energy_cost", "society_health",
-    "incorporate_child", "society_depth", "society_ancestry",
+    "deposit_treasury",
+    "allocate_treasury",
+    "record_law_change",
+    "compute_society_t3",
+    "society_energy_cost",
+    "society_health",
+    "incorporate_child",
+    "society_depth",
+    "society_ancestry",
 ]
 
 
@@ -67,18 +80,20 @@ __all__ = [
 
 class SocietyPhase(str, Enum):
     """Formation lifecycle phase per spec §1.3."""
-    GENESIS = "genesis"          # Founding entities agree on initial laws
-    BOOTSTRAP = "bootstrap"      # Initial citizens recorded, treasury allocated
-    OPERATIONAL = "operational"   # Accepting citizens, economic activity
+
+    GENESIS = "genesis"  # Founding entities agree on initial laws
+    BOOTSTRAP = "bootstrap"  # Initial citizens recorded, treasury allocated
+    OPERATIONAL = "operational"  # Accepting citizens, economic activity
 
 
 class LedgerEventType(str, Enum):
     """Types of events recorded on the society ledger per spec §4.2.1."""
-    CITIZENSHIP = "citizenship"   # join/leave/suspend/reinstate
-    LAW_CHANGE = "law_change"     # propose/ratify/amend/repeal
-    ECONOMIC = "economic"         # allocate/deposit/reclaim
-    METABOLIC = "metabolic"       # state transitions
-    FORMATION = "formation"       # phase transitions, incorporation
+
+    CITIZENSHIP = "citizenship"  # join/leave/suspend/reinstate
+    LAW_CHANGE = "law_change"  # propose/ratify/amend/repeal
+    ECONOMIC = "economic"  # allocate/deposit/reclaim
+    METABOLIC = "metabolic"  # state transitions
+    FORMATION = "formation"  # phase transitions, incorporation
 
 
 # ── Data Structures ───────────────────────────────────────────────
@@ -91,14 +106,15 @@ class LedgerEntry:
     Once recorded, entries cannot be modified — only superseded via amendment.
     The amends/superseded_by fields create a provenance chain (§4.2.2).
     """
+
     entry_id: str
     event_type: LedgerEventType
-    action: str                    # e.g. "grant", "suspend", "allocate", "ratify"
-    data: Dict[str, Any]            # event-specific payload
+    action: str  # e.g. "grant", "suspend", "allocate", "ratify"
+    data: Dict[str, Any]  # event-specific payload
     timestamp: str
     witnesses: List[str] = field(default_factory=list)
-    superseded_by: Optional[str] = None   # entry_id of amendment that replaces this
-    amends: Optional[str] = None          # entry_id of entry this amends
+    superseded_by: Optional[str] = None  # entry_id of amendment that replaces this
+    amends: Optional[str] = None  # entry_id of entry this amends
 
 
 @dataclass
@@ -108,6 +124,7 @@ class SocietyLedger:
     Supports three ledger types (confined, witnessed, participatory) and
     immutability-with-corrections via the amend() method (§4.2.2).
     """
+
     ledger_type: LedgerType
     entries: List[LedgerEntry] = field(default_factory=list)
 
@@ -181,6 +198,7 @@ class Treasury:
     Tracks deposits, allocations to citizens, and reclaims.
     Balance = deposits - allocations + reclaims.
     """
+
     balance: float = 0.0
     total_deposited: float = 0.0
     total_allocated: float = 0.0
@@ -232,6 +250,7 @@ class SocietyState:
     group — it's a living entity with laws as DNA, ledger as memory,
     and citizens as cells."
     """
+
     society: Society
     phase: SocietyPhase
     metabolic_state: MetabolicState
@@ -315,14 +334,16 @@ def create_society(
 
     # Create ledger and record genesis
     ledger = SocietyLedger(ledger_type=ledger_type)
-    ledger.append(LedgerEntry(
-        entry_id=f"{society_id}-genesis",
-        event_type=LedgerEventType.FORMATION,
-        action="genesis",
-        data={"founders": founders, "name": name},
-        timestamp=timestamp,
-        witnesses=founders,
-    ))
+    ledger.append(
+        LedgerEntry(
+            entry_id=f"{society_id}-genesis",
+            event_type=LedgerEventType.FORMATION,
+            action="genesis",
+            data={"founders": founders, "name": name},
+            timestamp=timestamp,
+            witnesses=founders,
+        )
+    )
 
     # Create treasury
     treasury = Treasury()
@@ -345,25 +366,29 @@ def create_society(
 
     # Transition to BOOTSTRAP
     state.phase = SocietyPhase.BOOTSTRAP
-    ledger.append(LedgerEntry(
-        entry_id=f"{society_id}-bootstrap",
-        event_type=LedgerEventType.FORMATION,
-        action="bootstrap",
-        data={"citizen_count": len(founders), "treasury": initial_treasury},
-        timestamp=timestamp,
-        witnesses=founders,
-    ))
+    ledger.append(
+        LedgerEntry(
+            entry_id=f"{society_id}-bootstrap",
+            event_type=LedgerEventType.FORMATION,
+            action="bootstrap",
+            data={"citizen_count": len(founders), "treasury": initial_treasury},
+            timestamp=timestamp,
+            witnesses=founders,
+        )
+    )
 
     # Transition to OPERATIONAL
     state.phase = SocietyPhase.OPERATIONAL
-    ledger.append(LedgerEntry(
-        entry_id=f"{society_id}-operational",
-        event_type=LedgerEventType.FORMATION,
-        action="operational",
-        data={},
-        timestamp=timestamp,
-        witnesses=founders,
-    ))
+    ledger.append(
+        LedgerEntry(
+            entry_id=f"{society_id}-operational",
+            event_type=LedgerEventType.FORMATION,
+            action="operational",
+            data={},
+            timestamp=timestamp,
+            witnesses=founders,
+        )
+    )
 
     return state
 
@@ -430,14 +455,16 @@ def admit_citizen(
     state.society.citizenship_records[entity_lct] = record
     state.citizen_trust[entity_lct] = TrustProfile(entity_id=entity_lct)
 
-    state.ledger.append(LedgerEntry(
-        entry_id=f"{state.society_id}-citizen-{entity_lct}-admit",
-        event_type=LedgerEventType.CITIZENSHIP,
-        action="grant",
-        data={"entity_lct": entity_lct, "rights": rights, "obligations": obligations},
-        timestamp=timestamp,
-        witnesses=witnesses,
-    ))
+    state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{state.society_id}-citizen-{entity_lct}-admit",
+            event_type=LedgerEventType.CITIZENSHIP,
+            action="grant",
+            data={"entity_lct": entity_lct, "rights": rights, "obligations": obligations},
+            timestamp=timestamp,
+            witnesses=witnesses,
+        )
+    )
 
     return True
 
@@ -457,14 +484,16 @@ def suspend_citizen(
     if not result:
         return False
 
-    state.ledger.append(LedgerEntry(
-        entry_id=f"{state.society_id}-citizen-{entity_lct}-suspend-{timestamp}",
-        event_type=LedgerEventType.CITIZENSHIP,
-        action="suspend",
-        data={"entity_lct": entity_lct, "reason": reason},
-        timestamp=timestamp,
-        witnesses=witnesses,
-    ))
+    state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{state.society_id}-citizen-{entity_lct}-suspend-{timestamp}",
+            event_type=LedgerEventType.CITIZENSHIP,
+            action="suspend",
+            data={"entity_lct": entity_lct, "reason": reason},
+            timestamp=timestamp,
+            witnesses=witnesses,
+        )
+    )
 
     return True
 
@@ -486,14 +515,16 @@ def reinstate_citizen(
     if not result:
         return False
 
-    state.ledger.append(LedgerEntry(
-        entry_id=f"{state.society_id}-citizen-{entity_lct}-reinstate-{timestamp}",
-        event_type=LedgerEventType.CITIZENSHIP,
-        action="reinstate",
-        data={"entity_lct": entity_lct},
-        timestamp=timestamp,
-        witnesses=witnesses,
-    ))
+    state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{state.society_id}-citizen-{entity_lct}-reinstate-{timestamp}",
+            event_type=LedgerEventType.CITIZENSHIP,
+            action="reinstate",
+            data={"entity_lct": entity_lct},
+            timestamp=timestamp,
+            witnesses=witnesses,
+        )
+    )
 
     return True
 
@@ -521,18 +552,20 @@ def terminate_citizen(
     if not result:
         return False
 
-    state.ledger.append(LedgerEntry(
-        entry_id=f"{state.society_id}-citizen-{entity_lct}-terminate-{timestamp}",
-        event_type=LedgerEventType.CITIZENSHIP,
-        action="terminate",
-        data={
-            "entity_lct": entity_lct,
-            "reason": reason,
-            "atp_reclaimed": allocated,
-        },
-        timestamp=timestamp,
-        witnesses=witnesses,
-    ))
+    state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{state.society_id}-citizen-{entity_lct}-terminate-{timestamp}",
+            event_type=LedgerEventType.CITIZENSHIP,
+            action="terminate",
+            data={
+                "entity_lct": entity_lct,
+                "reason": reason,
+                "atp_reclaimed": allocated,
+            },
+            timestamp=timestamp,
+            witnesses=witnesses,
+        )
+    )
 
     return True
 
@@ -557,14 +590,16 @@ def transition_metabolic_state(
     old_state = state.metabolic_state
     state.metabolic_state = new_state
 
-    state.ledger.append(LedgerEntry(
-        entry_id=f"{state.society_id}-metabolic-{timestamp}",
-        event_type=LedgerEventType.METABOLIC,
-        action="transition",
-        data={"from": old_state.value, "to": new_state.value},
-        timestamp=timestamp,
-        witnesses=witnesses,
-    ))
+    state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{state.society_id}-metabolic-{timestamp}",
+            event_type=LedgerEventType.METABOLIC,
+            action="transition",
+            data={"from": old_state.value, "to": new_state.value},
+            timestamp=timestamp,
+            witnesses=witnesses,
+        )
+    )
 
     return True
 
@@ -581,13 +616,15 @@ def deposit_treasury(
     """Deposit ATP into the society treasury. Records on ledger."""
     state.treasury.deposit(amount)
 
-    state.ledger.append(LedgerEntry(
-        entry_id=f"{state.society_id}-deposit-{timestamp}",
-        event_type=LedgerEventType.ECONOMIC,
-        action="deposit",
-        data={"amount": amount, "source": source, "token_type": "ATP"},
-        timestamp=timestamp,
-    ))
+    state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{state.society_id}-deposit-{timestamp}",
+            event_type=LedgerEventType.ECONOMIC,
+            action="deposit",
+            data={"amount": amount, "source": source, "token_type": "ATP"},
+            timestamp=timestamp,
+        )
+    )
 
 
 def allocate_treasury(
@@ -611,18 +648,20 @@ def allocate_treasury(
     if not result:
         return False
 
-    state.ledger.append(LedgerEntry(
-        entry_id=f"{state.society_id}-alloc-{entity_lct}-{timestamp}",
-        event_type=LedgerEventType.ECONOMIC,
-        action="allocate",
-        data={
-            "entity_lct": entity_lct,
-            "amount": amount,
-            "purpose": purpose,
-            "token_type": "ATP",
-        },
-        timestamp=timestamp,
-    ))
+    state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{state.society_id}-alloc-{entity_lct}-{timestamp}",
+            event_type=LedgerEventType.ECONOMIC,
+            action="allocate",
+            data={
+                "entity_lct": entity_lct,
+                "amount": amount,
+                "purpose": purpose,
+                "token_type": "ATP",
+            },
+            timestamp=timestamp,
+        )
+    )
 
     return True
 
@@ -643,19 +682,21 @@ def record_law_change(
     """
     state.society.set_law(law)
 
-    state.ledger.append(LedgerEntry(
-        entry_id=f"{state.society_id}-law-{law.law_id}-{timestamp}",
-        event_type=LedgerEventType.LAW_CHANGE,
-        action=action,
-        data={
-            "law_id": law.law_id,
-            "version": law.version,
-            "norm_count": len(law.norms),
-            "procedure_count": len(law.procedures),
-        },
-        timestamp=timestamp,
-        witnesses=witnesses,
-    ))
+    state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{state.society_id}-law-{law.law_id}-{timestamp}",
+            event_type=LedgerEventType.LAW_CHANGE,
+            action=action,
+            data={
+                "law_id": law.law_id,
+                "version": law.version,
+                "norm_count": len(law.norms),
+                "procedure_count": len(law.procedures),
+            },
+            timestamp=timestamp,
+            witnesses=witnesses,
+        )
+    )
 
 
 # ── Trust Computation ─────────────────────────────────────────────
@@ -745,27 +786,31 @@ def incorporate_child(
     child_state.society.parent = parent_state.society
     parent_state.society.children.append(child_state.society)
 
-    parent_state.ledger.append(LedgerEntry(
-        entry_id=f"{parent_state.society_id}-child-{child_state.society_id}-{timestamp}",
-        event_type=LedgerEventType.FORMATION,
-        action="incorporate_child",
-        data={
-            "child_society_id": child_state.society_id,
-            "child_name": child_state.name,
-        },
-        timestamp=timestamp,
-    ))
+    parent_state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{parent_state.society_id}-child-{child_state.society_id}-{timestamp}",
+            event_type=LedgerEventType.FORMATION,
+            action="incorporate_child",
+            data={
+                "child_society_id": child_state.society_id,
+                "child_name": child_state.name,
+            },
+            timestamp=timestamp,
+        )
+    )
 
-    child_state.ledger.append(LedgerEntry(
-        entry_id=f"{child_state.society_id}-parent-{parent_state.society_id}-{timestamp}",
-        event_type=LedgerEventType.FORMATION,
-        action="incorporated_by",
-        data={
-            "parent_society_id": parent_state.society_id,
-            "parent_name": parent_state.name,
-        },
-        timestamp=timestamp,
-    ))
+    child_state.ledger.append(
+        LedgerEntry(
+            entry_id=f"{child_state.society_id}-parent-{parent_state.society_id}-{timestamp}",
+            event_type=LedgerEventType.FORMATION,
+            action="incorporated_by",
+            data={
+                "parent_society_id": parent_state.society_id,
+                "parent_name": parent_state.name,
+            },
+            timestamp=timestamp,
+        )
+    )
 
     return True
 

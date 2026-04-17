@@ -34,14 +34,31 @@ from .trust import T3, V3, _clamp
 
 __all__ = [
     # Classes
-    "R7Action", "ActionChain", "ActionStatus", "ReputationDelta",
-    "Rules", "Role", "Request", "ResourceRequirements", "Result",
-    "R7Error", "Constraint", "ContributingFactor", "Precedent",
-    "Reference", "TensorDelta",
-    "ReferenceInvalid", "ReputationComputationError", "RequestMalformed",
-    "ResourceInsufficient", "ResultInvalid", "RoleUnauthorized", "RuleViolation",
+    "R7Action",
+    "ActionChain",
+    "ActionStatus",
+    "ReputationDelta",
+    "Rules",
+    "Role",
+    "Request",
+    "ResourceRequirements",
+    "Result",
+    "R7Error",
+    "Constraint",
+    "ContributingFactor",
+    "Precedent",
+    "Reference",
+    "TensorDelta",
+    "ReferenceInvalid",
+    "ReputationComputationError",
+    "RequestMalformed",
+    "ResourceInsufficient",
+    "ResultInvalid",
+    "RoleUnauthorized",
+    "RuleViolation",
     # Also in this module but used by reputation
-    "ProofOfAgency", "WitnessAttestation",
+    "ProofOfAgency",
+    "WitnessAttestation",
     # Functions
     "build_action",
     # Constants
@@ -54,8 +71,10 @@ R7_JSONLD_CONTEXT = "https://web4.io/contexts/r7-action.jsonld"
 
 # ── Action Status ───────────────────────────────────────────────
 
+
 class ActionStatus(str, Enum):
     """R7 action lifecycle states."""
+
     PENDING = "pending"
     VALIDATED = "validated"
     IN_PROGRESS = "in_progress"
@@ -66,6 +85,7 @@ class ActionStatus(str, Enum):
 
 
 # ── R7 Error Hierarchy ──────────────────────────────────────────
+
 
 class R7Error(Exception):
     """Base error for R7 action framework."""
@@ -101,11 +121,13 @@ class ReputationComputationError(R7Error):
 
 # ── 1. Rules ────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class Constraint:
     """A single constraint within Rules."""
-    constraint_type: str   # e.g. "rate_limit", "atp_minimum", "witness_required"
-    value: Any             # threshold or limit
+
+    constraint_type: str  # e.g. "rate_limit", "atp_minimum", "witness_required"
+    value: Any  # threshold or limit
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dict with 'type' and 'value' keys."""
@@ -124,6 +146,7 @@ class Rules:
 
     Sources: SAL law norms, smart contracts, role permissions, society policies.
     """
+
     law_hash: str = ""
     society: str = ""
     constraints: List[Constraint] = field(default_factory=list)
@@ -170,6 +193,7 @@ class Rules:
 
 # ── 2. Role ─────────────────────────────────────────────────────
 
+
 @dataclass
 class Role:
     """
@@ -178,9 +202,10 @@ class Role:
     Both T3 and V3 are stored on the MRH role pairing link.
     There is no global reputation — all reputation is role-contextualized.
     """
-    actor: str             # entity LCT ID
-    role_lct: str          # role LCT ID (domain-specific, fully flexible)
-    paired_at: str = ""    # ISO timestamp of role pairing
+
+    actor: str  # entity LCT ID
+    role_lct: str  # role LCT ID (domain-specific, fully flexible)
+    paired_at: str = ""  # ISO timestamp of role pairing
     t3_in_role: Optional[T3] = None
     v3_in_role: Optional[V3] = None
 
@@ -213,9 +238,11 @@ class Role:
 
 # ── 3. Request ──────────────────────────────────────────────────
 
+
 @dataclass
 class ProofOfAgency:
     """Proof that an agent is acting on behalf of a principal."""
+
     grant_id: str
     inclusion_proof: str = ""
     scope: str = ""
@@ -248,11 +275,12 @@ class Request:
 
     Every R7 action begins with a request specifying what to do.
     """
-    action: str                         # verb (e.g. "analyze_dataset", "delegate")
-    target: str = ""                    # target entity or resource
+
+    action: str  # verb (e.g. "analyze_dataset", "delegate")
+    target: str = ""  # target entity or resource
     parameters: Dict[str, Any] = field(default_factory=dict)
-    atp_stake: float = 0.0             # ATP staked on this request
-    nonce: str = ""                     # unique request identifier
+    atp_stake: float = 0.0  # ATP staked on this request
+    nonce: str = ""  # unique request identifier
     constraints: Dict[str, Any] = field(default_factory=dict)  # temporal, budget limits
     proof_of_agency: Optional[ProofOfAgency] = None
 
@@ -288,9 +316,11 @@ class Request:
 
 # ── 4. Reference ────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class Precedent:
     """A previous action referenced as precedent."""
+
     action_hash: str
     outcome: str = ""
     relevance: float = 0.0
@@ -312,6 +342,7 @@ class Precedent:
 @dataclass(frozen=True)
 class WitnessAttestation:
     """An attestation from a witness."""
+
     lct: str
     attestation: str = "verified"
     signature: str = ""
@@ -344,6 +375,7 @@ class Reference:
 
     Sources: MRH graph, previous actions, law interpretations, witness attestations.
     """
+
     precedents: List[Precedent] = field(default_factory=list)
     mrh_depth: int = 0
     relevant_entities: List[str] = field(default_factory=list)
@@ -374,9 +406,11 @@ class Reference:
 
 # ── 5. Resource ─────────────────────────────────────────────────
 
+
 @dataclass
 class ResourceRequirements:
     """Required and available resources for an R7 action."""
+
     required_atp: float = 0.0
     available_atp: float = 0.0
     compute: Dict[str, Any] = field(default_factory=dict)  # e.g. {"cpu": "2_cores"}
@@ -422,6 +456,7 @@ class ResourceRequirements:
 
 # ── 6. Result ───────────────────────────────────────────────────
 
+
 @dataclass
 class Result:
     """
@@ -429,6 +464,7 @@ class Result:
 
     Even failed actions produce a valid Result.
     """
+
     status: ActionStatus = ActionStatus.PENDING
     output: Dict[str, Any] = field(default_factory=dict)
     output_hash: str = ""
@@ -477,9 +513,11 @@ class Result:
 
 # ── 7. Reputation ──────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class TensorDelta:
     """Change to a single tensor dimension."""
+
     change: float
     from_value: float
     to_value: float
@@ -497,6 +535,7 @@ class TensorDelta:
 @dataclass(frozen=True)
 class ContributingFactor:
     """A factor that contributed to a reputation change."""
+
     factor: str
     weight: float
 
@@ -519,12 +558,13 @@ class ReputationDelta:
     Reputation is ROLE-CONTEXTUALIZED — changes apply to the specific
     MRH role pairing link, not to the entity globally.
     """
-    subject_lct: str                                    # whose reputation changed
-    role_lct: str                                       # which role context
-    action_type: str = ""                               # what action was performed
-    action_target: str = ""                             # target of the action
-    action_id: str = ""                                 # ledger reference
-    rule_triggered: str = ""                            # which rule caused the change
+
+    subject_lct: str  # whose reputation changed
+    role_lct: str  # which role context
+    action_type: str = ""  # what action was performed
+    action_target: str = ""  # target of the action
+    action_id: str = ""  # ledger reference
+    rule_triggered: str = ""  # which rule caused the change
     reason: str = ""
     t3_delta: Dict[str, TensorDelta] = field(default_factory=dict)
     v3_delta: Dict[str, TensorDelta] = field(default_factory=dict)
@@ -619,8 +659,7 @@ class ReputationDelta:
                 to_value=delta["to"],
             )
         contributing_factors = [
-            ContributingFactor(factor=f["factor"], weight=f["weight"])
-            for f in doc.get("contributing_factors", [])
+            ContributingFactor(factor=f["factor"], weight=f["weight"]) for f in doc.get("contributing_factors", [])
         ]
         witnesses = [
             WitnessAttestation(
@@ -649,6 +688,7 @@ class ReputationDelta:
 
 # ── R7 Action (Composite) ──────────────────────────────────────
 
+
 @dataclass
 class R7Action:
     """
@@ -657,6 +697,7 @@ class R7Action:
     An R7Action is the fundamental unit of work in Web4. Every transaction,
     query, delegation, or interaction is structured as an R7Action.
     """
+
     rules: Rules = field(default_factory=Rules)
     role: Role = field(default_factory=lambda: Role(actor="", role_lct=""))
     request: Request = field(default_factory=lambda: Request(action=""))
@@ -708,10 +749,7 @@ class R7Action:
 
         # Resource sufficiency
         if not self.resource.has_sufficient_atp:
-            errors.append(
-                f"insufficient ATP: need {self.resource.required_atp}, "
-                f"have {self.resource.available_atp}"
-            )
+            errors.append(f"insufficient ATP: need {self.resource.required_atp}, have {self.resource.available_atp}")
 
         # ATP stake consistency
         if self.request.atp_stake > 0 and self.resource.required_atp < self.request.atp_stake:
@@ -869,8 +907,7 @@ class R7Action:
 
         # 4. Reference — include only when populated
         ref_dict = self.reference.to_dict()
-        if (self.reference.precedents or self.reference.witnesses
-                or self.reference.relevant_entities):
+        if self.reference.precedents or self.reference.witnesses or self.reference.relevant_entities:
             doc["reference"] = ref_dict
         else:
             doc["reference"] = ref_dict
@@ -904,8 +941,7 @@ class R7Action:
         # 1. Rules
         rules_data = doc.get("rules", {})
         constraints = [
-            Constraint(constraint_type=c["type"], value=c["value"])
-            for c in rules_data.get("constraints", [])
+            Constraint(constraint_type=c["type"], value=c["value"]) for c in rules_data.get("constraints", [])
         ]
         rules = Rules(
             law_hash=rules_data.get("lawHash", ""),
@@ -1052,6 +1088,7 @@ class R7Action:
 
 # ── Action Chain ────────────────────────────────────────────────
 
+
 class ActionChain:
     """
     An ordered chain of R7 actions linked by hash.
@@ -1139,6 +1176,7 @@ class ActionChain:
 
 
 # ── Builder (convenience) ──────────────────────────────────────
+
 
 def build_action(
     actor: str,

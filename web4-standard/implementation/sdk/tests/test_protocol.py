@@ -53,6 +53,7 @@ def vectors():
 
 # ── Handshake Phase Tests ────────────────────────────────────────
 
+
 class TestHandshakePhase:
     def test_phase_ordering(self):
         assert HandshakePhase.CLIENT_HELLO < HandshakePhase.SERVER_HELLO
@@ -225,6 +226,7 @@ class TestHandshakeMessage:
 
 # ── Pairing Method Tests ─────────────────────────────────────────
 
+
 class TestPairingMethod:
     def test_all_methods(self):
         methods = list(PairingMethod)
@@ -240,6 +242,7 @@ class TestPairingMethod:
 
 
 # ── Transport Tests ──────────────────────────────────────────────
+
 
 class TestTransport:
     def test_all_transports(self):
@@ -320,6 +323,7 @@ class TestTransportNegotiation:
 
 # ── Discovery Tests ──────────────────────────────────────────────
 
+
 class TestDiscoveryMethod:
     def test_all_methods(self):
         methods = list(DiscoveryMethod)
@@ -333,8 +337,7 @@ class TestDiscoveryMethod:
 
     def test_privacy_levels(self, vectors):
         v = vectors["discovery_required"]
-        high_privacy = [m for m in DiscoveryMethod
-                        if discovery_privacy(m) == PrivacyLevel.HIGH]
+        high_privacy = [m for m in DiscoveryMethod if discovery_privacy(m) == PrivacyLevel.HIGH]
         high_ids = [m.value for m in high_privacy]
         assert set(high_ids) == set(v["expected"]["high_privacy_methods"])
 
@@ -376,6 +379,7 @@ class TestDiscoveryResponse:
 
 
 # ── Web4 URI Tests ───────────────────────────────────────────────
+
 
 class TestWeb4URI:
     def test_parse_basic(self, vectors):
@@ -458,6 +462,7 @@ class TestWeb4URI:
 
 
 # ── Cross-Language Vector Tests ──────────────────────────────────
+
 
 class TestVectors:
     def test_handshake_client_hello(self, vectors):

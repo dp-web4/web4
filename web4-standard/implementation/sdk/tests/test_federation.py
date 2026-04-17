@@ -88,7 +88,8 @@ class TestSociety:
     def test_citizenship_with_custom_t3v3(self):
         s = Society("lct:web4:society:test", "Test")
         lct = s.issue_citizenship(
-            EntityType.HUMAN, "key",
+            EntityType.HUMAN,
+            "key",
             t3=T3(0.8, 0.7, 0.9),
             v3=V3(0.6, 0.5, 0.4),
         )
@@ -121,7 +122,9 @@ class TestAuthority:
 
     def test_delegate_authority(self):
         d = self.society.delegate_authority(
-            self.alice.lct_id, scope="finance", permissions=["approve_atp", "audit"],
+            self.alice.lct_id,
+            scope="finance",
+            permissions=["approve_atp", "audit"],
         )
         assert d.active
         assert d.scope == "finance"
@@ -132,12 +135,16 @@ class TestAuthority:
         """Cannot delegate to non-citizen."""
         with pytest.raises(ValueError, match="not a citizen"):
             self.society.delegate_authority(
-                "lct:web4:stranger", scope="finance", permissions=["read"],
+                "lct:web4:stranger",
+                scope="finance",
+                permissions=["read"],
             )
 
     def test_has_permission(self):
         self.society.delegate_authority(
-            self.alice.lct_id, scope="finance", permissions=["approve_atp"],
+            self.alice.lct_id,
+            scope="finance",
+            permissions=["approve_atp"],
         )
         assert self.society.has_permission(self.alice.lct_id, "finance", "approve_atp")
         assert not self.society.has_permission(self.alice.lct_id, "finance", "delete")
@@ -145,7 +152,9 @@ class TestAuthority:
 
     def test_revoke_delegation(self):
         d = self.society.delegate_authority(
-            self.alice.lct_id, scope="safety", permissions=["inspect"],
+            self.alice.lct_id,
+            scope="safety",
+            permissions=["inspect"],
         )
         assert self.society.has_permission(self.alice.lct_id, "safety", "inspect")
 
@@ -155,7 +164,8 @@ class TestAuthority:
     def test_sub_delegation(self):
         """Delegate can sub-delegate with reduced scope."""
         d = self.society.delegate_authority(
-            self.alice.lct_id, scope="finance",
+            self.alice.lct_id,
+            scope="finance",
             permissions=["approve_atp", "audit", "report"],
             max_depth=2,
         )
@@ -169,7 +179,9 @@ class TestAuthority:
     def test_sub_delegation_cannot_amplify(self):
         """Sub-delegation cannot add permissions not in parent."""
         d = self.society.delegate_authority(
-            self.alice.lct_id, scope="finance", permissions=["read"],
+            self.alice.lct_id,
+            scope="finance",
+            permissions=["read"],
         )
         sub = d.sub_delegate(self.bob.lct_id, permissions=["read", "write"])
         assert sub is None  # Cannot amplify
@@ -177,7 +189,9 @@ class TestAuthority:
     def test_sub_delegation_depth_limit(self):
         """Cannot sub-delegate past max_depth."""
         d = self.society.delegate_authority(
-            self.alice.lct_id, scope="ops", permissions=["read"],
+            self.alice.lct_id,
+            scope="ops",
+            permissions=["read"],
             max_depth=0,  # no sub-delegation allowed
         )
         assert not d.can_sub_delegate()
@@ -217,7 +231,9 @@ class TestLawDataset:
     def test_law_hash_deterministic(self):
         """Same content → same hash."""
         kwargs = dict(
-            law_id="test", version="1.0", society_id="s1",
+            law_id="test",
+            version="1.0",
+            society_id="s1",
             norms=[Norm("N1", "x", "<=", 10)],
         )
         law1 = LawDataset(**kwargs)
@@ -252,7 +268,9 @@ class TestLawDataset:
 
     def test_law_with_interpretations(self):
         law = LawDataset(
-            "test", "1.1", "s1",
+            "test",
+            "1.1",
+            "s1",
             interpretations=[
                 Interpretation("INT-1"),
                 Interpretation("INT-2", replaces="INT-1", reason="edge case fix"),
@@ -294,8 +312,7 @@ class TestFractalCitizenship:
         parent = Society("parent", "Parent")
         child = Society("child", "Child", parent=parent)
 
-        parent_law = LawDataset("law1", "1.0", "parent",
-                                norms=[Norm("PARENT-RULE", "x", "<=", 100)])
+        parent_law = LawDataset("law1", "1.0", "parent", norms=[Norm("PARENT-RULE", "x", "<=", 100)])
         parent.set_law(parent_law)
 
         # Child has no law → inherits parent's
@@ -307,10 +324,8 @@ class TestFractalCitizenship:
         parent = Society("parent", "Parent")
         child = Society("child", "Child", parent=parent)
 
-        parent.set_law(LawDataset("p_law", "1.0", "parent",
-                                  norms=[Norm("RULE", "x", "<=", 100)]))
-        child_law = LawDataset("c_law", "1.0", "child",
-                               norms=[Norm("RULE", "x", "<=", 50)])
+        parent.set_law(LawDataset("p_law", "1.0", "parent", norms=[Norm("RULE", "x", "<=", 100)]))
+        child_law = LawDataset("c_law", "1.0", "child", norms=[Norm("RULE", "x", "<=", 50)])
         child.set_law(child_law)
 
         # Child's own law takes precedence
@@ -329,8 +344,7 @@ class TestWitnessQuorum:
     def test_quorum_enforced(self):
         """Society enforces witness quorum from law procedures."""
         s = Society("soc", "Soc")
-        s.set_law(LawDataset("law", "1.0", "soc",
-                              procedures=[Procedure("PROC-WITNESS-QUORUM", requires_witnesses=3)]))
+        s.set_law(LawDataset("law", "1.0", "soc", procedures=[Procedure("PROC-WITNESS-QUORUM", requires_witnesses=3)]))
 
         # Too few witnesses → error
         with pytest.raises(ValueError, match="Insufficient witnesses"):
@@ -360,6 +374,7 @@ class TestRoleTypes:
 
 
 # ── New: Citizenship Lifecycle ──────────────────────────────────
+
 
 class TestCitizenshipStatus:
     """Citizenship lifecycle states and transitions."""
@@ -466,6 +481,7 @@ class TestSocietyCitizenshipLifecycle:
 
 # ── New: Quorum Policy ──────────────────────────────────────────
 
+
 class TestQuorumPolicy:
     """QuorumPolicy modes and checks."""
 
@@ -477,7 +493,7 @@ class TestQuorumPolicy:
 
     def test_majority_mode(self):
         qp = QuorumPolicy(mode=QuorumMode.MAJORITY)
-        assert qp.check(3, total_registered=5)   # 3 > 2.5
+        assert qp.check(3, total_registered=5)  # 3 > 2.5
         assert not qp.check(2, total_registered=5)  # 2 ≤ 2.5
         assert not qp.check(1, total_registered=0)  # No registered = fail
 
@@ -495,6 +511,7 @@ class TestQuorumPolicy:
 
 # ── New: Ledger Types ───────────────────────────────────────────
 
+
 class TestLedgerType:
     def test_all_types(self):
         assert LedgerType.CONFINED.value == "confined"
@@ -505,36 +522,30 @@ class TestLedgerType:
 
 # ── New: Law Merge ──────────────────────────────────────────────
 
+
 class TestLawMerge:
     """merge_law: parent + child norm inheritance (§3.5)."""
 
     def test_child_overrides_parent_norm(self):
-        parent = LawDataset("p", "1.0", "p",
-                            norms=[Norm("SHARED", "x", "<=", 100),
-                                   Norm("PARENT-ONLY", "y", ">=", 0)])
-        child = LawDataset("c", "1.0", "c",
-                           norms=[Norm("SHARED", "x", "<=", 50)])
+        parent = LawDataset("p", "1.0", "p", norms=[Norm("SHARED", "x", "<=", 100), Norm("PARENT-ONLY", "y", ">=", 0)])
+        child = LawDataset("c", "1.0", "c", norms=[Norm("SHARED", "x", "<=", 50)])
 
         merged = merge_law(parent, child)
         assert len(merged.norms) == 2  # SHARED (child) + PARENT-ONLY
-        assert merged.check_norm("SHARED", 75) is False   # Child's <=50
+        assert merged.check_norm("SHARED", 75) is False  # Child's <=50
         assert merged.check_norm("PARENT-ONLY", 1) is True  # Inherited
 
     def test_parent_procs_inherited(self):
-        parent = LawDataset("p", "1.0", "p",
-                            procedures=[Procedure("PROC-A", 3)])
-        child = LawDataset("c", "1.0", "c",
-                           procedures=[Procedure("PROC-B", 2)])
+        parent = LawDataset("p", "1.0", "p", procedures=[Procedure("PROC-A", 3)])
+        child = LawDataset("c", "1.0", "c", procedures=[Procedure("PROC-B", 2)])
         merged = merge_law(parent, child)
         assert len(merged.procedures) == 2
         assert merged.get_procedure("PROC-A") is not None
         assert merged.get_procedure("PROC-B") is not None
 
     def test_child_overrides_proc(self):
-        parent = LawDataset("p", "1.0", "p",
-                            procedures=[Procedure("PROC-A", 3)])
-        child = LawDataset("c", "1.0", "c",
-                           procedures=[Procedure("PROC-A", 1)])
+        parent = LawDataset("p", "1.0", "p", procedures=[Procedure("PROC-A", 3)])
+        child = LawDataset("c", "1.0", "c", procedures=[Procedure("PROC-A", 1)])
         merged = merge_law(parent, child)
         assert len(merged.procedures) == 1
         assert merged.get_procedure("PROC-A").requires_witnesses == 1  # Child wins
@@ -544,11 +555,12 @@ class TestLawMerge:
         parent_soc = Society("parent", "Parent")
         child_soc = Society("child", "Child", parent=parent_soc)
 
-        parent_soc.set_law(LawDataset("p_law", "1.0", "parent",
-                                       norms=[Norm("PARENT-ONLY", "x", "<=", 100),
-                                              Norm("SHARED", "y", "<=", 200)]))
-        child_soc.set_law(LawDataset("c_law", "1.0", "child",
-                                      norms=[Norm("SHARED", "y", "<=", 50)]))
+        parent_soc.set_law(
+            LawDataset(
+                "p_law", "1.0", "parent", norms=[Norm("PARENT-ONLY", "x", "<=", 100), Norm("SHARED", "y", "<=", 200)]
+            )
+        )
+        child_soc.set_law(LawDataset("c_law", "1.0", "child", norms=[Norm("SHARED", "y", "<=", 50)]))
 
         # Default mode: child overrides entirely
         default = child_soc.effective_law(merge=False)
@@ -556,8 +568,8 @@ class TestLawMerge:
 
         # Merge mode: child overrides + parent inherited
         merged = child_soc.effective_law(merge=True)
-        assert merged.check_norm("PARENT-ONLY", 50) is True   # Inherited
-        assert merged.check_norm("SHARED", 75) is False        # Child's <=50
+        assert merged.check_norm("PARENT-ONLY", 50) is True  # Inherited
+        assert merged.check_norm("SHARED", 75) is False  # Child's <=50
 
     def test_merge_no_parent_returns_child_law(self):
         """Merge with no parent just returns child law."""
@@ -568,6 +580,7 @@ class TestLawMerge:
 
 
 # ── New: Audit ──────────────────────────────────────────────────
+
 
 class TestAudit:
     """Audit request and adjustment validation (§5.5)."""

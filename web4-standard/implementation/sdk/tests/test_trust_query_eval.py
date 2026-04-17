@@ -269,7 +269,9 @@ class TestTimestampHandling:
     def test_explicit_timestamp_override(self) -> None:
         query = _make_query(timestamp="2025-09-14T12:00:00Z")
         result = evaluate_trust_query(
-            query, _make_profile(), ATPAccount(available=500.0),
+            query,
+            _make_profile(),
+            ATPAccount(available=500.0),
             timestamp="2025-09-14T15:00:00Z",
         )
 
@@ -296,7 +298,9 @@ class TestResponseRoundTrip:
 
     def test_approved_response_round_trips(self) -> None:
         result = evaluate_trust_query(
-            _make_query(), _make_profile(), ATPAccount(available=500.0),
+            _make_query(),
+            _make_profile(),
+            ATPAccount(available=500.0),
         )
         d = result.to_dict()
         restored = TrustQueryResponse.from_dict(d)
@@ -311,7 +315,9 @@ class TestResponseRoundTrip:
 
     def test_rejected_response_round_trips(self) -> None:
         result = evaluate_trust_query(
-            _make_query(stake=100), _make_profile(), ATPAccount(available=10.0),
+            _make_query(stake=100),
+            _make_profile(),
+            ATPAccount(available=10.0),
         )
         d = result.to_dict()
         restored = TrustQueryResponse.from_dict(d)

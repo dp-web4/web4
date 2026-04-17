@@ -488,10 +488,8 @@ class TestACPLifecycle:
             grant_id="grant-001",
             triggers=[Trigger(kind=TriggerKind.MANUAL, expr="user_request")],
             steps=[
-                PlanStep(step_id="s1", mcp_tool="data.query",
-                         args={"table": "sensors", "limit": 100}),
-                PlanStep(step_id="s2", mcp_tool="data.transform",
-                         args={"format": "json"}, depends_on=["s1"]),
+                PlanStep(step_id="s1", mcp_tool="data.query", args={"table": "sensors", "limit": 100}),
+                PlanStep(step_id="s2", mcp_tool="data.transform", args={"format": "json"}, depends_on=["s1"]),
             ],
             guards=Guards(
                 law_hash="law:test:v1",
@@ -664,14 +662,20 @@ def _make_transfer_result_doc() -> dict:
 
 def _make_agent_plan_doc() -> dict:
     return AgentPlan(
-        plan_id="p1", principal="pr1", agent="ag1", grant_id="g1",
+        plan_id="p1",
+        principal="pr1",
+        agent="ag1",
+        grant_id="g1",
         steps=[PlanStep(step_id="s1", mcp_tool="tool", args={})],
     ).to_jsonld()
 
 
 def _make_intent_doc() -> dict:
     plan = AgentPlan(
-        plan_id="p1", principal="pr1", agent="ag1", grant_id="g1",
+        plan_id="p1",
+        principal="pr1",
+        agent="ag1",
+        grant_id="g1",
         steps=[PlanStep(step_id="s1", mcp_tool="tool", args={})],
     )
     return build_intent(plan, "s1").to_jsonld()
@@ -679,20 +683,26 @@ def _make_intent_doc() -> dict:
 
 def _make_decision_doc() -> dict:
     return Decision(
-        intent_id="i1", decision=DecisionType.APPROVE,
+        intent_id="i1",
+        decision=DecisionType.APPROVE,
         decided_by="approver",
     ).to_jsonld()
 
 
 def _make_execution_record_doc() -> dict:
     return ExecutionRecord(
-        record_id="r1", intent_id="i1", grant_id="g1",
-        law_hash="law1", mcp_call={"tool": "t"}, result_status="success",
+        record_id="r1",
+        intent_id="i1",
+        grant_id="g1",
+        law_hash="law1",
+        mcp_call={"tool": "t"},
+        result_status="success",
     ).to_jsonld()
 
 
 def _make_entity_info_doc() -> dict:
     from web4.entity import get_info
+
     return get_info(ET.HUMAN).to_jsonld()
 
 
@@ -721,7 +731,8 @@ def _make_capability_framework_doc() -> dict:
 
 def _make_dictionary_spec_doc() -> dict:
     return DictionarySpec(
-        source_domain="tech", target_domain="business",
+        source_domain="tech",
+        target_domain="business",
         dictionary_type=DictionaryType.DOMAIN,
     ).to_jsonld()
 
@@ -730,7 +741,8 @@ def _make_translation_result_doc() -> dict:
     entity = DictionaryEntity.create("tech", "biz", "k1")
     result = entity.record_translation(
         TranslationRequest("API rate limit", "tech", "biz"),
-        content="Usage cap reached", confidence=0.85,
+        content="Usage cap reached",
+        confidence=0.85,
     )
     return result.to_jsonld()
 
@@ -747,23 +759,35 @@ def _make_dictionary_entity_doc() -> dict:
 
 def _make_r7_action_doc() -> dict:
     return build_action(
-        actor="a1", role_lct="r1", action="act", target="tgt",
-        t3=T3(0.8, 0.8, 0.8), v3=V3(0.8, 0.8, 0.8),
+        actor="a1",
+        role_lct="r1",
+        action="act",
+        target="tgt",
+        t3=T3(0.8, 0.8, 0.8),
+        v3=V3(0.8, 0.8, 0.8),
     ).to_jsonld()
 
 
 def _make_reputation_delta_doc() -> dict:
     action = build_action(
-        actor="a1", role_lct="r1", action="act", target="tgt",
-        t3=T3(0.8, 0.8, 0.8), v3=V3(0.8, 0.8, 0.8),
+        actor="a1",
+        role_lct="r1",
+        action="act",
+        target="tgt",
+        t3=T3(0.8, 0.8, 0.8),
+        v3=V3(0.8, 0.8, 0.8),
     )
     return action.compute_reputation(quality=0.9).to_jsonld()
 
 
 def _make_action_chain_doc() -> dict:
     a1 = build_action(
-        actor="a1", role_lct="r1", action="a", target="t",
-        t3=T3(0.8, 0.8, 0.8), v3=V3(0.8, 0.8, 0.8),
+        actor="a1",
+        role_lct="r1",
+        action="a",
+        target="t",
+        t3=T3(0.8, 0.8, 0.8),
+        v3=V3(0.8, 0.8, 0.8),
     )
     a1.result = Result(status=ActionStatus.SUCCESS, output={}, atp_consumed=1.0)
     chain = ActionChain()
@@ -773,6 +797,7 @@ def _make_action_chain_doc() -> dict:
 
 def _make_trust_query_doc() -> dict:
     from web4.trust import TrustQuery
+
     q = TrustQuery(
         querier="lct:web4:alice",
         target_entity="lct:web4:bob",
@@ -874,7 +899,8 @@ class TestCrossModuleDocumentExchange:
             role_lct="role:analyst",
             action="analyze",
             target="dataset",
-            t3=t3, v3=v3,
+            t3=t3,
+            v3=v3,
             atp_stake=20.0,
             available_atp=500.0,
         )

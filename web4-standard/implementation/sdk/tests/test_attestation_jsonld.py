@@ -19,6 +19,7 @@ from web4.attestation import (
 
 # ── Fixtures ─────────────────────────────────────────────────────
 
+
 def _software_envelope(**overrides) -> AttestationEnvelope:
     """Minimal software envelope for testing."""
     defaults = dict(
@@ -76,6 +77,7 @@ def _tpm2_envelope(**overrides) -> AttestationEnvelope:
 
 # ── @context and @type ───────────────────────────────────────────
 
+
 class TestJsonldContext:
     """Verify @context header and @type field."""
 
@@ -94,6 +96,7 @@ class TestJsonldContext:
 
 
 # ── WHO fields ───────────────────────────────────────────────────
+
 
 class TestJsonldWhoFields:
     """Verify entity_id, public_key, and fingerprint."""
@@ -114,6 +117,7 @@ class TestJsonldWhoFields:
 
 
 # ── WHAT (anchor) ────────────────────────────────────────────────
+
 
 class TestJsonldAnchor:
     """Verify anchor serialization."""
@@ -147,6 +151,7 @@ class TestJsonldAnchor:
 
 
 # ── PROOF ────────────────────────────────────────────────────────
+
 
 class TestJsonldProof:
     """Verify proof serialization."""
@@ -203,6 +208,7 @@ class TestJsonldProof:
 
 # ── WHEN (timestamps) ───────────────────────────────────────────
 
+
 class TestJsonldTimestamps:
     """Verify timestamp fields."""
 
@@ -220,6 +226,7 @@ class TestJsonldTimestamps:
 
 
 # ── WHERE (platform state) ──────────────────────────────────────
+
 
 class TestJsonldPlatformState:
     """Verify platform_state serialization."""
@@ -250,6 +257,7 @@ class TestJsonldPlatformState:
 
 
 # ── TRUST and METADATA ──────────────────────────────────────────
+
 
 class TestJsonldTrustAndMetadata:
     """Verify trust_ceiling and optional metadata."""
@@ -284,6 +292,7 @@ class TestJsonldTrustAndMetadata:
 
 
 # ── Roundtrip ────────────────────────────────────────────────────
+
 
 class TestJsonldRoundtrip:
     """Verify to_jsonld → from_jsonld round-trip fidelity."""
@@ -342,6 +351,7 @@ class TestJsonldRoundtrip:
 
 # ── Cross-format compatibility ───────────────────────────────────
 
+
 class TestCrossFormatCompat:
     """Verify from_jsonld accepts SDK dict format too."""
 
@@ -365,6 +375,7 @@ class TestCrossFormatCompat:
 
 # ── Spec canonical example ───────────────────────────────────────
 
+
 class TestSpecCanonical:
     """Validate against the spec's canonical structure."""
 
@@ -373,13 +384,21 @@ class TestSpecCanonical:
         Verify all spec fields are present in JSON-LD output."""
         doc = _tpm2_envelope().to_jsonld()
         spec_fields = [
-            "@context", "@type", "envelope_version",
-            "entity_id", "public_key", "public_key_fingerprint",
-            "anchor", "proof",
-            "timestamp", "challenge_issued_at", "challenge_ttl",
+            "@context",
+            "@type",
+            "envelope_version",
+            "entity_id",
+            "public_key",
+            "public_key_fingerprint",
+            "anchor",
+            "proof",
+            "timestamp",
+            "challenge_issued_at",
+            "challenge_ttl",
             "platform_state",
             "trust_ceiling",
-            "issuer", "purpose",
+            "issuer",
+            "purpose",
         ]
         for f in spec_fields:
             assert f in doc, f"Spec field '{f}' missing from JSON-LD output"
@@ -409,6 +428,7 @@ class TestSpecCanonical:
 
 
 # ── Backward compatibility ───────────────────────────────────────
+
 
 class TestBackwardCompat:
     """Verify to_dict/from_dict still works unchanged."""
@@ -440,10 +460,7 @@ class TestBackwardCompat:
 
 import pathlib
 
-CONTEXT_FILE = (
-    pathlib.Path(__file__).resolve().parents[3]
-    / "schemas" / "contexts" / "attestation-envelope.jsonld"
-)
+CONTEXT_FILE = pathlib.Path(__file__).resolve().parents[3] / "schemas" / "contexts" / "attestation-envelope.jsonld"
 
 
 class TestAttestationContextFileConsistency:
@@ -476,9 +493,15 @@ class TestAttestationContextFileConsistency:
 
     def test_proof_fields_covered(self):
         proof_keys = [
-            "proof", "format", "signature", "challenge",
-            "attestation_object", "pcr_digest", "pcr_selection",
-            "authenticator_data", "client_data_hash",
+            "proof",
+            "format",
+            "signature",
+            "challenge",
+            "attestation_object",
+            "pcr_digest",
+            "pcr_selection",
+            "authenticator_data",
+            "client_data_hash",
         ]
         for key in proof_keys:
             assert key in self.context, f"Missing proof term: {key}"
@@ -490,8 +513,12 @@ class TestAttestationContextFileConsistency:
 
     def test_platform_state_fields_covered(self):
         ps_keys = [
-            "platform_state", "available", "boot_verified",
-            "pcr_values", "os_version", "kernel_version",
+            "platform_state",
+            "available",
+            "boot_verified",
+            "pcr_values",
+            "os_version",
+            "kernel_version",
         ]
         for key in ps_keys:
             assert key in self.context, f"Missing platform_state term: {key}"
@@ -537,9 +564,7 @@ class TestAttestationContextFileConsistency:
                 # pcr_values uses numeric string keys — data, not terms
                 if path.endswith("pcr_values"):
                     continue
-                assert k in self.context, (
-                    f"Key '{k}' (at {path}) not in context file"
-                )
+                assert k in self.context, f"Key '{k}' (at {path}) not in context file"
                 self._check_keys(v, f"{path}.{k}")
         elif isinstance(obj, list):
             for item in obj:

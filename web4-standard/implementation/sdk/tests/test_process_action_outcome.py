@@ -64,20 +64,22 @@ def _make_action(
 def _make_engine() -> ReputationEngine:
     """Build an engine with a standard rule for data_analysis actions."""
     engine = ReputationEngine()
-    engine.add_rule(ReputationRule(
-        rule_id="R001",
-        trigger_conditions={"action_type": "data_analysis", "result_status": "success"},
-        t3_impacts={
-            "talent": DimensionImpact(base_delta=0.05),
-            "training": DimensionImpact(
-                base_delta=0.03,
-                modifiers=[Modifier(condition="high_accuracy", multiplier=1.5)],
-            ),
-        },
-        v3_impacts={
-            "veracity": DimensionImpact(base_delta=0.02),
-        },
-    ))
+    engine.add_rule(
+        ReputationRule(
+            rule_id="R001",
+            trigger_conditions={"action_type": "data_analysis", "result_status": "success"},
+            t3_impacts={
+                "talent": DimensionImpact(base_delta=0.05),
+                "training": DimensionImpact(
+                    base_delta=0.03,
+                    modifiers=[Modifier(condition="high_accuracy", multiplier=1.5)],
+                ),
+            },
+            v3_impacts={
+                "veracity": DimensionImpact(base_delta=0.02),
+            },
+        )
+    )
     return engine
 
 
@@ -190,13 +192,15 @@ class TestFailurePath:
     def test_failure_with_matching_rule(self) -> None:
         action = _make_action(status=ActionStatus.FAILURE)
         engine = ReputationEngine()
-        engine.add_rule(ReputationRule(
-            rule_id="R002",
-            trigger_conditions={"action_type": "data_analysis", "result_status": "failure"},
-            t3_impacts={
-                "temperament": DimensionImpact(base_delta=-0.05),
-            },
-        ))
+        engine.add_rule(
+            ReputationRule(
+                rule_id="R002",
+                trigger_conditions={"action_type": "data_analysis", "result_status": "failure"},
+                t3_impacts={
+                    "temperament": DimensionImpact(base_delta=-0.05),
+                },
+            )
+        )
         profile = TrustProfile("lct:alice")
         profile.set_role("web4:DataAnalyst", T3(0.7, 0.8, 0.9))
         account = ATPAccount(available=0.0, locked=10.0)
@@ -329,8 +333,10 @@ class TestRootImport:
 
     def test_process_action_outcome_importable(self) -> None:
         from web4 import process_action_outcome as pao
+
         assert callable(pao)
 
     def test_action_outcome_result_importable(self) -> None:
         from web4 import ActionOutcomeResult as AOR
+
         assert AOR is not None

@@ -16,9 +16,7 @@ import pytest
 
 from web4.lct import LCT, LCT_JSONLD_CONTEXT
 
-VECTORS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "test-vectors"
-)
+VECTORS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "test-vectors")
 
 
 def load_vectors():
@@ -43,25 +41,18 @@ def _deep_compare(expected, actual, tol, path=""):
     """Deep comparison with float tolerance."""
     if isinstance(expected, dict) and isinstance(actual, dict):
         assert set(expected.keys()) == set(actual.keys()), (
-            f"Key mismatch at {path}: expected {sorted(expected.keys())}, "
-            f"got {sorted(actual.keys())}"
+            f"Key mismatch at {path}: expected {sorted(expected.keys())}, got {sorted(actual.keys())}"
         )
         for key in expected:
             _deep_compare(expected[key], actual[key], tol, f"{path}.{key}")
     elif isinstance(expected, list) and isinstance(actual, list):
-        assert len(expected) == len(actual), (
-            f"Length mismatch at {path}: expected {len(expected)}, got {len(actual)}"
-        )
+        assert len(expected) == len(actual), f"Length mismatch at {path}: expected {len(expected)}, got {len(actual)}"
         for i, (e, a) in enumerate(zip(expected, actual)):
             _deep_compare(e, a, tol, f"{path}[{i}]")
     elif isinstance(expected, float) or isinstance(actual, float):
-        assert _approx_equal(expected, actual, tol), (
-            f"Float mismatch at {path}: expected {expected}, got {actual}"
-        )
+        assert _approx_equal(expected, actual, tol), f"Float mismatch at {path}: expected {expected}, got {actual}"
     else:
-        assert expected == actual, (
-            f"Value mismatch at {path}: expected {expected!r}, got {actual!r}"
-        )
+        assert expected == actual, f"Value mismatch at {path}: expected {expected!r}, got {actual!r}"
 
 
 # ── Roundtrip Tests ──────────────────────────────────────────────
@@ -102,8 +93,7 @@ class TestLCTJsonLDStructure:
     def test_required_fields(self, vec_id):
         """Every JSON-LD document must have lct_id, subject, binding, mrh, policy, t3_tensor, v3_tensor, revocation."""
         doc = next(v for v in VECTORS if v["id"] == vec_id)["jsonld"]
-        for field in ["lct_id", "subject", "binding", "mrh", "policy",
-                       "t3_tensor", "v3_tensor", "revocation"]:
+        for field in ["lct_id", "subject", "binding", "mrh", "policy", "t3_tensor", "v3_tensor", "revocation"]:
             assert field in doc, f"Missing required field: {field}"
 
     @pytest.mark.parametrize("vec_id", VECTOR_IDS)
@@ -290,9 +280,21 @@ class TestLCTJsonLDSpecCompliance:
     def test_entity_types_valid(self):
         """All entity_type values are valid LCT entity types."""
         valid_types = {
-            "human", "ai", "society", "organization", "role", "task",
-            "resource", "device", "service", "oracle", "accumulator",
-            "dictionary", "hybrid", "policy", "infrastructure",
+            "human",
+            "ai",
+            "society",
+            "organization",
+            "role",
+            "task",
+            "resource",
+            "device",
+            "service",
+            "oracle",
+            "accumulator",
+            "dictionary",
+            "hybrid",
+            "policy",
+            "infrastructure",
         }
         for vec in VECTORS:
             et = vec["jsonld"]["binding"]["entity_type"]
@@ -320,21 +322,23 @@ class TestLCTJsonLDFromDictCompat:
 
     def test_from_jsonld_accepts_legacy_context_field(self):
         """from_jsonld accepts legacy 'context' field name for backward compat."""
-        lct = LCT.from_jsonld({
-            "lct_id": "lct:test:compat",
-            "subject": "did:test:compat",
-            "binding": {
-                "entity_type": "ai",
-                "public_key": "testkey",
-                "created_at": "2026-01-01T00:00:00Z",
-            },
-            "birth_certificate": {
-                "issuing_society": "lct:web4:society-genesis",
-                "citizen_role": "lct:web4:role:citizen:platform",
-                "birth_timestamp": "2026-01-01T00:00:00Z",
-                "context": "platform",  # legacy format — still accepted
-            },
-        })
+        lct = LCT.from_jsonld(
+            {
+                "lct_id": "lct:test:compat",
+                "subject": "did:test:compat",
+                "binding": {
+                    "entity_type": "ai",
+                    "public_key": "testkey",
+                    "created_at": "2026-01-01T00:00:00Z",
+                },
+                "birth_certificate": {
+                    "issuing_society": "lct:web4:society-genesis",
+                    "citizen_role": "lct:web4:role:citizen:platform",
+                    "birth_timestamp": "2026-01-01T00:00:00Z",
+                    "context": "platform",  # legacy format — still accepted
+                },
+            }
+        )
         assert lct.birth_certificate.birth_context == "platform"
 
 

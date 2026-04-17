@@ -33,16 +33,28 @@ from .trust import T3, V3, _clamp
 
 __all__ = [
     # Classes
-    "DictionaryEntity", "DictionarySpec", "DictionaryType", "DictionaryVersion",
-    "CompressionProfile", "DomainCoverage",
-    "TranslationRequest", "TranslationResult", "TranslationChain",
-    "AmbiguityHandling", "ChainStep", "EvolutionConfig", "FeedbackRecord",
+    "DictionaryEntity",
+    "DictionarySpec",
+    "DictionaryType",
+    "DictionaryVersion",
+    "CompressionProfile",
+    "DomainCoverage",
+    "TranslationRequest",
+    "TranslationResult",
+    "TranslationChain",
+    "AmbiguityHandling",
+    "ChainStep",
+    "EvolutionConfig",
+    "FeedbackRecord",
     # Functions
-    "dictionary_selection_score", "select_best_dictionary",
+    "dictionary_selection_score",
+    "select_best_dictionary",
     # Constants
     "DICTIONARY_JSONLD_CONTEXT",
-    "SELECTION_WEIGHT_TRUST", "SELECTION_WEIGHT_COVERAGE",
-    "SELECTION_WEIGHT_RECENCY", "SELECTION_WEIGHT_COST",
+    "SELECTION_WEIGHT_TRUST",
+    "SELECTION_WEIGHT_COVERAGE",
+    "SELECTION_WEIGHT_RECENCY",
+    "SELECTION_WEIGHT_COST",
 ]
 
 
@@ -53,16 +65,19 @@ DICTIONARY_JSONLD_CONTEXT = "https://web4.io/contexts/dictionary.jsonld"
 
 # ── Dictionary Types ─────────────────────────────────────────────
 
+
 class DictionaryType(str, Enum):
     """Dictionary type taxonomy (spec §3)."""
-    DOMAIN = "domain"            # Professional/technical domain bridges
-    MODEL = "model"              # AI model-to-model bridges
+
+    DOMAIN = "domain"  # Professional/technical domain bridges
+    MODEL = "model"  # AI model-to-model bridges
     COMPRESSION = "compression"  # Semantic codebook management
-    META = "meta"                # Dictionary-to-dictionary translation
+    META = "meta"  # Dictionary-to-dictionary translation
 
 
 class AmbiguityHandling(str, Enum):
     """How the dictionary resolves ambiguous mappings."""
+
     DETERMINISTIC = "deterministic"
     PROBABILISTIC = "probabilistic"
     CONTEXT_AWARE = "context_aware"
@@ -71,9 +86,11 @@ class AmbiguityHandling(str, Enum):
 
 # ── Dictionary Specification ─────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class DomainCoverage:
     """Coverage metrics for a dictionary's domain knowledge."""
+
     terms: int = 0
     concepts: int = 0
     relationships: int = 0
@@ -87,6 +104,7 @@ class CompressionProfile:
     High trust → high compression → efficient communication.
     Low trust → low compression → verbose communication.
     """
+
     average_ratio: float = 1.0
     lossy_threshold: float = 0.02
     context_required: str = "moderate"  # "none", "minimal", "moderate", "full"
@@ -101,6 +119,7 @@ class DictionarySpec:
     A DictionarySpec declares what domains the dictionary bridges, its version,
     and its coverage. This is the "identity card" of the dictionary's competence.
     """
+
     source_domain: str
     target_domain: str
     bidirectional: bool = True
@@ -183,6 +202,7 @@ class DictionarySpec:
 
 # ── Translation ──────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class TranslationRequest:
     """
@@ -191,6 +211,7 @@ class TranslationRequest:
     The source_content is opaque — this module doesn't process content,
     only tracks trust, confidence, and degradation metadata.
     """
+
     source_content: str
     source_domain: str
     target_domain: str
@@ -209,6 +230,7 @@ class TranslationResult:
     degradation: 1 - confidence — semantic loss in this step.
     witness_required: True if confidence < 0.95 or request requires it.
     """
+
     content: str
     confidence: float
     degradation: float
@@ -264,9 +286,11 @@ class TranslationResult:
 
 # ── Translation Chain ────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class ChainStep:
     """One step in a multi-hop translation chain (spec §4.3)."""
+
     step: int
     source_domain: str
     target_domain: str
@@ -286,6 +310,7 @@ class TranslationChain:
 
     Example: 0.95 × 0.92 = 0.874 → 12.6% cumulative degradation.
     """
+
     steps: List[ChainStep] = field(default_factory=list)
     witness_lct_ids: List[str] = field(default_factory=list)
 
@@ -364,14 +389,16 @@ class TranslationChain:
         """Deserialize from JSON-LD document."""
         steps = []
         for s in doc.get("steps", []):
-            steps.append(ChainStep(
-                step=s["step"],
-                source_domain=s["source_domain"],
-                target_domain=s["target_domain"],
-                dictionary_lct_id=s["dictionary_lct_id"],
-                confidence=s["confidence"],
-                degradation=s["degradation"],
-            ))
+            steps.append(
+                ChainStep(
+                    step=s["step"],
+                    source_domain=s["source_domain"],
+                    target_domain=s["target_domain"],
+                    dictionary_lct_id=s["dictionary_lct_id"],
+                    confidence=s["confidence"],
+                    degradation=s["degradation"],
+                )
+            )
         return cls(
             steps=steps,
             witness_lct_ids=doc.get("witness_lct_ids", []),
@@ -385,9 +412,11 @@ class TranslationChain:
 
 # ── Dictionary Evolution ─────────────────────────────────────────
 
+
 @dataclass
 class EvolutionConfig:
     """Configuration for dictionary evolution (spec §5)."""
+
     learning_rate: float = 0.001
     update_frequency: str = "daily"
     drift_detection: bool = True
@@ -397,6 +426,7 @@ class EvolutionConfig:
 @dataclass
 class DictionaryVersion:
     """A versioned snapshot of dictionary state."""
+
     version: str
     parent_version: Optional[str] = None
     timestamp: str = ""
@@ -411,6 +441,7 @@ class DictionaryVersion:
 @dataclass
 class FeedbackRecord:
     """Feedback on a translation — correction or validation (spec §5.1)."""
+
     feedback_type: str  # "correction" or "validation"
     mapping_id: str
     success: bool = True
@@ -426,6 +457,7 @@ class FeedbackRecord:
 
 
 # ── Dictionary Entity ────────────────────────────────────────────
+
 
 @dataclass
 class DictionaryEntity:
@@ -642,7 +674,7 @@ class DictionaryEntity:
         )
 
         # Add witnesses to MRH
-        for w_id in (witness_lct_ids or []):
+        for w_id in witness_lct_ids or []:
             self.lct.add_witness(w_id)
 
         return result
@@ -666,9 +698,7 @@ class DictionaryEntity:
     def create_new_version(self, new_version: str, changelog: str = "") -> DictionaryVersion:
         """Create a new versioned snapshot (spec §5.1)."""
         parent = self.current_version
-        corrections = sum(
-            1 for f in self.feedback_history if f.feedback_type == "correction"
-        )
+        corrections = sum(1 for f in self.feedback_history if f.feedback_type == "correction")
 
         version = DictionaryVersion(
             version=new_version,

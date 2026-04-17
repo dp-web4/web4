@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-16 (Sprint 37)*
+*Last updated: 2026-04-17 (Sprint 38)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 38 Summary: Ruff Format Codebase-Wide + CI Enforcement (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: `ruff format` codebase-wide + CI `ruff format --check` | DONE | 70 files reformatted (web4/ + tests/test_*.py), new CI format-check step matches existing lint scope, 0 new files, 0 manual source edits, 2627 tests pass, mypy strict clean |
 
 ### Sprint 37 Summary: Ruff Lint Cleanup + CI Enforcement (COMPLETE)
 
@@ -178,13 +184,17 @@ Web4 SDK development aligns with ARIA grant requirements:
 
 ## Open PRs
 
-- PR #159: ruff format codebase-wide (Sprint 36, pending review)
+- PR #160: Sprint 36 T1 — Replace stale examples with v0.25.0 quickstart (pending review)
+
+### Closed PRs (recent)
+
+- PR #159 CLOSED (superseded) — attempted `ruff format` sweep but shipped with failing lint and stray session-report artifacts; its lint debt was fixed separately in PR #161 (Sprint 37 T1, merged), and its `ruff format` intent is addressed in Sprint 38 T1 on a clean branch.
 
 ---
 
 ## Completeness Summary
 
-- All 37 sprints COMPLETE (Sprints 1-37)
+- All 38 sprints COMPLETE (Sprints 1-38)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -204,7 +214,8 @@ Web4 SDK development aligns with ARIA grant requirements:
 - Wheel distribution verified: imports, CLI, schema validation, roundtrip all pass from installed wheel
 - All 23 generate() types pass roundtrip fidelity (generate → from_jsonld → to_jsonld = identical)
 - `ruff check web4/ tests/` passes with 0 errors — CI enforces lint on source + tests
+- `ruff format --check web4/ tests/test_*.py` passes with 0 changes — CI enforces formatting on source + tests
 
 ---
 
-*Updated by autonomous session, 2026-04-16 (Sprint 37 — ruff lint cleanup + CI enforcement)*
+*Updated by autonomous session, 2026-04-17 (Sprint 38 — ruff format codebase-wide + CI enforcement)*

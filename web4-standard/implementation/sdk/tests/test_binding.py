@@ -32,6 +32,7 @@ from web4.binding import (
 
 # ── Fixtures ─────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def phone_anchor():
     return HardwareAnchor(
@@ -118,6 +119,7 @@ def multi_device_constellation(phone_anchor, fido2_anchor, tpm2_anchor):
 
 # ── AnchorType Properties ───────────────────────────────────────
 
+
 class TestHardwareAnchor:
     def test_phone_se_trust_weight(self, phone_anchor):
         assert phone_anchor.trust_weight == 0.95
@@ -146,6 +148,7 @@ class TestHardwareAnchor:
 
 # ── Constellation Management ────────────────────────────────────
 
+
 class TestConstellationManagement:
     def test_empty_constellation(self, empty_constellation):
         assert empty_constellation.device_count == 0
@@ -164,9 +167,7 @@ class TestConstellationManagement:
         assert empty_constellation.device_count == 1
         assert empty_constellation.recovery_quorum == 1
 
-    def test_additional_enrollment_with_witness(
-        self, single_phone_constellation, fido2_anchor
-    ):
+    def test_additional_enrollment_with_witness(self, single_phone_constellation, fido2_anchor):
         _rec = enroll_device(
             single_phone_constellation,
             "lct:web4:device:fido1",
@@ -177,9 +178,7 @@ class TestConstellationManagement:
         assert single_phone_constellation.device_count == 2
         assert single_phone_constellation.recovery_quorum == 2
 
-    def test_additional_enrollment_no_witness_raises(
-        self, single_phone_constellation, fido2_anchor
-    ):
+    def test_additional_enrollment_no_witness_raises(self, single_phone_constellation, fido2_anchor):
         with pytest.raises(ValueError, match="existing active device as witness"):
             enroll_device(
                 single_phone_constellation,
@@ -189,9 +188,7 @@ class TestConstellationManagement:
                 timestamp="2026-01-02T00:00:00Z",
             )
 
-    def test_additional_enrollment_wrong_witness_raises(
-        self, single_phone_constellation, fido2_anchor
-    ):
+    def test_additional_enrollment_wrong_witness_raises(self, single_phone_constellation, fido2_anchor):
         with pytest.raises(ValueError, match="existing active device as witness"):
             enroll_device(
                 single_phone_constellation,
@@ -201,9 +198,7 @@ class TestConstellationManagement:
                 timestamp="2026-01-02T00:00:00Z",
             )
 
-    def test_duplicate_enrollment_raises(
-        self, single_phone_constellation, phone_anchor
-    ):
+    def test_duplicate_enrollment_raises(self, single_phone_constellation, phone_anchor):
         with pytest.raises(ValueError, match="already enrolled"):
             enroll_device(
                 single_phone_constellation,
@@ -225,11 +220,7 @@ class TestConstellationManagement:
             timestamp="2026-02-01T00:00:00Z",
         )
         assert multi_device_constellation.device_count == 2
-        laptop = [
-            d
-            for d in multi_device_constellation.devices
-            if d.device_lct_id == "lct:web4:device:laptop1"
-        ][0]
+        laptop = [d for d in multi_device_constellation.devices if d.device_lct_id == "lct:web4:device:laptop1"][0]
         assert laptop.status == DeviceStatus.REVOKED
         assert laptop.revocation_reason == "sold"
 
@@ -272,6 +263,7 @@ class TestConstellationManagement:
 
 # ── Recovery Quorum ──────────────────────────────────────────────
 
+
 class TestRecoveryQuorum:
     def test_quorum_zero(self):
         assert default_recovery_quorum(0) == 0
@@ -301,6 +293,7 @@ class TestRecoveryQuorum:
 
 # ── Witness Freshness ────────────────────────────────────────────
 
+
 class TestWitnessFreshness:
     def test_fresh_zero_days(self):
         assert witness_freshness(0) == 1.0
@@ -329,6 +322,7 @@ class TestWitnessFreshness:
 
 
 # ── Trust Computation ────────────────────────────────────────────
+
 
 class TestTrustComputation:
     def test_empty_constellation_trust(self, empty_constellation):
@@ -407,9 +401,7 @@ class TestTrustComputation:
         ]
         assert coherence_bonus(devs_3) == 0.15
 
-    def test_coherence_bonus_four_plus(
-        self, phone_anchor, fido2_anchor, tpm2_anchor, software_anchor
-    ):
+    def test_coherence_bonus_four_plus(self, phone_anchor, fido2_anchor, tpm2_anchor, software_anchor):
         devs = [
             DeviceRecord(device_lct_id="a", anchor=phone_anchor, enrolled_at="", last_witnessed=""),
             DeviceRecord(device_lct_id="b", anchor=fido2_anchor, enrolled_at="", last_witnessed=""),
@@ -466,6 +458,7 @@ class TestTrustComputation:
 
 # ── Trust Ceiling ────────────────────────────────────────────────
 
+
 class TestTrustCeiling:
     def test_ceiling_empty(self, empty_constellation):
         assert constellation_trust_ceiling(empty_constellation) == 0.0
@@ -500,9 +493,7 @@ class TestTrustCeiling:
     def test_ceiling_phone_fido_tpm(self, multi_device_constellation):
         assert constellation_trust_ceiling(multi_device_constellation) == 0.95
 
-    def test_ceiling_three_plus_diverse(
-        self, phone_anchor, fido2_anchor, tpm2_anchor, software_anchor
-    ):
+    def test_ceiling_three_plus_diverse(self, phone_anchor, fido2_anchor, tpm2_anchor, software_anchor):
         c = DeviceConstellation(
             root_lct_id="lct:web4:root:x",
             devices=[
@@ -517,6 +508,7 @@ class TestTrustCeiling:
 
 
 # ── Cross-Device Witnessing ──────────────────────────────────────
+
 
 class TestCrossWitnessing:
     def test_record_mutual_witness(self, empty_constellation, phone_anchor, fido2_anchor):
@@ -569,6 +561,7 @@ class TestCrossWitnessing:
 
 
 # ── Recovery ─────────────────────────────────────────────────────
+
 
 class TestRecovery:
     def test_quorum_met(self, multi_device_constellation):
@@ -624,6 +617,7 @@ class TestRecovery:
 
 # ── Integration Checks ───────────────────────────────────────────
 
+
 class TestIntegration:
     def test_entity_device_type_exists(self):
         """EntityType.DEVICE exists for device LCTs."""
@@ -637,18 +631,14 @@ class TestIntegration:
         from web4.entity import InteractionType, valid_interaction
         from web4.lct import EntityType
 
-        assert valid_interaction(
-            EntityType.DEVICE, EntityType.DEVICE, InteractionType.WITNESSING
-        )
+        assert valid_interaction(EntityType.DEVICE, EntityType.DEVICE, InteractionType.WITNESSING)
 
     def test_device_binding_valid(self):
         """SOCIETY→DEVICE binding is valid (delegative can bind)."""
         from web4.entity import InteractionType, valid_interaction
         from web4.lct import EntityType
 
-        assert valid_interaction(
-            EntityType.SOCIETY, EntityType.DEVICE, InteractionType.BINDING
-        )
+        assert valid_interaction(EntityType.SOCIETY, EntityType.DEVICE, InteractionType.BINDING)
 
 
 # ── Cross-Language Test Vectors ──────────────────────────────────
@@ -753,9 +743,6 @@ class TestVectors:
             devices=devices,
             recovery_quorum=default_recovery_quorum(len(devices)),
         )
-        dsw = {
-            f"dev{i}": dev_input["days_since_witness"]
-            for i, dev_input in enumerate(v["input"]["devices"])
-        }
+        dsw = {f"dev{i}": dev_input["days_since_witness"] for i, dev_input in enumerate(v["input"]["devices"])}
         trust = compute_constellation_trust(c, days_since_witness=dsw)
         assert trust == v["expected"]["trust"]

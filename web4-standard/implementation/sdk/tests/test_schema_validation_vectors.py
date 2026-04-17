@@ -26,9 +26,7 @@ from web4.validation import validate
 
 # ── Vector loading ─────────────────────────────────────────────
 
-VECTORS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "test-vectors", "schema-validation"
-)
+VECTORS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "test-vectors", "schema-validation")
 
 # Map vector filename stem to SDK schema name (as accepted by validate()).
 _VECTOR_STEM_TO_SCHEMA: Dict[str, str] = {
@@ -44,9 +42,7 @@ _VECTOR_STEM_TO_SCHEMA: Dict[str, str] = {
 }
 
 
-def _load_all_vectors() -> (
-    Tuple[List[Tuple[str, str, Dict[str, Any]]], List[Tuple[str, str, Dict[str, Any]]]]
-):
+def _load_all_vectors() -> Tuple[List[Tuple[str, str, Dict[str, Any]]], List[Tuple[str, str, Dict[str, Any]]]]:
     """Load all valid and invalid vectors from the schema-validation directory.
 
     Returns:
@@ -82,26 +78,17 @@ INVALID_IDS = [c[0] for c in INVALID_CASES]
 # ── Tests ──────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize(
-    "vector_id,schema_name,document", VALID_CASES, ids=VALID_IDS
-)
-def test_valid_vector_passes_schema(
-    vector_id: str, schema_name: str, document: Dict[str, Any]
-) -> None:
+@pytest.mark.parametrize("vector_id,schema_name,document", VALID_CASES, ids=VALID_IDS)
+def test_valid_vector_passes_schema(vector_id: str, schema_name: str, document: Dict[str, Any]) -> None:
     """Valid cross-language vectors MUST pass schema validation."""
     result = validate(document, schema_name)
     assert result.valid, (
-        f"Vector {vector_id} should be valid for schema {schema_name!r} "
-        f"but got errors: {result.errors}"
+        f"Vector {vector_id} should be valid for schema {schema_name!r} but got errors: {result.errors}"
     )
 
 
-@pytest.mark.parametrize(
-    "vector_id,schema_name,document", INVALID_CASES, ids=INVALID_IDS
-)
-def test_invalid_vector_fails_schema(
-    vector_id: str, schema_name: str, document: Dict[str, Any]
-) -> None:
+@pytest.mark.parametrize("vector_id,schema_name,document", INVALID_CASES, ids=INVALID_IDS)
+def test_invalid_vector_fails_schema(vector_id: str, schema_name: str, document: Dict[str, Any]) -> None:
     """Invalid cross-language vectors MUST fail schema validation."""
     result = validate(document, schema_name)
     assert not result.valid, (
@@ -117,14 +104,10 @@ class TestVectorCoverage:
     """Verify all expected vectors were loaded."""
 
     def test_valid_count(self) -> None:
-        assert len(VALID_CASES) == 92, (
-            f"Expected 92 valid vectors, got {len(VALID_CASES)}"
-        )
+        assert len(VALID_CASES) == 92, f"Expected 92 valid vectors, got {len(VALID_CASES)}"
 
     def test_invalid_count(self) -> None:
-        assert len(INVALID_CASES) == 186, (
-            f"Expected 186 invalid vectors, got {len(INVALID_CASES)}"
-        )
+        assert len(INVALID_CASES) == 186, f"Expected 186 invalid vectors, got {len(INVALID_CASES)}"
 
     def test_total_count(self) -> None:
         total = len(VALID_CASES) + len(INVALID_CASES)
@@ -134,9 +117,5 @@ class TestVectorCoverage:
         schemas_with_valid = {c[1] for c in VALID_CASES}
         schemas_with_invalid = {c[1] for c in INVALID_CASES}
         expected = set(_VECTOR_STEM_TO_SCHEMA.values())
-        assert schemas_with_valid == expected, (
-            f"Missing valid vectors for: {expected - schemas_with_valid}"
-        )
-        assert schemas_with_invalid == expected, (
-            f"Missing invalid vectors for: {expected - schemas_with_invalid}"
-        )
+        assert schemas_with_valid == expected, f"Missing valid vectors for: {expected - schemas_with_valid}"
+        assert schemas_with_invalid == expected, f"Missing invalid vectors for: {expected - schemas_with_invalid}"
