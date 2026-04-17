@@ -17,19 +17,18 @@ Cross-language test vectors validated from:
 
 import json
 import os
+
 import pytest
 
 from web4.atp import (
     ATPAccount,
-    TransferResult,
-    transfer,
-    sliding_scale,
     check_conservation,
     energy_ratio,
-    sybil_cost,
     fee_sensitivity,
+    sliding_scale,
+    sybil_cost,
+    transfer,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────
 

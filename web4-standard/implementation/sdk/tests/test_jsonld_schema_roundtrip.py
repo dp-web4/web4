@@ -48,8 +48,10 @@ def validate(doc: dict, schema: dict) -> None:
 # ── 1. LCT ──────────────────────────────────────────────────────────
 
 from web4.lct import (
-    LCT, EntityType, Attestation, LineageEntry,
-    LCT_JSONLD_CONTEXT,
+    LCT,
+    Attestation,
+    EntityType,
+    LineageEntry,
 )
 from web4.trust import T3, V3
 
@@ -116,8 +118,10 @@ class TestLCTSchemaRoundtrip:
 # ── 2. AttestationEnvelope ──────────────────────────────────────────
 
 from web4.attestation import (
-    AttestationEnvelope, AnchorInfo, Proof, PlatformState,
-    ATTESTATION_JSONLD_CONTEXT,
+    AnchorInfo,
+    AttestationEnvelope,
+    PlatformState,
+    Proof,
 )
 
 
@@ -189,7 +193,6 @@ class TestAttestationEnvelopeSchemaRoundtrip:
 
 # ── 3. T3 ───────────────────────────────────────────────────────────
 
-from web4.trust import T3_JSONLD_CONTEXT, V3_JSONLD_CONTEXT
 
 
 class TestT3SchemaRoundtrip:
@@ -266,8 +269,8 @@ class TestV3SchemaRoundtrip:
 # ── 5. R7Action ─────────────────────────────────────────────────────
 
 from web4.r6 import (
-    R7Action, build_action, R7_JSONLD_CONTEXT,
-    ActionChain, ReputationDelta,
+    R7Action,
+    build_action,
 )
 
 
@@ -323,7 +326,7 @@ class TestR7ActionSchemaRoundtrip:
 
 # ── 6. ATPAccount ───────────────────────────────────────────────────
 
-from web4.atp import ATPAccount, TransferResult, ATP_JSONLD_CONTEXT, transfer
+from web4.atp import ATPAccount, TransferResult, transfer
 
 
 class TestATPAccountSchemaRoundtrip:
@@ -392,10 +395,19 @@ class TestTransferResultSchemaRoundtrip:
 # ── 8. ACP Types ────────────────────────────────────────────────────
 
 from web4.acp import (
-    ACP_JSONLD_CONTEXT,
-    AgentPlan, PlanStep, Trigger, TriggerKind,
-    Guards, ResourceCaps, HumanApproval, ApprovalMode,
-    ProofOfAgency, Intent, Decision, DecisionType, ExecutionRecord,
+    AgentPlan,
+    ApprovalMode,
+    Decision,
+    DecisionType,
+    ExecutionRecord,
+    Guards,
+    HumanApproval,
+    Intent,
+    PlanStep,
+    ProofOfAgency,
+    ResourceCaps,
+    Trigger,
+    TriggerKind,
 )
 
 
@@ -554,8 +566,9 @@ class TestACPSchemaRoundtrip:
 # ── 9. Entity ───────────────────────────────────────────────────────
 
 from web4.entity import (
-    EntityTypeInfo, ENTITY_JSONLD_CONTEXT,
-    get_info, entity_registry_to_jsonld,
+    EntityTypeInfo,
+    entity_registry_to_jsonld,
+    get_info,
 )
 
 
@@ -598,11 +611,11 @@ class TestEntitySchemaRoundtrip:
 # ── 10. Capability ──────────────────────────────────────────────────
 
 from web4.capability import (
-    LevelRequirement, CAPABILITY_JSONLD_CONTEXT,
-    level_requirements, capability_assessment_to_jsonld,
+    LevelRequirement,
+    capability_assessment_to_jsonld,
     capability_framework_to_jsonld,
+    level_requirements,
 )
-from web4.lct import Binding, MRH, Policy
 
 
 class TestCapabilitySchemaRoundtrip:
@@ -658,9 +671,11 @@ class TestCapabilitySchemaRoundtrip:
 # ── 11. Dictionary ──────────────────────────────────────────────────
 
 from web4.dictionary import (
-    DictionarySpec, TranslationResult, TranslationChain,
-    DictionaryEntity, DomainCoverage, CompressionProfile,
-    DICTIONARY_JSONLD_CONTEXT,
+    DictionaryEntity,
+    DictionarySpec,
+    DomainCoverage,
+    TranslationChain,
+    TranslationResult,
 )
 
 

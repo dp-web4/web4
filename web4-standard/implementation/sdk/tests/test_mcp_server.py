@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import pytest
 
@@ -18,7 +18,6 @@ from web4.mcp_server import (
     web4_roundtrip,
     web4_validate,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

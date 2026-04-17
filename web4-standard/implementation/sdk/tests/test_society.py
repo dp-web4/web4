@@ -24,24 +24,40 @@ import os
 
 import pytest
 
-from web4.society import (
-    SocietyPhase, LedgerEventType,
-    LedgerEntry, SocietyLedger, Treasury, SocietyState,
-    create_society,
-    admit_citizen, suspend_citizen, reinstate_citizen, terminate_citizen,
-    transition_metabolic_state,
-    deposit_treasury, allocate_treasury,
-    record_law_change,
-    compute_society_t3, society_energy_cost, society_health,
-    incorporate_child, society_depth, society_ancestry,
-)
 from web4.federation import (
-    LedgerType, LawDataset, Norm, Procedure, QuorumPolicy, QuorumMode,
     CitizenshipStatus,
+    LawDataset,
+    LedgerType,
+    Norm,
+    Procedure,
+    QuorumMode,
+    QuorumPolicy,
 )
 from web4.metabolic import MetabolicState
+from web4.society import (
+    LedgerEntry,
+    LedgerEventType,
+    SocietyLedger,
+    SocietyPhase,
+    SocietyState,
+    Treasury,
+    admit_citizen,
+    allocate_treasury,
+    compute_society_t3,
+    create_society,
+    deposit_treasury,
+    incorporate_child,
+    record_law_change,
+    reinstate_citizen,
+    society_ancestry,
+    society_depth,
+    society_energy_cost,
+    society_health,
+    suspend_citizen,
+    terminate_citizen,
+    transition_metabolic_state,
+)
 from web4.trust import T3, TrustProfile
-
 
 # ── Helpers ───────────────────────────────────────────────────────
 

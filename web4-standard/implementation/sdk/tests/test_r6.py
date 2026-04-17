@@ -13,25 +13,34 @@ import os
 
 import pytest
 
-from web4.trust import T3, V3
-from web4.lct import LCT, EntityType
 from web4.atp import ATPAccount
+from web4.lct import LCT, EntityType
 from web4.r6 import (
-    # Enums & errors
-    ActionStatus, R7Error, RuleViolation, RoleUnauthorized,
-    RequestMalformed, ResourceInsufficient,
-    # Components
-    Constraint, Rules, Role, Request, ProofOfAgency,
-    Precedent, WitnessAttestation, Reference,
-    ResourceRequirements, Result,
-    TensorDelta, ContributingFactor, ReputationDelta,
-    # Composite
-    R7Action, ActionChain,
-    # Builder
-    build_action,
     # JSON-LD
     R7_JSONLD_CONTEXT,
+    ActionChain,
+    # Enums & errors
+    ActionStatus,
+    # Components
+    Constraint,
+    ContributingFactor,
+    Precedent,
+    ProofOfAgency,
+    # Composite
+    R7Action,
+    Reference,
+    ReputationDelta,
+    Request,
+    ResourceRequirements,
+    Result,
+    Role,
+    Rules,
+    TensorDelta,
+    WitnessAttestation,
+    # Builder
+    build_action,
 )
+from web4.trust import T3, V3
 
 # ── Helpers ──────────────────────────────────────────────────────
 

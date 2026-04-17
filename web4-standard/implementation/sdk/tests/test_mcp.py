@@ -3,31 +3,29 @@
 import json
 import pathlib
 
-import pytest
-
 from web4.mcp import (
-    CommunicationPattern,
-    TrustDimension,
-    MCPResourceType,
-    ResourceRequirements,
-    TrustRequirements,
-    MCPToolResource,
-    MCPPromptResource,
-    ProofOfAgency,
-    TrustContext,
-    Web4Context,
-    WitnessedInteraction,
-    WitnessAttestation,
-    MCPCapabilities,
     CapabilityBroadcast,
+    CommunicationPattern,
     MCPAuthority,
-    MCPSession,
-    SessionHandoff,
-    PricingModifiers,
-    calculate_mcp_cost,
+    MCPCapabilities,
     MCPErrorContext,
-    web4_context_to_json,
+    MCPPromptResource,
+    MCPResourceType,
+    MCPSession,
+    MCPToolResource,
+    PricingModifiers,
+    ProofOfAgency,
+    ResourceRequirements,
+    SessionHandoff,
+    TrustContext,
+    TrustDimension,
+    TrustRequirements,
+    Web4Context,
+    WitnessAttestation,
+    WitnessedInteraction,
+    calculate_mcp_cost,
     web4_context_from_json,
+    web4_context_to_json,
 )
 
 VECTORS_DIR = pathlib.Path(__file__).resolve().parents[3] / "test-vectors" / "mcp"

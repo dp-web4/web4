@@ -6,21 +6,19 @@ and that from_jsonld() round-trips cleanly.
 """
 
 import json
-import pytest
 
 from web4.entity import (
+    ENTITY_JSONLD_CONTEXT,
     BehavioralMode,
     EnergyPattern,
     EntityTypeInfo,
-    ENTITY_JSONLD_CONTEXT,
     all_entity_types,
-    get_info,
-    entity_registry_to_jsonld,
     entity_registry_from_jsonld,
     entity_registry_from_jsonld_string,
+    entity_registry_to_jsonld,
+    get_info,
 )
 from web4.lct import EntityType
-
 
 # ── EntityTypeInfo JSON-LD ────────────────────────────────────────
 

@@ -8,30 +8,27 @@ per multi-device-lct-binding.md.
 
 import json
 import pathlib
+
 import pytest
 
 from web4.binding import (
     AnchorType,
+    DeviceConstellation,
+    DeviceRecord,
     DeviceStatus,
     HardwareAnchor,
-    DeviceRecord,
-    DeviceConstellation,
-    ANCHOR_TRUST_WEIGHT,
-    CONSTELLATION_TRUST_CEILING,
-    WITNESS_DECAY_TABLE,
-    witness_freshness,
+    can_recover,
+    check_recovery_quorum,
+    coherence_bonus,
+    compute_constellation_trust,
+    constellation_trust_ceiling,
+    cross_witness_density,
     default_recovery_quorum,
     enroll_device,
-    remove_device,
-    coherence_bonus,
-    cross_witness_density,
-    constellation_trust_ceiling,
-    compute_constellation_trust,
     record_cross_witness,
-    check_recovery_quorum,
-    can_recover,
+    remove_device,
+    witness_freshness,
 )
-
 
 # ── Fixtures ─────────────────────────────────────────────────────
 
@@ -170,7 +167,7 @@ class TestConstellationManagement:
     def test_additional_enrollment_with_witness(
         self, single_phone_constellation, fido2_anchor
     ):
-        rec = enroll_device(
+        _rec = enroll_device(
             single_phone_constellation,
             "lct:web4:device:fido1",
             fido2_anchor,
@@ -637,7 +634,7 @@ class TestIntegration:
 
     def test_device_witnessing_valid(self):
         """DEVICE-DEVICE WITNESSING is a valid interaction."""
-        from web4.entity import valid_interaction, InteractionType
+        from web4.entity import InteractionType, valid_interaction
         from web4.lct import EntityType
 
         assert valid_interaction(
@@ -646,7 +643,7 @@ class TestIntegration:
 
     def test_device_binding_valid(self):
         """SOCIETY→DEVICE binding is valid (delegative can bind)."""
-        from web4.entity import valid_interaction, InteractionType
+        from web4.entity import InteractionType, valid_interaction
         from web4.lct import EntityType
 
         assert valid_interaction(

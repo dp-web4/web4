@@ -8,36 +8,35 @@ per core-protocol.md.
 
 import json
 import pathlib
+
 import pytest
 
 from web4.protocol import (
-    HandshakePhase,
-    ClientHello,
-    ServerHello,
-    ClientFinished,
-    ServerFinished,
-    HandshakeMessage,
-    PairingMethod,
-    Transport,
-    TransportCompliance,
-    TransportProfile,
-    TRANSPORT_PROFILES,
-    get_transport_profile,
-    required_transports,
-    negotiate_transport,
-    DiscoveryMethod,
-    PrivacyLevel,
     DISCOVERY_METADATA,
-    required_discovery_methods,
-    discovery_privacy,
+    TRANSPORT_PROFILES,
+    ClientFinished,
+    ClientHello,
+    DiscoveryMethod,
     DiscoveryRequest,
     DiscoveryResponse,
+    HandshakeMessage,
+    HandshakePhase,
+    PairingMethod,
+    PrivacyLevel,
+    ServerFinished,
+    ServerHello,
+    Transport,
+    TransportCompliance,
     Web4URI,
-    web4_uri_to_dict,
-    web4_uri_from_dict,
+    discovery_privacy,
+    get_transport_profile,
+    negotiate_transport,
+    required_discovery_methods,
+    required_transports,
     transport_profile_to_dict,
+    web4_uri_from_dict,
+    web4_uri_to_dict,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────────
 

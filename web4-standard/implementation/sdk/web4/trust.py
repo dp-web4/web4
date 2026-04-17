@@ -823,7 +823,6 @@ def evaluate_trust_query(
         This function mutates requester_atp (locks ATP on approval).
         On rejection due to insufficient ATP, no mutation occurs.
     """
-    from .atp import ATPAccount as _ATPAccount  # deferred to avoid circular import
 
     ts = timestamp or query.timestamp
     audit_log: Dict[str, Any] = {
@@ -867,7 +866,7 @@ def evaluate_trust_query(
     validity_until: Optional[str] = None
     if ts is not None:
         try:
-            from datetime import datetime, timedelta, timezone
+            from datetime import datetime, timedelta
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             until = dt + timedelta(seconds=query.validity_period)
             validity_until = until.strftime("%Y-%m-%dT%H:%M:%SZ")

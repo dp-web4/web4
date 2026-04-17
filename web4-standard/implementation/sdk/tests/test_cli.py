@@ -16,8 +16,7 @@ from typing import List
 
 import pytest
 
-from web4.__main__ import main, build_parser, _detect_schema
-
+from web4.__main__ import _detect_schema, build_parser, main
 
 # ── Helpers ──────────────────────────────────────────────────────
 
@@ -102,8 +101,8 @@ class TestValidate:
         assert "OK" in out
 
     def test_valid_with_explicit_schema(self, capsys: pytest.CaptureFixture[str]) -> None:
-        from web4.lct import LCT, Binding
         from web4.entity import EntityType
+        from web4.lct import LCT, Binding
 
         lct = LCT(
             lct_id="lct:test-cli-001",

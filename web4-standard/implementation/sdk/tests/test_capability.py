@@ -7,33 +7,33 @@ trust tiers, and cross-domain common ground per lct-capability-levels.md.
 
 import json
 import pathlib
+
 import pytest
 
 from web4.capability import (
-    CapabilityLevel,
-    TrustTier,
     ENTITY_LEVEL_RANGES,
+    CapabilityLevel,
     LevelRequirement,
+    TrustTier,
     assess_level,
-    validate_level,
     can_upgrade,
-    level_requirements,
-    trust_tier,
+    common_ground,
     entity_level_range,
     is_level_typical,
-    common_ground,
+    level_requirements,
+    trust_tier,
+    validate_level,
 )
 from web4.lct import (
     LCT,
-    EntityType,
-    Binding,
     MRH,
-    MRHPairing,
+    Binding,
     BirthCertificate,
+    EntityType,
+    MRHPairing,
     Policy,
 )
 from web4.trust import T3, V3
-
 
 # ── Fixtures ─────────────────────────────────────────────────────
 

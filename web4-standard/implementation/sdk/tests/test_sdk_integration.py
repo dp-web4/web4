@@ -15,9 +15,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-from web4.trust import T3, V3, operational_health
+
 from web4.lct import LCT, EntityType, RevocationStatus
-from web4.atp import ATPAccount, energy_ratio
+from web4.trust import T3, V3, operational_health
 
 
 class TestSDKReexports:
@@ -25,7 +25,7 @@ class TestSDKReexports:
 
     def test_imports_from_web4_sdk(self):
         """Canonical types available via web4_sdk import."""
-        from web4_sdk import T3, V3, TrustProfile, LCT, EntityType, ATPAccount
+        from web4_sdk import LCT, T3, V3, ATPAccount, EntityType
         assert T3 is not None
         assert V3 is not None
         assert LCT is not None
@@ -34,9 +34,10 @@ class TestSDKReexports:
 
     def test_same_objects(self):
         """web4_sdk re-exports are the SAME objects, not copies."""
-        from web4_sdk import T3 as SDK_T3, EntityType as SDK_ET
-        from web4.trust import T3 as Core_T3
         from web4.lct import EntityType as Core_ET
+        from web4.trust import T3 as Core_T3
+        from web4_sdk import T3 as SDK_T3
+        from web4_sdk import EntityType as SDK_ET
         assert SDK_T3 is Core_T3
         assert SDK_ET is Core_ET
 

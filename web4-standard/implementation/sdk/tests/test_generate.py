@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from typing import Any, Dict
 
 import pytest
 
@@ -15,7 +14,6 @@ from web4.generate import (
     generate,
     generate_string,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════
 # 1. Module API tests
@@ -31,7 +29,7 @@ def test_available_types_returns_sorted_list() -> None:
 
 def test_available_types_contains_expected() -> None:
     types = available_types()
-    expected = {"T3Tensor", "V3Tensor", "R7Action", "LCT" if "LCT" in types else "LinkedContextToken"}
+    _expected = {"T3Tensor", "V3Tensor", "R7Action", "LCT" if "LCT" in types else "LinkedContextToken"}
     # Check key types are present
     assert "T3Tensor" in types
     assert "V3Tensor" in types

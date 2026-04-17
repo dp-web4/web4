@@ -5,8 +5,6 @@ Follows N1 (security.py) precedent — PR #119.
 """
 from __future__ import annotations
 
-import pytest
-
 from web4.r6 import (
     ActionStatus,
     Constraint,

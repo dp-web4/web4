@@ -422,15 +422,17 @@ def web4_process_action(
         Request,
         ResourceRequirements,
         Result,
-        Role as R7Role,
         Rules,
     )
+    from web4.r6 import (
+        Role as R7Role,
+    )
     from web4.reputation import (
-        ReputationRule,
         ReputationEngine,
+        ReputationRule,
         process_action_outcome,
     )
-    from web4.trust import T3, TrustProfile, V3
+    from web4.trust import T3, TrustProfile
 
     # Validate status
     status_lower = status.lower()

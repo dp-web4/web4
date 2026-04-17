@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-13 (Sprint 35)*
+*Last updated: 2026-04-16 (Sprint 37)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 37 Summary: Ruff Lint Cleanup + CI Enforcement (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: `ruff check` lint cleanup + CI enforcement | DONE | 239 issues fixed (source: 10, tests: 229), CI now lints both web4/ and tests/, per-file-ignore for E402 in tests, 0 new files |
 
 ### Sprint 35 Summary: CI Workflow Hardening (COMPLETE)
 
@@ -161,24 +167,24 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+3e6ca32 [Publisher] Fix PDF date (February→April 2026), rebuild artifacts
+4a97ff7 Sprint 35 T1: CI workflow hardening — strict mypy + wheel verification (#158)
+503ed7f docs: update SESSION_FOCUS.md — correct stale PR status, add recent commits (#157)
 2b5292f Sprint 34 T1: SDK v0.25.0 release housekeeping (#156)
 77d6f2a Sprint 33 T1: Archive remaining implementation/ session sprawl (#153)
-65cd548 Sprint 32 T1: Archive reference implementation sprawl (#151)
-9359540 Sprint 30 T1: `web4 trust` CLI subcommand for trust query evaluation (#147)
-aabf352 Sprint 33 T1: SDK v0.24.0 release housekeeping (#154)
 ```
 
 ---
 
 ## Open PRs
 
-None. All PRs merged or closed as of 2026-04-12.
+- PR #159: ruff format codebase-wide (Sprint 36, pending review)
 
 ---
 
 ## Completeness Summary
 
-- All 35 sprints COMPLETE (Sprints 1-35)
+- All 37 sprints COMPLETE (Sprints 1-37)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -197,7 +203,8 @@ None. All PRs merged or closed as of 2026-04-12.
 - CLI via `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
 - Wheel distribution verified: imports, CLI, schema validation, roundtrip all pass from installed wheel
 - All 23 generate() types pass roundtrip fidelity (generate → from_jsonld → to_jsonld = identical)
+- `ruff check web4/ tests/` passes with 0 errors — CI enforces lint on source + tests
 
 ---
 
-*Updated by autonomous session, 2026-04-12 (metadata correction — PR status, recent commits)*
+*Updated by autonomous session, 2026-04-16 (Sprint 37 — ruff lint cleanup + CI enforcement)*

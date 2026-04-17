@@ -14,27 +14,25 @@ import time
 
 import pytest
 
-from web4.binding import (
-    AnchorType,
-    DeviceStatus,
-    HardwareAnchor,
-    DeviceRecord,
-    DeviceConstellation,
-    ANCHOR_TYPE_TO_ATTESTATION,
-    ATTESTATION_TO_ANCHOR_TYPE,
-    attestation_anchor_type,
-    binding_anchor_type,
-    enroll_device,
-    compute_device_trust,
-    compute_constellation_trust,
-    witness_freshness,
-)
 from web4.attestation import (
-    AttestationEnvelope,
     AnchorInfo,
+    AttestationEnvelope,
     Proof,
 )
-
+from web4.binding import (
+    ANCHOR_TYPE_TO_ATTESTATION,
+    ATTESTATION_TO_ANCHOR_TYPE,
+    AnchorType,
+    DeviceConstellation,
+    DeviceRecord,
+    DeviceStatus,
+    HardwareAnchor,
+    attestation_anchor_type,
+    binding_anchor_type,
+    compute_constellation_trust,
+    compute_device_trust,
+    enroll_device,
+)
 
 # ── Fixtures ────────────────────────────────────────────────────
 

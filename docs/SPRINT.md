@@ -1,9 +1,36 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-13 (Sprint 35)
+**Updated**: 2026-04-16 (Sprint 37)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 37: Ruff Lint Cleanup + CI Enforcement (2026-04-16)
+
+`ruff check` (lint) was configured in pyproject.toml but only partially enforced —
+CI ran `ruff check web4/` (source only), and neither source nor tests were lint-clean.
+239 issues across source (10) and tests (229): unused imports, unsorted imports,
+unused variables, imports not at top of file, line-too-long.
+
+### T1: `ruff check` lint cleanup + CI enforcement
+**Status**: DONE
+**Completed**: 2026-04-16
+**Scope**: Fix all `ruff check` issues in web4/ and tests/:
+(1) Source code: 10 issues (7 unsorted imports, 3 unused imports — including genuinely
+unused V3 import in mcp_server.py and dead _ATPAccount import in trust.py). All auto-fixed.
+(2) Tests: 229 issues — 114 unused imports (auto-removed), 77 unsorted imports (auto-fixed),
+23 E402 import-not-at-top (per-file-ignore for tests/), 12 unused variables (prefixed with _),
+2 line-too-long (reformatted), 1 redefinition (noqa for intentional re-import test).
+(3) pyproject.toml: Added `"tests/*" = ["E402"]` per-file-ignore.
+(4) CI: Expanded lint step from `ruff check web4/` to `ruff check web4/ tests/`.
+(5) 1 jsonschema availability probe import preserved with `# noqa: F401`.
+**Result**: `ruff check web4/ tests/` passes with 0 errors. CI now enforces lint on
+both source and tests. All 2627 tests pass. mypy --strict clean (25 files). 0 new files.
+
+### Follow-up (not this sprint)
+- `ruff format` codebase-wide (Sprint 36, PR #159 pending review)
 
 ---
 

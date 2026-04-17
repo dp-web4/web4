@@ -8,14 +8,13 @@ from __future__ import annotations
 
 import pytest
 
-from web4.mrh import MRHGraph, MRHEdge, MRHNode, RelationType
+from web4.mrh import MRHEdge, MRHGraph, MRHNode, RelationType
 from web4.trust import (
     T3,
     TrustProfile,
     TrustResolution,
     resolve_trust,
 )
-
 
 # ── Fixtures ────────────────────────────────────────────────────
 

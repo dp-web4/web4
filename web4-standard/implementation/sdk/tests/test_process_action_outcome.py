@@ -11,7 +11,6 @@ import pytest
 from web4.atp import ATPAccount
 from web4.r6 import (
     ActionStatus,
-    ContributingFactor,
     R7Action,
     Request,
     ResourceRequirements,
@@ -28,8 +27,7 @@ from web4.reputation import (
     ReputationStore,
     process_action_outcome,
 )
-from web4.trust import T3, TrustProfile, V3
-
+from web4.trust import T3, V3, TrustProfile
 
 # ── Fixtures ───────────────────────────────────────────────────
 

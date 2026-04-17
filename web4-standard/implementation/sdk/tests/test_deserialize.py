@@ -18,7 +18,6 @@ from web4.deserialize import (
     supported_types,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixture helpers -- build minimal JSON-LD documents for each supported type
 # ---------------------------------------------------------------------------

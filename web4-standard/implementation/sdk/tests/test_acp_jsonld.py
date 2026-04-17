@@ -6,25 +6,23 @@ the acp-framework spec, and that from_jsonld() round-trips cleanly.
 """
 
 import json
-import pytest
 
 from web4.acp import (
     ACP_JSONLD_CONTEXT,
     AgentPlan,
-    PlanStep,
-    Trigger,
-    TriggerKind,
-    Guards,
-    ResourceCaps,
-    HumanApproval,
     ApprovalMode,
-    ProofOfAgency,
-    Intent,
     Decision,
     DecisionType,
     ExecutionRecord,
+    Guards,
+    HumanApproval,
+    Intent,
+    PlanStep,
+    ProofOfAgency,
+    ResourceCaps,
+    Trigger,
+    TriggerKind,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────
 
