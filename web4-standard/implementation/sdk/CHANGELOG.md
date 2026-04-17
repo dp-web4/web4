@@ -2,6 +2,26 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.26.0] - 2026-04-17
+
+Sprints 35, 37, 38: CI quality gate hardening — strict mypy, ruff lint, ruff format.
+
+### Changed
+- **CI workflow hardening** (Sprint 35 T1, PR #158) — `mypy --strict` in CI now
+  matches local pyproject.toml config (was `--ignore-missing-imports`). New wheel
+  verification job: builds wheel, installs in isolated venv, runs `web4 selftest`
+  and `web4 info`. Catches packaging regressions like Sprint 30's 4 bugs automatically.
+- **Ruff lint cleanup + CI enforcement** (Sprint 37 T1, PR #161) — fixed 239 lint
+  issues (source: 10, tests: 229). CI now enforces `ruff check web4/ tests/test_*.py`
+  on every PR. Per-file-ignore E402 for test files.
+- **Ruff format codebase-wide + CI enforcement** (Sprint 38 T1, PR #162) — applied
+  `ruff format` to 70 files (web4/ + tests/). CI now enforces `ruff format --check`
+  on every PR, matching the same path scope as `ruff check`.
+- Version bumped from 0.25.0 to 0.26.0.
+- 2627 tests passing. 364 exports. 22 modules + MCP server.
+- CI now enforces three quality gates on every PR: `mypy --strict`, `ruff check`,
+  `ruff format --check`, plus wheel build + selftest verification.
+
 ## [0.25.0] - 2026-04-12
 
 Sprint 30 T1a: Trust CLI subcommand. Sprints 32-33: Archive cleanup.
