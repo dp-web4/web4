@@ -95,3 +95,6 @@ jobs:
 
       - name: Verify CLI entry point
         run: /tmp/web4-wheel-test/bin/web4 info
+
+      - name: Run quickstart example against installed wheel
+        run: /tmp/web4-wheel-test/bin/python examples/quickstart.py

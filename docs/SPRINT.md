@@ -1,9 +1,39 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-17 (Sprint 41)
+**Updated**: 2026-04-18 (Sprint 42)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 42: CI Quickstart Smoke (2026-04-18)
+
+Sprint 36 T1 introduced `examples/quickstart.py` as a minimal, offline composition
+of the three SDK behavioral functions (`generate`/`from_jsonld` roundtrip,
+`evaluate_trust_query`, `process_action_outcome`). Sprint 36 left one follow-up
+open: wire the quickstart into CI so a breaking API change surfaces in the
+wheel-install smoke job, not just in the editable-install test matrix. This sprint
+was originally proposed as Sprint 40 (PR #164 opened 2026-04-17) but is renumbered
+to Sprint 42 to reflect merge order — Sprint 41 (PR #165) landed on main first.
+
+### T1: Wire `examples/quickstart.py` into CI wheel smoke job
+**Status**: DONE
+**Completed**: 2026-04-18
+**Scope**:
+(1) Add one step to the `wheel` job in `.github/workflows/sdk-test.yml`, immediately
+after `Verify CLI entry point`, running
+`/tmp/web4-wheel-test/bin/python examples/quickstart.py`. The working directory
+is already `web4-standard/implementation/sdk`, so the relative path resolves.
+(2) The step uses the interpreter from the isolated venv already created by the
+`Install from wheel in fresh environment` step, so it exercises the packaged
+wheel — not the editable-install source tree used by the matrix `test` job.
+(3) No changes to `examples/quickstart.py`, `web4/`, `pyproject.toml`, or tests.
+(4) Update `docs/SPRINT.md` (this section) and `SESSION_FOCUS.md`.
+**Result**: A breaking change to the quickstart's public API surface now fails
+CI on every PR. Verified locally by reproducing the full CI chain: build wheel,
+install in fresh venv, `web4 selftest`, `web4 info`, then
+`python examples/quickstart.py` — all succeed against v0.26.0. 0 new files.
 
 ---
 
