@@ -35,6 +35,27 @@ as an appendix, not as additional classifications.
 side of the feedback loop. Does NOT consume issue #166 — candidates (a)-2, (a)-3,
 (a)-4 remain open.
 
+### T2: Cross-repo import target analysis
+**Status**: DONE
+**Completed**: 2026-04-19
+**Authorized by**: issue #166 candidate (a)-3
+**Scope**:
+(1) Explore 4-life and hardbound codebases to identify what each currently imports
+from web4 and what they re-implement independently.
+(2) Diagnose why consumers don't import more (language barrier: Python SDK vs
+TypeScript/Rust consumers).
+(3) Identify the highest-value cross-language import target.
+(4) Produce `docs/audits/cross-repo-import-target-2026-04-19.md` as bounded
+deliverable. Hardbound details described architecturally only (private repo).
+(5) Out of bounds: NO code changes to web4/hardbound/4-life, NO implementing the
+import bridge, NO exposing hardbound implementation details.
+**Result**: JSON Schemas + TypeScript type generation identified as highest-value
+target. Both consumers are TypeScript; schemas are language-neutral and already
+exist. Key finding: `web4-trust-core` WASM to 4-life pipeline is already a working
+cross-repo import success story. The gap is at the schema/type layer, not runtime.
+Concrete next step: `@web4/schemas` npm package. Does NOT consume issue #166 --
+candidate (a)-2 remains (covered by PR #169).
+
 ---
 
 ## Sprint 42: CI Quickstart Smoke (2026-04-18)

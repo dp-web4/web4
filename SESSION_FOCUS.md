@@ -2,13 +2,20 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-18 (Sprint 42)*
+*Last updated: 2026-04-19 (Sprint 43)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 43 Summary: Issue #166 Candidates (IN PROGRESS)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Spec-to-explainer alignment memo | DONE | Classified 14 friction items from 4-life visitor log as SPEC GAP / EXPLAINER GAP / BOTH. 4 SPEC GAPs, 8 EXPLAINER GAPs, 2 BOTH. PR #168 merged. |
+| T2: Cross-repo import target analysis | DONE | Explored 4-life + hardbound codebases. JSON Schemas + TS type generation identified as highest-value target. web4-trust-core WASM is already a working cross-repo import. Gap is schema packaging, not runtime. |
 
 ### Sprint 42 Summary: CI Quickstart Smoke (COMPLETE)
 
@@ -197,21 +204,22 @@ Web4 SDK development aligns with ARIA grant requirements:
 ## Recent Commits
 
 ```
+b1e3f64 Sprint 43 T1: Spec-to-explainer alignment memo (#168)
+6141983 Autonomous web4 session 20260418-180024 (cleanup) (#167)
+12bd350 Sprint 42 T1: Wire examples/quickstart.py into CI wheel smoke job (#164)
 0e0383e Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps (#165)
 91ed230 Sprint 36 T1: Replace stale examples with v0.25.0 quickstart (#160)
-64add4c Sprint 39 T1: SDK v0.26.0 release housekeeping (#163)
-759eaef Sprint 38 T1: ruff format codebase-wide + CI enforcement (#162)
-e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
 ```
 
 ---
 
 ## Open PRs
 
-None.
+- PR #169 -- Sprint 43: Strategic review cross-reference + reference file triage (refs #166) -- REVIEW_REQUIRED
 
 ### Closed PRs (recent)
 
+- PR #168 MERGED -- Sprint 43 T1: Spec-to-explainer alignment memo
 - PR #164 MERGED — Sprint 42 T1: Wire examples/quickstart.py into CI wheel smoke job
 - PR #165 MERGED — Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps
 - PR #163 MERGED — Sprint 39 T1: SDK v0.26.0 release housekeeping
