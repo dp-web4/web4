@@ -16,7 +16,8 @@ executes candidate (a)-1: close the feedback loop CLAUDE.md names as the
 "4-Life Feedback Loop" but for which no artifact currently exists.
 
 ### T1: Spec-to-explainer alignment memo
-**Status**: IN PROGRESS
+**Status**: DONE
+**Completed**: 2026-04-19
 **Authorized by**: issue #166 candidate (a)-1
 **Scope**:
 (1) Read the 14 friction items in `../4-life/visitor/logs/2026-04-18.md` (table only,
