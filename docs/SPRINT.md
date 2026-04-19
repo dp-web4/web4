@@ -36,7 +36,8 @@ side of the feedback loop. Does NOT consume issue #166 — candidates (a)-2, (a)
 (a)-4 remain open.
 
 ### T2: Visitor-log friction triage — 2026-04-19 log
-**Status**: IN PROGRESS
+**Status**: DONE
+**Completed**: 2026-04-19
 **Authorization**: Inferred from CLAUDE.md "4-Life Feedback Loop" standing-mechanism
 language + PR #168 precedent. **NOT on issue #166 candidate menu.** Operator may
 retroactively reject this scope; if so, the memo can be archive-only. **This task
@@ -53,7 +54,11 @@ only, not the separate "Unanswered Questions" section).
 (5) If <3 substantive SPEC GAPs found, downgrade to a shorter triage note rather
 than padding for symmetry with T1. Proportionality beats precedent.
 (6) Out of bounds: identical to T1 (no spec/4-life/SDK edits, no invented items).
-**Result**: (filled at completion)
+**Result**: 13 items classified: 0 SPEC GAP, 2 BOTH, 11 EXPLAINER GAP. Today's
+friction is overwhelmingly explainer-side — meaningful signal on its own. Both
+BOTH items (community/society/federation terminology, T3 decay half-lives)
+corroborate T1 findings. Delivered shorter triage note rather than full memo
+per policy-review amendment 5 (proportionality over precedent).
 
 ---
 
