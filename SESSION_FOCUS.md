@@ -208,10 +208,11 @@ e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
 
 ## Open PRs
 
-- PR #164: Sprint 42 T1 — Wire examples/quickstart.py into CI wheel smoke job (rebased onto post-Sprint-41 main, renumbered from Sprint 40, pending review)
+None.
 
 ### Closed PRs (recent)
 
+- PR #164 MERGED — Sprint 42 T1: Wire examples/quickstart.py into CI wheel smoke job
 - PR #165 MERGED — Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps
 - PR #163 MERGED — Sprint 39 T1: SDK v0.26.0 release housekeeping
 - PR #160 MERGED — Sprint 36 T1: Replace stale examples with v0.25.0 quickstart
@@ -221,7 +222,7 @@ e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
 
 ## Completeness Summary
 
-- All 42 sprints COMPLETE (Sprints 1-42; Sprint 42 pending merge via PR #164)
+- All 42 sprints COMPLETE (Sprints 1-42, all merged)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
