@@ -35,6 +35,26 @@ as an appendix, not as additional classifications.
 side of the feedback loop. Does NOT consume issue #166 — candidates (a)-2, (a)-3,
 (a)-4 remain open.
 
+### T2: Visitor-log friction triage — 2026-04-19 log
+**Status**: IN PROGRESS
+**Authorization**: Inferred from CLAUDE.md "4-Life Feedback Loop" standing-mechanism
+language + PR #168 precedent. **NOT on issue #166 candidate menu.** Operator may
+retroactively reject this scope; if so, the memo can be archive-only. **This task
+does NOT establish a standing per-session or per-day obligation** — future sessions
+must check whether today's visitor log is already processed and prefer clean exit
+if so. Approved by policy reviewer with 6 amendments (Apr 19 session log).
+**Scope**:
+(1) Read the 13 friction items in `../4-life/visitor/logs/2026-04-19.md` (table
+only, not the separate "Unanswered Questions" section).
+(2) Classify each as SPEC GAP / EXPLAINER GAP / BOTH, same labels as T1.
+(3) Verify every SPEC GAP and BOTH citation via Grep/Read before claim.
+(4) Filename convention: use visitor-log date to disambiguate. Deliverable:
+`docs/audits/spec-vs-explainer-alignment-visitor-log-2026-04-19.md`.
+(5) If <3 substantive SPEC GAPs found, downgrade to a shorter triage note rather
+than padding for symmetry with T1. Proportionality beats precedent.
+(6) Out of bounds: identical to T1 (no spec/4-life/SDK edits, no invented items).
+**Result**: (filled at completion)
+
 ---
 
 ## Sprint 42: CI Quickstart Smoke (2026-04-18)
