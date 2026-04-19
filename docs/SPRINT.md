@@ -1,9 +1,39 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-18 (Sprint 42)
+**Updated**: 2026-04-19 (Sprint 43)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 43: Spec-to-Explainer Alignment Memo (2026-04-19)
+
+Five consecutive empty-queue autonomous sessions (Apr 17 18:00 → Apr 18 18:00)
+exhausted the sprint plan through Sprint 42. Operator filed issue #166
+("Sprint 43 planning needed") with four pre-approved candidates. Sprint 43 T1
+executes candidate (a)-1: close the feedback loop CLAUDE.md names as the
+"4-Life Feedback Loop" but for which no artifact currently exists.
+
+### T1: Spec-to-explainer alignment memo
+**Status**: DONE
+**Completed**: 2026-04-19
+**Authorized by**: issue #166 candidate (a)-1
+**Scope**:
+(1) Read the 14 friction items in `../4-life/visitor/logs/2026-04-18.md` (table only,
+not the separate "Unanswered Questions" section).
+(2) For each item, classify as SPEC GAP (spec silent/ambiguous), EXPLAINER GAP
+(spec clear, 4-life doesn't surface it), or BOTH.
+(3) Every SPEC GAP citation must be verified by reading the cited file.
+(4) Produce `docs/audits/spec-vs-explainer-alignment-2026-04-19.md` as the single
+bounded deliverable. Precedent: `whitepaper-sdk-coherence-2026-03-15.md`.
+(5) Out of bounds: NO spec edits, NO 4-life edits, NO SDK code changes, NO
+inventing a 15th friction item, NO writing the fix in-place (memo classifies; it
+does not fix). The 4 "Unanswered Questions" below the friction table are handled
+as an appendix, not as additional classifications.
+**Result**: Categorized triage artifact consumable by downstream sprints on either
+side of the feedback loop. Does NOT consume issue #166 — candidates (a)-2, (a)-3,
+(a)-4 remain open.
 
 ---
 
