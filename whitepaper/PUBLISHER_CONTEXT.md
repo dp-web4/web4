@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-04-13
+**Last Updated**: 2026-04-27
 **Whitepaper Status**: Active Development
 
 ---
@@ -203,6 +203,12 @@ After any change:
 
 ## 6. Recent Changes
 
+### 2026-04-27: Publisher Maintenance - No-Change Check (Sprints 36-43)
+- Reviewed all commits since 2026-04-13 (Sprints 36-43, autonomous cleanup, GitNexus reindex)
+- All work is SDK/tooling (ruff lint+format, examples cleanup, dead code removal, CI wheel smoke job, SDK v0.26.0 release housekeeping) — not protocol changes
+- **Sprint 43 (spec-to-explainer alignment memo, #168)** identified 4 SPEC GAPs from 4-life visitor friction log: ATP transfer-fee semantics, CI/coherence as cost multiplier, synthon lifecycle, karma-across-lives canonicity. Memo *classifies*, does not *fix* — these are pre-spec gap analyses. Per inclusion criteria ("Code not yet written / Design still evolving"), no whitepaper changes warranted yet. Track as pending: when spec work resolves any of the 4 gaps, integrate then.
+- No content changes; no rebuild needed
+
 ### 2026-04-13: Publisher Maintenance - PDF Date Fix
 - Fixed hardcoded PDF date in make-pdf.sh ("February 2026" → "April 2026")
 - No content changes needed — SDK updates (v0.22-v0.25, trust CLI, selftest CLI, web4_process_action MCP) are tooling, not protocol
@@ -387,6 +393,10 @@ The whitepaper should reflect implementation reality. Current gaps:
 | ACP protocol section in Part 7 | Medium | Full lifecycle implemented; no dedicated whitepaper section yet |
 | 10-layer governance diagram | Low | Described in status table; could benefit from visual representation |
 | Plugin examples | Low | Nice to have |
+| ATP transfer-fee semantics | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
+| CI/coherence as cost multiplier | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
+| Synthon lifecycle | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
+| Karma-across-lives canonicity | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 
 ---
 
