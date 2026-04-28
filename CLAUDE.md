@@ -133,22 +133,45 @@ Web4 is an ontology, not infrastructure. RDF is its nervous system; trust propag
 - **Assume tool result truncation**: If search or command results look suspiciously small, re-run with narrower scope. Tool results over 50K characters are silently truncated to a preview.
 
 <!-- gitnexus:start -->
+# GitNexus — Code Intelligence
 
-<!-- gitnexus:keep -->
-# GitNexus — Code Knowledge Graph
+This project is indexed by GitNexus as **web4** (123106 symbols, 181493 relationships, 230 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-Indexed as **web4** (61860 symbols, 157091 relationships, 268 execution flows). MCP tools available via `mcp__gitnexus__*`.
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
-**Do not reindex.** The supervisor handles GitNexus indexing. If the index is stale, note it in SESSION_FOCUS.
+## Always Do
 
-| Tool | Use for |
-|------|---------|
-| `query` | Find execution flows by concept |
-| `context` | 360-degree view of a symbol (callers, callees, processes) |
-| `impact` | Blast radius before editing (upstream/downstream) |
-| `detect_changes` | Map git diff to affected symbols and flows |
-| `rename` | Graph-aware multi-file rename (dry_run first) |
-| `cypher` | Raw Cypher queries against the graph |
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
 
-Resources: `gitnexus://repo/web4/context`, `clusters`, `processes`, `process/{name}`
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/web4/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/web4/clusters` | All functional areas |
+| `gitnexus://repo/web4/processes` | All execution flows |
+| `gitnexus://repo/web4/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
 <!-- gitnexus:end -->
