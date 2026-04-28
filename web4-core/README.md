@@ -19,29 +19,65 @@ This crate provides the cryptographic and semantic primitives — Linked Context
 
 ## Quick start
 
-```rust
-use web4_core::{Lct, EntityType, T3, TrustDimension, Coherence};
+LCTs are inherently blockchain tokens. The canonical creation path **mints
+them into a ledger** — `Lct::new()` alone leaves the LCT unanchored, which is
+fine for tests and prototyping but not for any deployment where presence
+needs to be verifiable.
 
-// Create an LCT for a human user
+```rust
+use web4_core::{Lct, EntityType, T3, TrustDimension, Coherence, InMemoryLedger, Ledger};
+
+// 1. Create an LCT (in-memory primitive)
 let (lct, keypair) = Lct::new(EntityType::Human, None);
 
-// Sign and verify
+// 2. Anchor to a ledger
+let mut ledger = InMemoryLedger::new();
+let receipt = lct.mint(&mut ledger).unwrap();
+println!("Minted at index {}, hash {}", receipt.entry_index, receipt.entry_hash);
+
+// 3. Sign and verify
 let message = b"Hello, Web4!";
 let signature = keypair.sign(message);
 assert!(lct.verify_signature(message, &signature).is_ok());
 
-// Build a trust tensor by observation
+// 4. Generate proof of existence
+let proof = ledger.anchor(lct.id).unwrap();
+assert!(ledger.verify_proof(&proof).unwrap());
+
+// 5. Build a trust tensor by observation
 let mut trust = T3::new();
 trust.observe(TrustDimension::Talent, 0.9).unwrap();
 trust.observe(TrustDimension::Training, 0.85).unwrap();
-
-// Aggregate score
 let score = trust.aggregate();
 
-// Identity coherence
+// 6. Identity coherence
 let coherence = Coherence::with_values(0.92, 0.92, 0.92, 0.92).unwrap();
 assert!(coherence.meets_threshold(lct.coherence_threshold()));
 ```
+
+For persistence, swap `InMemoryLedger` for `LocalLedger`:
+
+```rust
+use web4_core::{Lct, EntityType, LocalLedger, Ledger};
+
+let mut ledger = LocalLedger::open("./team-ledger.jsonl").unwrap();
+let (lct, _kp) = Lct::new(EntityType::AiSoftware, None);
+let receipt = lct.mint(&mut ledger).unwrap();
+
+// Reopen later — state is replayed from the file with chain-integrity checks
+let ledger = LocalLedger::open("./team-ledger.jsonl").unwrap();
+assert_eq!(ledger.lookup(lct.id).unwrap().map(|l| l.id), Some(lct.id));
+```
+
+## Ledger backends
+
+| Backend | Use case | Persistence | Distribution |
+|---|---|---|---|
+| `InMemoryLedger` | Tests, prototyping, ephemeral runs | None | Single process |
+| `LocalLedger` | Solo dev, team-scoped accountability, regulated/air-gapped | File (JSON-lines, hash-chained) | Single host |
+| `ActLedger` *(separate crate, future)* | Federation-wide consensus | ACT Cosmos chain | Distributed |
+
+All backends implement the [`Ledger`] trait — the canonical surface is stable across them. Swap backends without changing your minting code.
 
 ## Web4 ontology context
 

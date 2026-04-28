@@ -24,41 +24,65 @@ pip install target/wheels/*.whl
 ```python
 import web4_core
 
-# Create an LCT for a human user
+# 1. Create an LCT (in-memory primitive)
 lct, keypair = web4_core.PyLct.new(web4_core.PyEntityType.Human, None)
 
-# Sign a message
+# 2. Anchor to a ledger — LCTs are blockchain tokens, must be minted
+ledger = web4_core.PyInMemoryLedger()
+receipt = ledger.mint(lct)
+print(f"Minted at index {receipt.entry_index}, hash {receipt.entry_hash[:16]}...")
+
+# 3. Sign and verify
 message = b"Hello, Web4!"
 signature = keypair.sign(message)
-
-# Verify the signature
 assert lct.verify_signature(message, signature)
 
-# Create a trust tensor and record observations
+# 4. Generate proof of existence
+proof = ledger.anchor(lct.id)
+assert ledger.verify_proof(proof)
+
+# 5. Trust tensor — 3 root dimensions, fractally extensible
 trust = web4_core.PyT3()
 trust.observe(web4_core.PyTrustDimension.Talent, 0.9)
 trust.observe(web4_core.PyTrustDimension.Training, 0.85)
 trust.observe(web4_core.PyTrustDimension.Temperament, 0.88)
+print(f"Aggregate trust: {trust.aggregate():.3f}")
 
-# Get aggregate trust score
-score = trust.aggregate()
-print(f"Aggregate trust: {score:.3f}")
-
-# Record a fractal sub-dimension observation
-# (each root is itself an open-ended RDF sub-graph)
+# Fractal sub-dimension observation
 trust.observe_sub_dimension("rust_proficiency", web4_core.PyTrustDimension.Training, 0.92)
 
-# Create a value tensor
+# 6. Value tensor — same pattern
 value = web4_core.PyV3()
 value.observe(web4_core.PyValueDimension.Valuation, 0.9)
 value.observe(web4_core.PyValueDimension.Veracity, 0.85)
 value.observe(web4_core.PyValueDimension.Validity, 0.88)
 
-# Calculate identity coherence (C × S × Φ × R)
+# 7. Identity coherence (C × S × Φ × R)
 coherence = web4_core.PyCoherence.with_values(0.8, 0.8, 0.7, 0.9)
 print(f"Total coherence: {coherence.total():.3f}")
 print(f"Limiting factor: {coherence.limiting_factor()}")
 ```
+
+For persistence, swap `PyInMemoryLedger` for `PyLocalLedger`:
+
+```python
+ledger = web4_core.PyLocalLedger.open("./team-ledger.jsonl")
+lct, _ = web4_core.PyLct.new(web4_core.PyEntityType.AiSoftware, None)
+receipt = ledger.mint(lct)
+
+# Reopen later — state is replayed from the file with chain-integrity checks
+ledger = web4_core.PyLocalLedger.open("./team-ledger.jsonl")
+restored = ledger.lookup(lct.id)
+assert restored is not None
+```
+
+### Ledger backends
+
+| Backend | Use case |
+|---|---|
+| `PyInMemoryLedger` | Tests, prototyping, ephemeral runs |
+| `PyLocalLedger` | Solo dev, team-scoped accountability, regulated/air-gapped environments — persistent, hash-chained, tamper-evident |
+| ACT chain backend *(separate package, future)* | Federation-wide consensus via Cosmos SDK gateway |
 
 ## API Reference
 

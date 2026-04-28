@@ -196,6 +196,27 @@ impl Lct {
         format!("{}...{}", &full[..8], &full[56..])
     }
 
+    /// Anchor this LCT to a [`Ledger`](crate::Ledger), recording the mint as a ledger entry.
+    ///
+    /// Returns a [`MintReceipt`](crate::MintReceipt) with the entry hash and index. This
+    /// is the canonical creation path for production use — `Lct::new()` alone leaves
+    /// the LCT unanchored, which is fine for tests and prototyping but not for any
+    /// deployment where presence needs to be verifiable.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use web4_core::{Lct, EntityType, InMemoryLedger, Ledger};
+    ///
+    /// let (lct, _kp) = Lct::new(EntityType::Human, None);
+    /// let mut ledger = InMemoryLedger::new();
+    /// let receipt = lct.mint(&mut ledger).unwrap();
+    /// assert_eq!(receipt.lct_id, lct.id);
+    /// ```
+    pub fn mint(&self, ledger: &mut dyn crate::ledger::Ledger) -> Result<crate::ledger::MintReceipt> {
+        ledger.mint(self)
+    }
+
     /// Check coherence requirements based on entity type
     ///
     /// Returns the minimum coherence threshold for trust accumulation

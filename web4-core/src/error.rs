@@ -48,6 +48,10 @@ pub enum Web4Error {
     /// LCT has been voided or slashed
     #[error("LCT voided: {0}")]
     LctVoided(String),
+
+    /// Ledger operation failed (mint, lookup, anchor, verify)
+    #[error("Ledger error: {0}")]
+    Ledger(String),
 }
 
 /// Result type alias for web4-core operations

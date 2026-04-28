@@ -58,6 +58,7 @@ pub mod coherence;
 pub mod crypto;
 pub mod error;
 pub mod lct;
+pub mod ledger;
 pub mod t3;
 pub mod v3;
 
@@ -69,6 +70,9 @@ pub use coherence::{
 pub use crypto::{sha256, sha256_hex, KeyPair, PublicKey, SignatureBytes};
 pub use error::{Result, Web4Error};
 pub use lct::{EntityType, HardwareBinding, Lct, LctBuilder, LctStatus};
+pub use ledger::{
+    InMemoryLedger, Ledger, LedgerEntry, LedgerEvent, LedgerProof, LocalLedger, MintReceipt,
+};
 pub use t3::{TrustDimension, TrustObservation, TrustRelation, T3, T3_DIMENSIONS};
 pub use v3::{TrustValueScore, ValueDimension, ValueObservation, V3, V3_DIMENSIONS};
 

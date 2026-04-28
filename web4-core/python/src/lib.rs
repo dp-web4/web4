@@ -10,7 +10,7 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use web4_core::{self as core};
+use ::web4_core as core;
 
 /// Python-compatible error conversion
 fn to_py_err(e: core::Web4Error) -> PyErr {
@@ -447,6 +447,245 @@ pub fn version() -> &'static str {
     core::VERSION
 }
 
+// ============================================================================
+// Ledger bindings
+// ============================================================================
+
+/// Receipt returned when an LCT is minted into a ledger.
+#[pyclass]
+#[derive(Clone)]
+pub struct PyMintReceipt {
+    inner: core::MintReceipt,
+}
+
+#[pymethods]
+impl PyMintReceipt {
+    /// LCT ID that was minted
+    #[getter]
+    pub fn lct_id(&self) -> String {
+        self.inner.lct_id.to_string()
+    }
+
+    /// Index of the mint entry in the ledger
+    #[getter]
+    pub fn entry_index(&self) -> u64 {
+        self.inner.entry_index
+    }
+
+    /// Hex-encoded SHA-256 hash of this entry
+    #[getter]
+    pub fn entry_hash(&self) -> String {
+        self.inner.entry_hash.clone()
+    }
+
+    /// Hex-encoded hash of the previous entry
+    #[getter]
+    pub fn prev_hash(&self) -> String {
+        self.inner.prev_hash.clone()
+    }
+
+    /// Backend identifier
+    #[getter]
+    pub fn backend(&self) -> String {
+        self.inner.backend.clone()
+    }
+
+    /// Timestamp the mint was recorded (ISO 8601)
+    #[getter]
+    pub fn minted_at(&self) -> String {
+        self.inner.minted_at.to_rfc3339()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PyMintReceipt(lct_id='{}', entry_index={}, backend='{}')",
+            self.inner.lct_id, self.inner.entry_index, self.inner.backend
+        )
+    }
+}
+
+/// Cryptographic proof that an LCT exists in a ledger.
+#[pyclass]
+#[derive(Clone)]
+pub struct PyLedgerProof {
+    inner: core::LedgerProof,
+}
+
+#[pymethods]
+impl PyLedgerProof {
+    /// LCT being proved
+    #[getter]
+    pub fn lct_id(&self) -> String {
+        self.inner.lct_id.to_string()
+    }
+
+    /// Index of the mint entry
+    #[getter]
+    pub fn entry_index(&self) -> u64 {
+        self.inner.entry_index
+    }
+
+    /// Hash of the mint entry
+    #[getter]
+    pub fn entry_hash(&self) -> String {
+        self.inner.entry_hash.clone()
+    }
+
+    /// Current head hash of the ledger when the proof was generated
+    #[getter]
+    pub fn head_hash(&self) -> String {
+        self.inner.head_hash.clone()
+    }
+
+    /// Backend that produced this proof
+    #[getter]
+    pub fn backend(&self) -> String {
+        self.inner.backend.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PyLedgerProof(lct_id='{}', entry_index={}, backend='{}')",
+            self.inner.lct_id, self.inner.entry_index, self.inner.backend
+        )
+    }
+}
+
+/// In-memory ledger backend (for tests, prototyping, ephemeral runs)
+#[pyclass]
+pub struct PyInMemoryLedger {
+    inner: core::InMemoryLedger,
+}
+
+#[pymethods]
+impl PyInMemoryLedger {
+    /// Create a new in-memory ledger with a genesis entry.
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            inner: core::InMemoryLedger::new(),
+        }
+    }
+
+    /// Mint an LCT into this ledger. Returns a PyMintReceipt.
+    pub fn mint(&mut self, lct: &PyLct) -> PyResult<PyMintReceipt> {
+        let receipt = {
+            use core::Ledger;
+            self.inner.mint(&lct.inner).map_err(to_py_err)?
+        };
+        Ok(PyMintReceipt { inner: receipt })
+    }
+
+    /// Look up an LCT by ID. Returns None if not found.
+    pub fn lookup(&self, lct_id: &str) -> PyResult<Option<PyLct>> {
+        let id = uuid::Uuid::parse_str(lct_id)
+            .map_err(|e| PyValueError::new_err(format!("Invalid UUID: {}", e)))?;
+        use core::Ledger;
+        let result = self.inner.lookup(id).map_err(to_py_err)?;
+        Ok(result.map(|lct| PyLct { inner: lct }))
+    }
+
+    /// Generate proof of LCT existence in this ledger.
+    pub fn anchor(&self, lct_id: &str) -> PyResult<PyLedgerProof> {
+        let id = uuid::Uuid::parse_str(lct_id)
+            .map_err(|e| PyValueError::new_err(format!("Invalid UUID: {}", e)))?;
+        use core::Ledger;
+        let proof = self.inner.anchor(id).map_err(to_py_err)?;
+        Ok(PyLedgerProof { inner: proof })
+    }
+
+    /// Verify a proof against the current ledger state.
+    pub fn verify_proof(&self, proof: &PyLedgerProof) -> PyResult<bool> {
+        use core::Ledger;
+        self.inner.verify_proof(&proof.inner).map_err(to_py_err)
+    }
+
+    /// Backend identifier
+    pub fn backend_kind(&self) -> String {
+        use core::Ledger;
+        self.inner.backend_kind().to_string()
+    }
+
+    /// Total number of entries in the ledger (including genesis)
+    pub fn __len__(&self) -> usize {
+        use core::Ledger;
+        self.inner.len() as usize
+    }
+}
+
+impl Default for PyInMemoryLedger {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// File-based local ledger backend (persistent, hash-chained, tamper-evident)
+#[pyclass]
+pub struct PyLocalLedger {
+    inner: core::LocalLedger,
+}
+
+#[pymethods]
+impl PyLocalLedger {
+    /// Open an existing ledger file or create a new one.
+    ///
+    /// On open: replays the file, verifies the hash chain, and reconstructs
+    /// LCT state. Errors if the chain is broken (tamper detected).
+    #[staticmethod]
+    pub fn open(path: &str) -> PyResult<Self> {
+        let inner = core::LocalLedger::open(path).map_err(to_py_err)?;
+        Ok(Self { inner })
+    }
+
+    /// Mint an LCT into this ledger. Returns a PyMintReceipt.
+    pub fn mint(&mut self, lct: &PyLct) -> PyResult<PyMintReceipt> {
+        use core::Ledger;
+        let receipt = self.inner.mint(&lct.inner).map_err(to_py_err)?;
+        Ok(PyMintReceipt { inner: receipt })
+    }
+
+    /// Look up an LCT by ID. Returns None if not found.
+    pub fn lookup(&self, lct_id: &str) -> PyResult<Option<PyLct>> {
+        let id = uuid::Uuid::parse_str(lct_id)
+            .map_err(|e| PyValueError::new_err(format!("Invalid UUID: {}", e)))?;
+        use core::Ledger;
+        let result = self.inner.lookup(id).map_err(to_py_err)?;
+        Ok(result.map(|lct| PyLct { inner: lct }))
+    }
+
+    /// Generate proof of LCT existence.
+    pub fn anchor(&self, lct_id: &str) -> PyResult<PyLedgerProof> {
+        let id = uuid::Uuid::parse_str(lct_id)
+            .map_err(|e| PyValueError::new_err(format!("Invalid UUID: {}", e)))?;
+        use core::Ledger;
+        let proof = self.inner.anchor(id).map_err(to_py_err)?;
+        Ok(PyLedgerProof { inner: proof })
+    }
+
+    /// Verify a proof against the current ledger state.
+    pub fn verify_proof(&self, proof: &PyLedgerProof) -> PyResult<bool> {
+        use core::Ledger;
+        self.inner.verify_proof(&proof.inner).map_err(to_py_err)
+    }
+
+    /// Path to the ledger file
+    pub fn path(&self) -> String {
+        self.inner.path().display().to_string()
+    }
+
+    /// Backend identifier
+    pub fn backend_kind(&self) -> String {
+        use core::Ledger;
+        self.inner.backend_kind().to_string()
+    }
+
+    /// Total number of entries in the ledger (including genesis)
+    pub fn __len__(&self) -> usize {
+        use core::Ledger;
+        self.inner.len() as usize
+    }
+}
+
 /// Python module definition
 #[pymodule]
 fn web4_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -461,6 +700,12 @@ fn web4_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyT3>()?;
     m.add_class::<PyV3>()?;
     m.add_class::<PyCoherence>()?;
+
+    // Ledger types
+    m.add_class::<PyMintReceipt>()?;
+    m.add_class::<PyLedgerProof>()?;
+    m.add_class::<PyInMemoryLedger>()?;
+    m.add_class::<PyLocalLedger>()?;
 
     // Functions
     m.add_function(wrap_pyfunction!(sha256, m)?)?;
