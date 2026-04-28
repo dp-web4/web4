@@ -2,20 +2,44 @@
 
 **Proposal Date**: 2026-01-03
 **Author**: Legion (Session 121)
-**Status**: Design Draft - CORRECTED
+**Status**: Design Draft — LEGACY (superseded by canonical 3-root T3/V3)
 **Depends On**: Web4 core protocol, pattern federation (Session 120)
 
 ---
 
-## CORRECTION NOTICE
+## DEPRECATION NOTICE (2026-04-27)
+
+> **This proposal uses the legacy 6-dimensional T3/V3 schema** (variant 6D-C):
+> "technical_competence / social_reliability / temporal_consistency / witness_count /
+> lineage_depth / context_alignment" for T3, and the parallel 6D V3.
+>
+> The **canonical** T3/V3 schema (since Feb 2026) uses **3 root dimensions** per tensor,
+> each itself an open-ended RDF sub-graph of context-specific sub-dimensions via
+> `web4:subDimensionOf`:
+>
+> - **T3**: Talent / Training / Temperament
+> - **V3**: Valuation / Veracity / Validity
+>
+> Canonical implementations: `web4-core/src/{t3,v3}.rs`, `web4-trust-core/src/tensor/`,
+> `web4-standard/implementation/sdk/web4/trust.py`. Migration helpers exist in
+> `web4-trust-core` (`from_legacy_6d`) and `ledgers/reference/go/lct/document.go`.
+>
+> The architectural ideas in this proposal (pattern source identity, federation
+> ontology, trust accumulation across sessions) remain relevant; the specific
+> dimension lists do not. Treat the dim names below as historical reference, not
+> as current spec.
+
+---
+
+## CORRECTION NOTICE (2026-01-03)
 
 > **Original proposal incorrectly used "LCT" to mean "Lifecycle-Continuous Trust".**
 >
 > In Web4, **LCT = Linked Context Token** - the foundational identity primitive that includes:
 > - Hardware-bound cryptographic binding
 > - MRH (Markov Relevancy Horizon) with typed relationships
-> - T3 Tensor (6-dimension trust)
-> - V3 Tensor (6-dimension value)
+> - T3 Tensor (3 root dimensions, fractally extensible — see deprecation notice above)
+> - V3 Tensor (3 root dimensions, fractally extensible — see deprecation notice above)
 > - Society-issued birth certificates with witness quorum
 >
 > This proposal has been renamed to **Pattern Source Identity (PSI)** to avoid collision.

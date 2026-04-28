@@ -1,26 +1,48 @@
 #!/usr/bin/env python3
 """
-Web4 Pattern Source Identity (PSI) System
+Web4 Pattern Source Identity (PSI) System — LEGACY (6-dim tensors)
+==================================================================
 
-This module provides pattern federation identity and trust using real Web4 LCT
-(Linked Context Token) infrastructure.
+⚠️  DEPRECATION NOTICE (2026-04-27)
+    This file uses the LEGACY 6-dimensional T3/V3 tensor schema (variant 6D-C):
+      T3: technical_competence, social_reliability, temporal_consistency,
+          witness_count, lineage_depth, context_alignment
+      V3: energy_balance, contribution_history, resource_stewardship,
+          network_effects, reputation_capital, temporal_value
 
-Key Integration Points:
-- T3 Tensor: 6-dimension trust (technical_competence, social_reliability,
-  temporal_consistency, witness_count, lineage_depth, context_alignment)
-- V3 Tensor: 6-dimension value (energy_balance, contribution_history,
-  resource_stewardship, network_effects, reputation_capital, temporal_value)
-- MRH: Markov Relevancy Horizon with bound/paired/witnessing relationships
-- Pattern signing: Uses LCT binding for cryptographic identity
+    The CANONICAL schema (per CLAUDE.md, ontology, JSON schema, and spec) uses
+    3 root dimensions, each itself a fractal RDF sub-graph of context-specific
+    sub-dimensions via web4:subDimensionOf:
+      T3: talent, training, temperament
+      V3: valuation, veracity, validity
+
+    CANONICAL implementations:
+      - web4-core/src/t3.rs, v3.rs (Rust)
+      - web4-trust-core/src/tensor/t3.rs, v3.rs (Rust)
+      - web4-standard/implementation/sdk/web4/trust.py (Python)
+      - web4-standard/implementation/reference/trust_tensor.py (reference)
+
+    Migration helpers:
+      - web4-trust-core/src/tensor/t3.rs::from_legacy_6d()
+      - ledgers/reference/go/lct/document.go::MigrateT3FromLegacy6D()
+
+    This file is retained for backward compatibility with the L121 / Session 123
+    federation prototypes (`tests/sessions/test_session123_*`, `core/pattern_signing.py`).
+    New code SHOULD use the canonical implementations above.
+
+----
+
+Pattern federation identity and trust using Web4 LCT infrastructure.
 
 Reference:
 - LCT Spec: web4-standard/core-spec/LCT-linked-context-token.md
-- Migration: proposals/PATTERN_SOURCE_IDENTITY.md
+- Original proposal: proposals/PATTERN_SOURCE_IDENTITY.md (also legacy 6D-C)
 - Existing LCT impl: web4-standard/implementation/act_deployment/lct.py
 
 Session History:
 - L121: Original implementation (incorrectly used "LCT" term)
 - CBP 2026-01-03: Renamed and refactored to use real LCT structures
+- 2026-04-27: Marked as legacy; canonical has been 3-root since Feb 2026
 """
 
 import json
