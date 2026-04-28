@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "web4-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "ed25519-dalek",
@@ -834,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "web4-python"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "pyo3",
  "pyo3-build-config",

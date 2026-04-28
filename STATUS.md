@@ -14,14 +14,16 @@ Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f
 
 ---
 
-## Published artifacts (2026-04-28)
+## Published artifacts (current: v0.1.1, 2026-04-28)
 
 | Package | Registry | Version | Install |
 |---|---|---|---|
-| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | 0.1.0 | `cargo add web4-core` |
-| **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | 0.1.0 | `pip install web4-core` |
-| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.1.0 | `cargo add web4-trust-core` |
-| **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.1.0 | `pip install web4-trust` |
+| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | 0.1.1 | `cargo add web4-core` |
+| **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | 0.1.1 | `pip install web4-core` |
+| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.1.1 | `cargo add web4-trust-core` |
+| **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.1.1 | `pip install web4-trust` |
+
+> v0.1.0 yanked from crates.io: the Python `web4-core` wheel shipped without `__init__.py`, so `import web4_core` returned an empty module. Fixed in v0.1.1; v0.1.0 PyPI artifacts remain installable but `web4-trust`'s docstring also incorrectly described tensors as "6-dimensional" (canonical: 3 root dims, fractally extensible via `web4:subDimensionOf`). Use v0.1.1.
 
 All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial licensing: dp@metalinxx.io.
 
@@ -34,8 +36,8 @@ All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial 
 | Layer | Status | Where |
 |---|---|---|
 | **Spec corpus** (LCT, T3/V3, MRH, ATP/ADP, R6/R7) | Stable | [`web4-standard/core-spec/`](web4-standard/core-spec/) |
-| **`web4-core`** | **Published v0.1.0** (crates.io + PyPI). LCT, T3/V3, Coherence, Ledger trait + 2 backends (InMemory, Local file). 52 unit tests + 4 doctests. | [`web4-core/`](web4-core/) |
-| **`web4-trust-core`** | **Published v0.1.0** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
+| **`web4-core`** | **Published v0.1.1** (crates.io + PyPI). LCT, T3/V3, Coherence, Ledger trait + 2 backends (InMemory, Local file). 52 unit tests + 4 doctests. | [`web4-core/`](web4-core/) |
+| **`web4-trust-core`** | **Published v0.1.1** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
 | **Reference Python SDK** | 2,627 tests, mypy --strict clean (not yet on PyPI separately) | [`web4-standard/implementation/`](web4-standard/implementation/) |
 | **Cognition harness producing 94.85%** | Open source | [SAGE](https://github.com/dp-web4/SAGE) |
 | **Attack simulation suite** | 424 vectors / 84 tracks, ~85% detection | [`simulations/`](simulations/) |
