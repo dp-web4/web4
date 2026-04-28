@@ -318,8 +318,8 @@ python attack_track_fc.py                  # Economic attacks
 
 ```
 web4/
-├── web4-core/                         # Reference Python SDK + AttestationEnvelope (MIT)
-├── web4-trust-core/                   # Trust tensor implementations (Rust, MIT)
+├── web4-core/                         # Reference Rust + Python SDK, AttestationEnvelope
+├── web4-trust-core/                   # Trust tensor implementations (Rust)
 ├── core/                              # Cross-language shared primitives
 │
 ├── web4-standard/                     # Core specifications and implementations
@@ -387,8 +387,6 @@ Key concepts: LCTs, MRH, Trust Tensors, ATP, Federation, Dictionaries
 ## 📄 License
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE).
-
-**Per-component note**: `web4-core/` was relicensed AGPL → **MIT** in February 2026 for ARIA grant compatibility. The rest of the repo remains AGPL-3.0-or-later.
 
 ### Patent Notice
 

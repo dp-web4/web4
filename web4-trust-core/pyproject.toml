@@ -7,7 +7,7 @@ name = "web4-trust"
 version = "0.1.0"
 description = "Web4 trust primitives (Rust core with Python bindings)"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.8"
 authors = [
     {name = "Web4 Contributors"}
@@ -16,7 +16,7 @@ keywords = ["trust", "web4", "governance", "tensor"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",

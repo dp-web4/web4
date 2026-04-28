@@ -252,7 +252,7 @@ curl -X POST http://localhost:8000/api/purchase \
 
 ## License
 
-MIT License - See project root for details
+AGPL-3.0-or-later. See repo-root LICENSE and PATENTS.md.
 
 ## Author
 

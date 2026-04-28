@@ -518,7 +518,7 @@ python app.py
 
 ## License
 
-MIT License - See project root for details
+AGPL-3.0-or-later. See repo-root LICENSE and PATENTS.md.
 
 ## Author
 

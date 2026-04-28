@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Pytest-compatible wrappers for Hardbound test suites
 #
 # Runs the existing sequential test suites (test_team.py, test_integration.py,

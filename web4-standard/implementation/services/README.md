@@ -780,7 +780,7 @@ The 6 existing services provide excellent templates for any new service developm
 
 ## License
 
-MIT License - see LICENSE file for details.
+AGPL-3.0-or-later. See LICENSE.
 
 ## Support
 

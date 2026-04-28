@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.26.0 | **Python**: 3.10+ | **License**: MIT | **Typed**: PEP 561
+**Version**: 0.26.0 | **Python**: 3.10+ | **License**: AGPL-3.0-or-later | **Typed**: PEP 561
 
 ## Installation
 
@@ -208,4 +208,4 @@ pyproject.toml         # Package metadata (single version source)
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+AGPL-3.0-or-later. See [LICENSE](LICENSE) and the repo-root PATENTS.md for the patent grant terms.

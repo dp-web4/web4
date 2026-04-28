@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (c) 2025 Web4 Contributors
 #
 # Web4 MCP Server - web4.io/ namespace prototype

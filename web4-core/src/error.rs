@@ -1,5 +1,5 @@
 // Copyright (c) 2026 MetaLINXX Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // This software is covered by US Patents 11,477,027 and 12,278,913,
 // and pending application 19/178,619. See PATENTS.md for details.

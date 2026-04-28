@@ -94,4 +94,4 @@ print(f"Limiting factor: {coherence.limiting_factor()}")
 
 ## License
 
-MIT OR Apache-2.0
+AGPL-3.0-or-later. See [LICENSE](../LICENSE) and the repo-root [PATENTS.md](../../PATENTS.md) for the patent grant terms.
