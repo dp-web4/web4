@@ -237,7 +237,7 @@ Operators: `[]` = "contains", `/` = "verified by", `*` = "contextualized by", `+
 - **MCP** (Model Context Protocol) — I/O membrane for inter-entity communication
 - **RDF** (Resource Description Framework) — Ontological backbone; all trust relationships are typed triples, all MRH graphs are RDF, all semantic queries use SPARQL
 - **LCT** (Linked Context Token) — Verifiable presence anchored to hardware
-- **T3/V3** (Trust/Value Tensors) — 3-dimensional trust (Talent/Training/Temperament) and 3-dimensional value (Valuation/Veracity/Validity), bound to entity-role pairs via RDF
+- **T3/V3** (Trust/Value Tensors) — Fractally multidimensional. T3 has 3 root dimensions (Talent / Training / Temperament); V3 has 3 (Valuation / Veracity / Validity). Each root dimension is itself an open-ended RDF sub-graph of context-specific sub-dimensions via `web4:subDimensionOf`, bound to entity-role pairs
 - **MRH** (Markov Relevancy Horizon) — Fractal context scoping, implemented as RDF graphs
 - **ATP/ADP** (Allocation Transfer/Discharge Packets) — Bio-inspired energy metabolism
 

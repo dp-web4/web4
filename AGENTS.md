@@ -21,8 +21,8 @@ Web4 is the open standard ontology for verifiable presence in agentic AI. Provid
 | Term | What It Is | Why It Matters |
 |------|-----------|----------------|
 | **LCT** | Linked Context Token | Hardware-bound verifiable presence |
-| **T3** | Trust Tensor — 3 dimensions: Talent / Training / Temperament | One half of the 6D reputation pair |
-| **V3** | Value Tensor — 3 dimensions: Valuation / Veracity / Validity | Other half; bound to entity-role pairs via RDF |
+| **T3** | Trust Tensor — 3 root dimensions (Talent / Training / Temperament), each a fractal RDF sub-graph of context-specific sub-dimensions via `web4:subDimensionOf` | Open-ended multidimensional reputation, not a fixed-size vector |
+| **V3** | Value Tensor — 3 root dimensions (Valuation / Veracity / Validity), same fractal RDF pattern | Bound to entity-role pairs via RDF triples |
 | **ATP** | Allocation Transfer Packet | Resource/energy accounting (bio-inspired metabolism) |
 | **MRH** | Markov Relevancy Horizon | Fractal context scoping (RDF graphs) |
 | **R6** | Action grammar | Rules → Role → Request → Reference → Resource → Result |
