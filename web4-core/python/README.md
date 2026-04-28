@@ -76,6 +76,26 @@ restored = ledger.lookup(lct.id)
 assert restored is not None
 ```
 
+### Worked example: durable host identity
+
+The snippet above shows the primitives. The repo ships a small,
+self-contained script that turns them into a one-command setup for a
+host's persistent presence — keypair on disk (`chmod 600`), local
+hash-chained ledger, public LCT sidecar, and an idempotent re-run that
+verifies the chain instead of regenerating:
+
+```bash
+# Generate identity (or verify, if it already exists)
+python examples/identity_bootstrap.py --name laptop-01
+
+# Read-only attestation check
+python examples/identity_bootstrap.py --name laptop-01 --verify
+```
+
+Source: [`python/examples/identity_bootstrap.py`](examples/identity_bootstrap.py).
+Copy and adapt — change the entity type, point at a different base
+directory, layer hardware-binding (TPM / secure enclave) on top, etc.
+
 ### Ledger backends
 
 | Backend | Use case |
