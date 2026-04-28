@@ -92,19 +92,24 @@ Each dimension is a **root node in an open-ended RDF sub-graph**, following the 
 
 ## Action Framework
 
-### R6 (Six-Element Action Framework)
+### R6 and R7 — Action Framework (both canonical, consequence-tier distinction)
 
-**Definition**: The canonical lifecycle for actions:
+**R6** — Rules / Role / Request / Reference / Resource → Result. The base action grammar. ATP→ADP transaction without reputation tracking. Used for **routine, low-consequence tasks** that don't merit the bookkeeping cost of ledger feedback into trust evolution.
+
+**R7** — R6 + Reputation. A **superset** of R6 that adds reputation back-propagation: ADP attestation feeds recharge validation and fractal reputation accumulation (action-scale → role-scale → entity-scale → society-scale). Used **only when the action's consequence justifies** the bookkeeping cost.
+
+The choice between R6 and R7 is **contextual** — selected per action or per role based on whether the outcome should shape future trust. Both modes are first-class, neither is deprecated.
+
+**Component meaning** (shared across both):
 1. **Rules**: Governance constraints
 2. **Role**: Actor identity and permissions
 3. **Request**: What is being asked
 4. **Reference**: Context and precedent
 5. **Resource**: What is consumed/produced
 6. **Result**: Outcome and attestation
+7. **Reputation** (R7 only): Trust-tensor delta back-propagated from the result
 
-**NOT**: R7, R5, or any other count. R6 is canonical.
-
-**Specification**: [`web4-standard/core-spec/r6-framework.md`](../../web4-standard/core-spec/r6-framework.md)
+**Specifications**: [`web4-standard/core-spec/r6-framework.md`](../../web4-standard/core-spec/r6-framework.md) (routine mode), [`web4-standard/core-spec/r7-framework.md`](../../web4-standard/core-spec/r7-framework.md) (reputation-tracking superset)
 
 ---
 

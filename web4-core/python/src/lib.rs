@@ -449,7 +449,7 @@ pub fn version() -> &'static str {
 
 /// Python module definition
 #[pymodule]
-fn web4(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn web4_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Enums
     m.add_class::<PyEntityType>()?;
     m.add_class::<PyTrustDimension>()?;

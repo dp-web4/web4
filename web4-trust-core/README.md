@@ -4,10 +4,26 @@ Core trust primitives for the Web4 ecosystem, implemented in Rust with Python bi
 
 ## Features
 
-- **T3 Trust Tensor**: 6-dimensional trust measurement (competence, reliability, consistency, witnesses, lineage, alignment)
-- **V3 Value Tensor**: 6-dimensional value measurement (energy, contribution, stewardship, network, reputation, temporal)
-- **EntityTrust**: Combines T3+V3 with witnessing relationships
-- **TrustStore**: Persistent storage with JSON format compatibility
+- **T3 Trust Tensor** — 3 root dimensions (Talent / Training / Temperament), each itself an open-ended RDF sub-graph of context-specific sub-dimensions via `web4:subDimensionOf`. Fractally extensible.
+- **V3 Value Tensor** — 3 root dimensions (Valuation / Veracity / Validity), same fractal RDF pattern.
+- **EntityTrust** — Combines T3 + V3 with witnessing relationships, role-binding, and decay.
+- **TrustStore** — Persistent storage with JSON format compatibility. Includes `from_legacy_6d` migration helper for prior 6-flat-dimension data.
+
+## T3 Root Dimensions
+
+- **Talent** — Natural aptitude and capability for a specific role
+- **Training** — Acquired expertise, certifications, and experience
+- **Temperament** — Behavioral consistency, reliability, ethical disposition
+
+## V3 Root Dimensions
+
+- **Valuation** — Worth ascribed to the contribution
+- **Veracity** — Truthfulness and reliability of the claim
+- **Validity** — Soundness and applicability in context
+
+Each root dimension is fractally extensible via `web4:subDimensionOf` — sub-dimensions form an RDF sub-graph that aggregates back into the root scalar. T3 and V3 are not fixed-size 6-vectors; they are typed multidimensional ontologies with 3 anchor roots.
+
+Formal ontology: [`web4-standard/ontology/t3v3-ontology.ttl`](../web4-standard/ontology/t3v3-ontology.ttl)
 
 ## Installation
 
@@ -53,10 +69,11 @@ print(f"MCP trust after witnessing: {target_trust.t3_average():.3f}")
 ```
 ┌─────────────────────────────────────────┐
 │  web4-trust-core (Rust)                 │
-│  - T3/V3 tensor math                    │
+│  - T3/V3 tensor math (3 roots, fractal) │
 │  - EntityTrust with witnessing          │
 │  - Decay calculations                   │
 │  - Storage backends                     │
+│  - from_legacy_6d migration helper      │
 └─────────────────────────────────────────┘
               │
     ┌─────────┴─────────┐
@@ -69,6 +86,10 @@ print(f"MCP trust after witnessing: {target_trust.t3_average():.3f}")
     └───────────────────┘
 ```
 
+## Patent Notice
+
+This software implements technology covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619. See the repo-root [PATENTS.md](../PATENTS.md) for the patent grant terms.
+
 ## License
 
-MIT
+AGPL-3.0-or-later. See repo-root [LICENSE](../LICENSE).

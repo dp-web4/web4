@@ -2,7 +2,11 @@
 
 ## Overview
 
-The R6 framework is the foundational action grammar for Web4, defining how all transactions and interactions are structured, validated, and executed. Every action in Web4 follows the R6 pattern, ensuring consistency, auditability, and verifiable outcomes.
+R6 is the **base action grammar** for Web4. ATP→ADP transactions follow this pattern for **routine, low-consequence tasks** that don't merit reputation tracking — the cheap default mode.
+
+For consequential actions where the outcome should shape future trust, use [R7](r7-framework.md) — a superset of R6 that adds reputation back-propagation.
+
+R6 and R7 are **both canonical**. The choice is contextual, selected per action or per role based on consequence tier. Neither is deprecated.
 
 ## The R6 Equation
 

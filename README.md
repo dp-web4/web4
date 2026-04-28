@@ -265,14 +265,17 @@ Example: Agent purchasing with constraints
 
 ### Concept → Implementation Map
 
-| Concept | Specification | Implementation | Notes |
-|---------|--------------|----------------|-------|
-| **LCT (Presence)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | Also in 4-life repo |
-| **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | [`web4-core/python/web4/trust/attestation/`](web4-core/python/web4/trust/attestation/) | AttestationEnvelope + anchor verification (TPM2/FIDO2/SE/software) |
-| **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`simulations/`](simulations/) | Trust dynamics simulations |
-| **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`simulations/`](simulations/) | Context boundary research |
-| **ATP (Economics)** | [`web4-standard/core-spec/atp-adp-cycle.md`](web4-standard/core-spec/atp-adp-cycle.md) | [`simulations/`](simulations/) | Economic attack simulations |
-| **Federation** | [`docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md`](docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md) | [`simulations/`](simulations/) | Federation patterns |
+| Concept | Specification | Reference Implementation | Research / Simulations |
+|---------|--------------|--------------------------|------------------------|
+| **LCT (Presence)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`web4-core/`](web4-core/) (Rust + Python), [`web4-standard/implementation/sdk/web4/lct.py`](web4-standard/implementation/sdk/web4/lct.py) | [`simulations/`](simulations/), [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) |
+| **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | [`web4-core/python/web4/trust/attestation/`](web4-core/python/web4/trust/attestation/) | AttestationEnvelope + TPM2/FIDO2/SE/software anchor verification |
+| **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`web4-core/src/t3.rs`](web4-core/src/t3.rs), [`v3.rs`](web4-core/src/v3.rs), [`web4-trust-core/`](web4-trust-core/), [`web4-standard/implementation/sdk/web4/trust.py`](web4-standard/implementation/sdk/web4/trust.py) | [`simulations/`](simulations/) — trust dynamics |
+| **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`web4-standard/implementation/sdk/web4/mrh.py`](web4-standard/implementation/sdk/web4/mrh.py) (Python; no Rust port yet) | [`simulations/`](simulations/) |
+| **ATP/ADP (Economics)** | [`web4-standard/core-spec/atp-adp-cycle.md`](web4-standard/core-spec/atp-adp-cycle.md) | [`web4-standard/implementation/sdk/web4/atp.py`](web4-standard/implementation/sdk/web4/atp.py) | [`simulations/`](simulations/) — economic attack modeling |
+| **MCP Integration** | [`web4-standard/core-spec/mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) | [`web4-standard/implementation/sdk/web4/mcp_server.py`](web4-standard/implementation/sdk/web4/mcp_server.py) | [`mcp-server/`](mcp-server/) — standalone server (legacy; prefer the SDK) |
+| **R6 / R7 Action Grammar** | [`web4-standard/core-spec/r6-framework.md`](web4-standard/core-spec/r6-framework.md), [`r7-framework.md`](web4-standard/core-spec/r7-framework.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | [`simulations/r6.py`](simulations/r6.py) |
+| **RDF Ontologies** | [`web4-standard/ontology/`](web4-standard/ontology/) | TTL files (documentation-grade; consumed conceptually, not runtime-validated yet) | — |
+| **Federation** | [`docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md`](docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | [`simulations/federation.py`](simulations/federation.py) |
 | **Societies** | [`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`](web4-standard/core-spec/SOCIETY_SPECIFICATION.md) | 4-life repo | Society simulation |
 | **Authorization** | [`web4-standard/core-spec/security-framework.md`](web4-standard/core-spec/security-framework.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | PostgreSQL schemas |
 | **Coordination** | [`docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md`](docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | Phase 2 coordinators |

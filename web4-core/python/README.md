@@ -1,6 +1,6 @@
-# Web4 Python Bindings
+# Web4-Core Python Bindings
 
-Python bindings for the Web4 trust-native infrastructure core library.
+Python bindings for the Web4 trust-native infrastructure core library, implemented in Rust via PyO3.
 
 ## Installation
 
@@ -8,7 +8,7 @@ Python bindings for the Web4 trust-native infrastructure core library.
 
 ```bash
 pip install maturin
-cd python
+cd web4-core/python
 maturin develop
 ```
 
@@ -22,10 +22,10 @@ pip install target/wheels/*.whl
 ## Usage
 
 ```python
-import web4
+import web4_core
 
 # Create an LCT for a human user
-lct, keypair = web4.PyLct.new(web4.PyEntityType.Human, None)
+lct, keypair = web4_core.PyLct.new(web4_core.PyEntityType.Human, None)
 
 # Sign a message
 message = b"Hello, Web4!"
@@ -34,22 +34,28 @@ signature = keypair.sign(message)
 # Verify the signature
 assert lct.verify_signature(message, signature)
 
-# Create a trust tensor
-trust = web4.PyT3()
-trust.observe(web4.PyTrustDimension.Competence, 0.9)
-trust.observe(web4.PyTrustDimension.Integrity, 0.85)
+# Create a trust tensor and record observations
+trust = web4_core.PyT3()
+trust.observe(web4_core.PyTrustDimension.Talent, 0.9)
+trust.observe(web4_core.PyTrustDimension.Training, 0.85)
+trust.observe(web4_core.PyTrustDimension.Temperament, 0.88)
 
 # Get aggregate trust score
 score = trust.aggregate()
 print(f"Aggregate trust: {score:.3f}")
 
-# Create a value tensor
-value = web4.PyV3()
-value.observe(web4.PyValueDimension.Utility, 0.9)
-value.observe(web4.PyValueDimension.Quality, 0.85)
+# Record a fractal sub-dimension observation
+# (each root is itself an open-ended RDF sub-graph)
+trust.observe_sub_dimension("rust_proficiency", web4_core.PyTrustDimension.Training, 0.92)
 
-# Calculate coherence
-coherence = web4.PyCoherence.with_values(0.8, 0.8, 0.7, 0.9)
+# Create a value tensor
+value = web4_core.PyV3()
+value.observe(web4_core.PyValueDimension.Valuation, 0.9)
+value.observe(web4_core.PyValueDimension.Veracity, 0.85)
+value.observe(web4_core.PyValueDimension.Validity, 0.88)
+
+# Calculate identity coherence (C × S × Φ × R)
+coherence = web4_core.PyCoherence.with_values(0.8, 0.8, 0.7, 0.9)
 print(f"Total coherence: {coherence.total():.3f}")
 print(f"Limiting factor: {coherence.limiting_factor()}")
 ```
@@ -58,40 +64,54 @@ print(f"Limiting factor: {coherence.limiting_factor()}")
 
 ### Entity Types
 
-- `PyEntityType.Human` - Human user
-- `PyEntityType.AiSoftware` - Software-bound AI agent
-- `PyEntityType.AiEmbodied` - Hardware-bound AI agent
-- `PyEntityType.Organization` - Organization
-- `PyEntityType.Role` - Role (first-class entity)
-- `PyEntityType.Task` - Task
-- `PyEntityType.Resource` - Resource
-- `PyEntityType.Hybrid` - Hybrid entity
+- `PyEntityType.Human` — Human user
+- `PyEntityType.AiSoftware` — Software-bound AI agent
+- `PyEntityType.AiEmbodied` — Hardware-bound AI agent
+- `PyEntityType.Organization` — Organization
+- `PyEntityType.Role` — Role (first-class entity)
+- `PyEntityType.Task` — Task
+- `PyEntityType.Resource` — Resource
+- `PyEntityType.Hybrid` — Hybrid entity
 
-### Trust Dimensions (T3)
+### Trust Tensor (T3) — 3 Root Dimensions
 
-- `Competence` - Ability to perform claimed capabilities
-- `Integrity` - Consistency between stated and actual behavior
-- `Benevolence` - Intent toward benefit vs harm
-- `Predictability` - Consistency of behavior over time
-- `Transparency` - Visibility into decision-making
-- `Accountability` - Willingness to accept consequences
+T3 is fractally multidimensional. The three root dimensions below are each themselves open-ended RDF sub-graphs of context-specific sub-dimensions, linked via `web4:subDimensionOf`.
 
-### Value Dimensions (V3)
+- `PyTrustDimension.Talent` — Natural aptitude and capability for a specific role
+- `PyTrustDimension.Training` — Acquired expertise, certifications, and experience
+- `PyTrustDimension.Temperament` — Behavioral consistency, reliability, ethical disposition
 
-- `Utility` - Practical usefulness
-- `Novelty` - Originality and uniqueness
-- `Quality` - Craftsmanship and attention to detail
-- `Timeliness` - Delivery within appropriate timeframes
-- `Relevance` - Alignment with current needs
-- `Leverage` - Multiplicative effect on others
+Use `observe(dimension, score)` to record a root-level observation, or `observe_sub_dimension(name, parent, score)` to record a sub-dimension under one of the roots.
 
-### Coherence (C × S × Φ × R)
+### Value Tensor (V3) — 3 Root Dimensions
 
-- `C (Continuity)` - Temporal consistency
-- `S (Stability)` - Resistance to perturbation
-- `Φ (Phi)` - Information integration
-- `R (Reachability)` - Network connection
+Same fractal structure as T3.
+
+- `PyValueDimension.Valuation` — Worth ascribed to the contribution
+- `PyValueDimension.Veracity` — Truthfulness and reliability of the claim
+- `PyValueDimension.Validity` — Soundness and applicability in context
+
+### Identity Coherence (C × S × Φ × R)
+
+- `C` (Continuity) — Temporal consistency
+- `S` (Stability) — Resistance to perturbation
+- `Φ` (Phi) — Information integration
+- `R` (Reachability) — Network connection
+
+Coherence is multiplicative: a low score in any factor limits the whole. Use `limiting_factor()` to identify the bottleneck.
+
+### Crypto
+
+- `PyKeyPair.generate()` — Generate a fresh Ed25519 keypair
+- `PyKeyPair.from_secret_bytes(bytes)` — Reconstruct from 32-byte secret
+- `keypair.sign(message)` — Sign bytes (returns 64-byte signature)
+- `lct.verify_signature(message, signature)` — Verify against the LCT's public key
+- `web4_core.sha256(data)` / `sha256_hex(data)` — SHA-256 helpers
+
+## Patent Notice
+
+This software implements technology covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619. See [PATENTS.md](../../PATENTS.md) for the patent grant terms.
 
 ## License
 
-AGPL-3.0-or-later. See [LICENSE](../LICENSE) and the repo-root [PATENTS.md](../../PATENTS.md) for the patent grant terms.
+AGPL-3.0-or-later. See [LICENSE](../LICENSE).

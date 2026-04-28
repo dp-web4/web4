@@ -12,6 +12,9 @@
 - **RDF**: Ontological backbone — all trust relationships are typed RDF triples, all MRH graphs are RDF
 - **LCT**: Presence substrate — verifiable presence reification
 - **T3/V3\*MRH**: Trust/Value tensors *contextualized by* Markov Relevancy Horizon — trust only exists within role-scoped fractal context
+  - **T3** has 3 root dimensions: **Talent / Training / Temperament**
+  - **V3** has 3 root dimensions: **Valuation / Veracity / Validity**
+  - Each root is itself an open-ended RDF sub-graph of context-specific sub-dimensions via `web4:subDimensionOf` — fractally extensible, not a fixed 6-vector
 - **ATP/ADP**: Bio-inspired energy metabolism — value flows through work
 - **Built on this foundation**: Societies, SAL, AGY, ACP, Dictionaries, R6/R7
 

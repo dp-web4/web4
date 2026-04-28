@@ -17,6 +17,15 @@ Implements Model Context Protocol server exposing Web4 capabilities:
 This is a reference implementation for Claude Code and other MCP clients.
 """
 
+# DEPRECATION NOTE (2026-04-27):
+# This standalone MCP server predates the canonical SDK implementation at
+# web4-standard/implementation/sdk/web4/mcp_server.py. It uses a legacy
+# trust-store import (`from governance import EntityTrustStore`) that may
+# not resolve in current deployments. Prefer the SDK MCP server for new
+# integrations. Internal trust dimension names have been corrected to the
+# canonical 3-root form (T3: talent/training/temperament; V3: valuation/
+# veracity/validity), but full migration to the SDK trust API is pending.
+
 import json
 import sys
 import os
@@ -1345,7 +1354,7 @@ class MCPServer:
                         "type": "text",
                         "text": f"Analyze the trust patterns for entity '{entity_id}'" +
                                (f" in role '{role}'" if role else "") +
-                               ". Consider the T3 tensor dimensions (competence, reliability, consistency, witnesses, lineage, alignment) and V3 tensor dimensions (energy, contribution, stewardship, network, reputation, temporal). Provide insights on trust evolution and recommendations."
+                               ". Consider the T3 tensor (3 root dimensions: Talent / Training / Temperament) and V3 tensor (3 root dimensions: Valuation / Veracity / Validity). Each root is fractally extensible via RDF sub-dimensions (web4:subDimensionOf). Provide insights on trust evolution and recommendations."
                     }
                 }
             ]
@@ -1367,25 +1376,19 @@ class MCPServer:
         return {"messages": messages}
 
     def _default_t3(self) -> dict:
-        """Default T3 tensor values."""
+        """Default T3 tensor values — 3 root dimensions (canonical)."""
         return {
-            "competence": 0.5,
-            "reliability": 0.5,
-            "consistency": 0.5,
-            "witnesses": 0.5,
-            "lineage": 0.5,
-            "alignment": 0.5
+            "talent": 0.5,
+            "training": 0.5,
+            "temperament": 0.5
         }
 
     def _default_v3(self) -> dict:
-        """Default V3 tensor values."""
+        """Default V3 tensor values — 3 root dimensions (canonical)."""
         return {
-            "energy": 0.5,
-            "contribution": 0.5,
-            "stewardship": 0.5,
-            "network": 0.5,
-            "reputation": 0.5,
-            "temporal": 0.5
+            "valuation": 0.5,
+            "veracity": 0.5,
+            "validity": 0.5
         }
 
     def run(self):

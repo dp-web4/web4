@@ -3,7 +3,7 @@ requires = ["maturin>=1.4,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "web4"
+name = "web4-core"
 version = "0.1.0"
 description = "Python bindings for Web4 trust-native infrastructure"
 readme = "README.md"
@@ -34,4 +34,4 @@ Repository = "https://github.com/dp-web4/web4"
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
-module-name = "web4"
+module-name = "web4_core"

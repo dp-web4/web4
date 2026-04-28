@@ -8,7 +8,7 @@ license = "AGPL-3.0-or-later"
 repository = "https://github.com/dp-web4/web4"
 
 [lib]
-name = "web4"
+name = "web4_core"
 crate-type = ["cdylib"]
 
 [dependencies]

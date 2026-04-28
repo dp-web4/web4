@@ -2,14 +2,20 @@
 
 ## Overview
 
-The R7 framework is the foundational action grammar for Web4, defining how all transactions and interactions are structured, validated, and executed. R7 evolves from R6 by making **reputation** an explicit first-class output, recognizing that trust-building is central to Web4's value proposition.
+R7 is the **reputation-tracking superset** of [R6](r6-framework.md). It is invoked for actions where the outcome should feed into trust evolution — when consequence justifies the bookkeeping cost of ledger involvement.
 
-## Evolution from R6 to R7
+R6 and R7 are **both canonical**. R6 handles routine, low-consequence tasks (ATP→ADP transaction without reputation feedback). R7 adds reputation back-propagation: ADP attestation feeds recharge validation and fractal reputation accumulation (action-scale → role-scale → entity-scale → society-scale).
 
-**R6** (Legacy): `Rules + Role + Request + Reference + Resource → Result`
-**R7** (Current): `Rules + Role + Request + Reference + Resource → Result + Reputation`
+The choice between R6 and R7 is contextual — selected per action or per role based on consequence tier. Neither replaces the other.
 
-**Why R7?** In Web4, trust is not a side effect—it's the product. R7 makes reputation changes explicit, traceable, and observable.
+## R6 → R7 Relationship
+
+**R6** (routine): `Rules + Role + Request + Reference + Resource → Result`
+**R7** (consequential): `Rules + Role + Request + Reference + Resource → Result + Reputation`
+
+R7 adds the seventh component (Reputation) as an explicit first-class output. ATP→ADP spending happens in both modes; R7 just additionally tracks the ADP attestation in a way that propagates back to T3/V3 tensors for trust evolution.
+
+**Why both modes exist**: making every action consequential would impose unnecessary bookkeeping cost on routine tasks. Making no actions consequential would prevent trust evolution. Web4 keeps both available and lets the system decide which mode applies based on the action's stakes.
 
 ## The R7 Equation
 
