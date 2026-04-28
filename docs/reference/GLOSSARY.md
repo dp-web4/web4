@@ -1,6 +1,6 @@
 # Web4 Glossary
 
-**Last Updated**: February 12, 2026
+**Last Updated**: April 27, 2026
 
 Quick reference for Web4 terminology. For detailed specifications, see the linked documents.
 

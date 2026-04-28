@@ -107,8 +107,7 @@ archive/ → game-prototype/ (evolved into 4-life)
 
 ## Authentication
 
-GitHub PAT: `../.env` (GITHUB_PAT variable)
-Push: `git push https://dp-web4:$(grep GITHUB_PAT ../.env | cut -d= -f2)@github.com/dp-web4/web4.git`
+dp-web4 remotes are SSH (`git@github.com:dp-web4/web4.git`). SSH key already loaded by ssh-agent — just `git push` / `git pull`. Do NOT use HTTPS+PAT (the `GITHUB_PAT` env var is deprecated and fails).
 
 ## Archived Context (pointers)
 

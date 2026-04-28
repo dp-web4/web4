@@ -39,8 +39,8 @@ keywords:
   - fractal-architecture
 license: AGPL-3.0-or-later
 license-url: "https://github.com/dp-web4/web4/blob/main/LICENSE"
-version: "1.0.0"
-date-released: "2025-09-01"
+version: "1.1.0"
+date-released: "2026-04-26"
 references:
   - type: software
     title: "Synchronism Framework (Philosophical Foundation)"

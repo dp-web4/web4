@@ -1,54 +1,59 @@
-# Web4: Trust-Native Ontology for Distributed Intelligence
+# Web4: Verifiable Presence for AI
 
-<!-- SUMMARIZER BLOCK: Consistent headers for AI-to-human relay -->
-## Status Snapshot (2026-02-12)
+> **AI is already taking actions in the world. We can't prove what it did.**
+> Web4 is the open standard that closes that gap.
 
-### Highlights
-- **Attack simulations**: 424 vectors across 84 tracks (~85% detection rate)
-- **Formal threat model**: [THREAT_MODEL.md v2.0](docs/reference/security/THREAT_MODEL.md) - adversary model, trust boundaries, attack taxonomy
-- **Coordination framework**: ~25,000 lines, Phase 2a-2d validated (76% prediction accuracy)
-- **Cross-system integration**: SAGE ↔ Web4 pattern exchange operational
-- **Nova external review**: Comprehensive responses documented
+Presence = identity + trust + context + accountability.
 
-### Validations
-- Attack simulation suite: 372 attack functions, all defended
-- EP closed-loop simulation: 3+ lives with carry-forward state
-- Federation patterns: 1000+ patterns validated on edge (Jetson)
-- Trust tensor calculations: T3 composite scores stable
+An open standard, proposed by Metalinxx Inc., owned by no one. Anyone can build on it.
 
-### Risks / Gaps
-- **P0 Blocker**: Hardware binding — `AttestationEnvelope` spec and Python implementation now complete (`docs/specs/attestation-envelope.md`, `web4-core/python/web4/trust/attestation/`). Anchor verification modules for TPM2, FIDO2, Secure Enclave, and software fallback implemented with unified `verify_envelope()`. SAGE consuming via `IdentityProvider`. Rust port and real hardware integration remain.
-- Economic validation: No real-world market testing
-- Formal Sybil proofs: Empirical defenses, not mathematical proofs
-- Production deployment: All testing is synthetic
-
-### Open Questions
-- Are stake amounts actually deterrent? (no economic modeling)
-- Does witness diversity resist sophisticated cartels?
-- What's the minimal viable Web4 for production pilot?
-
-### Next
-- Hardware binding — AttestationEnvelope spec + Python implementation complete; Rust port and real hardware integration next
-- Economic attack modeling with real parameters
-- ACT ledger integration
+Web1 was access. Web2 was participation. Web3 was ownership. Web4 is **verifiable presence** — for AI as a participant.
 
 ---
 
-> **Research prototype exploring trust, identity, and authorization for AI agents**
+## Status Snapshot (2026-04-27)
+
+### Proof point
+- **0% → 94.85% on ARC-AGI-3** with the same Claude Opus 4.6, structured around Web4 patterns via the SAGE harness.
+- Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
+- The difference is not the model. It is the structure around it.
+
+### Where it landed publicly
+- **AI Demo Day 4** (2026-04-26): Web4 presented as "verifiable presence" for agentic AI. Slides + narration archived at https://4-gov.org/demo
+
+### Implementation status
+- Spec corpus: stable (`web4-standard/core-spec/`)
+- Reference Python SDK + 8-tool MCP server: 2,627 tests, mypy --strict clean (`web4-standard/implementation/`)
+- Cognition harness producing the 94.85% result: [SAGE](https://github.com/dp-web4/SAGE)
+- Hardware binding (TPM 2.0 on Linux), policy enforcement, and audit pipeline: shipped in **Hardbound** — enterprise product, contact dp@metalinxx.io
+- Attack simulation suite: 424 vectors across 84 tracks (~85% detection rate)
+- Formal threat model: [THREAT_MODEL.md v2.0](docs/reference/security/THREAT_MODEL.md)
+
+### Gaps
+- Economic attack modeling at scale (no real-market testing)
+- Formal Sybil-resistance proofs (empirical defenses only)
+- Hardware binding reference implementation in this public repo (Python `AttestationEnvelope` shipped; Rust port and on-device integration in progress; Hardbound has the production version)
+
+### Open questions
+- Are stake amounts actually deterrent? (no economic modeling)
+- Does witness diversity resist sophisticated cartels?
+- What's the minimal viable Web4 for a public pilot?
 
 ---
 
 ## 🎯 Vision
 
-**Web4 formalizes trust as a first-class primitive for distributed AI collaboration and coordination—not merely data exchange.**
+**Web4 makes AI actions verifiable, attributable, and accountable — without central control.**
 
-The internet evolved from documents (Web1) to applications (Web2) to ownership (Web3). Web4 proposes the next layer: **verifiable trust relationships** between humans, AI agents, and services that enable meaningful coordination without central control.
+AI agents are increasingly autonomous. Booking, coding, transacting, deciding. Current architectures assume either central control (a platform decides who's trusted — doesn't scale, single point of failure) or cryptographic ownership (you're trusted if you hold the right keys — insufficient, since holding a key doesn't mean you'll act well).
+
+Neither answers: **how do I know this agent will behave appropriately in this context, and how do I prove what it actually did?**
 
 ### About "Web4"
 
-Like Web1, Web2, and Web3, "Web4" is a generational label describing capabilities needed for the agentic AI era—not a single protocol or product. Many projects are tackling various aspects of this challenge.
+Like Web1, Web2, and Web3, "Web4" is a generational label for the capabilities needed in the agentic AI era — not a single protocol or product.
 
-**This project suite** focuses specifically on **trust infrastructure** for agent-agent and agent-human interactions: how agents establish verifiable presence, build reputation, delegate authority, and coordinate safely across organizational boundaries.
+**This project suite** focuses specifically on **trust infrastructure** for agent-agent and agent-human interactions: how agents establish verifiable presence, build reputation, delegate authority, and coordinate safely across organizational boundaries — and how their actions stand up to audit.
 
 ---
 
@@ -117,20 +122,20 @@ Web4 is investigating trust-native architectures for AI coordination. We have in
 
 Web4 contains **four development tracks** at different maturity levels:
 
-### Track 1: 4-Life Society Simulation (Now Standalone)
+### Track 1: 4-Life — Lifecycle and Trust-Evolution Explainer (Standalone)
 
-**What it is**: A fractal sandbox for simulating Web4 societies - agents form societies, societies join societies, trust emerges through interaction. Named "4-Life" for the emergent, self-organizing nature of the simulation (like Conway's Game of Life, but with trust dynamics).
+**What it is**: An interactive explainer site demonstrating how agents earn trust over time — lifecycle, witnessing, and trust evolution made browsable. Live at [4-life-ivory.vercel.app](https://4-life-ivory.vercel.app/).
 
-**Status**: **Evolved to standalone project** → [github.com/dp-web4/4-life](https://github.com/dp-web4/4-life)
+**Status**: **Standalone project** → [github.com/dp-web4/4-life](https://github.com/dp-web4/4-life)
 
-The original prototype (`/game/`) has been archived to `archive/game-prototype/` with documentation of its evolution. Active simulation research continues in `/simulations/` (attack simulations, trust dynamics) and the standalone 4-life repo.
+The original prototype (`/game/`) was archived to `archive/game-prototype/` after evolving past the simulation stage. Active simulation research continues in `/simulations/` (attack scenarios, trust dynamics).
 
 **Documentation**:
-- [`archive/game-prototype/ARCHIVED.md`](archive/game-prototype/ARCHIVED.md) - Evolution history
-- [`SECURITY.md`](SECURITY.md) - Security research status
-- [4-life repo](https://github.com/dp-web4/4-life) - Active development
+- [`archive/game-prototype/ARCHIVED.md`](archive/game-prototype/ARCHIVED.md) — evolution history
+- [4-life repo](https://github.com/dp-web4/4-life) — active development
+- [4-life-ivory.vercel.app](https://4-life-ivory.vercel.app/) — interactive demo
 
-**Use for**: Historical reference; for active game development see 4-life repo
+**Use for**: A non-technical introduction to how Web4 trust evolves. Pair with this README for the architectural view.
 
 ### Track 2: `web4-standard/implementation/authorization/` - PostgreSQL Authorization Layer
 
@@ -214,23 +219,29 @@ The original prototype (`/game/`) has been archived to `archive/game-prototype/`
 
 ## What Is Web4?
 
-Web4 is a **research ontology** — a formal structure of typed relationships through which trust, identity, and value are expressed.
+Web4 is an **ontology** — a formal structure of typed relationships through which trust, identity, and value are expressed.
 
+**Architect's view (what Web4 is):**
 ```
 Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
+**Entity's view (what existence looks like from inside):**
+```
+Presence = LCT[T3/V3 * MRH] + RDF + ATP/ADP + MCP
+```
 
-**Core equation components:**
+Operators: `[]` = "contains", `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
+
+**Core components:**
 - **MCP** (Model Context Protocol) — I/O membrane for inter-entity communication
 - **RDF** (Resource Description Framework) — Ontological backbone; all trust relationships are typed triples, all MRH graphs are RDF, all semantic queries use SPARQL
 - **LCT** (Linked Context Token) — Verifiable presence anchored to hardware
-- **T3/V3** (Trust/Value Tensors) — Multi-dimensional trust (Talent/Training/Temperament) and value (Valuation/Veracity/Validity), bound to entity-role pairs via RDF
+- **T3/V3** (Trust/Value Tensors) — 3-dimensional trust (Talent/Training/Temperament) and 3-dimensional value (Valuation/Veracity/Validity), bound to entity-role pairs via RDF
 - **MRH** (Markov Relevancy Horizon) — Fractal context scoping, implemented as RDF graphs
 - **ATP/ADP** (Allocation Transfer/Discharge Packets) — Bio-inspired energy metabolism
 
-**Built on this foundation:** Societies, SAL (governance), AGY (delegation), ACP (autonomous operation), Dictionaries (semantic bridges), R6/R7 (action framework), Federation (multi-society coordination)
+**Built on this foundation:** Societies, SAL (oversight), AGY (delegation), ACP (autonomous operation), Dictionaries (semantic bridges), R6/R7 (action framework), Federation (multi-society coordination)
 
 ### The Research Questions
 
@@ -307,31 +318,36 @@ python attack_track_fc.py                  # Economic attacks
 
 ```
 web4/
-├── simulations/                       # Attack simulations and trust dynamics research
-│   ├── attack_track_*.py             # Attack scenario simulations
-│   └── *.py                          # Trust/federation simulations
+├── web4-core/                         # Reference Python SDK + AttestationEnvelope (MIT)
+├── web4-trust-core/                   # Trust tensor implementations (Rust, MIT)
+├── core/                              # Cross-language shared primitives
 │
 ├── web4-standard/                     # Core specifications and implementations
-│   ├── core-spec/                    # Canonical specifications (LCT, T3, MRH, ATP, R6)
+│   ├── core-spec/                    # Canonical specs (LCT, T3, MRH, ATP, R6)
 │   └── implementation/
-│       ├── authorization/            # PostgreSQL schemas & security mitigations
-│       └── reference/                # Coordination framework (~25k lines)
+│       ├── authorization/            # PostgreSQL schemas + security mitigations
+│       └── reference/                # Coordination framework
+│
+├── simulations/                       # Attack simulations + trust dynamics research
 │
 ├── demo/                              # Commerce demo (delegation UI + store)
 │
-├── docs/                              # Documentation (why/what/how/history/reference)
-│   ├── why/                          # Vision and motivation
+├── docs/                              # Documentation
+│   ├── why/                          # Vision, motivation, Demo Day record
 │   ├── what/specifications/          # Technical specifications
 │   ├── how/                          # Implementation guides
+│   ├── proof/                        # Proof points (ARC-AGI-3, etc.)
 │   ├── history/                      # Research and decisions
-│   └── reference/                    # Glossary, indexes, security
+│   └── reference/                    # Glossary, indexes, related repos, security
 │
-├── archive/game-prototype/            # Historical: original 4-Life prototype
-├── sessions/                          # Research session scripts and outputs
 ├── whitepaper/                        # Conceptual foundation
+├── articles/                          # Public-facing writeups
+├── forum/                             # Cross-machine discussion artifacts
+├── archive/game-prototype/            # Historical: original 4-Life prototype
 ├── review/                            # External review artifacts
+├── sessions/                          # Research session scripts and outputs
 │
-├── STATUS.md                          # Honest project status
+├── STATUS.md                          # Project status
 ├── SECURITY.md                        # Security research status
 └── CONTRIBUTING.md                    # How to contribute
 ```
@@ -370,7 +386,9 @@ Key concepts: LCTs, MRH, Trust Tensors, ATP, Federation, Dictionaries
 
 ## 📄 License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** - see [LICENSE](LICENSE).
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE).
+
+**Per-component note**: `web4-core/` was relicensed AGPL → **MIT** in February 2026 for ARIA grant compatibility. The rest of the repo remains AGPL-3.0-or-later.
 
 ### Patent Notice
 

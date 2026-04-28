@@ -46,15 +46,17 @@ Web4 is research into **trust-native distributed intelligence**. Instead of plat
 
 ## Current Status
 
-Web4 is a **research prototype** with:
-- ~47,000 lines of exploratory code
-- 45+ research sessions documented
-- 76% prediction validation rate
-- Substantial gaps in formal proofs, adversarial testing, economic validation
+Web4 is a working ontology with growing proof points:
+- **0% → 94.85% on ARC-AGI-3** — same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) cognition harness. Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
+- **2,627 tests** in the reference Python SDK (mypy --strict clean)
+- **424 attack-vector simulation suite** with ~85% detection rate
+- **Demo Day 4** (April 26, 2026) — Web4 presented as "verifiable presence" at the AI Collective; archived at https://4-gov.org/demo
 
-**Honest assessment**: Promising research, not production infrastructure.
+Substantial gaps remain: economic-attack modeling at scale, formal Sybil-resistance proofs, public-repo hardware-binding reference (production version lives in Hardbound).
 
-See [STATUS.md](../STATUS.md) for full details.
+**Honest assessment**: Working ontology, growing demonstrations, real gaps. R&D, not production.
+
+See [STATUS.md](../STATUS.md) for the long version.
 
 ---
 

@@ -51,3 +51,8 @@ htmlcov/
 
 # GitNexus auto-generated skill files (prevent PR contamination)
 .claude/skills/gitnexus/
+
+# Runtime artifacts (do not commit)
+demurrage.log
+demo_t3_profiles.json
+t3_profiles.json

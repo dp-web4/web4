@@ -4,28 +4,28 @@
 
 ## TL;DR (50 words)
 
-Web4 is trust infrastructure for AI agent coordination. Provides identity (LCT), reputation (T3 tensors), resource allocation (ATP), and federation protocols. Research prototype with working simulations. Use if you need: agent identity, trust scoring, cross-agent coordination, or accountability frameworks. Not production-ready.
+Web4 is the open standard ontology for verifiable presence in agentic AI. Provides identity (LCT), reputation (T3/V3 tensors), resource allocation (ATP), context scoping (MRH), and federation protocols. Working specs + reference implementations. Demonstrated 0% → 94.85% on ARC-AGI-3 with same model + Web4-shaped context (via SAGE). R&D — not production.
 
 ## Quick Assessment
 
 | Question | Answer |
 |----------|--------|
-| What is this? | Trust-native architecture for distributed AI |
-| Is it production-ready? | No - research prototype |
-| Primary language | Python (simulations), specs in Markdown |
-| Lines of code | ~47,000 |
+| What is this? | Trust-native ontology for distributed AI |
+| Is it production-ready? | No — R&D, ontology stable, hardware integration in progress |
+| Primary language | Python SDK + Rust core (`web4-core`, `web4-trust-core`); specs in Markdown |
 | Active development? | Yes |
-| License | AGPL-3.0 |
+| License | AGPL-3.0-or-later (with `web4-core/` MIT) |
 
 ## Core Concepts (Know These)
 
 | Term | What It Is | Why It Matters |
 |------|-----------|----------------|
-| **LCT** | Linked Context Token | Hardware-bound identity for agents |
-| **T3** | Trust Tensor (6 dimensions) | T3: talent, training, temperament / V3: valuation, veracity, validity |
-| **ATP** | Allocation Transfer Packet | Resource/energy accounting |
-| **MRH** | Markov Relevancy Horizon | Context boundaries for entities |
-| **R6** | Request lifecycle | Rules → Role → Request → Reference → Resource → Result |
+| **LCT** | Linked Context Token | Hardware-bound verifiable presence |
+| **T3** | Trust Tensor — 3 dimensions: Talent / Training / Temperament | One half of the 6D reputation pair |
+| **V3** | Value Tensor — 3 dimensions: Valuation / Veracity / Validity | Other half; bound to entity-role pairs via RDF |
+| **ATP** | Allocation Transfer Packet | Resource/energy accounting (bio-inspired metabolism) |
+| **MRH** | Markov Relevancy Horizon | Fractal context scoping (RDF graphs) |
+| **R6** | Action grammar | Rules → Role → Request → Reference → Resource → Result |
 
 ## Entry Points by Goal
 
@@ -48,14 +48,14 @@ Web4 is trust infrastructure for AI agent coordination. Provides identity (LCT),
 | Federation/consensus | Working | `simulations/` |
 | Authorization layer | Working | `web4-standard/implementation/` |
 | Formal threat model | Partial | `SECURITY.md` |
-| Adversarial testing | 262 attack vectors | `simulations/attack_simulations.py` |
+| Adversarial testing | 424 attack vectors across 84 tracks (~85% detection) | `simulations/attack_simulations.py` |
 
-## What's Missing
+## What's Missing (in this public repo)
 
-- Production cryptography (stubs only)
-- Real hardware binding (spec complete, impl pending)
-- Adversarial red-team testing
-- Economic model validation
+- Economic attack modeling at scale (no real-market testing)
+- Formal Sybil-resistance proofs (empirical defenses only)
+- Hardware-binding reference implementation (Python `AttestationEnvelope` shipped in `web4-core/python/web4/trust/attestation/`; Rust port and on-device integration in progress)
+- Note: production hardware binding (TPM 2.0 on Linux) and policy enforcement live in **Hardbound** — enterprise product, contact dp@metalinxx.io
 
 ## Related Repositories
 
@@ -82,7 +82,7 @@ See `repo-index.yaml` for structured data.
 
 ---
 
-*This document optimized for AI agent discovery. Last updated: 2026-02-08*
+*This document optimized for AI agent discovery. Last updated: 2026-04-27*
 
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->
