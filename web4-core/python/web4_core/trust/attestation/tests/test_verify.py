@@ -8,18 +8,18 @@ TPM2/FIDO2/SE stub verifiers, unknown anchor type, edge cases.
 import time
 import pytest
 
-from web4.trust.attestation.envelope import (
+from web4_core.trust.attestation.envelope import (
     AttestationEnvelope,
     AnchorInfo,
     Proof,
     PlatformState,
     VerificationResult,
 )
-from web4.trust.attestation.verify import verify_envelope
-from web4.trust.attestation.anchors.software import verify_software
-from web4.trust.attestation.anchors.tpm2 import verify_tpm2, create_tpm2_attestation
-from web4.trust.attestation.anchors.fido2 import verify_fido2
-from web4.trust.attestation.anchors.secure_enclave import verify_secure_enclave
+from web4_core.trust.attestation.verify import verify_envelope
+from web4_core.trust.attestation.anchors.software import verify_software
+from web4_core.trust.attestation.anchors.tpm2 import verify_tpm2, create_tpm2_attestation
+from web4_core.trust.attestation.anchors.fido2 import verify_fido2
+from web4_core.trust.attestation.anchors.secure_enclave import verify_secure_enclave
 
 
 # ---------------------------------------------------------------------------

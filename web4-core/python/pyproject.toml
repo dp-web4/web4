@@ -33,5 +33,4 @@ Repository = "https://github.com/dp-web4/web4"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-python-source = "python"
 module-name = "web4_core"

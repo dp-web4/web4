@@ -5,7 +5,7 @@ The dictionary entity for hardware trust. All three repos (Web4, SAGE,
 Hardbound) use this same envelope shape regardless of hardware anchor type.
 
 Usage:
-    from web4.trust.attestation import AttestationEnvelope, AnchorInfo, Proof
+    from web4_core.trust.attestation import AttestationEnvelope, AnchorInfo, Proof
 
     envelope = AttestationEnvelope(
         entity_id="lct://sage:cbp:agent@raising",
@@ -15,7 +15,7 @@ Usage:
     )
 """
 
-from web4.trust.attestation.envelope import (
+from web4_core.trust.attestation.envelope import (
     AttestationEnvelope,
     AnchorInfo,
     Proof,

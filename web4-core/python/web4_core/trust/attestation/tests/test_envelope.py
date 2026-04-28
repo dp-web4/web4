@@ -9,7 +9,7 @@ import json
 import time
 import pytest
 
-from web4.trust.attestation.envelope import (
+from web4_core.trust.attestation.envelope import (
     AttestationEnvelope,
     AnchorInfo,
     Proof,
