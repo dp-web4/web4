@@ -1,12 +1,12 @@
 # Web4 Implementation Status
 
-**Last Updated**: April 27, 2026
+**Last Updated**: April 28, 2026
 
 ---
 
 ## Headline
 
-Web4 is a **working ontology** with **real proof points** and **real gaps**. R&D, not production. The spec corpus is stable; reference implementations exist; some demonstrations have moved from inferred to measured.
+Web4 is a **working ontology** with **real proof points** and **real gaps**. R&D, not production. The spec corpus is stable; reference implementations exist; some demonstrations have moved from inferred to measured. **As of 2026-04-28, the core primitives are publicly installable.**
 
 The strongest single proof point: **the same Claude Opus 4.6 you can use today scores 0% on ARC-AGI-3 by default and 94.85% with a Web4-shaped harness around it**. The model didn't change. The structure around the model did.
 
@@ -14,14 +14,29 @@ Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f
 
 ---
 
+## Published artifacts (2026-04-28)
+
+| Package | Registry | Version | Install |
+|---|---|---|---|
+| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | 0.1.0 | `cargo add web4-core` |
+| **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | 0.1.0 | `pip install web4-core` |
+| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.1.0 | `cargo add web4-trust-core` |
+| **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.1.0 | `pip install web4-trust` |
+
+All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial licensing: dp@metalinxx.io.
+
+`web4-core` provides LCT (Linked Context Token) primitives + T3/V3 trust tensors + identity coherence + ledger anchoring (`InMemoryLedger`, `LocalLedger`). `web4-trust-core` adds trust persistence and witnessing primitives. The Python wheels are PyO3-built bindings over the same Rust core.
+
+---
+
 ## What's working
 
 | Layer | Status | Where |
 |---|---|---|
-| **Spec corpus** (LCT, T3/V3, MRH, ATP/ADP, R6) | Stable | [`web4-standard/core-spec/`](web4-standard/core-spec/) |
-| **Reference Python SDK** | 2,627 tests, mypy --strict clean | [`web4-standard/implementation/`](web4-standard/implementation/) |
-| **`web4-core` (MIT)** | AttestationEnvelope spec + Python impl shipped | [`web4-core/`](web4-core/) |
-| **`web4-trust-core` (Rust, MIT)** | Trust tensors in Rust | [`web4-trust-core/`](web4-trust-core/) |
+| **Spec corpus** (LCT, T3/V3, MRH, ATP/ADP, R6/R7) | Stable | [`web4-standard/core-spec/`](web4-standard/core-spec/) |
+| **`web4-core`** | **Published v0.1.0** (crates.io + PyPI). LCT, T3/V3, Coherence, Ledger trait + 2 backends (InMemory, Local file). 52 unit tests + 4 doctests. | [`web4-core/`](web4-core/) |
+| **`web4-trust-core`** | **Published v0.1.0** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
+| **Reference Python SDK** | 2,627 tests, mypy --strict clean (not yet on PyPI separately) | [`web4-standard/implementation/`](web4-standard/implementation/) |
 | **Cognition harness producing 94.85%** | Open source | [SAGE](https://github.com/dp-web4/SAGE) |
 | **Attack simulation suite** | 424 vectors / 84 tracks, ~85% detection | [`simulations/`](simulations/) |
 | **Threat model** | v2.0 | [`docs/reference/security/THREAT_MODEL.md`](docs/reference/security/THREAT_MODEL.md) |

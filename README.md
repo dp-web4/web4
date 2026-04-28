@@ -1,5 +1,11 @@
 # Web4: Verifiable Presence for AI
 
+[![crates.io: web4-core](https://img.shields.io/crates/v/web4-core?label=crates.io%20web4-core)](https://crates.io/crates/web4-core)
+[![crates.io: web4-trust-core](https://img.shields.io/crates/v/web4-trust-core?label=crates.io%20web4-trust-core)](https://crates.io/crates/web4-trust-core)
+[![PyPI: web4-core](https://img.shields.io/pypi/v/web4-core?label=PyPI%20web4-core)](https://pypi.org/project/web4-core/)
+[![PyPI: web4-trust](https://img.shields.io/pypi/v/web4-trust?label=PyPI%20web4-trust)](https://pypi.org/project/web4-trust/)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
+
 > **AI is already taking actions in the world. We can't prove what it did.**
 > Web4 is the open standard that closes that gap.
 
@@ -11,7 +17,26 @@ Web1 was access. Web2 was participation. Web3 was ownership. Web4 is **verifiabl
 
 ---
 
-## Status Snapshot (2026-04-27)
+## Install
+
+**Rust** (`Cargo.toml`):
+```toml
+[dependencies]
+web4-core = "0.1"
+web4-trust-core = "0.1"
+```
+
+**Python**:
+```bash
+pip install web4-core
+pip install web4-trust
+```
+
+Both crates and both Python packages are AGPL-3.0-or-later. Patent grant terms in [PATENTS.md](PATENTS.md).
+
+---
+
+## Status Snapshot (2026-04-28)
 
 ### Proof point
 - **0% → 94.85% on ARC-AGI-3** with the same Claude Opus 4.6, structured around Web4 patterns via the SAGE harness.
@@ -22,6 +47,7 @@ Web1 was access. Web2 was participation. Web3 was ownership. Web4 is **verifiabl
 - **AI Demo Day 4** (2026-04-26): Web4 presented as "verifiable presence" for agentic AI. Slides + narration archived at https://4-gov.org/demo
 
 ### Implementation status
+- **Published artifacts** (2026-04-28): `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. All v0.1.0, AGPL-3.0-or-later. See `docs/proof/PUBLISHED.md`.
 - Spec corpus: stable (`web4-standard/core-spec/`)
 - Reference Python SDK + 8-tool MCP server: 2,627 tests, mypy --strict clean (`web4-standard/implementation/`)
 - Cognition harness producing the 94.85% result: [SAGE](https://github.com/dp-web4/SAGE)
