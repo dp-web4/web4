@@ -9,11 +9,19 @@
 > **AI is already taking actions in the world. We can't prove what it did.**
 > Web4 is the open standard that closes that gap.
 
-Presence = identity + trust + context + accountability.
+An open standard for verifiable AI presence — proposed by Metalinxx Inc., owned by no one. Research-stage. v0.1.1 packages public; reference implementation public; no production deployment yet. **[STATUS.md](STATUS.md)** is the calibration — read it before judging the claims below.
 
-An open standard, proposed by Metalinxx Inc., owned by no one. Anyone can build on it.
+**Proof point**: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) harness. [Public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4). The model didn't change — the structure around it did.
 
-Web1 was access. Web2 was participation. Web3 was ownership. Web4 is **verifiable presence** — for AI as a participant.
+## Five-minute audit
+
+If you want a fast read on whether this is real, in order:
+
+1. [**STATUS.md**](STATUS.md) — what's shipped, what's specified, what's aspirational.
+2. [**docs/proof/PUBLISHED.md**](docs/proof/PUBLISHED.md) — the v0.1.0 → v0.1.1 same-day catch-and-fix narrative. The discipline IS the credibility signal.
+3. [**demo/**](demo/) — agent commerce delegation, 166 tests passing.
+4. [**simulations/**](simulations/) — 424 attack vectors / 84 tracks, ~85% detection rate.
+5. [**docs/specs/heterogeneous-identity.md**](docs/specs/heterogeneous-identity.md) — multi-factor identity as a constellation. Answers "what stops a hardware vendor from gating LCT access?" structurally.
 
 ---
 
@@ -36,12 +44,7 @@ Both crates and both Python packages are AGPL-3.0-or-later. Patent grant terms i
 
 ---
 
-## Status Snapshot (2026-04-28)
-
-### Proof point
-- **0% → 94.85% on ARC-AGI-3** with the same Claude Opus 4.6, structured around Web4 patterns via the SAGE harness.
-- Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
-- The difference is not the model. It is the structure around it.
+## Status Snapshot (2026-04-29)
 
 ### Where it landed publicly
 - **AI Demo Day 4** (2026-04-26): Web4 presented as "verifiable presence" for agentic AI. Slides + narration archived at https://4-gov.org/demo
