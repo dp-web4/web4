@@ -47,7 +47,8 @@ Both crates and both Python packages are AGPL-3.0-or-later. Patent grant terms i
 - **AI Demo Day 4** (2026-04-26): Web4 presented as "verifiable presence" for agentic AI. Slides + narration archived at https://4-gov.org/demo
 
 ### Implementation status
-- **Published artifacts** (2026-04-28): `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. All v0.1.0, AGPL-3.0-or-later. See `docs/proof/PUBLISHED.md`.
+- **Published artifacts** (2026-04-28): `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. **Current: v0.1.1**, AGPL-3.0-or-later. (v0.1.0 was yanked from crates.io due to a Python wheel import-path defect and a stale tensor docstring; both fixed in v0.1.1.) See [STATUS.md](STATUS.md) for the full version table and [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publish trail.
+- **Stage**: research, not production. v0.1.1 packages are public; reference implementation and harness are public; no production deployment yet.
 - Spec corpus: stable (`web4-standard/core-spec/`)
 - Reference Python SDK + 8-tool MCP server: 2,627 tests, mypy --strict clean (`web4-standard/implementation/`)
 - Cognition harness producing the 94.85% result: [SAGE](https://github.com/dp-web4/SAGE)
@@ -132,7 +133,8 @@ Neither addresses the core question: **How do I know this agent will behave appr
 | 4 | **[docs/how/README.md](docs/how/README.md)** | Implementation guides |
 | 5 | **[SECURITY.md](SECURITY.md)** | Security research status and known gaps |
 | 6 | **[docs/reference/security/THREAT_MODEL.md](docs/reference/security/THREAT_MODEL.md)** | What we're defending against |
-| 7 | **[docs/reference/LCT_DOCUMENTATION_INDEX.md](docs/reference/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
+| 7 | **[docs/specs/attestation-envelope.md](docs/specs/attestation-envelope.md)** | AttestationEnvelope: how LCT presence binds to hardware attestation (TPM2/FIDO2/Secure Enclave/software) into a single verifiable structure |
+| 8 | **[docs/reference/LCT_DOCUMENTATION_INDEX.md](docs/reference/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
 
 ---
 

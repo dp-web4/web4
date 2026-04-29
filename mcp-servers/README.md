@@ -8,7 +8,7 @@ Modular Model Context Protocol servers exposing Web4 trust infrastructure.
 |--------|-------|-------------|
 | `web4-identity` | 8 | LCT identity operations (create, verify, bind, revoke, delegate, witness, chain, query) |
 | `web4-trust` | 6 | T3/V3 trust tensors (query, update, history, compare, aggregate, decay) |
-| `web4-economy` | 8 | ATP/ADP attention tokens (balance, transfer, price, charge, discharge, demurrage, history, budget) |
+| `web4-economy` | 8 | ATP/ADP — Allocation Transfer / Discharge Packets (balance, transfer, price, charge, discharge, demurrage, history, budget) |
 
 ## Installation
 

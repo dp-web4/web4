@@ -158,7 +158,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 - **MCP Server**: `web4-mcp` / `python -m web4.mcp_server` — 8 tools (info, validate, generate, roundtrip, list_types, evaluate_trust, resolve_trust, process_action)
 - **CLI entry points**: console script `web4` + `python -m web4`
 - **Optional extras**: `web4[validation]` (jsonschema), `web4[mcp]` (mcp), `web4[dev]` (full toolchain)
-- **License**: MIT (SDK), AGPL-3.0 (root repo)
+- **License**: AGPL-3.0-or-later throughout (a brief MIT relicense was attempted Feb 2026 for ARIA grant compatibility; reverted 2026-04-27 — AGPL-bounded patent grant in PATENTS.md was incompatible with MIT)
 
 ---
 
@@ -184,13 +184,13 @@ Namespace decision documented in `docs/history/design_decisions/JSONLD-NAMESPACE
 
 ---
 
-## ARIA Deliverable Alignment
+## ARIA-era Work (historical context, 2026-02 → 2026-04)
 
-Web4 SDK development aligns with ARIA grant requirements:
-- **Witnessed tier work**: LCT JSON-LD with attestation chain, cross-language validation vectors
-- **Hardware binding**: AttestationEnvelope integrated into SDK with TPM2/FIDO2/SE anchor types
-- **MIT license**: SDK relicensed from AGPL to MIT per ARIA requirement
-- Cross-language interoperability (JSON Schemas enable Go/TypeScript/Rust validators)
+Work undertaken in early 2026 toward what was at the time a planned ARIA grant submission. The grant was ultimately not submitted; the technical work landed and is canonical:
+- **Witnessed tier work**: LCT JSON-LD with attestation chain, cross-language validation vectors — landed
+- **Hardware binding**: AttestationEnvelope integrated into SDK with TPM2/FIDO2/SE anchor types — landed
+- **Cross-language interoperability**: JSON Schemas enable Go/TypeScript/Rust validators — landed
+- **License**: SDK was briefly relicensed AGPL→MIT for ARIA compatibility, reverted to AGPL-3.0-or-later 2026-04-27 after ARIA decision was no-submit (the AGPL-bounded patent grant in PATENTS.md created a license trap with MIT)
 
 ---
 

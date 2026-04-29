@@ -4,7 +4,7 @@
  *
  * Open Source (AGPL-3.0) - Part of Web4 Trust Infrastructure
  *
- * Provides ATP/ADP (Attention Token Protocol / Attention Debt Protocol)
+ * Provides ATP/ADP (Allocation Transfer Packet / Allocation Discharge Packet)
  * operations for AI agent resource management.
  *
  * Tools:
@@ -29,7 +29,7 @@ import {
 import * as crypto from "crypto";
 
 // ============================================================================
-// Types - ATP (Attention Token Protocol) / ADP (Attention Debt Protocol)
+// Types - ATP (Allocation Transfer Packet) / ADP (Allocation Discharge Packet)
 // ============================================================================
 
 interface ATPBalance {

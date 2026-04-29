@@ -57,13 +57,9 @@ Web4 is in **development** phase. The ontology is mature. Work is reusable libra
 
 ## Licensing
 
-- **Web4 SDK** (`web4-standard/implementation/sdk/`): MIT license
-- **Root repo**: AGPL-3.0
-- Do not introduce MIT-incompatible dependencies into the SDK
+- **Everything** in this repo: AGPL-3.0-or-later. (Brief MIT relicense was attempted in Feb 2026 for ARIA grant compatibility; reverted 2026-04-27 after the grant was no-submit and the patent grant in PATENTS.md created a license trap with MIT.)
+- Patent grant terms: see [PATENTS.md](PATENTS.md). AGPL-bounded.
 
 ## Authentication
 
-```bash
-PAT=$(grep GITHUB_PAT ../.env | cut -d= -f2)
-git push "https://dp-web4:${PAT}@github.com/dp-web4/web4.git" main
-```
+`dp-web4` remotes are SSH (`git@github.com:dp-web4/web4.git`). The SSH key is loaded by ssh-agent at session start. Just `git push` / `git pull` — no env-var loading, no PAT construction. The `GITHUB_PAT` env var is **deprecated**; do not construct PAT-based HTTPS URLs.

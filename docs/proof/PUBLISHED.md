@@ -27,12 +27,23 @@ pip install web4-trust
 
 | Package | Registry | Version | Released | License |
 |---|---|---|---|---|
-| `web4-core` | [crates.io](https://crates.io/crates/web4-core) | 0.1.0 | 2026-04-28 | AGPL-3.0-or-later |
-| `web4-core` | [PyPI](https://pypi.org/project/web4-core/) | 0.1.0 | 2026-04-28 | AGPL-3.0-or-later |
-| `web4-trust-core` | [crates.io](https://crates.io/crates/web4-trust-core) | 0.1.0 | 2026-04-28 | AGPL-3.0-or-later |
-| `web4-trust` | [PyPI](https://pypi.org/project/web4-trust/) | 0.1.0 | 2026-04-28 | AGPL-3.0-or-later |
+| `web4-core` | [crates.io](https://crates.io/crates/web4-core) | **0.1.1** (0.1.0 yanked) | 2026-04-28 | AGPL-3.0-or-later |
+| `web4-core` | [PyPI](https://pypi.org/project/web4-core/) | **0.1.1** | 2026-04-28 | AGPL-3.0-or-later |
+| `web4-trust-core` | [crates.io](https://crates.io/crates/web4-trust-core) | **0.1.1** (0.1.0 yanked) | 2026-04-28 | AGPL-3.0-or-later |
+| `web4-trust` | [PyPI](https://pypi.org/project/web4-trust/) | **0.1.1** | 2026-04-28 | AGPL-3.0-or-later |
 
-Git tags marking the release commits: `web4-core-rust-v0.1.0`, `web4-core-py-v0.1.0`, `web4-trust-core-rust-v0.1.0`, `web4-trust-py-v0.1.0`.
+Git tag marking the v0.1.1 release: `v0.1.1`.
+
+### v0.1.0 → v0.1.1 (same-day re-publish)
+
+v0.1.0 was published earlier on 2026-04-28 and **yanked from crates.io the same day** after two defects were caught by clean-install verification:
+
+1. **Python wheel import path broken**: the `web4_core` package directory shipped without `__init__.py`, so `import web4_core` returned an empty module and `web4_core.PyLct.new(...)` (the canonical README example) failed with `AttributeError`. Fixed in v0.1.1 by adding explicit re-exports of all PyO3 classes/functions.
+2. **Stale tensor docstring** in `web4-trust`'s top-level docstring described T3/V3 as "6-dimensional," contradicting the canonical 3-root + fractal RDF framing used everywhere else in the spec. Fixed in v0.1.1.
+
+Both defects were invisible to `cargo test`, `cargo publish --dry-run`, `maturin build --release`, and in-source doctests. They were only catchable by what a real user does: `pip install web4-core` in a fresh venv and run the README example. v0.1.0 PyPI artifacts remain installable (PyPI doesn't yank), but v0.1.1 is canonical; STATUS.md flags the gap.
+
+Released-along-with-process discipline note: clean-install verification in a fresh environment is now mandatory before any registry publish. See `feedback_pre_publish_clean_install_check.md` in the cross-machine memory.
 
 ---
 
