@@ -2,7 +2,7 @@
 
 **Authors:** Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus
 
-**Updated:** April 9, 2026
+**Updated:** April 29, 2026
 
 ---
 
@@ -41,6 +41,7 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 **This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity:
 
 **Currently Available** (ready for testing):
+- **`web4-core` and `web4-trust-core` v0.1.0** (published 2026-04-28 to crates.io and PyPI): the LCT presence primitive, T3/V3 trust tensors, coherence scoring, in-memory and on-disk Ledger backends, and the AttestationEnvelope hardware-trust primitive — all installable as `cargo add web4-core` or `pip install web4-core` (52+4 doctests for `web4-core`, 57 tests for `web4-trust-core`). Release record: `docs/proof/PUBLISHED.md`.
 - **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
 
 **Emerging Implementation** (operational in Hardbound CLI, validating Web4 protocol concepts):
@@ -3750,4 +3751,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-04-13 04:35:20*
+*Generated: 2026-04-29 04:34:43*

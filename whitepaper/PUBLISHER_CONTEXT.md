@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-04-27
+**Last Updated**: 2026-04-29
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,14 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-04-29: Publisher Maintenance - First Public Release Reflected
+- web4-core and web4-trust-core v0.1.0 published to crates.io and PyPI on 2026-04-28 (commit 9744051, plus v0.1.1 Python-import fix in 7d25a9d)
+- Per inclusion criteria ("New protocol element implemented in code" → high priority): Executive Summary "Currently Available" now leads with the published packages and install commands; release record cited at `docs/proof/PUBLISHED.md`
+- **Ledger trait + InMemoryLedger + LocalLedger** (commit 068f448, 2026-04-27) introduced as first-class abstraction in web4-core. The whitepaper already documents "hash-chained ledger" infrastructure in §7.0.1; the Ledger trait is the implementation primitive backing it (no new whitepaper concept introduced — the Rust API surface is implementation detail). Published-package note in Executive Summary now mentions "in-memory and on-disk Ledger backends" so the v0.1.0 surface is accurately described.
+- Title page date bumped April 9 → April 29
+- Identity bootstrap example (`web4-core/python/examples/identity_bootstrap.py`, commit b86b719) is doc-only — not whitepaper-worthy on its own
+- Rebuilt all artifacts (md, pdf)
 
 ### 2026-04-27: Publisher Maintenance - No-Change Check (Sprints 36-43)
 - Reviewed all commits since 2026-04-13 (Sprints 36-43, autonomous cleanup, GitNexus reindex)
