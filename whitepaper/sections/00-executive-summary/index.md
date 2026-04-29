@@ -1,8 +1,10 @@
 # Executive Summary: The Trust-Native Internet
 
-We stand at the threshold of a new internet—one where trust is not granted but earned, where value flows to genuine contribution, and where humans and artificial intelligences collaborate as peers in a shared cognition field.
+> **Status calibration**: This whitepaper presents the Web4 **vision architecture**. As of 2026-04-29, four core packages are public on crates.io and PyPI (`web4-core` 0.1.1, `web4-trust-core` 0.1.1, plus the matching Python wheels — all AGPL-3.0-or-later; v0.1.0 was yanked the same day it shipped after clean-install verification caught a Python import-path defect). A working agent-commerce-delegation demo with 166 passing tests is at [`web4/demo/`](https://github.com/dp-web4/web4/tree/main/demo). The strongest single proof point: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6 via the SAGE harness ([public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4)). **Most of what follows is specification, not deployed code.** The implementation-status section below draws explicit lines between currently-available, emerging, and not-yet-implemented.
 
-WEB4 adds what was always missing. Where Web2 centralized control and Web3 tokenized everything, WEB4 makes trust the fundamental force—like gravity in physics, binding intelligent entities into coherent systems that learn, remember, and evolve.
+WEB4 asks whether trust can be a first-class primitive of an internet for humans and AI agents — earned through witnessed contribution, expressed through a typed RDF ontology, anchored cryptographically. The framing borrows from the conventions of Web1 (access), Web2 (participation), Web3 (ownership): the question is whether *verifiable presence* is the next missing layer.
+
+The vision below is ambitious. The work tests the vision. The boundary between what's tested and what's still vision is named explicitly throughout.
 
 ## The Core Innovation
 
@@ -33,7 +35,7 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 **This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity:
 
 **Currently Available** (ready for testing):
-- **`web4-core` and `web4-trust-core` v0.1.0** (published 2026-04-28 to crates.io and PyPI): the LCT presence primitive, T3/V3 trust tensors, coherence scoring, in-memory and on-disk Ledger backends, and the AttestationEnvelope hardware-trust primitive — all installable as `cargo add web4-core` or `pip install web4-core` (52+4 doctests for `web4-core`, 57 tests for `web4-trust-core`). Release record: `docs/proof/PUBLISHED.md`.
+- **`web4-core` and `web4-trust-core` v0.1.1** (published 2026-04-28 to crates.io and PyPI; v0.1.0 yanked same day): the LCT presence primitive, T3/V3 trust tensors (3 root dims, fractally extensible via `web4:subDimensionOf`), coherence scoring, in-memory and on-disk Ledger backends, and the AttestationEnvelope hardware-trust primitive — all installable as `cargo add web4-core` or `pip install web4-core` (52+4 doctests for `web4-core`, 57 tests for `web4-trust-core`). Release record: `docs/proof/PUBLISHED.md`.
 - **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
 
 **Emerging Implementation** (operational in Hardbound CLI, validating Web4 protocol concepts):
