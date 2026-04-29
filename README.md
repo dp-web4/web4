@@ -134,7 +134,8 @@ Neither addresses the core question: **How do I know this agent will behave appr
 | 5 | **[SECURITY.md](SECURITY.md)** | Security research status and known gaps |
 | 6 | **[docs/reference/security/THREAT_MODEL.md](docs/reference/security/THREAT_MODEL.md)** | What we're defending against |
 | 7 | **[docs/specs/attestation-envelope.md](docs/specs/attestation-envelope.md)** | AttestationEnvelope: how LCT presence binds to hardware attestation (TPM2/FIDO2/Secure Enclave/software) into a single verifiable structure |
-| 8 | **[docs/reference/LCT_DOCUMENTATION_INDEX.md](docs/reference/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
+| 8 | **[docs/specs/heterogeneous-identity.md](docs/specs/heterogeneous-identity.md)** | Multi-factor identity as a constellation of mutually-witnessing factors. Why "vendor gating LCT" dissolves once identity stops being singular. |
+| 9 | **[docs/reference/LCT_DOCUMENTATION_INDEX.md](docs/reference/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
 
 ---
 
