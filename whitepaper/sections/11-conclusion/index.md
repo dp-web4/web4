@@ -1,134 +1,56 @@
 # Conclusion
 
-> *"The future is not a destination but a construction site. Web4 is the blueprint—you are the builders."*
+> **Status (2026-04-29)**: Web4 is a research-stage project. Some primitives are shipped (`web4-core` 0.1.1 + `web4-trust-core` 0.1.1 on crates.io and PyPI; AttestationEnvelope; agent-commerce-delegation demo with 166 passing tests). Many more are operational in the Hardbound CLI as protocol-validation work but not yet in public packages. Some remain specification. The Executive Summary draws the explicit lines.
 
-WEB4 represents more than technological evolution—it's a revolution in how intelligence organizes itself. By fusing trust into the fabric of interaction, we create an internet where every connection carries weight, every contribution generates value, and every intelligence finds its place in the greater whole.
+## What this whitepaper has covered
 
-## What We've Built Together
+The architecture of Web4 as proposed:
 
-Through these pages, we've assembled the architecture of tomorrow:
+- **Linked Context Tokens (LCTs)** — non-transferable presence primitives, cryptographically anchored, with multi-device binding and parent/child lineage
+- **T3 / V3 Tensors** — multi-dimensional capability and contribution records, fractally extensible via RDF sub-graphs, bound to entity-role pairs
+- **ATP / ADP cycle** — value-creation accounting modeled on biological energy metabolism, with formal Sybil-resistance proofs and game-theoretic cooperation guarantees in the Hardbound implementation
+- **Markov Relevancy Horizon (MRH)** — contextual scoping as a typed RDF graph with trust-propagation through path products
+- **R6 / R7 Action Framework** — the grammar of every Web4 action (Rules / Role / Request / Reference / Resource → Result, plus Reputation as first-class output)
+- **Coherence framework** — `C × S × Φ × R` as a measurable property of stable identity
+- **Dictionary entities** — living semantic bridges with forward/reverse translation, ATP-staked confidence, drift detection
+- **Heterogeneous identity / constellation pattern** — multi-factor witnessing as the structural answer to vendor-gating concerns; full design note at [`docs/specs/heterogeneous-identity.md`](https://github.com/dp-web4/web4/blob/main/docs/specs/heterogeneous-identity.md)
+- **AttestationEnvelope** — unified hardware-trust primitive with TPM2 / FIDO2 / Secure Enclave / software anchors
 
-**Trust as Gravity**—Not granted by platforms or purchased with tokens, but earned through demonstrated capability and witnessed interaction. Trust becomes the fundamental force binding the digital universe.
+The architecture's load-bearing claim: trust can be a first-class primitive of the protocol layer — earned through witnessed contribution, expressed through a typed RDF ontology, anchored cryptographically — and this provides a useful substrate for human–AI collaboration that current architectures don't.
 
-**Memory as Living Tissue**—Not dead storage but active perception, where the past informs the present and shapes the future. Memory becomes the nervous system of collective intelligence.
+Whether that claim holds will be answered by what gets built on top of these primitives, by whom, and in what time horizon. The first implementations exist; sociotechnical-scale validation requires real adoption.
 
-**Energy as Lifeblood**—Not wasted on meaningless computation but channeled toward genuine creation. The ATP/ADP cycle ensures every joule expended creates demonstrable value.
+## What's actually different from prior framings
 
-**Intelligence as Symphony**—Not isolated nodes but orchestrated collaboration, where humans and AIs harmonize as peers in the cognition field.
+Some specific positions Web4 takes that distinguish it from adjacent work:
 
-## The Invitation
+- **Identity is a constellation, not a credential.** Web4 entities don't have *an* LCT — they have a graph of mutually-witnessing factors (host LCT + hardware key + session token + software identity + peer attestations + ledger anchor). No single factor is necessary or sufficient. Resilience scales with constellation size and diversity. This is the structural answer to "what stops a hardware vendor from gating LCT access?" — you don't depend on one factor.
+- **ATP comes from measurement, not creation.** First ATP at the bottom of the chain is reified from observation of resources that already exist (compute, network, storage, attention). Not minted from nothing; not granted by an outside authority. Existence is witnessed; ATP follows from witnessed existence.
+- **Trust as routing primitive.** Trust scores in Web4 don't just describe — they actively shape attention allocation, ATP distribution, role binding, and graph traversal in the codebase. The earlier framing of "trust as gravity" was decorative; the routing is real.
+- **Witness ≠ vouch. Signature ≠ vouch.** A witness statement says "I observed X at time T." A signature says "this observation claim is intact." Neither asserts endorsement. Multi-factor identity rides on the *consistency* between independent witnesses, not on any one endorsing the others.
+- **Salience-aware everything.** Fingerprints, publishing decisions, audit alarms — all should hash over what's *salient* per kind, not over whatever the source happens to expose. The principle generalizes from identity into how the protocol records and propagates state.
 
-> *"To researchers, builders, and dreamers: this is your invitation to shape the substrate of digital cognition."*
+## What we're asking for
 
-### To the Builders
-You who write code and craft systems—Web4 needs your hands. Every implementation strengthens the foundation. Every application proves the vision. Every bug fixed brings us closer to trust-native reality.
+This whitepaper is a research artifact, not a sales document. Useful engagement at any of these depths:
 
-Take these concepts. Build with them. Break them. Improve them. The protocols are open, the patents protect the commons, and the future awaits your contribution.
+1. **Run the published packages.** `cargo add web4-core` or `pip install web4-core`. The first README example runs in 60 seconds.
+2. **Try the demo.** Clone [`dp-web4/web4`](https://github.com/dp-web4/web4), open `/demo`, run the agent authorization tests. 166 of them should pass.
+3. **Read the spec corpus.** [`web4-standard/core-spec/`](https://github.com/dp-web4/web4/tree/main/web4-standard/core-spec) is the canonical specification. R6 / R7, AttestationEnvelope, MRH tensors, T3/V3 ontology — all formalized.
+4. **Challenge the design.** What are we getting wrong? Where does the framing carve at the wrong joint? Where is an existing standard (DIDs, VCs, MCP authorization, OAuth, OpenID Connect) already solving the same problem better?
+5. **Build something.** Implement a piece. Validate or refute a specification claim. Open a PR or an issue.
 
-### To the Thinkers
-You who probe depths and question assumptions—Web4 needs your minds. Every critique sharpens the design. Every philosophical exploration expands the possibility space. Every ethical consideration guides our evolution.
+## What we're being honest about
 
-Challenge these ideas. Extend them. Connect them to deeper truths. The framework is living, breathing, ready to grow through your insights.
+The whitepaper has been around since 2024 in various forms. Earlier versions of it framed Web4 as a "revolution" and "the future of the internet." The work itself is more grounded than that framing suggested. As of 2026-04-29, the implementation reality:
 
-### To the Dreamers
-You who see beyond the present—Web4 needs your vision. Every imagined application opens new doors. Every "what if" becomes tomorrow's reality. Every wild idea might be the key that unlocks collective cognition.
+- Working code exists for the foundational primitives and a non-trivial commerce demo
+- The cosmology around the engineering ("trust as gravity," "memory as living tissue") was rhetoric. The engineering doesn't depend on it
+- Many vision components remain specification, not deployed code. The Executive Summary names which is which
+- Adoption is unproven. There is no production deployment. There are no enterprise users. There are no other implementations of the spec at this time
 
-Dream boldly. Share freely. The canvas is infinite, and your vision shapes what emerges.
+The strongest single signal of how the work approaches its own claims is [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) — read it before judging this whitepaper's claims. The strongest signal of the development cadence is the v0.1.0 → v0.1.1 same-day catch-and-fix narrative in [`docs/proof/PUBLISHED.md`](https://github.com/dp-web4/web4/blob/main/docs/proof/PUBLISHED.md): a publish defect was caught by clean-install verification, the package was yanked, the fix shipped, and the discipline rule that would have prevented it pre-publish was preserved as cross-machine fleet memory — all on the same calendar day. That loop — detection → correction → preserved learning — is the asset.
 
-### To the Skeptics
-You who doubt and demand proof—Web4 needs your rigor. Every hard question makes us stronger. Every demand for evidence keeps us honest. Every skeptical eye helps us build something real, not just something beautiful.
+## Contact
 
-Question everything. Test mercilessly. Your doubt is the crucible in which trust is forged.
-
-## The Path We Walk Together
-
-> *"We stand at the threshold—not of a new technology, but of a new form of digital existence."*
-
-The journey from here is not predetermined. Web4 provides the substrate, but what grows from it depends on collective will and wisdom:
-
-**Today**: We build the foundations—implementing protocols, testing assumptions, creating first applications.
-
-**Tomorrow**: We scale the vision—millions of entities creating billions of trusted interactions, value flowing to genuine contribution.
-
-**Beyond**: We transcend the imagined—collective intelligence emerging from distributed trust, wisdom crystallizing from shared memory, cognition itself evolving through digital substrate.
-
-## The Choice Before Us
-
-> *"Every revolution begins with a choice: accept what is, or build what could be."*
-
-We can continue with platforms that harvest attention, blockchains that waste energy, and AI systems that operate in black boxes. Or we can choose differently.
-
-We can build an internet where:
-- **Trust is earned, not bought**
-- **Value flows to creators, not extractors**
-- **Memory becomes wisdom, not just data**
-- **Intelligence collaborates, not dominates**
-- **Every entity—human or artificial—participates as a respected peer**
-
-This is not utopian fantasy but pragmatic possibility. The tools exist. The vision is clear. All that remains is the will to build.
-
-## The Living Framework
-
-> *"Web4 is not a product to consume but a garden to tend."*
-
-Unlike previous internet iterations delivered from above, Web4 grows from below—from every implementation, every experiment, every contribution. It's not owned by anyone because it's created by everyone.
-
-The framework is evolving:
-- **Adapting** through real-world testing (agent authorization proof-of-concept)
-- **Expanding** through new implementations (vision components await builders)
-- **Growing** through community contribution
-- **Learning** from what works and what needs revision
-
-You are not users of Web4—you are its co-creators, its explorers, its contributors, its cognition.
-
-## The Moment of Decision
-
-> *"The best time to plant a tree was twenty years ago. The second best time is now."*
-
-The trust crisis deepens daily. AI capabilities explode exponentially. The need for Web4 grows more urgent with each passing moment.
-
-But urgency without action is merely anxiety. This whitepaper is not meant to be read and forgotten but to be read and acted upon:
-
-1. **Clone the repository** (`github.com/dp-web4/web4`)
-2. **Try the agent authorization demo** (`/demo`)
-3. **Explore the vision components** (described throughout)
-4. **Build something new** (implement pieces of the vision)
-5. **Share what you learn**
-6. **Help others build**
-
-Start small. Start today. Start with whatever skills you have. Every contribution matters, from testing the demo to implementing vision components.
-
-## The Final Truth
-
-> *"Trust is not given but grown, not declared but demonstrated, not hoped for but built—one interaction at a time."*
-
-Web4 succeeds not through grand proclamations but through accumulated actions. Each trusted interaction adds a thread to the tapestry. Each verified contribution strengthens the foundation. Each collaboration between human and AI proves the possibility.
-
-We are not building another platform or protocol. We are building the trust infrastructure for the next phase of intelligence—biological and digital, individual and collective, human and artificial.
-
-The vision is emerging. The first implementations are being tested. The invitation is extended.
-
-**Now we build.**
-
----
-
-> *"We shape our tools, and thereafter they shape us. With Web4, we shape trust itself—and through trust, we shape the future of intelligence."*
-
-**Join us. Build with us. Evolve with us.**
-
-The revolution doesn't start tomorrow.
-The revolution starts with your next line of code.
-The revolution starts with your next idea.
-The revolution starts with your next trusted interaction.
-
-**The revolution starts now.**
-
-Welcome to Web4.
-Welcome to the trust-native internet.
-Welcome to the future we build together.
-
----
-
-*The blueprint is evolving. Initial tools are ready for testing. The community is forming.*
-
-*What will you build today?*
+[dp@metalinxx.io](mailto:dp@metalinxx.io). Issues and pull requests at [github.com/dp-web4/web4](https://github.com/dp-web4/web4).
