@@ -593,20 +593,24 @@ This framework transforms Web4 from a trust network into a **coherence network**
 
 ---
 
-## 2.8. Trust as a Routing Primitive
+## 2.8. Trust as Gravity: The Force That Shapes Everything
 
-While Part 3 covers trust mechanics in detail, one design property deserves note here: in Web4, **trust scores actively route attention, resources, and opportunity**. They are not just measurements; they are inputs to scheduling and allocation decisions throughout the protocol.
+> *"In Web4, trust isn't just measured — it exerts force, drawing attention and resources like gravity draws matter."*
 
-Concretely, T3 trust scores influence:
+While Part 3 covers trust mechanics in detail, one design property deserves note here: in Web4, **trust scores actively route attention, resources, and opportunity**. They are not passive measurements; they are inputs to scheduling and allocation decisions throughout the protocol. Trust functions gravitationally — high-trust entities attract attention, resources, and connection the way mass warps spacetime to attract bodies.
 
-- **Attention**: salience-weighted plugin selection in cognition harnesses (e.g., the SAGE consciousness loop weights IRP plugin invocation by trust)
-- **Resources**: ATP allocation in the Hardbound CLI is trust-weighted; higher-T3 entities receive larger allocations for the same role
-- **Opportunities**: role-binding and delegation chains preferentially extend through higher-T3 graph paths (operational in MRH propagation; trust-as-product-of-edge-trusts, with decay)
-- **Connections**: peer-witness records in the federation accumulate based on observed interaction history, which is itself T3-shaped
+The metaphor is the intuition pump; the mechanism is the verification:
 
-The earlier framing of this property as "trust as gravity, like a fundamental physical force" was a metaphor that obscured the engineering. The accurate description: **trust is a routing primitive that shows up in scheduling, allocation, and graph-traversal code throughout the Web4 stack.** The metaphor was decorative; the routing is real.
+| What's drawn | Mechanism in code |
+|---|---|
+| **Attention** — others orient toward trustworthy sources | Salience-weighted plugin selection (e.g., the SAGE consciousness loop weights IRP plugin invocation by trust) |
+| **Resources** — ATP flows preferentially to proven performers | Trust-weighted ATP allocation in the Hardbound CLI: higher-T3 entities receive larger allocations for the same role |
+| **Opportunities** — better roles and requests gravitate to strong reputation | Role-binding and delegation chains preferentially extend through higher-T3 graph paths (operational in MRH propagation; trust-as-product-of-edge-trusts, with decay) |
+| **Connections** — other high-trust entities seek collaborative links | Peer-witness records in the federation accumulate based on observed interaction history, which is itself T3-shaped |
 
-The beauty is that this gravity is earned, not declared. Every successful action increases mass. Every failure reduces it. The system becomes self-organizing, with trust clusters forming naturally around genuine capability and reliable performance.
+Just as massive objects bend spacetime, high-trust entities bend the Web4 interaction space around them. The gravity is earned, not declared: every successful action increases the entity's effective "mass" in the trust-graph; every failure reduces it. The system becomes self-organizing, with trust clusters forming naturally around genuine capability and reliable performance.
+
+The metaphor and the mechanism each do work. Readers reasoning about emergent dynamics can think in gravitational terms; readers auditing the implementation can trace specific scheduling/allocation/graph-traversal sites where T3 scores feed in. Both readings describe the same property.
 
 ---
 

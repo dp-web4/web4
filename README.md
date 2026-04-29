@@ -18,7 +18,7 @@ An open standard for verifiable AI presence — proposed by Metalinxx Inc., owne
 If you want a fast read on whether this is real, in order:
 
 1. [**STATUS.md**](STATUS.md) — what's shipped, what's specified, what's aspirational.
-2. [**docs/proof/PUBLISHED.md**](docs/proof/PUBLISHED.md) — the v0.1.0 → v0.1.1 same-day catch-and-fix narrative. The discipline IS the credibility signal.
+2. [**docs/proof/PUBLISHED.md**](docs/proof/PUBLISHED.md) — what's published and why v0.1.0 was yanked.
 3. [**demo/**](demo/) — agent commerce delegation, 166 tests passing.
 4. [**simulations/**](simulations/) — 424 attack vectors / 84 tracks, ~85% detection rate.
 5. [**docs/specs/heterogeneous-identity.md**](docs/specs/heterogeneous-identity.md) — multi-factor identity as a constellation. Answers "what stops a hardware vendor from gating LCT access?" structurally.
