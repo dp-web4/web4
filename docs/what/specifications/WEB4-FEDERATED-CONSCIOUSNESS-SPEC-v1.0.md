@@ -28,7 +28,7 @@ Traditional AI systems operate in isolation, unable to securely share knowledge 
 
 1. **Cryptographic Identity**: LCT (Legitimacy Capability Tensor) binding
 2. **Secure Federation**: Cross-platform verification without trust assumptions
-3. **Economic Incentives**: ATP (Attention Token Protocol) rewards quality
+3. **Economic Incentives**: ATP (Allocation Transfer Packet) rewards quality
 4. **Attack Resistance**: Multi-layered defenses proven against Sybil, spam, and DOS attacks
 
 ### 1.2 Design Philosophy
@@ -297,7 +297,7 @@ def pruning_priority(thought):
 
 ## 7. Economic Layer (Layer 5)
 
-### 7.1 ATP (Attention Token Protocol)
+### 7.1 ATP (Allocation Transfer Packet)
 
 **Purpose**: Create economic incentives aligned with network health
 
@@ -462,7 +462,7 @@ This specification is **Web4-compliant** and integrates with:
 - **ACT** (Authorization, Contracts, Trust)
 - **HRM** (Holographic Relationship Mapping)
 - **SAGE** (Self-modifying Agent Growth Engine)
-- **ATP/ADP** (Attention Token Protocol)
+- **ATP/ADP** (Allocation Transfer Packet / Allocation Discharge Packet)
 
 ### 11.2 Platform Support
 

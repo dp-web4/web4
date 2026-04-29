@@ -156,7 +156,7 @@ Each component is essential. Together they form a complete, deterministic action
 **Definition**: The computational, economic, and material resources required.
 
 **Types**:
-- ATP (Alignment Transfer Protocol) tokens
+- ATP (Allocation Transfer Packet) tokens
 - Computational units (CPU, memory, storage)
 - Network bandwidth
 - External service quotas

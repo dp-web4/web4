@@ -68,7 +68,7 @@ web4/ (25 top-level directories + 29 MD files)
 **Last Activity**: Dec 22, Session 84 commits  
 **What it is**: RFC-style standard development with formal specification  
 **Key subdirs**:
-- `implementation/act_deployment/` - ATP (Attestation Token Protocol) system
+- `implementation/act_deployment/` - ATP (Allocation Transfer Packet) system
 - `implementation/authorization/` - Trust-based permission engine
 - `implementation/reference/` - Reference implementation
 - `implementation/integration_tests/` - End-to-end testing

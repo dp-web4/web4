@@ -8,7 +8,7 @@ This demo shows how Web4 enables **safe delegation of purchasing authority to AI
 
 - **Cryptographically enforced limits** on spending
 - **Fine-grained resource constraints** (what agents can access)
-- **ATP (Attention Token Protocol)** budget tracking
+- **ATP (Allocation Transfer Packet)** budget tracking
 - **T3 (Talent/Training/Temperament) trust tracking** for reputation-based authorization
 - **Instant revocation** of delegated authority
 - **Witness-based approval** for high-value purchases

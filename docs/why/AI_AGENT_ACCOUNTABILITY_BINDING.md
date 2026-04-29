@@ -44,7 +44,7 @@ None of these address the fundamental accountability question.
 
 ## The Solution: LCT-Bound Identity
 
-Web4's Lightweight Cryptographic Token (LCT) framework provides hardware-rooted identity that makes agent accountability tractable:
+Web4's Linked Context Token (LCT) framework provides hardware-rooted identity that makes agent accountability tractable:
 
 ### Identity Binding Hierarchy
 

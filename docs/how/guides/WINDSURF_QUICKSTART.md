@@ -25,10 +25,10 @@
 **Why**: Trust isn't binary, it's a dynamic relationship
 **Think**: Reputation with physics
 
-### 4. ATP (Alignment Transfer Protocol)
-**What**: Energy/value exchange based on actual utility delivered
+### 4. ATP (Allocation Transfer Packet)
+**What**: Allocation-discharge cycle for energy/value exchange based on actual utility delivered
 **Why**: Fair value for real contribution, not speculation
-**Think**: Energy as currency for alignment
+**Think**: Energy as a witnessed allocation; value is reified from observed contribution
 
 ### 5. SAGE (Salience And Goal Engine)
 **What**: Cognitive architecture for AI attention and resource allocation

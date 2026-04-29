@@ -2,7 +2,7 @@
 """
 Session 142: ATP Economic Incentives for Federated Consciousness
 
-Integrates ATP (Attention Token Protocol) economic incentives with the
+Integrates ATP (Allocation Transfer Packet) economic incentives with the
 security/reputation system from Sessions 137-141.
 
 Economic Layer:

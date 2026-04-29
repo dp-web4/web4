@@ -4,8 +4,8 @@ Authors: Web4 Editors
 
 ## 1. Purpose
 This subprotocol provides a privacy-preserving, auditable way to meter resource exchange
-(energy, compute, bandwidth, storage) between Web4 entities. ATP (Alignment Transfer Protocol)
-represents *credit* issuance; ADP (Alignment Delivery Proof) represents *evidence* of value
+(energy, compute, bandwidth, storage) between Web4 entities. ATP (Allocation Transfer Packet)
+represents *credit* issuance; ADP (Allocation Discharge Packet) represents *evidence* of value
 delivered. Settlement MAY be off-ledger with optional anchoring to a lightchain.
 
 ## 2. Roles

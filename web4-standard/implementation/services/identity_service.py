@@ -208,7 +208,7 @@ async def shutdown_event():
 @app.post("/v1/lct/mint", response_model=MintLCTResponse, status_code=status.HTTP_201_CREATED)
 async def mint_lct(request: MintLCTRequest):
     """
-    Mint a new LCT (Lightweight Coordination Token).
+    Mint a new LCT (Linked Context Token).
 
     Creates a new cryptographic identity with Ed25519 keypair,
     birth certificate, and witness attestations.

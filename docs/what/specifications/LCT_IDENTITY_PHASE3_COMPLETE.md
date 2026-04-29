@@ -53,7 +53,7 @@
 **Permission Categories**:
 ```python
 class PermissionCategory(Enum):
-    ATP = "atp"               # Attention Token Protocol operations
+    ATP = "atp"               # Allocation Transfer Packet operations
     FEDERATION = "federation" # Cross-platform task delegation
     EXECUTION = "execution"   # Code execution
     ADMIN = "admin"           # Administrative access

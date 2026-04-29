@@ -21,8 +21,8 @@ Abstract
    trust relationships are typed and traversable. Components built
    on this foundation include Society-Authority-Law (SAL) governance,
    Agency Delegation (AGY),
-   Agentic Context Protocol (ACP), Alignment Transfer Protocol
-   (ATP/ADP) value cycle, and Dictionary entities for semantic
+   Agentic Context Protocol (ACP), Allocation Transfer / Discharge
+   Packets (ATP/ADP) value cycle, and Dictionary entities for semantic
    bridging. Together, these create an architecture where trust
    emerges from witnessed interactions rather than central
    authorities.
