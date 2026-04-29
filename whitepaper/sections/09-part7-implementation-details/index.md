@@ -4,6 +4,23 @@
 
 ## 7.0. Implementation Status and Critical Blockers
 
+### 7.0.0. Published Packages (2026-04-29)
+
+Four core packages are public on crates.io and PyPI as of v0.1.1, all AGPL-3.0-or-later:
+
+| Package | Registry | Version | Install |
+|---------|----------|---------|---------|
+| `web4-core` (Rust) | [crates.io](https://crates.io/crates/web4-core) | 0.1.1 | `cargo add web4-core` |
+| `web4-core` (Python) | [PyPI](https://pypi.org/project/web4-core/) | 0.1.1 | `pip install web4-core` |
+| `web4-trust-core` (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.1.1 | `cargo add web4-trust-core` |
+| `web4-trust` (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.1.1 | `pip install web4-trust` |
+
+`web4-core` provides the LCT primitive (Ed25519 keypair binding, parent/child lineage, status lifecycle, hardware-binding ladder), T3 / V3 trust tensors with fractal RDF sub-graphs, identity coherence (`C × S × Φ × R`), Ledger trait + two backends (`InMemoryLedger`, `LocalLedger` — file-based, hash-chained, JSONL), and the AttestationEnvelope hardware-trust primitive with anchor verifiers for TPM2 / FIDO2 / Secure Enclave / software fallback. 52 unit tests + 4 doctests in the Rust crate.
+
+`web4-trust-core` adds entity trust persistence, witnessing primitives, decay models, and a TrustStore backend. 57 tests.
+
+v0.1.0 was yanked from crates.io the same day it shipped after clean-install verification caught a Python import-path defect (the wheel shipped without `__init__.py`); v0.1.1 is canonical. The full publish narrative — including the discipline rule that would have prevented the defect pre-publish — is at [`docs/proof/PUBLISHED.md`](https://github.com/dp-web4/web4/blob/main/docs/proof/PUBLISHED.md).
+
 ### 7.0.1. Current Implementation State
 
 | Component | Status | Notes |
