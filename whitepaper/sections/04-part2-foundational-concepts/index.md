@@ -1,18 +1,22 @@
 # Part 2: Foundational Concepts and Entities
 
+> **Status note for this part**: many of the primitives described below are shipped in `web4-core` 0.1.1 and `web4-trust-core` 0.1.1 (LCT, T3 / V3 tensors, coherence framework, Ledger backends, AttestationEnvelope). Some — Roles as first-class entities, Dictionaries, the full R6/R7 action grammar — are operational in the Hardbound CLI as protocol-validation work but not yet in the public packages. Some — full witness-acknowledgment protocol, blockchain typology — remain specification. Subsections below carry status markers where they apply. The [Executive Summary](../00-executive-summary/) has the consolidated status table.
+
 ## 2. Foundational Concepts and Entities in WEB4
 
-This section explores the core building blocks of the WEB4 architecture, beginning with Linked Context Tokens (LCTs)—the reification of presence itself. We then expand to the broader concept of entities, the revolutionary treatment of roles as first-class entities, and the contextualizing mechanism of the Markov Relevancy Horizon (MRH).
+This section walks through the core building blocks of the WEB4 architecture: Linked Context Tokens (LCTs) for presence, the broader concept of Entities, Roles as first-class entities, the R6/R7 Action Framework as Web4's grammar of action, the Markov Relevancy Horizon (MRH) for context, Dictionaries for semantic interoperability, and the Coherence framework for measurable identity stability.
 
 ## 2.1. Linked Context Tokens (LCTs): The Reification of Presence
 
-Imagine if every entity—human, AI, or hybrid—left a verifiable footprint simply by existing in the digital realm. Not a username or account, but a crystallization of presence itself. This is what Linked Context Tokens achieve.
+> **Status**: core LCT primitive shipped in `web4-core` 0.1.1 (Rust + Python). Multi-device binding (TPM2 / FIDO2 / Secure Enclave / software anchors, enrollment ceremony, cross-device witnessing, quorum recovery) operational in Hardbound (45/45 integration checks). Full witness-web protocol with public reference implementation: in progress.
+
+Linked Context Tokens are Web4's presence primitive. An LCT is a non-transferable, cryptographically bound record permanently associated with one entity (a human, an AI agent, an organization, a role, a task, or a resource) for the duration of that entity's participation. It accumulates witnessed interactions, supports parent/child lineage, and tracks lifecycle status (Active / Dormant / Void / Slashed).
 
 ### 2.1.1. What is an LCT?
 
-An LCT is not merely an identifier—it is the **reification of an entity's presence in Web4**. An LCT is created when an entity enters the Web4 ecosystem and remains bound to it for the duration of that entity's participation—whether that spans a human lifetime, an organization's charter, or a task's execution window. It cannot be stolen, sold, or transferred. It is the entity's footprint in the trust-native internet, as unique as a fingerprint but far more expressive—accumulating context, history, and witnessed trust over time.
+An LCT is more than an identifier. It is a **reification of an entity's presence in Web4** — a structured record that is created when the entity enters Web4 and remains bound to it for the duration of participation (whether that spans a human lifetime, an organization's charter, or a task's execution window). The binding is non-transferable: an LCT cannot be sold, given away, or moved between entities. Operationally, an LCT carries a UUID, an Ed25519 keypair binding, parent/child lineage, status (Active / Dormant / Void / Slashed), and a hardware-binding ladder (5 levels: software / TPM2 / Secure Enclave / FIDO2 / hardware-attested) — all shipped in `web4-core` 0.1.1.
 
-Think of it this way: in the physical world, your presence creates ripples—you occupy space, cast shadows, leave traces. In the digital world, presence has been ephemeral, fakeable, transferable. LCTs change this fundamental assumption. They make digital presence as real and verifiable as physical presence.
+The shift the primitive enables: digital presence becomes verifiable rather than declarative. Today, "I am @alice" is a claim platforms accept; "I am the entity bound to LCT `83810b44-2289-4c14-854f-ae5114f747cf`, here is a fresh signature over a server-supplied challenge" is a claim cryptography accepts.
 
 ### 2.1.2. The Evolution of Understanding
 
@@ -589,19 +593,18 @@ This framework transforms Web4 from a trust network into a **coherence network**
 
 ---
 
-## 2.8. Trust as Gravity: The Force That Shapes Everything
+## 2.8. Trust as a Routing Primitive
 
-> *"In Web4, trust isn't just measured—it exerts force, drawing attention and resources like gravity draws matter."*
+While Part 3 covers trust mechanics in detail, one design property deserves note here: in Web4, **trust scores actively route attention, resources, and opportunity**. They are not just measurements; they are inputs to scheduling and allocation decisions throughout the protocol.
 
-While Part 3 explores the detailed mechanics of trust and value, one foundational concept deserves mention here: **trust operates as a fundamental force** in Web4, analogous to gravity in physical space.
+Concretely, T3 trust scores influence:
 
-High-trust entities naturally attract:
-- **Attention**: Others orient toward trustworthy sources
-- **Resources**: ATP flows preferentially to proven performers  
-- **Opportunities**: Better roles and requests gravitate to those with strong reputation
-- **Connections**: Other high-trust entities seek collaborative links
+- **Attention**: salience-weighted plugin selection in cognition harnesses (e.g., the SAGE consciousness loop weights IRP plugin invocation by trust)
+- **Resources**: ATP allocation in the Hardbound CLI is trust-weighted; higher-T3 entities receive larger allocations for the same role
+- **Opportunities**: role-binding and delegation chains preferentially extend through higher-T3 graph paths (operational in MRH propagation; trust-as-product-of-edge-trusts, with decay)
+- **Connections**: peer-witness records in the federation accumulate based on observed interaction history, which is itself T3-shaped
 
-This gravitational metaphor isn't mere poetry—it's architectural reality. The T3 tensor scores create actual force fields that shape how information, value, and opportunity flow through the system. Just as massive objects bend spacetime, high-trust entities bend the Web4 interaction space around them.
+The earlier framing of this property as "trust as gravity, like a fundamental physical force" was a metaphor that obscured the engineering. The accurate description: **trust is a routing primitive that shows up in scheduling, allocation, and graph-traversal code throughout the Web4 stack.** The metaphor was decorative; the routing is real.
 
 The beauty is that this gravity is earned, not declared. Every successful action increases mass. Every failure reduces it. The system becomes self-organizing, with trust clusters forming naturally around genuine capability and reliable performance.
 
