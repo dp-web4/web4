@@ -74,6 +74,35 @@ assert ledger.verify_proof(proof)
 
 ---
 
+## Who this is for, and why
+
+Web4 is **TCP/IP-level work for agentic AI** — infrastructure, not a product. The standard provides primitives (identity, scoped authority, real-time policy gates, cryptographic audit) that compose into whatever the operator needs to build. Web4 doesn't dictate what your application looks like, any more than TCP/IP dictated what websites would look like. It makes the application possible.
+
+If you're one of these people, this is worth your time:
+
+- **AI engineering lead at a lab or platform** building agent frameworks, policy systems, or governance tooling. Web4 primitives compose under your runtime. Cross-language interop (Python and Rust verifying the same on-disk ledger) is shipped; identity, T3/V3 trust, witnessing, and audit-defensible records are published primitives, not slideware.
+
+- **CISO or AI risk lead** in a regulated industry (finance, defense, healthcare) where agentic AI deployments will need to defend their actions to auditors, regulators, or insurers. Web4 turns "we hope nothing went wrong" into "we can prove what happened, on whose authority, by what rules." Hardware-bound enterprise implementation lives in **Hardbound** (contact dp@metalinxx.io); the open standard is here.
+
+- **Developer-tooling company** building agent frameworks (LangChain, CrewAI, AG2, etc.) or governance toolkits. Web4 sits *upstream* of runtime policy enforcement — governance for what an agent IS (identity, witness graph, accountability ontology), not what it DOES (runtime gating). The two layers compose; Web4 is the standard your governance toolkit can consume so identity isn't proprietary to the runtime. Worked example: [Web4 Governance plugin for Claude Code](https://github.com/anthropics/claude-code/pull/20448).
+
+- **Standards body, regulator, or insurer** trying to figure out what "agentic AI accountability" means technically. Web4 is the open spec + published implementation + reproducible artifacts. AGPL-3.0 with patent grant ([PATENTS.md](PATENTS.md)), owned by no one. Start with [STATUS.md](STATUS.md) and the [whitepaper](whitepaper/).
+
+If you came here looking for a finished product to install and use, this isn't that. If you came here looking for the layer underneath the products you're building, it is.
+
+### Why the applications will come
+
+Web4 doesn't predict what the killer applications will be — that's what builders figure out, the way they figured out email and the web on top of TCP/IP. What's certain is the *forcing function* is arriving:
+
+- **The bearer-token credential model is breaking.** The Vercel breach exploited tokens-as-keys; Web4 treats tokens as evidence in a witness graph instead.
+- **Financial regulators are convening on agentic AI.** The recent SR 26-2 / OCC Bulletin 2026-13 explicitly excludes agentic AI from current model-risk frameworks and signals an RFI is imminent.
+- **Cyber insurers don't yet know how to underwrite AI risk** — the technical references they'd cite don't exist yet.
+- **AI labs are starting to ship runtime governance features** (Microsoft Agent Governance Toolkit, April 2026; Anthropic adopting Web4-style governance patterns) — but each in their own runtime, without a shared identity layer underneath. Web4 is that layer.
+
+The applications come when the substrate exists *and* the present-tense pain forces builders onto it. Both halves are arriving at the same time. The standard is here so the applications can come — not because we know what they are.
+
+---
+
 ## Status Snapshot (2026-04-29)
 
 ### Where it landed publicly
