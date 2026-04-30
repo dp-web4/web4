@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-04-29
+**Last Updated**: 2026-04-30
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,12 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-04-30: Publisher Maintenance - Rebuild for Calibration-Framing Edits
+- Five non-publisher commits on 2026-04-29 (after the morning publisher build) edited whitepaper sources without rebuilding artifacts: exec summary calibration framing + v0.1.1 fix (a5dafa6); Introduction + Part 1 + Part 2 rewrite to "current state, not past vision" (16c0e77); Part 7 §7.0.0 published-packages section (367caac); conclusion full rewrite (5edc79f); Part 2.8 + conclusion framing restoration (fdf7e63)
+- Net effect across 6 section files: +134/-151 lines, framing-level shift from "vision/revolution" rhetoric → calibrated current-state language. No new canonical terms; no terminology drift; existing published-packages narrative (v0.1.1) reinforced
+- Rebuilt md (3,738 lines, 240K) and pdf (408K). Build artifacts and docs/whitepaper-web/ copies now reflect 2026-04-29 evening source state
+- No new content authored by publisher this pass — pure artifact-source reconciliation
 
 ### 2026-04-29: Publisher Maintenance - First Public Release Reflected
 - web4-core and web4-trust-core v0.1.0 published to crates.io and PyPI on 2026-04-28 (commit 9744051, plus v0.1.1 Python-import fix in 7d25a9d)

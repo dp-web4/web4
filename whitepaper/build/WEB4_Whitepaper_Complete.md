@@ -8,9 +8,11 @@
 
 # Executive Summary: The Trust-Native Internet
 
-We stand at the threshold of a new internet—one where trust is not granted but earned, where value flows to genuine contribution, and where humans and artificial intelligences collaborate as peers in a shared cognition field.
+> **Status calibration**: This whitepaper presents the Web4 **vision architecture**. As of 2026-04-29, four core packages are public on crates.io and PyPI (`web4-core` 0.1.1, `web4-trust-core` 0.1.1, plus the matching Python wheels — all AGPL-3.0-or-later; v0.1.0 was yanked the same day it shipped after clean-install verification caught a Python import-path defect). A working agent-commerce-delegation demo with 166 passing tests is at [`web4/demo/`](https://github.com/dp-web4/web4/tree/main/demo). The strongest single proof point: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6 via the SAGE harness ([public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4)). **Most of what follows is specification, not deployed code.** The implementation-status section below draws explicit lines between currently-available, emerging, and not-yet-implemented.
 
-WEB4 adds what was always missing. Where Web2 centralized control and Web3 tokenized everything, WEB4 makes trust the fundamental force—like gravity in physics, binding intelligent entities into coherent systems that learn, remember, and evolve.
+WEB4 asks whether trust can be a first-class primitive of an internet for humans and AI agents — earned through witnessed contribution, expressed through a typed RDF ontology, anchored cryptographically. The framing borrows from the conventions of Web1 (access), Web2 (participation), Web3 (ownership): the question is whether *verifiable presence* is the next missing layer.
+
+The vision below is ambitious. The work tests the vision. The boundary between what's tested and what's still vision is named explicitly throughout.
 
 ## The Core Innovation
 
@@ -41,7 +43,7 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 **This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity:
 
 **Currently Available** (ready for testing):
-- **`web4-core` and `web4-trust-core` v0.1.0** (published 2026-04-28 to crates.io and PyPI): the LCT presence primitive, T3/V3 trust tensors, coherence scoring, in-memory and on-disk Ledger backends, and the AttestationEnvelope hardware-trust primitive — all installable as `cargo add web4-core` or `pip install web4-core` (52+4 doctests for `web4-core`, 57 tests for `web4-trust-core`). Release record: `docs/proof/PUBLISHED.md`.
+- **`web4-core` and `web4-trust-core` v0.1.1** (published 2026-04-28 to crates.io and PyPI; v0.1.0 yanked same day): the LCT presence primitive, T3/V3 trust tensors (3 root dims, fractally extensible via `web4:subDimensionOf`), coherence scoring, in-memory and on-disk Ledger backends, and the AttestationEnvelope hardware-trust primitive — all installable as `cargo add web4-core` or `pip install web4-core` (52+4 doctests for `web4-core`, 57 tests for `web4-trust-core`). Release record: `docs/proof/PUBLISHED.md`.
 - **Agent Authorization for Commerce**: A working proof-of-concept demonstrating core Web4 principles in a commerce context. Users can safely delegate purchasing authority to AI agents with cryptographically enforced limits, resource constraints, and instant revocation. See `/demo` for working implementation with 166 passing tests.
 
 **Emerging Implementation** (operational in Hardbound CLI, validating Web4 protocol concepts):
@@ -83,9 +85,11 @@ Join us in building the trust-native internet—where memory becomes wisdom, int
 
 # Introduction
 
-This document presents WEB4—a paradigm that redefines trust, value, and intelligence in the age of autonomous collaboration. Building upon the philosophical framework of [Synchronism](https://dpcars.net/synchronism), which recognizes coherence and resonance as fundamental organizing principles, WEB4 manifests these concepts as practical internet architecture.
+> **Status (2026-04-29)**: This whitepaper documents Web4 — a research program proposing trust-native architecture for an internet that includes AI agents as participants. Some of what's described below is **shipped and installable** (`web4-core` 0.1.1 and `web4-trust-core` 0.1.1 on crates.io and PyPI; the agent-commerce-delegation demo with 166 passing tests; the AttestationEnvelope hardware-trust primitive). Some is **operational in the Hardbound CLI** as protocol-validation work (R7 action framework, ACP, Sybil-resistance proofs, multi-device LCT binding). Some is **specified but not yet built**. The Executive Summary draws explicit lines between the three; the body sections that follow describe the full architecture, with current-state markers where they apply.
 
-The document follows a fractal structure: conceptual foundations that contain the whole vision, with links to technical implementations for those who wish to build. It is neither purely visionary nor purely technical, but both—reflecting our belief that profound change requires both imagination and engineering.
+This document presents WEB4 — a proposed architecture for trust, value, and intelligence in an age of autonomous collaboration between humans and AI. The work is grounded in the conventions of Web1 (access), Web2 (participation), and Web3 (ownership): the framing question is whether *verifiable presence* is the next missing layer.
+
+The document follows a fractal structure: conceptual foundations followed by technical implementations for those who wish to build. The conceptual layer borrows from the [Synchronism](https://dpcars.net/synchronism) research program (coherence and resonance as organizing principles for sustainable systems), but Web4 itself is practical architecture — protocols, schemas, ledger backends, attestation primitives — and is evaluable on those terms.
 
 ## Core Mechanisms
 
@@ -113,9 +117,9 @@ Where specific Synchronism concepts add meaningful depth—such as coherence eth
 
 The LCT framework is protected by two issued U.S. patents—[US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B1)—with additional patents pending. These filings ensure the foundational mechanisms are recognized, while preserving the option for wide deployment and public benefit.
 
-Funding for portions of this research and development has been provided by **MetaLINNX, Inc.**, which supports the evolution of decentralized, trust-based systems and the public infrastructure required to sustain them.
+Funding for portions of this research and development has been provided by **MetaLINXX Inc.**, which supports the evolution of decentralized, trust-based systems and the public infrastructure required to sustain them.
 
-The authors intend to release substantial portions of this work, including simulation code, governance tools, and Web4-native protocols, under the **GNU Affero General Public License (AGPL)**. Our aim is to foster a living, collaborative, and ethically grounded ecosystem—open to audit, extension, and shared stewardship.
+Substantial portions of this work — including the published `web4-core` / `web4-trust-core` packages, simulation code, governance tools, and Web4-native protocols — are released under **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**, with the patent grant in [PATENTS.md](https://github.com/dp-web4/web4/blob/main/PATENTS.md) (royalty-free for non-commercial and research use, AGPL-bounded). The open-source license and patent grant together aim to foster an ecosystem open to audit, extension, and shared stewardship.
 
 ## An Invitation to Participate
 
@@ -123,9 +127,7 @@ To participate in ongoing development or collaborative application of the WEB4 f
 
 📩 **dp@metalinxx.io**
 
-We invite thoughtful critique, aligned contribution, and resonant imagination. This is not a finished system but a living framework, evolving through the contributions of all who engage with it.
-
-*The future is not something we predict but something we create together.*
+We invite thoughtful critique and aligned contribution. This is not a finished system; it is research-stage work being developed in the open. Engagement at any depth — from running the published packages to challenging specification details — is welcome.
 
 # Glossary of WEB4 Terms
 
@@ -549,70 +551,81 @@ Original name for LCTs—evolved to "Context" to better capture their role in es
 
 ## 1.1. Defining WEB4
 
-WEB4 represents a conceptual evolution of the internet, envisioned as a paradigm shift that moves beyond the characteristics of its predecessors, Web2 and Web3. While Web2 is largely defined by its platform-centric nature, where large centralized entities control data and user interaction, and Web3 is characterized by its efforts towards decentralization primarily through token-driven economies and blockchain technologies, WEB4 proposes a further transition towards a **trust-driven, decentralized intelligence model**.
+WEB4 is a proposed framework for an internet layer in which interactions are based on **verifiable trust and shared context** — particularly in environments where AI agents are participants alongside humans. Web2 was defined by platform-centric structures where centralized entities controlled data and user interaction. Web3 emphasized decentralization through token-driven economies and blockchain technologies. Web4 proposes a further transition: trust as a first-class primitive of the protocol layer, not an emergent property of platforms or financial incentives.
 
-The core idea of WEB4 is to establish a new layer of the internet where interactions are fundamentally based on verifiable trust and shared context, particularly in an environment increasingly shaped by artificial intelligence and automation. It seeks to address the limitations and challenges perceived in both Web2's centralization and Web3's sometimes speculative or narrowly focused tokenomics. Instead of trust being implicitly managed by platforms or explicitly managed by purely financial incentives, WEB4 aims to build trust directly into the fabric of interactions through new mechanisms and protocols.
+The core question Web4 asks is whether trust can be made cryptographically verifiable, dynamically updated, and ontologically structured (via RDF) — and whether such an architecture provides a useful substrate for human–AI collaboration that current architectures don't.
 
-This envisioned iteration of the web is not merely a technological upgrade but a re-conceptualization of how digital (and potentially physical) systems interact, collaborate, and create value. It anticipates a future where AI agents and humans coexist and collaborate more seamlessly, requiring robust systems for establishing and maintaining coherence, accountability, and shared understanding. WEB4, therefore, is not just about new protocols or applications, but about fostering an ecosystem where intelligence, whether human or artificial, can operate with a higher degree of intrinsic trust and alignment towards common goals or validated value creation. The transition is framed as moving from platform-driven (Web2) to token-driven (Web3) and ultimately to trust-driven (WEB4), where trust is not an afterthought but a foundational, verifiable, and dynamically managed component of the digital realm.
+The framing — Web2 platform-driven, Web3 token-driven, Web4 trust-driven — is positioning, not science. It is evaluable on whether the resulting protocols and primitives carve a useful joint that current alternatives (DIDs, VCs, MCP authorization, OAuth, Solid) don't already address. Subsequent parts of this whitepaper describe those primitives in detail; the [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) and [Executive Summary](../00-executive-summary/) draw explicit lines between what is currently shipped, what is operational in the Hardbound CLI as protocol-validation work, and what remains specification.
 
-## 1.2. The Imperative for WEB4
+## 1.2. The Problem Web4 Is Trying to Address
 
-The proposal for WEB4 arises from a perceived need to address the evolving landscape of digital interaction, particularly in light of rapid advancements in artificial intelligence (AI) and automation, and the inherent limitations of previous web paradigms. The documents suggest several driving forces that make a new, trust-centric web architecture not just desirable, but increasingly necessary.
+The concrete problem: AI agents are increasingly autonomous — making purchases, executing code, interacting with services, taking decisions on behalf of users — and current authorization architectures don't answer two questions cleanly:
 
-One primary driver is the assertion that **AI and automation are fundamentally altering traditional structures of work, wealth, and ownership**. As intelligent systems become more capable, there's a potential for widespread obsolescence of existing jobs and economic models. In such a scenario, static, hierarchical systems of organization and value exchange may prove inadequate to adapt to what is termed a "fluid intelligence economy." WEB4 is presented as a framework designed to function within this dynamic environment, where value is created and exchanged based on verifiable trust and contribution rather than traditional employment or capital ownership.
+1. **How do I know an agent will act appropriately in a given context, before it acts?** Current approaches: trusting the platform that hosts it (Web2), trusting whoever holds the keys (Web3). Neither addresses behavioral capability or contextual fit.
+2. **How do I prove what an agent actually did, after the fact, in a way that doesn't depend on a single trusted intermediary?** Current approaches: platform logs (revocable, manipulable), blockchain records (limited expressivity, often incompatible with off-chain action). Neither produces a witnessed audit trail with the granularity to support trust-graph reasoning.
 
-Furthermore, the limitations of Web2 (characterized by centralized platforms) and Web3 (often focused on token-driven decentralization) highlight the need for a different approach. Web2's centralization can lead to issues of data control, censorship, and monopolistic practices. While Web3 aims to address these through decentralization, its mechanisms can sometimes be complex, energy-intensive (as in the critique of Proof-of-Work), or may not fully capture nuanced aspects of trust and value beyond financial transactions. The argument is that a more robust and intrinsic system for establishing and verifying trust is needed, one that is not solely reliant on platform intermediaries or purely economic incentives.
+These are not future problems. They are current problems in agent-commerce delegation, agent-tool authorization, and any system where multiple agents (human or AI) need to coordinate without a single trusted referee. Web4's proposal is that solving them requires:
 
-WEB4, therefore, is positioned as a response to the challenge of building a digital ecosystem where interactions between humans, AIs, and organizations can occur with a higher degree of transparency, accountability, and verifiable coherence. In a world where AI agents can act with increasing autonomy, ensuring their actions are aligned with intended purposes and can be trusted becomes paramount. The imperative for WEB4 is thus rooted in the need for a more resilient, adaptive, and trustworthy digital infrastructure capable of supporting a future where intelligence is increasingly decentralized and collaborative efforts span across human and artificial entities. It seeks to provide the foundational mechanisms for a system where value is recognized based on actual contribution and verifiable capabilities, rather than legacy credentials or centralized declarations.
+- A **non-transferable presence primitive** anchored in cryptographic identity, with extensible context (LCT)
+- A **multi-dimensional trust representation** that captures behavioral capability beyond identity (T3 tensor)
+- A **value-creation accounting** that links contribution to allocation (ATP/ADP cycle)
+- A **contextual scoping mechanism** that bounds what's relevant for any decision (MRH)
+- A **shared ontological layer** so all of the above interoperate across implementations (RDF)
 
-## 1.3. Core Vision and Goals
+The first three — LCT, T3, ATP/ADP — are partially shipped as of 2026-04-29 (`web4-core` 0.1.1, `web4-trust-core` 0.1.1, working agent-commerce demo). MRH and the full RDF graph are specified and being progressively implemented. Whether this is the right *factoring* of the problem — versus, say, building on DIDs/VCs or extending MCP authorization — is a sociological question about adoption, evaluable only over time.
 
-The core vision of WEB4, as articulated in the provided materials, is to **redefine trust, value, and collaboration** in an increasingly complex digital and AI-driven world. It aims to establish an internet architecture where these fundamental aspects are not merely assumed or managed by intermediaries, but are intrinsically woven into the system through verifiable and dynamic mechanisms. The overarching goal is to foster a more coherent, accountable, and intelligent ecosystem where diverse entities—humans, AIs, and organizations—can interact and create value with a high degree of confidence and alignment.
+## 1.3. Goals
 
-Key goals stemming from this vision include:
+Web4's stated design goals, in evaluable form:
 
-1. **Establishing Verifiable Trust:** To move beyond traditional credentialing systems or platform-dependent trust by implementing cryptographically enforceable trust mechanisms. This involves creating systems where the reputation, intent, and coherence of entities can be transparently verified and dynamically updated based on their actions and contributions. The aim is to enable interactions where trust is not a prerequisite granted by a central authority but an emergent property of the system itself.
+1. **Verifiable trust without central declaration.** Trust should be a computable function of witnessed interactions, not a permission granted by a platform. Status: partially implemented. T3 tensors in `web4-trust-core` 0.1.1 capture the multidimensional structure (Talent / Training / Temperament, each a fractally extensible RDF sub-graph). Witnessing primitives in `web4-core` 0.1.1's Ledger backends. Cross-machine peer-witness scans operational across the dp-web4 fleet (see [`heterogeneous-identity` design note](https://github.com/dp-web4/web4/blob/main/docs/specs/heterogeneous-identity.md)).
 
-2. **Redefining Value and its Exchange:** To create a framework where value is recognized and exchanged based on actual, verifiable contributions and energy expenditure, rather than speculative or abstract metrics. This involves developing protocols that can track the flow of energy and the creation of value in a transparent and auditable manner, thereby incentivizing meaningful and coherent contributions to the ecosystem.
+2. **Value tied to contribution, not speculation.** Allocation tracked through an ATP/ADP cycle modeled on biological energy metabolism: discharge through use, reload through witnessed contribution. Status: protocol-level mechanics operational in the Hardbound CLI (recharge, team pools, dynamic action costs, anti-gaming caps). Public reference implementation: pending.
 
-3. **Facilitating Fluid and Accountable Collaboration:** To enable seamless and effective collaboration between diverse entities, including humans and autonomous AI agents. This requires establishing clear contexts for interaction, defining roles and responsibilities transparently, and ensuring that all participants are accountable for their actions and their impact on the system. The goal is to move from static, hierarchical job structures to fluid skill networks where entities can engage in real-time project matching based on verified capabilities.
+3. **Coordination across human and AI agents.** Roles, responsibilities, and authorization expressed cryptographically and revocably. Status: working agent-commerce-delegation demo with 166 passing tests; R7 action framework operational in Hardbound; ACP (Agentic Context Protocol) lifecycle integration validated end-to-end.
 
-4. **Promoting Systemic Coherence and Self-Regulation:** To design an ecosystem that can self-regulate and maintain coherence based on shared intent, trust flow, and the impact of contributions. This involves moving away from rigid, top-down control towards more organic, emergent forms of governance where the system adapts and evolves based on the interactions and value created within it.
+4. **Systemic coherence as observable property.** The protocol should make it possible to *measure* coherence (e.g., the C × S × Φ × R coherence formula in `web4-core`), not just assume it. Status: coherence primitives shipped; sociotechnical-scale validation pending real deployment.
 
-Ultimately, the vision for WEB4 is to lay the groundwork for a more intelligent, equitable, and resilient digital future. It seeks to provide the tools and protocols necessary for navigating a world increasingly characterized by decentralized intelligence and the need for robust, verifiable trust in all forms of interaction and collaboration.
+These goals are testable. The whitepaper sections that follow describe the mechanisms in detail; the [Implementation Examples](../09-part7-implementation-examples/) section shows what currently runs.
 
 ## 1.4. Overview of Key Components
 
-The WEB4 vision is underpinned by several interconnected core components designed to facilitate its trust-driven, decentralized intelligence model. These components, as introduced in the foundational documents, provide the mechanisms for establishing presence, context, trust, value, and operational coherence within the proposed ecosystem. A brief overview of these key pillars is essential to understanding the architecture of WEB4.
+Web4's architecture has five tightly-coupled components. Each is described in detail in subsequent parts; this section is the orientation map. Status notes indicate what is currently shipped, operational in Hardbound, or specified.
 
-1. **Linked Context Tokens (LCTs):** At the heart of WEB4 are LCTs, which serve as the fundamental building blocks for witnessed presence and context. Initially termed "Linked Control Tokens" and later refined to "Linked Context Tokens," these are non-transferable, cryptographically bound tokens permanently associated with an entity (be it a human, AI, organization, role, task, or data resource). LCTs provide a verifiable and immutable root of presence, from which identity and reputation emerge, enabling the creation of dynamic trust webs and auditable historical records. They are crucial for defining an entity's scope, permissions, and relationships within specific contexts.
+1. **Linked Context Tokens (LCTs)** — non-transferable, cryptographically bound presence primitives. Each LCT is permanently associated with one entity (human, AI, organization, role, task, or resource) and accumulates witnessed interactions over its lifecycle. LCTs are the substrate from which identity and reputation are built; they support multi-device binding, multi-factor witnessing (the [constellation pattern](https://github.com/dp-web4/web4/blob/main/docs/specs/heterogeneous-identity.md)), and parent/child lineage with cryptographically-anchored revocation. **Status**: core primitive shipped in `web4-core` 0.1.1; multi-device binding operational in Hardbound; full witness-web protocol specified.
 
-2. **Allocation Transfer Packet (ATP):** ATP packets are designed as a system for tracking the flow of energy and the creation of value. It introduces the concept of semi-fungible tokens that exist in "charged" (ATP) and "discharged" (ADP) states, analogous to biological energy cycles. Energy expenditure converts ATP to ADP, and the subsequent certification of value created allows ADP to be exchanged for new ATP. This mechanism aims to create a transparent and auditable trail of value generation, directly linking it to energy use and incentivizing meaningful contributions over speculation.
+2. **Allocation Transfer Packet (ATP)** — semi-fungible energy-value cycle modeled on biological ATP/ADP. Use discharges ATP into ADP; witnessed contribution recharges ADP back to ATP. The cycle is both a metaphor and a concrete protocol: discharge and recharge are first-class operations with anti-gaming constraints. **Status**: protocol operational in Hardbound CLI (recharge, team pools, dynamic action costs, anti-gaming caps, formally proven Sybil resistance via 5 theorems and 4 game-theoretic models). Public reference implementation: pending.
 
-3. **T3/V3 Tensors:** These are multi-dimensional metrics that provide a nuanced way to quantify an entity's capabilities and the value it creates. 
-   * The **T3 Tensor** (Trust Tensor) assesses an entity based on its **T**alent, **T**raining, and **T**emperament, offering a dynamic measure of its capability profile and trustworthiness within a given context.
-   * The **V3 Tensor** (Value Tensor) evaluates the value generated by an entity through three lenses: **V**aluation (subjective worth to the recipient), **V**eracity (objective assessment of the value claim), and **V**alidity (confirmation of value transfer and receipt).
-   Together, T3 and V3 tensors enable a more granular and context-aware system for evaluating entities and their contributions, moving beyond simplistic or static credentials. Both tensors follow a fractal RDF pattern: the three root dimensions are nodes in an open-ended sub-graph that anyone can extend with domain-specific sub-dimensions, without modifying the core protocol.
+3. **T3/V3 Tensors** — multi-dimensional records of capability and contribution.
+   * **T3** (Trust Tensor): three root dimensions — **T**alent, **T**raining, **T**emperament — each itself an open-ended RDF sub-graph of context-specific sub-dimensions linked via `web4:subDimensionOf`. Not a fixed-size 3-vector; a fractal extensibility pattern.
+   * **V3** (Value Tensor): three root dimensions — **V**aluation, **V**eracity, **V**alidity — same fractal RDF pattern.
+   Both tensors are bound to **entity-role pairs** via RDF triples — trust is a relationship, not a property. **Status**: T3 and V3 shipped in `web4-trust-core` 0.1.1; sub-dimension extensibility working; observation/decay logic shipped.
 
-4. **Markov Relevancy Horizon (MRH):** A contextualizing mechanism that defines an entity's zone of influence, comprehension, and authorization. Implemented as an RDF graph with typed edges, MRH manages the complexity of interactions by localizing relevance and enabling graph-based trust propagation.
+4. **Markov Relevancy Horizon (MRH)** — contextual scoping mechanism. Defines an entity's zone of influence, comprehension, and authorization as a typed RDF graph rather than a flat boundary. Trust propagates through MRH edges with decay. **Status**: 134 RDF triples operational in Hardbound, Turtle export, trust-propagation through graph paths with decay (41/41 integration checks).
 
-These core components share a common substrate: **RDF triples**—the typed relationships that bind entities, roles, trust tensors, and context into a single queryable graph. This ontological backbone is what makes Web4 extensible without central coordination. LCTs provide the presence and contextual anchors, ATP manages the flow and accounting of value and energy, T3/V3 Tensors offer the metrics for assessing trust and value, and RDF gives all of these relationships formal, machine-readable structure.
+5. **R6 / R7 Action Framework** — the grammar of every Web4 action. R6 = **R**ules / **R**ole / **R**equest / **R**eference / **R**esource → **R**esult. R7 = R6 + **R**eputation as a first-class output. Every cryptographically-signed action in Web4 follows this shape, making cross-system audit possible. **Status**: R7 operational in Hardbound (62/62 integration checks); composes with the ACP (Agentic Context Protocol) plan→intent→law-check→approve→execute→record lifecycle (28/28 checks).
+
+These five components share a common substrate: **RDF triples** as the typed-relationship backbone. RDF is what makes Web4 extensible without central coordination — anyone can add a sub-dimension to T3, an MRH edge type, or a witness relationship without modifying the core protocol. LCTs anchor presence; ATP accounts for value flow; T3/V3 measure capability and contribution; MRH bounds context; R6/R7 grammars all of it together as auditable actions.
 
 # Part 2: Foundational Concepts and Entities
 
+> **Status note for this part**: many of the primitives described below are shipped in `web4-core` 0.1.1 and `web4-trust-core` 0.1.1 (LCT, T3 / V3 tensors, coherence framework, Ledger backends, AttestationEnvelope). Some — Roles as first-class entities, Dictionaries, the full R6/R7 action grammar — are operational in the Hardbound CLI as protocol-validation work but not yet in the public packages. Some — full witness-acknowledgment protocol, blockchain typology — remain specification. Subsections below carry status markers where they apply. The [Executive Summary](../00-executive-summary/) has the consolidated status table.
+
 ## 2. Foundational Concepts and Entities in WEB4
 
-This section explores the core building blocks of the WEB4 architecture, beginning with Linked Context Tokens (LCTs)—the reification of presence itself. We then expand to the broader concept of entities, the revolutionary treatment of roles as first-class entities, and the contextualizing mechanism of the Markov Relevancy Horizon (MRH).
+This section walks through the core building blocks of the WEB4 architecture: Linked Context Tokens (LCTs) for presence, the broader concept of Entities, Roles as first-class entities, the R6/R7 Action Framework as Web4's grammar of action, the Markov Relevancy Horizon (MRH) for context, Dictionaries for semantic interoperability, and the Coherence framework for measurable identity stability.
 
 ## 2.1. Linked Context Tokens (LCTs): The Reification of Presence
 
-Imagine if every entity—human, AI, or hybrid—left a verifiable footprint simply by existing in the digital realm. Not a username or account, but a crystallization of presence itself. This is what Linked Context Tokens achieve.
+> **Status**: core LCT primitive shipped in `web4-core` 0.1.1 (Rust + Python). Multi-device binding (TPM2 / FIDO2 / Secure Enclave / software anchors, enrollment ceremony, cross-device witnessing, quorum recovery) operational in Hardbound (45/45 integration checks). Full witness-web protocol with public reference implementation: in progress.
+
+Linked Context Tokens are Web4's presence primitive. An LCT is a non-transferable, cryptographically bound record permanently associated with one entity (a human, an AI agent, an organization, a role, a task, or a resource) for the duration of that entity's participation. It accumulates witnessed interactions, supports parent/child lineage, and tracks lifecycle status (Active / Dormant / Void / Slashed).
 
 ### 2.1.1. What is an LCT?
 
-An LCT is not merely an identifier—it is the **reification of an entity's presence in Web4**. An LCT is created when an entity enters the Web4 ecosystem and remains bound to it for the duration of that entity's participation—whether that spans a human lifetime, an organization's charter, or a task's execution window. It cannot be stolen, sold, or transferred. It is the entity's footprint in the trust-native internet, as unique as a fingerprint but far more expressive—accumulating context, history, and witnessed trust over time.
+An LCT is more than an identifier. It is a **reification of an entity's presence in Web4** — a structured record that is created when the entity enters Web4 and remains bound to it for the duration of participation (whether that spans a human lifetime, an organization's charter, or a task's execution window). The binding is non-transferable: an LCT cannot be sold, given away, or moved between entities. Operationally, an LCT carries a UUID, an Ed25519 keypair binding, parent/child lineage, status (Active / Dormant / Void / Slashed), and a hardware-binding ladder (5 levels: software / TPM2 / Secure Enclave / FIDO2 / hardware-attested) — all shipped in `web4-core` 0.1.1.
 
-Think of it this way: in the physical world, your presence creates ripples—you occupy space, cast shadows, leave traces. In the digital world, presence has been ephemeral, fakeable, transferable. LCTs change this fundamental assumption. They make digital presence as real and verifiable as physical presence.
+The shift the primitive enables: digital presence becomes verifiable rather than declarative. Today, "I am @alice" is a claim platforms accept; "I am the entity bound to LCT `83810b44-2289-4c14-854f-ae5114f747cf`, here is a fresh signature over a server-supplied challenge" is a claim cryptography accepts.
 
 ### 2.1.2. The Evolution of Understanding
 
@@ -1191,19 +1204,22 @@ This framework transforms Web4 from a trust network into a **coherence network**
 
 ## 2.8. Trust as Gravity: The Force That Shapes Everything
 
-> *"In Web4, trust isn't just measured—it exerts force, drawing attention and resources like gravity draws matter."*
+> *"In Web4, trust isn't just measured — it exerts force, drawing attention and resources like gravity draws matter."*
 
-While Part 3 explores the detailed mechanics of trust and value, one foundational concept deserves mention here: **trust operates as a fundamental force** in Web4, analogous to gravity in physical space.
+While Part 3 covers trust mechanics in detail, one design property deserves note here: in Web4, **trust scores actively route attention, resources, and opportunity**. They are not passive measurements; they are inputs to scheduling and allocation decisions throughout the protocol. Trust functions gravitationally — high-trust entities attract attention, resources, and connection the way mass warps spacetime to attract bodies.
 
-High-trust entities naturally attract:
-- **Attention**: Others orient toward trustworthy sources
-- **Resources**: ATP flows preferentially to proven performers  
-- **Opportunities**: Better roles and requests gravitate to those with strong reputation
-- **Connections**: Other high-trust entities seek collaborative links
+The metaphor is the intuition pump; the mechanism is the verification:
 
-This gravitational metaphor isn't mere poetry—it's architectural reality. The T3 tensor scores create actual force fields that shape how information, value, and opportunity flow through the system. Just as massive objects bend spacetime, high-trust entities bend the Web4 interaction space around them.
+| What's drawn | Mechanism in code |
+|---|---|
+| **Attention** — others orient toward trustworthy sources | Salience-weighted plugin selection (e.g., the SAGE consciousness loop weights IRP plugin invocation by trust) |
+| **Resources** — ATP flows preferentially to proven performers | Trust-weighted ATP allocation in the Hardbound CLI: higher-T3 entities receive larger allocations for the same role |
+| **Opportunities** — better roles and requests gravitate to strong reputation | Role-binding and delegation chains preferentially extend through higher-T3 graph paths (operational in MRH propagation; trust-as-product-of-edge-trusts, with decay) |
+| **Connections** — other high-trust entities seek collaborative links | Peer-witness records in the federation accumulate based on observed interaction history, which is itself T3-shaped |
 
-The beauty is that this gravity is earned, not declared. Every successful action increases mass. Every failure reduces it. The system becomes self-organizing, with trust clusters forming naturally around genuine capability and reliable performance.
+Just as massive objects bend spacetime, high-trust entities bend the Web4 interaction space around them. The gravity is earned, not declared: every successful action increases the entity's effective "mass" in the trust-graph; every failure reduces it. The system becomes self-organizing, with trust clusters forming naturally around genuine capability and reliable performance.
+
+The metaphor and the mechanism each do work. Readers reasoning about emergent dynamics can think in gravitational terms; readers auditing the implementation can trace specific scheduling/allocation/graph-traversal sites where T3 scores feed in. Both readings describe the same property.
 
 ---
 
@@ -2307,6 +2323,23 @@ This typology ensures that each piece of data finds its natural persistence leve
 
 ## 7.0. Implementation Status and Critical Blockers
 
+### 7.0.0. Published Packages (2026-04-29)
+
+Four core packages are public on crates.io and PyPI as of v0.1.1, all AGPL-3.0-or-later:
+
+| Package | Registry | Version | Install |
+|---------|----------|---------|---------|
+| `web4-core` (Rust) | [crates.io](https://crates.io/crates/web4-core) | 0.1.1 | `cargo add web4-core` |
+| `web4-core` (Python) | [PyPI](https://pypi.org/project/web4-core/) | 0.1.1 | `pip install web4-core` |
+| `web4-trust-core` (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.1.1 | `cargo add web4-trust-core` |
+| `web4-trust` (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.1.1 | `pip install web4-trust` |
+
+`web4-core` provides the LCT primitive (Ed25519 keypair binding, parent/child lineage, status lifecycle, hardware-binding ladder), T3 / V3 trust tensors with fractal RDF sub-graphs, identity coherence (`C × S × Φ × R`), Ledger trait + two backends (`InMemoryLedger`, `LocalLedger` — file-based, hash-chained, JSONL), and the AttestationEnvelope hardware-trust primitive with anchor verifiers for TPM2 / FIDO2 / Secure Enclave / software fallback. 52 unit tests + 4 doctests in the Rust crate.
+
+`web4-trust-core` adds entity trust persistence, witnessing primitives, decay models, and a TrustStore backend. 57 tests.
+
+v0.1.0 was yanked from crates.io the same day it shipped after clean-install verification caught a Python import-path defect (the wheel shipped without `__init__.py`); v0.1.1 is canonical. The full publish narrative — including the discipline rule that would have prevented the defect pre-publish — is at [`docs/proof/PUBLISHED.md`](https://github.com/dp-web4/web4/blob/main/docs/proof/PUBLISHED.md).
+
 ### 7.0.1. Current Implementation State
 
 | Component | Status | Notes |
@@ -3028,138 +3061,89 @@ While acknowledging that PoW *does* secure the network, the WEB4 perspective dee
 
 # Conclusion
 
-> *"The future is not a destination but a construction site. Web4 is the blueprint—you are the builders."*
+> **Status (2026-04-29)**: Web4 is a research-stage project. Core primitives are shipped (`web4-core` 0.1.1 + `web4-trust-core` 0.1.1 on crates.io and PyPI; AttestationEnvelope; agent-commerce-delegation demo with 166 passing tests). Many components are operational in the Hardbound CLI as protocol-validation work but not yet in public packages. Some remain specification. The Executive Summary draws the explicit lines.
 
-WEB4 represents more than technological evolution—it's a revolution in how intelligence organizes itself. By fusing trust into the fabric of interaction, we create an internet where every connection carries weight, every contribution generates value, and every intelligence finds its place in the greater whole.
+## What this whitepaper has covered
 
-## What We've Built Together
+The architecture of Web4 as proposed:
 
-Through these pages, we've assembled the architecture of tomorrow:
+- **Linked Context Tokens (LCTs)** — non-transferable presence primitives, cryptographically anchored, with multi-device binding and parent/child lineage
+- **T3 / V3 Tensors** — multi-dimensional capability and contribution records, fractally extensible via RDF sub-graphs, bound to entity-role pairs
+- **ATP / ADP cycle** — value-creation accounting modeled on biological energy metabolism, with formal Sybil-resistance proofs and game-theoretic cooperation guarantees in the Hardbound implementation
+- **Markov Relevancy Horizon (MRH)** — contextual scoping as a typed RDF graph with trust-propagation through path products
+- **R6 / R7 Action Framework** — the grammar of every Web4 action (Rules / Role / Request / Reference / Resource → Result, plus Reputation as first-class output)
+- **Coherence framework** — `C × S × Φ × R` as a measurable property of stable identity
+- **Dictionary entities** — living semantic bridges with forward/reverse translation, ATP-staked confidence, drift detection
+- **Heterogeneous identity / constellation pattern** — multi-factor witnessing as the structural answer to vendor-gating concerns; full design note at [`docs/specs/heterogeneous-identity.md`](https://github.com/dp-web4/web4/blob/main/docs/specs/heterogeneous-identity.md)
+- **AttestationEnvelope** — unified hardware-trust primitive with TPM2 / FIDO2 / Secure Enclave / software anchors
 
-**Trust as Gravity**—Not granted by platforms or purchased with tokens, but earned through demonstrated capability and witnessed interaction. Trust becomes the fundamental force binding the digital universe.
+The architecture's load-bearing claim: trust can be a first-class primitive of the protocol layer — earned through witnessed contribution, expressed through a typed RDF ontology, anchored cryptographically — and this provides a useful substrate for human–AI collaboration that current architectures don't.
 
-**Memory as Living Tissue**—Not dead storage but active perception, where the past informs the present and shapes the future. Memory becomes the nervous system of collective intelligence.
+## What's distinctive
 
-**Energy as Lifeblood**—Not wasted on meaningless computation but channeled toward genuine creation. The ATP/ADP cycle ensures every joule expended creates demonstrable value.
+Some specific positions Web4 takes that distinguish it from adjacent work:
 
-**Intelligence as Symphony**—Not isolated nodes but orchestrated collaboration, where humans and AIs harmonize as peers in the cognition field.
+- **Identity is a constellation, not a credential.** Web4 entities don't have *an* LCT — they have a graph of mutually-witnessing factors (host LCT + hardware key + session token + software identity + peer attestations + ledger anchor). No single factor is necessary or sufficient. Resilience scales with constellation size and diversity. This is the structural answer to "what stops a hardware vendor from gating LCT access?" — you don't depend on one factor.
+- **ATP comes from measurement, not creation.** First ATP at the bottom of the chain is reified from observation of resources that already exist (compute, network, storage, attention). Not minted from nothing; not granted by an outside authority. Existence is witnessed; ATP follows from witnessed existence.
+- **Trust as routing primitive.** Trust scores in Web4 don't just describe — they actively shape attention allocation, ATP distribution, role binding, and graph traversal in the codebase. The gravitational metaphor is an intuition pump; the routing is a verification surface.
+- **Witness ≠ vouch. Signature ≠ vouch.** A witness statement says "I observed X at time T." A signature says "this observation claim is intact." Neither asserts endorsement. Multi-factor identity rides on the *consistency* between independent witnesses, not on any one endorsing the others.
+- **Salience-aware everything.** Fingerprints, publishing decisions, audit alarms — all should hash over what's *salient* per kind, not over whatever the source happens to expose. The principle generalizes from identity into how the protocol records and propagates state.
 
-## The Invitation
+## What Web4 proposes for the internet's next layer
 
-> *"To researchers, builders, and dreamers: this is your invitation to shape the substrate of digital cognition."*
+Web4 is one position on a contested question: what should follow Web2 (platform-driven) and Web3 (token-driven)? The framing this whitepaper takes is that the next layer should be **trust-driven** — and that trust must be made cryptographically verifiable, dynamically updated, and ontologically structured for that to be more than rhetoric.
 
-### To the Builders
-You who write code and craft systems—Web4 needs your hands. Every implementation strengthens the foundation. Every application proves the vision. Every bug fixed brings us closer to trust-native reality.
+Concretely, Web4 proposes an internet where:
 
-Take these concepts. Build with them. Break them. Improve them. The protocols are open, the patents protect the commons, and the future awaits your contribution.
+- **Trust is earned, not bought** — accumulated through witnessed contribution rather than purchased through tokens or granted by platforms
+- **Value flows to creators, not extractors** — the ATP/ADP cycle ties allocation to demonstrated contribution rather than to position in a platform hierarchy
+- **Memory becomes wisdom, not just data** — temporal sensing rather than passive storage, building trust through witnessed experience
+- **Intelligence collaborates, not dominates** — humans and AI agents participate in shared protocols as peers, not in vendor-mediated user/service relationships
+- **Every entity participates as a respected peer** — humans, AI agents, organizations, roles, devices, and resources all carry the same primitive (LCT) and earn standing through the same mechanisms
 
-### To the Thinkers
-You who probe depths and question assumptions—Web4 needs your minds. Every critique sharpens the design. Every philosophical exploration expands the possibility space. Every ethical consideration guides our evolution.
+Whether this carving of the problem proves useful — versus, say, building on DIDs/VCs, extending MCP authorization, or layering on existing identity standards — is a question time and adoption will answer. Web4 is one attempt; the whitepaper documents both the proposal and the current state of its implementation.
 
-Challenge these ideas. Extend them. Connect them to deeper truths. The framework is living, breathing, ready to grow through your insights.
+## Engagement at any depth
 
-### To the Dreamers
-You who see beyond the present—Web4 needs your vision. Every imagined application opens new doors. Every "what if" becomes tomorrow's reality. Every wild idea might be the key that unlocks collective cognition.
+This whitepaper is a research artifact. Useful engagement comes from many angles, and different readers will find different points of entry.
 
-Dream boldly. Share freely. The canvas is infinite, and your vision shapes what emerges.
+**For builders.** Web4 needs implementations. Every working application stresses the protocol; every bug fix sharpens it; every alternative implementation tests the spec's portability. The packages are public (`cargo add web4-core` or `pip install web4-core`), the demo is in `/demo` with 166 passing tests, the spec corpus is at [`web4-standard/core-spec/`](https://github.com/dp-web4/web4/tree/main/web4-standard/core-spec). Take the protocols, build with them, break them, extend them.
 
-### To the Skeptics
-You who doubt and demand proof—Web4 needs your rigor. Every hard question makes us stronger. Every demand for evidence keeps us honest. Every skeptical eye helps us build something real, not just something beautiful.
+**For researchers.** Web4 needs critique that engages with the substance rather than the framing. Every critique of the architecture sharpens the design; every philosophical exploration tests the assumptions. The conceptual primitives — LCT as reified presence, T3/V3 as fractal RDF tensors, ATP as witnessed allocation, MRH as scoped relevance, R6/R7 as the grammar of action — are open to challenge. Where does the carving fail? Where does it overlap with existing standards in unproductive ways? Where do the abstractions leak under load?
 
-Question everything. Test mercilessly. Your doubt is the crucible in which trust is forged.
+**For evaluators.** Web4 needs honest assessment of whether the architecture solves the problems it claims to solve. The agent-authorization-for-commerce demo is the most verifiable artifact. The attack-simulation suite (424 vectors / 84 tracks, ~85% detection rate) is the most quantitative. STATUS.md draws lines between shipped and aspirational. Five minutes spent there is worth more than five hours spent on the framing rhetoric.
 
-## The Path We Walk Together
+**For skeptics.** Web4 needs your rigor. Every demand for evidence keeps the project honest. Every adversarial reading exposes a place where the work assumes what it should prove. The vocabulary is heavy — "trust as gravity," "memory as living tissue," "ATP/ADP cycles" — and that vocabulary is doing real work as a design pattern, but not all of it earns its weight. Push on it. The author's own STATUS.md flags many of these tensions explicitly; please add to the list.
 
-> *"We stand at the threshold—not of a new technology, but of a new form of digital existence."*
+## What's honestly unproven
 
-The journey from here is not predetermined. Web4 provides the substrate, but what grows from it depends on collective will and wisdom:
+For accurate calibration:
 
-**Today**: We build the foundations—implementing protocols, testing assumptions, creating first applications.
+- Adoption is unproven. There is no production deployment. There are no enterprise users running on these primitives in commerce contexts. There are no other independent implementations of the spec at this time.
+- Economic attack modeling is theoretical. Sybil resistance has formal proofs but no real-market testing.
+- The biological vocabulary (ATP, dream cycles, metabolic states) is doing real work as a scheduling and resource-allocation metaphor, but it also reads as woo to readers who only see surface terminology. The metaphor is a marketing liability for the technical substance, even though the substance stands without it.
+- The relationship to Synchronism — the theoretical-physics research thread that the whitepaper references — is mostly conceptual borrowing, not load-bearing. SAGE/Web4 do not depend on Synchronism's specific claims being true.
+- Whether the framing of "trust as the missing internet layer" carves the problem at the right joint, versus alternatives that already exist (DIDs, VCs, MCP authorization, OAuth/OIDC, Solid), is a sociological question about adoption that no whitepaper can resolve.
 
-**Tomorrow**: We scale the vision—millions of entities creating billions of trusted interactions, value flowing to genuine contribution.
+## Ways to start
 
-**Beyond**: We transcend the imagined—collective intelligence emerging from distributed trust, wisdom crystallizing from shared memory, cognition itself evolving through digital substrate.
-
-## The Choice Before Us
-
-> *"Every revolution begins with a choice: accept what is, or build what could be."*
-
-We can continue with platforms that harvest attention, blockchains that waste energy, and AI systems that operate in black boxes. Or we can choose differently.
-
-We can build an internet where:
-- **Trust is earned, not bought**
-- **Value flows to creators, not extractors**
-- **Memory becomes wisdom, not just data**
-- **Intelligence collaborates, not dominates**
-- **Every entity—human or artificial—participates as a respected peer**
-
-This is not utopian fantasy but pragmatic possibility. The tools exist. The vision is clear. All that remains is the will to build.
-
-## The Living Framework
-
-> *"Web4 is not a product to consume but a garden to tend."*
-
-Unlike previous internet iterations delivered from above, Web4 grows from below—from every implementation, every experiment, every contribution. It's not owned by anyone because it's created by everyone.
-
-The framework is evolving:
-- **Adapting** through real-world testing (agent authorization proof-of-concept)
-- **Expanding** through new implementations (vision components await builders)
-- **Growing** through community contribution
-- **Learning** from what works and what needs revision
-
-You are not users of Web4—you are its co-creators, its explorers, its contributors, its cognition.
-
-## The Moment of Decision
-
-> *"The best time to plant a tree was twenty years ago. The second best time is now."*
-
-The trust crisis deepens daily. AI capabilities explode exponentially. The need for Web4 grows more urgent with each passing moment.
-
-But urgency without action is merely anxiety. This whitepaper is not meant to be read and forgotten but to be read and acted upon:
-
-1. **Clone the repository** (`github.com/dp-web4/web4`)
-2. **Try the agent authorization demo** (`/demo`)
-3. **Explore the vision components** (described throughout)
-4. **Build something new** (implement pieces of the vision)
-5. **Share what you learn**
-6. **Help others build**
-
-Start small. Start today. Start with whatever skills you have. Every contribution matters, from testing the demo to implementing vision components.
-
-## The Final Truth
-
-> *"Trust is not given but grown, not declared but demonstrated, not hoped for but built—one interaction at a time."*
-
-Web4 succeeds not through grand proclamations but through accumulated actions. Each trusted interaction adds a thread to the tapestry. Each verified contribution strengthens the foundation. Each collaboration between human and AI proves the possibility.
-
-We are not building another platform or protocol. We are building the trust infrastructure for the next phase of intelligence—biological and digital, individual and collective, human and artificial.
-
-The vision is emerging. The first implementations are being tested. The invitation is extended.
-
-**Now we build.**
+1. Clone the repository: [`github.com/dp-web4/web4`](https://github.com/dp-web4/web4)
+2. Run the published packages: `cargo add web4-core` or `pip install web4-core`
+3. Try the agent authorization demo: `/demo` (166 passing tests)
+4. Read [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) for current implementation state
+5. Read [`docs/specs/`](https://github.com/dp-web4/web4/tree/main/docs/specs) for current specifications
+6. File an issue, open a PR, or engage at [dp@metalinxx.io](mailto:dp@metalinxx.io)
 
 ---
 
-> *"We shape our tools, and thereafter they shape us. With Web4, we shape trust itself—and through trust, we shape the future of intelligence."*
+> *"We shape our tools, and thereafter they shape us."* — Marshall McLuhan
 
-**Join us. Build with us. Evolve with us.**
+The proposition Web4 makes is that what we shape next at the internet's protocol layer will shape what kinds of intelligence — biological and digital, individual and collective — can collaborate within it. The architecture in this whitepaper is one attempt at giving that protocol layer the right shape.
 
-The revolution doesn't start tomorrow.
-The revolution starts with your next line of code.
-The revolution starts with your next idea.
-The revolution starts with your next trusted interaction.
+It is not a finished system. It is research-stage work, developed in the open. The first implementations exist; what they become depends on who else engages.
 
-**The revolution starts now.**
+*The architecture is documented. The first packages are public. The invitation is extended.*
 
-Welcome to Web4.
-Welcome to the trust-native internet.
-Welcome to the future we build together.
-
----
-
-*The blueprint is evolving. Initial tools are ready for testing. The community is forming.*
-
-*What will you build today?*
 
 # References
 
@@ -3751,4 +3735,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-04-29 04:34:43*
+*Generated: 2026-04-30 04:33:26*
