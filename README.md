@@ -42,6 +42,36 @@ pip install web4-trust
 
 Both crates and both Python packages are AGPL-3.0-or-later. Patent grant terms in [PATENTS.md](PATENTS.md).
 
+### 30-second proof of presence
+
+Once installed, this is the smallest end-to-end path — create a presence, mint it to a hash-chained ledger, sign and verify, generate and verify an inclusion proof:
+
+**Python:**
+```python
+import web4_core
+
+# Create LCT (presence primitive) and an Ed25519 keypair
+lct, keypair = web4_core.PyLct.new(web4_core.PyEntityType.Human, None)
+
+# Mint into a ledger — LCTs are blockchain tokens; minting is what witnesses presence
+ledger = web4_core.PyInMemoryLedger()
+receipt = ledger.mint(lct)
+
+# Sign + verify
+sig = keypair.sign(b"hello, web4")
+assert lct.verify_signature(b"hello, web4", sig)
+
+# Inclusion proof — anyone can verify this LCT is in the ledger without trusting you
+proof = ledger.anchor(lct.id)
+assert ledger.verify_proof(proof)
+```
+
+**Rust:** identical steps with `Lct::new` / `ledger.mint` / `keypair.sign` / `ledger.anchor` — see [`web4-core/README.md`](web4-core/README.md#quick-start) for the matching code.
+
+**Persistent version with on-disk keypair + hash-chained ledger:** [`web4-core/python/examples/identity_bootstrap.py`](web4-core/python/examples/identity_bootstrap.py). Run once to bootstrap an LCT for a host; re-run to verify the chain didn't tamper. ~30 seconds.
+
+**Cross-language verification (Python mints, Rust verifies the same ledger):** [`web4-core/examples/cross_language_verify/`](web4-core/examples/cross_language_verify/). Demonstrates that the on-disk format is the contract: any language with the spec can verify what any other language minted.
+
 ---
 
 ## Status Snapshot (2026-04-29)

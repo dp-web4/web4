@@ -31,3 +31,7 @@ chrono = { version = "0.4", features = ["serde"] }
 default = []
 # Enable Python bindings (used by the python subcrate)
 python = []
+
+[[example]]
+name = "cross_language_verify"
+path = "examples/cross_language_verify/verify.rs"

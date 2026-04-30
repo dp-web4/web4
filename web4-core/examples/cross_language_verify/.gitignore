@@ -1,0 +1,4 @@
+# Runtime artifacts produced by mint.py / verify.rs — kept local
+shared_ledger.jsonl
+shared_ledger.tampered.jsonl
+shared_lct.json

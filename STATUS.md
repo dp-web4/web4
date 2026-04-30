@@ -38,6 +38,8 @@ All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial 
 | **Spec corpus** (LCT, T3/V3, MRH, ATP/ADP, R6/R7) | Stable | [`web4-standard/core-spec/`](web4-standard/core-spec/) |
 | **`web4-core`** | **Published v0.1.1** (crates.io + PyPI). LCT, T3/V3, Coherence, Ledger trait + 2 backends (InMemory, Local file). 52 unit tests + 4 doctests. | [`web4-core/`](web4-core/) |
 | **`web4-trust-core`** | **Published v0.1.1** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
+| **Runnable proof of presence** | `python identity_bootstrap.py` — bootstraps a host LCT (keypair on disk, hash-chained `LocalLedger`, public `lct.json` sidecar); `--verify` re-checks the chain on re-run. ~30 sec. | [`web4-core/python/examples/identity_bootstrap.py`](web4-core/python/examples/identity_bootstrap.py) |
+| **Cross-language interop demo** | Python mints an LCT to a hash-chained ledger; a Rust binary reads the same `ledger.jsonl` and verifies chain integrity + anchor proof. The on-disk format is the contract. | [`web4-core/examples/cross_language_verify/`](web4-core/examples/cross_language_verify/) |
 | **Reference Python SDK** | 2,627 tests, mypy --strict clean (not yet on PyPI separately) | [`web4-standard/implementation/`](web4-standard/implementation/) |
 | **Cognition harness producing 94.85%** | Open source | [SAGE](https://github.com/dp-web4/SAGE) |
 | **Attack simulation suite** | 424 vectors / 84 tracks, ~85% detection | [`simulations/`](simulations/) |
