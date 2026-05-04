@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-04-30
+**Last Updated**: 2026-05-04
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,14 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-04: Publisher Maintenance - No-Change Check
+- Four content-bearing commits since 2026-04-30 rebuild reviewed against inclusion criteria. None warrant whitepaper integration today.
+- **Live whitepaper sections verified clean of ATP/LCT terminology drift** following 4a0dce7 (2026-04-29) cleanup across spec corpus / docs/what+why+how/ / demo. All remaining historical drift hits are confined to `whitepaper/sections/*/archive/*`, intentionally preserved per the cleanup commit's "would falsify historical record" exclusion. No live-section corrections needed.
+- **cross_language_verify example (afe68ab)**: Python+Rust round-trip on shared LocalLedger, demonstrating on-disk-format-as-contract. Per the 2026-04-29 identity_bootstrap precedent (doc-only, not whitepaper-worthy on its own), this is a demonstration of existing primitives (Ledger trait + hash-chained on-disk format), not a new protocol primitive. Cross-language interop was always implicit in Rust core + Python bindings. No whitepaper change.
+- **heterogeneous-identity design note (64adbe2)**: substantive content — "constellation, not credential" framing, "ATP from measurement" (answers recurring 4-life visitor friction), witness != vouch, salience-aware fingerprinting, access-mode tiers. Phase 1+1.5+A reportedly live across fleet. **DEFER**: the design note itself flags 4 open questions (constellation size lower bound, divergence resolution, cross-domain witnessing, constellation observability). Per "Design still evolving" exclusion, integrate when those resolve. Added to pending list.
+- **README "Who this is for, and why" (e064554)**: README-level audience/positioning content. Whitepaper Executive Summary already has its own calibrated current-state framing (2026-04-29 a5dafa6). Belongs in README, not whitepaper. No change.
+- No content changes; no source/artifact rebuild needed (build remains aligned with 2026-04-29 source state from e990039).
 
 ### 2026-04-30: Publisher Maintenance - Rebuild for Calibration-Framing Edits
 - Five non-publisher commits on 2026-04-29 (after the morning publisher build) edited whitepaper sources without rebuilding artifacts: exec summary calibration framing + v0.1.1 fix (a5dafa6); Introduction + Part 1 + Part 2 rewrite to "current state, not past vision" (16c0e77); Part 7 §7.0.0 published-packages section (367caac); conclusion full rewrite (5edc79f); Part 2.8 + conclusion framing restoration (fdf7e63)
@@ -411,6 +419,7 @@ The whitepaper should reflect implementation reality. Current gaps:
 | CI/coherence as cost multiplier | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 | Synthon lifecycle | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 | Karma-across-lives canonicity | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
+| Heterogeneous-identity / constellation framing | Watch | docs/specs/heterogeneous-identity.md (commit 64adbe2, 2026-04-29); 4 open questions outstanding (constellation lower bound, divergence resolution, cross-domain witnessing, observability); integrate when constellation lifecycle and minimums resolve |
 
 ---
 
