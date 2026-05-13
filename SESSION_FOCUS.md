@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-13 (Sprint 45)*
+*Last updated: 2026-05-13 (Sprint 46)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 46 Summary: Clarify CI Canonicity (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Normative clarification of constellation_coherence vs "CI" | DONE | Resolves audit item #10 from Sprint 43. Added §4.4 to `multi-device-lct-binding.md`: `constellation_coherence` is canonical metric (T3 tensor extension); "CI" and numeric multipliers (e.g., 1.4×) are simulation parameters, not protocol primitives. 0 new files, 1 spec file modified. |
 
 ### Sprint 45 Summary: Archive Stale Implementation Artifacts (COMPLETE)
 
@@ -215,11 +221,11 @@ Work undertaken in early 2026 toward what was at the time a planned ARIA grant s
 ## Recent Commits
 
 ```
+8e07fb0 [Publisher] No-change check: Sprint 44 T1 spec gaps resolved, no whitepaper integration
+7c228fd Sprint 45 T1: Archive stale implementation artifacts (#180)
 d530060 Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit (#179)
 372b06a Strategic review follow-up audit + archive 3 stray implementation/ markdowns (#178)
 12ee197 Autonomous web4 session 20260512-060024 (safety net) (#176)
-cbc951a Archive 15 reference files + triage 9 sprawl directories (#175)
-485eb4f Reference implementation triage: classify 31 files for archive/keep (#174)
 ```
 
 ---
@@ -230,19 +236,19 @@ None.
 
 ### Closed PRs (recent)
 
+- PR #180 MERGED — Sprint 45 T1: Archive stale implementation artifacts
 - PR #179 MERGED — Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit
 - PR #178 MERGED — Strategic review follow-up audit + archive 3 stray implementation/ markdowns
 - PR #176 MERGED — Web4 session 20260512-060024 (auto-branched safety net)
 - PR #175 MERGED — Archive 15 reference files + triage 9 sprawl directories
 - PR #174 MERGED — Reference implementation triage: classify 31 files for archive/keep
 - PR #168 MERGED — Sprint 43 T1: Spec-to-explainer alignment memo
-- PR #164 MERGED — Sprint 42 T1: Wire examples/quickstart.py into CI wheel smoke job
 
 ---
 
 ## Completeness Summary
 
-- All 45 sprints COMPLETE (Sprints 1-45, all merged)
+- All 46 sprints COMPLETE (Sprints 1-46, all merged)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -268,4 +274,4 @@ None.
 
 ---
 
-*Updated by autonomous session, 2026-05-13 (Sprint 45 — archive stale implementation artifacts)*
+*Updated by autonomous session, 2026-05-13 (Sprint 46 — clarify CI canonicity)*
