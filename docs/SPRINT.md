@@ -1,9 +1,37 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-04-19 (Sprint 43)
+**Updated**: 2026-05-12 (Sprint 44)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 44: Resolve MEDIUM-Priority Spec Gaps (2026-05-12)
+
+The spec-to-explainer alignment audit (Sprint 43 T1) identified 4 SPEC GAPs
+and 2 BOTH items. Sprint 44 resolves the two MEDIUM-priority spec gaps —
+the natural downstream step in the audit → fix pipeline.
+
+### T1: ATP transfer-fee semantics + T3 Talent-decay clarification
+**Status**: DONE
+**Completed**: 2026-05-12
+**Authorized by**: Downstream from Sprint 43 audit (spec-vs-explainer-alignment-2026-04-19.md items #2 and #5)
+**Scope**:
+(1) Add §6.3 "Transfer Fees" to `atp-adp-cycle.md`: transfer fees are not
+prescribed by the protocol; societies MAY levy them as economic law. Fee rate,
+bearer, and destination must be declared in published laws. Fees recycled to
+society pool. Specific rates in simulations/explainers are simulation parameters.
+Added MAY requirement #6 to §7.3.
+(2) Strengthen "Talent Stability" in `t3-v3-tensors.md` §2.3: Talent's no-decay
+property is normative and invariant, not tunable. Societies MAY configure custom
+decay for Training and Temperament but not Talent. Half-life values for Talent in
+simulations/explainers are simulation parameters, not canonical.
+(3) Update `docs/SPRINT.md` (this section) and `SESSION_FOCUS.md`.
+**Result**: Two MEDIUM-priority SPEC GAPs from the Sprint 43 audit are resolved.
+4-life team has unambiguous canonical language to reference. Remaining spec gaps
+(#10 CI, #13 synthons, #14 karma) are LOW-priority and deferred to future sprints.
+0 new files, 2 spec files modified, 2 bookkeeping files modified.
 
 ---
 

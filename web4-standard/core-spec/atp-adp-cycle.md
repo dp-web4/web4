@@ -506,7 +506,33 @@ economic_laws:
     false_claim: "100 ATP"
     service_failure: "50 ATP"
     law_violation: "500 ATP"
+
+  transfer_policy:
+    intra_society_fee: "none"        # Or society-defined rate
+    cross_society_fee: "none"        # Or society-defined rate
+    fee_bearer: "sender"             # "sender" | "receiver" | "split"
+    fee_destination: "society_pool"  # Recycled, not destroyed
 ```
+
+### 6.3 Transfer Fees
+
+The core protocol does **not** prescribe transfer fees. Peer-to-peer ATP
+transfers within a society and cross-society exchanges (§5) are fee-free
+at the protocol level.
+
+Societies **MAY** implement transfer fees as economic law. When a society
+chooses to levy fees:
+
+- The fee rate, bearer (sender, receiver, or split), and destination MUST
+  be declared in the society's published economic laws.
+- Fees SHOULD be recycled into the society's pool (not destroyed), preserving
+  total supply.
+- Fee rates MUST NOT exceed society-defined caps.
+
+Any specific fee rates appearing in simulations, explainers, or demos
+(e.g., "5% transfer fee") are **simulation parameters**, not protocol
+constants. Implementations MUST NOT hard-code fee rates; they MUST read
+them from the governing society's published laws.
 
 ## 7. Implementation Requirements
 
@@ -534,6 +560,7 @@ economic_laws:
 3. Societies MAY create exchange agreements
 4. Societies MAY delegate monetary authority
 5. Societies MAY implement emergency measures
+6. Societies MAY levy transfer fees on ATP transfers (§6.3)
 
 ## 8. Security Considerations
 
