@@ -815,6 +815,36 @@ def apply_witness_decay(device):
         return 0.3  # Should probably re-enroll
 ```
 
+### 4.4 Canonical Terminology and Simulation Parameters
+
+The `constellation_coherence` metric defined in §4.1 is the **canonical** term for
+measuring cross-device witness density within a device constellation. It is a
+property of the T3 tensor extension (range 0.0–1.0) that reflects how well devices
+in a constellation witness each other.
+
+Explainers and simulations MAY derive simplified labels such as "CI" (Coherence
+Index) from `constellation_coherence`. When they do, the following normative
+constraints apply:
+
+1. **Not a standalone protocol primitive.** The canonical equation
+   (`Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP`) does not include a separate
+   "CI" term. `constellation_coherence` operates as a dimension within T3, not as
+   an independent protocol layer.
+
+2. **Not a cost or reward multiplier.** `constellation_coherence` measures identity
+   strength (witness density), not economic cost or reward scaling. Any multiplier
+   effect (e.g., "1.4× CI bonus") applied in an explainer or simulation is a
+   **simulation parameter** chosen by that context, not a protocol-prescribed value.
+
+3. **Specific numeric values are context-dependent.** Multiplier magnitudes,
+   thresholds, and decay rates used in simulations or explainer UIs are parameters
+   of those implementations. They are not normative and MUST NOT be cited as
+   canonical protocol values.
+
+Downstream consumers (explainers, simulations, documentation) that reference
+coherence-based mechanics SHOULD cite `constellation_coherence` by name and
+clearly label any derived multiplier or threshold as a simulation parameter.
+
 ## 5. Security Considerations
 
 ### 5.1 Threat Model

@@ -1,9 +1,37 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-13 (Sprint 45)
+**Updated**: 2026-05-13 (Sprint 46)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 46: Clarify CI Canonicity (2026-05-13)
+
+The spec-to-explainer alignment audit (Sprint 43 T1) identified 14 friction items.
+Sprint 44 resolved the two MEDIUM-priority items. Three LOW-priority items remain:
+#10 (CI canonicity), #13 (synthons), #14 (karma). Sprint 46 resolves #10 — the
+cleanest scope, following the downstream-from-audit pattern.
+
+### T1: Normative clarification of constellation_coherence vs "CI"
+**Status**: DONE
+**Completed**: 2026-05-13
+**Authorized by**: Downstream from Sprint 43 audit (spec-vs-explainer-alignment-2026-04-19.md item #10)
+**Scope**:
+(1) Add §4.4 "Canonical Terminology and Simulation Parameters" to
+`multi-device-lct-binding.md`. Documents that `constellation_coherence` is the
+canonical metric (T3 tensor extension, 0.0–1.0, witness density). "CI" / "Coherence
+Index" is a derived label used in explainers/simulations, not a standalone protocol
+primitive. The canonical equation does not include CI. Specific multiplier values
+(e.g., "1.4×") are simulation parameters, not protocol-prescribed.
+(2) Update `docs/SPRINT.md` (this section) and `SESSION_FOCUS.md`.
+**Result**: Audit item #10 resolved on the spec side. 4-life team has unambiguous
+normative language: cite `constellation_coherence` by name, label any derived
+multiplier as a simulation parameter. Remaining audit items (#13 synthons, #14
+karma) are LOW-priority and deferred to future sprints — both require operator
+design decisions about whether to add new spec primitives. 0 new files, 1 spec
+file modified, 2 bookkeeping files modified.
 
 ---
 
