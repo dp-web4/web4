@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-05-04
+**Last Updated**: 2026-05-13
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,18 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-13: Publisher Maintenance - No-Change Check
+- Six commits since 2026-05-04 no-change check reviewed against inclusion criteria. None warrant whitepaper integration today.
+- **Sprint 44 T1 (#179, d530060, 2026-05-12)**: Resolved Sprint 43 SPEC GAP #2 (ATP transfer-fee semantics) and #5 (T3 Talent-decay ambiguity).
+  - `atp-adp-cycle.md` §6.3 adds Transfer Fees as society-configurable MAY (declared rate/bearer/destination, transfer_policy in economic_laws YAML).
+  - `t3-v3-tensors.md` strengthens Talent no-decay to explicit normative invariant; Training/Temperament remain society-configurable.
+  - **No whitepaper integration**: Part 3 ATP/ADP narrative is high-level ("Biology Made Digital", perpetual cycle framing) and does not enumerate society-level economic policies anywhere. Adding fees-only would be incongruous. Similarly, Part 3.2 T3 narrative does not discuss decay mechanics. Both are spec-level normative refinements, not new protocol primitives. Watch item for transfer-fees marked resolved at spec level.
+- **Sprint 45 T1 (#180, 7c228fd, 2026-05-13)**: Archive stale implementation artifacts. Housekeeping; no protocol changes.
+- **Sprint 43 follow-up (#178, 372b06a, 2026-05-09)**: Strategic review follow-up audit + archive 3 stray implementation/ markdowns. Housekeeping.
+- **Autonomous safety net (#176, 12ee197, 2026-05-12)**: Autonomous session — housekeeping.
+- **Reference impl triage (#174/#175, cbc951a/485eb4f, 2026-05-06–08)**: Archive 15 reference files + classify 31 files for archive/keep + triage 9 sprawl directories. Housekeeping.
+- No content changes; no source/artifact rebuild needed (build remains aligned with 2026-04-29 source state from e990039).
 
 ### 2026-05-04: Publisher Maintenance - No-Change Check
 - Four content-bearing commits since 2026-04-30 rebuild reviewed against inclusion criteria. None warrant whitepaper integration today.
@@ -415,7 +427,7 @@ The whitepaper should reflect implementation reality. Current gaps:
 | ACP protocol section in Part 7 | Medium | Full lifecycle implemented; no dedicated whitepaper section yet |
 | 10-layer governance diagram | Low | Described in status table; could benefit from visual representation |
 | Plugin examples | Low | Nice to have |
-| ATP transfer-fee semantics | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
+| ATP transfer-fee semantics | Resolved (spec) | Sprint 44 T1 (#179, 2026-05-12) added §6.3 Transfer Fees to atp-adp-cycle.md as society-configurable MAY. Spec-level resolution; whitepaper Part 3 narrative does not enumerate society economic policies — no whitepaper integration warranted |
 | CI/coherence as cost multiplier | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 | Synthon lifecycle | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 | Karma-across-lives canonicity | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
