@@ -1,9 +1,39 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-12 (Sprint 44)
+**Updated**: 2026-05-13 (Sprint 45)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 45: Archive Stale Implementation Artifacts (2026-05-13)
+
+PRs #174-178 archived 319+ sprawl files and triaged the implementation/ tree,
+but three non-code files in `guides/` and `examples/` were missed (the triage
+focused on .py files). These files reference non-canonical terminology (W4ID,
+ClientHello, CreditGrant, joule-equivalent) that does not appear in the current
+SDK or core-spec. Archiving them completes the cleanup chain.
+
+### T1: Archive 3 stale non-code files from implementation/
+**Status**: DONE
+**Completed**: 2026-05-13
+**Authorized by**: Continuation of implementation/ cleanup chain (PRs #174-178)
+**Scope**:
+(1) Archive `guides/implementation_guide.md` — generic crypto implementation
+guide from drift era. References "W4ID", handshake protocols, ECDH, AES-GCM,
+"Verifiable Credentials specification". Does not reference the SDK (`pip install
+web4`, `import web4`) or any current module. Misleading to developers.
+(2) Archive `examples/handshake_exchange.json` — references "ClientHello",
+"ServerHello", "W4-BASE-1", "W4-FIPS-1" cipher suites. None canonical.
+(3) Archive `examples/metering_flow.json` — references "CreditGrant",
+"UsageReport", "Settle", "joule-equivalent". None canonical.
+All three moved to `archive/implementation-sprawl/` via `git mv`.
+(4) Update `docs/SPRINT.md` (this section) and `SESSION_FOCUS.md`.
+**Result**: `implementation/` now contains only `sdk/` (the shipped SDK) and
+`reference/` (3 REVIEW .py files pending operator decision). The `guides/` and
+`examples/` directories no longer exist in the tracked tree. 0 new files,
+3 files moved, 2 bookkeeping files modified.
 
 ---
 

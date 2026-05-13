@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-12 (Sprint 44)*
+*Last updated: 2026-05-13 (Sprint 45)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 45 Summary: Archive Stale Implementation Artifacts (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Archive 3 stale non-code files from implementation/ | DONE | Completes cleanup chain from PRs #174-178. Archived `implementation_guide.md` (drift-era crypto guide), `handshake_exchange.json` (non-canonical protocol), `metering_flow.json` (non-canonical terminology) to `archive/implementation-sprawl/`. `implementation/` now contains only `sdk/` and `reference/` (3 REVIEW .py files pending operator). 0 new files, 3 files moved. |
 
 ### Sprint 44 Summary: Resolve MEDIUM-Priority Spec Gaps (COMPLETE)
 
@@ -209,11 +215,11 @@ Work undertaken in early 2026 toward what was at the time a planned ARIA grant s
 ## Recent Commits
 
 ```
+d530060 Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit (#179)
 372b06a Strategic review follow-up audit + archive 3 stray implementation/ markdowns (#178)
 12ee197 Autonomous web4 session 20260512-060024 (safety net) (#176)
 cbc951a Archive 15 reference files + triage 9 sprawl directories (#175)
 485eb4f Reference implementation triage: classify 31 files for archive/keep (#174)
-0e0383e Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps (#165)
 ```
 
 ---
@@ -224,19 +230,19 @@ None.
 
 ### Closed PRs (recent)
 
+- PR #179 MERGED — Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit
 - PR #178 MERGED — Strategic review follow-up audit + archive 3 stray implementation/ markdowns
 - PR #176 MERGED — Web4 session 20260512-060024 (auto-branched safety net)
 - PR #175 MERGED — Archive 15 reference files + triage 9 sprawl directories
 - PR #174 MERGED — Reference implementation triage: classify 31 files for archive/keep
 - PR #168 MERGED — Sprint 43 T1: Spec-to-explainer alignment memo
 - PR #164 MERGED — Sprint 42 T1: Wire examples/quickstart.py into CI wheel smoke job
-- PR #165 MERGED — Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps
 
 ---
 
 ## Completeness Summary
 
-- All 44 sprints COMPLETE (Sprints 1-44, all merged)
+- All 45 sprints COMPLETE (Sprints 1-45, all merged)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -262,4 +268,4 @@ None.
 
 ---
 
-*Updated by autonomous session, 2026-05-12 (Sprint 44 — resolve MEDIUM-priority spec gaps from Sprint 43 audit)*
+*Updated by autonomous session, 2026-05-13 (Sprint 45 — archive stale implementation artifacts)*
