@@ -1,0 +1,30 @@
+{
+  "name": "web4-trust-core",
+  "type": "module",
+  "collaborators": [
+    "Web4 Contributors"
+  ],
+  "description": "Core trust primitives for the Web4 ecosystem",
+  "version": "0.1.1",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dp-web4/web4"
+  },
+  "files": [
+    "web4_trust_core_bg.wasm",
+    "web4_trust_core.js",
+    "web4_trust_core.d.ts"
+  ],
+  "main": "web4_trust_core.js",
+  "types": "web4_trust_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "keywords": [
+    "trust",
+    "web4",
+    "governance",
+    "tensor"
+  ]
+}
