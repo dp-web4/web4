@@ -1,9 +1,37 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-13 (Sprint 46)
+**Updated**: 2026-05-13 (Sprint 47)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 47: Cross-Language T3/V3 Alignment Audit (2026-05-13)
+
+Operator commit `55b1a3d8` rebuilt the web4-trust-core WASM package with canonical
+3D tensor names ("Driven by Hardbound alignment audit"). Exploration revealed that
+the naming surface is now correct but the behavioral semantics — composite calculation,
+update formulas, decay model — remain significantly divergent from the canonical test
+vectors and Python SDK. Sprint 47 documents these divergences as an actionable audit.
+
+### T1: Cross-language T3/V3 semantic alignment audit
+**Status**: DONE
+**Completed**: 2026-05-13
+**Authorized by**: Operator signal in commit `55b1a3d8` (hardbound alignment audit)
+**Scope**:
+Systematic comparison of `web4-trust-core/src/tensor/` (Rust) against canonical test
+vectors (`web4-standard/test-vectors/t3v3/tensor-operations.json`) and Python SDK
+(`web4-standard/implementation/sdk/web4/trust.py`). Documented 8 divergences: 1
+CRITICAL (Talent decay applied, violates Sprint 44 T1 normative invariant), 4 HIGH
+(T3/V3 composites unweighted, T3 update formula wrong, T3 decay model wrong), 2
+MEDIUM (no ActionOutcome evolution, legacy bridge formula wrong), 1 LOW (missing test
+vector operations).
+**Result**: Audit document at `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`.
+Hardbound has an actionable gap list before relying on Rust T3/V3 semantics. The four
+HIGH-severity items (#2-#5) mean that every composite, update, and decay operation in
+the Rust path will produce different numbers than the Python SDK — hardbound cannot
+use them interchangeably until fixed. 1 new file, 2 bookkeeping files modified.
 
 ---
 
