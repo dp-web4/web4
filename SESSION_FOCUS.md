@@ -2,13 +2,25 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-04-18 (Sprint 42)*
+*Last updated: 2026-05-12 (Sprint 44)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 44 Summary: Resolve MEDIUM-Priority Spec Gaps (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: ATP transfer-fee semantics + T3 Talent-decay clarification | DONE | Resolves SPEC GAP #2 and #5 from Sprint 43 audit. Added §6.3 Transfer Fees to `atp-adp-cycle.md` (society-configurable, not protocol-prescribed). Strengthened Talent no-decay language in `t3-v3-tensors.md` (normative invariant, not tunable). 0 new files, 2 spec files modified. |
+
+### Sprint 43 Summary: Spec-to-Explainer Alignment Memo (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Spec-to-explainer alignment memo | DONE | Categorized 14 friction items from 4-life visitor log: 4 SPEC GAP, 8 EXPLAINER GAP, 2 BOTH. Produced `docs/audits/spec-vs-explainer-alignment-2026-04-19.md`. |
 
 ### Sprint 42 Summary: CI Quickstart Smoke (COMPLETE)
 
@@ -197,11 +209,11 @@ Work undertaken in early 2026 toward what was at the time a planned ARIA grant s
 ## Recent Commits
 
 ```
+372b06a Strategic review follow-up audit + archive 3 stray implementation/ markdowns (#178)
+12ee197 Autonomous web4 session 20260512-060024 (safety net) (#176)
+cbc951a Archive 15 reference files + triage 9 sprawl directories (#175)
+485eb4f Reference implementation triage: classify 31 files for archive/keep (#174)
 0e0383e Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps (#165)
-91ed230 Sprint 36 T1: Replace stale examples with v0.25.0 quickstart (#160)
-64add4c Sprint 39 T1: SDK v0.26.0 release housekeeping (#163)
-759eaef Sprint 38 T1: ruff format codebase-wide + CI enforcement (#162)
-e355a19 Sprint 37 T1: ruff check lint cleanup + CI enforcement (#161)
 ```
 
 ---
@@ -212,17 +224,19 @@ None.
 
 ### Closed PRs (recent)
 
+- PR #178 MERGED — Strategic review follow-up audit + archive 3 stray implementation/ markdowns
+- PR #176 MERGED — Web4 session 20260512-060024 (auto-branched safety net)
+- PR #175 MERGED — Archive 15 reference files + triage 9 sprawl directories
+- PR #174 MERGED — Reference implementation triage: classify 31 files for archive/keep
+- PR #168 MERGED — Sprint 43 T1: Spec-to-explainer alignment memo
 - PR #164 MERGED — Sprint 42 T1: Wire examples/quickstart.py into CI wheel smoke job
 - PR #165 MERGED — Sprint 41 T1: Remove dead web4_sdk.py + fix v0.26.0 documentation gaps
-- PR #163 MERGED — Sprint 39 T1: SDK v0.26.0 release housekeeping
-- PR #160 MERGED — Sprint 36 T1: Replace stale examples with v0.25.0 quickstart
-- PR #159 CLOSED (superseded) — attempted `ruff format` sweep; intent addressed in Sprint 38
 
 ---
 
 ## Completeness Summary
 
-- All 42 sprints COMPLETE (Sprints 1-42, all merged)
+- All 44 sprints COMPLETE (Sprints 1-44, all merged)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -248,4 +262,4 @@ None.
 
 ---
 
-*Updated by autonomous session, 2026-04-18 (Sprint 42 — CI quickstart smoke; renumbered from Sprint 40 per reviewer directive on PR #164)*
+*Updated by autonomous session, 2026-05-12 (Sprint 44 — resolve MEDIUM-priority spec gaps from Sprint 43 audit)*

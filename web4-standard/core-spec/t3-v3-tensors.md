@@ -107,7 +107,15 @@ T3 scores evolve based on R6 action outcomes:
 
 - **Training Decay**: -0.001 per month without practice
 - **Temperament Recovery**: +0.01 per month of good behavior
-- **Talent Stability**: No decay, represents inherent capability
+- **Talent Stability**: No decay — Talent represents inherent capability and
+  does not diminish through inactivity. This is a normative protocol property,
+  not a tunable parameter.
+
+Societies **MAY** configure custom decay policies for Training and Temperament
+(e.g., different decay rates or recovery curves), but Talent's no-decay
+property is invariant at the protocol level. Any half-life or decay values
+for Talent appearing in simulations or explainers are simulation parameters,
+not canonical specification.
 
 ### 2.4 Fractal Sub-Dimensions
 
