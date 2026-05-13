@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-13 (Sprint 46)*
+*Last updated: 2026-05-13 (Sprint 47)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 47 Summary: Cross-Language T3/V3 Alignment Audit (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Cross-language T3/V3 semantic alignment audit | DONE | Triggered by operator WASM rebuild (`55b1a3d8`). Documented 8 divergences between Rust/WASM and spec/Python SDK: 1 CRITICAL (Talent decay violates normative invariant), 4 HIGH (composites, update formula, decay model), 2 MEDIUM (ActionOutcome, legacy bridge), 1 LOW (missing operations). Audit at `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`. 1 new file. |
 
 ### Sprint 46 Summary: Clarify CI Canonicity (COMPLETE)
 
@@ -221,34 +227,33 @@ Work undertaken in early 2026 toward what was at the time a planned ARIA grant s
 ## Recent Commits
 
 ```
+55b1a3d Rebuild web4-trust-core WASM: canonical 3D tensors
+8e6d1ee Sprint 46 T1: Clarify CI canonicity (audit item #10) (#181)
 8e07fb0 [Publisher] No-change check: Sprint 44 T1 spec gaps resolved, no whitepaper integration
 7c228fd Sprint 45 T1: Archive stale implementation artifacts (#180)
 d530060 Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit (#179)
-372b06a Strategic review follow-up audit + archive 3 stray implementation/ markdowns (#178)
-12ee197 Autonomous web4 session 20260512-060024 (safety net) (#176)
 ```
 
 ---
 
 ## Open PRs
 
-None.
+None (Sprint 47 T1 PR pending).
 
 ### Closed PRs (recent)
 
+- PR #181 MERGED — Sprint 46 T1: Clarify CI canonicity (audit item #10)
 - PR #180 MERGED — Sprint 45 T1: Archive stale implementation artifacts
 - PR #179 MERGED — Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit
 - PR #178 MERGED — Strategic review follow-up audit + archive 3 stray implementation/ markdowns
 - PR #176 MERGED — Web4 session 20260512-060024 (auto-branched safety net)
 - PR #175 MERGED — Archive 15 reference files + triage 9 sprawl directories
-- PR #174 MERGED — Reference implementation triage: classify 31 files for archive/keep
-- PR #168 MERGED — Sprint 43 T1: Spec-to-explainer alignment memo
 
 ---
 
 ## Completeness Summary
 
-- All 46 sprints COMPLETE (Sprints 1-46, all merged)
+- All 47 sprints COMPLETE (Sprints 1-47, all merged or PR pending)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -274,4 +279,8 @@ None.
 
 ---
 
-*Updated by autonomous session, 2026-05-13 (Sprint 46 — clarify CI canonicity)*
+- **web4-trust-core alignment**: Cross-language T3/V3 audit identified 8 divergences (1 CRITICAL, 4 HIGH) between Rust/WASM and spec/Python SDK — see `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`
+
+---
+
+*Updated by autonomous session, 2026-05-13 (Sprint 47 — cross-language T3/V3 alignment audit)*
