@@ -54,17 +54,20 @@
 //! - **Coherence requirements**: Entities must maintain identity coherence
 //! - **Hardware binding**: Production deployments bind keys to secure hardware
 
+pub mod atp;
 pub mod coherence;
 pub mod crypto;
 pub mod error;
 pub mod lct;
 pub mod ledger;
+pub mod r6;
 pub mod role;
 pub mod society;
 pub mod t3;
 pub mod v3;
 
 // Re-export primary types for convenience
+pub use atp::{ATPAccount, TransferResult};
 pub use coherence::{
     check_coherence, coherence_threshold_for_entity, Coherence, CoherenceCalculator,
     CoherenceEvent, CoherenceParams,
@@ -74,6 +77,10 @@ pub use error::{Result, Web4Error};
 pub use lct::{EntityType, HardwareBinding, Lct, LctBuilder, LctStatus};
 pub use ledger::{
     InMemoryLedger, Ledger, LedgerEntry, LedgerEvent, LedgerProof, LocalLedger, MintReceipt,
+};
+pub use r6::{
+    ActionResult, ActionRole, ActionStatus, R7Action, ReputationDelta, Request, ResourceRequirements,
+    Rules,
 };
 pub use role::{RoleAssignment, SocietyRole};
 pub use society::{MetabolicState, Society};
@@ -89,6 +96,8 @@ pub mod prelude {
     pub use crate::crypto::{KeyPair, PublicKey, SignatureBytes};
     pub use crate::error::{Result, Web4Error};
     pub use crate::lct::{EntityType, Lct, LctBuilder, LctStatus};
+    pub use crate::atp::ATPAccount;
+    pub use crate::r6::{R7Action, ReputationDelta, Rules};
     pub use crate::role::{RoleAssignment, SocietyRole};
     pub use crate::society::{MetabolicState, Society};
     pub use crate::t3::{TrustDimension, T3};
