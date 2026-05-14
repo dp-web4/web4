@@ -91,9 +91,23 @@ assert ledger.verify_proof(proof)
 
 ---
 
-## Who this is for, and why
+## What Web4 is, structurally
 
-Web4 is **substrate-level work for agentic AI** — infrastructure, not a product. The standard provides primitives (identity, scoped authority, real-time policy gates, cryptographic audit) that compose into whatever the operator needs to build. The analogy to TCP/IP is intentional but constrained: like TCP/IP, Web4 doesn't dictate what your application looks like — it makes the application possible. Unlike TCP/IP, Web4 is pre-1.0 research-stage work; the analogy is to the *kind of layer* it is, not the maturity it has yet reached.
+**Web4 is to AI governance what the Linux kernel is to an operating system.**
+
+The Linux kernel manages hardware, processes, memory — it's the substrate, and it's not directly usable on its own. GNU userland (shell, utilities, compilers) is what makes the kernel actually operable. Distributions like Ubuntu or Fedora package both together with ecosystem tools. **Linux alone is the engine; GNU provides the controls; together they become the operating system people actually use.**
+
+Web4 specifies the substrate of trust-native AI governance — identity (LCT), trust accounting (T3/V3*MRH), resource accounting (ATP/ADP), action grammar (R6/R7), all expressed over RDF with MCP as the inter-society I/O membrane. It's not directly usable. **[Hardbound](https://github.com/dp-web4/hardbound)** is the canonical userland: PolicyService, SocietyManager, MCP server, dashboard, independent-verification CLI — the tools that make Web4 operationally deployable. A specific deployment in a specific organization is the distribution-equivalent. **Web4 alone is the substrate; Hardbound provides the controls; together they become the governance system you actually run.**
+
+This framing tells you where Web4 sits in the stack, and what's deliberately not in scope:
+
+- Web4 doesn't decide *what your application looks like*, any more than the Linux kernel decides what a desktop environment looks like
+- Web4 isn't competing with Hardbound — they're different layers of the same stack
+- Web4 alone is technically usable (via SDK calls) but operationally inert; you build the userland or pick an existing one
+- Alternative userlands beyond Hardbound are expected and welcome; the spec is designed for interoperable implementations
+- A conformance test suite — analogous to POSIX — is what would make alternative userlands provably interoperable; that work is in progress
+
+## Who this is for, and why
 
 If you're one of these people, this is worth your time:
 
@@ -109,7 +123,7 @@ If you came here looking for a finished product to install and use, this isn't t
 
 ### Why the applications will come
 
-Web4 doesn't predict what the killer applications will be — that's what builders figure out, the way they figured out email and the web on top of TCP/IP. What's certain is the *forcing function* is arriving:
+Web4 doesn't predict what the killer applications will be — that's what builders figure out, the way they figured out which applications mattered once Linux + GNU made general-purpose computing accessible. What's certain is the *forcing function* is arriving:
 
 - **The bearer-token credential model is breaking.** The Vercel breach exploited tokens-as-keys; Web4 treats tokens as evidence in a witness graph instead.
 - **Financial regulators are convening on agentic AI.** The recent SR 26-2 / OCC Bulletin 2026-13 explicitly excludes agentic AI from current model-risk frameworks and signals an RFI is imminent.
