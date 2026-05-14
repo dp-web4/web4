@@ -473,6 +473,174 @@ This resolves the `inter-society-protocol.md` §9 future-work item "society-soci
 | R7 Reputation signature invalid | `400 web4_r7_reputation_invalid` | Responding society's Policy-Entity must re-sign |
 | Propagation scope unsupported by responding society | `400 web4_propagation_scope_unsupported` | Caller must request a supported scope |
 
+### 7.7 Exchange Rate Negotiation — Referent-Grounded (WIP)
+
+> **STATUS: WIP v0.1.0-draft, 2026-05-14.** This section is incomplete pending fleet review. The architecture (referent-grounding, per-transaction scoping with fallbacks) is settled; the precise message schemas and error semantics may evolve. Implementations SHOULD NOT depend on the wire format until v0.1.0-final.
+
+The existing §7.4 specifies that cross-society MCP calls with non-zero ATP cost carry an `atp_settlement.exchange_rate` referencing "a current (within agreement validity window) negotiated rate." This section specifies *how that rate is arrived at* in a way that preserves society sovereignty (per `inter-society-protocol.md` §4) while enabling implementations to interoperate.
+
+#### 7.7.1 Architectural premise: rates are referent-grounded, not abstract
+
+A common reading of "exchange rate" imports the foreign-exchange market mental model: two societies maintain a floating bilateral rate `ATP_A : ATP_B` independent of any particular transaction, periodically renegotiated, applied uniformly to all cross-society activity. **This is NOT the Web4 model.**
+
+In Web4, exchange rates are **grounded in the substance of the R6/R7 action being performed** — the actual work, resource, or value at stake. The negotiation seeks a **common referent** both societies can independently value, then each settles in its own ATP at its own declared valuation of the referent.
+
+Examples of common referents:
+- Kilowatt-hours of energy
+- GPU-time (specified hardware class, e.g., "1 hour of A100 80GB")
+- CPU-time (specified architecture, e.g., "1 core-hour of Graviton4")
+- Storage-time (e.g., "1 TB-month of NVMe storage")
+- Senior-engineer attention-hours
+- Tokens of a specified foundation model
+- Physical commodities (specified by reference standard)
+- Bandwidth (e.g., "1 TB of egress")
+
+**Per-transaction scoping is ideal** — each R6/R7 action carries its own rate, anchored to its own referent. This avoids stale market rates, eliminates the maintenance overhead of ongoing rate relationships, and makes disputes tractable by appealing to the physical referent rather than abstract currency politics.
+
+**Standing agreements are practical fallback** — for bulk or recurring transactions, societies MAY negotiate a standing rate with explicit validity window. The standing rate is itself referent-grounded (the agreement names the referent and the rate per unit of referent).
+
+**Oracle reference is third-party fallback** — when two societies cannot independently value the referent (e.g., a referent specific to one society's domain), they MAY reference a third-party Oracle society's published price for the referent. The Oracle's own T3 trust governs how much weight either society places on the reference.
+
+#### 7.7.2 Negotiation flow
+
+The negotiation is conducted between the calling and responding societies' **Treasurer** roles (per `society-roles.md` §2.4) via MCP tool calls. The Treasurer is the role authorized to make and accept rate commitments on behalf of the society's ATP pool.
+
+For a per-transaction negotiation, the flow embeds in the R6/R7 action:
+
+```
+1. Calling society's Administrator routes the R7 action to the responder's MCP server
+2. Responder's Policy-Entity evaluates the action (per §7.3) — if approved-pending-settlement,
+   passes to responder's Treasurer for rate determination
+3. Responder's Treasurer proposes a referent + rate (see §7.7.3 message format)
+4. Caller's Treasurer evaluates: accept, counter-offer, or reject
+5. On acceptance, transaction proceeds with rate locked to the transaction
+6. R7 settlement updates both societies' ATP accounts per the agreed rate
+```
+
+For a standing-agreement negotiation, the flow is decoupled from any specific transaction:
+
+```
+1. Either society's Treasurer initiates with rate proposal for one or more referents
+2. Counter-society's Treasurer responds with accept/counter/reject per referent
+3. On acceptance, agreement is published to both societies' ledgers with validity window
+4. Subsequent R7 actions reference the standing agreement hash (per §7.4 atp_settlement)
+```
+
+#### 7.7.3 Message format
+
+Rate proposals, counter-offers, and acceptances are MCP tool calls. The tool name SHOULD be `web4_rate_propose`, `web4_rate_counter`, `web4_rate_accept`, `web4_rate_reject` for spec-conformance, though societies MAY use society-specific tool names that wrap these semantics.
+
+Rate proposal payload:
+
+```json
+{
+  "rate_proposal": {
+    "proposal_id": "uuid:...",
+    "scope": "transaction | standing",
+    "transaction_ref": "lct:web4:action:...",   // present when scope=transaction
+    "validity_window": {                          // present when scope=standing
+      "starts": "2026-05-14T00:00:00Z",
+      "ends": "2026-06-14T00:00:00Z"
+    },
+    "referent": {
+      "kind": "energy | gpu_time | cpu_time | storage_time | attention | tokens | commodity | bandwidth | custom",
+      "specifier": "A100_80GB | Graviton4 | NVMe | senior_engineer | gpt-4 | ...",
+      "unit": "kwh | hour | core_hour | tb_month | hour | token | ...",
+      "reference_standard": "url:... | doi:... | lct:oracle:..."
+    },
+    "rate": {
+      "amount_in_proposer_atp": 50,
+      "per_unit_of_referent": 1
+    },
+    "proposer_society": "lct:web4:society:A:...",
+    "proposer_treasurer": "lct:web4:society:A:treasurer:...",
+    "signature": "cose:..."
+  }
+}
+```
+
+Counter-offer payload:
+
+```json
+{
+  "rate_counter": {
+    "counter_id": "uuid:...",
+    "responds_to": "uuid:...",   // proposal_id being countered
+    "alternative_referent": { /* if proposing different referent */ },
+    "alternative_rate": { /* if proposing different rate against same or different referent */ },
+    "reason": "referent_not_measurable | valuation_too_low | scope_too_broad | other",
+    "responding_society": "lct:web4:society:B:...",
+    "responding_treasurer": "lct:web4:society:B:treasurer:...",
+    "signature": "cose:..."
+  }
+}
+```
+
+Acceptance payload:
+
+```json
+{
+  "rate_accept": {
+    "accept_id": "uuid:...",
+    "accepts": "uuid:...",   // proposal_id or counter_id being accepted
+    "agreed_referent": { /* canonical referent */ },
+    "agreed_rate_caller_atp": { "amount": 50, "per_unit": 1 },
+    "agreed_rate_responder_atp": { "amount": 70, "per_unit": 1 },
+    "accepting_society": "lct:web4:society:...",
+    "accepting_treasurer": "lct:web4:society:...:treasurer:...",
+    "signature": "cose:..."
+  }
+}
+```
+
+Note that the acceptance carries **both societies' valuations** of the same referent — this is the load-bearing property of referent-grounding. Each society settles in its own ATP at its own declared valuation; the agreement records both valuations so that R7 settlement (per §7.3) updates each society's account correctly.
+
+#### 7.7.4 What's society-sovereign (substance)
+
+The spec specifies the *message format* and *protocol flow*. It does NOT specify:
+
+- **What referent a Treasurer proposes** — depends on the work being done and the society's accounting
+- **What valuation a Treasurer declares** — per the society's ATP reification policy (per `inter-society-protocol.md` §4)
+- **What logic a Treasurer uses to accept, counter, or reject** — bilateral bargaining, market-derived pricing, third-party oracle reference, arbitration, fixed-policy — all are valid strategies
+- **How long a Treasurer takes to respond** — society policy; the proposer MAY include a timeout in the proposal but the responder is not obligated to meet it
+- **Whether to use per-transaction or standing agreement** — society policy per pair-relationship
+
+This is the same form-vs-substance split that runs through Web4: the protocol specifies how parties communicate; the strategy is sovereign.
+
+#### 7.7.5 Per-transaction vs. standing agreement guidance (informative)
+
+Per-transaction scoping is ideal because:
+- No stale rates
+- No ongoing rate-relationship maintenance overhead
+- Each transaction's rate is anchored to its specific referent (easier to audit, dispute, reproduce)
+- Naturally scales to one-off transactions between societies with no prior relationship
+
+Standing agreements are practical when:
+- Same referent recurs across many transactions (bulk compute, ongoing service)
+- Negotiation latency would exceed transaction value
+- Pre-commitment of resources is required before transaction begins
+- Operational simplicity outweighs the cost of occasional staleness
+
+Implementations SHOULD default to per-transaction unless the calling Treasurer explicitly references a standing agreement hash. Standing agreements MAY be unilaterally terminated by either Treasurer with notice per the agreement's own terms (or 24h default).
+
+#### 7.7.6 Oracle reference (informative)
+
+When two societies cannot independently value a referent, they MAY reference a third-party Oracle society. The Oracle publishes prices for common referents via its own MCP server (typically `web4_referent_price` tool). The two negotiating Treasurers each query the Oracle independently and use the returned price as their proposed rate, with explicit `reference_standard` in the proposal naming the Oracle's LCT.
+
+The Oracle's own T3 trust governs how much weight is placed on the reference. Oracle pricing does NOT remove the requirement that each society's Treasurer separately sign the agreement — the Oracle is an input to the negotiation, not the authority. This preserves the anti-hierarchical-by-design property: no Oracle has unilateral authority over what rates two societies use; both societies retain refusal authority.
+
+#### 7.7.7 Failure modes specific to rate negotiation
+
+| Failure | MCP Error Code | Recovery |
+|---|---|---|
+| Referent not measurable by responding society | `400 web4_rate_referent_unmeasurable` | Counter-offer with alternative referent |
+| Referent specifier unrecognized | `400 web4_rate_referent_unknown` | Counter-offer with reference_standard |
+| Rate signature invalid | `400 web4_rate_signature_invalid` | Re-sign |
+| Timeout exceeded by responder | `408 web4_rate_negotiation_timeout` | Re-propose with longer timeout or abandon |
+| Standing agreement expired | `409 web4_rate_standing_expired` | Renegotiate or use per-transaction |
+| Acceptance valuation differs from proposal | `409 web4_rate_valuation_mismatch` | Counter-offer with corrected valuation |
+| Oracle reference unavailable | `502 web4_rate_oracle_unreachable` | Use different oracle or direct negotiation |
+
 ## 8. MCP Discovery and Advertisement
 
 ### 8.1 Capability Broadcasting
