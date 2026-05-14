@@ -119,6 +119,248 @@ export class V3Tensor {
 }
 
 /**
+ * WASM-exposed ATPAccount — bio-inspired energy metabolism.
+ */
+export class WasmATPAccount {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Commit locked tokens to ADP (discharge on success).
+     */
+    commit(amount: number): number;
+    /**
+     * Energy ratio: ATP / (ATP + ADP). High = earning, low = spending.
+     */
+    energyRatio(): number;
+    /**
+     * Lock tokens from available to escrow.
+     */
+    lock(amount: number): void;
+    /**
+     * Create a new ATP account with the given initial balance.
+     */
+    constructor(initial: number);
+    /**
+     * Recharge ATP up to max_multiplier * initial_balance.
+     * Returns actual amount recharged.
+     */
+    recharge(rate: number, max_multiplier: number): number;
+    /**
+     * Rollback locked tokens back to available (on failure/cancel).
+     */
+    rollback(amount: number): number;
+    /**
+     * Convert to JSON object.
+     */
+    toJSON(): any;
+    /**
+     * Total active ATP (available + locked).
+     */
+    total(): number;
+    /**
+     * Discharged tokens (ADP).
+     */
+    readonly adp: number;
+    /**
+     * Available ATP.
+     */
+    readonly available: number;
+    /**
+     * Initial balance.
+     */
+    readonly initialBalance: number;
+    /**
+     * Locked (escrowed) ATP.
+     */
+    readonly locked: number;
+}
+
+/**
+ * WASM-exposed R7Action — the complete R6/R7 action framework.
+ *
+ * R7 actions are constructed from a JSON string containing rules, role,
+ * request, reference, and resource fields. This keeps the TypeScript API
+ * clean while preserving the full Rust type structure.
+ */
+export class WasmR7Action {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Compute the canonical hash for chain integrity.
+     */
+    canonicalHash(): string;
+    /**
+     * Compute reputation delta from a quality score (makes this an R7 action).
+     *
+     * quality: 0.0 to 1.0. Below 0.5 = negative, above 0.5 = positive.
+     */
+    computeReputation(quality: number, rule_triggered: string, reason: string): void;
+    /**
+     * Whether this is an R7 action (has reputation tracking).
+     */
+    isR7(): boolean;
+    /**
+     * Create a new R7 action from a JSON configuration string.
+     *
+     * Expected JSON shape:
+     * ```json
+     * {
+     *   "rules": { "law_hash": "sha256:...", "society": "lct:...",
+     *              "constraints": [], "permissions": ["*"], "prohibitions": [] },
+     *   "role": { "actor_lct": "lct:...", "role_lct": "lct:...", "paired_at": "..." },
+     *   "request": { "action": "file_write", "target": "...", "parameters": {},
+     *                "atp_stake": 10.0, "nonce": "...", "constraints": {} },
+     *   "reference": { "precedents": [], "mrh_depth": 3, "relevant_entities": [],
+     *                  "witnesses": [] },
+     *   "resource": { "required_atp": 5.0, "available_atp": 100.0, "compute": {},
+     *                 "escrow_amount": 5.0, "escrow_condition": "result_verified" }
+     * }
+     * ```
+     */
+    constructor(config_json: string);
+    /**
+     * Convert the full action to a JSON string.
+     */
+    toJSON(): string;
+    /**
+     * Validate the action before execution.
+     * Returns a JS array of error strings (empty = valid).
+     */
+    validate(): Array<any>;
+    /**
+     * The unique action ID.
+     */
+    readonly actionId: string;
+    /**
+     * Current action status as string.
+     */
+    readonly status: string;
+}
+
+/**
+ * WASM-exposed RoleAssignment — binds a role to its LCT and tracks filling entity.
+ */
+export class WasmRoleAssignment {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Add an additional holder (committee/federation pattern).
+     */
+    addHolder(entity_lct_id: string): void;
+    /**
+     * Check if an entity is authorized to act in this role.
+     */
+    isAuthorized(entity_lct_id: string): boolean;
+    /**
+     * Create a new role assignment.
+     *
+     * Arguments are UUID strings (will be parsed).
+     */
+    constructor(role_name: string, role_lct_id: string, filling_entity_lct_id: string, assigned_by: string);
+    /**
+     * Rotate the filling entity. The role-LCT stays the same.
+     */
+    rotate(new_entity_lct_id: string, rotated_by: string): void;
+    /**
+     * The filling entity's LCT ID.
+     */
+    readonly fillingEntityLctId: string;
+    /**
+     * Whether this role supports multiple holders.
+     */
+    readonly multiHolder: boolean;
+    /**
+     * The role's LCT ID.
+     */
+    readonly roleLctId: string;
+}
+
+/**
+ * WASM-exposed Society — self-sovereign organizational unit.
+ */
+export class WasmSociety {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Add a citizen to the society.
+     */
+    addCitizen(entity_lct_id: string): void;
+    /**
+     * Assign a role to an entity. Only Sovereign or Administrator can assign.
+     * Returns the role's LCT ID.
+     */
+    assignRole(role_name: string, entity_lct_id: string, assigned_by: string): string;
+    /**
+     * Bootstrap a new society. Returns the society with all 7 base-mandatory
+     * roles assigned to the founder.
+     */
+    static bootstrap(name: string, charter_hash: string, founder_lct_id: string): WasmSociety;
+    /**
+     * Transition to Operational state (all mandatory roles must be filled).
+     */
+    goOperational(): void;
+    /**
+     * Check if an entity holds a specific role.
+     */
+    hasRole(entity_lct_id: string, role_name: string): boolean;
+    /**
+     * Get a JSON summary of the society state.
+     */
+    summary(): any;
+    /**
+     * Validate minimum viable society requirements.
+     * Returns null on success, or a JSON array of error strings on failure.
+     */
+    validateMinimumViable(): any;
+    /**
+     * Society's LCT ID.
+     */
+    readonly lctId: string;
+    /**
+     * Society name.
+     */
+    readonly name: string;
+    /**
+     * Current metabolic state as string.
+     */
+    readonly state: string;
+}
+
+/**
+ * WASM-exposed SocietyRole enum.
+ *
+ * Represents one of the 7 base-mandatory roles, 2 context-mandatory roles,
+ * or a custom role. Use the static methods to enumerate roles.
+ */
+export class WasmSocietyRole {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Returns the 7 base-mandatory roles as a JS array of WasmSocietyRole.
+     */
+    static baseMandatory(): Array<any>;
+    /**
+     * Human-readable description of this role's responsibility.
+     */
+    description(): string;
+    /**
+     * Whether this is a base-mandatory role.
+     */
+    isBaseMandatory(): boolean;
+    /**
+     * Role name as string.
+     */
+    name(): string;
+    /**
+     * Create a role by name. Valid names: sovereign, law_oracle, policy_entity,
+     * treasurer, administrator, archivist, citizen, witness, auditor,
+     * or "custom:<name>" for custom roles.
+     */
+    constructor(name: string);
+}
+
+/**
  * WASM-exposed TrustStore (in-memory only for WASM)
  */
 export class WasmTrustStore {
@@ -176,6 +418,11 @@ export interface InitOutput {
     readonly __wbg_entitytrust_free: (a: number, b: number) => void;
     readonly __wbg_t3tensor_free: (a: number, b: number) => void;
     readonly __wbg_v3tensor_free: (a: number, b: number) => void;
+    readonly __wbg_wasmatpaccount_free: (a: number, b: number) => void;
+    readonly __wbg_wasmr7action_free: (a: number, b: number) => void;
+    readonly __wbg_wasmroleassignment_free: (a: number, b: number) => void;
+    readonly __wbg_wasmsociety_free: (a: number, b: number) => void;
+    readonly __wbg_wasmsocietyrole_free: (a: number, b: number) => void;
     readonly __wbg_wasmtruststore_free: (a: number, b: number) => void;
     readonly entitytrust_actionCount: (a: number) => bigint;
     readonly entitytrust_applyDecay: (a: number, b: number, c: number) => number;
@@ -214,6 +461,44 @@ export interface InitOutput {
     readonly t3tensor_updateFromOutcome: (a: number, b: number, c: number) => void;
     readonly v3tensor_toJSON: (a: number) => any;
     readonly version: () => [number, number];
+    readonly wasmatpaccount_commit: (a: number, b: number) => [number, number, number];
+    readonly wasmatpaccount_energyRatio: (a: number) => number;
+    readonly wasmatpaccount_lock: (a: number, b: number) => [number, number];
+    readonly wasmatpaccount_new: (a: number) => number;
+    readonly wasmatpaccount_recharge: (a: number, b: number, c: number) => number;
+    readonly wasmatpaccount_rollback: (a: number, b: number) => [number, number, number];
+    readonly wasmatpaccount_toJSON: (a: number) => any;
+    readonly wasmatpaccount_total: (a: number) => number;
+    readonly wasmr7action_actionId: (a: number) => [number, number];
+    readonly wasmr7action_canonicalHash: (a: number) => [number, number];
+    readonly wasmr7action_computeReputation: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly wasmr7action_isR7: (a: number) => number;
+    readonly wasmr7action_new: (a: number, b: number) => [number, number, number];
+    readonly wasmr7action_status: (a: number) => [number, number];
+    readonly wasmr7action_toJSON: (a: number) => [number, number, number, number];
+    readonly wasmr7action_validate: (a: number) => any;
+    readonly wasmroleassignment_addHolder: (a: number, b: number, c: number) => [number, number];
+    readonly wasmroleassignment_fillingEntityLctId: (a: number) => [number, number];
+    readonly wasmroleassignment_isAuthorized: (a: number, b: number, c: number) => [number, number, number];
+    readonly wasmroleassignment_multiHolder: (a: number) => number;
+    readonly wasmroleassignment_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+    readonly wasmroleassignment_roleLctId: (a: number) => [number, number];
+    readonly wasmroleassignment_rotate: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+    readonly wasmsociety_addCitizen: (a: number, b: number, c: number) => [number, number];
+    readonly wasmsociety_assignRole: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly wasmsociety_bootstrap: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly wasmsociety_goOperational: (a: number) => [number, number];
+    readonly wasmsociety_hasRole: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly wasmsociety_lctId: (a: number) => [number, number];
+    readonly wasmsociety_name: (a: number) => [number, number];
+    readonly wasmsociety_state: (a: number) => [number, number];
+    readonly wasmsociety_summary: (a: number) => any;
+    readonly wasmsociety_validateMinimumViable: (a: number) => any;
+    readonly wasmsocietyrole_baseMandatory: () => any;
+    readonly wasmsocietyrole_description: (a: number) => [number, number];
+    readonly wasmsocietyrole_isBaseMandatory: (a: number) => number;
+    readonly wasmsocietyrole_name: (a: number) => [number, number];
+    readonly wasmsocietyrole_new: (a: number, b: number) => [number, number, number];
     readonly wasmtruststore_count: (a: number) => number;
     readonly wasmtruststore_delete: (a: number, b: number, c: number) => [number, number, number];
     readonly wasmtruststore_exists: (a: number, b: number, c: number) => [number, number, number];
@@ -232,6 +517,10 @@ export interface InitOutput {
     readonly v3tensor_validity: (a: number) => number;
     readonly v3tensor_valuation: (a: number) => number;
     readonly v3tensor_veracity: (a: number) => number;
+    readonly wasmatpaccount_adp: (a: number) => number;
+    readonly wasmatpaccount_available: (a: number) => number;
+    readonly wasmatpaccount_initialBalance: (a: number) => number;
+    readonly wasmatpaccount_locked: (a: number) => number;
     readonly v3tensor_new: (a: number, b: number, c: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
     readonly __externref_table_alloc: () => number;
