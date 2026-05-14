@@ -59,6 +59,8 @@ pub mod crypto;
 pub mod error;
 pub mod lct;
 pub mod ledger;
+pub mod role;
+pub mod society;
 pub mod t3;
 pub mod v3;
 
@@ -73,6 +75,8 @@ pub use lct::{EntityType, HardwareBinding, Lct, LctBuilder, LctStatus};
 pub use ledger::{
     InMemoryLedger, Ledger, LedgerEntry, LedgerEvent, LedgerProof, LocalLedger, MintReceipt,
 };
+pub use role::{RoleAssignment, SocietyRole};
+pub use society::{MetabolicState, Society};
 pub use t3::{TrustDimension, TrustObservation, TrustRelation, T3, T3_DIMENSIONS};
 pub use v3::{TrustValueScore, ValueDimension, ValueObservation, V3, V3_DIMENSIONS};
 
@@ -85,6 +89,8 @@ pub mod prelude {
     pub use crate::crypto::{KeyPair, PublicKey, SignatureBytes};
     pub use crate::error::{Result, Web4Error};
     pub use crate::lct::{EntityType, Lct, LctBuilder, LctStatus};
+    pub use crate::role::{RoleAssignment, SocietyRole};
+    pub use crate::society::{MetabolicState, Society};
     pub use crate::t3::{TrustDimension, T3};
     pub use crate::v3::{ValueDimension, V3};
 }

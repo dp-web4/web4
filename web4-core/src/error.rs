@@ -49,6 +49,10 @@ pub enum Web4Error {
     #[error("LCT voided: {0}")]
     LctVoided(String),
 
+    /// Invalid state transition
+    #[error("Invalid state: {0}")]
+    InvalidState(String),
+
     /// Ledger operation failed (mint, lookup, anchor, verify)
     #[error("Ledger error: {0}")]
     Ledger(String),
