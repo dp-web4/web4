@@ -18,6 +18,7 @@ Provides offline-capable primitives for:
 - Metabolic states — society operational modes with energy, trust, and witness effects
 - Multi-device binding — device constellation management, trust computation, and recovery
 - Society — core organizational primitive composing federation, treasury, ledger, and trust
+- Society Roles — the 7 base-mandatory role taxonomy with role-LCT binding
 - Security primitives — crypto suite definitions, W4ID identifiers, key policies, VCs
 - Core protocol — handshake, transport, discovery, and Web4 URI types
 - MCP protocol types — Web4 context headers, resources, sessions, ATP metering
@@ -26,7 +27,7 @@ Provides offline-capable primitives for:
 - Deserialization — generic JSON-LD dispatcher for all Web4 types
 - Generation — produce minimal valid JSON-LD documents for any Web4 type
 
-22 modules + MCP server, 364 exports, 2627 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
+23 modules + MCP server, 368 exports, 2627 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
 v0.26.0: CI quality gates (strict mypy, ruff lint, ruff format) enforced on every PR.
 These modules define the canonical data types and algorithms specified in the web4-standard.
 They work offline (no network services required) and are designed to be
@@ -389,6 +390,14 @@ from .society import (
     incorporate_child,
     society_depth,
     society_ancestry,
+)
+
+# ── Society Roles ─────────────────────────────────────────────
+from .role import (
+    SocietyRole,
+    RoleAssignment,
+    bootstrap_society_roles,
+    BASE_MANDATORY_ROLES,
 )
 
 # ── Security Primitives ───────────────────────────────────────
@@ -804,6 +813,11 @@ __all__ = [
     "incorporate_child",
     "society_depth",
     "society_ancestry",
+    # society roles
+    "SocietyRole",
+    "RoleAssignment",
+    "bootstrap_society_roles",
+    "BASE_MANDATORY_ROLES",
     # security
     "CryptoSuiteId",
     "CryptoSuite",

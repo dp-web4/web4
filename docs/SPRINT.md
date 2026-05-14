@@ -1,9 +1,46 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-14 (Sprint 49)
+**Updated**: 2026-05-14 (Sprint 50)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 50: Add SocietyRole + RoleAssignment to Python SDK (2026-05-14)
+
+Implements the top 3 items from the Sprint 49 cross-language audit fix queue:
+P1 (CRITICAL: add SocietyRole enum), P2 (HIGH: RoleAssignment with role-LCT
+binding), P3 (HIGH: solo-founder bootstrap). Achieves cross-language parity
+with `web4-core/src/role.rs` for the core role types.
+
+### T1: SocietyRole enum + RoleAssignment dataclass + bootstrap_society_roles()
+**Status**: DONE
+**Completed**: 2026-05-14
+**Authorized by**: Sprint 49 audit fix queue P1+P2+P3. Policy-reviewed and approved.
+**Scope**:
+New `web4/role.py` module implementing:
+- `SocietyRole` enum: 7 base-mandatory roles (Sovereign, LawOracle, PolicyEntity,
+  Treasurer, Administrator, Archivist, Citizen) + 2 context-mandatory (Witness,
+  Auditor). `str` mixin for JSON-friendly serialization. `is_base_mandatory`
+  property, `description` property.
+- `RoleAssignment` dataclass: role-LCT binding (authority binds to role, not
+  filling entity), T3/V3 per role, `rotate()` (entity rotation preserving
+  role-LCT), `add_holder()`/`remove_holder()` (committee/federation pattern),
+  `is_authorized()`, `to_dict()`/`from_dict()` round-trip serialization.
+- `bootstrap_society_roles()`: solo-founder genesis per `inter-society-protocol.md`
+  §2.1 — creates 7 base-mandatory role assignments with the founder filling every
+  role. Custom `role_lct_factory` support. Resolves the `len(founders) >= 2`
+  contradiction in `create_society()`.
+- `BASE_MANDATORY_ROLES` constant: ordered list of the 7 base-mandatory roles.
+
+**Result**: 4 new exports (368 total), 43 new tests (2656 total), 1 new module
+(23 total + MCP server). mypy --strict clean, ruff lint/format clean. Cross-language
+parity with `web4-core/src/role.rs::SocietyRole` and `RoleAssignment`.
+
+**Remaining from audit**: P4 (MetabolicState reconciliation — needs operator
+decision), P5 (validate_minimum_viable — depends on P1, now unblocked), P6
+(Constraint hard flag), P7 (SocietyState integration — needs operator decision).
 
 ---
 
