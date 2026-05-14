@@ -80,7 +80,7 @@ class TestRules:
     def test_constraint_minimum(self):
         rules = Rules(
             constraints=[
-                Constraint(constraint_type="atp_minimum", value=50),
+                Constraint(constraint_type="atp_minimum", threshold=50),
             ]
         )
         assert rules.check_constraint("atp_minimum", 100)
@@ -90,7 +90,7 @@ class TestRules:
     def test_constraint_maximum(self):
         rules = Rules(
             constraints=[
-                Constraint(constraint_type="rate_limit", value=100),
+                Constraint(constraint_type="rate_limit", threshold=100),
             ]
         )
         assert rules.check_constraint("rate_limit", 50)
@@ -100,7 +100,7 @@ class TestRules:
     def test_no_matching_constraint(self):
         rules = Rules(
             constraints=[
-                Constraint(constraint_type="atp_minimum", value=50),
+                Constraint(constraint_type="atp_minimum", threshold=50),
             ]
         )
         # No constraint for "rate_limit" → passes
@@ -856,8 +856,8 @@ class TestR7ActionJsonLD:
                 law_hash="sha256:governance_v2",
                 society="lct:web4:society:genesis",
                 constraints=[
-                    Constraint(constraint_type="atp_minimum", value=50),
-                    Constraint(constraint_type="rate_limit", value=100),
+                    Constraint(constraint_type="atp_minimum", threshold=50),
+                    Constraint(constraint_type="rate_limit", threshold=100),
                 ],
                 permissions=["read", "analyze"],
                 prohibitions=["delete"],
@@ -1296,7 +1296,7 @@ class TestJsonLDSchemaValidation:
             rules=Rules(
                 law_hash="sha256:abc",
                 society="lct:society:genesis",
-                constraints=[Constraint(constraint_type="atp_minimum", value=50)],
+                constraints=[Constraint(constraint_type="atp_minimum", threshold=50)],
                 permissions=["read"],
             ),
             role=Role(
@@ -1394,7 +1394,7 @@ class TestR7ContextConsistency:
             rules=Rules(
                 law_hash="lh1",
                 society="soc1",
-                constraints=[Constraint("trust_min", 0.5)],
+                constraints=[Constraint("trust_min", 0.5, True)],
                 permissions=["read"],
                 prohibitions=["delete"],
             ),

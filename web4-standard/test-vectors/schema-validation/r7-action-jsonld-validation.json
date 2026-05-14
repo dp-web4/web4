@@ -48,8 +48,8 @@
           "lawHash": "sha256:law_hash_002",
           "society": "lct:web4:society:research",
           "constraints": [
-            {"type": "time_limit", "value": 3600},
-            {"type": "budget_cap", "value": 100}
+            {"type": "time_limit", "threshold": 3600, "hard": true},
+            {"type": "budget_cap", "threshold": 100, "hard": true}
           ],
           "permissions": ["read", "analyze"],
           "prohibitions": ["delete", "modify"]
