@@ -235,7 +235,35 @@ This creates a transparent, reputation-based labor market where:
 - Agents with proven performance access better roles
 - Performance history is verifiable and portable
 
+## 3.4 Example Roles per Entity Type
+
+The companion `society-roles.md` specification enumerates society roles (base-mandatory, context-mandatory, optional) with example entities for each. This subsection provides the symmetric dual: for each primary entity type, example roles that entity type can fill. The mapping is illustrative — any entity type that meets a role's behavioral requirements MAY fill that role.
+
+| Entity Type | Example Roles It Can Fill |
+|---|---|
+| **Human** | Sovereign, Treasurer, Administrator, Archivist, Policy-Entity, Citizen, Witness, Auditor, Mediator, Diplomat, Recovery-Authority, Architect, Agent, Client |
+| **AI** | Policy-Entity, Treasurer, Administrator, Archivist, Validator, Witness, Auditor, Mediator, Architect, Oracle, Dictionary, Agent |
+| **Society** | Sovereign (in federation), Law Oracle (specialized law-publishing society), Treasurer (a treasury-services society), Witness (a witness-services society), Mediator (an arbitration society), Governance-Council, Recovery-Authority |
+| **Organization** | Sovereign, Treasurer, Administrator, Membership-Authority, Governance-Council, Auditor, Steward |
+| **Role** | (Role itself is an entity type; roles are first-class. Roles fill roles in a degenerate sense — see §3 below.) |
+| **Task** | (Tasks are work units, not role-fillers; they are operated on by roles, not held by them.) |
+| **Resource** | (Resources are operated on by roles; do not fill roles themselves.) |
+| **Device** | Validator (hardware-attested), Oracle (sensor-based), Recovery-Authority (TPM-bound recovery), Witness (attestation device) |
+| **Service** | Policy-Entity (rules engine), Validator, Administrator, Oracle, Dictionary, Archivist |
+| **Oracle** | Law Oracle, Policy-Entity (when policy is itself an oracle), Validator, Witness (specialized attestation oracle) |
+| **Accumulator** | Archivist (specialized for accumulation), Witness (broadcast observer) |
+| **Dictionary** | Dictionary role, Policy-Entity (when policy involves semantic translation) |
+| **Hybrid** | Any role (the strength of hybrids is role flexibility — Human-AI teams can fill almost any role with complementary strengths) |
+| **Policy** | Policy-Entity (the canonical filling), Validator, Mediator |
+| **Infrastructure** | (Infrastructure is passive; supports role-filling entities but does not fill roles itself.) |
+
+Where an entity type appears for multiple roles, the choice of which role to use it for is per-society design. A single Human entity might fill Sovereign + Treasurer + Archivist simultaneously in a small society, with separate role-LCT pairings making the accountability explicit per role.
+
+For the role-LCT pairing mechanics see `LCT-linked-context-token.md`; for the full role taxonomy with audit implications see `society-roles.md`.
+
 ## 4. SAL-Specific Roles
+
+> **See also**: `society-roles.md` for the full society-roles taxonomy (base-mandatory, context-mandatory, optional) with fractal-composability semantics. The roles enumerated below are the SAL-specific subset; the broader taxonomy in `society-roles.md` includes additional functional roles (Policy-Entity, Treasurer, Administrator, Archivist, etc.) that are base-mandatory for every Web4 society.
 
 ### 4.1 Society Role
 A **Society** is a delegative entity with special capabilities:
