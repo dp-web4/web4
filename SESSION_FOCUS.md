@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-13 (Sprint 47)*
+*Last updated: 2026-05-13 (Sprint 48)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 48 Summary: Parameter Governance Index (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Parameter governance index in t3-v3-tensors.md | DONE | Resolves Unanswered Question #3 from Sprint 43 audit (unblocked by Sprint 46 T1). Added §10 to `t3-v3-tensors.md`: classifies all trust/value/energy parameters into three governance tiers — protocol-invariant (11 items, enforced by test vectors), society-configurable (8 items), simulation-only (5 items). Cross-references `atp-adp-cycle.md` and `multi-device-lct-binding.md`. 0 new files, 1 spec file modified. |
 
 ### Sprint 47 Summary: Cross-Language T3/V3 Alignment Audit (COMPLETE)
 
@@ -227,33 +233,33 @@ Work undertaken in early 2026 toward what was at the time a planned ARIA grant s
 ## Recent Commits
 
 ```
+6fdbb65 Update Hardbound references: plugin bridge architecture, current status
+cdf3711 Sprint 47 T1: Cross-language T3/V3 alignment audit (#182)
 55b1a3d Rebuild web4-trust-core WASM: canonical 3D tensors
 8e6d1ee Sprint 46 T1: Clarify CI canonicity (audit item #10) (#181)
 8e07fb0 [Publisher] No-change check: Sprint 44 T1 spec gaps resolved, no whitepaper integration
-7c228fd Sprint 45 T1: Archive stale implementation artifacts (#180)
-d530060 Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit (#179)
 ```
 
 ---
 
 ## Open PRs
 
-None (Sprint 47 T1 PR pending).
+Sprint 48 T1 PR pending.
 
 ### Closed PRs (recent)
 
+- PR #182 MERGED — Sprint 47 T1: Cross-language T3/V3 alignment audit
 - PR #181 MERGED — Sprint 46 T1: Clarify CI canonicity (audit item #10)
 - PR #180 MERGED — Sprint 45 T1: Archive stale implementation artifacts
 - PR #179 MERGED — Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit
 - PR #178 MERGED — Strategic review follow-up audit + archive 3 stray implementation/ markdowns
 - PR #176 MERGED — Web4 session 20260512-060024 (auto-branched safety net)
-- PR #175 MERGED — Archive 15 reference files + triage 9 sprawl directories
 
 ---
 
 ## Completeness Summary
 
-- All 47 sprints COMPLETE (Sprints 1-47, all merged or PR pending)
+- All 48 sprints COMPLETE (Sprints 1-48, all merged or PR pending)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -280,7 +286,8 @@ None (Sprint 47 T1 PR pending).
 ---
 
 - **web4-trust-core alignment**: Cross-language T3/V3 audit identified 8 divergences (1 CRITICAL, 4 HIGH) between Rust/WASM and spec/Python SDK — see `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`
+- **Parameter governance**: All trust/value/energy parameters classified into three tiers (protocol-invariant, society-configurable, simulation-only) — see `web4-standard/core-spec/t3-v3-tensors.md` §10
 
 ---
 
-*Updated by autonomous session, 2026-05-13 (Sprint 47 — cross-language T3/V3 alignment audit)*
+*Updated by autonomous session, 2026-05-13 (Sprint 48 — parameter governance index)*

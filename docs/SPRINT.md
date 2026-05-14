@@ -1,9 +1,40 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-13 (Sprint 47)
+**Updated**: 2026-05-13 (Sprint 48)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 48: Parameter Governance Index (2026-05-13)
+
+The spec-vs-explainer alignment audit (Sprint 43 T1) includes Unanswered
+Question #3: "Who decides the parameters? (MRH decay rate, CI multiplier,
+trust thresholds)." The question was partially blocked by item #10 (CI
+canonicity), which Sprint 46 T1 resolved. With that dependency cleared,
+the parameter governance decisions scattered across Sprints 44, 46, and
+existing spec text can be synthesized into a single normative index.
+
+### T1: Parameter governance index in t3-v3-tensors.md
+**Status**: DONE
+**Completed**: 2026-05-13
+**Authorized by**: Downstream from Sprint 43 audit (Unanswered Question #3), unblocked by Sprint 46 T1 (item #10 resolved). Recommended by peer session 120024's queue-state analysis (Sub-option A).
+**Scope**:
+Add §10 "Parameter Governance" to `t3-v3-tensors.md` — classifies all
+trust, value, and energy parameters into three governance tiers:
+protocol-invariant (MUST — enforced by test vectors), society-configurable
+(MAY — published in governance laws), and simulation-only (not protocol
+parameters). Synthesizes decisions from §2.3 (Talent no-decay invariant,
+Training/Temperament decay configurability), `atp-adp-cycle.md` §6.3/§7
+(transfer fees, ATP decay rates, demurrage), and
+`multi-device-lct-binding.md` §4.4 (constellation_coherence as simulation
+parameter). Cross-references rather than duplicates existing normative text.
+**Result**: A developer or autonomous session can now answer "who decides
+this parameter?" for any trust/value/energy tunable by reading one section.
+Resolves Unanswered Question #3 from the spec-vs-explainer audit. Remaining
+audit items (#13 synthons, #14 karma) still require operator design
+decisions. 0 new files, 1 spec file modified, 2 bookkeeping files modified.
 
 ---
 
