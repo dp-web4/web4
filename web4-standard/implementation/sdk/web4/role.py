@@ -34,6 +34,7 @@ __all__ = [
     "RoleAssignment",
     # Functions
     "bootstrap_society_roles",
+    "validate_minimum_viable",
     # Constants
     "BASE_MANDATORY_ROLES",
 ]
@@ -332,3 +333,66 @@ def bootstrap_society_roles(
         )
 
     return assignments
+
+
+# ── Validation ────────────────────────────────────────────────
+
+
+def validate_minimum_viable(
+    roles: List[RoleAssignment],
+    *,
+    is_operational: bool = False,
+) -> List[str]:
+    """Validate minimum viable society requirements.
+
+    Per ``inter-society-protocol.md`` §6.2, a society is semantically viable
+    when it has internal differentiation, witnessing capacity, and externally-
+    grounded ATP reification. This function checks the role-structural
+    requirements (items 1 and 2 from §6.2); ATP reification (item 3) is
+    outside the role module's scope.
+
+    Cross-language parity with ``web4-core/src/society.rs::validate_minimum_viable()``.
+
+    The Rust implementation gates differentiation and witnessing checks on
+    ``MetabolicState::Operational``.  Since the Python SDK's MetabolicState
+    model is pending reconciliation (audit P4), we accept a simple boolean
+    ``is_operational`` flag instead of importing MetabolicState directly.
+
+    Args:
+        roles: The society's current role assignments.
+        is_operational: Whether the society has reached operational state.
+            When False (genesis/bootstrap), only base-mandatory completeness
+            is checked.  When True, differentiation and witnessing capacity
+            are also required.
+
+    Returns:
+        List of error strings.  Empty list means the society passes all
+        checked viability requirements.
+    """
+    errors: List[str] = []
+
+    # 1. All 7 base-mandatory roles must be filled
+    assigned_roles = {ra.role for ra in roles}
+    for role in BASE_MANDATORY_ROLES:
+        if role not in assigned_roles:
+            errors.append(f"Base-mandatory role {role.value!r} not assigned")
+
+    if is_operational:
+        # 2. Internal differentiation — at least 2 distinct role-filling entities
+        unique_fillers = {ra.filling_entity_lct_id for ra in roles}
+        if len(unique_fillers) < 2:
+            errors.append(
+                "Minimum viable society requires at least 2 distinct"
+                " role-filling entities"
+            )
+
+        # 3. Witnessing capacity — Witness or Auditor role must be assigned
+        has_witness = SocietyRole.WITNESS in assigned_roles
+        has_auditor = SocietyRole.AUDITOR in assigned_roles
+        if not has_witness and not has_auditor:
+            errors.append(
+                "Minimum viable society requires witnessing capacity"
+                " (Witness or Auditor role)"
+            )
+
+    return errors
