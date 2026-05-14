@@ -233,33 +233,33 @@ Work undertaken in early 2026 toward what was at the time a planned ARIA grant s
 ## Recent Commits
 
 ```
-6fdbb65 Update Hardbound references: plugin bridge architecture, current status
-cdf3711 Sprint 47 T1: Cross-language T3/V3 alignment audit (#182)
-55b1a3d Rebuild web4-trust-core WASM: canonical 3D tensors
-8e6d1ee Sprint 46 T1: Clarify CI canonicity (audit item #10) (#181)
-8e07fb0 [Publisher] No-change check: Sprint 44 T1 spec gaps resolved, no whitepaper integration
+8857ab0 Add ATP/ADP and R6/R7 action framework to web4-core SDK
+8243895 Add Society and Role types to web4-core SDK
+0b73b92 forum: Kimi 2.6 cross-model review of web4 (verbatim, 3 rounds)
+193607f README + STATUS: surface architectural shape upfront; honest qualifiers
+05911c3 spec: society-roles.md + entity-types.md cross-reference — three-tier role taxonomy
 ```
 
 ---
 
 ## Open PRs
 
-Sprint 48 T1 PR pending.
+Sprint 49 T1 PR pending.
 
 ### Closed PRs (recent)
 
+- PR #183 MERGED — Sprint 48 T1: Parameter governance index
 - PR #182 MERGED — Sprint 47 T1: Cross-language T3/V3 alignment audit
 - PR #181 MERGED — Sprint 46 T1: Clarify CI canonicity (audit item #10)
 - PR #180 MERGED — Sprint 45 T1: Archive stale implementation artifacts
 - PR #179 MERGED — Sprint 44 T1: Resolve MEDIUM-priority spec gaps from Sprint 43 audit
 - PR #178 MERGED — Strategic review follow-up audit + archive 3 stray implementation/ markdowns
-- PR #176 MERGED — Web4 session 20260512-060024 (auto-branched safety net)
 
 ---
 
 ## Completeness Summary
 
-- All 48 sprints COMPLETE (Sprints 1-48, all merged or PR pending)
+- All 49 sprints COMPLETE (Sprints 1-49, all merged or PR pending)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -285,9 +285,10 @@ Sprint 48 T1 PR pending.
 
 ---
 
-- **web4-trust-core alignment**: Cross-language T3/V3 audit identified 8 divergences (1 CRITICAL, 4 HIGH) between Rust/WASM and spec/Python SDK — see `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`
+- **web4-core Society/Role/ATP/R6 alignment**: Cross-language audit identified 14 items (1 CRITICAL: Python SDK missing SocietyRole, 3 HIGH, 3 MEDIUM, 4 LOW) — see `docs/audits/cross-language-society-role-atp-r6-alignment-2026-05-14.md`
+- **web4-trust-core T3/V3 alignment**: Cross-language T3/V3 audit identified 8 divergences (1 CRITICAL, 4 HIGH) between Rust/WASM and spec/Python SDK — see `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`
 - **Parameter governance**: All trust/value/energy parameters classified into three tiers (protocol-invariant, society-configurable, simulation-only) — see `web4-standard/core-spec/t3-v3-tensors.md` §10
 
 ---
 
-*Updated by autonomous session, 2026-05-13 (Sprint 48 — parameter governance index)*
+*Updated by autonomous session, 2026-05-14 (Sprint 49 — cross-language Society/Role/ATP/R6 audit)*

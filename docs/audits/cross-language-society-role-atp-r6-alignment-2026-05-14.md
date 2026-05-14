@@ -2,7 +2,7 @@
 
 **Date**: 2026-05-14
 **Scope**: 4 new Rust SDK modules (`web4-core/src/{society,role,atp,r6}.rs`) vs Python SDK counterparts (`web4-standard/implementation/sdk/web4/{society,r6,atp}.py`) vs canonical specs
-**Triggered by**: Operator commits `82438958` (Society+Role) and `8857ab09` (ATP+R6/R7) — 4 new Rust modules added to web4-core
+**Triggered by**: Operator commits `82438958` (Society+Role) and `8857ab09` (ATP+R6/R7) -- 4 new Rust modules added to web4-core
 **Pattern**: Same methodology as Sprint 47 T1 (cross-language T3/V3 alignment audit)
 **Author**: Autonomous session (Legion web4 track)
 
@@ -12,7 +12,7 @@
 
 The operator added 4 new Rust modules to `web4-core` implementing Society, Role, ATP, and R6/R7 concepts. These were built against the NEW specs (`society-roles.md`, `inter-society-protocol.md`) committed the same day. The Python SDK's corresponding modules were built against OLDER specs and lack several concepts from the new specifications.
 
-**Key finding**: The Python SDK has **no concept of Society Roles** — the entire 7-role taxonomy from `society-roles.md` (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) is absent. This is the largest cross-language gap.
+**Key finding**: The Python SDK has **no concept of Society Roles** -- the entire 7-role taxonomy from `society-roles.md` (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) is absent. This is the largest cross-language gap.
 
 | Severity | Count | Summary |
 |----------|-------|---------|
@@ -56,9 +56,9 @@ For each module pair:
 - `web4-standard/implementation/sdk/web4/federation.py` (dependency)
 - `web4-standard/implementation/sdk/web4/metabolic.py` (dependency)
 
-### Finding #1: Python SDK missing SocietyRole entirely — CRITICAL
+### Finding #1: Python SDK missing SocietyRole entirely -- CRITICAL
 
-**Spec requirement** (`society-roles.md` §2): Every Web4-compliant society MUST have 7 base-mandatory roles: Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen.
+**Spec requirement** (`society-roles.md` section 2): Every Web4-compliant society MUST have 7 base-mandatory roles: Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen.
 
 **Rust**: `SocietyRole` enum with 10 variants (7 base-mandatory + Witness + Auditor + Custom). `is_base_mandatory()`, `base_mandatory()`, `description()` methods. `RoleAssignment` struct with role-LCT binding, T3/V3 per role, multi-holder support, rotation.
 
@@ -68,43 +68,44 @@ For each module pair:
 
 **Fix scope**: Add `SocietyRole` enum + `RoleAssignment` dataclass to Python SDK. Integrate with `society.py`'s `SocietyState`. This is a significant addition (~150-200 lines of new types + integration).
 
-### Finding #2: Genesis protocol mismatch — HIGH
+### Finding #2: Genesis protocol mismatch -- HIGH
 
-**Spec requirement** (`inter-society-protocol.md` §2.1): Self-bootstrapped genesis — a single entity MAY found a society. "Solo founder wears many hats."
+**Spec requirement** (`inter-society-protocol.md` section 2.1): Self-bootstrapped genesis -- a single entity MAY found a society. "Solo founder wears many hats."
 
-**Rust**: `Society::bootstrap(name, charter_hash, founder_lct_id)` implements solo-founder genesis. Creates all 7 base-mandatory role assignments with the founder filling every role. Returns `(Society, Vec<(SocietyRole, Uuid)>)` — the society plus the role-LCT pairs.
+**Rust**: `Society::bootstrap(name, charter_hash, founder_lct_id)` implements solo-founder genesis. Creates all 7 base-mandatory role assignments with the founder filling every role. Returns `(Society, Vec<(SocietyRole, Uuid)>)` -- the society plus the role-LCT pairs.
 
-**Python**: `create_society()` requires `len(founders) >= 2` — raises `ValueError("Society requires at least 2 founders")`. This contradicts the spec's solo-founder genesis protocol.
+**Python**: `create_society()` requires `len(founders) >= 2` -- raises `ValueError("Society requires at least 2 founders")`. This contradicts the spec's solo-founder genesis protocol.
 
 **Impact**: The Python SDK cannot create a solo-founder society, which the spec explicitly permits and the Rust SDK implements. The 2-founder minimum was carried forward from an older version of `SOCIETY_SPECIFICATION.md` that predates the `inter-society-protocol.md` genesis protocols.
 
 **Fix scope**: Add `bootstrap()` class method or standalone function supporting solo-founder genesis. Optionally retain `create_society()` for the multi-founder case.
 
-### Finding #3: MetabolicState divergence — HIGH
+### Finding #3: MetabolicState divergence -- HIGH
 
-**Spec reference**: `SOCIETY_SPECIFICATION.md` metabolic states, referenced by `inter-society-protocol.md` §5 (secession/dissolution).
+**Spec reference**: `SOCIETY_SPECIFICATION.md` metabolic states, referenced by `inter-society-protocol.md` section 5 (secession/dissolution).
 
 **Rust**: `MetabolicState` enum with 5 variants: Genesis, Bootstrap, Operational, Dormant, Sunset.
 
 **Python**: `MetabolicState` (in `metabolic.py`) has: ACTIVE, GROWING, STABLE, DECLINING, DORMANT, CRITICAL, DISSOLVING (7 variants).
 
 **Mismatch detail**:
+
 | Concept | Rust | Python |
 |---------|------|--------|
-| Initial creation | Genesis | (no equivalent — jumps to ACTIVE) |
+| Initial creation | Genesis | (no equivalent -- jumps to ACTIVE) |
 | Setting up roles/ATP | Bootstrap | (no equivalent) |
 | Fully running | Operational | ACTIVE / GROWING / STABLE |
 | Low activity | Dormant | DORMANT |
 | Winding down | Sunset | DECLINING / DISSOLVING |
 | Emergency | (not modeled) | CRITICAL |
 
-**Impact**: The two SDKs have fundamentally different lifecycle models. The Rust model follows the new spec (Genesis → Bootstrap → Operational lifecycle from `inter-society-protocol.md`). The Python model follows an older, more granular biologically-inspired model. Interop on lifecycle state would require a mapping layer.
+**Impact**: The two SDKs have fundamentally different lifecycle models. The Rust model follows the new spec (Genesis to Bootstrap to Operational lifecycle from `inter-society-protocol.md`). The Python model follows an older, more granular biologically-inspired model. Interop on lifecycle state would require a mapping layer.
 
 **Fix scope**: Decide whether to align Python to Rust's spec-matching 5-state model or define a canonical mapping. The Python `SocietyPhase` enum (Genesis/Bootstrap/Operational) partially covers the Rust states but is separate from `MetabolicState`.
 
-### Finding #4: No role-LCT binding in Python — HIGH
+### Finding #4: No role-LCT binding in Python -- HIGH
 
-**Spec requirement** (`society-roles.md` §5): "Role authority binds to the role LCT, not to the filling entity's LCT. When the filling entity changes, the role's history and authority continue uninterrupted."
+**Spec requirement** (`society-roles.md` section 5): "Role authority binds to the role LCT, not to the filling entity's LCT. When the filling entity changes, the role's history and authority continue uninterrupted."
 
 **Rust**: `RoleAssignment` has `role_lct_id: Uuid` (the role's own LCT), `filling_entity_lct_id: Uuid` (who currently fills it), `assigned_by`, `assigned_at`, `role_trust: T3`, `role_value: V3`, `multi_holder: bool`, `additional_holders: Vec<Uuid>`. Supports `rotate()` (change filler, keep role-LCT) and `add_holder()` (committee pattern).
 
@@ -114,17 +115,17 @@ For each module pair:
 
 **Fix scope**: Part of the broader SocietyRole addition (Finding #1). The `RoleAssignment` dataclass with role-LCT binding is the core type to add.
 
-### Finding #5: Composite architecture difference — MEDIUM
+### Finding #5: Composite architecture difference -- MEDIUM
 
-**Python**: Uses a layered composite pattern — `SocietyState` wraps `federation.Society` + `SocietyPhase` + `MetabolicState` + `Treasury` + `SocietyLedger` + citizen trust profiles. The `federation.Society` holds citizens, laws, quorum policy, parent/children. Operations are free functions (`create_society()`, `admit_citizen()`, etc.) that mutate `SocietyState`.
+**Python**: Uses a layered composite pattern -- `SocietyState` wraps `federation.Society` + `SocietyPhase` + `MetabolicState` + `Treasury` + `SocietyLedger` + citizen trust profiles. The `federation.Society` holds citizens, laws, quorum policy, parent/children. Operations are free functions (`create_society()`, `admit_citizen()`, etc.) that mutate `SocietyState`.
 
 **Rust**: Uses a self-contained `Society` struct with roles, citizens, federation parent/children, charter, and metabolic state all in one type. Operations are methods on `Society` (`bootstrap()`, `assign_role()`, `go_operational()`, etc.).
 
-**Impact**: Not a semantic mismatch per se — both represent the same concepts — but the Python SDK's layered approach means that adding roles requires threading through multiple types (SocietyState, federation.Society, and a new role component). The Rust approach is simpler to extend.
+**Impact**: Not a semantic mismatch per se -- both represent the same concepts -- but the Python SDK's layered approach means that adding roles requires threading through multiple types (SocietyState, federation.Society, and a new role component). The Rust approach is simpler to extend.
 
-### Finding #6: Minimum viable society validation — MEDIUM
+### Finding #6: Minimum viable society validation -- MEDIUM
 
-**Spec requirement** (`inter-society-protocol.md` §6.2): A society is semantically viable when it has (1) internal differentiation, (2) witnessing capacity, (3) externally-grounded ATP reification.
+**Spec requirement** (`inter-society-protocol.md` section 6.2): A society is semantically viable when it has (1) internal differentiation, (2) witnessing capacity, (3) externally-grounded ATP reification.
 
 **Rust**: `Society::validate_minimum_viable()` checks all three requirements. Returns `Result<(), Vec<String>>` with specific error messages.
 
@@ -145,7 +146,7 @@ For each module pair:
 ### Python implementation
 - `web4-standard/implementation/sdk/web4/atp.py` (382 lines)
 
-### Finding #7: Core semantics are aligned — INFO (positive)
+### Finding #7: Core semantics are aligned -- INFO (positive)
 
 Both implementations share identical semantics for:
 
@@ -153,25 +154,25 @@ Both implementations share identical semantics for:
 |-----------|--------|------|----------|
 | Account structure | `ATPAccount(available, locked, adp, initial_balance)` | `ATPAccount { available, locked, adp, initial_balance }` | YES |
 | Total calculation | `available + locked` | `available + locked` | YES |
-| Energy ratio | `total / (total + adp)`, 0→0.5 | `total / (total + adp)`, 0→0.5 | YES |
-| Lock | `lock(amount) → bool` | `lock(amount) → Result<()>` | YES (idiomatic) |
-| Commit | `commit(amount) → float` | `commit(amount) → Result<f64>` | YES |
-| Rollback | `rollback(amount) → float` | `rollback(amount) → Result<f64>` | YES |
-| Recharge | `recharge(rate, max_multiplier) → float` | `recharge(rate, max_multiplier) → f64` | YES |
+| Energy ratio | `total / (total + adp)`, 0 maps to 0.5 | `total / (total + adp)`, 0 maps to 0.5 | YES |
+| Lock | `lock(amount) -> bool` | `lock(amount) -> Result<()>` | YES (idiomatic) |
+| Commit | `commit(amount) -> float` | `commit(amount) -> Result<f64>` | YES |
+| Rollback | `rollback(amount) -> float` | `rollback(amount) -> Result<f64>` | YES |
+| Recharge | `recharge(rate, max_multiplier) -> float` | `recharge(rate, max_multiplier) -> f64` | YES |
 | Transfer | `transfer(sender, receiver, amount, fee_rate, max_balance)` | `transfer(sender, receiver, amount, fee_rate, max_balance)` | YES |
 | Sliding scale | `sliding_scale(quality, base, zero_thresh, full_thresh)` | `sliding_scale(quality, base, zero_thresh, full_thresh)` | YES |
 
 This is the **best-aligned module pair** in the audit. Both implementations follow the `atp-adp-cycle.md` spec faithfully.
 
-### Finding #8: Python has additional analytical functions — LOW
+### Finding #8: Python has additional analytical functions -- LOW
 
 **Python only**: `check_conservation()`, `sybil_cost()`, `fee_sensitivity()`, `energy_ratio()` (standalone function).
 
 **Rust**: None of these utility functions.
 
-**Impact**: These are analysis/test-support utilities, not core primitives. The Rust SDK covers the core protocol operations; the Python SDK additionally provides economic analysis tools. Not a divergence — a maturity difference.
+**Impact**: These are analysis/test-support utilities, not core primitives. The Rust SDK covers the core protocol operations; the Python SDK additionally provides economic analysis tools. Not a divergence -- a maturity difference.
 
-### Finding #9: JSON-LD serialization asymmetry — LOW
+### Finding #9: JSON-LD serialization asymmetry -- LOW
 
 **Python**: `ATPAccount` and `TransferResult` have `to_jsonld()`, `from_jsonld()`, `to_jsonld_string()`, `from_jsonld_string()`.
 
@@ -193,25 +194,25 @@ This is the **best-aligned module pair** in the audit. Both implementations foll
 ### Python implementation
 - `web4-standard/implementation/sdk/web4/r6.py` (~700 lines)
 
-### Finding #10: Constraint structure mismatch — MEDIUM
+### Finding #10: Constraint structure mismatch -- MEDIUM
 
-**Python**: `Constraint(constraint_type: str, value: Any)` — generic value, no hard/soft distinction.
+**Python**: `Constraint(constraint_type: str, value: Any)` -- generic value, no hard/soft distinction.
 
-**Rust**: `Constraint { constraint_type: String, threshold: f64, hard: bool }` — typed threshold, explicit hard/soft flag.
+**Rust**: `Constraint { constraint_type: String, threshold: f64, hard: bool }` -- typed threshold, explicit hard/soft flag.
 
 **Impact**: The Rust version is more specific and better aligned with the spec's concept of hard constraints (that block execution) vs soft constraints (that warn). The Python version loses this distinction. A hard constraint in Rust would need to be encoded differently in Python (e.g., as a convention in `constraint_type` naming).
 
 **Fix scope**: Add `hard: bool = True` and rename `value` to `threshold` in the Python `Constraint` dataclass. Breaking change for existing test vectors.
 
-### Finding #11: ActionStatus enum mismatch — MEDIUM
+### Finding #11: ActionStatus enum mismatch -- MEDIUM
 
 **Python**: 7 variants: PENDING, VALIDATED, IN_PROGRESS, SUCCESS, FAILURE, ERROR, CANCELLED.
 
 **Rust**: 6 variants: Pending, Validated, InProgress, Success, Failure, Error. **Missing: CANCELLED**.
 
-**Impact**: An action cancelled in Python cannot be represented in Rust. Minor — CANCELLED is a convenience state not referenced in the spec's core lifecycle. But cross-language serialization of cancelled actions would fail.
+**Impact**: An action cancelled in Python cannot be represented in Rust. Minor -- CANCELLED is a convenience state not referenced in the spec's core lifecycle. But cross-language serialization of cancelled actions would fail.
 
-### Finding #12: Python has ActionChain; Rust does not — LOW
+### Finding #12: Python has ActionChain; Rust does not -- LOW
 
 **Python**: `ActionChain` class for chaining R7 actions (linked list via `prev_action_hash`), with `build_action()` convenience function.
 
@@ -219,7 +220,7 @@ This is the **best-aligned module pair** in the audit. Both implementations foll
 
 **Impact**: Python SDK is more feature-complete for action sequencing. Rust provides the primitive (`prev_action_hash`) but not the convenience wrapper.
 
-### Finding #13: Error hierarchy difference — LOW
+### Finding #13: Error hierarchy difference -- LOW
 
 **Python**: 7 dedicated error types inheriting from `R7Error`: `RuleViolation`, `RoleUnauthorized`, `RequestMalformed`, `ReferenceInvalid`, `ResourceInsufficient`, `ResultInvalid`, `ReputationComputationError`.
 
@@ -227,7 +228,7 @@ This is the **best-aligned module pair** in the audit. Both implementations foll
 
 **Impact**: Language-idiomatic. Python's finer-grained errors map to R7's 7 components; Rust uses broader error categories. Not a semantic mismatch.
 
-### Finding #14: Naming differences — LOW
+### Finding #14: Naming differences -- LOW
 
 | Concept | Python | Rust |
 |---------|--------|------|
@@ -257,7 +258,7 @@ Ordered by impact and dependency chain:
 
 | Finding | Severity | Reason |
 |---------|----------|--------|
-| #7 | INFO | ATP core semantics are aligned — no fix needed |
+| #7 | INFO | ATP core semantics are aligned -- no fix needed |
 | #8 | LOW | Python's extra analytical functions are additive, not divergent |
 | #9 | LOW | JSON-LD support in Rust is a later concern (no cross-language doc exchange yet) |
 | #11 | MEDIUM | CANCELLED status is a convenience; can wait for next R6/R7 spec revision |
@@ -289,7 +290,7 @@ The Python SDK uses a layered composite (`SocietyState` wrapping `federation.Soc
 
 ## Cross-Reference to Sprint 47 Audit
 
-The Sprint 47 T1 audit (`docs/audits/cross-language-t3v3-alignment-2026-05-13.md`) found 8 divergences in T3/V3 between Rust and Python. This audit finds 14 items across Society/Role/ATP/R6 — but the pattern is different:
+The Sprint 47 T1 audit (`docs/audits/cross-language-t3v3-alignment-2026-05-13.md`) found 8 divergences in T3/V3 between Rust and Python. This audit finds 14 items across Society/Role/ATP/R6 -- but the pattern is different:
 
 | Sprint 47 (T3/V3) | Sprint 49 (Society/Role/ATP/R6) |
 |---|---|
@@ -298,7 +299,7 @@ The Sprint 47 T1 audit (`docs/audits/cross-language-t3v3-alignment-2026-05-13.md
 | 1 CRITICAL (wrong behavior) | 1 CRITICAL (missing concept) |
 | Fixes require Rust toolchain | Fixes require Python SDK changes (this repo) |
 
-The Society/Role gap (Findings #1-#6) is **autonomous-actionable from this repo** — unlike the Sprint 47 T3/V3 fixes which required the `web4-trust-core` Rust toolchain. P1-P3, P5-P7 can be executed by autonomous sessions working in `web4-standard/implementation/sdk/`.
+The Society/Role gap (Findings #1-#6) is **autonomous-actionable from this repo** -- unlike the Sprint 47 T3/V3 fixes which required the `web4-trust-core` Rust toolchain. P1-P3, P5-P7 can be executed by autonomous sessions working in `web4-standard/implementation/sdk/`.
 
 P4 (MetabolicState reconciliation) requires operator design input.
 
@@ -307,19 +308,19 @@ P4 (MetabolicState reconciliation) requires operator design input.
 ## Files Examined
 
 ### Rust SDK (read-only, no toolchain on Legion)
-- `web4-core/src/lib.rs` — module structure, re-exports
-- `web4-core/src/society.rs` — Society struct, bootstrap, lifecycle, federation
-- `web4-core/src/role.rs` — SocietyRole enum, RoleAssignment
-- `web4-core/src/atp.rs` — ATPAccount, transfer, sliding_scale
-- `web4-core/src/r6.rs` — R6/R7 types, validation, reputation
-- `web4-core/Cargo.toml` — dependencies
+- `web4-core/src/lib.rs` -- module structure, re-exports
+- `web4-core/src/society.rs` -- Society struct, bootstrap, lifecycle, federation
+- `web4-core/src/role.rs` -- SocietyRole enum, RoleAssignment
+- `web4-core/src/atp.rs` -- ATPAccount, transfer, sliding_scale
+- `web4-core/src/r6.rs` -- R6/R7 types, validation, reputation
+- `web4-core/Cargo.toml` -- dependencies
 
 ### Python SDK
-- `web4-standard/implementation/sdk/web4/society.py` — SocietyState, create_society, citizen lifecycle
-- `web4-standard/implementation/sdk/web4/atp.py` — ATPAccount, transfer, analytical functions
-- `web4-standard/implementation/sdk/web4/r6.py` — R7Action, R6/R7 types, ActionChain
+- `web4-standard/implementation/sdk/web4/society.py` -- SocietyState, create_society, citizen lifecycle
+- `web4-standard/implementation/sdk/web4/atp.py` -- ATPAccount, transfer, analytical functions
+- `web4-standard/implementation/sdk/web4/r6.py` -- R7Action, R6/R7 types, ActionChain
 
 ### Canonical Specs
-- `web4-standard/core-spec/society-roles.md` — 7 base-mandatory roles, 3-tier taxonomy
-- `web4-standard/core-spec/inter-society-protocol.md` — genesis, first-contact, federation, secession
-- `web4-standard/core-spec/atp-adp-cycle.md` — ATP form, transfer, conservation
+- `web4-standard/core-spec/society-roles.md` -- 7 base-mandatory roles, 3-tier taxonomy
+- `web4-standard/core-spec/inter-society-protocol.md` -- genesis, first-contact, federation, secession
+- `web4-standard/core-spec/atp-adp-cycle.md` -- ATP form, transfer, conservation
