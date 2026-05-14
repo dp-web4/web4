@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-05-13
+**Last Updated**: 2026-05-14
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,22 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-14: Publisher Maintenance - No-Change Check (SDK additions in main, spec evolution, audit watch resolved)
+- Nineteen commits since 2026-05-13 no-change check reviewed against inclusion criteria. None warrant whitepaper integration today; multiple watch items resolved or added.
+- **web4-core SDK additions in main, not yet published (8243895 + 8857ab0, 2026-05-13):** `web4-core` now has first-class `Society`/`Role` types (per `inter-society-protocol.md` + `society-roles.md`; 7 base-mandatory roles) and `ATPAccount` / `R6Action` / `R7Action` types (210 LOC + 230 LOC respectively; conservation-invariant transfer with society-configurable fees and max_balance; R7 extends R6 with reputation as first-class output). Per inclusion criteria ("New protocol element implemented in code" → high priority): code exists and is tested in `cargo test`, but it is **in the `main` branch only — not yet in any published v0.1.x release on crates.io / PyPI**. Following the 2026-04-29 precedent (Executive Summary "Currently Available" leads with published packages), no Executive Summary update warranted until next release. Watch item: integrate into "Currently Available" when v0.2.0 (or similar) ships. Spec coverage for these primitives already exists in the whitepaper glossary, Part 3 (ATP/ADP), Part 6 (R6/R7), Part 8 (society/role); SDK availability is the next maturity step, not new whitepaper content.
+- **Sprint 46 T1 CI canonicity clarification (#181, 8e6d1ee, 2026-05-13):** Added §4.4 to `multi-device-lct-binding.md` documenting that `constellation_coherence` is the canonical metric (T3 tensor extension, witness density); "CI" / "Coherence Index" and numeric multipliers (e.g., 1.4×) are **simulation parameters, not protocol primitives**. **This resolves Sprint 43 SPEC GAP #10 watch item "CI/coherence as cost multiplier"** by clarifying the term is not a protocol primitive in the first place. No whitepaper integration warranted — the whitepaper does not currently use "CI" terminology. Watch item removed from pending list.
+- **Sprint 47 T1 cross-language T3/V3 alignment audit (#182, cdf3711, 2026-05-13):** Audit document at `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`. Implementation-alignment artifact, not protocol change.
+- **Sprint 48 T1 Parameter governance index (#183, 824acd3, 2026-05-13):** Updates `t3-v3-tensors.md` with parameter governance index. Spec-level refinement; Part 3 narrative in whitepaper does not enumerate parameter governance — no whitepaper integration warranted. Watch item if/when whitepaper Part 3.2 is restructured.
+- **inter-society-protocol.md genesis + iterations v0.1.1/v0.1.2 (17d6471 + f4803dd + 2f4454f, 2026-05-13):** New core spec covering genesis, first-contact, federation, secession; v0.1.1 incorporates Kimi round-3 sharpenings; v0.1.2 fixes R6-only to R6/R7 throughout. **Substantive new spec**, but still evolving (3 versions in one day). Per "Design still evolving" exclusion, DEFER whitepaper integration until spec stabilizes — likely worth a Part 6 / Part 8 supplement once v0.2 or later ships. Added to watch list.
+- **mcp-protocol.md v0.1.3 — MCP IS the inter-society protocol (7c7c43c, 2026-05-13):** Significant equation-level claim: MCP is identified as the inter-society protocol per the canonical Web4 equation. Also touches README.md and STATUS.md. **WIP §7.7 (caa3878, 2026-05-14): referent-grounded exchange rate negotiation** — explicitly marked WIP. Per "Design still evolving" exclusion, DEFER. Added to watch list.
+- **Kimi 2.6 cross-model reviews — three rounds + two post-amendment passes (0b73b92 + cd85ef1 + 31ce382):** External-model peer review of the web4 spec corpus. Forum artifacts, not whitepaper content. No integration warranted.
+- **Worker session #184 (323b2cb, 2026-05-14):** Autonomous worker session producing `docs/audits/cross-language-society-role-atp-r6-alignment-2026-05-14.md` + SPRINT.md updates. Implementation-alignment artifact, not protocol change.
+- **README + STATUS architectural-shape update (193607f):** README-level positioning change ("surface architectural shape upfront; honest qualifiers"). Whitepaper Executive Summary already has its own calibrated framing (2026-04-29 a5dafa6). No change.
+- **society-roles.md + entity-types.md three-tier role taxonomy (05911c3):** Cross-reference between spec docs establishing a three-tier role taxonomy. Spec-level refinement; whitepaper Part 8 already discusses entity types and roles in narrative form. Could integrate as a Part 8 tightening once the SDK Society/Role types ship in a release; not warranted today.
+- **Hardbound references update (6fdbb65):** README-level update on plugin bridge architecture and current status.
+- **No content changes; no source/artifact rebuild needed (build remains aligned with 2026-04-29 source state from e990039).**
+- Surface instinct: this is the highest-activity day for web4 spec/SDK work since the 2026-04-28 v0.1.0 release. The pattern is "spec stabilization through external review" (Kimi 2.6 three-round critique → spec amendments → SDK implementation in main → next release window). The whitepaper's role is to lag the spec, not lead it. Integration is correctly deferred until v0.2.0 ships and the inter-society-protocol stabilizes — but if both land in the next pass, the Executive Summary's "Currently Available" + "Emerging Implementation" sections will need a substantive rewrite, not a one-line addition.
 
 ### 2026-05-13: Publisher Maintenance - No-Change Check
 - Six commits since 2026-05-04 no-change check reviewed against inclusion criteria. None warrant whitepaper integration today.
@@ -428,10 +444,13 @@ The whitepaper should reflect implementation reality. Current gaps:
 | 10-layer governance diagram | Low | Described in status table; could benefit from visual representation |
 | Plugin examples | Low | Nice to have |
 | ATP transfer-fee semantics | Resolved (spec) | Sprint 44 T1 (#179, 2026-05-12) added §6.3 Transfer Fees to atp-adp-cycle.md as society-configurable MAY. Spec-level resolution; whitepaper Part 3 narrative does not enumerate society economic policies — no whitepaper integration warranted |
-| CI/coherence as cost multiplier | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
+| CI/coherence as cost multiplier | Resolved (spec) | Sprint 46 T1 (#181, 2026-05-13) added §4.4 to multi-device-lct-binding.md clarifying constellation_coherence is canonical metric; "CI"/numeric multipliers are simulation parameters, NOT protocol primitives. Whitepaper does not use "CI" terminology — no integration warranted |
 | Synthon lifecycle | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 | Karma-across-lives canonicity | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 | Heterogeneous-identity / constellation framing | Watch | docs/specs/heterogeneous-identity.md (commit 64adbe2, 2026-04-29); 4 open questions outstanding (constellation lower bound, divergence resolution, cross-domain witnessing, observability); integrate when constellation lifecycle and minimums resolve |
+| web4-core SDK Society/Role/ATP/R6 types | Watch (next release) | Added in main 2026-05-13 (commits 8243895 + 8857ab0); per 2026-04-29 precedent, integrate into Executive Summary "Currently Available" when next published release ships on crates.io / PyPI |
+| inter-society-protocol.md (genesis/first-contact/federation/secession) | Watch (spec stabilization) | New core spec, three versions in one day (17d6471 + f4803dd + 2f4454f, 2026-05-13). Per "Design still evolving" exclusion, DEFER until spec stabilizes — likely worth a Part 6/Part 8 supplement once v0.2 or later ships |
+| MCP-as-inter-society-protocol per canonical equation | Watch (spec stabilization) | mcp-protocol.md v0.1.3 (7c7c43c, 2026-05-13) plus WIP §7.7 referent-grounded exchange rate (caa3878, 2026-05-14). Equation-level identification; integrate once §7.7 leaves WIP |
 
 ---
 
