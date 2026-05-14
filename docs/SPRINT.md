@@ -1,9 +1,36 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-14 (Sprint 50)
+**Updated**: 2026-05-14 (Sprint 51)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 51: Minimum Viable Society Validation + Constraint Alignment (2026-05-14)
+
+Resolves two remaining autonomous-actionable items from the Sprint 49
+cross-language audit fix queue: P5 (validate_minimum_viable) and P6
+(Constraint threshold + hard flag alignment).
+
+### T1: validate_minimum_viable() + Constraint alignment
+**Status**: DONE
+**Completed**: 2026-05-14
+**Authorized by**: Sprint 49 audit fix queue P5+P6. Policy-reviewed and approved.
+**Scope**:
+1. **P5 — `validate_minimum_viable()`**: New function in `web4/role.py` per
+   `inter-society-protocol.md` §6.2 and Rust `Society::validate_minimum_viable()`.
+   Checks base-mandatory completeness, internal differentiation (≥2 fillers when
+   operational), witnessing capacity (Witness or Auditor when operational).
+2. **P6 — Constraint alignment**: Updated `Constraint` dataclass in `web4/r6.py`
+   from `value: Any` to `threshold: float` + `hard: bool = True`. Updated
+   serialization, JSON schemas, and test vectors.
+
+**Result**: 1 new export (369 total), 12 new tests (2668 total), 0 new files.
+mypy --strict clean, ruff lint/format clean.
+
+**Remaining from audit**: P4 (MetabolicState — needs operator decision),
+P7 (role integration — needs operator decision).
 
 ---
 

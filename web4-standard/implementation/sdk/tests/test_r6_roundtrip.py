@@ -26,16 +26,29 @@ from web4.trust import T3, V3
 
 class TestConstraintRoundTrip:
     def test_basic(self) -> None:
-        c = Constraint(constraint_type="rate_limit", value=100)
+        c = Constraint(constraint_type="rate_limit", threshold=100)
         assert Constraint.from_dict(c.to_dict()) == c
 
-    def test_string_value(self) -> None:
-        c = Constraint(constraint_type="witness_required", value="true")
+    def test_hard_default(self) -> None:
+        c = Constraint(constraint_type="witness_quorum", threshold=3.0)
+        assert c.hard is True
+        assert Constraint.from_dict(c.to_dict()) == c
+
+    def test_soft_constraint(self) -> None:
+        c = Constraint(constraint_type="rate_limit", threshold=100, hard=False)
+        assert c.hard is False
         assert Constraint.from_dict(c.to_dict()) == c
 
     def test_float_value(self) -> None:
-        c = Constraint(constraint_type="atp_minimum", value=50.5)
+        c = Constraint(constraint_type="atp_minimum", threshold=50.5)
         assert Constraint.from_dict(c.to_dict()) == c
+
+    def test_legacy_value_key(self) -> None:
+        """from_dict accepts legacy 'value' key for backward compatibility."""
+        d = {"type": "atp_minimum", "value": 42}
+        c = Constraint.from_dict(d)
+        assert c.threshold == 42.0
+        assert c.hard is True
 
 
 class TestRulesRoundTrip:
@@ -48,7 +61,7 @@ class TestRulesRoundTrip:
             law_hash="abc123",
             society="test-society",
             constraints=[
-                Constraint("rate_limit", 100),
+                Constraint("rate_limit", 100.0),
                 Constraint("atp_minimum", 10.0),
             ],
             permissions=["read", "write"],

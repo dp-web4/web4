@@ -124,19 +124,45 @@ class ReputationComputationError(R7Error):
 
 @dataclass(frozen=True)
 class Constraint:
-    """A single constraint within Rules."""
+    """A single constraint within Rules.
 
-    constraint_type: str  # e.g. "rate_limit", "atp_minimum", "witness_required"
-    value: Any  # threshold or limit
+    Cross-language parity with ``web4-core/src/r6.rs::Constraint``.
+
+    Attributes:
+        constraint_type: Constraint kind (e.g. "rate_limit", "min_atp",
+            "witness_quorum").
+        threshold: Numeric threshold value for the constraint.
+        hard: If True the constraint blocks execution; if False it warns
+            but allows the action to proceed.  Defaults to True.
+    """
+
+    constraint_type: str
+    threshold: float
+    hard: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize to dict with 'type' and 'value' keys."""
-        return {"type": self.constraint_type, "value": self.value}
+        """Serialize to dict."""
+        return {
+            "type": self.constraint_type,
+            "threshold": self.threshold,
+            "hard": self.hard,
+        }
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "Constraint":
-        """Deserialize from dict produced by to_dict()."""
-        return cls(constraint_type=d["type"], value=d["value"])
+        """Deserialize from dict.
+
+        Accepts either ``threshold`` (current) or ``value`` (legacy) key
+        for the numeric threshold.
+        """
+        raw = d.get("threshold", d.get("value"))
+        if raw is None:
+            raise KeyError("Constraint dict must contain 'threshold' or 'value'")
+        return cls(
+            constraint_type=d["type"],
+            threshold=float(raw),
+            hard=d.get("hard", True),
+        )
 
 
 @dataclass
@@ -165,8 +191,9 @@ class Rules:
         """Check a specific constraint. Returns True if no constraint of that type exists."""
         for c in self.constraints:
             if c.constraint_type == constraint_type:
-                if isinstance(c.value, (int, float)):
-                    return actual_value >= c.value if constraint_type.endswith("_minimum") else actual_value <= c.value
+                return (
+                    actual_value >= c.threshold if constraint_type.endswith("_minimum") else actual_value <= c.threshold
+                )
         return True
 
     def to_dict(self) -> Dict[str, Any]:
@@ -940,9 +967,7 @@ class R7Action:
         """
         # 1. Rules
         rules_data = doc.get("rules", {})
-        constraints = [
-            Constraint(constraint_type=c["type"], value=c["value"]) for c in rules_data.get("constraints", [])
-        ]
+        constraints = [Constraint.from_dict(c) for c in rules_data.get("constraints", [])]
         rules = Rules(
             law_hash=rules_data.get("lawHash", ""),
             society=rules_data.get("society", ""),

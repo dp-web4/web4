@@ -27,7 +27,7 @@ Provides offline-capable primitives for:
 - Deserialization — generic JSON-LD dispatcher for all Web4 types
 - Generation — produce minimal valid JSON-LD documents for any Web4 type
 
-23 modules + MCP server, 368 exports, 2627 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
+23 modules + MCP server, 369 exports, 2668 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
 v0.26.0: CI quality gates (strict mypy, ruff lint, ruff format) enforced on every PR.
 These modules define the canonical data types and algorithms specified in the web4-standard.
 They work offline (no network services required) and are designed to be

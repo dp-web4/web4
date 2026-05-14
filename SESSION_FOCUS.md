@@ -10,6 +10,12 @@
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
 
+### Sprint 51 Summary: Minimum Viable Society Validation + Constraint Alignment (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: validate_minimum_viable() + Constraint alignment | DONE | Resolves Sprint 49 audit P5+P6. `validate_minimum_viable()` in `web4/role.py`: base-mandatory completeness, differentiation, witnessing. `Constraint` aligned with Rust: `threshold: float` + `hard: bool`. 1 new export (369 total), 12 new tests (2668 total), 0 new files. |
+
 ### Sprint 50 Summary: Add SocietyRole + RoleAssignment to Python SDK (COMPLETE)
 
 | Task | Status | Notes |
@@ -196,7 +202,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.26.0
 - **Modules**: 23 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, role, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2656 passing
+- **Tests**: 2668 passing
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
 - **Exports**: 368 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
@@ -272,7 +278,7 @@ Sprint 50 T1 PR pending.
 
 ## Completeness Summary
 
-- All 50 sprints COMPLETE (Sprints 1-50, all merged or PR pending)
+- All 51 sprints COMPLETE (Sprints 1-51, all merged or PR pending)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -283,7 +289,7 @@ Sprint 50 T1 PR pending.
 - MCP server: 8 tools exposing SDK data operations + behavioral trust/reputation resolution to MCP clients
 - TrustQuery: to_jsonld() for dispatcher + to_dict() for schema validation (trust-query.schema.json)
 - `process_action_outcome()` — action consequence pipeline composing R7Action + ReputationEngine + TrustProfile + ATPAccount
-- All 23 submodules have `__all__` declarations, 368 root exports
+- All 23 submodules have `__all__` declarations, 369 root exports
 - All public methods have docstrings and return type annotations
 - `mypy --strict` passes with 0 errors across 26 source files
 - Test coverage: 97.8% overall (4 modules at 100%, 16 at 95%+, __main__.py at 90.6%)
@@ -299,10 +305,12 @@ Sprint 50 T1 PR pending.
 ---
 
 - **Society Roles added**: `SocietyRole` enum + `RoleAssignment` dataclass + `bootstrap_society_roles()` — resolves CRITICAL audit finding (P1), HIGH role-LCT binding (P2), and HIGH solo-founder genesis (P3)
-- **web4-core Society/Role/ATP/R6 alignment**: Cross-language audit identified 14 items (1 CRITICAL: Python SDK missing SocietyRole, 3 HIGH, 3 MEDIUM, 4 LOW) — see `docs/audits/cross-language-society-role-atp-r6-alignment-2026-05-14.md`. P1-P3 resolved by Sprint 50. P4 (MetabolicState) and P7 (role integration) need operator decisions. P5 (validate_minimum_viable) now unblocked.
+- **Minimum viable society validation**: `validate_minimum_viable()` added to Python SDK — resolves audit P5 (cross-language parity with Rust `Society::validate_minimum_viable()`)
+- **Constraint alignment**: `Constraint` dataclass upgraded from `value: Any` to `threshold: float` + `hard: bool` — resolves audit P6 (cross-language parity with Rust `Constraint`)
+- **web4-core Society/Role/ATP/R6 alignment**: Cross-language audit identified 14 items (1 CRITICAL: Python SDK missing SocietyRole, 3 HIGH, 3 MEDIUM, 4 LOW) — see `docs/audits/cross-language-society-role-atp-r6-alignment-2026-05-14.md`. P1-P3 resolved by Sprint 50. P5-P6 resolved by Sprint 51. P4 (MetabolicState) and P7 (role integration) need operator decisions.
 - **web4-trust-core T3/V3 alignment**: Cross-language T3/V3 audit identified 8 divergences (1 CRITICAL, 4 HIGH) between Rust/WASM and spec/Python SDK — see `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`
 - **Parameter governance**: All trust/value/energy parameters classified into three tiers (protocol-invariant, society-configurable, simulation-only) — see `web4-standard/core-spec/t3-v3-tensors.md` §10
 
 ---
 
-*Updated by autonomous session, 2026-05-14 (Sprint 50 — SocietyRole + RoleAssignment added to Python SDK)*
+*Updated by autonomous session, 2026-05-14 (Sprint 51 — validate_minimum_viable + Constraint alignment)*
