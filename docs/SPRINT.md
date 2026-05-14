@@ -1,9 +1,40 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-13 (Sprint 48)
+**Updated**: 2026-05-14 (Sprint 49)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 49: Cross-Language Society/Role/ATP/R6 Alignment Audit (2026-05-14)
+
+Operator commits `82438958` and `8857ab09` added 4 new Rust modules to `web4-core`
+(society.rs, role.rs, atp.rs, r6.rs) implementing concepts from the new specs
+(`society-roles.md`, `inter-society-protocol.md`). The Python SDK has corresponding
+modules built against older specs. Sprint 49 applies the Sprint 47 audit methodology
+to these new modules, documenting cross-language divergences before they become
+entrenched.
+
+### T1: Cross-language alignment audit for Society/Role/ATP/R6
+**Status**: DONE
+**Completed**: 2026-05-14
+**Authorized by**: Operator signal via 8 direct-to-main commits adding new specs + Rust SDK modules. Same audit pattern as Sprint 47 T1.
+**Scope**:
+Systematic comparison of 4 new Rust SDK modules against Python SDK counterparts
+and canonical specs. Documented 14 items: 1 CRITICAL (Python SDK missing
+SocietyRole/RoleAssignment entirely), 3 HIGH (genesis protocol mismatch,
+MetabolicState divergence, no role-LCT binding), 3 MEDIUM (Constraint structure,
+ActionStatus mismatch, composite architecture), 4 LOW (naming, utilities, JSON-LD).
+ATP module is the best-aligned pair (identical core semantics). Produced prioritized
+fix queue (P1-P7) with 2 operator decisions required (MetabolicState model, role
+integration architecture).
+**Result**: Audit at `docs/audits/cross-language-society-role-atp-r6-alignment-2026-05-14.md`.
+Key finding: the Python SDK was built before `society-roles.md` existed and lacks
+the entire 7-role taxonomy. Unlike Sprint 47 findings (which required Rust toolchain),
+P1-P3/P5-P7 are autonomous-actionable from this repo (Python SDK changes). P4
+(MetabolicState reconciliation) requires operator design input. 1 new file, 2
+bookkeeping files modified.
 
 ---
 
