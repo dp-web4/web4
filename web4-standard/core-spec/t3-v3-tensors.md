@@ -478,3 +478,82 @@ SELECT ?dim ?scoreA ?scoreB WHERE {
              web4:hasDimensionScore [ web4:dimension ?dim ; web4:score ?scoreB ] .
 }
 ```
+
+## 10. Parameter Governance
+
+This section classifies all trust, value, and energy parameters by governance
+tier: who decides the value, and what latitude implementers have. It
+synthesizes normative decisions from §2.3, §3.3, and §6 of this document,
+[`atp-adp-cycle.md`](atp-adp-cycle.md) §6.3/§7, and
+[`multi-device-lct-binding.md`](multi-device-lct-binding.md) §4.4.
+
+### 10.1 Governance Tiers
+
+| Tier | RFC 2119 keyword | Meaning |
+|------|-----------------|---------|
+| **Protocol-invariant** | MUST / MUST NOT | Fixed by the specification. Implementations MUST use exactly these values. Cross-language test vectors enforce them. |
+| **Society-configurable** | MAY | Societies set these via published economic or governance laws. The protocol provides defaults but does not mandate them. |
+| **Simulation-only** | N/A | Not protocol parameters. Appear in explainers, demos, or simulations. MUST NOT be cited as canonical values. |
+
+### 10.2 Protocol-Invariant Parameters
+
+These values are fixed by the specification. All conforming implementations
+MUST produce identical results (enforced by cross-language test vectors in
+`web4-standard/test-vectors/t3v3/tensor-operations.json`).
+
+| Parameter | Value | Spec reference | Test vector |
+|-----------|-------|----------------|-------------|
+| T3 composite weights | talent=0.4, training=0.3, temperament=0.3 | §9.2 | t3v3-001 |
+| V3 composite weights | valuation=0.3, veracity=0.35, validity=0.35 | §3.3 | t3v3-002 |
+| T3 update formula | `0.02 × (quality − 0.5)` | §2.3 | t3v3-003 |
+| T3 dimension update factors | talent=1.0, training=0.8, temperament=0.6 | §2.3 | t3v3-003 |
+| Talent no-decay | Talent MUST NOT decay through inactivity | §2.3 | t3v3-012 |
+| T3 value range | [0.0, 1.0] — clamped at boundaries | §2.1 | t3v3-005, t3v3-006 |
+| Diminishing returns formula | `base_factor^(n−1)`, base=0.8, floor=0.1 | §7.1 | t3v3-007 |
+| 6D-to-3D bridge formula | primary×0.6 + secondary×(0.4/3) | — | t3v3-008 |
+| V3 calculation | valuation=(earned/expected)×satisfaction; veracity=(verified/total)×confidence; validity=1.0 if transferred else 0.0 | §3.3 | t3v3-014 |
+| Operational health formula | t3_composite×0.4 + v3_composite×0.3 + energy_ratio×0.3 | — | t3v3-010 |
+| ATP conservation | total supply = ATP + ADP (invariant) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §7.1 | — |
+
+### 10.3 Society-Configurable Parameters
+
+Societies MAY set these parameters via their published governance laws.
+The protocol provides reference defaults; societies override them by
+declaring values in their law structure.
+
+| Parameter | Reference default | Governance | Spec reference |
+|-----------|-------------------|------------|----------------|
+| Training decay rate | −0.001 per month | Societies MAY configure custom decay policies for Training | §2.3 |
+| Temperament recovery rate | +0.01 per month | Societies MAY configure custom recovery curves for Temperament | §2.3 |
+| ATP decay rate | Implementation-specific | Societies MAY implement custom decay rates | [`atp-adp-cycle.md`](atp-adp-cycle.md) §7.3 |
+| ATP transfer fees | None (fee-free at protocol level) | Societies MAY levy transfer fees; rate, bearer, and destination MUST be declared in published laws | [`atp-adp-cycle.md`](atp-adp-cycle.md) §6.3 |
+| Demurrage policy | None prescribed | Societies SHOULD implement demurrage | [`atp-adp-cycle.md`](atp-adp-cycle.md) §7.2 |
+| Charging mechanisms | Not prescribed | Societies MAY choose charging mechanisms | [`atp-adp-cycle.md`](atp-adp-cycle.md) §7.3 |
+| Exchange rate policy | Not prescribed | Societies MAY create exchange agreements; rates SHOULD be transparent | [`atp-adp-cycle.md`](atp-adp-cycle.md) §7.2–7.3 |
+| Role requirement thresholds | Per-role | Societies and role definitions set minimum T3 thresholds for role qualification | §5.1 |
+
+### 10.4 Simulation-Only Parameters
+
+These values appear in explainers, demos, and simulations but are **not**
+protocol parameters. Implementations MUST NOT hard-code them as canonical.
+
+| Parameter | Example values | Why not canonical | Spec reference |
+|-----------|---------------|-------------------|----------------|
+| `constellation_coherence` multiplier | "1.4× CI bonus" | Measures identity strength, not economic scaling; multiplier magnitudes are chosen per simulation | [`multi-device-lct-binding.md`](multi-device-lct-binding.md) §4.4 |
+| CI thresholds and labels | "CI > 0.8 = strong" | Derived labels from `constellation_coherence`; not standalone protocol primitives | [`multi-device-lct-binding.md`](multi-device-lct-binding.md) §4.4 |
+| Talent decay/half-life | "0.995 per period" | Talent no-decay is a protocol invariant (§2.3); any decay value violates the spec | §2.3 |
+| Specific fee rates | "5% transfer fee" | Fee rates are society-configurable, not protocol constants | [`atp-adp-cycle.md`](atp-adp-cycle.md) §6.3 |
+| Specific ATP decay rates | "1% per day" | Decay rates are society-configurable, not protocol constants | [`atp-adp-cycle.md`](atp-adp-cycle.md) §7.3 |
+
+### 10.5 Governance Principle
+
+The three-tier classification follows a consistent principle across the spec:
+
+> **The protocol prescribes formulas and invariants. Societies configure
+> rates and policies. Simulations choose presentation values.**
+
+When a parameter appears in a simulation or explainer, it SHOULD be labeled
+as a simulation parameter (not "the Web4 value"). When a society sets a
+rate, it MUST publish the value in its governance laws. When the protocol
+prescribes a formula, all implementations MUST produce identical results
+regardless of society or context.
