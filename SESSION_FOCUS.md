@@ -2,13 +2,25 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-13 (Sprint 48)*
+*Last updated: 2026-05-14 (Sprint 50)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 50 Summary: Add SocietyRole + RoleAssignment to Python SDK (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: SocietyRole + RoleAssignment + bootstrap_society_roles | DONE | Implements Sprint 49 audit P1+P2+P3. New `web4/role.py` module: `SocietyRole` enum (7 base-mandatory + 2 context-mandatory), `RoleAssignment` dataclass (role-LCT binding, T3/V3, rotation, multi-holder, to_dict/from_dict), `bootstrap_society_roles()` (solo-founder genesis). 4 new exports (368 total), 43 new tests (2656 total), 1 new module. Cross-language parity with `web4-core/src/role.rs`. |
+
+### Sprint 49 Summary: Cross-Language Society/Role/ATP/R6 Alignment Audit (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Cross-language alignment audit for Society/Role/ATP/R6 | DONE | 14 items: 1 CRITICAL (Python SDK missing SocietyRole), 3 HIGH, 3 MEDIUM, 4 LOW. Prioritized fix queue P1-P7. P1-P3 resolved by Sprint 50. P4 needs operator decision (MetabolicState). P5 now unblocked. |
 
 ### Sprint 48 Summary: Parameter Governance Index (COMPLETE)
 
@@ -183,10 +195,10 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 ## SDK Status
 
 - **Version**: 0.26.0
-- **Modules**: 22 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2613 passing (97.8% coverage)
+- **Modules**: 23 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, role, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
+- **Tests**: 2656 passing
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
-- **Exports**: 364 symbols via `web4/__init__.py`
+- **Exports**: 368 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
 - **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents
@@ -244,10 +256,11 @@ Work undertaken in early 2026 toward what was at the time a planned ARIA grant s
 
 ## Open PRs
 
-Sprint 49 T1 PR pending.
+Sprint 50 T1 PR pending.
 
 ### Closed PRs (recent)
 
+- PR #184 MERGED — Sprint 49 T1: Cross-language Society/Role/ATP/R6 alignment audit
 - PR #183 MERGED — Sprint 48 T1: Parameter governance index
 - PR #182 MERGED — Sprint 47 T1: Cross-language T3/V3 alignment audit
 - PR #181 MERGED — Sprint 46 T1: Clarify CI canonicity (audit item #10)
@@ -259,7 +272,7 @@ Sprint 49 T1 PR pending.
 
 ## Completeness Summary
 
-- All 49 sprints COMPLETE (Sprints 1-49, all merged or PR pending)
+- All 50 sprints COMPLETE (Sprints 1-50, all merged or PR pending)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -270,9 +283,9 @@ Sprint 49 T1 PR pending.
 - MCP server: 8 tools exposing SDK data operations + behavioral trust/reputation resolution to MCP clients
 - TrustQuery: to_jsonld() for dispatcher + to_dict() for schema validation (trust-query.schema.json)
 - `process_action_outcome()` — action consequence pipeline composing R7Action + ReputationEngine + TrustProfile + ATPAccount
-- All 22 submodules have `__all__` declarations, 364 root exports
+- All 23 submodules have `__all__` declarations, 368 root exports
 - All public methods have docstrings and return type annotations
-- `mypy --strict` passes with 0 errors across 25 source files
+- `mypy --strict` passes with 0 errors across 26 source files
 - Test coverage: 97.8% overall (4 modules at 100%, 16 at 95%+, __main__.py at 90.6%)
 - Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
 - CLI via `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
@@ -285,10 +298,11 @@ Sprint 49 T1 PR pending.
 
 ---
 
-- **web4-core Society/Role/ATP/R6 alignment**: Cross-language audit identified 14 items (1 CRITICAL: Python SDK missing SocietyRole, 3 HIGH, 3 MEDIUM, 4 LOW) — see `docs/audits/cross-language-society-role-atp-r6-alignment-2026-05-14.md`
+- **Society Roles added**: `SocietyRole` enum + `RoleAssignment` dataclass + `bootstrap_society_roles()` — resolves CRITICAL audit finding (P1), HIGH role-LCT binding (P2), and HIGH solo-founder genesis (P3)
+- **web4-core Society/Role/ATP/R6 alignment**: Cross-language audit identified 14 items (1 CRITICAL: Python SDK missing SocietyRole, 3 HIGH, 3 MEDIUM, 4 LOW) — see `docs/audits/cross-language-society-role-atp-r6-alignment-2026-05-14.md`. P1-P3 resolved by Sprint 50. P4 (MetabolicState) and P7 (role integration) need operator decisions. P5 (validate_minimum_viable) now unblocked.
 - **web4-trust-core T3/V3 alignment**: Cross-language T3/V3 audit identified 8 divergences (1 CRITICAL, 4 HIGH) between Rust/WASM and spec/Python SDK — see `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`
 - **Parameter governance**: All trust/value/energy parameters classified into three tiers (protocol-invariant, society-configurable, simulation-only) — see `web4-standard/core-spec/t3-v3-tensors.md` §10
 
 ---
 
-*Updated by autonomous session, 2026-05-14 (Sprint 49 — cross-language Society/Role/ATP/R6 audit)*
+*Updated by autonomous session, 2026-05-14 (Sprint 50 — SocietyRole + RoleAssignment added to Python SDK)*
