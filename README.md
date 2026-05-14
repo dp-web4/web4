@@ -82,9 +82,9 @@ If you're one of these people, this is worth your time:
 
 - **AI engineering lead at a lab or platform** building agent frameworks, policy systems, or governance tooling. Web4 primitives compose under your runtime. Cross-language interop (Python and Rust verifying the same on-disk ledger) is shipped; identity, T3/V3 trust, witnessing, and audit-defensible records are published primitives, not slideware.
 
-- **CISO or AI risk lead** in a regulated industry (finance, defense, healthcare) where agentic AI deployments will need to defend their actions to auditors, regulators, or insurers. Web4 turns "we hope nothing went wrong" into "we can prove what happened, on whose authority, by what rules." Hardware-bound enterprise implementation lives in **Hardbound** (contact dp@metalinxx.io); the open standard is here.
+- **CISO or AI risk lead** in a regulated industry (finance, defense, healthcare) where agentic AI deployments will need to defend their actions to auditors, regulators, or insurers. Web4 turns "we hope nothing went wrong" into "we can prove what happened, on whose authority, by what rules." Enterprise implementation: **[Hardbound](https://github.com/dp-web4/hardbound)** -- provides a plugin that bridges any orchestrator (Claude Code, LangChain, CrewAI, etc.) to a signed policy entity. Every action gets an LCT identity, T3/V3 trust evaluation, and a cryptographically signed policy decision. The open standard is here; the enterprise product makes it deployable.
 
-- **Developer-tooling company** building agent frameworks (LangChain, CrewAI, AG2, etc.) or governance toolkits. Web4 sits *upstream* of runtime policy enforcement — governance for what an agent IS (identity, witness graph, accountability ontology), not what it DOES (runtime gating). The two layers compose; Web4 is the standard your governance toolkit can consume so identity isn't proprietary to the runtime. Worked example: [Web4 Governance plugin for Claude Code](https://github.com/anthropics/claude-code/pull/20448).
+- **Developer-tooling company** building agent frameworks (LangChain, CrewAI, AG2, etc.) or governance toolkits. Web4 sits *upstream* of runtime policy enforcement — governance for what an agent IS (identity, witness graph, accountability ontology), not what it DOES (runtime gating). The two layers compose; Web4 is the standard your governance toolkit can consume so identity isn't proprietary to the runtime. **Integration path**: install the [Hardbound plugin](https://github.com/dp-web4/hardbound) -- a single `HardboundPlugin` class connects any orchestrator to a Web4 policy entity, giving it an LCT identity and governed action trail. The plugin is the bridge; Web4 is the substrate.
 
 - **Standards body, regulator, or insurer** trying to figure out what "agentic AI accountability" means technically. Web4 is the open spec + published implementation + reproducible artifacts. AGPL-3.0 with patent grant ([PATENTS.md](PATENTS.md)), owned by no one. Start with [STATUS.md](STATUS.md) and the [whitepaper](whitepaper/).
 
@@ -114,7 +114,7 @@ The applications come when the substrate exists *and* the present-tense pain for
 - Spec corpus: stable (`web4-standard/core-spec/`)
 - Reference Python SDK + 8-tool MCP server: 2,627 tests, mypy --strict clean (`web4-standard/implementation/`)
 - Cognition harness producing the 94.85% result: [SAGE](https://github.com/dp-web4/SAGE)
-- Hardware binding (TPM 2.0 on Linux), policy enforcement, and audit pipeline: shipped in **Hardbound** — enterprise product, contact dp@metalinxx.io
+- Hardware binding (TPM 2.0 on Linux), policy enforcement, and audit pipeline: shipped in **[Hardbound](https://github.com/dp-web4/hardbound)** — enterprise product with plugin bridge for any orchestrator, PolicyService with signed decisions, multi-witness TrustWeb, HITL escalation, and regulatory evidence generators (EU AI Act Article 12, SOC2 CC6-CC8)
 - Attack simulation suite: 424 vectors across 84 tracks (~85% detection rate)
 - Formal threat model: [THREAT_MODEL.md v2.0](docs/reference/security/THREAT_MODEL.md)
 
