@@ -13,6 +13,18 @@ An open standard for verifiable AI presence — proposed by Metalinxx Inc., owne
 
 **Proof point**: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) harness. [Public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4). The model didn't change — the structure around it did.
 
+## Architectural shape (what Web4 actually is)
+
+Three properties define the shape, and each has a normative spec:
+
+1. **Self-sovereign fractal societies, no top-level CA.** Societies bootstrap themselves (a single founder is sufficient) or form by federation of existing societies. Higher-order societies are *overlays, not owners* — they exist by constituent consent and dissolve when consent is withdrawn. There is no DNS root, no PKI root, no canonical top-level society. Trust emerges from peer witnessing. See [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) for genesis, first-contact, federation, and secession protocols.
+
+2. **A small fixed set of mandatory roles with fractal composability.** Every Web4 society must fill seven base roles (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen — modeled on corporate-structure functions). Any role MAY be filled by a single entity (solo founder wears many hats), a sub-society (large enterprise), or a federation (multi-region). Role authority binds to the role's LCT, not the filling entity. See [`society-roles.md`](web4-standard/core-spec/society-roles.md) for the full taxonomy with audit semantics.
+
+3. **ATP is a unit of account, not a currency.** Each society reifies its own resources (compute, attention, hardware, time, whatever it accounts) into ATP at policies it chooses. On first contact with another society, three sovereign options exist: keep both currencies and negotiate exchange rate (international-trade pattern), one adopts the other's (dollarization pattern), or both join/form a higher-order society with shared currency (Eurozone pattern). This is intentional: no protocol-level constraint on initial issuance is needed because the market for the society's ATP at exchange time *is* the audit mechanism.
+
+These three together produce the property: **Web4 is anti-hierarchical by design**, with audit and trust emerging from below rather than imposed from above. The specs *implement* this philosophy; this section is here so the philosophy is visible upfront rather than inferred from the corpus.
+
 ## Five-minute audit
 
 If you want a fast read on whether this is real, in order:
@@ -20,8 +32,11 @@ If you want a fast read on whether this is real, in order:
 1. [**STATUS.md**](STATUS.md) — what's shipped, what's specified, what's aspirational.
 2. [**docs/proof/PUBLISHED.md**](docs/proof/PUBLISHED.md) — what's published and why v0.1.0 was yanked.
 3. [**demo/**](demo/) — agent commerce delegation, 166 tests passing.
-4. [**simulations/**](simulations/) — 424 attack vectors / 84 tracks, ~85% detection rate.
+4. [**simulations/**](simulations/) — 424 attack vectors / 84 tracks, ~85% detection rate against synthetic adversaries (no red team yet; see STATUS for honest characterization).
 5. [**docs/specs/heterogeneous-identity.md**](docs/specs/heterogeneous-identity.md) — multi-factor identity as a constellation. Answers "what stops a hardware vendor from gating LCT access?" structurally.
+6. [**web4-standard/core-spec/inter-society-protocol.md**](web4-standard/core-spec/inter-society-protocol.md) — society genesis (self-bootstrapped + federation-based), first-contact (3 sovereign options), ATP reification sovereignty, secession.
+7. [**web4-standard/core-spec/society-roles.md**](web4-standard/core-spec/society-roles.md) — 7 base-mandatory roles + context-mandatory (forced by outward role) + optional, with fractal composability and audit implications.
+8. [**forum/kimi2_6_review.md**](forum/kimi2_6_review.md) — independent cross-model review (Kimi 2.6) with three rounds of dialogue. External scrutiny on the work, raw and verbatim.
 
 ---
 
@@ -76,7 +91,7 @@ assert ledger.verify_proof(proof)
 
 ## Who this is for, and why
 
-Web4 is **TCP/IP-level work for agentic AI** — infrastructure, not a product. The standard provides primitives (identity, scoped authority, real-time policy gates, cryptographic audit) that compose into whatever the operator needs to build. Web4 doesn't dictate what your application looks like, any more than TCP/IP dictated what websites would look like. It makes the application possible.
+Web4 is **substrate-level work for agentic AI** — infrastructure, not a product. The standard provides primitives (identity, scoped authority, real-time policy gates, cryptographic audit) that compose into whatever the operator needs to build. The analogy to TCP/IP is intentional but constrained: like TCP/IP, Web4 doesn't dictate what your application looks like — it makes the application possible. Unlike TCP/IP, Web4 is pre-1.0 research-stage work; the analogy is to the *kind of layer* it is, not the maturity it has yet reached.
 
 If you're one of these people, this is worth your time:
 
@@ -103,19 +118,22 @@ The applications come when the substrate exists *and* the present-tense pain for
 
 ---
 
-## Status Snapshot (2026-04-29)
+## Status Snapshot (2026-05-13)
 
 ### Where it landed publicly
 - **AI Demo Day 4** (2026-04-26): Web4 presented as "verifiable presence" for agentic AI. Slides + narration archived at https://4-gov.org/demo
+- **Cross-model independent review** (2026-05-13): Kimi 2.6 reviewed the repo + specs across three rounds of dialogue. Verbatim transcript at [`forum/kimi2_6_review.md`](forum/kimi2_6_review.md). Scoring: architectural coherence 8.5/10, bootstrap story 8/10, spec completeness intra-society 7/10, spec completeness inter-society 4/10. The dialogue produced two new spec docs (see below).
 
 ### Implementation status
 - **Published artifacts** (2026-04-28): `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. **Current: v0.1.1**, AGPL-3.0-or-later. (v0.1.0 was yanked from crates.io due to a Python wheel import-path defect and a stale tensor docstring; both fixed in v0.1.1.) See [STATUS.md](STATUS.md) for the full version table and [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publish trail.
 - **Stage**: research, not production. v0.1.1 packages are public; reference implementation and harness are public; no production deployment yet.
-- Spec corpus: stable (`web4-standard/core-spec/`)
+- Spec corpus: stable, with two new core specs added 2026-05-13 (see below)
+- **NEW**: [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) v0.1.2 DRAFT — society genesis, first-contact (3 sovereign options), ATP-as-unit-of-account, secession
+- **NEW**: [`society-roles.md`](web4-standard/core-spec/society-roles.md) v0.1.0 DRAFT — 7 base-mandatory roles + context-mandatory + optional, with fractal composability
 - Reference Python SDK + 8-tool MCP server: 2,627 tests, mypy --strict clean (`web4-standard/implementation/`)
 - Cognition harness producing the 94.85% result: [SAGE](https://github.com/dp-web4/SAGE)
 - Hardware binding (TPM 2.0 on Linux), policy enforcement, and audit pipeline: shipped in **[Hardbound](https://github.com/dp-web4/hardbound)** — enterprise product with plugin bridge for any orchestrator, PolicyService with signed decisions, multi-witness TrustWeb, HITL escalation, and regulatory evidence generators (EU AI Act Article 12, SOC2 CC6-CC8)
-- Attack simulation suite: 424 vectors across 84 tracks (~85% detection rate)
+- Attack simulation suite: 424 vectors across 84 tracks (~85% detection rate). **Honest characterization**: synthetic adversaries only, no red team engagement yet; some "defenses" are standard infosec practices (EM shielding, TEMPEST) documented for completeness, not Web4-novel. See STATUS.md for the breakdown.
 - Formal threat model: [THREAT_MODEL.md v2.0](docs/reference/security/THREAT_MODEL.md)
 
 ### Gaps

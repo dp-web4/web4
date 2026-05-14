@@ -1,6 +1,6 @@
 # Web4 Implementation Status
 
-**Last Updated**: April 29, 2026
+**Last Updated**: May 13, 2026
 
 ---
 
@@ -8,9 +8,17 @@
 
 Web4 is a **working ontology** with **real proof points** and **real gaps**. R&D, not production. The spec corpus is stable; reference implementations exist; some demonstrations have moved from inferred to measured. **As of 2026-04-28, the core primitives are publicly installable.**
 
+**The architectural shape is now explicitly specified.** Two new core-spec docs (2026-05-13) make the previously-inferable structural properties normative:
+- [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) — society genesis (self-bootstrapped + federation-based), first-contact protocol (three sovereign options), ATP as unit-of-account with society-sovereign reification, secession/dissolution
+- [`society-roles.md`](web4-standard/core-spec/society-roles.md) — seven base-mandatory roles (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) + context-mandatory (forced by outward role) + optional, with fractal composability semantics
+
+The Web4 anti-hierarchical-by-design property is now stated normatively in spec rather than inferred from the ontology.
+
 The strongest single proof point: **the same Claude Opus 4.6 you can use today scores 0% on ARC-AGI-3 by default and 94.85% with a Web4-shaped harness around it**. The model didn't change. The structure around the model did.
 
 Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
+
+The strongest single external validation: a 2026-05-13 three-round Kimi 2.6 cross-model review scored architectural coherence 8.5/10 and bootstrap-story 8/10, while sharpening the unit-of-account framing for ATP and surfacing the inter-society protocol gap that the two new specs now address. Verbatim transcript: [`forum/kimi2_6_review.md`](forum/kimi2_6_review.md).
 
 ---
 
@@ -36,13 +44,15 @@ All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial 
 | Layer | Status | Where |
 |---|---|---|
 | **Spec corpus** (LCT, T3/V3, MRH, ATP/ADP, R6/R7) | Stable | [`web4-standard/core-spec/`](web4-standard/core-spec/) |
+| **Inter-society protocol spec** (genesis, first-contact, federation, secession) | v0.1.2 DRAFT, 2026-05-13 | [`web4-standard/core-spec/inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) |
+| **Society roles spec** (7 base-mandatory + context-mandatory + optional) | v0.1.0 DRAFT, 2026-05-13 | [`web4-standard/core-spec/society-roles.md`](web4-standard/core-spec/society-roles.md) |
 | **`web4-core`** | **Published v0.1.1** (crates.io + PyPI). LCT, T3/V3, Coherence, Ledger trait + 2 backends (InMemory, Local file). 52 unit tests + 4 doctests. | [`web4-core/`](web4-core/) |
 | **`web4-trust-core`** | **Published v0.1.1** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
 | **Runnable proof of presence** | `python identity_bootstrap.py` — bootstraps a host LCT (keypair on disk, hash-chained `LocalLedger`, public `lct.json` sidecar); `--verify` re-checks the chain on re-run. ~30 sec. | [`web4-core/python/examples/identity_bootstrap.py`](web4-core/python/examples/identity_bootstrap.py) |
 | **Cross-language interop demo** | Python mints an LCT to a hash-chained ledger; a Rust binary reads the same `ledger.jsonl` and verifies chain integrity + anchor proof. The on-disk format is the contract. | [`web4-core/examples/cross_language_verify/`](web4-core/examples/cross_language_verify/) |
 | **Reference Python SDK** | 2,627 tests, mypy --strict clean (not yet on PyPI separately) | [`web4-standard/implementation/`](web4-standard/implementation/) |
 | **Cognition harness producing 94.85%** | Open source | [SAGE](https://github.com/dp-web4/SAGE) |
-| **Attack simulation suite** | 424 vectors / 84 tracks, ~85% detection | [`simulations/`](simulations/) |
+| **Attack simulation suite** | 424 vectors / 84 tracks, ~85% detection rate against **synthetic** adversaries. No red team engagement yet; some "defenses" are standard infosec practices (TEMPEST, Faraday) documented for completeness rather than as Web4-novel mechanisms. See [`simulations/README.md`](simulations/README.md) for honest breakdown. | [`simulations/`](simulations/) |
 | **Threat model** | v2.0 | [`docs/reference/security/THREAT_MODEL.md`](docs/reference/security/THREAT_MODEL.md) |
 | **Authorization layer** | PostgreSQL schemas + security mitigations | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) |
 | **Coordination framework** (Phase 2a–2d) | Validated | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) |
