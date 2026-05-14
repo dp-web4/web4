@@ -2564,13 +2564,18 @@
               "type": "object",
               "required": [
                 "type",
-                "value"
+                "threshold"
               ],
               "properties": {
                 "type": {
                   "type": "string"
                 },
-                "value": {}
+                "threshold": {
+                  "type": "number"
+                },
+                "hard": {
+                  "type": "boolean"
+                }
               },
               "additionalProperties": false
             },

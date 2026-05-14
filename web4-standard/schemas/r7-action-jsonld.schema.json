@@ -58,10 +58,11 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["type", "value"],
+            "required": ["type", "threshold"],
             "properties": {
               "type": { "type": "string" },
-              "value": {}
+              "threshold": { "type": "number" },
+              "hard": { "type": "boolean" }
             },
             "additionalProperties": false
           },

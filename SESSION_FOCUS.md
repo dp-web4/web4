@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-14 (Sprint 50)*
+*Last updated: 2026-05-14 (Sprint 51)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 51 Summary: Minimum Viable Society Validation + Constraint Alignment (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: validate_minimum_viable() + Constraint alignment | DONE | Resolves Sprint 49 audit P5+P6. `validate_minimum_viable()` added to `web4/role.py`: checks 7 base-mandatory roles, ≥2 distinct fillers (operational), witnessing capacity (operational). `Constraint` dataclass aligned with Rust: `threshold: float` + `hard: bool` replacing untyped `value: Any`. 1 new export (369 total), 14 new tests (2670 total), 0 new files. JSON schema + test vectors updated. |
 
 ### Sprint 50 Summary: Add SocietyRole + RoleAssignment to Python SDK (COMPLETE)
 
@@ -196,9 +202,9 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.26.0
 - **Modules**: 23 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, role, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2656 passing
+- **Tests**: 2670 passing
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
-- **Exports**: 368 symbols via `web4/__init__.py`
+- **Exports**: 369 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
 - **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents

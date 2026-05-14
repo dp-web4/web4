@@ -1,9 +1,45 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-14 (Sprint 50)
+**Updated**: 2026-05-14 (Sprint 51)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 51: Minimum Viable Society Validation + Constraint Alignment (2026-05-14)
+
+Resolves two remaining autonomous-actionable items from the Sprint 49
+cross-language audit fix queue: P5 (validate_minimum_viable) and P6
+(Constraint threshold + hard flag alignment).
+
+### T1: validate_minimum_viable() + Constraint alignment
+**Status**: DONE
+**Completed**: 2026-05-14
+**Authorized by**: Sprint 49 audit fix queue P5+P6. Policy-reviewed and approved.
+**Scope**:
+Two changes to advance cross-language parity:
+
+1. **P5 — `validate_minimum_viable()`** (MEDIUM): New function in `web4/role.py`
+   implementing `inter-society-protocol.md` §6.2 semantic viability checks.
+   Takes a list of `RoleAssignment` and an `is_operational` flag. Checks:
+   (a) all 7 base-mandatory roles are filled, (b) ≥2 distinct role-filling
+   entities when operational, (c) Witness or Auditor role assigned when
+   operational. Returns list of error strings. Cross-language parity with
+   `web4-core/src/society.rs::validate_minimum_viable()`.
+
+2. **P6 — Constraint alignment** (MEDIUM): Updated `Constraint` dataclass in
+   `web4/r6.py`: replaced untyped `value: Any` with `threshold: float` +
+   `hard: bool = True`, matching `web4-core/src/r6.rs::Constraint`. Updated
+   `to_dict()`, `from_dict()` (backward-compatible: accepts legacy `value`
+   key), `Rules.check_constraint()`, JSON schemas, and test vectors.
+
+**Result**: 1 new export (369 total), 14 new tests (2670 total), 0 new files.
+mypy --strict clean, ruff lint/format clean. JSON schema and test vectors
+updated for new Constraint wire format.
+
+**Remaining from audit**: P4 (MetabolicState reconciliation — needs operator
+decision), P7 (SocietyState role integration — needs operator decision).
 
 ---
 
