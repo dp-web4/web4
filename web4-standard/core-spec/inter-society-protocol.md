@@ -353,13 +353,14 @@ The choice is per-society policy. The Web4 protocol does not mandate any specifi
 | `atp-adp-cycle.md` | This spec makes explicit the form/substance distinction |
 | `mrh-tensors.md` | Inter-society relationships are MRH edges; this spec defines the protocols that create those edges |
 | `t3-v3-tensors.md` | Society-society trust tensors may be computed; this spec leaves the computation policy society-sovereign |
-| `R6-framework.md` | Inter-society actions are R6 transactions; this spec specifies the inter-society subset |
+| `r6-framework.md` | R6 (Rules+Role+Request+Reference+Resource→Result) is the action grammar for routine, low-consequence inter-society transactions (e.g., read-only resource access) |
+| `r7-framework.md` | R7 (R6 + Reputation back-propagation to T3/V3) is the action grammar for consequential inter-society actions where the outcome should feed inter-society trust evolution. Most inter-society actions are R7 because crossing sovereignty boundaries typically justifies the bookkeeping cost. R6 and R7 are both canonical; the choice is per-action or per-role based on consequence tier. |
 
 ## 9. Future Work
 
 The following remain open and are explicitly NOT addressed by this v0.1.0 draft:
 
-- **Cross-society R6 action protocol** — when an entity in society A initiates an R6 action against a resource in society B. The R6 framework is intra-society today; the AGY (Agency) pattern hints at delegation but doesn't fully spec cross-society action mediation. This is the natural follow-up doc to this one. Likely v0.2 or a separate `cross-society-r6.md`.
+- **Cross-society R6/R7 action protocol** — when an entity in society A initiates an action against a resource in society B. The R6 and R7 frameworks are intra-society today; the AGY (Agency) pattern hints at delegation but doesn't fully spec cross-society action mediation. Most inter-society actions will be R7 (consequential, with Reputation back-propagation feeding inter-society T3/V3 trust evolution); routine cross-society reads MAY be R6. Open questions for the follow-up spec: whose ledger receives the R7 Reputation output when actor and resource are in different societies? Both? How does the R7 Reputation field propagate to society-society trust tensors (see related future-work item)? Whose Law Oracle binding applies under conflicting governance? This is the natural follow-up doc to this one. Likely v0.2 or a separate `cross-society-r6r7.md`.
 - **Society-society trust tensors** — the structure of T3/V3 when the entity-role pair is (society, "trusted-counterparty"). Convergence rules when one society is highly-witnessed and another is new. Provisional guidance: defer to the first-contact protocol; each society maintains its own view; convergence emerges from exchange history.
 - **Exchange-rate discovery mechanisms** — markets, peer-to-peer negotiation, third-party rate publication. Implementations MAY experiment.
 - **Federation-of-federations** — when D itself federates with E into higher-order F. Protocol-wise this is recursive application of §2.2 and §3.2 Option 3, but operational guidance for multi-level federations is needed.
