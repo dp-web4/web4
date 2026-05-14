@@ -1,0 +1,138 @@
+{
+  "$schema": "https://web4.io/schemas/test-vectors/v1.json",
+  "suite": "Society & Role Operations",
+  "version": "0.1.0",
+  "description": "Conformance test vectors for Web4 society lifecycle and role management.",
+
+  "bootstrap_vectors": [
+    {
+      "id": "soc-001",
+      "description": "Solo founder bootstraps society — fills all 7 mandatory roles",
+      "operation": "bootstrap",
+      "input": {
+        "name": "Acme Corp",
+        "founder_lct": "lct:web4:human:alice"
+      },
+      "expected": {
+        "state": "genesis",
+        "citizen_count": 1,
+        "role_count": 7,
+        "roles_present": [
+          "sovereign", "law_oracle", "policy_entity",
+          "treasurer", "administrator", "archivist", "citizen"
+        ],
+        "all_roles_filled_by_founder": true,
+        "each_role_has_own_lct": true
+      }
+    },
+    {
+      "id": "soc-002",
+      "description": "Lifecycle transitions: genesis → bootstrap → operational",
+      "operation": "lifecycle",
+      "transitions": [
+        { "from": "genesis", "to": "bootstrap", "valid": true },
+        { "from": "bootstrap", "to": "operational", "valid": true },
+        { "from": "operational", "to": "dormant", "valid": true },
+        { "from": "dormant", "to": "operational", "valid": true },
+        { "from": "operational", "to": "sunset", "valid": true },
+        { "from": "genesis", "to": "operational", "valid": false },
+        { "from": "sunset", "to": "operational", "valid": false },
+        { "from": "bootstrap", "to": "genesis", "valid": false }
+      ]
+    }
+  ],
+
+  "role_vectors": [
+    {
+      "id": "role-001",
+      "description": "7 base-mandatory roles",
+      "operation": "base_mandatory",
+      "expected": {
+        "count": 7,
+        "roles": [
+          "sovereign", "law_oracle", "policy_entity",
+          "treasurer", "administrator", "archivist", "citizen"
+        ]
+      }
+    },
+    {
+      "id": "role-002",
+      "description": "Role rotation preserves role-LCT",
+      "operation": "rotate",
+      "input": {
+        "role": "policy_entity",
+        "initial_filler": "lct:web4:agent:alice",
+        "new_filler": "lct:web4:agent:bob"
+      },
+      "expected": {
+        "role_lct_unchanged": true,
+        "old_filler_no_longer_authorized": true,
+        "new_filler_authorized": true
+      },
+      "invariant": "Authority binds to role_lct, not filling entity. Rotation preserves accountability chain."
+    },
+    {
+      "id": "role-003",
+      "description": "Multi-holder committee pattern",
+      "operation": "multi_holder",
+      "input": {
+        "role": "witness",
+        "primary": "lct:web4:human:alice",
+        "additional": ["lct:web4:human:bob", "lct:web4:agent:claude"]
+      },
+      "expected": {
+        "multi_holder": true,
+        "all_authorized": true,
+        "total_holders": 3
+      }
+    },
+    {
+      "id": "role-004",
+      "description": "Only Sovereign or Administrator can assign roles",
+      "operation": "assign_role_authorization",
+      "cases": [
+        { "assigner_role": "sovereign", "allowed": true },
+        { "assigner_role": "administrator", "allowed": true },
+        { "assigner_role": "citizen", "allowed": false },
+        { "assigner_role": "policy_entity", "allowed": false },
+        { "assigner_role": "witness", "allowed": false }
+      ]
+    }
+  ],
+
+  "federation_vectors": [
+    {
+      "id": "fed-001",
+      "description": "Society joins federation, then secedes",
+      "operation": "federation_lifecycle",
+      "steps": [
+        { "action": "join", "parent": "lct:web4:society:federation", "expected": { "is_constituent": true } },
+        { "action": "secede", "expected": { "is_constituent": false, "returns_parent_id": true } }
+      ]
+    }
+  ],
+
+  "minimum_viable_vectors": [
+    {
+      "id": "mvs-001",
+      "description": "Operational society with single filler fails differentiation check",
+      "operation": "validate",
+      "state": "operational",
+      "all_roles_same_filler": true,
+      "expected": {
+        "valid": false,
+        "error_contains": "distinct role-filling entities"
+      }
+    },
+    {
+      "id": "mvs-002",
+      "description": "Missing base-mandatory role fails validation",
+      "operation": "validate",
+      "missing_role": "archivist",
+      "expected": {
+        "valid": false,
+        "error_contains": "archivist"
+      }
+    }
+  ]
+}

@@ -20,6 +20,7 @@ from web4.role import (
     RoleAssignment,
     SocietyRole,
     bootstrap_society_roles,
+    validate_minimum_viable,
 )
 from web4.trust import T3, V3
 
@@ -492,3 +493,120 @@ class TestBaseMandatoryRolesConstant:
     def test_context_mandatory_excluded(self) -> None:
         assert SocietyRole.WITNESS not in BASE_MANDATORY_ROLES
         assert SocietyRole.AUDITOR not in BASE_MANDATORY_ROLES
+
+
+# ── validate_minimum_viable ───────────────────────────────────
+
+
+def _make_assignment(
+    role: SocietyRole, filler: str = "entity-001"
+) -> RoleAssignment:
+    """Helper to create a minimal RoleAssignment for testing."""
+    return RoleAssignment(
+        role=role,
+        role_lct_id=f"role-lct-{role.value}",
+        filling_entity_lct_id=filler,
+        assigned_by=filler,
+    )
+
+
+class TestValidateMinimumViable:
+    """Tests for validate_minimum_viable() — inter-society-protocol.md §6.2."""
+
+    def test_bootstrap_roles_pass_non_operational(self) -> None:
+        """Solo-founder bootstrap passes when not yet operational."""
+        roles = bootstrap_society_roles("founder-001")
+        errors = validate_minimum_viable(roles, is_operational=False)
+        assert errors == []
+
+    def test_empty_roles_fails(self) -> None:
+        """Empty role list should report all 7 base-mandatory as missing."""
+        errors = validate_minimum_viable([])
+        assert len(errors) == 7
+        for role in BASE_MANDATORY_ROLES:
+            assert any(role.value in e for e in errors)
+
+    def test_missing_one_base_mandatory(self) -> None:
+        """Missing a single base-mandatory role is reported."""
+        roles = [
+            _make_assignment(r)
+            for r in BASE_MANDATORY_ROLES
+            if r != SocietyRole.TREASURER
+        ]
+        errors = validate_minimum_viable(roles)
+        assert len(errors) == 1
+        assert "treasurer" in errors[0]
+
+    def test_missing_multiple_base_mandatory(self) -> None:
+        """Multiple missing base-mandatory roles are all reported."""
+        roles = [_make_assignment(SocietyRole.SOVEREIGN)]
+        errors = validate_minimum_viable(roles)
+        assert len(errors) == 6  # 7 - 1
+
+    def test_operational_solo_founder_fails_differentiation(self) -> None:
+        """Solo-founder (1 entity filling all roles) fails operational checks."""
+        roles = bootstrap_society_roles("founder-001")
+        errors = validate_minimum_viable(roles, is_operational=True)
+        # Should fail on: differentiation (1 filler < 2) and witnessing (no Witness/Auditor)
+        assert len(errors) == 2
+        assert any("2 distinct" in e for e in errors)
+        assert any("witnessing" in e.lower() or "Witness" in e for e in errors)
+
+    def test_operational_with_differentiation_and_witness(self) -> None:
+        """Differentiated society with witnessing passes all checks."""
+        roles = [_make_assignment(r, "entity-001") for r in BASE_MANDATORY_ROLES]
+        # Add Witness filled by a different entity
+        roles.append(_make_assignment(SocietyRole.WITNESS, "entity-002"))
+        errors = validate_minimum_viable(roles, is_operational=True)
+        assert errors == []
+
+    def test_operational_auditor_satisfies_witnessing(self) -> None:
+        """Auditor role satisfies witnessing requirement (not just Witness)."""
+        roles = [_make_assignment(r, "entity-001") for r in BASE_MANDATORY_ROLES]
+        roles.append(_make_assignment(SocietyRole.AUDITOR, "entity-002"))
+        errors = validate_minimum_viable(roles, is_operational=True)
+        assert errors == []
+
+    def test_operational_differentiation_only(self) -> None:
+        """Differentiated but no witness/auditor fails witnessing check only."""
+        # Two different entities fill base-mandatory roles
+        roles = []
+        for i, r in enumerate(BASE_MANDATORY_ROLES):
+            filler = "entity-001" if i < 4 else "entity-002"
+            roles.append(_make_assignment(r, filler))
+        errors = validate_minimum_viable(roles, is_operational=True)
+        assert len(errors) == 1
+        assert "witnessing" in errors[0].lower() or "Witness" in errors[0]
+
+    def test_operational_witness_but_no_differentiation(self) -> None:
+        """Witness exists but all roles filled by same entity — fails differentiation."""
+        roles = [_make_assignment(r, "entity-001") for r in BASE_MANDATORY_ROLES]
+        # Witness also filled by the same entity
+        roles.append(_make_assignment(SocietyRole.WITNESS, "entity-001"))
+        errors = validate_minimum_viable(roles, is_operational=True)
+        assert len(errors) == 1
+        assert "2 distinct" in errors[0]
+
+    def test_non_operational_skips_differentiation_and_witness(self) -> None:
+        """Non-operational: differentiation and witnessing are not checked."""
+        roles = bootstrap_society_roles("founder-001")
+        # All 7 base-mandatory filled by one entity, no witness
+        errors = validate_minimum_viable(roles, is_operational=False)
+        assert errors == []
+
+    def test_both_witness_and_auditor(self) -> None:
+        """Having both Witness and Auditor is fine — more than sufficient."""
+        roles = [_make_assignment(r, "entity-001") for r in BASE_MANDATORY_ROLES]
+        roles.append(_make_assignment(SocietyRole.WITNESS, "entity-002"))
+        roles.append(_make_assignment(SocietyRole.AUDITOR, "entity-003"))
+        errors = validate_minimum_viable(roles, is_operational=True)
+        assert errors == []
+
+    def test_duplicate_roles_still_count(self) -> None:
+        """Multiple assignments for the same role don't cause issues."""
+        roles = [_make_assignment(r, "entity-001") for r in BASE_MANDATORY_ROLES]
+        # Duplicate Citizen assignment (e.g., second citizen)
+        roles.append(_make_assignment(SocietyRole.CITIZEN, "entity-002"))
+        roles.append(_make_assignment(SocietyRole.WITNESS, "entity-002"))
+        errors = validate_minimum_viable(roles, is_operational=True)
+        assert errors == []

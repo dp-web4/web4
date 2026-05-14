@@ -1,0 +1,137 @@
+{
+  "$schema": "https://web4.io/schemas/test-vectors/v1.json",
+  "suite": "ATP/ADP Operations",
+  "version": "0.1.0",
+  "description": "Conformance test vectors for ATP/ADP economy operations. Conservation invariant MUST hold across all operations.",
+
+  "account_vectors": [
+    {
+      "id": "atp-001",
+      "description": "New account with initial balance",
+      "operation": "new",
+      "input": { "initial_balance": 100.0 },
+      "expected": {
+        "available": 100.0,
+        "locked": 0.0,
+        "adp": 0.0,
+        "total": 100.0,
+        "energy_ratio": 1.0
+      }
+    },
+    {
+      "id": "atp-002",
+      "description": "Lock tokens (escrow)",
+      "operation": "lock",
+      "initial": { "available": 100.0, "locked": 0.0, "adp": 0.0 },
+      "input": { "amount": 30.0 },
+      "expected": {
+        "available": 70.0,
+        "locked": 30.0,
+        "total": 100.0
+      }
+    },
+    {
+      "id": "atp-003",
+      "description": "Commit locked tokens (discharge to ADP)",
+      "operation": "commit",
+      "initial": { "available": 70.0, "locked": 30.0, "adp": 0.0 },
+      "input": { "amount": 20.0 },
+      "expected": {
+        "available": 70.0,
+        "locked": 10.0,
+        "adp": 20.0,
+        "total": 80.0,
+        "energy_ratio": 0.8
+      }
+    },
+    {
+      "id": "atp-004",
+      "description": "Rollback locked tokens",
+      "operation": "rollback",
+      "initial": { "available": 70.0, "locked": 10.0, "adp": 20.0 },
+      "input": { "amount": 10.0 },
+      "expected": {
+        "available": 80.0,
+        "locked": 0.0,
+        "adp": 20.0
+      }
+    },
+    {
+      "id": "atp-005",
+      "description": "Zero balance energy ratio returns neutral",
+      "operation": "energy_ratio",
+      "initial": { "available": 0.0, "locked": 0.0, "adp": 0.0 },
+      "expected": {
+        "energy_ratio": 0.5
+      }
+    }
+  ],
+
+  "transfer_vectors": [
+    {
+      "id": "xfer-001",
+      "description": "Simple transfer with 5% fee",
+      "operation": "transfer",
+      "sender": { "available": 100.0 },
+      "receiver": { "available": 50.0 },
+      "input": { "amount": 30.0, "fee_rate": 0.05 },
+      "expected": {
+        "fee": 1.5,
+        "sender_balance": 68.5,
+        "receiver_balance": 80.0,
+        "actual_credit": 30.0,
+        "overflow": 0.0,
+        "conservation_holds": true
+      },
+      "invariant": "sender_deducted(31.5) == actual_credit(30) + fee(1.5) + overflow(0)"
+    },
+    {
+      "id": "xfer-002",
+      "description": "Transfer with max_balance overflow",
+      "operation": "transfer",
+      "sender": { "available": 100.0 },
+      "receiver": { "available": 90.0 },
+      "input": { "amount": 30.0, "fee_rate": 0.0, "max_balance": 100.0 },
+      "expected": {
+        "actual_credit": 10.0,
+        "overflow": 20.0,
+        "sender_balance": 90.0,
+        "receiver_balance": 100.0
+      }
+    },
+    {
+      "id": "xfer-003",
+      "description": "Insufficient balance fails",
+      "operation": "transfer",
+      "sender": { "available": 10.0 },
+      "receiver": { "available": 0.0 },
+      "input": { "amount": 20.0, "fee_rate": 0.0 },
+      "expected": {
+        "error": true,
+        "error_type": "insufficient_balance"
+      }
+    }
+  ],
+
+  "sliding_scale_vectors": [
+    {
+      "id": "scale-001",
+      "description": "Below zero threshold pays nothing",
+      "input": { "quality": 0.1, "base_payment": 100.0, "zero_threshold": 0.3, "full_threshold": 0.7 },
+      "expected": 0.0
+    },
+    {
+      "id": "scale-002",
+      "description": "At midpoint pays proportionally",
+      "input": { "quality": 0.5, "base_payment": 100.0, "zero_threshold": 0.3, "full_threshold": 0.7 },
+      "expected_approx": 50.0,
+      "tolerance": 1e-10
+    },
+    {
+      "id": "scale-003",
+      "description": "Above full threshold pays full",
+      "input": { "quality": 0.8, "base_payment": 100.0, "zero_threshold": 0.3, "full_threshold": 0.7 },
+      "expected": 100.0
+    }
+  ]
+}

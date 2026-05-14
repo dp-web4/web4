@@ -1,0 +1,121 @@
+{
+  "$schema": "https://web4.io/schemas/test-vectors/v1.json",
+  "suite": "T3/V3 Tensor Operations",
+  "version": "0.1.0",
+  "description": "Conformance test vectors for T3 (Trust) and V3 (Value) tensor operations. Any compliant implementation MUST produce identical results for these inputs.",
+
+  "t3_vectors": [
+    {
+      "id": "t3-001",
+      "description": "Neutral T3 tensor (default construction)",
+      "operation": "new",
+      "expected": {
+        "talent": 0.5,
+        "training": 0.5,
+        "temperament": 0.5,
+        "aggregate": 0.5,
+        "level": "medium"
+      }
+    },
+    {
+      "id": "t3-002",
+      "description": "T3 with explicit values",
+      "operation": "construct",
+      "input": { "talent": 0.9, "training": 0.85, "temperament": 0.7 },
+      "expected": {
+        "aggregate": 0.8166666666666667,
+        "level": "high"
+      }
+    },
+    {
+      "id": "t3-003",
+      "description": "T3 update from positive outcome (quality=0.8)",
+      "operation": "update_from_outcome",
+      "initial": { "talent": 0.5, "training": 0.5, "temperament": 0.5 },
+      "input": { "success": true, "magnitude": 0.8 },
+      "expected_delta": {
+        "talent_increases": true,
+        "training_increases": true,
+        "temperament_increases": true,
+        "all_clamped_0_1": true
+      }
+    },
+    {
+      "id": "t3-004",
+      "description": "T3 update from negative outcome",
+      "operation": "update_from_outcome",
+      "initial": { "talent": 0.5, "training": 0.5, "temperament": 0.5 },
+      "input": { "success": false, "magnitude": 0.8 },
+      "expected_delta": {
+        "talent_decreases": true,
+        "training_decreases": true,
+        "temperament_decreases": true,
+        "all_clamped_0_1": true
+      }
+    },
+    {
+      "id": "t3-005",
+      "description": "T3 level thresholds",
+      "operation": "level",
+      "cases": [
+        { "aggregate": 0.9, "expected_level": "high" },
+        { "aggregate": 0.8, "expected_level": "high" },
+        { "aggregate": 0.5, "expected_level": "medium" },
+        { "aggregate": 0.3, "expected_level": "low" },
+        { "aggregate": 0.2, "expected_level": "low" },
+        { "aggregate": 0.1, "expected_level": "untrusted" }
+      ]
+    },
+    {
+      "id": "t3-006",
+      "description": "T3 decay (30 days inactive, rate=0.01)",
+      "operation": "apply_decay",
+      "initial": { "talent": 0.9, "training": 0.85, "temperament": 0.7 },
+      "input": { "days_inactive": 30, "decay_rate": 0.01 },
+      "expected": {
+        "all_move_toward_0.5": true,
+        "talent_less_than_initial": true,
+        "training_less_than_initial": true
+      }
+    }
+  ],
+
+  "v3_vectors": [
+    {
+      "id": "v3-001",
+      "description": "Neutral V3 tensor",
+      "operation": "new",
+      "expected": {
+        "valuation": 0.5,
+        "veracity": 0.5,
+        "validity": 0.5,
+        "aggregate": 0.5
+      }
+    },
+    {
+      "id": "v3-002",
+      "description": "V3 with explicit values",
+      "operation": "construct",
+      "input": { "valuation": 0.8, "veracity": 0.9, "validity": 0.7 },
+      "expected": {
+        "aggregate": 0.8
+      }
+    }
+  ],
+
+  "sub_dimension_vectors": [
+    {
+      "id": "sub-001",
+      "description": "Sub-dimension rollup: talent:python attestation rolls into talent root",
+      "operation": "project_with_subdimension",
+      "attestations": [
+        { "dimension": "talent", "value": 0.8, "attestor": "witness_a" },
+        { "dimension": "talent:python", "value": 0.9, "attestor": "witness_b" }
+      ],
+      "expected": {
+        "root_projection_includes_subdimension": true,
+        "witness_count_gte": 2
+      }
+    }
+  ]
+}

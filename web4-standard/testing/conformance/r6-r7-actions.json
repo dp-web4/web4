@@ -1,0 +1,149 @@
+{
+  "$schema": "https://web4.io/schemas/test-vectors/v1.json",
+  "suite": "R6/R7 Action Framework",
+  "version": "0.1.0",
+  "description": "Conformance test vectors for R6 (Rules/Role/Request/Reference/Resource→Result) and R7 (+Reputation) action framework.",
+
+  "validation_vectors": [
+    {
+      "id": "r6-val-001",
+      "description": "Valid R6 action passes validation",
+      "action": {
+        "rules": {
+          "law_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "society": "lct:web4:society:test",
+          "permissions": ["file_read", "file_write"],
+          "prohibitions": ["delete_production"],
+          "constraints": []
+        },
+        "role": {
+          "actor_lct": "lct:web4:agent:alice",
+          "role_lct": "lct:web4:role:developer"
+        },
+        "request": {
+          "action": "file_write",
+          "target": "src/main.rs",
+          "atp_stake": 10.0
+        },
+        "resource": {
+          "required_atp": 5.0,
+          "available_atp": 100.0
+        }
+      },
+      "expected": {
+        "validation_errors": 0,
+        "is_r7": false
+      }
+    },
+    {
+      "id": "r6-val-002",
+      "description": "Prohibited action fails validation",
+      "action": {
+        "rules": {
+          "permissions": ["*"],
+          "prohibitions": ["delete_production"]
+        },
+        "request": {
+          "action": "delete_production",
+          "target": "api-server"
+        }
+      },
+      "expected": {
+        "validation_errors": 1,
+        "error_contains": "not permitted"
+      }
+    },
+    {
+      "id": "r6-val-003",
+      "description": "Insufficient ATP fails validation",
+      "action": {
+        "rules": { "permissions": ["deploy"] },
+        "request": { "action": "deploy", "target": "staging" },
+        "resource": {
+          "required_atp": 50.0,
+          "available_atp": 10.0
+        }
+      },
+      "expected": {
+        "validation_errors_gte": 1,
+        "error_contains": "Insufficient ATP"
+      }
+    },
+    {
+      "id": "r6-val-004",
+      "description": "Witness quorum constraint fails when insufficient witnesses",
+      "action": {
+        "rules": {
+          "permissions": ["deploy"],
+          "constraints": [
+            { "constraint_type": "witness_quorum", "threshold": 2.0, "hard": true }
+          ]
+        },
+        "request": { "action": "deploy", "target": "production" },
+        "reference": { "witnesses": [] }
+      },
+      "expected": {
+        "validation_errors_gte": 1,
+        "error_contains": "Witness quorum"
+      }
+    }
+  ],
+
+  "r7_reputation_vectors": [
+    {
+      "id": "r7-rep-001",
+      "description": "High quality (0.8) produces positive reputation delta",
+      "input": {
+        "quality": 0.8,
+        "role_lct": "lct:web4:role:developer"
+      },
+      "expected": {
+        "is_r7": true,
+        "net_trust_change_positive": true,
+        "net_value_change_positive": true,
+        "role_lct_matches_input": true,
+        "t3_dimensions_present": ["talent", "training", "temperament"],
+        "v3_dimensions_present": ["valuation", "veracity", "validity"]
+      }
+    },
+    {
+      "id": "r7-rep-002",
+      "description": "Low quality (0.2) produces negative reputation delta",
+      "input": {
+        "quality": 0.2,
+        "role_lct": "lct:web4:role:developer"
+      },
+      "expected": {
+        "net_trust_change_negative": true,
+        "net_value_change_negative": true
+      }
+    },
+    {
+      "id": "r7-rep-003",
+      "description": "Neutral quality (0.5) produces zero delta",
+      "input": { "quality": 0.5 },
+      "expected": {
+        "net_trust_change": 0.0,
+        "net_value_change": 0.0
+      }
+    }
+  ],
+
+  "chain_vectors": [
+    {
+      "id": "r6-chain-001",
+      "description": "Canonical hash is deterministic",
+      "note": "Same action computed twice MUST produce identical hash (SHA-256 hex, 64 chars)",
+      "expected": {
+        "hash_length": 64,
+        "deterministic": true
+      }
+    }
+  ],
+
+  "role_contextualization": {
+    "description": "R7 reputation MUST be role-contextualized. The same entity acting in different roles accumulates reputation on different MRH links.",
+    "invariant": "ReputationDelta.role_lct MUST equal ActionRole.role_lct from the action that generated it",
+    "violation_example": "A ReputationDelta with role_lct='*' or role_lct='' is NON-CONFORMANT"
+  }
+}
