@@ -179,12 +179,24 @@ No protocol-level mechanism forces a relationship.
 
 This section makes explicit a property of `atp-adp-cycle.md` that has been under-emphasized: **ATP is the form, not the substance**.
 
-### 4.1 Form vs. Substance
+### 4.1 What ATP Is (and What It Is Not)
+
+**ATP is a unit of account, not a medium of exchange with intrinsic value.** It is the standardized token form of a society's internal resource accounting — analogous to how a company might track "engineering hours" or "server capacity" using internal units of account that have no meaning outside the company unless explicitly converted.
+
+The biological metaphor (ATP in cells) is apt precisely because ATP-in-cells is also not currency — it is a chemical carrier of energy potential, a unit-of-account for energy commitments. The analogy holds when ATP/ADP is read as resource accounting, and breaks when over-read as monetary economics.
+
+This framing has important implications that resolve several common misreadings of the spec:
+
+- **"Anti-hoarding" mechanisms are not solving macroeconomics.** They prevent a society from over-committing resources it doesn't have, or from letting resource allocations sit indefinitely unused. Demurrage in the Web4 context is "expiration of resource allocations," not a Gesellian economic experiment.
+- **"Charging" (ADP → ATP) is recognizing resource contribution, not creating value.** A society moves ADP to ATP when it accounts for actual resource availability or pledged commitment. It is not minting wealth.
+- **No mechanism-design proof is needed** for the ATP/ADP cycle as such, because it is accounting infrastructure rather than market design. Societies that wish to embed market mechanisms in their ATP policies (price discovery, auctions, etc.) MAY do so, but the protocol does not mandate or specify market dynamics.
+
+### 4.2 Form vs. Substance
 
 The Web4 protocol specifies ATP/ADP **form**:
 - Tokens have charged (ATP) and discharged (ADP) states
-- Discharge represents work performed
-- Recharging requires resource input
+- Discharge represents work performed or resource consumed
+- Recharging requires resource input or commitment renewal
 - Accounting is per-society, per-policy
 
 The Web4 protocol does NOT specify ATP/ADP **substance**:
@@ -192,9 +204,20 @@ The Web4 protocol does NOT specify ATP/ADP **substance**:
 - At what nominal rate (1 ATP = 1 GPU-hour? 1 minute of senior-engineer attention? a basket?)
 - With what charge policy (mining? earning? gifting? allocation?)
 - With what discharge policy (per-action? per-tool-call? per-task-completed?)
-- With what optional decay or demurrage policy (none? linear? exponential?)
+- With what optional decay or expiration policy (none? linear? exponential?)
 
 Each society chooses its own substance based on what it accounts and what behaviors it incentivizes.
+
+### 4.3 Commitment vs. Record
+
+Two semantically distinct uses of ATP MAY coexist within a single society's accounting. The spec distinguishes them:
+
+- **ATP-as-Commitment**: A society credits ATP to an entity as a forward-looking pledge — "this entity is authorized to consume up to N units of the reified resource." The ATP balance represents *future capacity*, not past contribution.
+- **ATP-as-Record**: A society credits ATP to an entity as a backward-looking acknowledgment — "this entity contributed N units of the reified resource that the society can now allocate." The ATP balance represents *recognized past contribution*.
+
+Most real ATP policies combine both: commitments are pledged forward, records track what's been delivered, and the difference between pledged and delivered is itself audit-relevant signal.
+
+Societies SHOULD make explicit in their charter which uses are in force and how they are distinguished in the ledger. Implementations MAY use separate ATP type-tags (e.g., `atp:commit`, `atp:record`) within the same accounting framework. The protocol does not mandate the distinction but acknowledges that conflating commitment and record is a common source of accounting confusion.
 
 ### 4.2 Implication for Cross-Society Exchange
 
@@ -210,7 +233,20 @@ A common question (raised in 2026-05-13 review feedback): "How does a brand-new 
 
 **This is intentional**. A protocol-level constraint on initial issuance would require a universal measurement protocol, which would in turn require a universal authority — directly contradicting the anti-hierarchical-by-design property (§1.3).
 
-### 4.4 ATP/ADP Policy Examples (informative, not normative)
+### 4.4 Resource Measurement and Attestation
+
+A society's ATP issuance is bound by its policy to measurements of the underlying reified resource. While the *substance* of the resource is society-sovereign, the *protocol of measurement* benefits from cross-platform consistency at the attestation layer so that exchange counterparties can evaluate measurement credibility independent of the society's self-report.
+
+This spec establishes the following as RECOMMENDED practice:
+
+1. **Resource measurement SHOULD be witnessed.** A society's own attestation of its compute capacity, attention budget, or other reified resource SHOULD be co-signed by independent witnesses (other entities within the society at minimum; ideally entities outside the society with no stake in the over-reporting). Self-attestation without witnessing is permitted but limits the credibility of the society's ATP at exchange time.
+2. **Measurement frequency SHOULD match resource volatility.** Hardware capacity might be measured at genesis and on hardware change. Attention budget might be measured per-period (daily, hourly). The society's charter SHOULD specify measurement cadence.
+3. **Dispute resolution mechanism SHOULD be defined.** When society B's witnesses disagree with society A's self-report (e.g., A claims 10,000 compute units, B's witnesses measure 8,000), the spec does NOT specify how the dispute resolves — this is per-pair-relationship policy negotiated at first contact (per §3). But the existence of a dispute resolution mechanism SHOULD be documented in the society's charter.
+4. **Hardware attestation (TPM 2.0, FIDO2, Apple Secure Enclave, etc.) SHOULD be used where available** to anchor resource measurement to verifiable hardware presence. The `AttestationEnvelope` primitive (see related work) provides one cross-platform interface; implementations are free to use others, but SHOULD document the chosen mechanism in their charter so cross-platform exchange counterparties can evaluate trust.
+
+Note that none of these are protocol-level enforcement. They are RECOMMENDED practices that affect the credibility of a society's ATP at exchange time. A society that over-reports without witnessing will find its ATP discounted heavily by exchange counterparties — the market for the society's ATP is the audit mechanism, not the protocol.
+
+### 4.5 ATP/ADP Policy Examples (informative, not normative)
 
 To illustrate the breadth of valid substance choices:
 
@@ -323,6 +359,7 @@ The choice is per-society policy. The Web4 protocol does not mandate any specifi
 
 The following remain open and are explicitly NOT addressed by this v0.1.0 draft:
 
+- **Cross-society R6 action protocol** — when an entity in society A initiates an R6 action against a resource in society B. The R6 framework is intra-society today; the AGY (Agency) pattern hints at delegation but doesn't fully spec cross-society action mediation. This is the natural follow-up doc to this one. Likely v0.2 or a separate `cross-society-r6.md`.
 - **Society-society trust tensors** — the structure of T3/V3 when the entity-role pair is (society, "trusted-counterparty"). Convergence rules when one society is highly-witnessed and another is new. Provisional guidance: defer to the first-contact protocol; each society maintains its own view; convergence emerges from exchange history.
 - **Exchange-rate discovery mechanisms** — markets, peer-to-peer negotiation, third-party rate publication. Implementations MAY experiment.
 - **Federation-of-federations** — when D itself federates with E into higher-order F. Protocol-wise this is recursive application of §2.2 and §3.2 Option 3, but operational guidance for multi-level federations is needed.
