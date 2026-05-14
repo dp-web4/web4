@@ -25,6 +25,8 @@ Three properties define the shape, and each has a normative spec:
 
 These three together produce the property: **Web4 is anti-hierarchical by design**, with audit and trust emerging from below rather than imposed from above. The specs *implement* this philosophy; this section is here so the philosophy is visible upfront rather than inferred from the corpus.
 
+**How societies engage each other**: a society's external surface is its MCP server. Other societies invoke its scoped actions (R6/R7) by calling MCP tools with LCT-signed envelopes; querying its state by reading MCP resources; coordinating across federation depth via witness signatures carried in the MCP exchange. The canonical Web4 equation `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` has MCP as the **I/O membrane** for exactly this reason — internal structure is `LCT + T3/V3*MRH + ATP/ADP`; the cross-society interface IS MCP. See [`mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) §1.1 and §7 for the inter-society binding spec.
+
 ## Five-minute audit
 
 If you want a fast read on whether this is real, in order:

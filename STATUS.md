@@ -8,9 +8,10 @@
 
 Web4 is a **working ontology** with **real proof points** and **real gaps**. R&D, not production. The spec corpus is stable; reference implementations exist; some demonstrations have moved from inferred to measured. **As of 2026-04-28, the core primitives are publicly installable.**
 
-**The architectural shape is now explicitly specified.** Two new core-spec docs (2026-05-13) make the previously-inferable structural properties normative:
+**The architectural shape is now explicitly specified.** Three core-spec updates (2026-05-13 + 2026-05-14) make the previously-inferable structural properties normative:
 - [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) — society genesis (self-bootstrapped + federation-based), first-contact protocol (three sovereign options), ATP as unit-of-account with society-sovereign reification, secession/dissolution
 - [`society-roles.md`](web4-standard/core-spec/society-roles.md) — seven base-mandatory roles (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) + context-mandatory (forced by outward role) + optional, with fractal composability semantics
+- [`mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) — **v0.1.3 amendment (2026-05-14)** adds explicit cross-society binding (§1.1, §7.3 R7, §7.4 cross-society LCT envelope, §7.5 witnessing + Reputation propagation). **Cross-society R6/R7 action protocol is now spec'd** — and the spec recognizes that MCP IS the inter-society interface per the canonical equation, not a missing layer. Three previously-deferred inter-society gaps (cross-society actions, society-society trust tensors, exchange-rate negotiation transport) are resolved by this amendment.
 
 The Web4 anti-hierarchical-by-design property is now stated normatively in spec rather than inferred from the ontology.
 

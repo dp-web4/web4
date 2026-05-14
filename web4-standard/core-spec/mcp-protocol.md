@@ -25,6 +25,16 @@ Every component communicates through MCP, but the semantic structure of what flo
 - **SAL** laws and policies are enforced as RDF governance structures
 - **AGY** delegations are validated and executed with RDF-typed authority chains
 
+### 1.1 MCP as the Inter-Society Interface
+
+The "I/O membrane" framing has a load-bearing consequence: **MCP is the protocol by which sovereign Web4 societies engage each other**.
+
+A society's internal structure is defined by `LCT + T3/V3*MRH + ATP/ADP` over an RDF semantic substrate (see `LCT-linked-context-token.md`, `t3-v3-tensors.md`, `mrh-tensors.md`, `atp-adp-cycle.md`). A society's *external surface* — the productivity it exposes to other societies, the actions it allows outsiders to invoke, the resources it makes queryable — is its MCP server.
+
+When an entity in Society A initiates an R6/R7 action against a resource in Society B, that action is realized as an MCP tool call from A's MCP client to B's MCP server, with Web4 context headers (§4.1) carrying the LCT envelope, the R6 rules/role/reference, and (for R7) the Reputation back-propagation hint.
+
+This dissolves what would otherwise be a separate "cross-society action protocol" question. The cross-society action protocol *is* MCP — per the equation's design. See `inter-society-protocol.md` for genesis/first-contact/secession primitives; this spec's §7 covers the R6/R7 actions those societies perform on each other via MCP.
+
 ## 2. Core Concepts
 
 ### 2.1 MCP as Entity Communication
@@ -276,7 +286,9 @@ Shared context maintained across interactions:
 }
 ```
 
-## 7. MCP-R6 Integration
+## 7. MCP-R6/R7 Integration and Cross-Society Bindings
+
+This section specifies how MCP interactions bind to Web4's R6/R7 action grammar, including the cross-society case where the calling and responding entities reside in different societies. Cross-society interactions are the *primary* expected use for the Web4 MCP extensions; intra-society MCP interactions are a special case where calling and responding societies happen to be the same.
 
 ### 7.1 MCP Actions as R6 Transactions
 
@@ -337,6 +349,129 @@ MCP servers can have delegated authority:
   }
 }
 ```
+
+### 7.3 MCP Actions as R7 Transactions
+
+R7 extends R6 with a seventh component — Reputation — that back-propagates to the T3/V3 tensors of the involved entities and (for cross-society actions, see §7.4) to the inter-society trust tensors. See `r7-framework.md` for the canonical R7 definition.
+
+An MCP action MUST be treated as R7 (rather than R6) when ANY of the following holds:
+
+- The action crosses a society boundary (caller and responder are in different societies); cross-society actions are R7 by default because outcomes feed inter-society trust evolution
+- The action is consequential per the responding society's policy (high-stakes operations, resource modifications, escalation candidates)
+- The caller or responder has explicitly tagged the action as `r7_required: true` in the Web4 Context Headers
+
+R7 MCP actions extend the §7.1 R6 structure with a `reputation` field in the response:
+
+```json
+{
+  "type": "mcp_invocation_r7",
+  "rules": { /* per R6 */ },
+  "role":  { /* per R6 */ },
+  "request": { /* per R6 */ },
+  "reference": { /* per R6 */ },
+  "resource": { /* per R6 */ },
+  "result": {
+    "mcp_response": {...},
+    "trust_updates": {...}
+  },
+  "reputation": {
+    "outcome_class": "success | partial | failure | violation",
+    "outcome_quality": 0.92,
+    "responding_society_signature": "cose:...",
+    "trust_dimension_updates": {
+      "talent":      { "delta": +0.01, "context": "executed cleanly" },
+      "training":    { "delta": +0.005, "context": "evidence accumulated" },
+      "temperament": { "delta":  0.00, "context": "no behavioral signal" }
+    },
+    "propagation_scope": "caller_society | responding_society | both | encompassing_society",
+    "witness_signatures": [...]
+  }
+}
+```
+
+**Normative requirements for R7 over MCP:**
+
+- The `reputation.responding_society_signature` MUST be signed by the responding society's Policy-Entity (the role that made the decision per `society-roles.md` §2.3)
+- The `reputation.outcome_class` MUST be one of the canonical values; implementations MUST NOT invent new values without spec extension
+- The `reputation.trust_dimension_updates` deltas MUST be within bounds set by the responding society's Law Oracle for the role context (per `t3-v3-tensors.md` parameter governance)
+- The `reputation.propagation_scope` MUST be set; absent it, implementations SHOULD default to `both` for cross-society actions and `responding_society` for intra-society R7
+- For high-consequence actions (per the responding society's classification), `reputation.witness_signatures` MUST contain at least one signature from a Witness role per `society-roles.md` §4.1; the encompassing society's Witness is preferred when one exists
+
+The caller's Archivist (per `society-roles.md` §2.6) MUST persist the signed reputation envelope to the calling society's ledger as part of the audit bundle for this action.
+
+### 7.4 Cross-Society LCT Envelope
+
+When the MCP caller and responder are in different societies, the Web4 Context Headers (§4.1) carry additional cross-society envelope material:
+
+```json
+{
+  "web4_context": {
+    "sender_lct": "lct:web4:entity:...",
+    "sender_society": "lct:web4:society:A:...",
+    "sender_role": "web4:role:...",
+    "responding_society": "lct:web4:society:B:...",
+    "responding_role_expected": "web4:role:resource_provider",
+    "cross_society": {
+      "interaction_type": "first_contact | established | federated",
+      "exchange_agreement_hash": "sha256:...",
+      "applicable_law_oracle": "lct:web4:society:A:law-oracle:...  OR  lct:web4:encompassing:law-oracle:...",
+      "atp_settlement": {
+        "currency": "lct:web4:society:A:atp  OR  lct:web4:encompassing:atp",
+        "amount": 50,
+        "exchange_rate": { "denominator": "lct:web4:society:B:atp", "rate": 1.4 }
+      }
+    },
+    "agency_chain": [ /* per existing §4.1 proof_of_agency */ ],
+    "law_hash": "sha256:..."
+  }
+}
+```
+
+**Normative requirements for cross-society LCT envelopes:**
+
+- `sender_society` and `responding_society` MUST both be present; absent these, the call is intra-society and follows §4.1 alone
+- `interaction_type` MUST be set: `first_contact` (per `inter-society-protocol.md` §3.1) requires additional discovery exchange before R7 can complete; `established` and `federated` proceed normally
+- `applicable_law_oracle` resolves the "whose law applies under cross-society interaction" question by explicit reference. Two patterns are supported:
+  - **Caller-law**: sender's Law Oracle governs the call; responder MAY refuse if local law conflicts
+  - **Encompassing-law**: when caller and responder share a fractal-encompassing society, that society's Law Oracle governs (per `inter-society-protocol.md` §3.2 Option 3)
+- `atp_settlement.exchange_rate` MUST be present for cross-society calls with non-zero ATP cost when the two societies use different currencies; reference must be a current (within agreement validity window) negotiated rate from the inter-society protocol
+
+### 7.5 Cross-Society Witnessing and R7 Reputation Propagation
+
+Cross-society R7 actions interact with the witness role per `society-roles.md` §4.1. When an entity in Society A acts on a resource in Society B via MCP:
+
+**Witness selection** (in priority order):
+
+1. **Encompassing society's Witness** — when A and B share a fractal-encompassing society D, D's Witness role provides neutral attestation peer to both A and B
+2. **Third-society Witness** — when A and B do not share an encompassing D, they MAY invoke witnesses from a third society both trust (selection negotiated at first contact or by standing arrangement)
+3. **Bilateral witness** — A and B each provide a Witness; cross-signed attestations record the action in both ledgers
+4. **No witness** — low-consequence R6 calls MAY proceed without witnessing; R7 SHOULD NOT proceed without witnessing for high-consequence actions
+
+**R7 Reputation propagation** rules:
+
+| `propagation_scope` | Effect |
+|---|---|
+| `responding_society` | Only Society B's view of the calling entity's T3/V3 updates. A does not record the Reputation in its own ledger. Used for intra-society or low-consequence cases. |
+| `caller_society` | Only Society A's view of the responding society / resource updates. B does not record the Reputation. Unusual; typically combined with `both` semantics. |
+| `both` | Both A and B record the signed Reputation envelope to their respective ledgers. A updates its T3/V3 view of B; B updates its T3/V3 view of A's calling entity. Standard for cross-society R7 without an encompassing D. |
+| `encompassing_society` | The Reputation also propagates to the encompassing society's ledger and contributes to its society-society trust tensor between A and B. Standard for cross-society R7 within a federation. |
+
+**Society-society trust tensors** (derived data structure):
+
+When R7 Reputation propagates to `encompassing_society` scope across multiple actions, the encompassing society accumulates a `society-society T3/V3 tensor` between A and B. This tensor's structure mirrors the entity-role T3/V3 (three root dimensions, each an RDF sub-graph via `web4:subDimensionOf`) but with the entity-role pair replaced by a society-society pair. The structure is observable to A and B (each can query the encompassing society's view of their relationship) but neither can directly write to it — it's derived from witnessed action outcomes.
+
+This resolves the `inter-society-protocol.md` §9 future-work item "society-society trust tensors": they exist as the accumulated R7-Reputation projection at the encompassing society's scope.
+
+### 7.6 Failure Modes Specific to Cross-Society R7
+
+| Failure | MCP Error Code | Recovery |
+|---|---|---|
+| Caller's LCT not recognized by responding society | `403 web4_cross_society_unrecognized_lct` | First-contact protocol per `inter-society-protocol.md` §3 |
+| Exchange rate stale or absent | `409 web4_cross_society_exchange_invalid` | Renegotiate per inter-society protocol |
+| Applicable Law Oracle disagrees with responding society's Law Oracle | `409 web4_cross_society_law_conflict` | Escalate to encompassing society or refuse |
+| Witness signature required but absent | `412 web4_cross_society_witness_required` | Acquire witness and retry |
+| R7 Reputation signature invalid | `400 web4_r7_reputation_invalid` | Responding society's Policy-Entity must re-sign |
+| Propagation scope unsupported by responding society | `400 web4_propagation_scope_unsupported` | Caller must request a supported scope |
 
 ## 8. MCP Discovery and Advertisement
 
