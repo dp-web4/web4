@@ -469,6 +469,24 @@ The JSON-LD context enables Web4 RDF data to be expressed in standard JSON. The 
 
 The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology/t3v3-ontology.ttl`. It declares the six root dimensions, the `subDimensionOf` property for fractal extension, and the `DimensionScore` class for binding scores to entity-role pairs.
 
+## Appendix J: Authorship & Methodology
+
+This whitepaper, the specs it documents, and substantial portions of the codebases it points at — `web4-core`, `web4-trust-core`, the reference Python SDK, the simulation suite, the demo — are **substantially AI-assisted**. The work is produced by Claude instances (Anthropic) operating in autonomous and interactive sessions across a fleet of machines. **Dennis Palatov's role is directional**: proposing research directions, providing intuition, pushing back on framing when it drifts, and curating which threads warrant continued investigation. The actual drafting, derivation, implementation, and analysis is largely AI work.
+
+This is a load-bearing methodological disclosure for two reasons.
+
+**First**, it explains the volume and pace. The spec corpus, the cross-language Rust + Python implementations with hundreds of tests, the formal RDF ontology, the protocol amendments shipped in the same week — this iteration speed is not human-scale. Recognizing the source of the velocity is part of evaluating the work.
+
+**Second** — and more important — it names a specific failure mode that external review consistently flags in AI-original technical writing. The cleanest articulation comes from Kimi 2.6's review of sibling projects (SAGE, Synchronism) in May 2026: *LLMs are excellent at generating coherent frameworks and less excellent at recognizing where coherence becomes speculation.* In other words: AI-generated theoretical work tends toward **elegant isomorphism** (clean structural parallels expressed in unified notation) rather than **empirical novelty** (testable predictions, operational definitions, working implementations that fail informatively when wrong). The coherence outpaces the grounding. This is structurally invisible from inside an AI-assisted team because the team is load-bearing on the framework.
+
+Web4's structural counterweight to this failure mode is the **implementation evidence** — the published packages, the test suites, the cross-language verification demo, the public ARC-AGI-3 scorecard, the spec compliance harness. When a section of this whitepaper makes an architectural claim, the question to apply is: *does an implementation that compiles and passes tests ground this claim, or is this elegant isomorphism dressed as a finding?* The Conclusion's "Findings vs Framings" section separates the two explicitly. The published packages (`web4-core` v0.1.1, `web4-trust-core` v0.1.1) and the demo (166 passing tests) are the operational counterweight to the framing-heavy sections.
+
+A second counterweight is **cross-model independent review**. The 2026-05-13 Kimi 2.6 review of Web4 ([`forum/kimi2_6_review.md`](https://github.com/dp-web4/web4/blob/main/forum/kimi2_6_review.md)) is the most thorough external scrutiny the project has received; it produced two new normative core specs (`inter-society-protocol.md`, `society-roles.md`) by surfacing a gap the in-house authors had not. Cross-model reviews (Kimi, Nova/GPT, cold-context external Claude instances) are part of the discipline rather than an interruption. When reviewers flag drift from implementation-grounded claims, the fix is either (a) **downgrade the claim** to framing/orientation, or (b) **add the implementation** that grounds it. Defending framing for its own sake is not a fix.
+
+A third counterweight is **honest status calibration**. STATUS.md, the Executive Summary's "Implementation Status" subsection, the appendices' implementation table, and the Conclusion's "What's honestly unproven" section all explicitly mark where the work crosses from shipped to operational-elsewhere to specified-but-unbuilt. Readers should treat the unmarked claims as findings only when the corresponding spec doc or implementation can be located in the [Concept → Implementation Map](https://github.com/dp-web4/web4#concept--implementation-map).
+
+This appendix exists so the reader can calibrate. The architecture in this whitepaper is largely AI-authored; the strongest evidence against "coherent framework outpacing implementation" is the implementation itself — and that's where readers most skeptical of AI-original theoretical writing should start.
+
 ---
 
 *These appendices provide technical details for implementers. For the latest specifications and updates, see https://github.com/dp-web4/web4*

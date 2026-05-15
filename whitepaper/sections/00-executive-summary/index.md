@@ -6,6 +6,8 @@ WEB4 asks whether trust can be a first-class primitive of an internet for humans
 
 The vision below is ambitious. The work tests the vision. The boundary between what's tested and what's still vision is named explicitly throughout.
 
+> **Findings vs Framings**: This whitepaper mixes two categories of claim — *findings* (working implementations, passing tests, the public scorecard) and *framings* (analogies and philosophical positioning that orient how the architecture is read). Both matter; conflating them is the failure mode external reviewers flag most often. The "Implementation Status" subsection below lists the findings; the analogies in the body sections (Linux/GNU/distribution, biological-membrane, trust-as-gravity, memory-as-temporal-sensor) are framings. The Conclusion expands this distinction; Appendix J discloses the methodology that makes the distinction load-bearing.
+
 ## The Core Innovation
 
 At the heart of WEB4 lies a simple yet profound shift: **presence is witnessed, witnessed presence builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
