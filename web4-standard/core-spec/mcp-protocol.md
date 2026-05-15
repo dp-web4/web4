@@ -436,6 +436,24 @@ When the MCP caller and responder are in different societies, the Web4 Context H
   - **Encompassing-law**: when caller and responder share a fractal-encompassing society, that society's Law Oracle governs (per `inter-society-protocol.md` §3.2 Option 3)
 - `atp_settlement.exchange_rate` MUST be present for cross-society calls with non-zero ATP cost when the two societies use different currencies; reference must be a current (within agreement validity window) negotiated rate from the inter-society protocol
 
+**Relationship to §4.1 Web4 Context Headers:**
+
+The cross-society envelope extends — it does not replace — the §4.1 header. The
+following reconciles the fields that change shape between the two sections:
+
+- `sender_society` is the cross-society form of §4.1 `society`. For
+  cross-society envelopes (`sender_society` and `responding_society` both
+  present) `sender_society` carries the sending society's LCT and §4.1
+  `society` is omitted. Intra-society calls continue to use §4.1 `society`
+  alone and MUST NOT set `sender_society`. A recipient MUST treat
+  `sender_society` and §4.1 `society` as the same logical field (sending
+  society identity) and MUST NOT require both in one envelope.
+- `agency_chain` is the ordered-list form of §4.1 `proof_of_agency`. Each
+  element MUST be a §4.1 `proof_of_agency` object (`{grant_id, scope}`),
+  ordered from the originating grant to the most recent delegation; a
+  single-element `agency_chain` is wire-equivalent to one §4.1
+  `proof_of_agency`. The chain MUST be non-empty when present.
+
 ### 7.5 Cross-Society Witnessing and R7 Reputation Propagation
 
 Cross-society R7 actions interact with the witness role per `society-roles.md` §4.1. When an entity in Society A acts on a resource in Society B via MCP:
