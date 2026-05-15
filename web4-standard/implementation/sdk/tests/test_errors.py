@@ -37,21 +37,26 @@ from web4.errors import (
 class TestRegistryCompleteness:
     """Every ErrorCode must have metadata in the registry."""
 
-    def test_all_24_codes_registered(self):
+    def test_all_30_codes_registered(self):
         for code in ErrorCode:
             meta = get_error_meta(code)
             assert meta.code == code
 
-    def test_exactly_24_codes(self):
-        assert len(ErrorCode) == 24
+    def test_exactly_30_codes(self):
+        assert len(ErrorCode) == 30
 
-    def test_exactly_6_categories(self):
-        assert len(ErrorCategory) == 6
+    def test_exactly_7_categories(self):
+        assert len(ErrorCategory) == 7
 
-    def test_4_codes_per_category(self):
+    def test_codes_per_category(self):
+        # 6 original categories have 4 codes each; CROSS_SOCIETY has 6
+        expected = {cat: 4 for cat in ErrorCategory}
+        expected[ErrorCategory.CROSS_SOCIETY] = 6
         for cat in ErrorCategory:
             codes = codes_for_category(cat)
-            assert len(codes) == 4, f"{cat} has {len(codes)} codes, expected 4"
+            assert len(codes) == expected[cat], (
+                f"{cat} has {len(codes)} codes, expected {expected[cat]}"
+            )
 
     def test_all_codes_have_title(self):
         for code in ErrorCode:

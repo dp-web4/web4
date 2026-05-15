@@ -16,10 +16,8 @@ from web4.mcp import (
     OutcomeClass,
     PropagationScope,
     ReputationEnvelope,
-    TrustContext,
     TrustRequirements,
 )
-
 
 # ── OutcomeClass Enum ────────────────────────────────────────────
 
