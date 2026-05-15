@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-14 (Sprint 50)*
+*Last updated: 2026-05-14 (Sprint 52)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 52 Summary: Conformance Test Vector Runner (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Wire conformance vectors into pytest | DONE | Exercises 35 operator-created conformance vectors from `testing/conformance/` against Python SDK. 4 suites: tensor ops, ATP, R6/R7, society/roles. 39 tests (31 passed, 8 xfailed conformance gaps). 2709 total tests. 1 new file. Addresses Kimi K2 gap. |
 
 ### Sprint 51 Summary: Minimum Viable Society Validation + Constraint Alignment (COMPLETE)
 
@@ -202,7 +208,7 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.26.0
 - **Modules**: 23 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, role, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2668 passing
+- **Tests**: 2709 total (2701 passing, 8 xfailed conformance gaps)
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
 - **Exports**: 368 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
@@ -278,7 +284,7 @@ Sprint 50 T1 PR pending.
 
 ## Completeness Summary
 
-- All 51 sprints COMPLETE (Sprints 1-51, all merged or PR pending)
+- All 52 sprints COMPLETE (Sprints 1-52, all merged or PR pending)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -310,7 +316,8 @@ Sprint 50 T1 PR pending.
 - **web4-core Society/Role/ATP/R6 alignment**: Cross-language audit identified 14 items (1 CRITICAL: Python SDK missing SocietyRole, 3 HIGH, 3 MEDIUM, 4 LOW) — see `docs/audits/cross-language-society-role-atp-r6-alignment-2026-05-14.md`. P1-P3 resolved by Sprint 50. P5-P6 resolved by Sprint 51. P4 (MetabolicState) and P7 (role integration) need operator decisions.
 - **web4-trust-core T3/V3 alignment**: Cross-language T3/V3 audit identified 8 divergences (1 CRITICAL, 4 HIGH) between Rust/WASM and spec/Python SDK — see `docs/audits/cross-language-t3v3-alignment-2026-05-13.md`
 - **Parameter governance**: All trust/value/energy parameters classified into three tiers (protocol-invariant, society-configurable, simulation-only) — see `web4-standard/core-spec/t3-v3-tensors.md` §10
+- **Conformance test runner**: 35 operator-created conformance vectors wired into pytest — exercises T3/V3, ATP, R6/R7, and Society/Role operations against the Python SDK. 8 conformance gaps documented as xfail (weighted vs unweighted T3 aggregate, success flag direction, talent decay invariant, V3 valuation scope, constraint checking, role authorization, federation API shape, sub-dimension rollup)
 
 ---
 
-*Updated by autonomous session, 2026-05-14 (Sprint 51 — validate_minimum_viable + Constraint alignment)*
+*Updated by autonomous session, 2026-05-14 (Sprint 52 — conformance test vector runner)*
