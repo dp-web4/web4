@@ -1,9 +1,49 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-14 (Sprint 51)
+**Updated**: 2026-05-14 (Sprint 52)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 52: Conformance Test Vector Runner (2026-05-14)
+
+Wires the operator-created conformance test vectors (`web4-standard/testing/
+conformance/`, commit `0c39a9b6`) into the Python SDK's pytest suite. The
+35 vectors across 4 suites define cross-language behavioral properties that
+all Web4 implementations must satisfy. Addresses Kimi's K2 gap (conformance
+test suite).
+
+### T1: Wire conformance vectors into pytest
+**Status**: DONE
+**Completed**: 2026-05-14
+**Authorized by**: Operator signal (conformance vectors in direct-to-main
+commits). Policy-reviewed and approved.
+**Scope**:
+New `tests/test_conformance.py` exercising 35 vectors across 4 suites:
+- **Tensor operations** (8 vectors): T3/V3 construction, update, level
+  thresholds, decay
+- **ATP operations** (11 vectors): account lifecycle, transfers, conservation,
+  sliding scale
+- **R6/R7 actions** (8 vectors): validation, reputation deltas, hash
+  determinism, role contextualization
+- **Society/roles** (8 vectors): bootstrap, lifecycle, rotation, multi-holder,
+  minimum viable validation
+
+**Result**: 39 tests (31 passed, 8 xfailed conformance gaps), 1 new file.
+2709 total tests (2701 passed, 8 xfailed). mypy --strict clean, ruff
+lint/format clean.
+
+**Conformance gaps documented** (8 xfail):
+1. T3 aggregate: weighted vs unweighted mean (Sprint 47 audit class)
+2. T3 update: success flag ignored (quality-only direction in SDK)
+3. T3 decay: talent invariant vs vector expecting decay
+4. V3 reputation: valuation not in behavioral update (economic dimension)
+5. Constraint checking: validate() defers to PolicyGate
+6. Role assignment authorization: governance-layer check not in data types
+7. Federation join/secede: different API shape than incorporate_child()
+8. Sub-dimension rollup: ontology-defined but not runtime-implemented
 
 ---
 
