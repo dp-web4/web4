@@ -45,6 +45,13 @@ __all__ = [
     "SessionHandoff",
     "PricingModifiers",
     "MCPErrorContext",
+    # Cross-society types (§7.3–7.6)
+    "OutcomeClass",
+    "PropagationScope",
+    "CrossSocietyInteractionType",
+    "CrossSocietyContext",
+    "ReputationEnvelope",
+    "MCPContextResource",
     # Functions
     "calculate_mcp_cost",
     "web4_context_to_json",
@@ -657,6 +664,270 @@ class MCPErrorContext:
             error_witnessed=d.get("error_witnessed", False),
             witness_lct=d.get("witness", ""),
             trust_impact=d.get("trust_impact", {}),
+        )
+
+
+# ── Cross-Society Enums (spec §7.3–7.5) ─────────────────────────
+
+
+class OutcomeClass(str, Enum):
+    """Canonical outcome classification for R7 reputation (§7.3).
+
+    Distinct from ``ActionStatus`` (lifecycle phase). OutcomeClass classifies
+    the *quality of completion*, not the lifecycle state.
+    """
+
+    SUCCESS = "success"
+    PARTIAL = "partial"
+    FAILURE = "failure"
+    VIOLATION = "violation"
+
+
+class PropagationScope(str, Enum):
+    """Reputation propagation scope for cross-society R7 actions (§7.3, §7.5).
+
+    Determines which societies record the signed reputation envelope.
+    """
+
+    RESPONDING_SOCIETY = "responding_society"
+    CALLER_SOCIETY = "caller_society"
+    BOTH = "both"
+    ENCOMPASSING_SOCIETY = "encompassing_society"
+
+
+class CrossSocietyInteractionType(str, Enum):
+    """Cross-society interaction classification (§7.4).
+
+    Governs discovery and negotiation requirements for cross-society MCP calls.
+    Named ``CrossSocietyInteractionType`` to avoid collision with
+    ``entity.InteractionType`` (binding/pairing/witnessing/delegation).
+    """
+
+    FIRST_CONTACT = "first_contact"
+    ESTABLISHED = "established"
+    FEDERATED = "federated"
+
+
+# ── Cross-Society Context (spec §7.4) ───────────────────────────
+
+
+@dataclass(frozen=True)
+class CrossSocietyContext:
+    """Cross-society envelope fields carried in Web4 context headers (§7.4).
+
+    Extends the intra-society ``Web4Context`` with sender/responding society
+    identification, interaction type, law oracle resolution, and ATP settlement
+    details required for cross-society MCP calls.
+    """
+
+    sender_lct: str
+    sender_society: str
+    responding_society: str
+    interaction_type: CrossSocietyInteractionType = (
+        CrossSocietyInteractionType.ESTABLISHED
+    )
+    sender_role: str = ""
+    responding_role_expected: str = ""
+    applicable_law_oracle: str = ""
+    exchange_agreement_hash: str = ""
+    atp_settlement_currency: str = ""
+    atp_settlement_amount: int = 0
+    atp_settlement_exchange_rate: Optional[Dict[str, Any]] = None
+    trust_context: TrustContext = field(default_factory=TrustContext)
+    mrh_depth: int = 1
+    law_hash: str = ""
+    proof_of_agency: Optional[ProofOfAgency] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary matching §7.4 envelope structure."""
+        d: Dict[str, Any] = {
+            "sender_lct": self.sender_lct,
+            "sender_society": self.sender_society,
+            "responding_society": self.responding_society,
+            "interaction_type": self.interaction_type.value,
+        }
+        if self.sender_role:
+            d["sender_role"] = self.sender_role
+        if self.responding_role_expected:
+            d["responding_role_expected"] = self.responding_role_expected
+        cross: Dict[str, Any] = {
+            "interaction_type": self.interaction_type.value,
+        }
+        if self.exchange_agreement_hash:
+            cross["exchange_agreement_hash"] = self.exchange_agreement_hash
+        if self.applicable_law_oracle:
+            cross["applicable_law_oracle"] = self.applicable_law_oracle
+        if self.atp_settlement_currency or self.atp_settlement_amount:
+            settlement: Dict[str, Any] = {}
+            if self.atp_settlement_currency:
+                settlement["currency"] = self.atp_settlement_currency
+            if self.atp_settlement_amount:
+                settlement["amount"] = self.atp_settlement_amount
+            if self.atp_settlement_exchange_rate:
+                settlement["exchange_rate"] = dict(
+                    self.atp_settlement_exchange_rate
+                )
+            cross["atp_settlement"] = settlement
+        d["cross_society"] = cross
+        d["trust_context"] = self.trust_context.to_dict()
+        d["mrh_depth"] = self.mrh_depth
+        if self.law_hash:
+            d["law_hash"] = self.law_hash
+        if self.proof_of_agency:
+            d["proof_of_agency"] = self.proof_of_agency.to_dict()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> CrossSocietyContext:
+        """Deserialize from dictionary, reconstructing nested objects."""
+        cross = d.get("cross_society", {})
+        settlement = cross.get("atp_settlement", {})
+        poa = d.get("proof_of_agency")
+        return cls(
+            sender_lct=d["sender_lct"],
+            sender_society=d["sender_society"],
+            responding_society=d["responding_society"],
+            interaction_type=CrossSocietyInteractionType(
+                cross.get(
+                    "interaction_type",
+                    d.get("interaction_type", "established"),
+                )
+            ),
+            sender_role=d.get("sender_role", ""),
+            responding_role_expected=d.get("responding_role_expected", ""),
+            applicable_law_oracle=cross.get("applicable_law_oracle", ""),
+            exchange_agreement_hash=cross.get("exchange_agreement_hash", ""),
+            atp_settlement_currency=settlement.get("currency", ""),
+            atp_settlement_amount=settlement.get("amount", 0),
+            atp_settlement_exchange_rate=settlement.get("exchange_rate"),
+            trust_context=TrustContext.from_dict(
+                d.get("trust_context", {})
+            ),
+            mrh_depth=d.get("mrh_depth", 1),
+            law_hash=d.get("law_hash", ""),
+            proof_of_agency=(
+                ProofOfAgency.from_dict(poa) if poa else None
+            ),
+        )
+
+
+# ── Reputation Envelope (spec §7.3) ─────────────────────────────
+
+
+@dataclass(frozen=True)
+class ReputationEnvelope:
+    """Signed reputation envelope for R7 actions (§7.3).
+
+    Carries the outcome classification, quality score, trust dimension
+    updates, propagation scope, and witness/Policy-Entity signatures
+    required by the cross-society reputation protocol.
+    """
+
+    action_id: str
+    outcome_class: OutcomeClass
+    outcome_quality: float = 0.5
+    responding_society: str = ""
+    responding_society_signature: str = ""
+    trust_dimension_updates: Dict[str, float] = field(default_factory=dict)
+    propagation_scope: PropagationScope = PropagationScope.RESPONDING_SOCIETY
+    witness_signatures: List[str] = field(default_factory=list)
+    timestamp: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary matching §7.3 reputation envelope."""
+        d: Dict[str, Any] = {
+            "action_id": self.action_id,
+            "outcome_class": self.outcome_class.value,
+            "outcome_quality": self.outcome_quality,
+            "propagation_scope": self.propagation_scope.value,
+        }
+        if self.responding_society:
+            d["responding_society"] = self.responding_society
+        if self.responding_society_signature:
+            d["responding_society_signature"] = (
+                self.responding_society_signature
+            )
+        if self.trust_dimension_updates:
+            d["trust_dimension_updates"] = dict(
+                self.trust_dimension_updates
+            )
+        if self.witness_signatures:
+            d["witness_signatures"] = list(self.witness_signatures)
+        if self.timestamp:
+            d["timestamp"] = self.timestamp
+        return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> ReputationEnvelope:
+        """Deserialize from dictionary."""
+        return cls(
+            action_id=d["action_id"],
+            outcome_class=OutcomeClass(d["outcome_class"]),
+            outcome_quality=d.get("outcome_quality", 0.5),
+            responding_society=d.get("responding_society", ""),
+            responding_society_signature=d.get(
+                "responding_society_signature", ""
+            ),
+            trust_dimension_updates=d.get("trust_dimension_updates", {}),
+            propagation_scope=PropagationScope(
+                d.get("propagation_scope", "responding_society")
+            ),
+            witness_signatures=d.get("witness_signatures", []),
+            timestamp=d.get("timestamp", ""),
+        )
+
+
+# ── MCP Context Resource (spec §6.3) ────────────────────────────
+
+
+@dataclass(frozen=True)
+class MCPContextResource:
+    """An MCP context resource definition (§6.3).
+
+    Context resources expose session state, MRH graph snapshots, and
+    trust evolution data. The ``MCPResourceType.CONTEXT`` enum value
+    already exists; this dataclass provides the structured type.
+    """
+
+    name: str
+    context_type: str = "session_state"
+    description: str = ""
+    trust_requirements: TrustRequirements = field(
+        default_factory=TrustRequirements
+    )
+    atp_cost: int = 1
+    ttl: int = 3600
+    snapshot: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary including resource_type and metadata."""
+        d: Dict[str, Any] = {
+            "resource_type": MCPResourceType.CONTEXT.value,
+            "name": self.name,
+            "context_type": self.context_type,
+        }
+        if self.description:
+            d["description"] = self.description
+        d["trust_requirements"] = self.trust_requirements.to_dict()
+        d["atp_cost"] = self.atp_cost
+        d["ttl"] = self.ttl
+        if self.snapshot:
+            d["snapshot"] = dict(self.snapshot)
+        return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> MCPContextResource:
+        """Deserialize from dictionary."""
+        return cls(
+            name=d["name"],
+            context_type=d.get("context_type", "session_state"),
+            description=d.get("description", ""),
+            trust_requirements=TrustRequirements.from_dict(
+                d.get("trust_requirements", {})
+            ),
+            atp_cost=d.get("atp_cost", 1),
+            ttl=d.get("ttl", 3600),
+            snapshot=d.get("snapshot", {}),
         )
 
 
