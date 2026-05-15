@@ -14,6 +14,8 @@ WEB4 asks whether trust can be a first-class primitive of an internet for humans
 
 The vision below is ambitious. The work tests the vision. The boundary between what's tested and what's still vision is named explicitly throughout.
 
+> **Findings vs Framings**: This whitepaper mixes two categories of claim — *findings* (working implementations, passing tests, the public scorecard) and *framings* (analogies and philosophical positioning that orient how the architecture is read). Both matter; conflating them is the failure mode external reviewers flag most often. The "Implementation Status" subsection below lists the findings; the analogies in the body sections (Linux/GNU/distribution, biological-membrane, trust-as-gravity, memory-as-temporal-sensor) are framings. The Conclusion expands this distinction; Appendix J discloses the methodology that makes the distinction load-bearing.
+
 ## The Core Innovation
 
 At the heart of WEB4 lies a simple yet profound shift: **presence is witnessed, witnessed presence builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
@@ -3079,6 +3081,44 @@ The architecture of Web4 as proposed:
 
 The architecture's load-bearing claim: trust can be a first-class primitive of the protocol layer — earned through witnessed contribution, expressed through a typed RDF ontology, anchored cryptographically — and this provides a useful substrate for human–AI collaboration that current architectures don't.
 
+## Findings vs Framings
+
+We distinguish **findings** (working implementations, passing tests, reproducible artifacts) from **framings** (analogies and philosophical positioning that orient how the architecture is read). Both matter; conflating them is the failure mode external reviewers flag most often in AI-original technical writing. Below the lists are kept separate honestly.
+
+### Findings (operational evidence)
+
+| Finding | Where |
+|---------|-------|
+| **`web4-core` v0.1.1 on crates.io + PyPI** — LCT, T3/V3, Coherence, Ledger trait + InMemory/Local backends. 52 unit tests + 4 doctests. | [crates.io/crates/web4-core](https://crates.io/crates/web4-core), [pypi.org/project/web4-core](https://pypi.org/project/web4-core/) |
+| **`web4-trust-core` v0.1.1 on crates.io + PyPI** — trust persistence, witnessing, decay. 57 tests. | [crates.io/crates/web4-trust-core](https://crates.io/crates/web4-trust-core), [pypi.org/project/web4-trust](https://pypi.org/project/web4-trust/) |
+| **Cross-language interop** — Python mints an LCT into a hash-chained `LocalLedger`; a Rust binary reads the same `ledger.jsonl` and verifies chain + anchor proof. The on-disk format is the contract. | [`web4-core/examples/cross_language_verify/`](https://github.com/dp-web4/web4/tree/main/web4-core/examples/cross_language_verify) |
+| **Reference Python SDK** — 2,627 tests, mypy --strict clean. | [`web4-standard/implementation/`](https://github.com/dp-web4/web4/tree/main/web4-standard/implementation) |
+| **Agent-commerce-delegation demo** — 166 passing tests. | [`/demo`](https://github.com/dp-web4/web4/tree/main/demo) |
+| **ARC-AGI-3 harness effect** — Same Claude Opus 4.6: 0% baseline, 94.85% with the SAGE harness around it. Public scorecard. | [arcprize.org scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4) |
+| **Attack-simulation suite** — 424 vectors / 84 tracks, ~85% detection rate against synthetic adversaries. Honest characterization: no red team yet; some "defenses" are standard infosec practices (TEMPEST, Faraday). | [`simulations/`](https://github.com/dp-web4/web4/tree/main/simulations) |
+| **Formal RDF ontology** — T3/V3 with `web4:subDimensionOf` for fractal extension; JSON-LD context; SPARQL-queryable. | [`web4-standard/ontology/`](https://github.com/dp-web4/web4/tree/main/web4-standard/ontology) |
+| **Cross-model independent review** — Kimi 2.6, three rounds of dialogue. Coherence 8.5/10, bootstrap 8/10. Produced two new spec docs. | [`forum/kimi2_6_review.md`](https://github.com/dp-web4/web4/blob/main/forum/kimi2_6_review.md) |
+
+These are the load-bearing evidence that Web4 is a working ontology rather than a polished framework that doesn't compile.
+
+### Framings (interpretive lenses; useful but not the same epistemic category)
+
+These shape *how* the architecture is read. They are useful organizing patterns; they are not the same kind of evidence as the table above.
+
+| Framing | Status |
+|---------|--------|
+| **"Web4 is to AI governance what the Linux kernel is to an operating system."** (Hardbound = userland; specific deployment = distribution) | Orientation device. The kernel/userland/distribution analogy locates Web4 in the stack and clarifies what's deliberately not in scope. It does not predict the architecture's success; it predicts where alternative userlands would fit. |
+| **Trust-as-gravity / trust as routing primitive** | Intuition pump. Trust scores actually do shape attention allocation, ATP distribution, role binding, and graph traversal in code — the *routing* is verifiable. The *gravitational metaphor* is for thinking, not measurement. |
+| **Memory as temporal sensor / memory as living tissue** | Reframe. Reconceives memory as active perception of temporal patterns rather than passive storage. Useful design pattern; not a discovery about memory systems. |
+| **ATP / ADP / metabolic states (bio-inspired vocabulary)** | Operational pattern with marketing liability. The substance (allocation accounting, energy-cost coupling, anti-Ponzi structural constraint) stands without the biological vocabulary. Some readers see "ATP" and pattern-match to crypto-speak; the biology is doing work as a design metaphor, but it costs credibility with technically skeptical audiences. |
+| **"Identity is a constellation, not a credential."** | Architectural commitment. The structural answer to "what stops a hardware vendor from gating LCT access?" is multi-factor heterogeneous witnessing. The *constellation* word does interpretive work; the spec at [`docs/specs/heterogeneous-identity.md`](https://github.com/dp-web4/web4/blob/main/docs/specs/heterogeneous-identity.md) is what makes the commitment operational. |
+| **Anti-hierarchical by design** (self-sovereign fractal societies; no top-level CA) | Now normative (per the 2026-05-13 inter-society-protocol spec). Earlier it was inferred from the ontology; the [`inter-society-protocol.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/inter-society-protocol.md) spec moved this from framing to finding. Example of a framing being upgraded by adding the implementation that grounds it. |
+| **Coherence borrowing from Synchronism** | Conceptual borrowing, not load-bearing. Web4 does not depend on Synchronism's specific physics claims being true. Cited for intellectual provenance; specs stand independently. |
+
+When a claim drifts from finding to framing without acknowledgment, the fix is either (a) downgrade the claim to framing in the docs, or (b) add the implementation that grounds it. The anti-hierarchical example shows the second path. The trust-as-gravity example shows the first.
+
+---
+
 ## What's distinctive
 
 Some specific positions Web4 takes that distinguish it from adjacent work:
@@ -3728,6 +3768,24 @@ The JSON-LD context enables Web4 RDF data to be expressed in standard JSON. The 
 
 The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology/t3v3-ontology.ttl`. It declares the six root dimensions, the `subDimensionOf` property for fractal extension, and the `DimensionScore` class for binding scores to entity-role pairs.
 
+## Appendix J: Authorship & Methodology
+
+This whitepaper, the specs it documents, and substantial portions of the codebases it points at — `web4-core`, `web4-trust-core`, the reference Python SDK, the simulation suite, the demo — are **substantially AI-assisted**. The work is produced by Claude instances (Anthropic) operating in autonomous and interactive sessions across a fleet of machines. **Dennis Palatov's role is directional**: proposing research directions, providing intuition, pushing back on framing when it drifts, and curating which threads warrant continued investigation. The actual drafting, derivation, implementation, and analysis is largely AI work.
+
+This is a load-bearing methodological disclosure for two reasons.
+
+**First**, it explains the volume and pace. The spec corpus, the cross-language Rust + Python implementations with hundreds of tests, the formal RDF ontology, the protocol amendments shipped in the same week — this iteration speed is not human-scale. Recognizing the source of the velocity is part of evaluating the work.
+
+**Second** — and more important — it names a specific failure mode that external review consistently flags in AI-original technical writing. The cleanest articulation comes from Kimi 2.6's review of sibling projects (SAGE, Synchronism) in May 2026: *LLMs are excellent at generating coherent frameworks and less excellent at recognizing where coherence becomes speculation.* In other words: AI-generated theoretical work tends toward **elegant isomorphism** (clean structural parallels expressed in unified notation) rather than **empirical novelty** (testable predictions, operational definitions, working implementations that fail informatively when wrong). The coherence outpaces the grounding. This is structurally invisible from inside an AI-assisted team because the team is load-bearing on the framework.
+
+Web4's structural counterweight to this failure mode is the **implementation evidence** — the published packages, the test suites, the cross-language verification demo, the public ARC-AGI-3 scorecard, the spec compliance harness. When a section of this whitepaper makes an architectural claim, the question to apply is: *does an implementation that compiles and passes tests ground this claim, or is this elegant isomorphism dressed as a finding?* The Conclusion's "Findings vs Framings" section separates the two explicitly. The published packages (`web4-core` v0.1.1, `web4-trust-core` v0.1.1) and the demo (166 passing tests) are the operational counterweight to the framing-heavy sections.
+
+A second counterweight is **cross-model independent review**. The 2026-05-13 Kimi 2.6 review of Web4 ([`forum/kimi2_6_review.md`](https://github.com/dp-web4/web4/blob/main/forum/kimi2_6_review.md)) is the most thorough external scrutiny the project has received; it produced two new normative core specs (`inter-society-protocol.md`, `society-roles.md`) by surfacing a gap the in-house authors had not. Cross-model reviews (Kimi, Nova/GPT, cold-context external Claude instances) are part of the discipline rather than an interruption. When reviewers flag drift from implementation-grounded claims, the fix is either (a) **downgrade the claim** to framing/orientation, or (b) **add the implementation** that grounds it. Defending framing for its own sake is not a fix.
+
+A third counterweight is **honest status calibration**. STATUS.md, the Executive Summary's "Implementation Status" subsection, the appendices' implementation table, and the Conclusion's "What's honestly unproven" section all explicitly mark where the work crosses from shipped to operational-elsewhere to specified-but-unbuilt. Readers should treat the unmarked claims as findings only when the corresponding spec doc or implementation can be located in the [Concept → Implementation Map](https://github.com/dp-web4/web4#concept--implementation-map).
+
+This appendix exists so the reader can calibrate. The architecture in this whitepaper is largely AI-authored; the strongest evidence against "coherent framework outpacing implementation" is the implementation itself — and that's where readers most skeptical of AI-original theoretical writing should start.
+
 ---
 
 *These appendices provide technical details for implementers. For the latest specifications and updates, see https://github.com/dp-web4/web4*
@@ -3735,4 +3793,4 @@ The formal T3/V3 ontology is defined in Turtle format at `web4-standard/ontology
 
 ---
 
-*Generated: 2026-04-30 04:33:26*
+*Generated: 2026-05-15 16:14:30*
