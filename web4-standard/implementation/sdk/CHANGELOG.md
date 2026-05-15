@@ -2,6 +2,41 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.27.0] - 2026-05-15
+
+Sprints 41-42, 50-52: Society roles, constraint alignment, conformance test runner, cleanup.
+
+### Added
+- **Society Roles module** (Sprint 50 T1, PR #185) — new `web4/role.py` module (23rd SDK
+  module). `SocietyRole` enum (7 base-mandatory + 2 context-mandatory roles), `RoleAssignment`
+  dataclass (role-LCT binding, T3/V3 per role, rotation, multi-holder support),
+  `bootstrap_society_roles()` (solo-founder genesis per inter-society-protocol.md §2.1).
+  4 new exports (368 total at time of merge). 43 new tests.
+- **`validate_minimum_viable()` function** (Sprint 51 T1, PR #187) — validates society
+  role assignments against inter-society-protocol.md §6.2 requirements: base-mandatory
+  completeness, internal differentiation (>=2 fillers when operational), witnessing
+  capacity (Witness or Auditor). Cross-language parity with Rust
+  `Society::validate_minimum_viable()`. 1 new export.
+- **Conformance test runner** (Sprint 52 T1, PR #189) — `tests/test_conformance.py`
+  exercising 35 operator-created cross-language conformance vectors from 4 suites:
+  tensor ops (8), ATP (11), R6/R7 (8), society/roles (8). 39 new tests (31 pass,
+  8 xfailed conformance gaps documenting genuine cross-language divergences).
+- **CI quickstart smoke** (Sprint 42 T1) — `examples/quickstart.py` now runs in the
+  CI `wheel` job against the installed wheel. API breakage in the quickstart fails CI.
+
+### Changed
+- **`Constraint` dataclass aligned with Rust** (Sprint 51 T1, PR #187) — `value: Any`
+  replaced with `threshold: float` + `hard: bool = True`. Updated serialization,
+  JSON schemas, and test vectors. Cross-language parity with Rust `Constraint`.
+- **`role` module added to CLI `info` and `selftest`** — `web4 info` now reports 23
+  modules (was 22). `web4 selftest` now verifies `web4.role` import.
+- Version bumped from 0.26.0 to 0.27.0.
+- 2709 tests (2701 passed, 8 xfailed). 369 exports. 23 modules + MCP server.
+
+### Removed
+- **Dead `web4_sdk.py` removed** (Sprint 41 T1) — async HTTP client for nonexistent
+  services, not distributed in wheel. Deleted along with its 14 tests.
+
 ## [0.26.0] - 2026-04-17
 
 Sprints 35, 37, 38: CI quality gate hardening — strict mypy, ruff lint, ruff format.

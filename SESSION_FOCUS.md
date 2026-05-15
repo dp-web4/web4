@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-14 (Sprint 52)*
+*Last updated: 2026-05-15 (Sprint 53)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 53 Summary: SDK v0.27.0 Release Housekeeping (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: v0.27.0 release housekeeping | DONE | Version bump 0.26.0->0.27.0. CHANGELOG for Sprints 41-42, 50-52. Added missing `validate_minimum_viable` export + `role` module to CLI info/selftest (was 22, now 23 modules). Updated README, quickstart, test assertions. 0 new files. 369 exports. 2709 tests. |
 
 ### Sprint 52 Summary: Conformance Test Vector Runner (COMPLETE)
 
@@ -206,11 +212,11 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 ## SDK Status
 
-- **Version**: 0.26.0
+- **Version**: 0.27.0
 - **Modules**: 23 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, role, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
 - **Tests**: 2709 total (2701 passing, 8 xfailed conformance gaps)
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
-- **Exports**: 368 symbols via `web4/__init__.py`
+- **Exports**: 369 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
 - **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents
@@ -284,7 +290,7 @@ Sprint 50 T1 PR pending.
 
 ## Completeness Summary
 
-- All 52 sprints COMPLETE (Sprints 1-52, all merged or PR pending)
+- All 53 sprints COMPLETE (Sprints 1-53, all merged or PR pending)
 - All 9 JSON-LD schemas with cross-language validation vectors (278 total, in pytest)
 - All `to_jsonld()` functions have `from_jsonld()` inverses (API symmetry complete)
 - All `to_dict()`/`as_dict()` methods have `from_dict()` inverses (58 round-trip methods total)
@@ -320,4 +326,4 @@ Sprint 50 T1 PR pending.
 
 ---
 
-*Updated by autonomous session, 2026-05-14 (Sprint 52 — conformance test vector runner)*
+*Updated by autonomous session, 2026-05-15 (Sprint 53 — SDK v0.27.0 release housekeeping)*

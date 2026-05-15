@@ -46,13 +46,13 @@ class TestInfo:
         out = capsys.readouterr().out
         assert rc == 0
         assert "web4" in out
-        assert "0.26.0" in out
+        assert "0.27.0" in out
 
     def test_info_shows_module_count(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = main(["info"])
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Modules: 22" in out
+        assert "Modules: 23" in out
 
     def test_info_shows_export_count(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = main(["info"])
@@ -554,14 +554,14 @@ class TestSelftest:
         out = capsys.readouterr().out
         assert rc == 0
         assert "OK" in out
-        assert "22 modules" in out
+        assert "23 modules" in out
         assert "23 types roundtripped" in out
 
     def test_selftest_verbose(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = main(["selftest", "--verbose"])
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Modules: 22/22" in out
+        assert "Modules: 23/23" in out
         assert "Schemas:" in out
         assert "Roundtrip: 23/23" in out
         assert "OK" in out
@@ -617,7 +617,7 @@ class TestSmoke:
     def test_info(self) -> None:
         r = _run_cli(["info"])
         assert r.returncode == 0
-        assert "0.26.0" in r.stdout
+        assert "0.27.0" in r.stdout
 
     def test_validate_valid_doc(self) -> None:
         from web4.trust import T3

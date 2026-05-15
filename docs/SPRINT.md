@@ -1,9 +1,42 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-14 (Sprint 52)
+**Updated**: 2026-05-15 (Sprint 53)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 53: SDK v0.27.0 Release Housekeeping (2026-05-15)
+
+Version bump and documentation update consolidating Sprints 41-42 and 50-52
+into a coherent release marker. Covers the Society Roles module (Sprint 50),
+Constraint alignment (Sprint 51), conformance test runner (Sprint 52),
+dead code removal (Sprint 41), and CI quickstart smoke (Sprint 42).
+
+### T1: v0.27.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-05-15
+**Authorized by**: Established release housekeeping pattern (Sprints 21, 23,
+26, 31, 33, 34, 39). Policy-reviewed and approved.
+**Scope**:
+1. Version bump 0.26.0 -> 0.27.0 in `pyproject.toml`.
+2. CHANGELOG entry for v0.27.0 covering Sprints 41-42, 50-52.
+3. `__init__.py` docstring: corrected stale counters (tests 2668->2709),
+   added v0.27.0 version note, added missing `validate_minimum_viable` export.
+4. `__main__.py`: added `role` to both `_cmd_info` and `_SELFTEST_MODULES`
+   module lists (was 22, now 23 — Sprint 50 added `web4/role.py` but the
+   CLI lists were not updated).
+5. README: version, module count (22->23), export count (364->369), test
+   count (2613->2709), added `role` row to module table, project structure
+   section updated.
+6. `examples/quickstart.py`: docstring version.
+7. Test assertions: version strings in `test_cli.py` and `test_package_api.py`,
+   module count assertions (22->23).
+8. `docs/SPRINT.md` and `SESSION_FOCUS.md` updated.
+
+**Result**: 0 new files, 0 new exports beyond the missing `validate_minimum_viable`
+(369 total). All version references consistent. CLI now reports 23 modules.
 
 ---
 

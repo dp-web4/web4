@@ -1,4 +1,4 @@
-"""Quickstart for the web4 Python SDK v0.26.0.
+"""Quickstart for the web4 Python SDK v0.27.0.
 
 Demonstrates the three behavioral composition points of the current SDK:
 
