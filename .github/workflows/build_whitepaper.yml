@@ -1,0 +1,157 @@
+name: Build Web4 Whitepaper (CI-Safe)
+
+# Modeled on the Synchronism whitepaper workflow (dp-web4/Synchronism).
+# Builds markdown, PDF, and navigable HTML from whitepaper/sections/, and
+# commits both the canonical whitepaper/build/ artifacts AND the
+# docs/whitepaper-web/ GitHub Pages mirror back to main.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'whitepaper/**'
+      - '.github/workflows/build_whitepaper.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'whitepaper/**'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  CI: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended texlive-latex-extra
+
+      - name: Create CI-safe build scripts
+        working-directory: ./whitepaper
+        run: |
+          # The shipped make-*.sh scripts begin with a git-fetch + branch-divergence
+          # check (lines 6-29 in all three: make-md.sh, make-pdf.sh, make-web.sh).
+          # In CI we're always on a fresh checkout, so strip those lines.
+          sed '6,29d' make-md.sh  > make-md-ci.sh  && chmod +x make-md-ci.sh
+          sed '6,29d' make-pdf.sh > make-pdf-ci.sh && chmod +x make-pdf-ci.sh
+          sed '6,29d' make-web.sh > make-web-ci.sh && chmod +x make-web-ci.sh
+
+      - name: Build Markdown Version
+        working-directory: ./whitepaper
+        run: bash make-md-ci.sh
+
+      - name: Build PDF Version
+        working-directory: ./whitepaper
+        run: |
+          echo "Building PDF version..."
+          bash make-pdf-ci.sh || echo "PDF build had issues, continuing..."
+
+      - name: Build Web Version
+        working-directory: ./whitepaper
+        run: |
+          echo "Building Web version..."
+          bash make-web-ci.sh
+
+      - name: Upload Markdown Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web4-whitepaper-markdown
+          path: whitepaper/build/WEB4_Whitepaper_Complete.md
+          if-no-files-found: warn
+
+      - name: Upload PDF Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web4-whitepaper-pdf
+          path: whitepaper/build/WEB4_Whitepaper.pdf
+          if-no-files-found: warn
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web4-whitepaper-web
+          path: whitepaper/build/web/
+          if-no-files-found: warn
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+
+          # Use -f for whitepaper/build/ because the top-level .gitignore has a
+          # `build/` rule that blocks new files. Existing tracked files are
+          # picked up by the same -f. docs/whitepaper-web/ is not gitignored.
+          git add -f whitepaper/build/ || true
+          git add docs/whitepaper-web/ || true
+
+          if ! git diff --cached --quiet; then
+            echo "Changes detected, committing..."
+            git commit -m "Deploy whitepaper builds to GitHub Pages [skip ci]"
+            git push
+          else
+            echo "No build-artifact changes, skipping commit"
+          fi
+
+  summary:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+
+      - name: Generate Build Summary
+        run: |
+          echo "# Web4 Whitepaper Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Build Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "web4-whitepaper-markdown/WEB4_Whitepaper_Complete.md" ]; then
+            echo "OK Markdown: built ($(du -h web4-whitepaper-markdown/WEB4_Whitepaper_Complete.md | cut -f1))" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "FAIL Markdown: build failed or file not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f "web4-whitepaper-pdf/WEB4_Whitepaper.pdf" ]; then
+            echo "OK PDF: built ($(du -h web4-whitepaper-pdf/WEB4_Whitepaper.pdf | cut -f1))" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "WARN PDF: build issues or file not found (often LaTeX dependencies)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -d "web4-whitepaper-web" ] && [ -f "web4-whitepaper-web/index.html" ]; then
+            echo "OK Web: built" >> $GITHUB_STEP_SUMMARY
+            echo "  - Files: $(find web4-whitepaper-web -type f | wc -l)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "FAIL Web: build failed or files not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## View Online" >> $GITHUB_STEP_SUMMARY
+          echo "[Read the Whitepaper](https://dp-web4.github.io/web4/whitepaper-web/)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Generated from commit: ${{ github.sha }}*" >> $GITHUB_STEP_SUMMARY
