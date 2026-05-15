@@ -1,9 +1,70 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-14 (Sprint 51)
+**Updated**: 2026-05-14 (Sprint 52)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 52: Python SDK Conformance Test Wiring (2026-05-14)
+
+Operator burst-4 (commits `a2727b45`, `92454d6`, `0c39a9b6` at 12:03–12:04 PDT)
+shipped the conformance test corpus to `web4-standard/testing/conformance/`
+(4 JSON suites, 35 vectors total). The vectors are declared cross-language —
+"Any Web4 implementation MUST produce identical results" — but no Python SDK
+test currently asserts this. Sprint 52 wires the two best-aligned suites
+(ATP and Society/Role) into the SDK test runner. This addresses Nova GPT's
+#1 quick-win request (test vectors + conformance) on the Python side, and
+partially advances Kimi's K2 gap (conformance test suite missing).
+
+### T1: Wire ATP and Society/Role conformance vectors into Python SDK tests
+**Status**: DONE
+**Completed**: 2026-05-14
+**Authorized by**: Operator burst-4 (conformance corpus shipped) + Nova/Kimi
+cross-reviewer convergence (test vectors + conformance was Nova's #1 quick-win;
+K2 named by Kimi rounds 1–4). Policy-reviewed and approved with binding
+condition: any failing vector MUST be `pytest.mark.xfail` with reason; no
+silent fixes (no assertion weakening, no vector edits, no SDK behavioral
+changes to make vectors pass).
+**Scope**:
+1. **ATP conformance** (`tests/test_conformance_atp.py`): loads
+   `testing/conformance/atp-operations.json` (11 vectors across account,
+   transfer, sliding-scale categories) and asserts the Python `web4.atp`
+   module produces matching outputs. Sprint 49 audit named ATP the
+   best-aligned cross-language pair ("identical core semantics") — expected
+   high pass rate confirmed: **11/11 pass + 2 meta tests = 13 pass, 0 xfail**.
+2. **Society/Role conformance** (`tests/test_conformance_society.py`):
+   loads `testing/conformance/society-roles.json` (9 vectors across
+   bootstrap, role, federation, minimum-viable categories) and asserts
+   the Python `web4.role` module produces matching outputs. **8 pass + 3
+   strict-xfail with documented divergences**:
+   - `soc-002` (5-state lifecycle): Python splits combined enum into
+     `SocietyPhase` (3) + `MetabolicState` (separate axis). Cites audit P4.
+   - `role-004` (assigner-permission table): Python `role.py` does not
+     encode role-based permission to assign other roles.
+   - `fed-001` (imperative join/secede): Python `federation.Society` uses
+     constructor-hierarchy pattern (`parent=Society`, `children` list), not
+     imperative join/secede actions.
+3. Sprint plan + session focus bookkeeping.
+
+**Result**: 2 new test files, 0 modifications to product code (verification-
+only). 24 new tests (2691 passed + 3 xfailed), mypy --strict clean,
+ruff lint/format clean.
+
+**Findings produced by xfails**: the three documented divergences are now
+executable test markers, not just documentary audit findings. If the SDK ever
+gains the corresponding surfaces (combined-state enum, assigner predicate,
+imperative federation actions), the strict xfails will turn into XPASS
+failures, forcing review and removal — preventing silent surface drift.
+
+**Out of bounds**: T3/V3 conformance vectors (`tensor-operations.json`) and
+R6/R7 conformance vectors (`r6-r7-actions.json`) were NOT wired. Sprint 47
+documented 8 T3/V3 divergences between Rust and Python; their conformance
+wiring needs a separate sprint that can also catalogue divergences (Python
+SDK matches spec, Rust/WASM diverges). R6/R7 vectors may have been authored
+before PR #187 Constraint shape changes and need a freshness check before
+wiring.
 
 ---
 

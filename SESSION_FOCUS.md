@@ -2,13 +2,19 @@
 
 *Current sprint, SDK status, and active work. Updated by operator and autonomous sessions.*
 
-*Last updated: 2026-05-14 (Sprint 50)*
+*Last updated: 2026-05-14 (Sprint 52)*
 
 ---
 
 ## Current Sprint
 
 **See `docs/SPRINT.md` for full sprint plan and task details.** Do not duplicate sprint content here — SPRINT.md is the source of truth for task scope, status, and dependencies.
+
+### Sprint 52 Summary: Python SDK Conformance Test Wiring (COMPLETE)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T1: Wire ATP + Society/Role conformance vectors into SDK tests | DONE | Operator burst-4 shipped 4 conformance JSON suites to `web4-standard/testing/conformance/` but no Python test asserted against them. Sprint 52 wires the two best-aligned suites: ATP (11 vectors + 2 meta → 13 pass, audit "best-aligned pair" confirmed empirically) and Society/Role (9 vectors + 2 meta → 8 pass, 3 strict-xfail with documented divergences citing audit P4, missing assigner predicate, constructor-vs-imperative federation pattern). 2 new test files, 0 product code modifications, 24 new tests (2691 pass + 3 xfail), mypy --strict clean, ruff clean. T3/V3 and R6/R7 conformance deferred. |
 
 ### Sprint 51 Summary: Minimum Viable Society Validation + Constraint Alignment (COMPLETE)
 
@@ -202,9 +208,9 @@ See `docs/SPRINT.md` for full history. Highlights: JSON-LD serialization for all
 
 - **Version**: 0.26.0
 - **Modules**: 23 library modules + MCP server entry point (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, role, reputation, security, protocol, mcp, attestation, validation, deserialize, generate, mcp_server)
-- **Tests**: 2668 passing
+- **Tests**: 2691 passing + 3 strict-xfail (Sprint 52 documented divergences: combined-state enum, assigner predicate, imperative federation actions)
 - **CLI**: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
-- **Exports**: 368 symbols via `web4/__init__.py`
+- **Exports**: 369 symbols via `web4/__init__.py`
 - **from_dict()**: 58 classmethods across 10 modules — all classes with to_dict()/as_dict() have matching from_dict()
 - **Dispatcher**: 23 types via `web4.from_jsonld()` (19 class-based + 3 function-based + TrustQuery)
 - **Generator**: 23 types via `web4.generate()` — minimal valid JSON-LD documents
