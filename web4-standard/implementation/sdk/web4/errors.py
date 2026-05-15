@@ -4,8 +4,9 @@ Web4 Error Taxonomy
 Canonical implementation per web4-standard/core-spec/errors.md.
 
 Standardized error types for the Web4 protocol based on RFC 9457
-Problem Details. Defines 24 error codes across 6 categories:
-Binding, Pairing, Witness, Authorization, Cryptographic, Protocol.
+Problem Details. Defines 30 error codes across 7 categories:
+Binding, Pairing, Witness, Authorization, Cryptographic, Protocol,
+Cross-Society (mcp-protocol.md §7.6).
 
 All errors serialize to/from RFC 9457 Problem Details JSON format
 (application/problem+json).
@@ -32,6 +33,7 @@ __all__ = [
     "AuthzError",
     "CryptoError",
     "ProtoError",
+    "CrossSocietyError",
     # Functions
     "get_error_meta",
     "codes_for_category",
@@ -43,7 +45,7 @@ __all__ = [
 
 
 class ErrorCategory(str, Enum):
-    """Web4 error code categories per spec §2."""
+    """Web4 error code categories per spec §2 + mcp-protocol.md §7.6."""
 
     BINDING = "BINDING"
     PAIRING = "PAIRING"
@@ -51,13 +53,14 @@ class ErrorCategory(str, Enum):
     AUTHZ = "AUTHZ"
     CRYPTO = "CRYPTO"
     PROTO = "PROTO"
+    CROSS_SOCIETY = "CROSS_SOCIETY"
 
 
-# ── Error Codes (spec §2.1-2.6) ───────────────────────────────
+# ── Error Codes (spec §2.1-2.6, mcp-protocol.md §7.6) ────────
 
 
 class ErrorCode(str, Enum):
-    """All 24 Web4 error codes from the error taxonomy spec."""
+    """All 30 Web4 error codes from the error taxonomy spec + mcp-protocol.md §7.6."""
 
     # §2.1 Binding Errors
     BINDING_EXISTS = "W4_ERR_BINDING_EXISTS"
@@ -94,6 +97,14 @@ class ErrorCode(str, Enum):
     PROTO_SEQUENCE = "W4_ERR_PROTO_SEQUENCE"
     PROTO_REPLAY = "W4_ERR_PROTO_REPLAY"
     PROTO_DOWNGRADE = "W4_ERR_PROTO_DOWNGRADE"
+
+    # mcp-protocol.md §7.6 — Cross-Society MCP Errors
+    CROSS_SOCIETY_UNRECOGNIZED_LCT = "W4_ERR_CROSS_SOCIETY_UNRECOGNIZED_LCT"
+    CROSS_SOCIETY_EXCHANGE_INVALID = "W4_ERR_CROSS_SOCIETY_EXCHANGE_INVALID"
+    CROSS_SOCIETY_LAW_CONFLICT = "W4_ERR_CROSS_SOCIETY_LAW_CONFLICT"
+    CROSS_SOCIETY_WITNESS_REQUIRED = "W4_ERR_CROSS_SOCIETY_WITNESS_REQUIRED"
+    R7_REPUTATION_INVALID = "W4_ERR_R7_REPUTATION_INVALID"
+    PROPAGATION_SCOPE_UNSUPPORTED = "W4_ERR_PROPAGATION_SCOPE_UNSUPPORTED"
 
 
 # ── Error Metadata ─────────────────────────────────────────────
