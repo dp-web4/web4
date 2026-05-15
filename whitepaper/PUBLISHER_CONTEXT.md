@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-05-14
+**Last Updated**: 2026-05-15
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,19 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-15: Publisher Maintenance - No-Change Check (implementation-SDK release + conformance gap memo; no published-release surface change)
+- Thirteen commits since 2026-05-14 no-change check (30c4711) reviewed. None warrant whitepaper integration today; the day's work accumulates implementation evidence around watch items already noted, but the published-release surface on crates.io / PyPI is unchanged.
+- **`web4-standard/implementation/sdk` v0.27.0 (Sprint 53 T1, #191, d155b6a, 2026-05-15):** Internal Python implementation-SDK version bump consolidating Sprints 41-42, 50-52: Society Roles module (`SocietyRole`, `RoleAssignment`, `bootstrap_society_roles`), `validate_minimum_viable()` for Rust parity, `Constraint` aligned with Rust (threshold + hard), conformance test runner (35 vectors, 39 tests, 8 xfailed). 2709 tests pass, 369 exports, 23 modules. **Distinct from `web4-core` / `web4-trust` published packages on crates.io / PyPI** (still v0.1.1 per `docs/proof/PUBLISHED.md`). Per 2026-04-29 precedent, Executive Summary "Currently Available" tracks published-registry releases, not internal SDK versioning. No Executive Summary change warranted. Watch item for SDK Society/Role/ATP/R7 types remains "next published release" — implementation evidence is now stronger (Python SDK + WASM bindings + conformance vectors), but the trigger is registry publish.
+- **Sprint 52 conformance-gap consolidation memo (#190, c09d0d2, 2026-05-15):** Catalogues 8 Sprint 52 xfails. 3 of 8 restate Sprint 47 T3/V3 audit findings (Talent decay CRITICAL, weighted composite HIGH, update formula HIGH). 5 of 8 (62.5%) are **NEW surface gaps not in any prior audit**: constraint enforcement, V3 valuation as behavioral vs economic, role-004 assigner predicate, fed-001 child- vs parent-initiated federation, sub-dimension rollup. Counter-finding: ATP suite is 11/11 exact pass — Sprint 49 audit's "ATP is best-aligned pair" claim now operationally confirmed. Per inclusion criteria ("Code not yet written / Design still evolving"), no whitepaper integration warranted; this is a pre-spec gap analysis analogous to the Sprint 43 memo. Added as watch item.
+- **WASM bindings for Society/SocietyRole/RoleAssignment/ATPAccount/R7Action (a2727b4, 2026-05-14):** Browser-side bindings for the same types added to `web4-core` 2026-05-13. Implementation evidence strengthening — but the underlying watch item ("integrate into Currently Available when next published release ships") is unchanged. WASM is a third surface (Rust + Python + browser) for the same primitives, all converging on a future release.
+- **Sprint 50 T1 Python SDK Society/Role (#185, 6a2d067, 2026-05-14):** `SocietyRole` enum + `RoleAssignment` dataclass + `bootstrap_society_roles()` in the implementation SDK. Cross-language parity work; same watch-item bucket as the 2026-05-13 web4-core additions.
+- **Sprint 51 T1 Constraint alignment (#187, 766611e, 2026-05-14):** `Constraint` dataclass replaces `value: Any` with `threshold: float` + `hard: bool`. Cross-language parity refinement. Spec-level; whitepaper does not enumerate `Constraint` field surface.
+- **Sprint 52 T1 conformance pytest wiring (#189, 381904a, 2026-05-14):** Runs the 35 conformance vectors in pytest. Test infrastructure; no protocol change.
+- **Forum/README polish (e457b25 + 0a80c37 + 679c1af, 2026-05-14):** Nova (GPT) cross-model review; README Linux/GNU framing replacing TCP/IP; Kimi 2.6 fourth-pass review (8.5/10 unchanged). Forum artifacts + README-level positioning; whitepaper Executive Summary has its own calibrated framing. No change.
+- **AGENTS.md GitNexus stat refresh (uncommitted at this writing):** Stats line auto-updated to 123794/182949/230 to match CLAUDE.md (refreshed in 5ceddbb 2026-05-14). Housekeeping, not publisher work. AGENTS.md does not yet carry the `<!-- gitnexus:keep -->` marker that 5ceddbb added to CLAUDE.md; future indexer runs may clobber the block content until upstream publishes the keep-marker-aware release. Out of scope for this maintenance pass.
+- **No content changes; no source/artifact rebuild needed (build remains aligned with 2026-04-29 source state from e990039).**
+- Surface instinct: the publish-vs-implement gap is now the largest it has been since the v0.1.0 release. Society/Role/ATP/R7 types exist in three implementation surfaces (Rust, Python, WASM) with conformance vectors and a published-gap memo identifying 5 new architectural decisions — but the canonical PyPI/crates.io artifacts (`web4-core`, `web4-trust`) remain v0.1.1 from 2026-04-28. Two possibilities: (a) v0.2.0 cuts soon and the Executive Summary needs a substantive rewrite around the new primitives + their gap memo's open decisions, or (b) the gap memo's 5 operator-architectural-decision items block release and the gap-vs-publish window widens further. Worth noting that "implementation maturity ≠ release readiness" is itself becoming a publishable observation about the project's discipline.
 
 ### 2026-05-14: Publisher Maintenance - No-Change Check (SDK additions in main, spec evolution, audit watch resolved)
 - Nineteen commits since 2026-05-13 no-change check reviewed against inclusion criteria. None warrant whitepaper integration today; multiple watch items resolved or added.
@@ -451,6 +464,8 @@ The whitepaper should reflect implementation reality. Current gaps:
 | web4-core SDK Society/Role/ATP/R6 types | Watch (next release) | Added in main 2026-05-13 (commits 8243895 + 8857ab0); per 2026-04-29 precedent, integrate into Executive Summary "Currently Available" when next published release ships on crates.io / PyPI |
 | inter-society-protocol.md (genesis/first-contact/federation/secession) | Watch (spec stabilization) | New core spec, three versions in one day (17d6471 + f4803dd + 2f4454f, 2026-05-13). Per "Design still evolving" exclusion, DEFER until spec stabilizes — likely worth a Part 6/Part 8 supplement once v0.2 or later ships |
 | MCP-as-inter-society-protocol per canonical equation | Watch (spec stabilization) | mcp-protocol.md v0.1.3 (7c7c43c, 2026-05-13) plus WIP §7.7 referent-grounded exchange rate (caa3878, 2026-05-14). Equation-level identification; integrate once §7.7 leaves WIP |
+| Sprint 52 conformance gaps (5 NEW operator-architectural-decision items) | Watch (architectural decision) | Sprint 52 memo (c09d0d2, 2026-05-15) flags 5 NEW surface gaps not in prior audits: constraint enforcement, V3 valuation behavioral vs economic, role-004 assigner predicate, fed-001 child- vs parent-initiated federation, sub-dimension rollup. Each requires an operator architectural decision before implementation. Integrate when decisions land in spec |
+| WASM bindings for Society/Role/ATP/R7 primitives | Watch (next release) | Added 2026-05-14 (a2727b4) — browser surface for the same types in web4-core + Python SDK. Same release-trigger bucket as web4-core SDK additions |
 
 ---
 
