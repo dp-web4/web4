@@ -498,9 +498,7 @@ class TestBaseMandatoryRolesConstant:
 # ── validate_minimum_viable ───────────────────────────────────
 
 
-def _make_assignment(
-    role: SocietyRole, filler: str = "entity-001"
-) -> RoleAssignment:
+def _make_assignment(role: SocietyRole, filler: str = "entity-001") -> RoleAssignment:
     """Helper to create a minimal RoleAssignment for testing."""
     return RoleAssignment(
         role=role,
@@ -528,11 +526,7 @@ class TestValidateMinimumViable:
 
     def test_missing_one_base_mandatory(self) -> None:
         """Missing a single base-mandatory role is reported."""
-        roles = [
-            _make_assignment(r)
-            for r in BASE_MANDATORY_ROLES
-            if r != SocietyRole.TREASURER
-        ]
+        roles = [_make_assignment(r) for r in BASE_MANDATORY_ROLES if r != SocietyRole.TREASURER]
         errors = validate_minimum_viable(roles)
         assert len(errors) == 1
         assert "treasurer" in errors[0]

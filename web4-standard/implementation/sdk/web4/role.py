@@ -381,18 +381,12 @@ def validate_minimum_viable(
         # 2. Internal differentiation — at least 2 distinct role-filling entities
         unique_fillers = {ra.filling_entity_lct_id for ra in roles}
         if len(unique_fillers) < 2:
-            errors.append(
-                "Minimum viable society requires at least 2 distinct"
-                " role-filling entities"
-            )
+            errors.append("Minimum viable society requires at least 2 distinct role-filling entities")
 
         # 3. Witnessing capacity — Witness or Auditor role must be assigned
         has_witness = SocietyRole.WITNESS in assigned_roles
         has_auditor = SocietyRole.AUDITOR in assigned_roles
         if not has_witness and not has_auditor:
-            errors.append(
-                "Minimum viable society requires witnessing capacity"
-                " (Witness or Auditor role)"
-            )
+            errors.append("Minimum viable society requires witnessing capacity (Witness or Auditor role)")
 
     return errors
