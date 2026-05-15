@@ -14,7 +14,7 @@ Provides offline-capable primitives for:
 - Reputation computation — rule-based reputation engine with aggregation and decay
 - Entity taxonomy — behavioral modes, energy patterns, and interaction rules
 - Capability levels — 6-level LCT capability framework (Stub -> Hardware)
-- Error taxonomy — RFC 9457 error types for 6 Web4 protocol categories
+- Error taxonomy — RFC 9457 error types for 7 Web4 protocol categories
 - Metabolic states — society operational modes with energy, trust, and witness effects
 - Multi-device binding — device constellation management, trust computation, and recovery
 - Society — core organizational primitive composing federation, treasury, ledger, and trust
@@ -27,7 +27,7 @@ Provides offline-capable primitives for:
 - Deserialization — generic JSON-LD dispatcher for all Web4 types
 - Generation — produce minimal valid JSON-LD documents for any Web4 type
 
-23 modules + MCP server, 369 exports, 2709 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
+23 modules + MCP server, 376 exports, 2709 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
 v0.27.0: Society roles, Constraint alignment, conformance test runner, validate_minimum_viable.
 These modules define the canonical data types and algorithms specified in the web4-standard.
 They work offline (no network services required) and are designed to be
@@ -306,6 +306,7 @@ from .errors import (
     AuthzError,
     CryptoError,
     ProtoError,
+    CrossSocietyError,
     get_error_meta,
     codes_for_category,
     make_error,
@@ -486,6 +487,13 @@ from .mcp import (
     MCPErrorContext,
     web4_context_to_json,
     web4_context_from_json,
+    # Cross-society types (mcp-protocol.md §7.3–7.6)
+    OutcomeClass,
+    PropagationScope,
+    CrossSocietyInteractionType,
+    CrossSocietyContext,
+    ReputationEnvelope,
+    MCPContextResource,
 )
 
 # Aliases for disambiguation with r6 types
@@ -741,6 +749,7 @@ __all__ = [
     "AuthzError",
     "CryptoError",
     "ProtoError",
+    "CrossSocietyError",
     "get_error_meta",
     "codes_for_category",
     "make_error",
@@ -895,6 +904,12 @@ __all__ = [
     "PricingModifiers",
     "calculate_mcp_cost",
     "MCPErrorContext",
+    "OutcomeClass",
+    "PropagationScope",
+    "CrossSocietyInteractionType",
+    "CrossSocietyContext",
+    "ReputationEnvelope",
+    "MCPContextResource",
     "web4_context_to_json",
     "web4_context_from_json",
     # validation
