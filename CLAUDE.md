@@ -133,9 +133,10 @@ Web4 is an ontology, not infrastructure. RDF is its nervous system; trust propag
 - **Assume tool result truncation**: If search or command results look suspiciously small, re-run with narrower scope. Tool results over 50K characters are silently truncated to a preview.
 
 <!-- gitnexus:start -->
+<!-- gitnexus:keep -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **web4** (123106 symbols, 181493 relationships, 230 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **web4** (123794 symbols, 182949 relationships, 230 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
