@@ -2,6 +2,12 @@
   "$schema": "https://web4.io/schemas/test-vectors/v1.json",
   "suite": "R6/R7 Action Framework",
   "version": "0.1.0",
+  "provenance": {
+    "authored_against_sdk_version": "0.27.0",
+    "shape_source_commit": "d155b6a6",
+    "shapes": ["R7Action", "Rules", "Role", "Constraint", "Request", "ResourceRequirements", "Reference", "WitnessAttestation"],
+    "last_freshness_review": "2026-05-16"
+  },
   "description": "Conformance test vectors for R6 (Rules/Role/Request/Reference/Resource→Result) and R7 (+Reputation) action framework.",
 
   "validation_vectors": [

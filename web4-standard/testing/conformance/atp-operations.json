@@ -2,6 +2,12 @@
   "$schema": "https://web4.io/schemas/test-vectors/v1.json",
   "suite": "ATP/ADP Operations",
   "version": "0.1.0",
+  "provenance": {
+    "authored_against_sdk_version": "0.27.0",
+    "shape_source_commit": "759eaefa",
+    "shapes": ["ATPAccount"],
+    "last_freshness_review": "2026-05-16"
+  },
   "description": "Conformance test vectors for ATP/ADP economy operations. Conservation invariant MUST hold across all operations.",
 
   "account_vectors": [

@@ -2,6 +2,12 @@
   "$schema": "https://web4.io/schemas/test-vectors/v1.json",
   "suite": "T3/V3 Tensor Operations",
   "version": "0.1.0",
+  "provenance": {
+    "authored_against_sdk_version": "0.27.0",
+    "shape_source_commit": "759eaefa",
+    "shapes": ["T3", "V3"],
+    "last_freshness_review": "2026-05-16"
+  },
   "description": "Conformance test vectors for T3 (Trust) and V3 (Value) tensor operations. Any compliant implementation MUST produce identical results for these inputs.",
 
   "t3_vectors": [
