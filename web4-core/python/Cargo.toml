@@ -1,6 +1,6 @@
 [package]
 name = "web4-python"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["dp-web4 <dp@metalinxx.io>"]
 description = "Python bindings for web4-core"

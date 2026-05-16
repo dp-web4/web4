@@ -1,6 +1,6 @@
 [package]
 name = "web4-trust-core"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Web4 Contributors"]
 description = "Core trust primitives for the Web4 ecosystem"
@@ -40,7 +40,7 @@ js-sys = { version = "0.3", optional = true }
 getrandom = { version = "0.2", optional = true }
 
 # Optional: Web4 core types (for WASM bindings)
-web4-core = { path = "../web4-core", optional = true }
+web4-core = { path = "../web4-core", version = "0.2", optional = true }
 
 # WASM-specific uuid with JS random source
 [target.'cfg(target_arch = "wasm32")'.dependencies]

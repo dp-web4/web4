@@ -2,7 +2,7 @@
 
 Canonical data types and operations for the Web4 trust infrastructure.
 
-The `web4` package provides offline-capable primitives for trust tensors, identity
+This SDK provides offline-capable primitives for trust tensors, identity
 tokens, federation governance, action frameworks, and more. It defines the types
 specified in the [web4-standard](https://github.com/dp-web4/web4) and works without
 network services — no async, no HTTP, no external dependencies beyond the Python
@@ -10,7 +10,20 @@ standard library.
 
 **Version**: 0.27.0 | **Python**: 3.10+ | **License**: AGPL-3.0-or-later | **Typed**: PEP 561
 
+> **Install name vs import name.** The distribution is published on PyPI as
+> **`web4-sdk`** (the unsuffixed `web4` PyPI name is held by an unrelated
+> dormant project at v0.0.1). The Python import path remains **`web4`** — so
+> `from web4 import T3, V3, LCT, ...` works as documented throughout this README.
+
 ## Installation
+
+From PyPI (when published):
+
+```bash
+pip install web4-sdk
+```
+
+From a clone (editable install for development):
 
 ```bash
 pip install -e .
@@ -25,10 +38,12 @@ pip install -e web4-standard/implementation/sdk/
 No runtime dependencies. Optional extras:
 
 ```bash
-pip install -e ".[validation]"  # adds jsonschema for schema validation
-pip install -e ".[mcp]"         # adds mcp for MCP server (web4-mcp)
-pip install -e ".[dev]"         # full dev toolchain (pytest, mypy, ruff, jsonschema, mcp)
+pip install "web4-sdk[validation]"   # adds jsonschema for schema validation
+pip install "web4-sdk[mcp]"          # adds mcp for MCP server (web4-mcp)
+pip install "web4-sdk[dev]"          # full dev toolchain (pytest, mypy, ruff, jsonschema, mcp)
 ```
+
+(For editable installs, the same extras work with the `-e` form: `pip install -e ".[validation]"`.)
 
 ## Quick Start
 
@@ -96,7 +111,7 @@ python -m web4.mcp_server      # via module
 
 Provides 8 tools: `web4_info`, `web4_validate`, `web4_generate`, `web4_roundtrip`, `web4_list_types`,
 `web4_evaluate_trust`, `web4_resolve_trust`, `web4_process_action`.
-Requires `pip install 'web4[mcp]'`.
+Requires `pip install 'web4-sdk[mcp]'`.
 
 ## Command-Line Interface
 

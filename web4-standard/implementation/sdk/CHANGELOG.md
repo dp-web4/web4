@@ -2,7 +2,19 @@
 
 All notable changes to the Web4 Python SDK.
 
-## [0.27.0] - 2026-05-15
+## [0.27.0] - 2026-05-15 (renamed to `web4-sdk` for PyPI release)
+
+### Packaging
+- **PyPI distribution name renamed: `web4` → `web4-sdk`.** The unsuffixed `web4`
+  name on PyPI is held by an unrelated dormant project (author Sahil Prasad,
+  continual.ai, single release 0.0.1). Renaming avoids ambiguity for users who
+  `pip install web4`. The **Python import path is unchanged** — `from web4 import T3, V3, LCT, ...`
+  continues to work exactly as documented. Only the install command changes:
+  `pip install web4-sdk` (or `pip install -e .` from a clone).
+- This is the first PyPI release of the SDK under any name. Prior internal version
+  bumps (through 0.27.0) reflect development history that did not surface on PyPI.
+
+
 
 Sprints 41-42, 50-52: Society roles, constraint alignment, conformance test runner, cleanup.
 

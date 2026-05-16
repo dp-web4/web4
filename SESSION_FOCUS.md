@@ -305,7 +305,7 @@ Sprint 50 T1 PR pending.
 - All public methods have docstrings and return type annotations
 - `mypy --strict` passes with 0 errors across 26 source files
 - Test coverage: 97.8% overall (4 modules at 100%, 16 at 95%+, __main__.py at 90.6%)
-- Schema validation via `web4.validation.validate()` with `pip install web4[validation]`
+- Schema validation via `web4.validation.validate()` with `pip install web4-sdk[validation]` (PyPI distribution renamed from `web4` to `web4-sdk` in May 2026; `import web4` unchanged)
 - CLI via `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust` (7 subcommands)
 - Wheel distribution verified: imports, CLI, schema validation, roundtrip all pass from installed wheel
 - All 23 generate() types pass roundtrip fidelity (generate → from_jsonld → to_jsonld = identical)

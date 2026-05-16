@@ -5,7 +5,7 @@
     "Web4 Contributors"
   ],
   "description": "Core trust primitives for the Web4 ecosystem",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
