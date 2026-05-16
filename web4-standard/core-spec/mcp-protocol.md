@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Model Context Protocol (MCP) serves as the inter-entity communication layer for Web4, enabling entities to exchange information, invoke capabilities, and coordinate actions across the distributed intelligence architecture. MCP bridges the gap between AI models and external resources, making it the nervous system through which Web4 entities interact.
+The Model Context Protocol (MCP) serves as the inter-entity communication layer for Web4, enabling entities to exchange information, invoke capabilities, and coordinate actions across the distributed intelligence architecture. MCP bridges the gap between AI models and external resources, making it the nervous system through which Web4 entities interact. Cross-society interaction is MCP's primary expected use case (§1.1, §7); intra-society communication is a special case of the same protocol.
 
 ## 1. MCP in the Web4 Equation
 
@@ -397,6 +397,8 @@ R7 MCP actions extend the §7.1 R6 structure with a `reputation` field in the re
 - The `reputation.propagation_scope` MUST be set; absent it, implementations SHOULD default to `both` for cross-society actions and `responding_society` for intra-society R7
 - For high-consequence actions (per the responding society's classification), `reputation.witness_signatures` MUST contain at least one signature from a Witness role per `society-roles.md` §4.1; the encompassing society's Witness is preferred when one exists
 
+- When `outcome_class` is `violation`, the `trust_dimension_updates` deltas MUST be non-positive (zero or negative); the responding society's Policy-Entity still signs the envelope (the violation is a completed adjudication, not a protocol error); and the caller's Archivist MUST persist it identically to any other R7 outcome. A `violation` is distinct from a §7.6 transport/protocol failure — it indicates the action completed but breached the responding society's rules.
+
 The caller's Archivist (per `society-roles.md` §2.6) MUST persist the signed reputation envelope to the calling society's ledger as part of the audit bundle for this action.
 
 ### 7.4 Cross-Society LCT Envelope
@@ -490,6 +492,8 @@ This resolves the `inter-society-protocol.md` §9 future-work item "society-soci
 | Witness signature required but absent | `412 web4_cross_society_witness_required` | Acquire witness and retry |
 | R7 Reputation signature invalid | `400 web4_r7_reputation_invalid` | Responding society's Policy-Entity must re-sign |
 | Propagation scope unsupported by responding society | `400 web4_propagation_scope_unsupported` | Caller must request a supported scope |
+
+**Relationship to §7.7.7 error codes**: When §7.7 rate negotiation is in force, its §7.7.7 failure table provides *refined* error codes for the rate-specific sub-domain (e.g., `409 web4_rate_standing_expired`, `409 web4_rate_valuation_mismatch`). These refine the generic `409 web4_cross_society_exchange_invalid` code above. An implementation that does not yet implement §7.7 SHOULD use the §7.6 code for all rate-related failures; an implementation that does implement §7.7 SHOULD use the §7.7.7 codes for failures occurring within the rate negotiation flow and the §7.6 code only for rate failures outside that flow (e.g., a stale rate discovered at action-invocation time without an active negotiation context).
 
 ### 7.7 Exchange Rate Negotiation — Referent-Grounded (WIP)
 
