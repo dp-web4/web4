@@ -80,7 +80,6 @@ export const wasmsociety_name: (a: number) => [number, number];
 export const wasmsociety_state: (a: number) => [number, number];
 export const wasmsociety_summary: (a: number) => any;
 export const wasmsociety_validateMinimumViable: (a: number) => any;
-export const wasmsocietyrole_baseMandatory: () => any;
 export const wasmsocietyrole_description: (a: number) => [number, number];
 export const wasmsocietyrole_isBaseMandatory: (a: number) => number;
 export const wasmsocietyrole_name: (a: number) => [number, number];
@@ -96,6 +95,7 @@ export const wasmtruststore_update: (a: number, b: number, c: number, d: number,
 export const wasmtruststore_witness: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
 export const t3tensor_average: (a: number) => number;
 export const v3tensor_average: (a: number) => number;
+export const wasmsocietyrole_baseMandatory: () => any;
 export const v3tensor_neutral: () => number;
 export const t3tensor_talent: (a: number) => number;
 export const t3tensor_temperament: (a: number) => number;

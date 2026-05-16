@@ -14,11 +14,13 @@
   "files": [
     "web4_trust_core_bg.wasm",
     "web4_trust_core.js",
+    "web4_trust_core_bg.js",
     "web4_trust_core.d.ts"
   ],
   "main": "web4_trust_core.js",
   "types": "web4_trust_core.d.ts",
   "sideEffects": [
+    "./web4_trust_core.js",
     "./snippets/*"
   ],
   "keywords": [
