@@ -52,3 +52,13 @@ When adding new vectors:
 - Include `invariant` fields for properties that MUST hold
 - Mark tolerance for floating-point comparisons (`tolerance: 1e-10`)
 - Every vector needs an `id` and `description`
+
+## Vector Freshness
+
+Vectors are authored against a snapshot of an SDK data-structure shape. When
+that shape later changes (new/renamed/re-defaulted field), a pre-change vector
+can keep passing while silently testing outdated semantics — the adapter's
+forward-compatible `.get(key, default)` masks the drift. Before merging a PR
+that changes a vector file **or** an SDK dataclass a conformance adapter
+constructs, follow the pre-merge checklist in
+[`VECTOR-FRESHNESS.md`](VECTOR-FRESHNESS.md).
