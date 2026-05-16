@@ -416,9 +416,17 @@ When the MCP caller and responder are in different societies, the Web4 Context H
       "exchange_agreement_hash": "sha256:...",
       "applicable_law_oracle": "lct:web4:society:A:law-oracle:...  OR  lct:web4:encompassing:law-oracle:...",
       "atp_settlement": {
-        "currency": "lct:web4:society:A:atp  OR  lct:web4:encompassing:atp",
-        "amount": 50,
-        "exchange_rate": { "denominator": "lct:web4:society:B:atp", "rate": 1.4 }
+        "caller_currency": "lct:web4:society:A:atp",
+        "caller_amount": 50,
+        "responder_currency": "lct:web4:society:B:atp",
+        "responder_amount": 70,
+        "referent": {
+          "kind": "gpu_time",
+          "specifier": "A100_80GB",
+          "unit": "hour",
+          "quantity": 1
+        },
+        "exchange_agreement_ref": "sha256:..."
       }
     },
     "agency_chain": [ /* per existing §4.1 proof_of_agency */ ],
@@ -434,7 +442,11 @@ When the MCP caller and responder are in different societies, the Web4 Context H
 - `applicable_law_oracle` resolves the "whose law applies under cross-society interaction" question by explicit reference. Two patterns are supported:
   - **Caller-law**: sender's Law Oracle governs the call; responder MAY refuse if local law conflicts
   - **Encompassing-law**: when caller and responder share a fractal-encompassing society, that society's Law Oracle governs (per `inter-society-protocol.md` §3.2 Option 3)
-- `atp_settlement.exchange_rate` MUST be present for cross-society calls with non-zero ATP cost when the two societies use different currencies; reference must be a current (within agreement validity window) negotiated rate from the inter-society protocol
+- `atp_settlement` MUST be present for cross-society calls with non-zero ATP cost when the two societies use different currencies. The settlement block carries both societies' independent valuations of a common referent (per §7.7's referent-grounded model). Implementations MUST populate either:
+  - An `exchange_agreement_ref` hash referencing a standing agreement (per §7.7.2 standing-agreement flow), OR
+  - Inline `referent` + `caller_amount` + `responder_amount` fields representing a per-transaction negotiation outcome (per §7.7.3 acceptance payload)
+
+  > **Interim conformance note (valid until §7.7 reaches v0.1.0-final):** While §7.7's wire format is marked WIP, implementations that carry the `atp_settlement` block SHOULD populate it using the schema above. Implementations MAY omit `atp_settlement` entirely for cross-society calls where the two societies share a currency or where ATP cost is zero. The MUST applies only to the *presence* of the block when cross-currency settlement is needed; the internal structure stabilizes with §7.7.
 
 **Relationship to §4.1 Web4 Context Headers:**
 
@@ -494,8 +506,17 @@ This resolves the `inter-society-protocol.md` §9 future-work item "society-soci
 ### 7.7 Exchange Rate Negotiation — Referent-Grounded (WIP)
 
 > **STATUS: WIP v0.1.0-draft, 2026-05-14.** This section is incomplete pending fleet review. The architecture (referent-grounding, per-transaction scoping with fallbacks) is settled; the precise message schemas and error semantics may evolve. Implementations SHOULD NOT depend on the wire format until v0.1.0-final.
+>
+> **Subsection conformance status:**
+> - §7.7.1 (architectural premise): **Normative** — the referent-grounded model IS the Web4 model; this is a design invariant, not WIP.
+> - §7.7.2 (negotiation flow): **Normative-draft** — role assignments (Treasurer) and flow structure are settled; step numbering may change.
+> - §7.7.3 (message format): **Normative-draft** — field semantics are stable; wire-format details (field names, nesting) may evolve before v0.1.0-final.
+> - §7.7.4 (what's sovereign): **Normative** — the form-vs-substance boundary is a design invariant.
+> - §7.7.5 (per-transaction vs standing): **Informative** — implementation guidance only; no conformance requirements.
+> - §7.7.6 (oracle reference): **Informative** — implementation guidance only; no conformance requirements.
+> - §7.7.7 (failure modes): **Normative-draft** — error codes are stable identifiers; HTTP status codes and recovery text may evolve.
 
-The existing §7.4 specifies that cross-society MCP calls with non-zero ATP cost carry an `atp_settlement.exchange_rate` referencing "a current (within agreement validity window) negotiated rate." This section specifies *how that rate is arrived at* in a way that preserves society sovereignty (per `inter-society-protocol.md` §4) while enabling implementations to interoperate.
+The existing §7.4 specifies that cross-society MCP calls with non-zero ATP cost carry an `atp_settlement` block with both societies' valuations of a common referent (or a hash referencing a standing agreement). This section specifies *how that rate agreement is arrived at* in a way that preserves society sovereignty (per `inter-society-protocol.md` §4) while enabling implementations to interoperate.
 
 #### 7.7.1 Architectural premise: rates are referent-grounded, not abstract
 
