@@ -1,6 +1,6 @@
 # Conclusion
 
-> **Status (2026-04-29)**: Web4 is a research-stage project. Core primitives are shipped (`web4-core` 0.1.1 + `web4-trust-core` 0.1.1 on crates.io and PyPI; AttestationEnvelope; agent-commerce-delegation demo with 166 passing tests). Many components are operational in the Hardbound CLI as protocol-validation work but not yet in public packages. Some remain specification. The Executive Summary draws the explicit lines.
+> **Status (2026-05-15)**: Web4 is a research-stage project. Core primitives are shipped (`web4-core` 0.2.0 + `web4-trust-core` 0.2.0 on crates.io, PyPI, and npm; `web4-sdk` 0.27.0 on PyPI; AttestationEnvelope; Society / SocietyRole / ATPAccount / R7Action types added in v0.2.0; agent-commerce-delegation demo with 166 passing tests). Many components are operational in the Hardbound CLI as protocol-validation work but not yet in public packages. Some remain specification. The Executive Summary draws the explicit lines.
 
 ## What this whitepaper has covered
 
@@ -26,10 +26,11 @@ We distinguish **findings** (working implementations, passing tests, reproducibl
 
 | Finding | Where |
 |---------|-------|
-| **`web4-core` v0.1.1 on crates.io + PyPI** — LCT, T3/V3, Coherence, Ledger trait + InMemory/Local backends. 52 unit tests + 4 doctests. | [crates.io/crates/web4-core](https://crates.io/crates/web4-core), [pypi.org/project/web4-core](https://pypi.org/project/web4-core/) |
-| **`web4-trust-core` v0.1.1 on crates.io + PyPI** — trust persistence, witnessing, decay. 57 tests. | [crates.io/crates/web4-trust-core](https://crates.io/crates/web4-trust-core), [pypi.org/project/web4-trust](https://pypi.org/project/web4-trust/) |
+| **`web4-core` v0.2.0 on crates.io + PyPI** — LCT, T3/V3, Coherence, Ledger trait + InMemory/Local backends; v0.2.0 adds Society / SocietyRole / RoleAssignment, ATPAccount (conservation-invariant transfer), R7Action. | [crates.io/crates/web4-core](https://crates.io/crates/web4-core), [pypi.org/project/web4-core](https://pypi.org/project/web4-core/) |
+| **`web4-trust-core` v0.2.0 on crates.io + PyPI + npm** — trust persistence, witnessing, decay. 57 tests. v0.2.0 adds WASM browser bindings as the npm artifact (first npm publish, ~337KB). | [crates.io/crates/web4-trust-core](https://crates.io/crates/web4-trust-core), [pypi.org/project/web4-trust](https://pypi.org/project/web4-trust/), [npm/web4-trust-core](https://www.npmjs.com/package/web4-trust-core) |
+| **`web4-sdk` v0.27.0 on PyPI** — high-level Python SDK (formerly published as `web4`; renamed at v0.2.0). 23 modules, 369 exports, 2,709 tests; integrates the v0.2.0 primitives plus cross-society types and the 35-vector conformance runner. | [pypi.org/project/web4-sdk](https://pypi.org/project/web4-sdk/) |
 | **Cross-language interop** — Python mints an LCT into a hash-chained `LocalLedger`; a Rust binary reads the same `ledger.jsonl` and verifies chain + anchor proof. The on-disk format is the contract. | [`web4-core/examples/cross_language_verify/`](https://github.com/dp-web4/web4/tree/main/web4-core/examples/cross_language_verify) |
-| **Reference Python SDK** — 2,627 tests, mypy --strict clean. | [`web4-standard/implementation/`](https://github.com/dp-web4/web4/tree/main/web4-standard/implementation) |
+| **Reference Python SDK (`web4-sdk` v0.27.0)** — 2,709 tests, mypy --strict clean; now on PyPI under the renamed package name (import path `from web4 import ...` unchanged). | [`web4-standard/implementation/`](https://github.com/dp-web4/web4/tree/main/web4-standard/implementation), [pypi.org/project/web4-sdk](https://pypi.org/project/web4-sdk/) |
 | **Agent-commerce-delegation demo** — 166 passing tests. | [`/demo`](https://github.com/dp-web4/web4/tree/main/demo) |
 | **ARC-AGI-3 harness effect** — Same Claude Opus 4.6: 0% baseline, 94.85% with the SAGE harness around it. Public scorecard. | [arcprize.org scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4) |
 | **Attack-simulation suite** — 424 vectors / 84 tracks, ~85% detection rate against synthetic adversaries. Honest characterization: no red team yet; some "defenses" are standard infosec practices (TEMPEST, Faraday). | [`simulations/`](https://github.com/dp-web4/web4/tree/main/simulations) |

@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-05-15
+**Last Updated**: 2026-05-16
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,29 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-16: Publisher Maintenance - v0.2.0 Family Release Integration
+
+- **Trigger**: 2026-05-15 published the v0.2.0 package family (commits beb2a9b + 1fb6c90), closing the publish-vs-main gap that had been a "watch item" since 2026-05-13. Per 2026-04-29 precedent, Executive Summary "Currently Available" leads with published packages — so the release-trigger-met watch items integrate now.
+- **Executive Summary** (`sections/00-executive-summary/index.md`):
+  - Status calibration paragraph: date 2026-04-29 → 2026-05-15; v0.1.1 → v0.2.0; added crates.io + PyPI + npm surface; added `web4-sdk` rename context (PyPI name collision with unrelated dormant package); noted inter-society protocol + society-roles + MCP §7.3-§7.6 + 35-vector conformance suite as the substantive content of the gap closure.
+  - "Currently Available" bullet for `web4-core` / `web4-trust-core`: v0.1.1 → v0.2.0; added v0.2.0-new types (Society / SocietyRole / RoleAssignment, ATPAccount with conservation-invariant transfer + society-configurable fees + max_balance, R7Action with reputation as first-class output); added `npm install web4-trust-core` install line (first npm publish, WASM, ~337KB); release record cite now points to both `docs/proof/PUBLISHED.md` and the new top-level `CHANGELOG.md`.
+  - Added new "Currently Available" bullet for **`web4-sdk` v0.27.0** documenting the rename (was `web4`), cross-society types (`CrossSocietyContext`, `ReputationEnvelope`, `MCPContextResource`), inter-society protocol integration, 35-vector conformance runner with 39 tests + 8 xfailed gaps, 23 modules + 369 exports + 2,709 tests, and the unchanged `from web4 import ...` import path.
+- **Conclusion** (`sections/11-conclusion/index.md`):
+  - Status note: 2026-04-29 → 2026-05-15; mirrored Executive Summary version bumps and v0.2.0-new types.
+  - Findings table: web4-core row updated to v0.2.0 + Society/Role/ATP/R7 types; web4-trust-core row updated to v0.2.0 + npm WASM surface (new column entry); new row for `web4-sdk` v0.27.0; Reference-Python-SDK row test count updated 2,627 → 2,709 and re-pointed at the now-public PyPI package.
+- **No other section changes warranted**:
+  - Body sections covering LCT, T3/V3, R6/R7, society/role, ATP/ADP, MRH already describe the relevant primitives at the right level of abstraction; v0.2.0 ships shipped-spec versions of these, not new concepts.
+  - "Emerging Implementation" subsection of Executive Summary (Hardbound CLI governance stack: R7, ACP, Sybil-resistance, multi-device binding, etc.) was untouched — those features have their own release cadence independent of `web4-core`.
+  - Body sections containing analogies (Linux/GNU/distribution, biological membrane) were untouched per 7a96cbc framing-vs-finding discipline (the Conclusion's Findings/Framings table marks them as framings explicitly).
+- **Resolved watch items** (from Pending Updates table):
+  - "web4-core SDK Society/Role/ATP/R6 types" — RESOLVED, integrated into Executive Summary + Conclusion via v0.2.0
+  - "WASM bindings for Society/Role/ATP/R7 primitives" — RESOLVED, integrated as the npm install row + Conclusion table entry
+  - "inter-society-protocol.md" — PARTIALLY RESOLVED (shipped in v0.2.0 SDK; whitepaper-body integration deferred — Part 6 / Part 8 supplement is a future pass)
+  - "MCP-as-inter-society-protocol per canonical equation" — PARTIALLY RESOLVED (MCP §7.3-§7.6 shipped in v0.2.0 spec corpus; §7.7 referent-grounded exchange-rate negotiation remains WIP)
+- **Flagged but not fixed in this pass**: `docs/proof/PUBLISHED.md` is **still describing v0.1.1**. The Executive Summary now cites `docs/proof/PUBLISHED.md` *and* the top-level `CHANGELOG.md` so the citation is not hanging (CHANGELOG.md is current), but PUBLISHED.md itself wants a v0.2.0 refresh by whoever owns the release-record discipline (the v0.2.0 release commits beb2a9b + 1fb6c90 did not touch it). This is out of strict whitepaper scope but recorded here as a coordination gap.
+- **Build**: Rebuilt md + pdf + web artifacts; copies in `docs/whitepaper-web/` synced.
+- Surface instinct: the "publish-vs-implement gap" observation from the 2026-05-15 entry has now resolved through a single release event, which validates the discipline of waiting for the canonical registry surface before integrating. The pattern "watch (next release) → integrate on release" is now well-exercised twice (2026-04-29 and 2026-05-16). The next analogous trigger would be Hardbound CLI features getting their own packaged release surface — currently they live inside the Hardbound CLI binary, not as separately installable libraries. Worth watching whether the package-family pattern propagates upward to the governance-stack features.
 
 ### 2026-05-15: Publisher Maintenance - No-Change Check (implementation-SDK release + conformance gap memo; no published-release surface change)
 - Thirteen commits since 2026-05-14 no-change check (30c4711) reviewed. None warrant whitepaper integration today; the day's work accumulates implementation evidence around watch items already noted, but the published-release surface on crates.io / PyPI is unchanged.
@@ -461,11 +484,12 @@ The whitepaper should reflect implementation reality. Current gaps:
 | Synthon lifecycle | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 | Karma-across-lives canonicity | Watch | Sprint 43 memo flagged as SPEC GAP; integrate when web4 spec work resolves |
 | Heterogeneous-identity / constellation framing | Watch | docs/specs/heterogeneous-identity.md (commit 64adbe2, 2026-04-29); 4 open questions outstanding (constellation lower bound, divergence resolution, cross-domain witnessing, observability); integrate when constellation lifecycle and minimums resolve |
-| web4-core SDK Society/Role/ATP/R6 types | Watch (next release) | Added in main 2026-05-13 (commits 8243895 + 8857ab0); per 2026-04-29 precedent, integrate into Executive Summary "Currently Available" when next published release ships on crates.io / PyPI |
-| inter-society-protocol.md (genesis/first-contact/federation/secession) | Watch (spec stabilization) | New core spec, three versions in one day (17d6471 + f4803dd + 2f4454f, 2026-05-13). Per "Design still evolving" exclusion, DEFER until spec stabilizes — likely worth a Part 6/Part 8 supplement once v0.2 or later ships |
-| MCP-as-inter-society-protocol per canonical equation | Watch (spec stabilization) | mcp-protocol.md v0.1.3 (7c7c43c, 2026-05-13) plus WIP §7.7 referent-grounded exchange rate (caa3878, 2026-05-14). Equation-level identification; integrate once §7.7 leaves WIP |
-| Sprint 52 conformance gaps (5 NEW operator-architectural-decision items) | Watch (architectural decision) | Sprint 52 memo (c09d0d2, 2026-05-15) flags 5 NEW surface gaps not in prior audits: constraint enforcement, V3 valuation behavioral vs economic, role-004 assigner predicate, fed-001 child- vs parent-initiated federation, sub-dimension rollup. Each requires an operator architectural decision before implementation. Integrate when decisions land in spec |
-| WASM bindings for Society/Role/ATP/R7 primitives | Watch (next release) | Added 2026-05-14 (a2727b4) — browser surface for the same types in web4-core + Python SDK. Same release-trigger bucket as web4-core SDK additions |
+| web4-core SDK Society/Role/ATP/R6 types | Resolved (2026-05-16) | Integrated into Executive Summary "Currently Available" via v0.2.0 release (2026-05-15, commits beb2a9b + 1fb6c90). Society / SocietyRole / RoleAssignment, ATPAccount, R7Action types now shipped on crates.io + PyPI |
+| inter-society-protocol.md (genesis/first-contact/federation/secession) | Partially Resolved (2026-05-16) | Spec shipped in v0.2.0 SDK and noted in Executive Summary calibration paragraph. Whitepaper-body Part 6 / Part 8 integration remains deferred — likely a future pass once secession/dissolution semantics gain more implementation evidence |
+| MCP-as-inter-society-protocol per canonical equation | Partially Resolved (2026-05-16) | MCP §7.3-§7.6 (cross-society envelope, witnessing/R7 reputation propagation, failure modes) shipped in v0.2.0 SDK; §7.7 (WIP) referent-grounded exchange-rate negotiation remains. Integrate §7.7 once it leaves WIP |
+| Sprint 52 conformance gaps (5 NEW operator-architectural-decision items) | Watch (architectural decision) | Sprint 52 memo (c09d0d2, 2026-05-15) flags 5 NEW surface gaps not in prior audits: constraint enforcement, V3 valuation behavioral vs economic, role-004 assigner predicate, fed-001 child- vs parent-initiated federation, sub-dimension rollup. v0.2.0 SDK ships the 35-vector conformance runner with 8 xfailed gaps. Each requires an operator architectural decision before implementation. Integrate when decisions land in spec |
+| WASM bindings for Society/Role/ATP/R7 primitives | Resolved (2026-05-16) | Integrated into Executive Summary + Conclusion via v0.2.0 npm release of `web4-trust-core` (commit 1fb6c90, 2026-05-15). First npm publish; bundle ~337KB |
+| `docs/proof/PUBLISHED.md` refresh to v0.2.0 | Flagged (2026-05-16) | The release record document at `docs/proof/PUBLISHED.md` still describes v0.1.1. v0.2.0 release commits (beb2a9b, 1fb6c90) did not touch it. Executive Summary cite now lists both PUBLISHED.md and CHANGELOG.md (the latter is current) so no hanging reference, but out-of-band refresh of PUBLISHED.md by whoever owns release-record discipline is recommended |
 
 ---
 
