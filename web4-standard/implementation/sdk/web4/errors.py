@@ -297,6 +297,49 @@ _ERROR_REGISTRY: Dict[ErrorCode, ErrorMeta] = {
         400,
         "Protocol downgrade attack detected",
     ),
+    # mcp-protocol.md §7.6 — Cross-Society MCP Errors
+    ErrorCode.CROSS_SOCIETY_UNRECOGNIZED_LCT: ErrorMeta(
+        ErrorCode.CROSS_SOCIETY_UNRECOGNIZED_LCT,
+        ErrorCategory.CROSS_SOCIETY,
+        "Unrecognized Cross-Society LCT",
+        404,
+        "Responding society does not recognize the caller's LCT",
+    ),
+    ErrorCode.CROSS_SOCIETY_EXCHANGE_INVALID: ErrorMeta(
+        ErrorCode.CROSS_SOCIETY_EXCHANGE_INVALID,
+        ErrorCategory.CROSS_SOCIETY,
+        "Invalid Exchange Rate",
+        400,
+        "Cross-society ATP exchange rate is invalid or expired",
+    ),
+    ErrorCode.CROSS_SOCIETY_LAW_CONFLICT: ErrorMeta(
+        ErrorCode.CROSS_SOCIETY_LAW_CONFLICT,
+        ErrorCategory.CROSS_SOCIETY,
+        "Law Oracle Conflict",
+        409,
+        "Sender and responding societies have conflicting law oracles",
+    ),
+    ErrorCode.CROSS_SOCIETY_WITNESS_REQUIRED: ErrorMeta(
+        ErrorCode.CROSS_SOCIETY_WITNESS_REQUIRED,
+        ErrorCategory.CROSS_SOCIETY,
+        "Witness Required",
+        403,
+        "Cross-society action requires a witness but none is available",
+    ),
+    ErrorCode.R7_REPUTATION_INVALID: ErrorMeta(
+        ErrorCode.R7_REPUTATION_INVALID,
+        ErrorCategory.CROSS_SOCIETY,
+        "Invalid R7 Reputation",
+        400,
+        "R7 reputation envelope is malformed or signature invalid",
+    ),
+    ErrorCode.PROPAGATION_SCOPE_UNSUPPORTED: ErrorMeta(
+        ErrorCode.PROPAGATION_SCOPE_UNSUPPORTED,
+        ErrorCategory.CROSS_SOCIETY,
+        "Unsupported Propagation Scope",
+        400,
+        "Responding society does not support the requested propagation scope",
+    ),
 }
 
 
@@ -415,6 +458,12 @@ class ProtoError(Web4Error):
     pass
 
 
+class CrossSocietyError(Web4Error):
+    """Error related to cross-society MCP operations (mcp-protocol.md §7.6)."""
+
+    pass
+
+
 # Map categories to their subclass for from_problem_json dispatch
 _CATEGORY_SUBCLASS: Dict[ErrorCategory, type[Web4Error]] = {
     ErrorCategory.BINDING: BindingError,
@@ -423,6 +472,7 @@ _CATEGORY_SUBCLASS: Dict[ErrorCategory, type[Web4Error]] = {
     ErrorCategory.AUTHZ: AuthzError,
     ErrorCategory.CRYPTO: CryptoError,
     ErrorCategory.PROTO: ProtoError,
+    ErrorCategory.CROSS_SOCIETY: CrossSocietyError,
 }
 
 

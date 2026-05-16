@@ -2,13 +2,14 @@
 Tests for web4.errors — error taxonomy, RFC 9457 serialization.
 
 Tests cover:
-1. Registry completeness (all 24 codes, 6 categories)
+1. Registry completeness (all 30 codes, 7 categories)
 2. Error code metadata (title, status, description)
 3. Web4Error construction and fields
-4. Category subclass dispatch
+4. Category subclass dispatch (including CrossSocietyError)
 5. RFC 9457 Problem Details serialization round-trips
 6. make_error convenience constructor
 7. Test vector validation
+8. Cross-society error metadata (§7.6)
 """
 
 import json
@@ -19,6 +20,7 @@ import pytest
 from web4.errors import (
     AuthzError,
     BindingError,
+    CrossSocietyError,
     CryptoError,
     ErrorCategory,
     ErrorCode,
@@ -37,21 +39,30 @@ from web4.errors import (
 class TestRegistryCompleteness:
     """Every ErrorCode must have metadata in the registry."""
 
-    def test_all_24_codes_registered(self):
+    def test_all_30_codes_registered(self):
         for code in ErrorCode:
             meta = get_error_meta(code)
             assert meta.code == code
 
-    def test_exactly_24_codes(self):
-        assert len(ErrorCode) == 24
+    def test_exactly_30_codes(self):
+        assert len(ErrorCode) == 30
 
-    def test_exactly_6_categories(self):
-        assert len(ErrorCategory) == 6
+    def test_exactly_7_categories(self):
+        assert len(ErrorCategory) == 7
 
-    def test_4_codes_per_category(self):
+    def test_codes_per_category(self):
+        expected = {
+            ErrorCategory.BINDING: 4,
+            ErrorCategory.PAIRING: 4,
+            ErrorCategory.WITNESS: 4,
+            ErrorCategory.AUTHZ: 4,
+            ErrorCategory.CRYPTO: 4,
+            ErrorCategory.PROTO: 4,
+            ErrorCategory.CROSS_SOCIETY: 6,
+        }
         for cat in ErrorCategory:
             codes = codes_for_category(cat)
-            assert len(codes) == 4, f"{cat} has {len(codes)} codes, expected 4"
+            assert len(codes) == expected[cat], f"{cat} has {len(codes)} codes, expected {expected[cat]}"
 
     def test_all_codes_have_title(self):
         for code in ErrorCode:
@@ -105,6 +116,24 @@ class TestErrorMetadata:
         assert meta.category == ErrorCategory.PROTO
         assert meta.title == "Replay Detected"
         assert meta.status == 409
+
+    def test_cross_society_unrecognized_lct(self):
+        meta = get_error_meta(ErrorCode.CROSS_SOCIETY_UNRECOGNIZED_LCT)
+        assert meta.category == ErrorCategory.CROSS_SOCIETY
+        assert meta.title == "Unrecognized Cross-Society LCT"
+        assert meta.status == 404
+
+    def test_cross_society_law_conflict(self):
+        meta = get_error_meta(ErrorCode.CROSS_SOCIETY_LAW_CONFLICT)
+        assert meta.category == ErrorCategory.CROSS_SOCIETY
+        assert meta.title == "Law Oracle Conflict"
+        assert meta.status == 409
+
+    def test_r7_reputation_invalid(self):
+        meta = get_error_meta(ErrorCode.R7_REPUTATION_INVALID)
+        assert meta.category == ErrorCategory.CROSS_SOCIETY
+        assert meta.title == "Invalid R7 Reputation"
+        assert meta.status == 400
 
 
 # ── Web4Error Construction ────────────────────────────────────────
@@ -166,6 +195,7 @@ class TestCategorySubclasses:
             (AuthzError, ErrorCode.AUTHZ_DENIED),
             (CryptoError, ErrorCode.CRYPTO_SUITE),
             (ProtoError, ErrorCode.PROTO_VERSION),
+            (CrossSocietyError, ErrorCode.CROSS_SOCIETY_UNRECOGNIZED_LCT),
         ],
     )
     def test_subclass_is_web4error(self, cls, code):
@@ -180,6 +210,14 @@ class TestCategorySubclasses:
     def test_catch_by_base(self):
         with pytest.raises(Web4Error):
             raise CryptoError(ErrorCode.CRYPTO_KEY)
+
+    def test_catch_cross_society_by_category(self):
+        with pytest.raises(CrossSocietyError):
+            raise CrossSocietyError(ErrorCode.CROSS_SOCIETY_LAW_CONFLICT)
+
+    def test_catch_cross_society_by_base(self):
+        with pytest.raises(Web4Error):
+            raise CrossSocietyError(ErrorCode.R7_REPUTATION_INVALID)
 
 
 # ── RFC 9457 Serialization ────────────────────────────────────────
@@ -268,6 +306,22 @@ class TestMakeError:
         )
         assert isinstance(err, ProtoError)
         assert err.instance == "web4://node-1/handshake/99"
+
+    def test_returns_cross_society_error(self):
+        err = make_error(ErrorCode.CROSS_SOCIETY_WITNESS_REQUIRED)
+        assert isinstance(err, CrossSocietyError)
+        assert err.category == ErrorCategory.CROSS_SOCIETY
+
+    def test_cross_society_round_trip(self):
+        original = CrossSocietyError(
+            ErrorCode.CROSS_SOCIETY_EXCHANGE_INVALID,
+            detail="Exchange rate expired 2h ago",
+        )
+        pj = original.to_problem_json()
+        restored = Web4Error.from_problem_json(pj)
+        assert isinstance(restored, CrossSocietyError)
+        assert restored.code == ErrorCode.CROSS_SOCIETY_EXCHANGE_INVALID
+        assert restored.detail == "Exchange rate expired 2h ago"
 
 
 # ── Test Vectors ──────────────────────────────────────────────────
