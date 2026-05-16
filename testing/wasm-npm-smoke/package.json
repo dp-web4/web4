@@ -1,0 +1,17 @@
+{
+  "name": "web4-wasm-npm-smoke",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end smoke test for the published web4-trust-core npm package (WASM bundler target). Installs from npm, bundles with esbuild, runs on Node, verifies the API.",
+  "scripts": {
+    "test": "node --experimental-wasm-modules --no-warnings=ExperimentalWarning smoke.mjs",
+    "test:bundled": "esbuild smoke.mjs --bundle --platform=node --format=esm --outfile=dist/smoke.bundle.mjs --loader:.wasm=copy && node --experimental-wasm-modules --no-warnings=ExperimentalWarning dist/smoke.bundle.mjs"
+  },
+  "dependencies": {
+    "web4-trust-core": "^0.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
