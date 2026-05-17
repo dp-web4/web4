@@ -117,10 +117,21 @@ Establish a plugin session and receive a Soft LCT.
   "host_agent": "claude-code",
   "host_agent_version": "1.0.0",
   "requested_role": "citizen",
-  "protocol_version": 0
+  "protocol_version": 1,
+  "synthetic": false
 }
 ```
 `plugin_id` and `host_agent` are REQUIRED. Others are OPTIONAL.
+
+`synthetic` (OPTIONAL, default `false`) declares the calling client as
+a test harness, fuzzer, or other non-orchestrator workload. The
+presence layer SHOULD still witness the session (chain entries remain
+authoritative), but SHOULD exclude synthetic plugins from
+operator-facing aggregations (dashboards, trust roll-ups) by default.
+This is a self-declaration: implementations MAY honor it without
+verification. Once a plugin_id has been observed with `synthetic:
+true`, the presence layer MAY treat all subsequent activity from the
+same plugin_id as synthetic for the lifetime of that record.
 
 **Output:**
 ```json
