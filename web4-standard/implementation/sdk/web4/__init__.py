@@ -306,6 +306,7 @@ from .errors import (
     AuthzError,
     CryptoError,
     ProtoError,
+    CrossSocietyError,
     get_error_meta,
     codes_for_category,
     make_error,
@@ -486,6 +487,13 @@ from .mcp import (
     MCPErrorContext,
     web4_context_to_json,
     web4_context_from_json,
+    # Cross-society types (§7.3–7.6, landed via PR #195)
+    OutcomeClass,
+    PropagationScope,
+    CrossSocietyInteractionType,
+    CrossSocietyContext,
+    ReputationEnvelope,
+    MCPContextResource,
 )
 
 # Aliases for disambiguation with r6 types
@@ -741,6 +749,7 @@ __all__ = [
     "AuthzError",
     "CryptoError",
     "ProtoError",
+    "CrossSocietyError",
     "get_error_meta",
     "codes_for_category",
     "make_error",
@@ -897,6 +906,13 @@ __all__ = [
     "MCPErrorContext",
     "web4_context_to_json",
     "web4_context_from_json",
+    # mcp cross-society (§7.3–7.6)
+    "OutcomeClass",
+    "PropagationScope",
+    "CrossSocietyInteractionType",
+    "CrossSocietyContext",
+    "ReputationEnvelope",
+    "MCPContextResource",
     # validation
     "ValidationResult",
     "ValidationError",
