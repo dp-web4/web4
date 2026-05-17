@@ -12,6 +12,36 @@ identical results for these inputs.
 | `atp-operations.json` | ATP/ADP: accounts, lock/commit/rollback, transfers, conservation, sliding scale | 11 |
 | `r6-r7-actions.json` | R6/R7: validation, reputation deltas, role contextualization, chain determinism | 8 |
 | `society-roles.json` | Society: bootstrap, lifecycle, roles, rotation, federation, minimum viable | 8 |
+| `presence-protocol-conformance.json` | Presence Protocol v0: 8 tools + 6 resources + error envelope. See spec at [`core-spec/presence-protocol.md`](../../core-spec/presence-protocol.md). | 10 |
+
+## Presence-protocol harness (live daemon)
+
+The `presence-protocol-conformance.json` file is consumed by per-SDK
+runners in the [`dp-web4/hestia`](https://github.com/dp-web4/hestia)
+repo. Each runner spins up a connection to a running Hestia daemon and
+exercises every scenario:
+
+| Language | Path | Command |
+|---|---|---|
+| TypeScript | `hestia/plugin-sdk/typescript/test/conformance/conformance.test.ts` | `RUN_CONFORMANCE=1 npm test -- test/conformance/` |
+| Python    | `hestia/plugin-sdk/python/tests/conformance/test_conformance.py`     | `RUN_CONFORMANCE=1 pytest tests/conformance/` |
+| Rust      | `hestia/plugin-sdk/rust/tests/conformance.rs`                        | `RUN_CONFORMANCE=1 cargo test --test conformance` |
+
+All three runners auto-skip if no daemon is reachable at
+`$HESTIA_ENDPOINT` (default `http://127.0.0.1:7711/mcp`); set
+`RUN_CONFORMANCE=1` to require it. All three resolve this directory
+automatically, or accept `$WEB4_STANDARD_CONFORMANCE` as an override.
+
+### Scenario format
+
+Each scenario has tool/resource steps with optional setup, capture, and
+expect clauses. Cross-scenario state flows via `{{P0-XXX.fieldName}}`
+interpolation against prior captures. See the file header for the full
+schema; key supported field-check predicates: `equals`,
+`matchesPattern`, `startsWith`, `isInteger`/`isNumber`/`isBoolean`/
+`isString`/`isArray`/`isIso8601`/`isNonEmptyString`, `isIn`, `min`,
+`max`, `minLength`. The runners also validate ordering via
+`{field, monotonic}`.
 
 ## How to Use
 

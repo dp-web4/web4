@@ -173,13 +173,24 @@
     {
       "id": "P0-007",
       "name": "query_policy returns default-allow in v0",
-      "description": "v0 daemon is a default-allow stub. Real engine arrives in v1. Conformance only requires the shape; implementations MAY return real decisions.",
-      "preconditions": ["P0-001", "P0-002"],
+      "description": "v0 daemon is a default-allow stub. Real engine arrives in v1. Conformance only requires the shape; implementations MAY return real decisions. Note: query_policy MUST run on an action that has NOT yet had record_outcome called on it, since record_outcome consumes the action.",
+      "preconditions": ["P0-001"],
+      "setup": [
+        {
+          "tool": "hestia_begin_action",
+          "input": {
+            "tool_name": "TodoWrite",
+            "target": "policy-check",
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "capture": { "actionId": "$.actionId" }
+        }
+      ],
       "steps": [
         {
           "tool": "hestia_query_policy",
           "input": {
-            "action_id": "{{P0-002.actionId}}",
+            "action_id": "{{P0-007.actionId}}",
             "session_id": "{{P0-001.sessionId}}"
           },
           "expect": {
