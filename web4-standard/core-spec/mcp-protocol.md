@@ -714,9 +714,14 @@ class MCPMeter:
         return min(total_cost, context.atp_cap)  # Respect caps
 ```
 
-### 9.2 Dynamic Pricing
+### 9.2 Dynamic Pricing (informative)
 
-Prices adjust based on demand and trust:
+Prices adjust based on demand and trust.  The modifiers below are
+**illustrative society-configurable parameters**, not protocol constants.
+§9.1 defines the canonical metering formula; here `high_trust_discount: 0.8`
+is the endpoint that §9.1's formula reaches at maximum trust
+(T3 average = 1.0 → `1.0 − 1.0 × 0.2 = 0.8`).  A society's pricing
+configuration supplies these values; the metering engine applies them per §9.1.
 
 ```json
 {
