@@ -12,7 +12,27 @@ checklist that enforces this.
 
 ---
 
-## v1 — 2026-05-16 — Policy engine + vault schema v2
+## v1 — 2026-05-16 — Policy engine + vault schema v2 + wait protocol
+
+### 2026-05-16 (later) — back-compat addition to v1
+
+Two new optional fields on `hestia_query_policy` output:
+
+- `status: "decided" | "evaluating"` (default `"decided"`)
+- `nextPollMs: int | null` (default `null`)
+
+These let a future LLM-backed policy entity say "I'm here, still
+thinking, come back in N ms" without bumping the protocol version.
+v1 daemons with sync rule engines always return `status: "decided"`
+and `nextPollMs: null`. Orchestrators MUST support both branches at
+v1 so the protocol stays back-compat when LLM-backed engines arrive.
+See spec §3.4.1.
+
+Schema bumped at the same `v1` directory (no v1.1 split — it's a
+forward-compatible addition; v0 SDKs that don't know about these
+fields simply ignore them).
+
+### 2026-05-16 — initial v1 capture
 
 The first **real test of the discipline**: a protocol version bump
 driven by a feature landing in the daemon. All artifacts updated in

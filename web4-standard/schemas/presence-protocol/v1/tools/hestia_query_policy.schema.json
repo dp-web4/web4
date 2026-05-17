@@ -47,6 +47,18 @@
           "items": { "type": "string" },
           "default": [],
           "description": "Audit-trail constraint strings prefixed with `policy:`, `decision:`, `rule:`. Always at least 3 entries when present."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["decided", "evaluating"],
+          "default": "decided",
+          "description": "When `evaluating`, the engine is still working — the orchestrator SHOULD wait `nextPollMs` and re-query. When `decided`, the verdict is final."
+        },
+        "nextPollMs": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "default": null,
+          "description": "Suggested wait before re-querying. Set only when `status == \"evaluating\"`; otherwise `null`."
         }
       }
     }

@@ -229,9 +229,12 @@ default-allow stub in v0).
     "policy:policy:abc123...",
     "decision:allow",
     "rule:allow-read-tools"
-  ]
+  ],
+  "status": "decided",
+  "nextPollMs": null
 }
 ```
+
 `decision` is one of `"allow"`, `"deny"`, `"warn"`. `ruleId` MAY be
 `null` (default-policy path); when set, it's a stable rule identifier
 the orchestrator can log. `ruleName` is a human-readable label
@@ -239,6 +242,29 @@ the orchestrator can log. `ruleName` is a human-readable label
 kept for v0 SDK back-compat — new code SHOULD read `ruleId`.
 `constraints` is an audit-trail-friendly list of `policy:`, `decision:`,
 `rule:` namespaced strings, always at least three entries when present.
+
+#### 3.4.1 The "wait" protocol (`status` + `nextPollMs`)
+
+`status` is one of:
+
+- `"decided"` (default) — the verdict is final; the orchestrator can act on `decision`.
+- `"evaluating"` — the engine is **here** but still working on a verdict
+  (e.g. it has invoked an LLM-backed reviewer or is awaiting an external
+  attestation). The orchestrator SHOULD wait `nextPollMs` milliseconds
+  and then re-query with the same `action_id`.
+
+When `status == "evaluating"`, `decision` carries the engine's *current
+tentative* verdict (usually the default policy) and `nextPollMs` is the
+suggested wait. Orchestrators SHOULD bound their total re-poll budget
+(recommended: 5 seconds total, 3 polls max) and fall back to a local
+heuristic if the engine never settles to `"decided"`.
+
+A v1 daemon with a synchronous rule engine always returns
+`status: "decided"` and `nextPollMs: null`. The `"evaluating"` status
+is reserved for future v1.x engines that consult an LLM-backed policy
+entity or external attestation service; orchestrator implementations
+MUST support both branches today so the protocol stays back-compatible
+when those engines arrive.
 
 **Errors:** `hestia.action_not_found`, `hestia.policy_denied` (when
 deny is enforced), `hestia.internal_error`.
