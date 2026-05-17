@@ -64,8 +64,12 @@ held, and the spec does not yet say so.
 | P7 | §2 (87) | LOW | Link text **"tool/connect"** and anchor `#31-tool-connect` for the connect tool, whose actual name is `hestia_connect` (§3.1) — wrong tool name + non-resolving in-doc anchor. |
 | P8 | §2 (73–84) ↔ §3.1 `synthetic` ↔ §2 bump rule (83–84) | LOW | §2's v0/v1 version narrative never mentions `synthetic`; §2's bump rule ("any change to the wire shape of a tool's input … requires a version bump") gives no exception for optional additive input fields, yet `synthetic` (and `status`/`nextPollMs`) were added without a bump. The additive-field exception is applied but unstated. |
 | P9 | §3.1 Errors (146–148) ↔ §6.1 (573–587) | LOW | §3.1 lists `hestia.invalid_role` as a plain error; §6.1 marks it `(v1+)` "reserved … v0 daemons MAY emit `hestia.internal_error` instead". The per-tool error list omits the reservation caveat the registry attaches. |
+| P10 | §9 (635–648) ↔ CHANGELOG v1 (36–72) | MED | §9 "Open work" lists policy engine + vault v2 as pending; CHANGELOG documents both as shipped in v1. Two of three §9 items are stale. |
+| P11 | §8 drift row 3 (629) ↔ CHANGELOG v1 | MED | Drift table says error codes `policy_denied`/`vault_denied`/`invalid_role` will be emitted "when the policy engine lands in v1" — v1 has landed; drift status is indeterminate (resolved or stale). |
+| P12 | P1-003 vector name ↔ vector content | LOW | Vector claims to test "v1 protocolVersion bumped on connect" but only reads `hestia://society/state` resource; does not verify `protocolVersion: 1` in a connect response. |
+| P13 | §3.4.1 (257–278) ↔ conformance vectors | LOW | `status`/`nextPollMs` fields (wait protocol) have no conformance test coverage. Spec mandates orchestrators MUST support both branches "today." |
 
-**2 HIGH · 4 MEDIUM · 3 LOW.**
+**2 HIGH · 6 MEDIUM · 5 LOW.**
 
 ---
 
@@ -292,28 +296,111 @@ tags.
 
 ---
 
+### P10 — §9 lists completed work as pending (MEDIUM)
+
+- **§9, line 637**: "**Policy engine** — port from `claude-code/plugins/web4-governance/`
+  into Hestia core; replaces the default-allow stub. Bumps protocol to v1."
+- **§9, lines 640–642**: "**Policy state in vault** — vault schema v1 → v2
+  … Same v1 protocol bump."
+- **CHANGELOG v1** (lines 36–72): documents both as shipped — policy engine
+  ported, vault schema v2 with `active_preset`/`overrides`/`custom_rules`,
+  protocol bumped to v1, all SDKs updated, Hestia daemon 0.0.2→0.0.3.
+
+Two of three §9 items are completed. A reader encountering §9 would believe the
+policy engine hasn't been ported yet, contradicting the spec's own v1 status
+and the CHANGELOG.
+
+**Recommended resolution**: Move the two completed items into a "Completed"
+subsection of §9 or remove them entirely (the CHANGELOG captures the history).
+Retain the Hardbound parity and outward-MCP cross-reference items as genuinely
+pending.
+
+---
+
+### P11 — §8 drift table stale after v1 landing (MEDIUM)
+
+- **§8, row 3** (line 629): "Error codes `policy_denied`, `vault_denied`,
+  `invalid_role` referenced by SDKs but never emitted by daemon" → Resolution:
+  "Emit them when the policy engine lands in v1."
+- **CHANGELOG v1**: v1 has landed. The policy engine is live. `hestia_query_policy`
+  can now return `deny` with `enforced: true`.
+
+The drift entry's resolution references a future event that has occurred. Either
+(a) the error codes are now emitted by the v1 daemon (drift resolved — row
+should be removed or marked done), or (b) the v1 daemon still doesn't emit
+them (the resolution is stale and the drift persists with a different
+remediation path). The entry as written is indeterminate.
+
+**Recommended resolution**: Verify whether the v1 daemon now emits
+`policy_denied` (expected, since the policy engine can deny). Update or remove
+the row accordingly.
+
+---
+
+### P12 — P1-003 conformance vector doesn't test what it claims (LOW)
+
+- **P1-003 name**: "v1 protocolVersion bumped on connect."
+- **P1-003 actual test**: reads `hestia://society/state` and checks
+  `sovereign_lct` starts with `lct:`. Does not call `hestia_connect` with
+  `protocol_version: 1` and does not check `protocolVersion` in the response.
+
+The vector passes trivially (it's a subset of P0-009) and does not verify the
+claim in its name. A daemon returning `protocolVersion: 0` from `hestia_connect`
+would still pass P1-003.
+
+**Recommended resolution**: Either (a) add a `hestia_connect` step with
+`protocol_version: 1` and a `fieldChecks` for `protocolVersion: 1`, or
+(b) rename the vector to reflect what it actually tests.
+
+---
+
+### P13 — Wait protocol has no conformance test coverage (LOW)
+
+- **§3.4.1** (lines 257–278): describes the "wait" protocol with `status`
+  and `nextPollMs`. Mandates that "orchestrator implementations MUST support
+  both branches today."
+- **Conformance vectors**: P1-001 and P1-002 test `hestia_query_policy` but
+  neither checks `status` or `nextPollMs`. The fields exist in the v1 schema
+  but have zero vector coverage.
+
+Since current v1 daemons always return `status: "decided"` and
+`nextPollMs: null`, the absence is understandable. But the spec says
+orchestrators MUST support both branches "today" — meaning conformance
+should verify at least the default values.
+
+**Recommended resolution**: Add a conformance vector (e.g. P1-004) verifying
+`status: "decided"` and `nextPollMs: null` in v1 `query_policy` responses.
+
+---
+
 ## Cross-Cutting Observation
 
 P1, P2, P3, P6, and P8 are one theme: **the spec asserts disciplines
 (camelCase everywhere; "a protocol change is not complete until…"; absolute
 version-bump rule) that the spec and its artifacts do not yet uniformly
-uphold.** This is exactly the gap §8 was created to track honestly — but §8
-currently records only one casing item and zero discipline-process items.
-The single highest-leverage remediation is **not** the six edits above
-individually; it is (a) one §7 precedence sentence binding the schemas (fixes
+uphold.** P10, P11, and the stale §9 are a second theme: **the spec's
+self-awareness sections (§8 drift, §9 open work) haven't been updated to
+reflect v1's own landing.** This is exactly the gap §8 was created to track
+honestly — but §8 currently records only one casing item and zero
+discipline-process items.
+
+The single highest-leverage remediation is **not** the individual edits
+above; it is (a) one §7 precedence sentence binding the schemas (fixes
 P1 ambiguity + P3), and (b) one honest pass extending §8 to cover the
-`synthetic` discipline gap (P2) and the resource-casing gap (P6) so the
-document's self-account matches reality. The rest are localized cleanups.
+`synthetic` discipline gap (P2), the resource-casing gap (P6), and the
+post-v1 staleness (P10, P11) so the document's self-account matches
+reality. The rest are localized cleanups.
 
 ## Suggested Remediation Grouping (for a future reviewable follow-up)
 
 | Group | Findings | Shape |
 |-------|----------|-------|
 | **G1 — casing authority** | P1, P3, P6 | One §7 schema-precedence clause + §3/§5 input-casing correction + §4.1/§8 resource-casing reconciliation. Single coherent edit cluster. |
-| **G2 — discipline honesty** | P2, P8 | Complete or explicitly mark `synthetic`; add §2 additive-field exception; extend §8 drift table. |
+| **G2 — discipline honesty** | P2, P8, P10, P11 | Complete or explicitly mark `synthetic`; add §2 additive-field exception; extend §8 drift table; update §9 to reflect v1 completion. |
 | **G3 — localized staleness** | P4, P5, P7, P9 | Independent one-spot fixes; safe to land together or piecemeal. |
+| **G4 — conformance vector gaps** | P12, P13 | Fix misleading P1-003; add wait-protocol default-value vector. |
 
 G1 and G2 are the load-bearing pair (they touch the spec's central
-discipline thesis). G3 is mechanical. None require SDK or daemon changes —
-all are spec/artifact-internal — so all are autonomous-pickable for a
-remediation session once this audit is reviewed.
+discipline thesis). G3 and G4 are mechanical. None require SDK or daemon
+changes — all are spec/artifact-internal — so all are autonomous-pickable
+for a remediation session once this audit is reviewed.
