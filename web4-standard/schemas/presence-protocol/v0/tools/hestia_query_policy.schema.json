@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_query_policy.schema.json",
+  "title": "hestia_query_policy — input + output schemas",
+  "description": "Query the policy engine for an allow/deny/warn decision. v0 daemon is default-allow stub. See presence-protocol.md §3.4.",
+  "type": "object",
+  "properties": {
+    "input": { "$ref": "#/$defs/input" },
+    "output": { "$ref": "#/$defs/output" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["action_id"],
+      "additionalProperties": true,
+      "properties": {
+        "action_id": { "type": "string", "format": "uuid" },
+        "context": { "type": ["object", "null"] },
+        "session_id": { "type": ["string", "null"], "format": "uuid" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["decision", "reason", "enforced"],
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "type": "string", "enum": ["allow", "deny", "warn"] },
+        "reason": { "type": "string" },
+        "policyId": { "type": ["string", "null"], "default": null },
+        "enforced": { "type": "boolean", "default": true }
+      }
+    }
+  }
+}

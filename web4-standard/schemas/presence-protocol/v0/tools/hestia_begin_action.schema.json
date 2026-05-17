@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_begin_action.schema.json",
+  "title": "hestia_begin_action — input + output schemas",
+  "description": "Begin tracking an R6/R7 action. See presence-protocol.md §3.2.",
+  "type": "object",
+  "properties": {
+    "input": { "$ref": "#/$defs/input" },
+    "output": { "$ref": "#/$defs/output" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["tool_name"],
+      "additionalProperties": true,
+      "properties": {
+        "tool_name": { "type": "string" },
+        "target": { "type": ["string", "null"] },
+        "parameters": { "type": ["object", "null"] },
+        "atp_stake": { "type": ["number", "null"] },
+        "session_id": { "type": ["string", "null"], "format": "uuid" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["actionId", "startedAt", "chainPosition"],
+      "additionalProperties": false,
+      "properties": {
+        "actionId": { "type": "string", "format": "uuid" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "chainPosition": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

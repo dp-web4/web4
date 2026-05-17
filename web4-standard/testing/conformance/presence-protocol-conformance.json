@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Presence Protocol — Conformance Test Vectors (v0)",
+  "description": "Test scenarios that a conforming presence-layer implementation MUST pass. The conformance harness at web4-standard/testing/conformance/ runs these against a live daemon and verifies shapes against the JSON Schemas in schemas/presence-protocol/v0/.",
+  "specVersion": "presence-protocol v0",
+  "protocolVersion": 0,
+  "lastUpdated": "2026-05-16",
+  "scenarios": [
+    {
+      "id": "P0-001",
+      "name": "connect succeeds and returns required fields",
+      "description": "A new plugin connects with plugin_id and host_agent. Daemon returns sessionId, softLct, assignedRole, protocolVersion.",
+      "steps": [
+        {
+          "tool": "hestia_connect",
+          "input": {
+            "plugin_id": "conformance-runner",
+            "plugin_version": "0.0.1",
+            "host_agent": "conformance-runner",
+            "host_agent_version": "0.0.1",
+            "requested_role": "citizen",
+            "protocol_version": 0
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_connect.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "sessionId", "matchesPattern": "^[0-9a-f-]{36}$" },
+              { "path": "softLct", "startsWith": "lct:" },
+              { "path": "assignedRole", "equals": "citizen" },
+              { "path": "protocolVersion", "equals": 0 }
+            ]
+          },
+          "capture": { "sessionId": "$.sessionId" }
+        }
+      ]
+    },
+    {
+      "id": "P0-002",
+      "name": "begin_action returns chain position and action_id",
+      "description": "After connect, begin_action returns a UUID and a chain position.",
+      "preconditions": ["P0-001"],
+      "steps": [
+        {
+          "tool": "hestia_begin_action",
+          "input": {
+            "tool_name": "Read",
+            "target": "/tmp/foo.txt",
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_begin_action.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "actionId", "matchesPattern": "^[0-9a-f-]{36}$" },
+              { "path": "chainPosition", "isInteger": true, "min": 0 },
+              { "path": "startedAt", "isIso8601": true }
+            ]
+          },
+          "capture": { "actionId": "$.actionId", "chainPosition": "$.chainPosition" }
+        }
+      ]
+    },
+    {
+      "id": "P0-003",
+      "name": "record_outcome appends to chain and evolves trust",
+      "description": "Recording a successful outcome returns a hex hash and updated trust state with all required fields.",
+      "preconditions": ["P0-001", "P0-002"],
+      "steps": [
+        {
+          "tool": "hestia_record_outcome",
+          "input": {
+            "action_id": "{{P0-002.actionId}}",
+            "success": true,
+            "magnitude": 0.2,
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_record_outcome.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "witnessEntryHash", "matchesPattern": "^[0-9a-f]{64}$" },
+              { "path": "updatedTrustState.t3.training", "isNumber": true, "min": 0, "max": 1 },
+              { "path": "updatedTrustState.actionCount", "isInteger": true, "min": 1 },
+              { "path": "updatedTrustState.successCount", "isInteger": true, "min": 1 },
+              { "path": "updatedTrustState.entityId", "isString": true }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P0-004",
+      "name": "vault_get with wrong scope returns typed error envelope",
+      "description": "Attempting to read a credential the plugin isn't allowed to read returns the _hestia_error envelope with code 'hestia.vault_scope_mismatch'.",
+      "preconditions": ["P0-001"],
+      "setup": [
+        {
+          "tool": "hestia_vault_set",
+          "input": {
+            "name": "p0-004-cred",
+            "value": "sk-test-1234",
+            "scope": ["infer"],
+            "tags": ["test"],
+            "allowed_consumers": ["different-plugin"]
+          }
+        }
+      ],
+      "steps": [
+        {
+          "tool": "hestia_vault_get",
+          "input": {
+            "name": "p0-004-cred",
+            "scope": ["infer"],
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/common/error_envelope.schema.json",
+            "fieldChecks": [
+              { "path": "_hestia_error.code", "equals": "hestia.vault_scope_mismatch" },
+              { "path": "_hestia_error.message", "isNonEmptyString": true }
+            ]
+          }
+        }
+      ],
+      "teardown": [
+        { "note": "Implementations MAY rely on a fresh sandbox HESTIA_HOME between scenarios rather than implementing a teardown." }
+      ]
+    },
+    {
+      "id": "P0-005",
+      "name": "vault_get for missing name returns typed error envelope",
+      "description": "Reading a credential that doesn't exist returns code 'hestia.vault_not_found'.",
+      "preconditions": ["P0-001"],
+      "steps": [
+        {
+          "tool": "hestia_vault_get",
+          "input": {
+            "name": "no-such-credential",
+            "scope": ["infer"],
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/common/error_envelope.schema.json",
+            "fieldChecks": [
+              { "path": "_hestia_error.code", "equals": "hestia.vault_not_found" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P0-006",
+      "name": "query_history returns newest-first entries",
+      "description": "After at least one outcome, query_history returns entries in descending chain_position order.",
+      "preconditions": ["P0-001", "P0-002", "P0-003"],
+      "steps": [
+        {
+          "tool": "hestia_query_history",
+          "input": { "filter": { "limit": 10 } },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_query_history.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "entries", "isArray": true, "minLength": 1 },
+              { "path": "entries[0].chainPosition", "isInteger": true, "min": 0 },
+              { "path": "entries[0].hash", "matchesPattern": "^[0-9a-f]{64}$" }
+            ],
+            "ordering": {
+              "field": "entries[*].chainPosition",
+              "monotonic": "descending"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "P0-007",
+      "name": "query_policy returns default-allow in v0",
+      "description": "v0 daemon is a default-allow stub. Real engine arrives in v1. Conformance only requires the shape; implementations MAY return real decisions.",
+      "preconditions": ["P0-001", "P0-002"],
+      "steps": [
+        {
+          "tool": "hestia_query_policy",
+          "input": {
+            "action_id": "{{P0-002.actionId}}",
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_query_policy.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "decision", "isIn": ["allow", "deny", "warn"] },
+              { "path": "reason", "isNonEmptyString": true },
+              { "path": "enforced", "isBoolean": true }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P0-008",
+      "name": "request_witness appends custom chain entry",
+      "description": "Custom events get a hash-linked chain entry with the caller's event_type.",
+      "preconditions": ["P0-001"],
+      "steps": [
+        {
+          "tool": "hestia_request_witness",
+          "input": {
+            "event_type": "conformance_marker",
+            "event_data": { "scenario": "P0-008", "test_run": true }
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_request_witness.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "witnessEntryHash", "matchesPattern": "^[0-9a-f]{64}$" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P0-009",
+      "name": "society/state resource returns macro stats",
+      "description": "Reading hestia://society/state returns the daemon's identity + counters.",
+      "preconditions": ["P0-001"],
+      "steps": [
+        {
+          "resource": "hestia://society/state",
+          "expect": {
+            "fieldChecks": [
+              { "path": "sovereign_lct", "startsWith": "lct:" },
+              { "path": "chain_length", "isInteger": true, "min": 0 },
+              { "path": "session_count", "isInteger": true, "min": 1 }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P0-010",
+      "name": "witness/recent resource matches query_history shape",
+      "description": "The recent-witness resource returns the same WitnessEntry shape as the query_history tool.",
+      "preconditions": ["P0-001", "P0-003"],
+      "steps": [
+        {
+          "resource": "hestia://witness/recent",
+          "expect": {
+            "fieldChecks": [
+              { "path": "entries", "isArray": true, "minLength": 1 },
+              { "path": "entries[0].hash", "matchesPattern": "^[0-9a-f]{64}$" },
+              { "path": "entries[0].chainPosition", "isInteger": true }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Implementations MAY use a sandbox HESTIA_HOME (or equivalent) and tear it down between runs rather than implementing per-scenario teardown.",
+    "The {{capture}} interpolation syntax is a convention of this conformance file; harnesses MUST resolve {{P0-XXX.fieldName}} from captures in scenario P0-XXX before substituting into a step's input.",
+    "Schemas referenced by URL should resolve to web4-standard/schemas/presence-protocol/v0/ locally. Implementations MAY rewrite the $id base URL for offline validation."
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_connect.schema.json",
+  "title": "hestia_connect — input + output schemas",
+  "description": "Establish a plugin session and receive a Soft LCT. See presence-protocol.md §3.1.",
+  "type": "object",
+  "properties": {
+    "input": { "$ref": "#/$defs/input" },
+    "output": { "$ref": "#/$defs/output" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["plugin_id", "host_agent"],
+      "additionalProperties": true,
+      "properties": {
+        "plugin_id": { "type": "string" },
+        "plugin_version": { "type": ["string", "null"] },
+        "host_agent": { "type": "string" },
+        "host_agent_version": { "type": ["string", "null"] },
+        "requested_role": { "type": "string", "default": "citizen" },
+        "protocol_version": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["sessionId", "softLct", "assignedRole", "protocolVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "sessionId": { "type": "string", "format": "uuid" },
+        "softLct": { "type": "string", "pattern": "^lct:" },
+        "assignedRole": { "type": "string" },
+        "protocolVersion": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

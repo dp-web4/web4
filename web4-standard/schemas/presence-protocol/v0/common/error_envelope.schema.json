@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/common/error_envelope.schema.json",
+  "title": "Presence Protocol — Error Envelope (Mechanism A)",
+  "description": "Typed-error envelope embedded in successful tool responses to survive MCP runtime normalization. When this object is the (top-level or structured-content) payload, the SDK MUST raise a typed exception keyed on `code`.",
+  "type": "object",
+  "required": ["_hestia_error"],
+  "additionalProperties": false,
+  "properties": {
+    "_hestia_error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^hestia\\.[a-z_]+$",
+          "description": "Stable error code from the registry in presence-protocol.md §6.1."
+        },
+        "message": { "type": "string" },
+        "data": {
+          "description": "Implementation-specific context object. Shape varies by code; consult the spec.",
+          "type": "object",
+          "additionalProperties": true,
+          "default": {}
+        }
+      }
+    }
+  }
+}

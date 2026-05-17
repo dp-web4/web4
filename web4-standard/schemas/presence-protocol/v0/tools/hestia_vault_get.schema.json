@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_vault_get.schema.json",
+  "title": "hestia_vault_get — input + output schemas",
+  "description": "Request a credential from the vault. See presence-protocol.md §3.5.",
+  "type": "object",
+  "properties": {
+    "input": { "$ref": "#/$defs/input" },
+    "output": { "$ref": "#/$defs/output" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "scope": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": ["string", "null"] },
+        "session_id": { "type": ["string", "null"], "format": "uuid" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["value"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string" },
+        "approvalToken": { "type": ["string", "null"], "default": null }
+      }
+    }
+  }
+}

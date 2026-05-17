@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/common/trust_state.schema.json",
+  "title": "Presence Protocol — TrustState",
+  "description": "Per-plugin T3/V3 tensor state. Maps to web4-trust-core EntityTrust shape.",
+  "type": "object",
+  "required": ["entityId", "t3", "v3", "level", "actionCount", "successCount", "successRate", "daysSinceLast"],
+  "additionalProperties": false,
+  "properties": {
+    "entityId": {
+      "type": "string",
+      "description": "Web4 entity id (e.g. `plugin:claude-code`). Carries the entity-type prefix."
+    },
+    "t3": {
+      "type": "object",
+      "required": ["talent", "training", "temperament"],
+      "additionalProperties": false,
+      "properties": {
+        "talent": { "type": "number", "minimum": 0, "maximum": 1 },
+        "training": { "type": "number", "minimum": 0, "maximum": 1 },
+        "temperament": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "v3": {
+      "type": "object",
+      "required": ["valuation", "veracity", "validity"],
+      "additionalProperties": false,
+      "properties": {
+        "valuation": { "type": "number", "minimum": 0, "maximum": 1 },
+        "veracity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "validity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "level": {
+      "type": "string",
+      "enum": ["low", "medium_low", "medium", "medium_high", "high"],
+      "description": "Categorical T3 level (matches web4-trust-core TrustLevel)."
+    },
+    "actionCount": { "type": "integer", "minimum": 0 },
+    "successCount": { "type": "integer", "minimum": 0 },
+    "successRate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "daysSinceLast": { "type": "number", "minimum": 0 }
+  }
+}

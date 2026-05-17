@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_request_witness.schema.json",
+  "title": "hestia_request_witness — input + output schemas",
+  "description": "Append a custom witness chain event. See presence-protocol.md §3.8.",
+  "type": "object",
+  "properties": {
+    "input": { "$ref": "#/$defs/input" },
+    "output": { "$ref": "#/$defs/output" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["event_type"],
+      "additionalProperties": true,
+      "properties": {
+        "event_type": { "type": "string" },
+        "event_data": { "type": ["object", "null"] }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["witnessEntryHash"],
+      "additionalProperties": false,
+      "properties": {
+        "witnessEntryHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  }
+}

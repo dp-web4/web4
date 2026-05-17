@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/common/witness_entry.schema.json",
+  "title": "Presence Protocol — WitnessEntry",
+  "description": "One entry in the hash-linked witness chain.",
+  "type": "object",
+  "required": ["hash", "prevHash", "timestamp", "eventType", "eventData", "signerLct", "chainPosition"],
+  "additionalProperties": false,
+  "properties": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256(prevHash || timestamp || eventType || eventDataJson)"
+    },
+    "prevHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Hash of the previous entry; for genesis, sixty-four zeroes."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC."
+    },
+    "eventType": {
+      "type": "string",
+      "description": "Conventionally one of `session_started`, `outcome`, `vault_set`; arbitrary strings allowed for `hestia_request_witness`."
+    },
+    "eventData": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Implementation-defined payload. Spec §3 specifies shape per event_type."
+    },
+    "signerLct": {
+      "type": "string",
+      "description": "LCT of the signer. For Hestia: sovereign LCT placeholder. For Hardbound: hardware-attested LCT."
+    },
+    "chainPosition": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

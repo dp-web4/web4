@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_vault_set.schema.json",
+  "title": "hestia_vault_set — input + output schemas",
+  "description": "Store or upsert a credential. See presence-protocol.md §3.6.",
+  "type": "object",
+  "properties": {
+    "input": { "$ref": "#/$defs/input" },
+    "output": { "$ref": "#/$defs/output" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["name", "value"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "value": { "type": "string" },
+        "scope": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "allowed_consumers": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["stored", "entryId"],
+      "additionalProperties": false,
+      "properties": {
+        "stored": { "type": "boolean" },
+        "entryId": { "type": "string", "format": "uuid" }
+      }
+    }
+  }
+}

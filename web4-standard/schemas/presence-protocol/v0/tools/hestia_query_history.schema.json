@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_query_history.schema.json",
+  "title": "hestia_query_history — input + output schemas",
+  "description": "Query the witness chain. See presence-protocol.md §3.7.",
+  "type": "object",
+  "properties": {
+    "input": { "$ref": "#/$defs/input" },
+    "output": { "$ref": "#/$defs/output" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "filter": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "tool_name": { "type": ["string", "null"] },
+            "target_pattern": { "type": ["string", "null"] },
+            "since": { "type": ["string", "null"], "format": "date-time" },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 },
+            "outcome": { "type": ["string", "null"], "enum": ["success", "failure", "abandoned", null] }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["entries", "hasMore"],
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "https://web4.io/schemas/presence-protocol/v0/common/witness_entry.schema.json"
+          }
+        },
+        "hasMore": { "type": "boolean" }
+      }
+    }
+  }
+}
