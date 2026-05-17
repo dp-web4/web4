@@ -12,6 +12,61 @@ checklist that enforces this.
 
 ---
 
+## v1 — 2026-05-16 — Policy engine + vault schema v2
+
+The first **real test of the discipline**: a protocol version bump
+driven by a feature landing in the daemon. All artifacts updated in
+one coordinated change.
+
+**What changed**
+
+- **`hestia_query_policy` returns real decisions.** Engine ported
+  from `claude-code/plugins/web4-governance/governance/`. Evaluates a
+  pending action against the active preset's rules using glob/regex
+  pattern matchers, command pattern matchers (with positive and
+  negative match), time-window gating, and per-rule rate limits.
+- **`PolicyResult` shape extended:**
+    - New: `ruleId` — stable rule identifier (`"deny-destructive-commands"`)
+    - New: `ruleName` — human-readable rule name
+    - New: `constraints` — audit-trail constraint list (`policy:`,
+      `decision:`, `rule:` namespaced)
+    - Kept: `policyId` — now an alias of `ruleId` for v0 back-compat
+- **Vault schema v1 → v2.** Adds a `policy` section alongside `entries`
+  with `active_preset`, `overrides`, `custom_rules`. v1 vaults
+  deserialize transparently (the field is `#[serde(default)]`); on
+  next save, the file becomes v2.
+- **Four built-in presets**: `permissive`, `safety`, `strict`,
+  `audit-only`. `safety` is the default for new vaults. Configurable
+  via the new `hestia policy {show|set|test}` CLI subcommand.
+- **`vault_set` chain audit.** Daemon now appends a `vault_set` event
+  to the witness chain whenever a credential is added or replaced
+  (credential name only — the secret value is never written to the
+  chain). Was technically present in v0 but not documented.
+
+**Implementations updated in this PR**
+
+- ☑ Hestia daemon — `dp-web4/hestia` `core/` crate (0.0.2 → **0.0.3**)
+- ☑ TypeScript SDK — `@hestia-tools/plugin-sdk` (0.0.2 → 0.0.3)
+- ☑ Python SDK — `hestia-plugin-sdk` (local, still pre-publish)
+- ☑ Rust SDK — `hestia-plugin-sdk` (local, still pre-publish)
+- ☑ `hardbound-pak` Rust/Python/TS (all three, 0.0.1 → 0.0.2)
+- ☑ Spec, CHANGELOG, schemas, conformance vectors
+
+**Not yet implemented at v1 (deferred to v2+)**
+
+- Pre-action policy denial at `hestia_begin_action` time. Today the
+  orchestrator must explicitly call `hestia_query_policy` between
+  `begin_action` and the actual tool execution. Auto-evaluation at
+  `begin_action` lands when we've seen enough real traffic to know
+  the right defaults.
+- Interactive vault approval flow. `approvalToken` in `vault_get`
+  response is still always `null`.
+- Hardbound parity. Hardbound continues to expose the (now-v1)
+  trait surface from `hardbound-pak`; an actual Hardbound
+  implementation is its own private workstream.
+
+---
+
 ## v0 — 2026-05-16 — Initial capture
 
 Captures the actual current state of the Hestia daemon's inward MCP

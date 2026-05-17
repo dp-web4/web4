@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web4.io/schemas/presence-protocol/v1/tools/hestia_query_policy.schema.json",
+  "title": "hestia_query_policy — input + output schemas (v1)",
+  "description": "Query the policy engine for an allow/deny/warn decision. v1 daemon evaluates against a real rule engine. See presence-protocol.md §3.4.",
+  "type": "object",
+  "properties": {
+    "input": { "$ref": "#/$defs/input" },
+    "output": { "$ref": "#/$defs/output" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["action_id"],
+      "additionalProperties": true,
+      "properties": {
+        "action_id": { "type": "string", "format": "uuid" },
+        "context": { "type": ["object", "null"] },
+        "session_id": { "type": ["string", "null"], "format": "uuid" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["decision", "reason", "enforced"],
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "type": "string", "enum": ["allow", "deny", "warn"] },
+        "reason": { "type": "string" },
+        "ruleId": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Stable identifier for the rule that fired. `null` when the default policy applied."
+        },
+        "ruleName": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Human-readable rule name. `null` for default-policy decisions."
+        },
+        "policyId": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "v0 alias of `ruleId`. Retained for back-compat. New code should read `ruleId`."
+        },
+        "enforced": { "type": "boolean", "default": true },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Audit-trail constraint strings prefixed with `policy:`, `decision:`, `rule:`. Always at least 3 entries when present."
+        }
+      }
+    }
+  }
+}

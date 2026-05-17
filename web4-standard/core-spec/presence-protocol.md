@@ -1,7 +1,7 @@
 # Web4 Presence Protocol Specification
 
-**Version**: 0
-**Status**: Draft — reference-only capture of the current Hestia daemon surface.
+**Version**: 1
+**Status**: Draft — captures Hestia 0.0.3+ with the policy engine wired.
 **Companion**: [`mcp-protocol.md`](./mcp-protocol.md) — the *outward* MCP that societies use to engage each other. This spec is the *inward* MCP that the **presence layer** of a Web4 entity exposes to its **cognition layer** (agentic orchestrator).
 **Changelog**: [`presence-protocol-CHANGELOG.md`](./presence-protocol-CHANGELOG.md)
 
@@ -56,9 +56,11 @@ A conforming implementation provides:
    per outcome by default.
 5. **Trust state** — per-plugin T3/V3 tensors that evolve with
    outcomes.
-6. **Policy** — pre-action allow/deny/warn decisions. *In v0 the
-   daemon's policy engine is a default-allow stub.* The real
-   policy engine lands in protocol v1.
+6. **Policy** — pre-action allow/deny/warn decisions backed by a real
+   engine (since v1). Four built-in presets (`permissive`, `safety`,
+   `strict`, `audit-only`); user overrides + custom rules layered on
+   top. Active preset stored inside the vault. See §3.4 for the
+   query shape.
 7. **Shared context** — read-only access to cross-agent shared
    state surfaced by the user (a small key/value namespace).
 
@@ -68,8 +70,15 @@ A conforming implementation provides:
 
 This protocol is versioned with a single integer `protocolVersion`.
 
-- **v0** — initial capture (this document). 8 tools, 6 resource
-  URIs, default-allow policy stub.
+- **v0** — initial capture. 8 tools, 6 resource URIs, default-allow
+  policy stub.
+- **v1** — policy engine wired: `hestia_query_policy` returns real
+  decisions from a rule-based engine with 4 built-in presets. The
+  response shape gains `ruleId`, `ruleName`, and `constraints` fields
+  (back-compat: `policyId` retained as alias of `ruleId`). Vault
+  schema extended (v1 → v2) to store the active preset, per-rule
+  overrides, and custom rules alongside credentials. `vault_set`
+  audit chain entry is now emitted on credential writes.
 - Bumps follow the rule: **any change to the wire shape of a tool's
   input or output, addition/removal of tools or resources, or
   change to error code semantics, requires a version bump.**
@@ -194,8 +203,8 @@ implementation-defined object.
 ### 3.4 `hestia_query_policy`
 
 Query the policy engine for an allow/deny/warn decision on a
-pending action. In v0 the engine is a **default-allow stub**;
-real engine arrives in v1.
+pending action. Backed by a real rule engine since v1 (was a
+default-allow stub in v0).
 
 **Input:**
 ```json
@@ -207,18 +216,29 @@ real engine arrives in v1.
 ```
 `action_id` REQUIRED.
 
-**Output:**
+**Output (v1):**
 ```json
 {
   "decision": "allow",
-  "reason": "phase 1: default-allow (real policy engine in session 3)",
-  "policyId": null,
-  "enforced": true
+  "reason": "Matched rule: Allow read-only tools",
+  "ruleId": "allow-read-tools",
+  "ruleName": "Allow read-only tools",
+  "policyId": "allow-read-tools",
+  "enforced": true,
+  "constraints": [
+    "policy:policy:abc123...",
+    "decision:allow",
+    "rule:allow-read-tools"
+  ]
 }
 ```
-`decision` is one of `"allow"`, `"deny"`, `"warn"`. `policyId` MAY
-be `null` (default-allow path); when set, it's a stable rule
-identifier the orchestrator can log.
+`decision` is one of `"allow"`, `"deny"`, `"warn"`. `ruleId` MAY be
+`null` (default-policy path); when set, it's a stable rule identifier
+the orchestrator can log. `ruleName` is a human-readable label
+(`null` on default-policy paths). `policyId` is an alias of `ruleId`
+kept for v0 SDK back-compat — new code SHOULD read `ruleId`.
+`constraints` is an audit-trail-friendly list of `policy:`, `decision:`,
+`rule:` namespaced strings, always at least three entries when present.
 
 **Errors:** `hestia.action_not_found`, `hestia.policy_denied` (when
 deny is enforced), `hestia.internal_error`.
@@ -416,11 +436,20 @@ via serializer hints.
 {
   "decision": "allow",
   "reason": "...",
-  "policyId": "rule-id-or-null",
-  "enforced": true
+  "ruleId": "deny-destructive-commands",
+  "ruleName": "Block destructive shell commands",
+  "policyId": "deny-destructive-commands",
+  "enforced": true,
+  "constraints": [
+    "policy:policy:<hex>",
+    "decision:deny",
+    "rule:deny-destructive-commands"
+  ]
 }
 ```
-`decision` is one of `"allow"`, `"deny"`, `"warn"`.
+`decision` is one of `"allow"`, `"deny"`, `"warn"`. `ruleId` and
+`ruleName` are `null` on default-policy decisions. `policyId` is
+the v0 alias of `ruleId` retained for back-compat.
 
 ### 5.5 TrustState
 

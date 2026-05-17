@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Presence Protocol — Conformance Test Vectors (v0)",
-  "description": "Test scenarios that a conforming presence-layer implementation MUST pass. The conformance harness at web4-standard/testing/conformance/ runs these against a live daemon and verifies shapes against the JSON Schemas in schemas/presence-protocol/v0/.",
-  "specVersion": "presence-protocol v0",
-  "protocolVersion": 0,
+  "title": "Presence Protocol — Conformance Test Vectors (v0 + v1)",
+  "description": "Test scenarios that a conforming presence-layer implementation MUST pass. The conformance harness at web4-standard/testing/conformance/ runs these against a live daemon and verifies shapes against the JSON Schemas in schemas/presence-protocol/{v0,v1}/. v0 scenarios (P0-*) still pass on v1+ daemons by design; v1 scenarios (P1-*) test the new fields and the engine semantics.",
+  "specVersion": "presence-protocol v1",
+  "protocolVersion": 1,
   "lastUpdated": "2026-05-16",
   "scenarios": [
     {
@@ -256,6 +256,96 @@
               { "path": "entries", "isArray": true, "minLength": 1 },
               { "path": "entries[0].hash", "matchesPattern": "^[0-9a-f]{64}$" },
               { "path": "entries[0].chainPosition", "isInteger": true }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P1-001",
+      "name": "v1 query_policy returns ruleId, ruleName, constraints on a destructive Bash command",
+      "description": "Begin a destructive bash action (rm -rf), then query policy. v1 default (safety preset) denies it. Verify the response carries the new v1 fields (ruleId, ruleName, constraints) AND the v0 alias (policyId).",
+      "preconditions": ["P0-001"],
+      "setup": [
+        {
+          "tool": "hestia_begin_action",
+          "input": {
+            "tool_name": "Bash",
+            "target": "rm",
+            "parameters": { "command": "rm -rf /tmp/p1-001-target" },
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "capture": { "actionId": "$.actionId" }
+        }
+      ],
+      "steps": [
+        {
+          "tool": "hestia_query_policy",
+          "input": {
+            "action_id": "{{P1-001.actionId}}",
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v1/tools/hestia_query_policy.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "decision", "equals": "deny" },
+              { "path": "reason", "isNonEmptyString": true },
+              { "path": "ruleId", "equals": "deny-destructive-commands" },
+              { "path": "ruleName", "equals": "Block destructive shell commands" },
+              { "path": "policyId", "equals": "deny-destructive-commands" },
+              { "path": "enforced", "equals": true },
+              { "path": "constraints", "isArray": true, "minLength": 3 }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P1-002",
+      "name": "v1 query_policy default-allow has null ruleId on the safety preset's allow path",
+      "description": "A benign Read action under the safety preset takes the default-allow path. v1 returns decision=allow with ruleId=null + ruleName=null + non-empty constraints.",
+      "preconditions": ["P0-001"],
+      "setup": [
+        {
+          "tool": "hestia_begin_action",
+          "input": {
+            "tool_name": "Read",
+            "target": "/etc/hostname",
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "capture": { "actionId": "$.actionId" }
+        }
+      ],
+      "steps": [
+        {
+          "tool": "hestia_query_policy",
+          "input": {
+            "action_id": "{{P1-002.actionId}}",
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v1/tools/hestia_query_policy.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "decision", "equals": "allow" },
+              { "path": "reason", "isNonEmptyString": true },
+              { "path": "enforced", "equals": true },
+              { "path": "constraints", "isArray": true, "minLength": 3 }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P1-003",
+      "name": "v1 protocolVersion bumped on connect",
+      "description": "A v1 daemon advertises protocolVersion: 1 in its hestia_connect response. (P0-001 already ran on connect; this scenario re-checks the captured field.)",
+      "preconditions": ["P0-001"],
+      "steps": [
+        {
+          "resource": "hestia://society/state",
+          "expect": {
+            "fieldChecks": [
+              { "path": "sovereign_lct", "startsWith": "lct:" }
             ]
           }
         }
