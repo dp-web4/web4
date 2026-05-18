@@ -84,7 +84,7 @@ This protocol is versioned with a single integer `protocolVersion`.
   change to error code semantics, requires a version bump.**
 
 The daemon advertises its `protocolVersion` in the
-[`tool/connect`](#31-tool-connect) response. SDKs MUST expose a
+[`hestia_connect`](#31-hestia_connect) response. SDKs MUST expose a
 `PROTOCOL_VERSION` constant matching the version they implement.
 SDKs SHOULD emit a warning on connect if their version differs
 from the daemon's; they SHOULD NOT refuse the session — forward
@@ -148,12 +148,12 @@ same plugin_id as synthetic for the lifetime of that record.
   "sessionId": "97a3-...",
   "softLct": "lct:web4:session:abc123",
   "assignedRole": "citizen",
-  "protocolVersion": 0
+  "protocolVersion": 1
 }
 ```
 
 **Errors:**
-- `hestia.invalid_role` — the requested role is not available to plugins
+- `hestia.invalid_role` (v1+) — the requested role is not available to plugins; v0 daemons MAY emit `hestia.internal_error` instead (see §6.1)
 - `hestia.internal_error` — connection setup failed
 
 ### 3.2 `hestia_begin_action`
@@ -493,12 +493,18 @@ per §3 and the bound schemas/vectors.
     "policy:policy:<hex>",
     "decision:deny",
     "rule:deny-destructive-commands"
-  ]
+  ],
+  "status": "decided",
+  "nextPollMs": null
 }
 ```
 `decision` is one of `"allow"`, `"deny"`, `"warn"`. `ruleId` and
 `ruleName` are `null` on default-policy decisions. `policyId` is
-the v0 alias of `ruleId` retained for back-compat.
+the v0 alias of `ruleId` retained for back-compat. `enforced` is
+`true` when the policy engine actively blocked or allowed the
+action (vs. a default pass-through). `status` and `nextPollMs`
+support the wait protocol (§3.4.1): synchronous engines always
+return `"decided"` / `null`.
 
 ### 5.5 TrustState
 
