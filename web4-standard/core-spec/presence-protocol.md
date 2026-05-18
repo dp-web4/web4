@@ -82,6 +82,12 @@ This protocol is versioned with a single integer `protocolVersion`.
 - Bumps follow the rule: **any change to the wire shape of a tool's
   input or output, addition/removal of tools or resources, or
   change to error code semantics, requires a version bump.**
+  Exception: **optional additive fields** (new keys that older readers
+  can safely ignore) are back-compatible and do NOT trigger a bump.
+  `status`/`nextPollMs` (output, v1 back-compat addition) and
+  `synthetic` (input, v1 back-compat addition) were both added under
+  this exception. Removals, renames, type changes, or new required
+  fields always bump.
 
 The daemon advertises its `protocolVersion` in the
 [`hestia_connect`](#31-hestia_connect) response. SDKs MUST expose a
@@ -141,6 +147,8 @@ This is a self-declaration: implementations MAY honor it without
 verification. Once a plugin_id has been observed with `synthetic:
 true`, the presence layer MAY treat all subsequent activity from the
 same plugin_id as synthetic for the lifetime of that record.
+(**Not yet conformed** — no JSON Schema, no conformance vector, no
+CHANGELOG entry. Tracked in §8 drift table. See C5 audit P2.)
 
 **Output:**
 ```json
@@ -642,7 +650,7 @@ matches §3.4 and §5.4.
 
 ---
 
-## 8. Implementation drift (as of 2026-05-16)
+## 8. Implementation drift (as of 2026-05-18)
 
 Captured here because the discipline is only as good as the
 honesty about where it isn't yet held.
@@ -651,23 +659,34 @@ honesty about where it isn't yet held.
 |---|---|---|
 | `PROTOCOL_VERSION` constant exists only in Rust SDK | TS, Python SDKs | Add to both — covered by `1a-4`. |
 | `TrustState` is missing `entityId`, `successCount`, `successRate` in all SDKs | All 3 SDKs | Add fields — covered by `1a-4`. |
-| Error codes `policy_denied`, `vault_denied`, `invalid_role` referenced by SDKs but never emitted by daemon | Daemon | Emit them when the policy engine lands in v1. |
+| ~~Error codes `policy_denied`, `vault_denied`, `invalid_role` referenced by SDKs but never emitted by daemon~~ | ~~Daemon~~ | **Resolved in v1.** The policy engine is wired (v1, 2026-05-16); these codes are now emittable. §6.1 marks them `(v1+)`. |
 | `WitnessEntry.timestamp` is a string in SDK types but parsed as `chrono::DateTime` in Rust | Rust SDK | Internal — wire format is the string. No spec change. |
 | Daemon's `hestia://society/state` resource returns `trust_states_known` (snake_case) | None — not drift | §3/§4.1 fix `snake_case` as the normative casing for resource bodies, consistent with the §7-bound conformance vectors (`sovereign_lct`, `chain_length`, …). No rename: the earlier camelCase aspiration contradicted the bound vectors. |
+| `synthetic` field in §3.1 `hestia_connect` input has no JSON Schema, no conformance vector, no CHANGELOG entry | Spec ↔ artifacts | Discipline gap (C5 audit P2). No v1 `hestia_connect` schema exists (only `v0/tools/hestia_connect.schema.json`); creating one is a structural prerequisite. Until then, `synthetic` is spec-documented but not artifact-conformed. |
 
 ---
 
 ## 9. Open work tracked elsewhere
 
-- **Policy engine** — port from `claude-code/plugins/web4-governance/`
-  into Hestia core; replaces the default-allow stub. Bumps protocol
-  to v1. See `private-context/strategy/2026-05-16-embodied-stack-refinement.md`.
-- **Policy state in vault** — vault schema v1 → v2 to add
+### Completed in v1
+
+- ~~**Policy engine**~~ — ported from `claude-code/plugins/web4-governance/`
+  into Hestia core (v1, 2026-05-16). Four built-in presets; real
+  rule-based evaluation. See CHANGELOG v1 entry.
+- ~~**Policy state in vault**~~ — vault schema v1 → v2 shipped with
   `active_preset`, `overrides`, `custom_rules`. Same v1 protocol
-  bump.
+  bump. See CHANGELOG v1 entry.
+
+### Still pending
+
 - **Hardbound parity** — implement this spec against a hardware-
   sealed vault (SealedVault trait from `hardbound-pak`). Same
   wire protocol; different storage backend.
 - **Outward MCP cross-references** — once both protocols are
   stable, document the call graph from inward-MCP `record_outcome`
   into outward-MCP cross-society R7 actions.
+- **`synthetic` discipline completion** — create a v1
+  `hestia_connect` schema, add a conformance vector for `synthetic`,
+  and add a CHANGELOG sub-entry. Prerequisite: the v1 schema
+  directory currently has no `hestia_connect` schema (structural gap
+  identified in C5 audit P2). Tracked in §8 drift table.
