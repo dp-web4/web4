@@ -97,10 +97,19 @@ via content negotiation, but this is not required for v0.
 
 ## 3. Tool surface
 
-All tool calls follow standard MCP JSON-RPC semantics. The wire
-format for tool input arguments is **camelCase** JSON; tool output
-is also camelCase. Timestamps are ISO-8601 UTC strings. UUIDs are
-RFC 4122 v4 hex with dashes. Session IDs are UUIDs.
+All tool calls follow standard MCP JSON-RPC semantics. Wire casing
+is split by surface and is fixed by the JSON Schemas in
+`web4-standard/schemas/presence-protocol/` (normative — see §7):
+
+- **Tool input arguments are `snake_case`** (`plugin_id`,
+  `host_agent`, `action_id`, …), as the input schemas require.
+- **Tool output and all §5 type-catalog shapes are `camelCase`**
+  (`sessionId`, `softLct`, `protocolVersion`, …).
+- **§4 resource bodies are `snake_case`** (`sovereign_lct`,
+  `chain_length`, …), matching the bound conformance vectors.
+
+Timestamps are ISO-8601 UTC strings. UUIDs are RFC 4122 v4 hex
+with dashes. Session IDs are UUIDs.
 
 The eight tools below MUST be implemented by a conforming
 presence layer.
@@ -426,9 +435,12 @@ All resource bodies are JSON, mime type `application/json`.
 
 ## 5. Type catalog
 
-All wire shapes use **camelCase keys** regardless of the source
-language's native convention. Languages map to their native casing
-via serializer hints.
+The type-catalog shapes below — and all tool **output** shapes —
+use **camelCase keys** regardless of the source language's native
+convention. Languages map to their native casing via serializer
+hints. This camelCase rule does **not** extend to tool *input*
+arguments or §4 resource bodies, both of which are `snake_case`
+per §3 and the bound schemas/vectors.
 
 ### 5.1 Session
 
@@ -610,6 +622,13 @@ A conforming SDK implementation MUST:
    present in tool results.
 4. Pass the conformance test scenarios against a reference daemon.
 
+**Precedence.** Where this document's prose and the JSON Schemas
+at `web4-standard/schemas/presence-protocol/` (or the conformance
+vectors bound in item 5) disagree about a wire shape — including
+key casing — the Schemas and vectors are normative and the prose
+is in error. The Schemas directory is normatively bound by this
+clause, not only the vectors JSON.
+
 Conformance does not require implementing the v0 policy engine
 stub literally; an implementation MAY return real policy
 decisions earlier than the spec mandates, provided the shape
@@ -628,7 +647,7 @@ honesty about where it isn't yet held.
 | `TrustState` is missing `entityId`, `successCount`, `successRate` in all SDKs | All 3 SDKs | Add fields — covered by `1a-4`. |
 | Error codes `policy_denied`, `vault_denied`, `invalid_role` referenced by SDKs but never emitted by daemon | Daemon | Emit them when the policy engine lands in v1. |
 | `WitnessEntry.timestamp` is a string in SDK types but parsed as `chrono::DateTime` in Rust | Rust SDK | Internal — wire format is the string. No spec change. |
-| Daemon's `hestia://society/state` resource returns `trust_states_known` (snake_case) | Daemon | Rename to `trustStatesKnown` for camelCase consistency in v1. |
+| Daemon's `hestia://society/state` resource returns `trust_states_known` (snake_case) | None — not drift | §3/§4.1 fix `snake_case` as the normative casing for resource bodies, consistent with the §7-bound conformance vectors (`sovereign_lct`, `chain_length`, …). No rename: the earlier camelCase aspiration contradicted the bound vectors. |
 
 ---
 
