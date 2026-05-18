@@ -95,27 +95,22 @@ class TestTensorConformance:
         assert trust_level(t3.composite) == vec["expected"]["level"]
 
     def test_t3_explicit_aggregate(self) -> None:
-        """t3-002: Check aggregate computation.
+        """t3-002: Check weighted composite aggregate.
 
-        CONFORMANCE GAP: The conformance vector uses unweighted mean
-        ((0.9+0.85+0.7)/3 = 0.8167) while the Python SDK uses weighted
-        composite (0.4*0.9 + 0.3*0.85 + 0.3*0.7 = 0.825). Both are
-        classified 'high' — the behavioral property holds — but the
-        exact numeric value diverges. This is the same divergence
-        class as Sprint 47 audit finding (T3/V3 composite formula).
+        Vector now specifies the spec-canonical weighted composite
+        (talent=0.4, training=0.3, temperament=0.3 per §10.2).
+        Previously used unweighted mean; corrected to match the
+        protocol-invariant weights declared in the parameter
+        governance index.
         """
         vec = self.suite["t3_vectors"][1]
         inp = vec["input"]
         t3 = T3(talent=inp["talent"], training=inp["training"], temperament=inp["temperament"])
         expected_aggregate = vec["expected"]["aggregate"]
-        # Behavioral: both should be > 0.8 (high trust)
-        assert t3.composite >= 0.8
-        # Exact numeric comparison — expected to fail due to weight divergence
-        if abs(t3.composite - expected_aggregate) >= 1e-10:
-            pytest.xfail(
-                f"T3 aggregate divergence: SDK={t3.composite:.6f} vs "
-                f"vector={expected_aggregate:.6f} (weighted vs unweighted mean)"
-            )
+        assert abs(t3.composite - expected_aggregate) < 1e-10, (
+            f"T3 weighted composite: SDK={t3.composite:.6f} vs "
+            f"vector={expected_aggregate:.6f}"
+        )
 
     # ── t3-003: Positive outcome update ────────────────────────
 
@@ -191,28 +186,35 @@ class TestTensorConformance:
     # ── t3-006: Decay ──────────────────────────────────────────
 
     def test_t3_decay_behavioral(self) -> None:
-        """t3-006: Decay moves dimensions toward 0.5.
+        """t3-006: Decay — talent stable, training decays, temperament recovers.
 
-        CONFORMANCE GAP: The vector expects talent to decrease under
-        decay, but the Python SDK's spec-aligned implementation treats
-        Talent as invariant to decay (Sprint 44 normative invariant:
-        'Talent does not decay'). Training decays, Temperament recovers.
-        The vector uses days_inactive/decay_rate parameterization while
-        the SDK uses months. We test what the SDK supports.
+        Vector now asserts talent_unchanged (spec §2.3 normative invariant:
+        'Talent does not diminish through inactivity. This is a normative
+        protocol property, not a tunable parameter.'). Previously expected
+        talent to decrease; corrected per §10.2 protocol-invariant parameters.
         """
         vec = self.suite["t3_vectors"][5]
         initial = T3(**vec["initial"])
         # SDK decay uses months; vector uses days_inactive=30 ≈ 1 month
         decayed = initial.decay(months=1.0)
 
-        # Training should decrease (decay) — both SDK and vector agree
+        # Talent MUST NOT decay (protocol invariant, §2.3 + §10.2)
+        if vec["expected"].get("talent_unchanged"):
+            assert decayed.talent == initial.talent, (
+                f"Talent must not decay (protocol invariant): "
+                f"initial={initial.talent}, decayed={decayed.talent}"
+            )
+
+        # Training should decrease (decay toward 0.5 from above)
         assert decayed.training < initial.training, "training should decay"
-        # Talent: SDK keeps stable; vector expects decrease
-        if vec["expected"].get("talent_less_than_initial"):
-            if decayed.talent >= initial.talent:
-                pytest.xfail(
-                    "T3 decay: SDK keeps talent stable (normative invariant), vector expects talent to decrease"
-                )
+
+        # Temperament recovers: +0.01/month (spec §2.3, §10.3)
+        # Recovery is a fixed positive increment, not move-toward-neutral
+        if vec["expected"].get("temperament_recovers"):
+            assert decayed.temperament > initial.temperament, (
+                f"Temperament should recover (increase): "
+                f"initial={initial.temperament}, decayed={decayed.temperament}"
+            )
 
     # ── v3-001: Neutral V3 ─────────────────────────────────────
 
@@ -561,22 +563,13 @@ class TestR6R7Conformance:
         if "t3_dimensions_present" in exp:
             for dim in exp["t3_dimensions_present"]:
                 assert dim in rep.t3_delta, f"Missing T3 dimension: {dim}"
-        # Check V3 dimension presence
-        # CONFORMANCE GAP: The SDK's compute_reputation() only produces
-        # V3 deltas for veracity and validity — not valuation. Valuation
-        # is an economic dimension updated via ATP settlement, not
-        # behavioral quality signals. The vector expects all 3 V3 dims.
+        # Check V3 dimension presence — vector now correctly lists only
+        # behavioral V3 dimensions (veracity, validity). Valuation is an
+        # economic dimension updated via ATP settlement (spec §3.3), not
+        # behavioral quality signals.
         if "v3_dimensions_present" in exp:
-            sdk_v3_dims = {"veracity", "validity"}  # SDK-supported
             for dim in exp["v3_dimensions_present"]:
-                if dim in sdk_v3_dims:
-                    assert dim in rep.v3_delta, f"Missing V3 dimension: {dim}"
-                elif dim not in rep.v3_delta:
-                    pytest.xfail(
-                        f"V3 dimension '{dim}' not in reputation delta — "
-                        f"SDK only updates {sdk_v3_dims} via behavioral quality; "
-                        f"'{dim}' is an economic dimension updated via ATP settlement"
-                    )
+                assert dim in rep.v3_delta, f"Missing V3 dimension: {dim}"
 
     # ── r7-rep-002: Negative reputation ────────────────────────
 
