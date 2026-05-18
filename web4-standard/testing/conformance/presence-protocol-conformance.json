@@ -351,6 +351,7 @@
             "protocol_version": 1
           },
           "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_connect.schema.json#/$defs/output",
             "fieldChecks": [
               { "path": "protocolVersion", "equals": 1 },
               { "path": "sessionId", "matchesPattern": "^[0-9a-f-]{36}$" },
