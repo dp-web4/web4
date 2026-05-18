@@ -148,7 +148,7 @@ same plugin_id as synthetic for the lifetime of that record.
   "sessionId": "97a3-...",
   "softLct": "lct:web4:session:abc123",
   "assignedRole": "citizen",
-  "protocolVersion": 0
+  "protocolVersion": 1
 }
 ```
 
@@ -493,12 +493,18 @@ per §3 and the bound schemas/vectors.
     "policy:policy:<hex>",
     "decision:deny",
     "rule:deny-destructive-commands"
-  ]
+  ],
+  "status": "decided",
+  "nextPollMs": null
 }
 ```
 `decision` is one of `"allow"`, `"deny"`, `"warn"`. `ruleId` and
 `ruleName` are `null` on default-policy decisions. `policyId` is
-the v0 alias of `ruleId` retained for back-compat.
+the v0 alias of `ruleId` retained for back-compat. `enforced` is
+`true` when the policy engine actively blocked or allowed the
+action (vs. a default pass-through). `status` and `nextPollMs`
+support the wait protocol (§3.4.1): synchronous engines always
+return `"decided"` / `null`.
 
 ### 5.5 TrustState
 
