@@ -4,7 +4,7 @@
   "description": "Test scenarios that a conforming presence-layer implementation MUST pass. The conformance harness at web4-standard/testing/conformance/ runs these against a live daemon and verifies shapes against the JSON Schemas in schemas/presence-protocol/{v0,v1}/. v0 scenarios (P0-*) still pass on v1+ daemons by design; v1 scenarios (P1-*) test the new fields and the engine semantics.",
   "specVersion": "presence-protocol v1",
   "protocolVersion": 1,
-  "lastUpdated": "2026-05-16",
+  "lastUpdated": "2026-05-18",
   "scenarios": [
     {
       "id": "P0-001",
@@ -338,14 +338,58 @@
     {
       "id": "P1-003",
       "name": "v1 protocolVersion bumped on connect",
-      "description": "A v1 daemon advertises protocolVersion: 1 in its hestia_connect response. (P0-001 already ran on connect; this scenario re-checks the captured field.)",
-      "preconditions": ["P0-001"],
+      "description": "A v1 daemon advertises protocolVersion: 1 in its hestia_connect response. Connects with protocol_version: 1 and verifies the returned protocolVersion field.",
       "steps": [
         {
-          "resource": "hestia://society/state",
+          "tool": "hestia_connect",
+          "input": {
+            "plugin_id": "conformance-v1-check",
+            "plugin_version": "0.0.1",
+            "host_agent": "conformance-runner",
+            "host_agent_version": "0.0.1",
+            "requested_role": "citizen",
+            "protocol_version": 1
+          },
           "expect": {
             "fieldChecks": [
-              { "path": "sovereign_lct", "startsWith": "lct:" }
+              { "path": "protocolVersion", "equals": 1 },
+              { "path": "sessionId", "matchesPattern": "^[0-9a-f-]{36}$" },
+              { "path": "softLct", "startsWith": "lct:" },
+              { "path": "assignedRole", "equals": "citizen" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "P1-004",
+      "name": "v1 query_policy returns wait-protocol default values",
+      "description": "§3.4.1 mandates orchestrators MUST support both branches of the wait protocol today. v1 daemons currently return status='decided' and nextPollMs=null (the defaults per the v1 schema). This vector verifies those default values are present.",
+      "preconditions": ["P0-001"],
+      "setup": [
+        {
+          "tool": "hestia_begin_action",
+          "input": {
+            "tool_name": "Read",
+            "target": "/tmp/p1-004-wait-check",
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "capture": { "actionId": "$.actionId" }
+        }
+      ],
+      "steps": [
+        {
+          "tool": "hestia_query_policy",
+          "input": {
+            "action_id": "{{P1-004.actionId}}",
+            "session_id": "{{P0-001.sessionId}}"
+          },
+          "expect": {
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v1/tools/hestia_query_policy.schema.json#/$defs/output",
+            "fieldChecks": [
+              { "path": "decision", "isIn": ["allow", "deny", "warn"] },
+              { "path": "status", "equals": "decided" },
+              { "path": "nextPollMs", "equals": null }
             ]
           }
         }
