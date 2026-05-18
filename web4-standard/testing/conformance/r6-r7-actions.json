@@ -103,7 +103,8 @@
         "net_value_change_positive": true,
         "role_lct_matches_input": true,
         "t3_dimensions_present": ["talent", "training", "temperament"],
-        "v3_dimensions_present": ["valuation", "veracity", "validity"]
+        "v3_dimensions_present": ["veracity", "validity"],
+        "v3_note": "Valuation is an economic dimension updated via ATP settlement (spec §3.3), not behavioral quality signals. Only veracity and validity are updated by reputation deltas."
       }
     },
     {
