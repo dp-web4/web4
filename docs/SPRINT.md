@@ -1,9 +1,60 @@
 # Web4 Sprint Plan
 
 **Created**: 2026-03-14
-**Updated**: 2026-05-15 (Sprint 53)
+**Updated**: 2026-05-19 (Sprint 55)
 **Phase**: Development
 **Track**: web4 (Legion)
+
+---
+
+## Sprint 55: SDK v0.28.0 Release Housekeeping (2026-05-19)
+
+Version bump and documentation update consolidating post-Sprint-53 work:
+cross-society MCP types (PR #195/#199), conformance xfail resolution (PR #210),
+and the informal C-series audit/remediation thread (PRs #197, #200-#211).
+
+### T1: v0.28.0 release housekeeping
+**Status**: DONE
+**Completed**: 2026-05-19
+**Authorized by**: Established release housekeeping pattern (Sprints 21, 23,
+26, 31, 33, 34, 39, 53). Policy-reviewed and approved.
+**Scope**:
+1. Version bump 0.27.0 -> 0.28.0 in `pyproject.toml`.
+2. CHANGELOG entry for v0.28.0 covering PRs #195, #199, #210.
+3. `__init__.py` docstring: corrected stale counters (exports 369->376,
+   tests 2709->2749), updated version note.
+4. README: version, export count (369->376), test count (2709->2749),
+   error categories (6->7 with Cross-Society), project structure counts.
+5. `examples/quickstart.py`: docstring version.
+6. Test assertions: version strings in `test_cli.py` and `test_package_api.py`.
+7. `docs/SPRINT.md` and `SESSION_FOCUS.md` updated.
+
+**Result**: 0 new files. All version references consistent. 376 exports,
+2749 tests (2744 passed, 5 xfailed conformance gaps).
+
+---
+
+## Sprint 54: Spec Audit & Remediation Series (2026-05-15 – 2026-05-18)
+
+Informal C-series: internal-consistency audits of `mcp-protocol.md` (C1/C2)
+and `presence-protocol.md` (C5), §7.7 promotion tracking (C3), vector-freshness
+process (C4), and remediation PRs resolving audit findings. Also includes
+cross-society SDK types and conformance xfail resolution.
+
+**Note**: This sprint was not formally defined in advance. Work was proposed
+and policy-reviewed per session under v2 protocol. Recorded here retroactively
+as the formal Sprint 54 entry for continuity.
+
+### Work completed (PRs #195–#211)
+**Status**: DONE
+**Key deliverables**:
+- **C1**: MCP Protocol ↔ SDK alignment audit (`docs/audits/mcp-protocol-sdk-alignment-2026-05-15.md`)
+- **C2**: mcp-protocol.md internal-consistency audit (13 findings: 4 HIGH, 5 MEDIUM, 4 LOW) → PRs #200, #201, #203
+- **C3**: §7.7 promotion tracking stub (`docs/audits/s7.7-promotion-tracking-2026-05-16.md`) → PR #202
+- **C4**: Vector-freshness check process → PR #197
+- **C5**: presence-protocol.md internal-consistency audit (2 HIGH, 6 MEDIUM, 5 LOW) → PRs #206, #207, #208, #209
+- **SDK**: Cross-society types (PR #195), test coverage (PR #199), 3 conformance xfails resolved (PR #210)
+- **Docs**: CHANGELOG staleness resolved (PR #211), whitepaper no-change checks
 
 ---
 

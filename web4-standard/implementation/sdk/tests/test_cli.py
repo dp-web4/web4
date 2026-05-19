@@ -46,7 +46,7 @@ class TestInfo:
         out = capsys.readouterr().out
         assert rc == 0
         assert "web4" in out
-        assert "0.27.0" in out
+        assert "0.28.0" in out
 
     def test_info_shows_module_count(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = main(["info"])
@@ -617,7 +617,7 @@ class TestSmoke:
     def test_info(self) -> None:
         r = _run_cli(["info"])
         assert r.returncode == 0
-        assert "0.27.0" in r.stdout
+        assert "0.28.0" in r.stdout
 
     def test_validate_valid_doc(self) -> None:
         from web4.trust import T3
