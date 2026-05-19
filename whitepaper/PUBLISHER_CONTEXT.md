@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-05-18
+**Last Updated**: 2026-05-19
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,16 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-19: Publisher Maintenance - Conformance Stat Calibration (xfail count 8 → 5)
+- Four commits since 2026-05-18 no-change check (9ace6d7) reviewed. Three of four are the same C5/conformance discipline stream documented in the 2026-05-18 entry. **One substantive whitepaper-affecting drift identified and corrected**: the Executive Summary's published claim of "8 xfailed gaps" is now 5, post #210.
+- **Conformance vector-spec reconciliation (#210, 3f12462, 2026-05-18, landed *after* yesterday's no-change check at 9ace6d7):** Three of the 8 documented xfails turned out to be **vector errors, not architectural gaps** — vectors were authored before Sprints 44/47/48 strengthened the normative spec, and contradicted what the protocol-invariant §10.2 weights / §2.3 Talent-no-decay invariant / §3.3 V3-valuation-as-economic now require. Fixes: t3-002 weighted composite (was unweighted mean); t3-006 talent_unchanged + temperament-recovery (was decay); r7-rep-001 V3 = veracity+validity only (was all 3 dims). Suite: 34 passed / 5 xfailed (was 31 / 8). **Remaining 5 xfails are genuine architectural gaps requiring operator decisions**, not vector errors — sharper framing than the prior catch-all "documented gaps" wording.
+  - **Executive Summary correction**: line 41 wording "39 tests; 8 xfailed gaps documented for the next operator architectural-decision pass" → "39 tests; 5 xfailed gaps awaiting operator architectural decisions". Tightens framing in addition to fixing the number. Rebuilt `build/WEB4_Whitepaper_Complete.md` and `docs/whitepaper-web/WEB4_Whitepaper_Complete.md` (3,798 lines, 252K). PDF + web artifacts not rebuilt (single-number prose edit, no structure change).
+- **C5 audit G4 — P1-003 fix + P1-004 add (#208, ac9de27, 2026-05-18):** P12: P1-003 ("v1 protocolVersion bumped on connect") previously didn't actually verify protocolVersion — now does a fresh `hestia_connect` and asserts `protocolVersion == 1` in the response. P13: new P1-004 verifies wait-protocol default values (`status == "decided"`, `nextPollMs == null` on v1 query_policy per §3.4.1). Closes the C5 audit's G4 group, completing the G1+G2+G3+G4 remediation cycle. 14 conformance scenarios (was 13). Spec-discipline; no whitepaper integration warranted (presence-protocol remains in DEFER per the §7.8 watch item).
+- **Conformance corpus consistency — P1-003 shapeMatchesSchema (#209, b5c9e87, 2026-05-19):** Adds `shapeMatchesSchema` assertion to the P1-003 connect step, bringing the new vector into shape with the corpus convention. Vector-quality discipline; no whitepaper relevance.
+- **presence-protocol CHANGELOG stale-section resolution (#211, 40e6228, 2026-05-19):** CHANGELOG hygiene — resolves a "Upcoming (planned)" v1 section that became stale after v1 actually shipped (the planned items moved to "Released" but the planning header was left behind). Doc-quality fix; no whitepaper relevance.
+- **No source/artifact rebuild needed for other sections** (build now aligned with 2026-05-19 source state from this maintenance pass).
+- Surface instinct: today's #210 is methodologically interesting — it surfaces that **conformance vectors can be wrong before the spec is**. When the spec evolves (Sprints 44/47/48 strengthened invariants) but vectors lag, the resulting "xfails" look architectural when they are actually staleness. The 3-of-8 reduction is therefore not "we fixed 3 gaps" but "3 of 8 weren't gaps in the first place — they were anachronistic vectors." The whitepaper's xfail count is the operator-facing number, and the framing in line 41 conflated the two failure modes — vector errors and architectural gaps. Sharpening the wording matters more than the number bump: "5 xfailed gaps awaiting operator architectural decisions" makes explicit that the *remaining* ones are operator-decision-bound. Worth carrying this disambiguation forward — when the Sprint 52 conformance-gap memo lands its next round of resolutions, the same care applies.
 
 ### 2026-05-18: Publisher Maintenance - No-Change Check (audit-driven spec discipline; presence-protocol DEFER continues; §7.7 promotion-gate stub identifies long-pole)
 - Eight commits since 2026-05-17 no-change check (1db7119) reviewed. None warrant whitepaper integration today; all are audit-driven internal-consistency clean-up of two specs already on the watch list (`presence-protocol.md` evolving / `mcp-protocol.md` §7.7 WIP). Pattern is healthy spec discipline closing audit findings before the spec stabilizes for whitepaper integration.
