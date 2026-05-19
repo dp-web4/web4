@@ -108,8 +108,7 @@ class TestTensorConformance:
         t3 = T3(talent=inp["talent"], training=inp["training"], temperament=inp["temperament"])
         expected_aggregate = vec["expected"]["aggregate"]
         assert abs(t3.composite - expected_aggregate) < 1e-10, (
-            f"T3 weighted composite: SDK={t3.composite:.6f} vs "
-            f"vector={expected_aggregate:.6f}"
+            f"T3 weighted composite: SDK={t3.composite:.6f} vs vector={expected_aggregate:.6f}"
         )
 
     # ── t3-003: Positive outcome update ────────────────────────
@@ -201,8 +200,7 @@ class TestTensorConformance:
         # Talent MUST NOT decay (protocol invariant, §2.3 + §10.2)
         if vec["expected"].get("talent_unchanged"):
             assert decayed.talent == initial.talent, (
-                f"Talent must not decay (protocol invariant): "
-                f"initial={initial.talent}, decayed={decayed.talent}"
+                f"Talent must not decay (protocol invariant): initial={initial.talent}, decayed={decayed.talent}"
             )
 
         # Training should decrease (decay toward 0.5 from above)
@@ -212,8 +210,7 @@ class TestTensorConformance:
         # Recovery is a fixed positive increment, not move-toward-neutral
         if vec["expected"].get("temperament_recovers"):
             assert decayed.temperament > initial.temperament, (
-                f"Temperament should recover (increase): "
-                f"initial={initial.temperament}, decayed={decayed.temperament}"
+                f"Temperament should recover (increase): initial={initial.temperament}, decayed={decayed.temperament}"
             )
 
     # ── v3-001: Neutral V3 ─────────────────────────────────────
