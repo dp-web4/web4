@@ -723,9 +723,7 @@ class CrossSocietyContext:
     sender_lct: str
     sender_society: str
     responding_society: str
-    interaction_type: CrossSocietyInteractionType = (
-        CrossSocietyInteractionType.ESTABLISHED
-    )
+    interaction_type: CrossSocietyInteractionType = CrossSocietyInteractionType.ESTABLISHED
     sender_role: str = ""
     responding_role_expected: str = ""
     applicable_law_oracle: str = ""
@@ -764,9 +762,7 @@ class CrossSocietyContext:
             if self.atp_settlement_amount:
                 settlement["amount"] = self.atp_settlement_amount
             if self.atp_settlement_exchange_rate:
-                settlement["exchange_rate"] = dict(
-                    self.atp_settlement_exchange_rate
-                )
+                settlement["exchange_rate"] = dict(self.atp_settlement_exchange_rate)
             cross["atp_settlement"] = settlement
         d["cross_society"] = cross
         d["trust_context"] = self.trust_context.to_dict()
@@ -800,14 +796,10 @@ class CrossSocietyContext:
             atp_settlement_currency=settlement.get("currency", ""),
             atp_settlement_amount=settlement.get("amount", 0),
             atp_settlement_exchange_rate=settlement.get("exchange_rate"),
-            trust_context=TrustContext.from_dict(
-                d.get("trust_context", {})
-            ),
+            trust_context=TrustContext.from_dict(d.get("trust_context", {})),
             mrh_depth=d.get("mrh_depth", 1),
             law_hash=d.get("law_hash", ""),
-            proof_of_agency=(
-                ProofOfAgency.from_dict(poa) if poa else None
-            ),
+            proof_of_agency=(ProofOfAgency.from_dict(poa) if poa else None),
         )
 
 
@@ -844,13 +836,9 @@ class ReputationEnvelope:
         if self.responding_society:
             d["responding_society"] = self.responding_society
         if self.responding_society_signature:
-            d["responding_society_signature"] = (
-                self.responding_society_signature
-            )
+            d["responding_society_signature"] = self.responding_society_signature
         if self.trust_dimension_updates:
-            d["trust_dimension_updates"] = dict(
-                self.trust_dimension_updates
-            )
+            d["trust_dimension_updates"] = dict(self.trust_dimension_updates)
         if self.witness_signatures:
             d["witness_signatures"] = list(self.witness_signatures)
         if self.timestamp:
@@ -865,13 +853,9 @@ class ReputationEnvelope:
             outcome_class=OutcomeClass(d["outcome_class"]),
             outcome_quality=d.get("outcome_quality", 0.5),
             responding_society=d.get("responding_society", ""),
-            responding_society_signature=d.get(
-                "responding_society_signature", ""
-            ),
+            responding_society_signature=d.get("responding_society_signature", ""),
             trust_dimension_updates=d.get("trust_dimension_updates", {}),
-            propagation_scope=PropagationScope(
-                d.get("propagation_scope", "responding_society")
-            ),
+            propagation_scope=PropagationScope(d.get("propagation_scope", "responding_society")),
             witness_signatures=d.get("witness_signatures", []),
             timestamp=d.get("timestamp", ""),
         )
@@ -892,9 +876,7 @@ class MCPContextResource:
     name: str
     context_type: str = "session_state"
     description: str = ""
-    trust_requirements: TrustRequirements = field(
-        default_factory=TrustRequirements
-    )
+    trust_requirements: TrustRequirements = field(default_factory=TrustRequirements)
     atp_cost: int = 1
     ttl: int = 3600
     snapshot: Dict[str, Any] = field(default_factory=dict)
@@ -922,9 +904,7 @@ class MCPContextResource:
             name=d["name"],
             context_type=d.get("context_type", "session_state"),
             description=d.get("description", ""),
-            trust_requirements=TrustRequirements.from_dict(
-                d.get("trust_requirements", {})
-            ),
+            trust_requirements=TrustRequirements.from_dict(d.get("trust_requirements", {})),
             atp_cost=d.get("atp_cost", 1),
             ttl=d.get("ttl", 3600),
             snapshot=d.get("snapshot", {}),
