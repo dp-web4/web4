@@ -2,6 +2,34 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [0.28.0] - 2026-05-19
+
+Cross-society MCP types, conformance xfail resolution, error taxonomy expansion.
+
+### Added
+- **Cross-society MCP types** (PR #195) — implements §7.3–7.6 from `mcp-protocol.md`:
+  `CrossSocietyContext` envelope for cross-society MCP calls (§7.4),
+  `ReputationEnvelope` for signed R7 action outcomes (§7.3),
+  `MCPContextResource` for context resource definitions (§6.3),
+  `OutcomeClass`, `PropagationScope`, `CrossSocietyInteractionType` enums.
+  7 new exports (369→376).
+- **`CrossSocietyError` class** (PR #199) — 7th error category subclass with 6
+  `ErrorMeta` registry entries for §7.6 cross-society error codes (24→30 total codes,
+  6→7 categories).
+- **Cross-society test coverage** (PR #199) — 37 new tests covering enum values,
+  construction, defaults, `to_dict`/`from_dict` round-trips, frozen checks, and
+  package-level import verification.
+
+### Changed
+- **3 conformance xfails resolved** (PR #210) — reconciled test vectors `t3-002`
+  (weighted aggregate), `t3-006` (talent decay invariant), and `r7-rep-001` (V3
+  valuation scope) with normative spec. Conformance: 34 passed / 5 xfailed
+  (was 31/8).
+
+### Summary
+376 exports, 2749 tests (2744 passed, 5 xfailed conformance gaps), 23 modules,
+mypy --strict clean, ruff clean.
+
 ## [0.27.0] - 2026-05-15 (renamed to `web4-sdk` for PyPI release)
 
 ### Packaging

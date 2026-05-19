@@ -8,7 +8,7 @@ specified in the [web4-standard](https://github.com/dp-web4/web4) and works with
 network services — no async, no HTTP, no external dependencies beyond the Python
 standard library.
 
-**Version**: 0.27.0 | **Python**: 3.10+ | **License**: AGPL-3.0-or-later | **Typed**: PEP 561
+**Version**: 0.28.0 | **Python**: 3.10+ | **License**: AGPL-3.0-or-later | **Typed**: PEP 561
 
 > **Install name vs import name.** The distribution is published on PyPI as
 > **`web4-sdk`** (the unsuffixed `web4` PyPI name is held by an unrelated
@@ -98,7 +98,7 @@ The SDK contains 23 modules, all importable from the `web4` namespace:
 | `deserialize` | Generic JSON-LD deserialization dispatcher | `from_jsonld`, `from_jsonld_string`, `supported_types` |
 | `generate` | Produce minimal valid JSON-LD documents | `generate`, `generate_string`, `available_types` |
 
-369 symbols are exported from `web4.__init__`. All 23 submodules have `__all__` declarations.
+376 symbols are exported from `web4.__init__`. All 23 submodules have `__all__` declarations.
 
 ## MCP Server
 
@@ -186,7 +186,7 @@ except Web4Error as e:
     # {"type": "about:blank", "title": "...", "status": 403, "detail": "Binding was revoked"}
 ```
 
-Six error categories: Binding, Pairing, Witness, Authorization, Crypto, Protocol.
+Seven error categories: Binding, Pairing, Witness, Authorization, Crypto, Protocol, Cross-Society.
 
 ## Testing
 
@@ -201,13 +201,13 @@ python -m pytest tests/ --cov=web4
 mypy --strict web4/
 ```
 
-2709 tests, 97.8% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
+2749 tests, 97.8% coverage, mypy strict zero-error, CI across Python 3.10-3.13.
 
 ## Project Structure
 
 ```
 web4/                  # Python package (23 modules + MCP server)
-  __init__.py          # 369 re-exports
+  __init__.py          # 376 re-exports
   __main__.py          # CLI entry point (web4 info/validate/list-schemas/roundtrip/generate/selftest/trust)
   mcp_server.py        # MCP server entry point (web4-mcp)
   py.typed             # PEP 561 marker
@@ -217,7 +217,7 @@ web4/                  # Python package (23 modules + MCP server)
   generate.py          # Minimal valid JSON-LD document generation
   validation.py        # Schema validation
   ...                  # (18 more modules)
-tests/                 # 2709 tests
+tests/                 # 2749 tests
 schemas/               # JSON Schemas + JSON-LD contexts
 pyproject.toml         # Package metadata (single version source)
 ```

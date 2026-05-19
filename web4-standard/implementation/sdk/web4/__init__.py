@@ -27,8 +27,8 @@ Provides offline-capable primitives for:
 - Deserialization — generic JSON-LD dispatcher for all Web4 types
 - Generation — produce minimal valid JSON-LD documents for any Web4 type
 
-23 modules + MCP server, 369 exports, 2709 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
-v0.27.0: Society roles, Constraint alignment, conformance test runner, validate_minimum_viable.
+23 modules + MCP server, 376 exports, 2749 tests, 3 behavioral functions, 8 MCP tools, 7 CLI subcommands.
+v0.28.0: Cross-society MCP types, conformance xfail resolution, error taxonomy expansion.
 These modules define the canonical data types and algorithms specified in the web4-standard.
 They work offline (no network services required) and are designed to be
 imported by applications, services, and other SDKs that build on web4.
@@ -50,7 +50,7 @@ For module-specific imports (recommended for large applications)::
 try:
     from importlib.metadata import version as _pkg_version
 
-    __version__ = _pkg_version("web4")
+    __version__ = _pkg_version("web4-sdk")
 except Exception:
     __version__ = "0.0.0"  # fallback when not installed
 
