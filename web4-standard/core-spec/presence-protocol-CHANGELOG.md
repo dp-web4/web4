@@ -138,39 +138,23 @@ structured content. See spec §6.
 
 ---
 
-## Upcoming (planned)
+## Upcoming (deferred from v1)
 
-### v1 — policy engine + vault schema v2
+These items were explicitly deferred during v1 (see "Not yet
+implemented at v1" in the v1 section above, and "Known drift" in v0):
 
-Expected changes:
-
-- **`hestia_query_policy` returns a real decision.** Engine
-  ported from `claude-code/plugins/web4-governance/governance/`.
-  Four built-in presets: `permissive`, `safety`, `strict`,
-  `audit-only`. Wire shape extends to include `ruleName` and
-  `constraints` fields per the Python `PolicyEvaluation`.
-- **`hestia_begin_action` evaluates policy before assigning a
-  chain position.** A pre-action `deny` short-circuits — no chain
-  entry is appended and the response carries the policy reason.
-- **Daemon emits `policy_denied` errors** in the cases where v0
-  emitted `internal_error`.
-- **Vault state extended.** Schema v1 → v2 adds `policy` section
-  alongside `entries`. Same vault file, larger payload. Auto-
-  migration on first open of a v1 vault.
-- **`trust_states_known` → `trustStatesKnown`** in
-  `hestia://society/state` (case fix).
-
-Will require simultaneous bump of:
-- Hestia daemon (`hestia` crate on crates.io)
-- TypeScript SDK (`@hestia-tools/plugin-sdk` on npm)
-- Python SDK (`hestia-plugin-sdk` on PyPI — first publish under
-  this name)
-- Rust SDK (`hestia-plugin-sdk` on crates.io — first publish)
-- `hardbound-pak` `PolicyDecision` trait to add `rule_name` +
-  `constraints`
-- Hardbound private repo to consume the new shape
-- Test vectors at
-  `web4-standard/testing/conformance/presence-protocol-conformance.json`
+- **Pre-action policy denial at `hestia_begin_action`.** Today the
+  orchestrator must explicitly call `hestia_query_policy` between
+  `begin_action` and tool execution. Auto-evaluation at `begin_action`
+  lands when we've seen enough real traffic to know the right defaults.
+- **Interactive vault approval flow.** `approvalToken` in `vault_get`
+  response is still always `null`.
+- **Hardbound parity.** Hardbound exposes the v1 trait surface from
+  `hardbound-pak`; an actual Hardbound implementation is its own
+  private workstream.
+- **`trust_states_known` → `trustStatesKnown`** case fix in
+  `hestia://society/state`. Noted as drift in v0 (deferred to v1)
+  but not resolved in the v1 release.
 
 ---
 
@@ -179,7 +163,8 @@ Will require simultaneous bump of:
 A protocol change PR must:
 
 1. Open this file and add the new version section above
-   "Upcoming (planned)".
+   "Upcoming (deferred from v1)". Update that section as items
+   are resolved or deferred to the next version.
 2. Describe every shape change in the entry.
 3. List which artifacts ship the same change in the PR.
 4. Update the spec (`presence-protocol.md`) to reflect the new
