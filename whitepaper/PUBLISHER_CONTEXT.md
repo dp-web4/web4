@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-05-19
+**Last Updated**: 2026-05-20
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,13 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-20: Publisher Maintenance - No-Change Check (single format-only SDK commit since 2026-05-19)
+- One commit since the 2026-05-19 conformance-stat-calibration pass (1663908): **#213 (b6c243c, 2026-05-19) — `ruff format` drift fix on `test_conformance.py` + `mcp.py`.** Format-only, explicitly "no semantic diff" per the commit; applies the format that makes SESSION_FOCUS.md's "ruff format --check passes with 0 changes" assertion factually true. Quality gates: 2749 passed / 5 xfailed; mypy strict clean. **No whitepaper relevance** — this is SDK-internal formatting, not a protocol-surface change, and the v0.28.0 SDK family is still pre-PyPI-publish (the Executive Summary's `web4-sdk v0.27.0 on PyPI` reference remains correct per the 2026-05-19 watch item).
+- **No source section changes since the 2026-05-19 build.** Verified: no commits touch `whitepaper/sections/*` since 1663908; `build/WEB4_Whitepaper_Complete.md` and `docs/whitepaper-web/WEB4_Whitepaper_Complete.md` both dated 2026-05-19 (254811 bytes, identical), aligned with current source. No rebuild needed.
+- **Live whitepaper sections verified clean of canonical-term drift** — grep for the documented wrong expansions (Lifecycle-Continuous Trust, Audit Trail Point, Attention Transfer Packet, Alignment Discharge Protocol, Triple Trust, Triple Value) across live `sections/*` (excluding archive) returns zero hits.
+- All Pending Updates watch items from prior passes carry forward unchanged (presence-protocol DEFER; §7.7 promotion gate; v0.28.0 → PyPI integration trigger; PUBLISHED.md v0.2.0 refresh coordination gap).
+- Surface instinct: the web4 stream has now spent five consecutive maintenance passes (2026-05-15 → 2026-05-20) on SDK/conformance/format discipline with zero whitepaper-body integration — a healthy quiet period where the spec corpus earns internal consistency between published-release surfaces. The next genuine integration trigger remains a registry publish (v0.28.0 → PyPI, surfacing the 376-export / 2749-test counts) or §7.7 reaching `status: Normative` per the promotion-tracking memo. Nothing in the current commit stream moves either gate; correct action is to hold.
 
 ### 2026-05-19: Publisher Maintenance - Conformance Stat Calibration (xfail count 8 → 5)
 - Four commits since 2026-05-18 no-change check (9ace6d7) reviewed. Three of four are the same C5/conformance discipline stream documented in the 2026-05-18 entry. **One substantive whitepaper-affecting drift identified and corrected**: the Executive Summary's published claim of "8 xfailed gaps" is now 5, post #210.
