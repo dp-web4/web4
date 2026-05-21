@@ -1,17 +1,21 @@
-# Web4 Published Artifacts (2026-04-28)
+# Web4 Published Artifacts
 
-The first public Web4 packages are live on crates.io and PyPI. This document records what shipped, where to find it, and how to pin it.
+This document records the package family releases, what shipped, where to find it, and how to pin it. For granular release notes, see the top-level [`CHANGELOG.md`](../../CHANGELOG.md).
 
 ---
 
-## Quick install
+## Current Release: v0.2.0 (2026-05-15)
+
+First coordinated release closing the publish-vs-main gap accumulated since v0.1.1 (2026-04-28). Roughly 17 days and 66 commits of substantive spec, SDK, and conformance work.
+
+### Quick install
 
 **Rust** (add to `Cargo.toml`):
 
 ```toml
 [dependencies]
-web4-core = "0.1"
-web4-trust-core = "0.1"
+web4-core = "0.2"
+web4-trust-core = "0.2"
 ```
 
 **Python**:
@@ -19,102 +23,85 @@ web4-trust-core = "0.1"
 ```bash
 pip install web4-core
 pip install web4-trust
+pip install web4-sdk        # high-level SDK (import web4)
 ```
 
----
+**JavaScript / WASM** (npm):
 
-## What was published
+```bash
+npm install web4-trust-core
+```
+
+### What was published
 
 | Package | Registry | Version | Released | License |
 |---|---|---|---|---|
-| `web4-core` | [crates.io](https://crates.io/crates/web4-core) | **0.1.1** (0.1.0 yanked) | 2026-04-28 | AGPL-3.0-or-later |
-| `web4-core` | [PyPI](https://pypi.org/project/web4-core/) | **0.1.1** | 2026-04-28 | AGPL-3.0-or-later |
-| `web4-trust-core` | [crates.io](https://crates.io/crates/web4-trust-core) | **0.1.1** (0.1.0 yanked) | 2026-04-28 | AGPL-3.0-or-later |
-| `web4-trust` | [PyPI](https://pypi.org/project/web4-trust/) | **0.1.1** | 2026-04-28 | AGPL-3.0-or-later |
+| `web4-core` | [crates.io](https://crates.io/crates/web4-core) | **0.2.0** | 2026-05-15 | AGPL-3.0-or-later |
+| `web4-core` | [PyPI](https://pypi.org/project/web4-core/) | **0.2.0** | 2026-05-15 | AGPL-3.0-or-later |
+| `web4-trust-core` | [crates.io](https://crates.io/crates/web4-trust-core) | **0.2.0** | 2026-05-15 | AGPL-3.0-or-later |
+| `web4-trust-core` | [npm](https://www.npmjs.com/package/web4-trust-core) | **0.2.0** | 2026-05-15 | AGPL-3.0-or-later |
+| `web4-trust` | [PyPI](https://pypi.org/project/web4-trust/) | **0.2.0** | 2026-05-15 | AGPL-3.0-or-later |
+| `web4-sdk` | [PyPI](https://pypi.org/project/web4-sdk/) | **0.27.0** | 2026-05-15 | AGPL-3.0-or-later |
 
-Git tag marking the v0.1.1 release: `v0.1.1`.
+Git tag marking the v0.2.0 release: `v0.2.0`.
 
-### v0.1.0 → v0.1.1 (same-day re-publish)
+### What's new in v0.2.0
 
-v0.1.0 was published earlier on 2026-04-28 and **yanked from crates.io the same day** after two defects were caught by clean-install verification:
+#### `web4-core` (Rust crate + Python bindings)
 
-1. **Python wheel import path broken**: the `web4_core` package directory shipped without `__init__.py`, so `import web4_core` returned an empty module and `web4_core.PyLct.new(...)` (the canonical README example) failed with `AttributeError`. Fixed in v0.1.1 by adding explicit re-exports of all PyO3 classes/functions.
-2. **Stale tensor docstring** in `web4-trust`'s top-level docstring described T3/V3 as "6-dimensional," contradicting the canonical 3-root + fractal RDF framing used everywhere else in the spec. Fixed in v0.1.1.
+Everything from v0.1.1, plus:
 
-Both defects were invisible to `cargo test`, `cargo publish --dry-run`, `maturin build --release`, and in-source doctests. They were only catchable by what a real user does: `pip install web4-core` in a fresh venv and run the README example. v0.1.0 PyPI artifacts remain installable (PyPI doesn't yank), but v0.1.1 is canonical; STATUS.md flags the gap.
+- **Society** — Self-governing collective type with law oracle, ledger, treasury, and society LCT
+- **SocietyRole** — Seven base-mandatory roles (Sovereign, LawOracle, PolicyEntity, Treasurer, Administrator, Archivist, Citizen) with three-tier taxonomy
+- **RoleAssignment** — Entity-to-role binding with assigner tracking and timestamps
+- **ATPAccount** — Conservation-invariant transfer with society-configurable fees and max_balance
+- **R6Action** — Base action grammar (Rules + Role + Request + Reference + Resource → Result)
+- **R7Action** — Reputation-tracking superset of R6 (adds Reputation as first-class output)
+- T3/V3 cross-language alignment: 38 tensor tests, all passing
 
-Released-along-with-process discipline note: clean-install verification in a fresh environment is now mandatory before any registry publish. See `feedback_pre_publish_clean_install_check.md` in the cross-machine memory.
+#### `web4-trust-core` (Rust crate + npm WASM bindings)
 
----
+Everything from v0.1.1, plus:
 
-## What's in `web4-core`
+- **WASM bindings** — first npm publish (~337KB). Browser-side Society, SocietyRole, RoleAssignment, ATPAccount, R7Action
+- 57 tests, all passing
+- Cross-language T3/V3 alignment verified
 
-The foundational primitives:
+#### `web4-sdk` (Python, high-level SDK)
 
-- **LCT (Linked Context Token)** — Non-transferable presence tokens with Ed25519 keypair binding, parent/child lineage, status tracking (Active / Dormant / Void / Slashed), and a 5-level hardware-binding ladder.
-- **T3 (Trust Tensor)** — 3 root dimensions (Talent / Training / Temperament). Each root is itself a fractal RDF sub-graph of context-specific sub-dimensions via `web4:subDimensionOf`. Observations accumulate; aggregate scores; decay over time.
-- **V3 (Value Tensor)** — 3 root dimensions (Valuation / Veracity / Validity). Same fractal pattern as T3.
-- **Coherence** — Multiplicative identity coherence `C × S × Φ × R` (Continuity × Stability × Phi × Reachability) with limiting-factor identification.
-- **Crypto** — Ed25519 sign/verify, SHA-256 hashing.
-- **Ledger** — Trait + two built-in backends:
-  - `InMemoryLedger` — for tests, prototyping, ephemeral runs
-  - `LocalLedger` — file-based JSON-lines hash chain. Persistent, tamper-evident, suitable for solo dev / team-scoped accountability / regulated environments.
+New package in the v0.2.0 family. Previously published on PyPI as `web4`; renamed to `web4-sdk` because the PyPI name `web4` is held by an unrelated dormant project (author Sahil Prasad, continual.ai, last release 0.0.1). The Python import path is unchanged — `from web4 import ...` works as before.
 
-LCTs anchor to a ledger via `lct.mint(&mut ledger)`. The ledger trait makes additional backends (e.g., `web4-act-client::ActLedger` for the ACT Cosmos chain) pluggable without changing user code.
+- 23 library modules (trust, lct, atp, federation, r6, mrh, acp, dictionary, entity, capability, errors, metabolic, binding, society, role, reputation, security, protocol, mcp, attestation, validation, deserialize, generate)
+- 369 exports via `web4/__init__.py`
+- 2,709 tests (2,701 passing, 8 xfailed conformance gaps)
+- Cross-society types: `CrossSocietyContext`, `ReputationEnvelope`, `MCPContextResource`
+- Conformance test runner: 35 operator-created vectors across 4 suites
+- `validate_minimum_viable()` for cross-language parity with Rust
+- 7 CLI subcommands: `web4 info/validate/list-schemas/roundtrip/generate/selftest/trust`
+- MCP server: 8 tools exposing SDK data operations + behavioral trust/reputation resolution
+- 3 behavioral functions: `evaluate_trust_query()`, `resolve_trust()`, `process_action_outcome()`
 
-Quick start (Rust):
+### Spec additions shipped with v0.2.0
 
-```rust
-use web4_core::{Lct, EntityType, InMemoryLedger, Ledger};
+- **Inter-society protocol** (`core-spec/inter-society-protocol.md`): society genesis, first-contact, ATP reification sovereignty, secession/dissolution
+- **Society roles** (`core-spec/society-roles.md`): three-tier role taxonomy with corporate analogues
+- **MCP protocol amendments** (`core-spec/mcp-protocol.md`): §7.3–§7.6 cross-society R6/R7 via MCP; §7.7 (WIP) referent-grounded exchange rates
 
-let (lct, keypair) = Lct::new(EntityType::Human, None);
-let mut ledger = InMemoryLedger::new();
-let receipt = lct.mint(&mut ledger).unwrap();
+### Test coverage (v0.2.0)
 
-let proof = ledger.anchor(lct.id).unwrap();
-assert!(ledger.verify_proof(&proof).unwrap());
-```
-
-Quick start (Python):
-
-```python
-import web4_core
-
-lct, keypair = web4_core.PyLct.new(web4_core.PyEntityType.Human, None)
-ledger = web4_core.PyInMemoryLedger()
-receipt = ledger.mint(lct)
-
-proof = ledger.anchor(lct.id)
-assert ledger.verify_proof(proof)
-```
+- `web4-core` (Rust): 52 unit tests + 4 doctests + 38 T3/V3 alignment tests, all passing
+- `web4-trust-core` (Rust): 57 tests, all passing
+- `web4-sdk` (Python): 2,709 tests (2,701 passing, 8 xfailed conformance gaps)
+- Conformance: 35 cross-language behavioral vectors across 4 suites (tensor ops, ATP, R6/R7, society/roles)
 
 ---
 
-## What's in `web4-trust-core`
+## What's NOT in this release (deferred to v0.3+)
 
-Trust persistence and witnessing primitives:
-
-- `EntityTrust` — composite T3 + V3 with witnessing relationships
-- `TrustStore` — persistent storage for entity trust; JSON format
-- Decay calculations (configurable)
-- Cross-language: Rust core, Python bindings via PyO3
-
-`web4-trust-core` is independent of `web4-core` (no cross-crate path dependency); both are foundational and composable.
-
----
-
-## Test coverage
-
-- `web4-core`: 52 unit tests + 4 doctests, all passing. mypy --strict clean for Python bindings.
-- `web4-trust-core`: 57 tests, all passing.
-
----
-
-## What's NOT in this release (deferred to v0.2+)
-
-- `ActLedger` — HTTP/REST client to ACT's Cosmos SDK chain. Will ship as a separate crate `web4-act-client` once stabilized. The `Ledger` trait in `web4-core` is the contract; backend implementations are pluggable.
-- Cross-platform Python wheels. v0.1.0 ships Linux x86_64 wheels (manylinux_2_34) plus a source distribution. Other platforms build from source (requires Rust toolchain). Cross-platform CI via `maturin-action` is planned for v0.2.
-- MRH (Markov Relevancy Horizon), ATP/ADP economics, MCP integration — these live in the broader `web4-standard/implementation/sdk/` Python codebase and may be packaged separately later.
+- `ActLedger` — HTTP/REST client to ACT's Cosmos SDK chain. The `Ledger` trait in `web4-core` is the contract; backend implementations are pluggable.
+- Cross-platform Python wheels — v0.2.0 ships Linux x86_64 wheels plus source distributions. Other platforms build from source (requires Rust toolchain).
+- Hardware binding demo — `AttestationEnvelope` spec and SDK types exist; actual TPM/FIDO2/Secure Enclave binding requires the Hardbound implementation (private repo).
+- Formal sybil-resistance proofs — empirical attack testing corpus (424+ vectors in `simulations/`) exists; formal proofs are intentionally deferred.
 
 ---
 
@@ -130,13 +117,36 @@ Implementations are covered by US Patents 11,477,027 and 12,278,913, and pending
 Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-`web4-core` and `web4-trust-core` cover **LCT + T3/V3** plus the ledger substrate that makes LCTs operationally meaningful. The remaining components:
+v0.2.0 coverage across the package family:
 
-| Component | Where it lives |
-|---|---|
-| **MCP** (I/O membrane) | [`web4-standard/implementation/sdk/web4/mcp_server.py`](../../web4-standard/implementation/sdk/web4/mcp_server.py) |
-| **RDF** (ontology backbone) | [`web4-standard/ontology/`](../../web4-standard/ontology/) (Turtle files) |
-| **MRH** (context scoping) | [`web4-standard/implementation/sdk/web4/mrh.py`](../../web4-standard/implementation/sdk/web4/mrh.py) |
-| **ATP/ADP** (energy economics) | [`web4-standard/implementation/sdk/web4/atp.py`](../../web4-standard/implementation/sdk/web4/atp.py) |
+| Component | Package(s) | Status |
+|---|---|---|
+| **LCT** (presence tokens) | `web4-core` (Rust + Python) | Published |
+| **T3/V3** (trust/value tensors) | `web4-core` + `web4-trust-core` (Rust + Python + WASM) | Published |
+| **ATP/ADP** (energy economics) | `web4-core` (ATPAccount) + `web4-sdk` (full lifecycle) | Published |
+| **MCP** (I/O membrane) | `web4-sdk` (MCP server, 8 tools) | Published (SDK) |
+| **RDF** (ontology backbone) | `web4-standard/ontology/` (Turtle files) | Spec only |
+| **MRH** (context scoping) | `web4-sdk` (MRHGraph, resolve_trust) | Published (SDK) |
 
-These are SDK-only today (Python, not yet packaged for PyPI). Future releases may consolidate or split as patterns emerge from real adoption.
+All equation components now have at least SDK-level implementations in published packages.
+
+---
+
+## Release History
+
+### v0.2.0 (2026-05-15)
+
+See above.
+
+### v0.1.1 (2026-04-28)
+
+The first public Web4 packages. Four packages across crates.io and PyPI (`web4-core`, `web4-trust-core`, `web4-trust`). Covered LCT + T3/V3 + Ledger primitives. Same-day re-publish from v0.1.0 after two defects caught by clean-install verification:
+
+1. **Python wheel import path broken**: `web4_core` shipped without `__init__.py`. Fixed in v0.1.1.
+2. **Stale tensor docstring**: described T3/V3 as "6-dimensional" vs canonical 3-root + fractal RDF. Fixed in v0.1.1.
+
+v0.1.0 was yanked from crates.io. Both defects were only catchable by clean-install verification in a fresh environment — now mandatory before any registry publish.
+
+### v0.1.0 (2026-04-27)
+
+Initial release. Yanked; see v0.1.1.
