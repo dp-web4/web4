@@ -255,3 +255,28 @@ Analogy precision and readability notes. Fix when convenient.
 ---
 
 *Audit classifies; it does not remediate. Downstream PRs consume this classification.*
+
+---
+
+## Remediation Status
+
+**Remediated by**: PR #215 (worker/web4-20260521-060015)
+**Date**: 2026-05-21
+
+| Finding | Status | Resolution |
+|---------|--------|------------|
+| H1 | RESOLVED | §4 renumbered §4.1–§4.7; `society-roles.md` §4.4→§4.6 ref updated |
+| H2 | RESOLVED | Header updated to v0.1.2; §9 "v0.1.0" reference generalized to "this draft" |
+| H3 | RESOLVED | `mcp-protocol.md` row added to §8 table |
+| M1 | RESOLVED | Line 72: §6→§7; Line 75: §4→§6 |
+| M2 | RESOLVED | All three RESOLVED items now read "RESOLVED — `mcp-protocol.md` v0.1.x" |
+| M3 | RESOLVED | `society-roles.md` row added to §8 table |
+| M4 | RESOLVED | Changed to "`LCT-linked-context-token.md` requires ≥3 birth witnesses" |
+| M5 | RESOLVED | Reference changed to cite schema + SDK paths |
+| L1 | RESOLVED | Eurozone parenthetical corrected (removed misleading Greece/Brexit examples) |
+| L2 | DEFERRED | Informational; Gesellian terminology is technically accurate, left as-is |
+| L3 | RESOLVED | Diplomat role reference added in §2.2 federation genesis |
+| L4 | RESOLVED | "birth certificates" → "mint constituent-society LCTs" (aligned with §2.1) |
+| L5 | RESOLVED | "ANCHORED" → "SHALL be … anchored" (proper RFC 2119 phrasing) |
+
+**12 of 13 findings resolved. 1 deferred (L2 — informational, no action needed).**

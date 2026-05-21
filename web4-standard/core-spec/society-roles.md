@@ -203,7 +203,7 @@ The following are commonly defined when needed. The list is illustrative, not ex
 
 **Function**: Neutral attester for transactions; signs ledger entries to provide independent confirmation.
 
-**Note**: At federation depth, Witness becomes structurally necessary even when optional at single-society level. See `inter-society-protocol.md` §4.4 for inter-society witnessing.
+**Note**: At federation depth, Witness becomes structurally necessary even when optional at single-society level. See `inter-society-protocol.md` §4.6 for inter-society witnessing.
 
 **Example filling entities**: Human, AI, Society (a witness-services society), Oracle (specialized for witnessing)
 
