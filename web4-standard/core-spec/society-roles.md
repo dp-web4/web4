@@ -12,6 +12,10 @@ This specification enumerates the **roles** a Web4-compliant society MUST or MAY
 
 The complementary structure is symmetric: `entity-types.md` lists entity types with example roles each can fill; this document lists roles with example entities each can be filled by. The two documents together specify the role↔entity mapping that defines Web4 society structure.
 
+## Notation
+
+Key words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY in this document are to be interpreted as described in RFC 2119.
+
 ## 1. Three Tiers of Roles
 
 ### 1.1 Base-mandatory
@@ -27,10 +31,12 @@ Roles that become mandatory based on the society's **outward-facing role** in th
 - Society acts as **Banker** in fractal society → MUST have Auditor + Recovery-Authority internally
 - Society acts as **Notary / Witness-Service** → MUST have Witness internally
 - Society acts as **Court / Arbitration-Service** → MUST have Mediator + Auditor
-- Society acts as **Diplomat-Federation** → MUST have Diplomat role
+- Society acts as **Federation-Member** → MUST have Diplomat role
 - Society acts as **Standards-Body** → MUST have Auditor + Validator
 - Society acts as **Cooperative** → MUST have Membership-Authority + Governance-Council
 - Society acts as **Custodian-of-Records** → MUST have Archivist with redundancy + Auditor
+
+See §3 for the full illustrative table of context-mandatory mappings.
 
 Context-mandatory roles are determined by the society's claimed outward role plus the auditing standards of the societies it interacts with. A society claiming to act as Banker but lacking Recovery-Authority would be downgraded in T3 trust by other societies that audit the role.
 
@@ -97,7 +103,7 @@ Every Web4-compliant society MUST have these seven roles filled. A single entity
 **Example filling entities**: Policy (entity type, IRP-backed evaluation), AI (LLM-as-policy-evaluator), Human (manual approver for high-stakes), Society (compliance department as society), Hybrid (Human-with-AI-advisor)
 
 **Notes**:
-- This is the role hardbound's `src/core/policy-entity.ts` realizes operationally
+- This is the per-action policy evaluation function that enterprise implementations realize operationally
 - A society MAY have multiple Policy-Entities at different MRH scopes (Compliance-Officer-for-Finance, Compliance-Officer-for-HR, etc.); the parent Policy-Entity delegates per scope
 - Distinct from Law Oracle for performance, accountability, and architectural separation
 
@@ -327,6 +333,7 @@ For Web4 specifically, this enables:
 A single human entity in a solo society can hold:
 - Citizen role (base membership)
 - Sovereign role (charter authority)
+- Law Oracle role (law publishing; possibly minimal — one foundational law per charter)
 - Treasurer role (ATP ops)
 - Administrator role (execution)
 - Archivist role (ledger writes)
@@ -348,7 +355,7 @@ Other societies audit the role structure to establish and maintain trust. The au
 
 1. **Are all base-mandatory roles filled?** — A society missing any base-mandatory role is non-operational.
 2. **Are the right context-mandatory roles filled for the society's claimed outward role?** — A self-described Banker without Auditor + Recovery-Authority is making claims it can't structurally back.
-3. **Are role-LCT pairings current and witnessed?** — Stale pairings (filling entity left but role-LCT still binds to them) are an audit failure.
+3. **Are role-LCT pairings current and witnessed?** (per `LCT-linked-context-token.md` witnessing requirements) — Stale pairings (filling entity left but role-LCT still binds to them) are an audit failure.
 4. **Are roles' actions consistent with their authority scope?** — A Treasurer making policy decisions, or a Policy-Entity making charter amendments, indicates role-confusion.
 5. **For societies with optional roles defined**: do the role's operations match the charter's description of the role's authority?
 
@@ -360,7 +367,9 @@ T3 trust scores for the society as a whole (in inter-society contexts) are deriv
 |---|---|
 | `SOCIETY_SPECIFICATION.md` | Specifies structural requirements (Law Oracle, Ledger, Treasury, Society LCT); this spec specifies the roles that operate on those structures |
 | `entity-types.md` | Lists entity types with example roles each can fill; this spec lists roles with example entities each can be filled by (the symmetric dual) |
-| `inter-society-protocol.md` | Inter-society interactions reference the Diplomat role; cross-society R7 actions reference the Witness role |
+| `inter-society-protocol.md` | Inter-society interactions reference the Diplomat role (§2.2 federation genesis). This spec's §6.2 defines semantic viability criteria that constrain role composition. ATP measurement witnessing (§4.6) involves the Witness role at the resource attestation layer. Bidirectional dependency. |
+| `mcp-protocol.md` | MCP actions consume the role taxonomy directly: Policy-Entity signs action decisions (§7.4), Witness co-signs high-consequence actions (§7.5), Archivist persists audit bundles (§7.5), Treasurer negotiates exchange rates (§7.7). |
+| `web4-society-authority-law.md` | The SAL spec defines Citizen, Authority, Law Oracle, Witness, and Auditor from the Society–Authority–Law perspective with detailed normative requirements (birth certificates, delegation chains, ledger interfaces, audit transcripts). This spec provides the role taxonomy; SAL provides the operational protocol for a subset of those roles. |
 | `r6-framework.md` | R6 actions are dispatched through Administrator, evaluated by Policy-Entity, witnessed by Witness, recorded by Archivist |
 | `r7-framework.md` | R7 actions add Reputation back-propagation through the same role chain |
 | `LCT-linked-context-token.md` | Each role has its own role-LCT; filling entities are paired with the role-LCT |
