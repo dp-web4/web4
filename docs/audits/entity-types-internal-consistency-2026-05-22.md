@@ -17,6 +17,8 @@
 | LOW | 3 | L1, L2, L3 |
 | **Total** | **10** | |
 
+**Remediation status (2026-05-22)**: 9 of 10 findings remediated in `entity-types.md` (H1, H2, H3, M1, M2, M3, M4, L1, L2). **L3 deferred** — the §11↔§3.1 redundancy resolution is a content *merge* (restructuring), not a structural-consistency fix; this memo flags it as "optional — can defer" and it is left for a separate content-consolidation pass. This 9/10 outcome mirrors the C6 (12/13) deferral pattern.
+
 The document has significant **section numbering corruption** in the §3–§5 range: duplicate section numbers, heading-level inconsistencies, and a numbering collision that makes two different sections share the same §4.2/§4.3 and §5/§5.1 addresses. The content itself is sound and aligns with the SDK, but the structural issues make the document ambiguous to reference.
 
 ---
@@ -247,4 +249,4 @@ All three HIGH findings are aspects of a single problem: section numbering corru
 | C5 | presence-protocol.md | 13 (2H, 6M, 5L) | PRs #206, #207, #208, #209 |
 | C6 | inter-society-protocol.md | 13 (3H, 5M, 5L) | PR #215 (12/13) |
 | C7 | society-roles.md | 9 (1H, 4M, 4L) | PR #217 |
-| **C8** | **entity-types.md** | **10 (3H, 4M, 3L)** | **Pending** |
+| **C8** | **entity-types.md** | **10 (3H, 4M, 3L)** | **This PR (9/10; L3 deferred)** |

@@ -2,6 +2,10 @@
 
 This document defines the complete taxonomy of entity types in Web4 and their behavioral characteristics. Every entity in Web4 has an LCT (Linked Context Token) that serves as its verifiable footprint in the digital realm.
 
+## Notation
+
+The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**, **SHOULD NOT**, **RECOMMENDED**, **MAY**, and **OPTIONAL** in this document are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) when, and only when, they appear in all capitals, as shown here.
+
 ## 1. Core Concept: Entities with Presence
 
 In Web4, an **entity** is anything that can manifest presence—anything that can be paired with an LCT. This revolutionary expansion moves beyond traditional notions of users or accounts to recognize that many things have presence and agency in the information age.
@@ -162,7 +166,7 @@ Traditional roles are static job descriptions. In Web4, a role becomes a living 
 - **Maintains** reputation based on past performance
 - **Evolves** based on changing needs and patterns
 
-### 3.2 Role LCT Structure
+### 3.3 Role LCT Structure
 
 Each Role LCT contains:
 
@@ -206,7 +210,7 @@ Each Role LCT contains:
 }
 ```
 
-### 3.3 Role Hierarchy: From Citizen to Specialist
+### 3.4 Role Hierarchy: From Citizen to Specialist
 
 #### Role Evolution Path
 Entities typically progress through role hierarchies:
@@ -235,7 +239,7 @@ This creates a transparent, reputation-based labor market where:
 - Agents with proven performance access better roles
 - Performance history is verifiable and portable
 
-## 3.4 Example Roles per Entity Type
+### 3.5 Example Roles per Entity Type
 
 The companion `society-roles.md` specification enumerates society roles (base-mandatory, context-mandatory, optional) with example entities for each. This subsection provides the symmetric dual: for each primary entity type, example roles that entity type can fill. The mapping is illustrative — any entity type that meets a role's behavioral requirements MAY fill that role.
 
@@ -245,7 +249,7 @@ The companion `society-roles.md` specification enumerates society roles (base-ma
 | **AI** | Policy-Entity, Treasurer, Administrator, Archivist, Validator, Witness, Auditor, Mediator, Architect, Oracle, Dictionary, Agent |
 | **Society** | Sovereign (in federation), Law Oracle (specialized law-publishing society), Treasurer (a treasury-services society), Witness (a witness-services society), Mediator (an arbitration society), Governance-Council, Recovery-Authority |
 | **Organization** | Sovereign, Treasurer, Administrator, Membership-Authority, Governance-Council, Auditor, Steward |
-| **Role** | (Role itself is an entity type; roles are first-class. Roles fill roles in a degenerate sense — see §3 below.) |
+| **Role** | (Role itself is an entity type; roles are first-class. Roles fill roles in a degenerate sense — see §3.2, "The Role Revolution," above.) |
 | **Task** | (Tasks are work units, not role-fillers; they are operated on by roles, not held by them.) |
 | **Resource** | (Resources are operated on by roles; do not fill roles themselves.) |
 | **Device** | Validator (hardware-attested), Oracle (sensor-based), Recovery-Authority (TPM-bound recovery), Witness (attestation device) |
@@ -259,7 +263,7 @@ The companion `society-roles.md` specification enumerates society roles (base-ma
 
 Where an entity type appears for multiple roles, the choice of which role to use it for is per-society design. A single Human entity might fill Sovereign + Treasurer + Archivist simultaneously in a small society, with separate role-LCT pairings making the accountability explicit per role.
 
-For the role-LCT pairing mechanics see `LCT-linked-context-token.md`; for the full role taxonomy with audit implications see `society-roles.md`.
+For the role-LCT pairing mechanics see §3.4, "Role-Agent Pairing," above; for the LCT structures these pairings reference see `LCT-linked-context-token.md`; for the full role taxonomy with audit implications see `society-roles.md`.
 
 ## 4. SAL-Specific Roles
 
@@ -301,22 +305,6 @@ Invokable role with special powers:
 - Adjustments written to immutable ledger with witness quorum
 - Can validate agency delegations and their execution
 
-### 4.6 Agent Role (AGY)
-Specialized role for delegated authority:
-- Acts on behalf of a Client entity within scoped constraints
-- Requires proof-of-agency for all actions
-- Cannot impersonate Client unless explicitly allowed
-- Accrues own T3/V3 for execution quality
-- Bound by grant scope, caps, and temporal limits
-
-### 4.7 Client Role (AGY)
-Principal entity in agency delegation:
-- Delegates authority to Agent entities
-- Defines scope, caps, and constraints for delegation
-- Can revoke grants immediately
-- Shares reduced/indirect liability per law policy
-- Maintains ultimate responsibility for delegated actions
-
 #### Auditor Adjustment Policy
 ```json
 {
@@ -333,6 +321,22 @@ Principal entity in agency delegation:
   "appealPath": "defined_by_law"
 }
 ```
+
+### 4.6 Agent Role (AGY)
+Specialized role for delegated authority:
+- Acts on behalf of a Client entity within scoped constraints
+- Requires proof-of-agency for all actions
+- Cannot impersonate Client unless explicitly allowed
+- Accrues own T3/V3 for execution quality
+- Bound by grant scope, caps, and temporal limits
+
+### 4.7 Client Role (AGY)
+Principal entity in agency delegation:
+- Delegates authority to Agent entities
+- Defines scope, caps, and constraints for delegation
+- Can revoke grants immediately
+- Shares reduced/indirect liability per law policy
+- Maintains ultimate responsibility for delegated actions
 
 #### Agency Grant Structure (AGY)
 ```json
@@ -412,13 +416,13 @@ def create_entity_with_birth_certificate(entity_type, context, parent=None):
         "timestamp": birth_cert["birth_timestamp"]
     })
     
-    # Record in blockchain
+    # Record in immutable ledger
     record_birth_certificate(birth_cert)
     
     return entity_lct, birth_cert
 ```
 
-### 4.2 Entity Evolution
+### 5.2 Entity Evolution
 
 Throughout its existence:
 
@@ -427,7 +431,7 @@ Throughout its existence:
 - **Context Expansion**: MRH grows as entity engages with others
 - **Role Performance**: For agents, building history across multiple roles
 
-### 4.3 Entity Termination
+### 5.3 Entity Termination
 
 When an entity ceases to exist:
 
@@ -436,9 +440,9 @@ When an entity ceases to exist:
 - **Historical Preservation**: Past interactions remain in ledger
 - **Reputation Finalization**: Final state preserved for reference
 
-## 5. Entity Interactions
+## 6. Entity Interactions
 
-### 5.1 Valid Interaction Patterns
+### 6.1 Valid Interaction Patterns
 
 Not all entity types can interact in all ways:
 
@@ -449,7 +453,7 @@ Not all entity types can interact in all ways:
 | **Witnessing** | Any → Any | Oracle → Task, AI → Human |
 | **Delegation** | Delegative → Agentic | Role → Human, Organization → AI |
 
-### 5.2 Role-Specific Interactions
+### 6.2 Role-Specific Interactions
 
 Roles have unique interaction patterns:
 
@@ -467,16 +471,16 @@ Roles have unique interaction patterns:
 - **Cannot**: Act autonomously without a paired agent
 - **Require**: Citizen role as prerequisite
 
-## 6. Implementation Requirements
+## 7. Implementation Requirements
 
-### 6.1 Entity Type Validation
+### 7.1 Entity Type Validation
 
 Implementations MUST:
 - Validate entity type at LCT creation
 - Enforce interaction rules based on entity types
 - Prevent invalid mode behaviors (e.g., responsive entity initiating)
 
-### 6.2 Role Management
+### 7.2 Role Management
 
 Implementations MUST:
 - Support role LCTs as first-class entities
@@ -487,7 +491,7 @@ Implementations MUST:
 - Calculate reputation impacts for both role and agent
 - Verify citizen role exists before other role assignments
 
-### 6.3 Entity Discovery
+### 7.3 Entity Discovery
 
 Implementations SHOULD:
 - Provide entity type filtering in discovery
@@ -495,16 +499,16 @@ Implementations SHOULD:
 - Enable reputation-based sorting
 - Facilitate capability-requirement matching
 
-## 7. Security Considerations
+## 8. Security Considerations
 
-### 7.1 Entity Type Immutability
+### 8.1 Entity Type Immutability
 
 Once declared, an entity's type MUST NOT change. This prevents:
 - Privilege escalation through type mutation
 - Bypassing interaction restrictions
 - Reputation gaming through type switching
 
-### 7.2 Role Authority Limits
+### 8.2 Role Authority Limits
 
 Role permissions MUST be:
 - Clearly scoped and bounded
@@ -512,16 +516,16 @@ Role permissions MUST be:
 - Tracked in all delegated actions
 - Limited by parent entity permissions
 
-## 8. Privacy Considerations
+## 9. Privacy Considerations
 
 - Entity types themselves are public
 - Role definitions are public to enable matching
 - Performance histories may be selectively disclosed
 - Agent-role pairings visible only to relevant parties
 
-## 9. Specialized Entity: Dictionary
+## 10. Specialized Entity: Dictionary
 
-### 9.1 Dictionary Role
+### 10.1 Dictionary Role
 Dictionaries are first-class entities that serve as living semantic bridges:
 
 - **Translate** between domains, models, and cultures
@@ -530,7 +534,7 @@ Dictionaries are first-class entities that serve as living semantic bridges:
 - **Build** reputation through successful translations
 - **Track** confidence and semantic degradation
 
-### 9.2 Dictionary LCT Structure
+### 10.2 Dictionary LCT Structure
 ```json
 {
   "entity_type": "dictionary",
@@ -564,7 +568,7 @@ Dictionaries are first-class entities that serve as living semantic bridges:
 }
 ```
 
-### 9.3 Dictionary Trust Building
+### 10.3 Dictionary Trust Building
 Dictionaries earn trust through:
 - Translation accuracy and consistency
 - Successful witness attestations
@@ -572,7 +576,7 @@ Dictionaries earn trust through:
 - Low semantic degradation rates
 - Handling of edge cases and ambiguity
 
-### 9.4 Compression-Trust Principle
+### 10.4 Compression-Trust Principle
 **All meaningful communication is compression plus trust across shared or sufficiently aligned latent fields.**
 
 Dictionaries manage this by:
@@ -583,9 +587,9 @@ Dictionaries manage this by:
 
 For complete specification, see [dictionary-entities.md](dictionary-entities.md).
 
-## 10. Specialized Entity: Accumulators
+## 11. Specialized Entity: Accumulators
 
-### 10.1 Accumulator Role
+### 11.1 Accumulator Role
 Accumulators are specialized responsive entities that provide passive witnessing services:
 
 - **Listen** to public broadcasts without acknowledgment
@@ -593,7 +597,7 @@ Accumulators are specialized responsive entities that provide passive witnessing
 - **Index** by broadcaster, type, timestamp
 - **Query** interface for presence validation
 
-### 10.2 Accumulator LCT Structure
+### 11.2 Accumulator LCT Structure
 ```json
 {
   "entity_type": "accumulator",
@@ -613,16 +617,16 @@ Accumulators are specialized responsive entities that provide passive witnessing
 }
 ```
 
-### 10.3 Accumulator Trust
+### 11.3 Accumulator Trust
 Accumulator reliability measured by:
 - Uptime and availability
 - Query response accuracy
 - Storage commitment honoring
 - Non-selective recording (no censorship)
 
-## 11. Citizen Role Examples
+## 12. Citizen Role Examples
 
-### 11.1 Context-Specific Citizens
+### 12.1 Context-Specific Citizens
 
 Different contexts define different citizen roles:
 
@@ -634,7 +638,7 @@ Different contexts define different citizen roles:
 | Organization | Member Citizen | Participate, propose | Contribute, uphold values |
 | Ecosystem | Ecosystem Citizen | Use resources | Sustain balance |
 
-### 11.2 Birth Certificate as Proof of Origin
+### 12.2 Birth Certificate as Proof of Origin
 
 The birth certificate provides:
 - **Provenance**: Where and when entity originated
@@ -643,9 +647,9 @@ The birth certificate provides:
 - **Inheritance**: Rights/responsibilities from parent
 - **Witnesses**: Who validated the birth
 
-## 12. Specialized Entity: Policy
+## 13. Specialized Entity: Policy
 
-### 12.1 Policy Role
+### 13.1 Policy Role
 Policy entities are first-class participants in the trust network that represent governance rules with their own LCT, witnessing history, and hash-tracked versioning:
 
 - **Evaluate** proposed actions against configurable rule sets
@@ -654,7 +658,7 @@ Policy entities are first-class participants in the trust network that represent
 - **Build** trust through evaluation accuracy and convergence quality
 - **Integrate** with SAGE's IRP plugin architecture via PolicyGate
 
-### 12.2 Policy Entity Characteristics
+### 13.2 Policy Entity Characteristics
 
 | Property | Value |
 |----------|-------|
@@ -663,7 +667,7 @@ Policy entities are first-class participants in the trust network that represent
 | LCT Format | `policy:<name>:<version>:<hash>` |
 | Immutability | Policy config is immutable once registered; updates create new entities |
 
-### 12.3 PolicyGate: IRP-Backed Evaluation
+### 13.3 PolicyGate: IRP-Backed Evaluation
 
 When integrated with SAGE's IRP stack, PolicyEntity gains a runtime implementation (PolicyGate) that follows the IRP contract:
 
@@ -673,7 +677,7 @@ When integrated with SAGE's IRP stack, PolicyEntity gains a runtime implementati
 - **ATP budgeting**: Policy evaluation participates in metabolic resource allocation
 - **Fractal self-similarity**: PolicyEntity is itself a specialized SAGE stack — a "plugin of plugins." The IRP contract operates at three nested scales (consciousness loop → policy evaluation → LLM advisory), validating the abstraction as scale-invariant
 
-### 12.4 Accountability Frames
+### 13.4 Accountability Frames
 
 Policy evaluation includes an accountability frame reflecting the agent's metabolic context:
 
@@ -685,7 +689,7 @@ Policy evaluation includes an accountability frame reflecting the agent's metabo
 
 CRISIS mode changes the **accountability equation**, not policy strictness. Both freeze (halt effectors) and fight (proceed with best action) are valid responses under duress. The audit trail records the duress context alongside the decision.
 
-### 12.5 Policy Trust Building
+### 13.5 Policy Trust Building
 
 Policy entities earn trust through:
 - Evaluation consistency and accuracy
@@ -696,7 +700,7 @@ Policy entities earn trust through:
 
 For implementation details, see the design decision: `docs/history/design_decisions/POLICY-ENTITY-REPOSITIONING.md`
 
-## 13. Future Extensions
+## 14. Future Extensions
 
 Potential entity types under consideration:
 - **Contract**: Smart contracts as entities
