@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-05-21
+**Last Updated**: 2026-05-22
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,17 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-22: Publisher Maintenance - No-Change Check (C7/C8 audits complete the May-2026 spec audit sweep; no whitepaper relevance)
+- Three commits since the 2026-05-21 no-change check (#214, 088a0d6), all the same C-series internal-consistency audit/remediation stream, **none touching `whitepaper/sections/*`**:
+  - **#216 (0f61eab, 2026-05-21) — C7 society-roles.md internal-consistency audit** (`docs/audits/society-roles-internal-consistency-2026-05-21.md`): 9 findings (1 HIGH / 4 MEDIUM / 4 LOW), all structural/editorial (Law Oracle omitted from §5.1 solo-founder example, §7 relationship table gaps, private-repo reference, missing RFC 2119 notation, terminology drift). Analysis-only artifact; same instrument as C2/C5/C6. No whitepaper relevance.
+  - **#217 (d7ba168, 2026-05-21) — fix(spec): resolve all 9 C7 findings in society-roles.md.** Touches only `web4-standard/core-spec/society-roles.md` (13 insertions / 4 deletions): added Law Oracle to the solo-founder multi-hat example, added mcp-protocol.md + web4-society-authority-law.md rows to the §7 table, removed an incorrect R7-Witness attribution, added RFC 2119 notation, standardized "Diplomat-Federation" → "Federation-Member". All editorial remediation of a spec doc; Society/SocietyRole are already represented in the whitepaper via the v0.2.0 family integration (2026-05-15). No whitepaper integration warranted.
+  - **#218 (659fa53, 2026-05-22) — C8 entity-types.md internal-consistency audit** (`docs/audits/entity-types-internal-consistency-2026-05-22.md`): 10 findings (3 HIGH section-numbering corruption — duplicate §3.2, duplicate §5/§5.1, §4.2/§4.3 collision; 4 MEDIUM; 3 LOW). SDK alignment verified as full compliance. **Remediation explicitly deferred to a follow-up session** per the audit-then-remediate pattern. Analysis-only artifact; no whitepaper relevance. New watch item: C8 entity-types.md remediation pending.
+- **C7+C8 complete the internal-consistency audit coverage of all new May-2026 specs** (C2: mcp-protocol.md, C5: presence-protocol.md, C6: inter-society-protocol.md, C7: society-roles.md, C8: entity-types.md). The corpus is now in a remediation-of-known-findings phase rather than discovery.
+- **No source section changes since the 2026-05-19 build.** Verified: no commits touch `whitepaper/sections/*` since 42e3e47 (2026-05-19); `build/WEB4_Whitepaper_Complete.md` and `docs/whitepaper-web/WEB4_Whitepaper_Complete.md` both 254811 bytes, dated 2026-05-19, identical, aligned with current source. No rebuild needed.
+- **Live whitepaper sections verified clean of canonical-term drift** — grep for the documented wrong expansions across live `sections/*` (excluding archive) returns zero hits.
+- Remaining watch items carry forward: presence-protocol DEFER (inward MCP, still evolving); §7.7 promotion gate (Normative + 2 implementations); inter-society-protocol Part 6/Part 8 body integration (gated on C6 editorial remediation); v0.28.0 → PyPI integration trigger; Sprint 52 conformance gaps (5 operator-architectural decisions); **C8 entity-types.md remediation pending (new)**.
+- Surface instinct: seven consecutive web4 passes (2026-05-15 → 2026-05-22) on SDK/conformance/audit/release-record discipline with zero whitepaper-body integration. The C-series sweep (C2→C8) is the spec corpus systematically earning internal consistency before whitepaper promotion — a healthy, deliberate quiet period, not stagnation. The audit instrument is now turning from *discovery* (each new May spec has now been audited once) toward *remediation* (C7 fixed same-day; C8 deferred). The next genuine integration trigger is unchanged: a registry publish (v0.28.0 → PyPI) or §7.7 reaching Normative. Hold.
 
 ### 2026-05-21: Publisher Maintenance - No-Change Check (PUBLISHED.md v0.2.0 watch item RESOLVED; C6 audit no whitepaper relevance)
 - One commit since the 2026-05-20 no-change check (71f3a74): **#214 (088a0d6, 2026-05-21) — C6 inter-society-protocol audit + PUBLISHED.md v0.2.0 refresh.** Two parts, neither touching `whitepaper/sections/*`:
