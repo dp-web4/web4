@@ -8,6 +8,10 @@
 
 The Linked Context Token (LCT) is Web4's foundational presence primitive. An LCT is a verifiable digital presence certificate that binds an entity to its context through witnessed relationships. Unlike traditional identity tokens that assert "who you are," LCTs establish "where you exist" - your position in the web of trust and context.
 
+## Notation
+
+Key words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY in this document are to be interpreted as described in RFC 2119.
+
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -21,7 +25,7 @@ LCTs solve the fundamental problem of contextual presence in distributed systems
 
 ### 1.2 Terminology
 
-- **Entity**: Any participant in Web4 (human, AI, device, service, role, task, resource, oracle, accumulator, dictionary)
+- **Entity**: Any participant in Web4 (human, AI, society, organization, role, task, resource, device, service, oracle, accumulator, dictionary, hybrid, policy, infrastructure — see `entity-types.md` §2.1 for the canonical 15-type taxonomy)
 - **Binding**: Permanent, verifiable cryptographic link between entity and LCT
 - **Pairing**: Authorized operational relationship between entities
 - **Witnessing**: Trust-building observation by other entities
@@ -59,7 +63,7 @@ LCTs MAY contain:
   "subject": "did:web4:key:z6Mk...",
 
   "binding": {
-    "entity_type": "human|ai|organization|role|task|resource|device|service|oracle|accumulator|dictionary|hybrid",
+    "entity_type": "human|ai|society|organization|role|task|resource|device|service|oracle|accumulator|dictionary|hybrid|policy|infrastructure",
     "public_key": "mb64:coseKey",
     "hardware_anchor": "eat:mb64:hw:...",
     "created_at": "2025-10-01T00:00:00Z",
@@ -219,7 +223,7 @@ In absence of existing society, entities MAY create self-issued LCTs:
 2. Create binding with hardware anchor (if available)
 3. Self-sign binding_proof
 4. Initialize empty MRH
-5. Set birth_certificate.issuing_society = null
+5. Omit `birth_certificate` section (self-issued LCTs are Regular LCTs per §4.3)
 6. Publish with low initial T3 scores
 ```
 
@@ -274,7 +278,8 @@ For an LCT to serve as a birth certificate, it MUST:
    - `citizen_role`: LCT of the role this entity inhabits
    - `birth_witnesses`: Array of ≥3 witness LCTs
    - `birth_timestamp`: ISO 8601 timestamp
-   - `genesis_block_hash`: Blockchain anchor (if applicable)
+   - `birth_context`: Society type classification — one of `nation`, `platform`, `network`, `organization`, `ecosystem` (RECOMMENDED)
+   - `genesis_block_hash`: Blockchain anchor for temporal proof (RECOMMENDED; omit if no blockchain anchor is available)
 
 2. **Have permanent citizen pairing** in `mrh.paired`:
    ```json
@@ -310,20 +315,20 @@ The MRH defines the **context boundary** for an entity - the set of all entities
 
 ### 5.2 Relationship Types
 
-#### Binding Relationships (`mrh.bound`)
+#### 5.2.1 Binding Relationships (`mrh.bound`)
 - **Purpose**: Permanent hierarchical attachments
 - **Type**: `parent`, `child`, `sibling`
 - **Example**: Device LCT bound to hardware anchor LCT
 - **Trust Flow**: Bidirectional, strong
 
-#### Pairing Relationships (`mrh.paired`)
+#### 5.2.2 Pairing Relationships (`mrh.paired`)
 - **Purpose**: Authorized operational connections
 - **Type**: `birth_certificate`, `role`, `operational`
 - **Example**: Entity paired with citizen role
 - **Trust Flow**: Bidirectional, context-specific
 - **Permanence**: Birth certificate pairings are permanent
 
-#### Witnessing Relationships (`mrh.witnessing`)
+#### 5.2.3 Witnessing Relationships (`mrh.witnessing`)
 - **Purpose**: Trust accumulation through observation
 - **Roles**: `time`, `audit`, `oracle`, `existence`, `action`, `state`, `quality`
 - **Example**: Time oracle witnessing entity's actions
@@ -545,7 +550,7 @@ LCTs are governed by SAL:
 ### 10.3 LCT and ATP/ADP
 
 LCTs track energy economics:
-- **V3 tensor**: Contains energy_balance dimension
+- **V3 tensor**: ATP/ADP balance MAY be tracked via a context-specific `energy_balance` sub-dimension (see `lct-capability-levels.md`)
 - **Transactions**: Recorded in society's energy cycle ledger
 - **Metering**: Capabilities consume ATP
 
@@ -577,7 +582,10 @@ def validate_lct(lct):
     # Birth certificate validation
     if "birth_certificate" in lct:
         assert len(lct["birth_certificate"]["birth_witnesses"]) >= 3
-        assert "citizen_role" in lct["mrh"]["paired"]
+        assert any(
+            p["pairing_type"] == "birth_certificate" and p["permanent"]
+            for p in lct["mrh"]["paired"]
+        )
 
     # Tensor validation
     validate_t3_tensor(lct["t3_tensor"])
